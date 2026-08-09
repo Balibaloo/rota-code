@@ -118,3 +118,27 @@ def test_no_legacy_vocabulary_in_the_ui():
             if re.search(r"blast radius|>inhabit<|inhabiting", line, re.I):
                 seen.append(f"{path.name}: {stripped[:80]}")
     assert not seen, "\n".join(seen)
+
+
+def test_no_module_computes_its_own_location():
+    """
+    Ten modules each derived their location from `__file__` — usually `parent`,
+    once `parents[2]`. That works until something moves, and then fails
+    *silently*: a path built from the wrong number of `parents` still resolves,
+    it just points somewhere empty, so the schema loads blank or a prompt
+    directory reads as a role with no modes.
+
+    `rota/paths.py` is the one anchor. It is the only file allowed to ask where
+    it is.
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "rota"
+    offenders = []
+    for py in sorted(root.rglob("*.py")):
+        if py.name == "paths.py" or "__pycache__" in py.parts:
+            continue
+        if re.search(r"__file__", py.read_text(encoding="utf-8")):
+            offenders.append(str(py.relative_to(root)))
+    assert not offenders, f"computing their own location: {offenders}"

@@ -24,7 +24,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-DESIGN = Path(__file__).resolve().parents[1] / "design"
+from .. import paths
+
+DESIGN = paths.DESIGN
 GRAPH = DESIGN / "graph.json"
 LAYOUT = DESIGN / "layout.json"
 

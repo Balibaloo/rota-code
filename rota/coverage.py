@@ -30,13 +30,15 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import paths
+
 from . import graph as graph_mod
 from .db import ARTEFACT_OF_TABLE
 
 # Written by any process running sessions; read by the coverage test. A file
 # rather than a table because it spans test processes (pytest-xdist included).
 COVERAGE_FILE = Path(
-    os.environ.get("ROTA_COVERAGE", Path(__file__).resolve().parents[1] / ".rota-coverage.json")
+    os.environ.get("ROTA_COVERAGE", paths.COVERAGE_FILE)
 )
 
 

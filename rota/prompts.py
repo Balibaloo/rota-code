@@ -23,7 +23,9 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
+from . import paths
+
+PROMPT_DIR = paths.PROMPTS
 
 
 class MissingPrompt(FileNotFoundError):

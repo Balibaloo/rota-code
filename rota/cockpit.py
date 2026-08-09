@@ -24,6 +24,8 @@ import sqlite3
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+from . import paths
 from urllib.parse import parse_qs, urlparse
 
 from . import graph as graph_mod, prompts as prompts_mod
@@ -39,9 +41,9 @@ from .scheduler import (
     TICKS, is_quiescent, open_tips, predicate_wakes, tick_agenda,
 )
 
-HERE = Path(__file__).resolve().parent
-VIEWER = HERE / "viewer.html"
-STATIC = HERE / "static"
+HERE = paths.PACKAGE
+VIEWER = paths.VIEWER
+STATIC = paths.STATIC
 
 
 def snapshot(conn: sqlite3.Connection) -> dict:
@@ -149,7 +151,7 @@ def source_fingerprint() -> str:
     import hashlib
 
     h = hashlib.sha256()
-    roots = [HERE / "prompts", graph_mod.DESIGN_DIR, HERE]
+    roots = [paths.PROMPTS, paths.DESIGN, paths.PACKAGE]
     for root in roots:
         if not root.exists():
             continue
@@ -381,7 +383,7 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
     """
     from watchfiles import run_process
 
-    watch = [Path(__file__).parent]
+    watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
     run_process(*watch, target=serve, args=(project_root, port, open_browser),
                 callback=lambda changes: print(

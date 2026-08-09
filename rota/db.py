@@ -22,9 +22,11 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from . import paths
 from typing import Any, Iterator
 
-SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+SCHEMA_PATH = paths.SCHEMA
 
 # Which tables back which graph artefact.
 #

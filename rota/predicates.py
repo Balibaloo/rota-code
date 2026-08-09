@@ -25,11 +25,13 @@ import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from . import paths
 from typing import Callable
 
 from .scheduler import Wake
 
-SCHEMA = Path(__file__).resolve().parent / "schema.sql"
+SCHEMA = paths.SCHEMA
 
 
 # What a predicate does when it fires. `wakes` was a role id or the empty string,

@@ -23,9 +23,11 @@ import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+
+from . import paths
 from typing import Iterable, Literal
 
-DESIGN_DIR = Path(__file__).resolve().parent / "design"
+DESIGN_DIR = paths.DESIGN
 
 EdgeType = Literal["reads", "writes", "messages", "refs"]
 

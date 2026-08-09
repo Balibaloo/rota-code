@@ -37,11 +37,13 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-ROTA = ROOT / "rota"
-DESIGN = ROTA / "design"
-PROMPTS = ROTA / "prompts"
-DOCS = ROOT / "rota_tui"
+from .. import paths
+
+ROOT = paths.REPO
+ROTA = paths.PACKAGE
+DESIGN = paths.DESIGN
+PROMPTS = paths.PROMPTS
+DOCS = paths.DOCS
 
 # The top level is *declared*, not harvested: these are the concepts the whole
 # thing rests on, and there is no source to extract them from because they are
