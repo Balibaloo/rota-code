@@ -1,0 +1,453 @@
+"""
+The scheduler: stateless, disposable, ~one loop.
+
+It holds nothing. The frontier is a query, the schedule is derived, claims and
+checkpoints are rows. Killing and restarting it at any moment loses nothing —
+that is a required property with its own test, and it is what makes hand-rolling
+it safe: this file can be deleted and rewritten against the database contract.
+
+Frontier = open message tips ∪ tick predicates evaluated against current state.
+
+The second half matters as much as the first. An approved item with no tickets is
+not a message, it is a *state*; nothing would ever wake Vision for it. Because the
+predicates are re-evaluated every pass, residual work cannot be lost — deferred
+batches, half-sliced items, criteria-less tickets are all re-derived from state.
+That is also why the scheduler can be thrown away: pending work was never held in
+memory to lose.
+
+Quiescence = no open tips + no predicate firing + no schedulable batch.
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+from dataclasses import dataclass, field
+from graphlib import CycleError, TopologicalSorter
+from typing import Callable, Iterable
+
+from . import graph as graph_mod
+
+
+@dataclass(frozen=True)
+class Wake:
+    """One unit of work: a role to wake, and what woke it."""
+    role: str
+    kind: str                       # 'message' | tick name | 'cascade'
+    message_id: str | None = None
+    refs: tuple[str, ...] = ()
+    detail: str = ""
+
+    def __str__(self) -> str:
+        src = self.message_id or self.detail or ""
+        return f"{self.role}<-{self.kind}({src})"
+
+
+# ---------------------------------------------------------------------------
+# Message tips
+# ---------------------------------------------------------------------------
+
+def open_tips(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Messages awaiting a session: open, not quarantined, addressed to a role.
+
+    Messages to the client are open too, but the client is not schedulable — it
+    answers when it answers. They are excluded here and surfaced by the agenda
+    tick instead.
+    """
+    rows = conn.execute(
+        "SELECT id, to_role, verb FROM messages "
+        "WHERE status = 'open' AND to_role != 'client' ORDER BY seq"
+    ).fetchall()
+    return [
+        Wake(role=r["to_role"], kind="message", message_id=r["id"], detail=r["verb"])
+        for r in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Tick predicates. Each is a pure query over current state.
+# ---------------------------------------------------------------------------
+
+def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Interface harvests once a broadcast's whole subtree has terminated.
+
+    A round exists for one reason: dedupe. Two roles reporting the same blocker
+    in different vocabulary must become one question, which is impossible if
+    Interface wakes per report. Waiting is the feature.
+
+    A role with nothing to say emits nothing — the committed session is the
+    terminator, so silence is legible without a null-message convention.
+    """
+    broadcasts = conn.execute(
+        "SELECT DISTINCT thread_id FROM messages WHERE verb = 'brief' AND from_role = 'interface'"
+    ).fetchall()
+
+    wakes = []
+    for b in broadcasts:
+        thread = b["thread_id"]
+        # Every recipient of the broadcast has committed, and nothing in the
+        # subtree is still open (a domain->vision challenge keeps it open).
+        pending = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages "
+            "WHERE thread_id = ? AND status = 'open' AND to_role != 'interface'",
+            (thread,),
+        ).fetchone()["n"]
+        if pending:
+            continue
+        # Reports harvested already?
+        harvested = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages "
+            "WHERE thread_id = ? AND from_role = 'interface' AND verb IN ('clarify','present')",
+            (thread,),
+        ).fetchone()["n"]
+        reports = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ? AND verb = 'report'",
+            (thread,),
+        ).fetchone()["n"]
+        if reports and not harvested:
+            wakes.append(Wake("interface", "tick:round_close", refs=(thread,),
+                              detail=f"{reports} report(s)"))
+    return wakes
+
+
+def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Vision slices tickets from items whose approval postdates their last
+    amendment. Fires per *gate result* rather than per item: one session with the
+    whole batch of approvals is cheaper and better informed.
+    """
+    rows = conn.execute(
+        "SELECT id FROM items "
+        "WHERE kind = 'scope' AND approval = 'approved' "
+        "  AND approval_ver >= version "
+        "  AND id NOT IN (SELECT item_id FROM tickets)"
+    ).fetchall()
+    if not rows:
+        return []
+    return [Wake("vision", "tick:slicing", refs=tuple(r["id"] for r in rows))]
+
+
+def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Domain writes criteria for tickets that have none. Fires per *item*: criteria
+    written for one ticket in isolation is how you get criteria that contradict
+    their siblings.
+    """
+    rows = conn.execute(
+        "SELECT DISTINCT t.item_id AS item_id FROM tickets t "
+        "WHERE t.id NOT IN (SELECT ticket_id FROM criteria)"
+    ).fetchall()
+    return [
+        Wake("domain", "tick:criteria", refs=(r["item_id"],))
+        for r in rows
+    ]
+
+
+def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Start the next batch: schedulable, ordered first, and nothing running
+    (Developer is single-instance).
+
+    Schedulable is the revocation predicate: the batch's item must be approved
+    *and* that approval must postdate the item's last amendment.
+    """
+    running = conn.execute(
+        "SELECT COUNT(*) AS n FROM batches WHERE status = 'running'"
+    ).fetchone()["n"]
+    if running:
+        return []
+
+    candidates = [r["id"] for r in conn.execute(
+        "SELECT b.id AS id FROM batches b JOIN items i ON i.id = b.item_id "
+        "WHERE b.status IN ('pending','deferred') "
+        "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
+        "ORDER BY b.priority DESC, b.id"
+    ).fetchall()]
+    if not candidates:
+        return []
+
+    order = schedule_order(conn)
+    ranked = sorted(candidates, key=lambda b: order.index(b) if b in order else len(order))
+    return [Wake("developer", "tick:batch_start", refs=(ranked[0],))]
+
+
+def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Onboarding: one session per elected area, per role, in the order
+    Domain -> Architect -> Vision. Terms first, because constraints are written
+    in glossary terms; observed baseline last, because it describes behaviour in
+    those terms.
+
+    Sessions compound through artefacts, not context: area N's session consults
+    its own artefact and sees everything areas 1..N-1 found.
+    """
+    areas = [r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area"
+    ).fetchall()]
+    if not areas:
+        return []
+
+    wakes = []
+    for role in ("domain", "architect", "vision"):
+        for area in areas:
+            done = conn.execute(
+                "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",
+                (area, f"{role}:%"),
+            ).fetchone()["n"]
+            if not done:
+                wakes.append(Wake(role, "tick:survey", refs=(area,)))
+                break            # one area at a time: they must see each other's output
+        if wakes:
+            break                # and one role at a time, in order
+    return wakes
+
+
+def tick_agenda(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+    """
+    On client presence, with open ledger entries or gates awaiting a verdict,
+    wake Interface to present what is blocked on the client.
+
+    Presentation, not a gate: the client may defer indefinitely and keep working.
+    What deferral costs is deferred, not waived — open assumptions reappear at
+    each of their lineage's gates.
+    """
+    if not client_present:
+        return []
+    open_ledger = conn.execute(
+        "SELECT COUNT(*) AS n FROM ledger WHERE status = 'open'"
+    ).fetchone()["n"]
+    awaiting = conn.execute(
+        "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'client'"
+    ).fetchone()["n"]
+    if not (open_ledger or awaiting):
+        return []
+    already = conn.execute(
+        "SELECT COUNT(*) AS n FROM messages "
+        "WHERE from_role = 'interface' AND verb = 'agenda' AND status = 'open'"
+    ).fetchone()["n"]
+    if already:
+        return []
+    return [Wake("interface", "tick:agenda", detail=f"ledger={open_ledger} gates={awaiting}")]
+
+
+TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
+    tick_round_close,
+    tick_slicing,
+    tick_criteria,
+    tick_batch_start,
+    tick_survey,
+)
+
+
+def predicate_wakes(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+    wakes: list[Wake] = []
+    for tick in TICKS:
+        wakes.extend(tick(conn))
+    wakes.extend(tick_agenda(conn, client_present))
+    return wakes
+
+
+def frontier(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+    """The ready queue: open message tips ∪ fired predicates."""
+    return open_tips(conn) + predicate_wakes(conn, client_present)
+
+
+def is_quiescent(conn: sqlite3.Connection, client_present: bool = False) -> bool:
+    return not frontier(conn, client_present)
+
+
+# ---------------------------------------------------------------------------
+# Ordering: a topological sort of Architect's declared dependency facts.
+# Not a role — ordering carries no judgement beyond the deps.
+# ---------------------------------------------------------------------------
+
+class UnsatisfiableSchedule(RuntimeError):
+    """Declared dependency facts contain a cycle. Wakes Architect."""
+
+
+def schedule_order(conn: sqlite3.Connection) -> list[str]:
+    batches = [r["id"] for r in conn.execute("SELECT id FROM batches ORDER BY id")]
+    deps: dict[str, set[str]] = {b: set() for b in batches}
+    for r in conn.execute("SELECT before_batch, after_batch FROM batch_dep_facts"):
+        deps.setdefault(r["after_batch"], set()).add(r["before_batch"])
+        deps.setdefault(r["before_batch"], set())
+    try:
+        return list(TopologicalSorter(deps).static_order())
+    except CycleError as exc:
+        raise UnsatisfiableSchedule(str(exc)) from exc
+
+
+def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:
+    """Recompute schedule_deps from declared facts. Derived state, no receipts."""
+    order = schedule_order(conn)
+    conn.execute("DELETE FROM schedule_deps")
+    for before, after in zip(order, order[1:]):
+        conn.execute(
+            "INSERT OR IGNORE INTO schedule_deps (before_batch, after_batch) VALUES (?, ?)",
+            (before, after),
+        )
+    return order
+
+
+# ---------------------------------------------------------------------------
+# Claims — law 6's single-instance property, enforced by the primary key.
+# ---------------------------------------------------------------------------
+
+class RoleBusy(RuntimeError):
+    """The role already has a live session. Roles are single-instance: this is
+    what makes cycle collapse (resume-with-question) possible."""
+
+
+def claim(conn: sqlite3.Connection, role: str, session_id: str,
+          message_id: str | None = None) -> None:
+    held = conn.execute("SELECT session_id FROM claims WHERE role = ?", (role,)).fetchone()
+    if held:
+        raise RoleBusy(f"{role} already claimed by {held['session_id']}")
+    conn.execute(
+        "INSERT INTO claims (role, session_id, message_id) VALUES (?, ?, ?)",
+        (role, session_id, message_id),
+    )
+
+
+def release(conn: sqlite3.Connection, role: str) -> None:
+    conn.execute("DELETE FROM claims WHERE role = ?", (role,))
+
+
+# ---------------------------------------------------------------------------
+# Cascade — receipts wake owners along the refs DAG. No role-to-role messages
+# exist anywhere in the cascade; the scheduler walks the DAG and summons owners.
+# ---------------------------------------------------------------------------
+
+def cascade_order(g: graph_mod.Graph | None = None) -> list[str]:
+    """Artefacts in dependency order, derived from the graph's refs edges."""
+    g = g or graph_mod.load()
+    deps: dict[str, set[str]] = {a: set() for a in g.artefacts}
+    for e in g.of_type("refs"):
+        # `s refs t` means s depends on t: t is resolved first.
+        deps.setdefault(e.s, set()).add(e.t)
+        deps.setdefault(e.t, set())
+    try:
+        return list(TopologicalSorter(deps).static_order())
+    except CycleError:
+        return sorted(deps)
+
+
+def cascade_wakes(conn: sqlite3.Connection, session_id: str,
+                  g: graph_mod.Graph | None = None) -> list[Wake]:
+    """
+    Given a committed session's receipts, produce the wake order: owners of every
+    artefact downstream of what changed, in refs-DAG order, developer never first.
+    """
+    from .db import ARTEFACT_OF_TABLE
+
+    g = g or graph_mod.load()
+    touched = {
+        ARTEFACT_OF_TABLE[r["table_name"]]
+        for r in conn.execute(
+            "SELECT DISTINCT table_name FROM receipts WHERE session_id = ?", (session_id,)
+        )
+        if r["table_name"] in ARTEFACT_OF_TABLE
+    }
+    if not touched:
+        return []
+
+    order = cascade_order(g)
+    dependents: dict[str, set[str]] = {a: set() for a in g.artefacts}
+    for e in g.of_type("refs"):
+        dependents.setdefault(e.t, set()).add(e.s)
+
+    affected: set[str] = set()
+    queue = list(touched & set(dependents))
+    while queue:
+        a = queue.pop()
+        for dep in dependents.get(a, ()):
+            if dep not in affected:
+                affected.add(dep)
+                queue.append(dep)
+
+    wakes: list[Wake] = []
+    for artefact in order:
+        if artefact not in affected:
+            continue
+        for owner in sorted(g.writer_of(artefact)):
+            w = Wake(owner, "cascade", refs=(artefact,), detail=session_id)
+            if w not in wakes:
+                wakes.append(w)
+    return wakes
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint invalidation — mechanical, by version stamps.
+# ---------------------------------------------------------------------------
+
+def sweep_checkpoints(conn: sqlite3.Connection) -> list[str]:
+    """Invalidate any checkpoint whose working set has been overtaken."""
+    invalidated = []
+    for row in conn.execute("SELECT session_id, working_set FROM checkpoints WHERE valid = 1"):
+        stamps = json.loads(row["working_set"])
+        for table, version in stamps:
+            current = conn.execute(
+                "SELECT version FROM artefact_versions WHERE table_name = ?", (table,)
+            ).fetchone()
+            if current and int(current["version"]) > int(version):
+                conn.execute(
+                    "UPDATE checkpoints SET valid = 0 WHERE session_id = ?",
+                    (row["session_id"],),
+                )
+                invalidated.append(row["session_id"])
+                break
+    return invalidated
+
+
+# ---------------------------------------------------------------------------
+# Binding intersection — the structural-review trigger, and the filter for
+# binding-scoped index reads.
+# ---------------------------------------------------------------------------
+
+def constraints_for_grains(conn: sqlite3.Connection, grains: Iterable[str]) -> list[str]:
+    """
+    Constraints triggered by a diff touching `grains`.
+
+    Fail-safe by construction: a constraint with no bindings is global, and a
+    constraint whose bindings no longer resolve is *promoted* to global. Every
+    degradation path lands on "always loaded, therefore expensive" rather than
+    "filtered out, therefore wrong".
+    """
+    grains = list(grains)
+    hits: set[str] = set()
+
+    for r in conn.execute("SELECT id FROM constraints WHERE is_global = 1"):
+        hits.add(r["id"])
+
+    for r in conn.execute(
+        "SELECT c.id AS id FROM constraints c "
+        "LEFT JOIN constraint_bindings b ON b.constraint_id = c.id "
+        "GROUP BY c.id HAVING COUNT(b.grain) = 0"
+    ):
+        hits.add(r["id"])                                  # unbound = global
+
+    for r in conn.execute(
+        "SELECT DISTINCT constraint_id AS id FROM constraint_bindings WHERE resolves = 0"
+    ):
+        hits.add(r["id"])                                  # unresolvable = global
+
+    if grains:
+        placeholders = ", ".join("?" for _ in grains)
+        for r in conn.execute(
+            f"SELECT DISTINCT constraint_id AS id FROM constraint_bindings "
+            f"WHERE resolves = 1 AND grain IN ({placeholders})",
+            grains,
+        ):
+            hits.add(r["id"])
+
+    return sorted(hits)
+
+
+def constraint_zero_area_coverage(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
+    """Areas surveyed (including none_found) vs areas still under constraint zero."""
+    all_areas = {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL"
+    )}
+    surveyed = {r["area"] for r in conn.execute("SELECT DISTINCT area FROM survey_records")}
+    return surveyed, all_areas - surveyed
