@@ -40,6 +40,17 @@ RENAMES = {
     "domain":    "terminologist",
 }
 
+# CamelCase compounds the boundary rule cannot see. `ClientBackend` is caught
+# because `Client` starts the identifier; `ScriptedClient` is not, because the
+# `d` before it is a word character. `\bClient\b` misses them for the same
+# reason, so the verification grep did not notice either -- a check and the tool
+# it checks sharing a blind spot is the failure mode to watch for.
+COMPOUNDS = {
+    "ScriptedClient":   "ScriptedPrincipal",
+    "TranscriptClient": "TranscriptPrincipal",
+    "ConsoleClient":    "ConsolePrincipal",
+}
+
 # Identifiers that merely contain a stem and mean something else entirely.
 PROTECTED = [
     "clientX", "clientY", "clientWidth", "clientHeight", "getBoundingClientRect",
@@ -80,6 +91,9 @@ def substitute(text: str) -> str:
     """
     for i, phrase in enumerate(PROTECTED):
         text = text.replace(phrase, f"\x00{i}\x00")
+
+    for old, new in COMPOUNDS.items():
+        text = text.replace(old, new)
 
     for old, new in RENAMES.items():
         text = re.sub(rf"(?<![A-Za-z0-9]){old}(?![a-z0-9])", new, text)

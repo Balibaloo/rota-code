@@ -97,7 +97,7 @@ MACHINE_MARKERS = {
 TRADE_MARKERS = {
     "criteria", "criterion", "ticket", "batch", "backlog", "constraint",
     "glossary", "verdict", "review", "diff", "worktree", "branch", "commit",
-    "test", "suite", "scope", "non-goal", "signoff", "gate", "escalate",
+    "test", "suite", "scope", "out-of-scope item", "signoff", "gate", "escalate",
     "brief", "transcript", "ledger", "assumption", "decision", "survey",
 }
 
@@ -352,6 +352,18 @@ def render_analysis() -> str:
 # The findings
 # ---------------------------------------------------------------------------
 
+# Two senses that are the *same* referent seen from two sides. Reporting these
+# as collisions is what made the first sweep unusable: 17 findings of which 10
+# were the system being consistent. A collision is two referents; this is one
+# referent named once and reached twice.
+COMPOSITION = {
+    frozenset({"node", "table"}),        # artefact and the table holding it
+    frozenset({"noun", "table"}),        # a column and what it holds
+    frozenset({"node", "noun", "table"}),
+    frozenset({"noun", "operation"}),    # an operation and what it returns
+}
+
+
 def collisions(terms: dict[str, Term]) -> list[tuple[str, list[str]]]:
     """
     One word carrying more than one job.
@@ -359,13 +371,17 @@ def collisions(terms: dict[str, Term]) -> list[tuple[str, list[str]]]:
     This is exactly what D1 asks Terminologist to catch, and it is the finding that
     matters most: a word meaning two things costs more than a word that is merely
     ugly, because nobody notices it going wrong.
+
+    Composition is excluded — `verdicts` the artefact and `verdicts` the table
+    are one thing, and `code.diff` returning a "batch diff" is an operation
+    named after its result. Both would be *worse* renamed apart. What is left is
+    genuine ambiguity, which is why the check can be a hard constraint.
     """
     out = []
     for word, t in sorted(terms.items()):
-        kinds = {s.split(".")[0] + ":" + s.split(".")[-1] for s in t.sources}
         distinct = {s.split(".")[-1] for s in t.sources
                     if s.split(".")[0] in ("graph", "schema")}
-        if len(distinct) > 1:
+        if len(distinct) > 1 and frozenset(distinct) not in COMPOSITION:
             out.append((word, sorted(t.sources)))
     return out
 

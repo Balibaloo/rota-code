@@ -18,21 +18,21 @@ from rota.scheduler import Wake
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO utterances (id, author, text, ts_order) "
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                  "VALUES ('u1','principal','let users delete their account',1)")
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','liaison','gatekeeper','brief',1)")
+                 "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
     return conn
 
 
 def wake_gatekeeper():
-    return Wake(role="gatekeeper", kind="message", message_id="m1", detail="brief")
+    return Wake(role="gatekeeper", kind="message", message_id="m1", detail="deliver")
 
 
 def test_session_writes_commit_atomically_with_receipts(db):
     backend = ScriptedBackend([
         "I will record the scope item.\n"
-        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
+        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
         "Done.",
     ])
     outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
@@ -67,7 +67,7 @@ def test_out_of_working_set_call_is_an_error_not_a_write(db):
 def test_malformed_call_is_reported_back_not_misparsed(db):
     backend = ScriptedBackend([
         "TOOL: problem.assert(id='i1', text=",
-        "Sorry. TOOL: problem.assert(id='i1', text='ok', kind='scope')",
+        "Sorry. TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
         "Done.",
     ])
     outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
@@ -145,12 +145,12 @@ def test_tool_calls_are_logged_for_assertion(db):
     assert "problem.consult" in [c["fn"] for c in calls]
 
 
-def test_consult_mode_cannot_write(db):
+def test_readonly_mode_cannot_write(db):
     backend = ScriptedBackend([
-        "TOOL: problem.assert(id='i9', text='x', kind='scope')",
+        "TOOL: problem.assert(id='i9', text='x', kind='in_scope')",
         "ok",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, mode="consult",
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, mode="readonly",
                           pins=Pins(model="scripted"))
     assert any("working set" in e for e in outcome.errors)
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -160,7 +160,7 @@ def test_consult_mode_cannot_write(db):
 def test_working_set_is_pushed_not_only_offered(db):
     """A cold session should not have to fetch what it obviously needs."""
     db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i_existing','prior scope','scope','decided')")
+               "VALUES ('i_existing','prior scope','in_scope','decided')")
     backend = ScriptedBackend(["done"])
     run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
 

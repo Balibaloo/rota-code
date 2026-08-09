@@ -6,7 +6,7 @@ mechanically decidable even though the choice is not. That is the pattern this
 module implements, and it is what keeps the suite from degenerating into judging
 prose:
 
-  * Liaison's segmentation must cover the utterance — spans exist, do not
+  * Liaison's segmentation must cover the entry — spans exist, do not
     overlap, and quote rather than paraphrase.
   * Architect's bindings must name grains that exist in the code index.
   * An ordering must be a valid topological sort of declared deps.
@@ -26,38 +26,38 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def check_segmentation(conn: sqlite3.Connection, utterance_id: str) -> list[str]:
+def check_segmentation(conn: sqlite3.Connection, entry_id: str) -> list[str]:
     """
-    Statements cut from an utterance must quote it, not summarise it.
+    Statements cut from an entry must quote it, not summarise it.
 
     Three properties, all decidable:
-      1. every statement's text appears in the utterance (modulo whitespace);
+      1. every statement's text appears in the entry (modulo whitespace);
       2. spans are within bounds and do not overlap;
       3. the union of spans is reported, so uncovered substance is visible for
          review rather than silently dropped.
     """
     row = conn.execute(
-        "SELECT text FROM utterances WHERE id = ?", (utterance_id,)).fetchone()
+        "SELECT text FROM entries WHERE id = ?", (entry_id,)).fetchone()
     if not row:
-        return [f"no utterance {utterance_id}"]
-    utterance = row["text"]
-    haystack = _norm(utterance)
+        return [f"no entry {entry_id}"]
+    entry = row["text"]
+    haystack = _norm(entry)
 
     problems: list[str] = []
     spans: list[tuple[int, int, str]] = []
 
     for s in conn.execute(
         "SELECT id, text, span_start, span_end FROM statements "
-        "WHERE span_utterance = ? ORDER BY span_start", (utterance_id,)
+        "WHERE span_entry = ? ORDER BY span_start", (entry_id,)
     ):
         if _norm(s["text"]) not in haystack:
             problems.append(
-                f"{s['id']} paraphrases: {s['text']!r} is not in the utterance")
+                f"{s['id']} paraphrases: {s['text']!r} is not in the entry")
         start, end = s["span_start"], s["span_end"]
-        if start < 0 or end > len(utterance) or start >= end:
+        if start < 0 or end > len(entry) or start >= end:
             problems.append(
                 f"{s['id']} span [{start},{end}] out of bounds for "
-                f"{len(utterance)}-char utterance")
+                f"{len(entry)}-char entry")
         else:
             spans.append((start, end, s["id"]))
 
@@ -70,17 +70,17 @@ def check_segmentation(conn: sqlite3.Connection, utterance_id: str) -> list[str]
     return problems
 
 
-def uncovered_spans(conn: sqlite3.Connection, utterance_id: str) -> list[tuple[int, int]]:
-    """Regions of the utterance no statement claims. Not an error — a review flag."""
+def uncovered_spans(conn: sqlite3.Connection, entry_id: str) -> list[tuple[int, int]]:
+    """Regions of the entry no statement claims. Not an error — a review flag."""
     row = conn.execute(
-        "SELECT text FROM utterances WHERE id = ?", (utterance_id,)).fetchone()
+        "SELECT text FROM entries WHERE id = ?", (entry_id,)).fetchone()
     if not row:
         return []
     length = len(row["text"])
     spans = sorted(
         (r["span_start"], r["span_end"]) for r in conn.execute(
-            "SELECT span_start, span_end FROM statements WHERE span_utterance = ?",
-            (utterance_id,))
+            "SELECT span_start, span_end FROM statements WHERE span_entry = ?",
+            (entry_id,))
     )
     gaps, cursor = [], 0
     for start, end in spans:
@@ -92,7 +92,7 @@ def uncovered_spans(conn: sqlite3.Connection, utterance_id: str) -> list[tuple[i
     return [(a, b) for a, b in gaps if row["text"][a:b].strip()]
 
 
-def check_statement_count(conn: sqlite3.Connection, utterance_id: str,
+def check_statement_count(conn: sqlite3.Connection, entry_id: str,
                           expected: int) -> list[str]:
     """
     Principal granularity is a *count* assertion, which is why it is checkable.
@@ -102,8 +102,8 @@ def check_statement_count(conn: sqlite3.Connection, utterance_id: str,
     catching, because it looks like diligence.
     """
     n = conn.execute(
-        "SELECT COUNT(*) c FROM statements WHERE span_utterance = ?",
-        (utterance_id,)).fetchone()["c"]
+        "SELECT COUNT(*) c FROM statements WHERE span_entry = ?",
+        (entry_id,)).fetchone()["c"]
     if n != expected:
         return [f"expected {expected} statement(s) at principal granularity, got {n}"]
     return []

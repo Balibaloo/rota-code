@@ -16,7 +16,7 @@
       "id": "gatekeeper",
       "label": "Gatekeeper",
       "type": "role",
-      "note": "Identity and scope over time. Owns non-goals, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
+      "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
     },
     {
       "id": "terminologist",
@@ -53,7 +53,7 @@
       "id": "transcript",
       "label": "Transcript",
       "type": "artefact",
-      "note": "Append-only, verbatim utterances with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.",
+      "note": "Append-only, verbatim entries with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.",
       "contact": false,
       "contact_why": "verbatim record; read to recover emphasis, never to ask its recorder"
     },
@@ -67,7 +67,7 @@
       "id": "problem",
       "label": "Problem statement",
       "type": "artefact",
-      "note": "Scope items and non-goals, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
+      "note": "In-scope and out-of-scope items, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
     },
     {
       "id": "glossary",
@@ -148,7 +148,7 @@
       "t": "transcript",
       "type": "writes",
       "v": "append",
-      "n": "utterance",
+      "n": "entry",
       "a": "single",
       "actor": "system",
       "label": "recorded mechanically; Liaison owns it, does not type it"
@@ -176,7 +176,7 @@
       "t": "problem",
       "type": "writes",
       "v": "assert",
-      "n": "scope, non-goals"
+      "n": "in-scope and out-of-scope items"
     },
     {
       "s": "terminologist",
@@ -240,7 +240,7 @@
       "s": "architect",
       "t": "batches",
       "type": "writes",
-      "v": "batch",
+      "v": "group",
       "n": "ticket groups + constraints",
       "label": "contested"
     },
@@ -288,7 +288,7 @@
       "s": "gatekeeper",
       "t": "brief",
       "type": "reads",
-      "v": "index",
+      "v": "list",
       "n": "statements",
       "a": "index"
     },
@@ -296,7 +296,7 @@
       "s": "terminologist",
       "t": "brief",
       "type": "reads",
-      "v": "index",
+      "v": "list",
       "n": "statements",
       "a": "index"
     },
@@ -304,7 +304,7 @@
       "s": "architect",
       "t": "brief",
       "type": "reads",
-      "v": "index",
+      "v": "list",
       "n": "statements",
       "a": "index"
     },
@@ -313,7 +313,7 @@
       "t": "transcript",
       "type": "reads",
       "v": "quote",
-      "n": "utterance",
+      "n": "entry",
       "a": "window",
       "label": "recover emphasis"
     },
@@ -322,7 +322,7 @@
       "t": "transcript",
       "type": "reads",
       "v": "quote",
-      "n": "utterance",
+      "n": "entry",
       "a": "window",
       "label": "recover emphasis"
     },
@@ -331,7 +331,7 @@
       "t": "transcript",
       "type": "reads",
       "v": "quote",
-      "n": "utterance",
+      "n": "entry",
       "a": "window",
       "label": "recover emphasis"
     },
@@ -498,7 +498,7 @@
       "s": "liaison",
       "t": "gatekeeper",
       "type": "messages",
-      "v": "brief",
+      "v": "deliver",
       "n": "changed statements",
       "a": "delta"
     },
@@ -506,7 +506,7 @@
       "s": "liaison",
       "t": "terminologist",
       "type": "messages",
-      "v": "brief",
+      "v": "deliver",
       "n": "changed statements",
       "a": "delta"
     },
@@ -514,7 +514,7 @@
       "s": "liaison",
       "t": "architect",
       "type": "messages",
-      "v": "brief",
+      "v": "deliver",
       "n": "changed statements",
       "a": "delta"
     },
@@ -611,7 +611,7 @@
       "s": "liaison",
       "t": "gatekeeper",
       "type": "messages",
-      "v": "consult",
+      "v": "ask",
       "n": "principal question",
       "a": "single",
       "label": "read-only session"
@@ -620,7 +620,7 @@
       "s": "liaison",
       "t": "terminologist",
       "type": "messages",
-      "v": "consult",
+      "v": "ask",
       "n": "principal question",
       "a": "single",
       "label": "read-only session"
@@ -629,7 +629,7 @@
       "s": "liaison",
       "t": "architect",
       "type": "messages",
-      "v": "consult",
+      "v": "ask",
       "n": "principal question",
       "a": "single",
       "label": "read-only session"
@@ -663,7 +663,7 @@
       "t": "liaison",
       "type": "messages",
       "v": "submit",
-      "n": "scope + non-goals",
+      "n": "in-scope and out-of-scope items",
       "a": "index",
       "label": "for sign-off"
     },
@@ -681,7 +681,7 @@
       "t": "liaison",
       "type": "messages",
       "v": "verdict",
-      "n": "per-item approve / contest / amend",
+      "n": "per-item approve / contest / revise",
       "a": "index"
     },
     {
@@ -714,7 +714,7 @@
       "t": "gatekeeper",
       "type": "messages",
       "v": "elect",
-      "n": "amend or restart",
+      "n": "revise or restart",
       "a": "none"
     },
     {

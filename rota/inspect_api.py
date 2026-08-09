@@ -20,8 +20,8 @@ from .sandbox import build as build_sandbox
 
 # Columns worth showing first, per table. Everything else follows.
 LEAD_COLUMNS = {
-    "utterances": ("id", "author", "ts_order", "text"),
-    "statements": ("id", "status", "span_utterance", "text"),
+    "entries": ("id", "author", "ts_order", "text"),
+    "statements": ("id", "status", "span_entry", "text"),
     "items": ("id", "kind", "approval", "approval_ver", "version", "text"),
     "glossary_terms": ("id", "term", "sense_short", "provenance"),
     "constraints": ("id", "headline", "provenance", "is_global"),
@@ -235,7 +235,7 @@ def message_graph(conn: sqlite3.Connection, limit: int = 400) -> dict[str, Any]:
     The conversation, as a graph.
 
     Every message refs its cause, so the message log *is* a DAG — roots are
-    principal utterances, gate events and ticks. Drawing it shows the shape of a
+    principal entries, gate events and ticks. Drawing it shows the shape of a
     conversation the way the role graph shows the shape of the team: which
     threads branched, where a round closed, what is still open.
 
@@ -266,12 +266,12 @@ def message_graph(conn: sqlite3.Connection, limit: int = 400) -> dict[str, Any]:
     for r in rows:
         r["body_refs"] = json.loads(r["body_refs"] or "[]")
         r["produced"] = produced.get(r["id"])
-        r["utterance"] = None
+        r["entry"] = None
         if r["from_role"] == "principal":
             u = conn.execute(
-                "SELECT text FROM utterances WHERE id = ?", (f'u_{r["id"]}',)).fetchone()
+                "SELECT text FROM entries WHERE id = ?", (f'e_{r["id"]}',)).fetchone()
             if u:
-                r["utterance"] = u["text"]
+                r["entry"] = u["text"]
 
     threads: dict[str, list[str]] = {}
     for r in rows:

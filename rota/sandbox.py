@@ -41,7 +41,7 @@ class ArgumentError(SandboxError):
 # rolls back an otherwise sound session.
 ENUMS: dict[str, tuple[str, ...]] = {
     "approval":   ("draft", "pending", "approved", "contested"),
-    "kind":       ("scope", "non_goal"),
+    "kind":       ("in_scope", "out_of_scope"),
     "provenance": ("observed", "decided"),
     "outcome":    ("constraints_found", "none_found"),
     "result":     ("pass", "fail"),
@@ -194,13 +194,13 @@ def _verb_to_attr(verb: str) -> str:
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
-          utterance_id: str | None = None,
+          entry_id: str | None = None,
           allow: list[str] | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
     """
     Construct `role`'s namespace from its graph edges.
 
-    Reads become read functions, writes become write functions. In consult mode
+    Reads become read functions, writes become write functions. In readonly mode
     the writes are simply not built — the session physically cannot write, which
     is a stronger guarantee than refusing at commit time.
     """
@@ -209,7 +209,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         raise SandboxError(f"{role!r} is not a role in the graph")
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
-                  batch_id=batch_id, utterance_id=utterance_id)
+                  batch_id=batch_id, entry_id=entry_id)
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}
@@ -217,7 +217,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     for edge in g.edges:
         if edge.s != role or edge.type not in ("reads", "writes"):
             continue
-        if mode == "consult" and edge.type == "writes":
+        if mode == "readonly" and edge.type == "writes":
             continue                      # read-only inquiry is free, and cannot cost
         if not edge.model_callable:
             continue                      # owned by the role, performed by the system

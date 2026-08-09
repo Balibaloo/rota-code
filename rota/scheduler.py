@@ -80,7 +80,7 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
     terminator, so silence is legible without a null-message convention.
     """
     broadcasts = conn.execute(
-        "SELECT DISTINCT thread_id FROM messages WHERE verb = 'brief' AND from_role = 'liaison'"
+        "SELECT DISTINCT thread_id FROM messages WHERE verb = 'deliver' AND from_role = 'liaison'"
     ).fetchall()
 
     wakes = []
@@ -119,7 +119,7 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
     rows = conn.execute(
         "SELECT id FROM items "
-        "WHERE kind = 'scope' AND approval = 'approved' "
+        "WHERE kind = 'in_scope' AND approval = 'approved' "
         "  AND approval_ver >= version "
         "  AND id NOT IN (SELECT item_id FROM tickets)"
     ).fetchall()

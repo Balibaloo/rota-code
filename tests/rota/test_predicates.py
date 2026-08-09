@@ -109,7 +109,7 @@ def test_predicates_are_pure(db):
     computed, and the scheduler computes it constantly.
     """
     db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
-               "VALUES ('i1','x','scope','decided','contested')")
+               "VALUES ('i1','x','in_scope','decided','contested')")
     before = [dict(r) for r in db.execute("SELECT * FROM items")]
 
     P.all_wakes(db)
@@ -123,7 +123,7 @@ def test_predicates_are_pure(db):
 
 def test_contested_wakes_the_items_owner(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
-               "VALUES ('i1','delete accounts','scope','decided','contested')")
+               "VALUES ('i1','delete accounts','in_scope','decided','contested')")
     wakes = P.REGISTRY["contested"].fn(db)
     assert [w.role for w in wakes] == ["gatekeeper"]
     assert wakes[0].refs == ("i1",)
@@ -131,7 +131,7 @@ def test_contested_wakes_the_items_owner(db):
 
 def test_tests_failing_stops_at_the_cap(db):
     db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','scope','decided')")
+               "VALUES ('i1','x','in_scope','decided')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','x')")

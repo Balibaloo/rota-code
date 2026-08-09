@@ -21,12 +21,12 @@ import os
 import pytest
 
 from rota import loop
-from rota.principal import Answer, ScriptedClient, TranscriptClient, record_utterance
+from rota.principal import Answer, ScriptedPrincipal, TranscriptPrincipal, record_entry
 from rota.db import init_db
 from rota.llm import Pins, ScriptedBackend
 from rota.scheduler import frontier
 
-UTTERANCE = "add a button so people can delete their account"
+ENTRY = "add a button so people can delete their account"
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def db(tmp_path):
     conn.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
         "VALUES ('m_in','t1','principal','liaison','converse',1)")
-    record_utterance(conn, "m_in", UTTERANCE)
+    record_entry(conn, "m_in", ENTRY)
     return conn
 
 
@@ -77,18 +77,18 @@ def test_understanding_loop_scripted(db):
     """
     backend = RoleScript({
         "liaison:intake": [
-            "TOOL: brief.segment(id='s1', span_utterance='u_m_in', span_start=0, "
-            f"span_end={len(UTTERANCE)}, text='{UTTERANCE}')",
+            "TOOL: brief.segment(id='s1', span_entry='e_m_in', span_start=0, "
+            f"span_end={len(ENTRY)}, text='{ENTRY}')",
             "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
         "liaison:ratification": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.brief_gatekeeper(refs=['s1'])",
-            "TOOL: msg.brief_terminologist(refs=['s1'])",
-            "TOOL: msg.brief_architect(refs=['s1'])",
+            "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+            "TOOL: msg.deliver_terminologist(refs=['s1'])",
+            "TOOL: msg.deliver_architect(refs=['s1'])",
         ],
         "gatekeeper:new ratified statements": [
-            "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
+            "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
         ],
         "gatekeeper:submit for signoff": [
             "TOOL: msg.submit_liaison(refs=['i1'])",
@@ -120,7 +120,7 @@ def test_understanding_loop_scripted(db):
     })
 
     # The principal ratifies, then approves. Anything else it defers.
-    principal = TranscriptClient({
+    principal = TranscriptPrincipal({
         "confirm": Answer(verb="verdict", per_item={"s1": "approve"}),
         "present": Answer(verb="verdict", per_item={"i1": "approve"}),
         "clarify": Answer(verb="converse", text="yes, soft delete is fine"),
@@ -132,7 +132,7 @@ def test_understanding_loop_scripted(db):
     print("\n" + trace.render())
 
     # --- the arc happened ---------------------------------------------------
-    assert db.execute("SELECT COUNT(*) n FROM utterances").fetchone()["n"] == 1
+    assert db.execute("SELECT COUNT(*) n FROM entries").fetchone()["n"] == 1
     ratified = db.execute(
         "SELECT COUNT(*) n FROM statements WHERE status='ratified'").fetchone()["n"]
     assert ratified == 1, "L1 did not ratify"
@@ -157,20 +157,20 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
     """
     backend = RoleScript({
         "liaison:intake": [
-            "TOOL: brief.segment(id='s1', span_utterance='u_m_in', span_start=0, "
-            f"span_end={len(UTTERANCE)}, text='{UTTERANCE}')",
+            "TOOL: brief.segment(id='s1', span_entry='e_m_in', span_start=0, "
+            f"span_end={len(ENTRY)}, text='{ENTRY}')",
             "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
         "liaison:ratification": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.brief_gatekeeper(refs=['s1'])",
+            "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
         ],
         "gatekeeper": [""],
         "terminologist": [""],
         "architect": [""],
     })
 
-    deferring = ScriptedClient([None])          # sees the ask, declines to answer
+    deferring = ScriptedPrincipal([None])          # sees the ask, declines to answer
 
     trace = loop.run(db, backend=backend, pins=Pins(model="scripted"),
                      principal=deferring, max_steps=10)
@@ -182,7 +182,7 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
     assert deferring.seen, "the principal was never offered the ask"
 
     # ... and now they answer.
-    answering = TranscriptClient({"confirm": Answer(verb="verdict",
+    answering = TranscriptPrincipal({"confirm": Answer(verb="verdict",
                                                     per_item={"s1": "approve"})})
     trace2 = loop.run(db, backend=backend, pins=Pins(model="scripted"),
                       principal=answering, max_steps=10)
@@ -215,7 +215,7 @@ def test_understanding_loop_live(db):
     if model not in available_models():
         pytest.skip(f"{model} unavailable")
 
-    principal = TranscriptClient({
+    principal = TranscriptPrincipal({
         "confirm": Answer(verb="verdict", per_item={"s1": "approve"}),
         "present": Answer(verb="verdict", per_item={}),
         "clarify": Answer(verb="converse", text="soft delete is fine"),
@@ -226,11 +226,11 @@ def test_understanding_loop_live(db):
                      principal=principal, max_steps=14)
     print("\n" + trace.render())
 
-    # More than one utterance is legitimate — the principal answers questions. A
+    # More than one entry is legitimate — the principal answers questions. A
     # role *authoring* one is not, and that is the thing worth asserting.
     # Liaison has no callable transcript write at all now; this is the
     # end-to-end proof of it.
-    authors = {r["author"] for r in db.execute("SELECT DISTINCT author FROM utterances")}
+    authors = {r["author"] for r in db.execute("SELECT DISTINCT author FROM entries")}
     assert authors <= {"principal"}, f"a role authored principal speech: {authors}"
 
     assert db.execute(

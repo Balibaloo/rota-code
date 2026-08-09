@@ -35,7 +35,7 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 # writes to it produce no receipt and trigger no cascade: that is correct for
 # runtime bookkeeping and wrong for anything else.
 TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
-    "transcript": ("utterances",),
+    "transcript": ("entries",),
     "brief":      ("statements",),
     "problem":    ("items", "item_statements"),
     "glossary":   ("glossary_terms", "business_rules"),
@@ -76,8 +76,8 @@ def init_db(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-class ConsultWriteError(RuntimeError):
-    """A consult-mode session attempted a write.
+class ReadonlyWriteError(RuntimeError):
+    """A readonly session attempted a write.
 
     Raised as an ordinary tool error, not a session-fatal condition: the write is
     *unavailable*, and the model gets that back and carries on. Consult-mode
@@ -208,13 +208,13 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
     Commit a whole session atomically: session row, writes, receipts, version
     bumps, outbound messages, tool-call log and checkpoint.
 
-    A consult-mode session may produce reads and messages but no writes and no
+    A readonly session may produce reads and messages but no writes and no
     version bumps — asserted here so the isolation holds even if a sandbox is
     misconfigured.
     """
-    if result.mode == "consult" and result.writes:
-        raise ConsultWriteError(
-            f"consult session {result.session_id} attempted "
+    if result.mode == "readonly" and result.writes:
+        raise ReadonlyWriteError(
+            f"readonly session {result.session_id} attempted "
             f"{len(result.writes)} write(s): {[w.table for w in result.writes]}"
         )
 

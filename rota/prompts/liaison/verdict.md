@@ -6,7 +6,7 @@ The principal has answered a confirmation. Two steps, in order.
 `brief.ratify`. If a statement is already ratified, skip it; that is not an error.
 
 **Reworded statements are not edited.** A statement is never mutated in place —
-the principal's rewording is *new material*. Append it as a new utterance, segment it
+the principal's rewording is *new material*. Append it as a new entry, segment it
 into replacement statements, and confirm those. The original stays exactly as it
 was, superseded rather than overwritten, because the record of what they first
 said is the thing the transcript exists to protect.
@@ -14,9 +14,9 @@ said is the thing the transcript exists to protect.
 **Step 2 — broadcast. This step is mandatory and it is the point of the mode.**
 Send all three:
 
-    TOOL: msg.brief_gatekeeper(refs=['s1'])
-    TOOL: msg.brief_terminologist(refs=['s1'])
-    TOOL: msg.brief_architect(refs=['s1'])
+    TOOL: msg.deliver_gatekeeper(refs=['s1'])
+    TOOL: msg.deliver_terminologist(refs=['s1'])
+    TOOL: msg.deliver_architect(refs=['s1'])
 
 each carrying the ratified statement ids. Broadcast to **all three**, always. You
 do not decide which of them a statement concerns — that judgement is theirs, and a

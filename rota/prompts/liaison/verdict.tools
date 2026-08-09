@@ -1,4 +1,4 @@
 brief.ratify
-msg.brief_gatekeeper
-msg.brief_terminologist
-msg.brief_architect
+msg.deliver_gatekeeper
+msg.deliver_terminologist
+msg.deliver_architect

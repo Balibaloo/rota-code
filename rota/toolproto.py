@@ -181,7 +181,7 @@ def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
         return marked
 
     # Collect with positions and sort by them: call order is semantic. An intake
-    # session must append the utterance before segmenting it, so returning calls
+    # session must append the entry before segmenting it, so returning calls
     # in name order would invert the only sequence that matters.
     found: list[tuple[int, ToolCall]] = []
     for name in sorted(allowed, key=len, reverse=True):

@@ -177,7 +177,7 @@ async function showMessage(id) {
      · thread ${esc(m.thread_id)}`);
 
   P().innerHTML =
-    (m.utterance ? `<div class="note">“${esc(m.utterance)}”</div>` : '') +
+    (m.entry ? `<div class="note">“${esc(m.entry)}”</div>` : '') +
     group('WIRING', sec('the message', '', table([{
         id:m.id, cause:m.cause_id||'(root)', cause_kind:m.cause_kind,
         round:m.round_no, attempts:m.attempts, refs:m.body_refs.join(', ')||'—',

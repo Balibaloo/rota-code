@@ -21,7 +21,7 @@ import pytest
 
 from rota import validators
 from rota.cassettes import RecordingBackend, open_dev_db, record_case_run
-from rota.principal import record_utterance
+from rota.principal import record_entry
 from rota.db import init_db
 from rota.llm import OllamaBackend, Pins, available_models
 from rota.runner import run_session
@@ -79,7 +79,7 @@ def tables_written(conn, session_id):
 # I1 — Segmentation at principal granularity
 # ---------------------------------------------------------------------------
 
-UTTERANCE_I1 = "morning! we need SSO, but only if it works with our LDAP"
+ENTRY_I1 = "morning! we need SSO, but only if it works with our LDAP"
 
 
 def test_i1_segmentation_at_principal_granularity(db, backend, dev_db):
@@ -91,12 +91,12 @@ def test_i1_segmentation_at_principal_granularity(db, backend, dev_db):
     into the statements.
     """
     inject(db, "m1", "principal", "liaison", "converse")
-    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('utterance:m1', ?)",
-               (json.dumps(UTTERANCE_I1),))
-    # The utterance is in the transcript before Liaison wakes, recorded
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('entry:m1', ?)",
+               (json.dumps(ENTRY_I1),))
+    # The entry is in the transcript before Liaison wakes, recorded
     # mechanically. Asking a model to retype text verbatim creates a paraphrase
     # risk with no upside; what Liaison owns is the judgement, not the typing.
-    record_utterance(db, "m1", UTTERANCE_I1)
+    record_entry(db, "m1", ENTRY_I1)
 
     outcome = run_session(
         db, Wake("liaison", "message", "m1", detail="converse"),
@@ -107,16 +107,16 @@ def test_i1_segmentation_at_principal_granularity(db, backend, dev_db):
     if not outcome.committed:
         problems.append(f"did not commit: {outcome.errors}")
 
-    utterances = [dict(r) for r in db.execute("SELECT id, text FROM utterances")]
-    if len(utterances) != 1:
+    entries = [dict(r) for r in db.execute("SELECT id, text FROM entries")]
+    if len(entries) != 1:
         problems.append(
-            f"expected 1 utterance, got {len(utterances)} — Liaison must not "
+            f"expected 1 entry, got {len(entries)} — Liaison must not "
             f"author principal speech")
-    elif utterances[0]["text"] != UTTERANCE_I1:
+    elif entries[0]["text"] != ENTRY_I1:
         problems.append("transcript is not verbatim")
     else:
-        problems += validators.check_segmentation(db, utterances[0]["id"])
-        problems += validators.check_statement_count(db, utterances[0]["id"], 1)
+        problems += validators.check_segmentation(db, entries[0]["id"])
+        problems += validators.check_statement_count(db, entries[0]["id"], 1)
 
     # forbidden: no interpretation, no questions
     written = tables_written(db, outcome.session_id)
@@ -145,9 +145,9 @@ def test_i3_harvest_dedupes_and_traces(db, backend, dev_db):
     The load-bearing assertions are structural: at most two questions, and every
     question refs at least one report. The dedupe itself is checked by count.
     """
-    db.execute("INSERT INTO utterances (id, author, text, ts_order) "
+    db.execute("INSERT INTO entries (id, author, text, ts_order) "
                "VALUES ('u1','principal','let people close their account',1)")
-    db.execute("INSERT INTO statements (id, span_utterance, span_start, span_end, "
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
                "text, status) VALUES ('s1','u1',0,29,'let people close their account','ratified')")
 
     inject(db, "r1", "gatekeeper", "liaison", "report", ["s1"], 1)
@@ -190,9 +190,9 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
     Expect a broadcast to the three shape roles; forbid any clarify. With no
     blockers there are no questions, however vague the principal was being.
     """
-    db.execute("INSERT INTO utterances (id, author, text, ts_order) "
+    db.execute("INSERT INTO entries (id, author, text, ts_order) "
                "VALUES ('u1','principal','make it better',1)")
-    db.execute("INSERT INTO statements (id, span_utterance, span_start, span_end, "
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
                "text, status) VALUES ('s1','u1',0,14,'make it better','ratified')")
     inject(db, "m1", "principal", "liaison", "verdict", ["s1"])
 
@@ -216,13 +216,13 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
 
 
 # ---------------------------------------------------------------------------
-# I4 — consult mode touches nothing
+# I4 — readonly mode touches nothing
 # ---------------------------------------------------------------------------
 
-def test_i4_consult_writes_nothing_and_bumps_nothing(db, backend, dev_db):
+def test_i4_readonly_writes_nothing_and_bumps_nothing(db, backend, dev_db):
     """The invariant 'read-only inquiry is free' — asserted, not assumed."""
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver) "
-               "VALUES ('i1','users can delete their account','scope','decided','approved',1)")
+               "VALUES ('i1','users can delete their account','in_scope','decided','approved',1)")
     db.execute("INSERT INTO sessions (id, role, mode, committed, seq) "
                "VALUES ('s_dev','developer','normal',1,1)")
     db.execute("INSERT INTO checkpoints (session_id, role, working_set, valid) "
@@ -235,19 +235,19 @@ def test_i4_consult_writes_nothing_and_bumps_nothing(db, backend, dev_db):
 
     outcome = run_session(
         db, Wake("liaison", "message", "m1", detail="answer"),
-        backend=backend, pins=PINS, mode="consult")
+        backend=backend, pins=PINS, mode="readonly")
 
     problems = []
     after = {r["table_name"]: r["version"] for r in
              db.execute("SELECT table_name, version FROM artefact_versions")}
     if before != after:
-        problems.append(f"version bumped in consult mode: {before} -> {after}")
+        problems.append(f"version bumped in readonly mode: {before} -> {after}")
     if db.execute("SELECT COUNT(*) n FROM receipts").fetchone()["n"]:
-        problems.append("consult session produced receipts")
+        problems.append("readonly session produced receipts")
     valid = db.execute(
         "SELECT valid FROM checkpoints WHERE session_id='s_dev'").fetchone()["valid"]
     if not valid:
-        problems.append("consult disturbed a developer checkpoint")
+        problems.append("readonly disturbed a developer checkpoint")
 
     record_case_run(dev_db, "I4", PINS, 1, not problems, problems)
     assert not problems, "\n".join(problems)

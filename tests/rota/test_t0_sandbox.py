@@ -89,7 +89,7 @@ def test_s9_consult_mode_has_no_writers(db):
     sandbox has no write functions at all.
     """
     normal = build("gatekeeper", db)
-    consult = build("gatekeeper", db, mode="consult")
+    consult = build("gatekeeper", db, mode="readonly")
 
     assert "problem.assert" in normal.functions()
     assert "problem.consult" in consult.functions()
@@ -128,9 +128,9 @@ def test_s9_writes_are_staged_not_applied(db):
     table — atomicity is not optional and cannot be bypassed by a tool.
     """
     sb = build("gatekeeper", db)
-    sb.call("problem.assert", id="i1", text="delete account", kind="scope")
+    sb.call("problem.assert", id="i1", text="delete account", kind="in_scope")
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
     assert sb.ctx.writes == [("items", "i1", {
-        "text": "delete account", "kind": "scope",
+        "text": "delete account", "kind": "in_scope",
         "provenance": "decided", "approval": "draft"})]

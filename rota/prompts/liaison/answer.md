@@ -1,4 +1,4 @@
-MODE: consult relay.
+MODE: answer — relaying a readonly reply.
 
 A role has answered a principal question you routed to it. Pass the answer back with
 `msg.clarify_principal`, carrying the answer's refs.

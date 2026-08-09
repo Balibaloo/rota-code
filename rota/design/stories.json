@@ -24,7 +24,7 @@
       {
         "title": "Appended, not interpreted",
         "round": "intake",
-        "text": "The utterance goes into the transcript verbatim, greetings and all. Nothing downstream will ever read it in bulk — it exists so that later interpretations have something un-interpreted to be checked against.",
+        "text": "The entry goes into the transcript verbatim, greetings and all. Nothing downstream will ever read it in bulk — it exists so that later interpretations have something un-interpreted to be checked against.",
         "edges": [
           [
             "liaison",
@@ -36,7 +36,7 @@
       {
         "title": "Atomised into statements",
         "round": "intake",
-        "text": "Liaison splits the utterance into atoms and IDs them, each with a span back into the transcript. It may split aggressively, because it is about to be checked.",
+        "text": "Liaison splits the entry into atoms and IDs them, each with a span back into the transcript. It may split aggressively, because it is about to be checked.",
         "edges": [
           [
             "liaison",
@@ -217,7 +217,7 @@
       {
         "title": "The rejection is overturned on the record",
         "round": "round 2",
-        "text": "`Gatekeeper` commits the problem statement with explicit non-goals — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
+        "text": "`Gatekeeper` commits the problem statement with explicit out-of-scope items — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
         "edges": [
           [
             "gatekeeper",
@@ -241,7 +241,7 @@
       {
         "title": "Architect challenges the scope",
         "round": "round 2",
-        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Gatekeeper` to name that as a non-goal, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
+        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Gatekeeper` to name that as a out-of-scope item, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
         "edges": [
           [
             "architect",
@@ -300,7 +300,7 @@
       {
         "title": "Submitted for sign-off",
         "round": "signoff",
-        "text": "Nothing can be sliced yet. `Gatekeeper` hands `Liaison` the scope items and non-goals — not for wording review, but for the principal to agree that this is what gets built.",
+        "text": "Nothing can be sliced yet. `Gatekeeper` hands `Liaison` the in-scope and out-of-scope items — not for wording review, but for the principal to agree that this is what gets built.",
         "edges": [
           [
             "gatekeeper",
@@ -313,7 +313,7 @@
       {
         "title": "Reads as a document, records as items",
         "round": "signoff",
-        "text": "The principal sees one page, not eleven checkboxes — scope, non-goals, and the one open assumption attached to this lineage (the retention window nobody could settle). Approval given with an assumption visible ratifies its default. `Liaison` records a verdict per item behind the scenes; lgtm approves everything raised.",
+        "text": "The principal sees one page, not eleven checkboxes — scope, out-of-scope items, and the one open assumption attached to this lineage (the retention window nobody could settle). Approval given with an assumption visible ratifies its default. `Liaison` records a verdict per item behind the scenes; lgtm approves everything raised.",
         "edges": [
           [
             "liaison",
@@ -335,7 +335,7 @@
         ]
       },
       {
-        "title": "The non-goal is contested",
+        "title": "The out-of-scope item is contested",
         "round": "signoff",
         "text": "Everything approved except one: the principal will not accept that invoices survive deletion without knowing what the user is told. A contested item is not a rejection — it re-enters shaping as a blocker.",
         "edges": [
@@ -356,7 +356,7 @@
       {
         "title": "One more round, one item wide",
         "round": "signoff",
-        "text": "Only the contested item goes back round. `Terminologist` names the wording the user will see; `Gatekeeper` amends that non-goal and nothing else.",
+        "text": "Only the contested item goes back round. `Terminologist` names the wording the user will see; `Gatekeeper` amends that out-of-scope item and nothing else.",
         "edges": [
           [
             "terminologist",
@@ -729,13 +729,13 @@
       {
         "title": "Before you start",
         "round": "context",
-        "text": "A working system, four years of commits, no documentation anyone trusts. Onboarding treats the repo as an utterance nobody ratified: code is ground truth, comments and commit messages are hearsay from absent authors. The survey extracts hypotheses; only the principal can turn them into a baseline. Watch for the bootstrap constraint that makes ignorance safe, the first decision entry a legacy system ever gets, and the principal electing how much confirmation to pay for up front.",
+        "text": "A working system, four years of commits, no documentation anyone trusts. Onboarding treats the repo as an entry nobody ratified: code is ground truth, comments and commit messages are hearsay from absent authors. The survey extracts hypotheses; only the principal can turn them into a baseline. Watch for the bootstrap constraint that makes ignorance safe, the first decision entry a legacy system ever gets, and the principal electing how much confirmation to pay for up front.",
         "edges": []
       },
       {
         "title": "Opened, not pointed",
         "round": "initiation",
-        "text": "The tool is opened inside the project directory — it lives with the code, storing all framework state in a project subfolder. No state folder exists here, and that absence is the trigger: presence means boot, absence means onboard. One decision, no separate initiation command. The principal’s first exchange of the interview is recorded verbatim like any other utterance; the repo itself never enters the transcript — it is its own artefact, already durable, already versioned.",
+        "text": "The tool is opened inside the project directory — it lives with the code, storing all framework state in a project subfolder. No state folder exists here, and that absence is the trigger: presence means boot, absence means onboard. One decision, no separate initiation command. The principal’s first exchange of the interview is recorded verbatim like any other entry; the repo itself never enters the transcript — it is its own artefact, already durable, already versioned.",
         "edges": [
           [
             "principal",
@@ -854,7 +854,7 @@
       {
         "title": "The principal answers — and elects",
         "round": "survey",
-        "text": "Payments is where change is planned next, so: upfront confirmation for the payments core, lazy for everything else. The dormant module is dead. The discount path — the principal pauses — that one needs looking at. Answers land as utterances and become ratified statements.",
+        "text": "Payments is where change is planned next, so: upfront confirmation for the payments core, lazy for everything else. The dormant module is dead. The discount path — the principal pauses — that one needs looking at. Answers land as entries and become ratified statements.",
         "edges": [
           [
             "principal",
@@ -1078,7 +1078,7 @@
       {
         "title": "A question, not a directive",
         "round": "inquiry",
-        "text": "First the principal just asks: “how does deletion handle search results right now?” `Liaison` cannot answer from its own reads, so it opens consult-mode sessions — read-only wakes. `Gatekeeper` answers what was promised, `Terminologist` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
+        "text": "First the principal just asks: “how does deletion handle search results right now?” `Liaison` cannot answer from its own reads, so it opens readonly sessions — read-only wakes. `Gatekeeper` answers what was promised, `Terminologist` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
         "edges": [
           [
             "liaison",
@@ -1103,7 +1103,7 @@
       {
         "title": "Answered without a ripple",
         "round": "inquiry",
-        "text": "Three answers compose into one reply. Because consult sessions write nothing, no version bumped, no receipt exists, and the suspended batch’s checkpoint remains valid by construction — the running development never learns the question was asked. Read-only inquiry is free.",
+        "text": "Three answers compose into one reply. Because readonly sessions write nothing, no version bumped, no receipt exists, and the suspended batch’s checkpoint remains valid by construction — the running development never learns the question was asked. Read-only inquiry is free.",
         "edges": [
           [
             "gatekeeper",

@@ -57,7 +57,7 @@ def predicate(name: str, wakes: str, drains: tuple = (), why: str = ""):
 # Columns whose values are a *lifecycle* — a row passes through them and must be
 # able to leave. Everything else is a classification: `kind`, `mode`,
 # `cause_kind` and `grain_kind` say what a row *is*, not where it is, and asking
-# what drains "non_goal" is a category error.
+# what drains "out_of_scope" is a category error.
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_COLUMNS = {

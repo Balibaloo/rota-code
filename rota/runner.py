@@ -120,7 +120,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     reason to think of, so the refs are resolved here to exactly one level: the
     rows they name, nothing those rows point at in turn.
 
-    Principal utterances are the exception that needs handling: the principal's actual
+    Principal entries are the exception that needs handling: the principal's actual
     words are not yet an artefact when Liaison is woken to record them, so they
     are carried on the message itself.
     """
@@ -138,18 +138,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         "refs": json.loads(row["body_refs"] or "[]"),
     }
 
-    from .principal import utterance_for, verdict_for
+    from .principal import entry_for, verdict_for
 
-    text = utterance_for(conn, wake.message_id)
+    text = entry_for(conn, wake.message_id)
     if text:
         out["principal_said"] = text
         # Already in the transcript, recorded mechanically. The role is told its
         # id so it can segment against it rather than re-appending it.
         recorded = conn.execute(
-            "SELECT id FROM utterances WHERE id = ?",
-            (f"u_{wake.message_id}",)).fetchone()
+            "SELECT id FROM entries WHERE id = ?",
+            (f"e_{wake.message_id}",)).fetchone()
         if recorded:
-            out["utterance_id"] = recorded["id"]
+            out["entry_id"] = recorded["id"]
             out["already_recorded"] = True
     ruling = verdict_for(conn, wake.message_id)
     if ruling:
@@ -195,7 +195,7 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake) -> dict[str
     pushed: dict[str, Any] = {}
     for name in sb.functions():
         artefact, verb = name.split(".", 1)
-        if verb in ("consult", "index"):          # own-artefact index, cheap by design
+        if verb in ("consult", "list"):          # own-artefact index, cheap by design
             try:
                 pushed[name] = sb.call(name)
             except TypeError:
@@ -237,15 +237,15 @@ def run_session(
             instructions = ""
 
     session_id = new_id("s")
-    utterance_id = None
+    entry_id = None
     if wake.message_id:
         row = conn.execute(
-            "SELECT id FROM utterances WHERE id = ?",
-            (f"u_{wake.message_id}",)).fetchone()
-        utterance_id = row["id"] if row else None
+            "SELECT id FROM entries WHERE id = ?",
+            (f"e_{wake.message_id}",)).fetchone()
+        entry_id = row["id"] if row else None
 
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
-                           session_id=session_id, utterance_id=utterance_id, g=g,
+                           session_id=session_id, entry_id=entry_id, g=g,
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)))
     sb.ctx.trigger = wake.message_id
 
@@ -308,7 +308,7 @@ def run_session(
             # A role that has sent its outbound message has, in almost every
             # mode, finished. Without saying so the model keeps going and starts
             # inventing work — an Liaison intake session will happily fabricate
-            # a second principal utterance, which is the one thing it must never do.
+            # a second principal entry, which is the one thing it must never do.
             if sb.ctx.outbound:
                 feedback.append(
                     "You have sent your message. Your work for this session is "

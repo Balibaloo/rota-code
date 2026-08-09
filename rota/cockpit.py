@@ -95,7 +95,7 @@ def snapshot(conn: sqlite3.Connection) -> dict:
             "FROM items ORDER BY id"),
         "counts": {
             t: conn.execute(f"SELECT COUNT(*) n FROM {t}").fetchone()["n"]
-            for t in ("utterances", "statements", "items", "glossary_terms",
+            for t in ("entries", "statements", "items", "glossary_terms",
                       "constraints", "tickets", "criteria", "batches", "tests",
                       "verdicts", "ledger", "decisions", "messages", "sessions")
         },

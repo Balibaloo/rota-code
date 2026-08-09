@@ -1,4 +1,4 @@
-MODE: consult — read-only.
+MODE: ask — a question routed from the principal. This session is read-only.
 
 Answer from your own artefact. You have no write functions in this mode; they were
 not built into your namespace, so there is nothing to resist.

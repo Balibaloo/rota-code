@@ -18,7 +18,7 @@ import json
 import pytest
 
 from rota import graph as graph_mod
-from rota.principal import record_utterance
+from rota.principal import record_entry
 from rota.db import init_db
 from rota.llm import Pins, ScriptedBackend
 from rota.runner import run_session
@@ -47,25 +47,25 @@ def drive(conn, wake: Wake, script: list[str], **kw):
 
 def test_arc_understanding_loop_reaches_approved_item(db):
     """
-    Principal utterance -> statements -> ratification -> scope item -> approval.
+    Principal entry -> statements -> ratification -> scope item -> approval.
 
     Every step is a real session through the real machine; only the completions
     are canned.
     """
-    # --- intake: the utterance arrives already recorded, Liaison segments ---
+    # --- intake: the entry arrives already recorded, Liaison segments ---
     # Recording is mechanical: the transcript is the one un-interpreted thing in
     # the system, so nothing retypes it. Liaison owns the judgement half.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
                "VALUES ('m_intake','t1','principal','liaison','converse',1)")
-    record_utterance(db, "m_intake", "add a button so people can delete their account")
+    record_entry(db, "m_intake", "add a button so people can delete their account")
 
     drive(db, Wake("liaison", "message", "m_intake", detail="converse"), [
-        "TOOL: brief.segment(id='s1', span_utterance='u_m_intake', span_start=0, "
+        "TOOL: brief.segment(id='s1', span_entry='e_m_intake', span_start=0, "
         "span_end=46, text='add a button so people can delete their account')",
         "TOOL: msg.confirm_principal(refs=['s1'])",
     ])
 
-    assert db.execute("SELECT COUNT(*) n FROM utterances").fetchone()["n"] == 1
+    assert db.execute("SELECT COUNT(*) n FROM entries").fetchone()["n"] == 1
     assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "proposed"
 
     # The principal is not schedulable: a message to them waits, it does not wake.
@@ -76,9 +76,9 @@ def test_arc_understanding_loop_reaches_approved_item(db):
                "VALUES ('m_ratify','t1','principal','liaison','verdict',3)")
     drive(db, Wake("liaison", "message", "m_ratify", detail="verdict"), [
         "TOOL: brief.ratify(id='s1')",
-        "TOOL: msg.brief_gatekeeper(refs=['s1'])",
-        "TOOL: msg.brief_terminologist(refs=['s1'])",
-        "TOOL: msg.brief_architect(refs=['s1'])",
+        "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+        "TOOL: msg.deliver_terminologist(refs=['s1'])",
+        "TOOL: msg.deliver_architect(refs=['s1'])",
     ])
 
     assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "ratified"
@@ -87,14 +87,14 @@ def test_arc_understanding_loop_reaches_approved_item(db):
 
     # --- Gatekeeper asserts scope; Terminologist amends the glossary -------------------
     gatekeeper_msg = db.execute(
-        "SELECT id FROM messages WHERE to_role='gatekeeper' AND verb='brief'").fetchone()["id"]
-    drive(db, Wake("gatekeeper", "message", gatekeeper_msg, detail="brief"), [
-        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
+        "SELECT id FROM messages WHERE to_role='gatekeeper' AND verb='deliver'").fetchone()["id"]
+    drive(db, Wake("gatekeeper", "message", gatekeeper_msg, detail="deliver"), [
+        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
     ])
 
     terminologist_msg = db.execute(
-        "SELECT id FROM messages WHERE to_role='terminologist' AND verb='brief'").fetchone()["id"]
-    drive(db, Wake("terminologist", "message", terminologist_msg, detail="brief"), [
+        "SELECT id FROM messages WHERE to_role='terminologist' AND verb='deliver'").fetchone()["id"]
+    drive(db, Wake("terminologist", "message", terminologist_msg, detail="deliver"), [
         "TOOL: glossary.amend(id='g1', term='account', sense_short='login identity')",
     ])
 
@@ -117,7 +117,7 @@ def test_arc_understanding_loop_reaches_approved_item(db):
 def test_arc_delivery_loop_slices_batches_and_tests(db):
     """Approved item -> tickets -> criteria -> batch -> tests -> verdict."""
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i1','users can delete their account','scope','decided','approved',1,1)")
+               "VALUES ('i1','users can delete their account','in_scope','decided','approved',1,1)")
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','account','login identity','decided')")
 
@@ -141,9 +141,9 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
 
     # Architect batches.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_arch','t1','liaison','architect','brief',50)")
-    drive(db, Wake("architect", "message", "m_arch", detail="brief"), [
-        "TOOL: batches.batch(id='b1', item_id='i1', ticket_ids=['tk1'])",
+               "VALUES ('m_arch','t1','liaison','architect','deliver',50)")
+    drive(db, Wake("architect", "message", "m_arch", detail="deliver"), [
+        "TOOL: batches.group(id='b1', item_id='i1', ticket_ids=['tk1'])",
     ])
 
     # Tester writes from criteria — and cannot see a diff, because none exists.
@@ -181,7 +181,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
 def test_arc_revocation_stops_the_batch(db):
     """Amending an approved item drops it to pending and stops its batches."""
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i1','x','scope','decided','approved',1,1)")
+               "VALUES ('i1','x','in_scope','decided','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
 
     from rota.scheduler import tick_batch_start
@@ -190,7 +190,7 @@ def test_arc_revocation_stops_the_batch(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
                "VALUES ('m_ch','t1','architect','gatekeeper','challenge',1)")
     drive(db, Wake("gatekeeper", "message", "m_ch", detail="challenge"), [
-        "TOOL: problem.assert(id='i1', text='x, but only for unverified accounts', kind='scope')",
+        "TOOL: problem.assert(id='i1', text='x, but only for unverified accounts', kind='in_scope')",
     ])
 
     assert db.execute("SELECT approval FROM items WHERE id='i1'").fetchone()["approval"] == "draft"

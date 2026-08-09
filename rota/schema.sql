@@ -21,7 +21,7 @@ PRAGMA journal_mode = WAL;
 -- Transcript and brief (Liaison)
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS utterances (
+CREATE TABLE IF NOT EXISTS entries (
     id          TEXT PRIMARY KEY,
     author      TEXT NOT NULL,              -- 'principal' | 'liaison'
     text        TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS utterances (
 
 CREATE TABLE IF NOT EXISTS statements (
     id              TEXT PRIMARY KEY,
-    span_utterance  TEXT NOT NULL REFERENCES utterances(id),
+    span_entry  TEXT NOT NULL REFERENCES entries(id),
     span_start      INTEGER NOT NULL,
     span_end        INTEGER NOT NULL,
     text            TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS ix_statements_status ON statements(status);
 CREATE TABLE IF NOT EXISTS items (
     id            TEXT PRIMARY KEY,
     text          TEXT NOT NULL,
-    kind          TEXT NOT NULL CHECK (kind IN ('scope','non_goal')),
+    kind          TEXT NOT NULL CHECK (kind IN ('in_scope','out_of_scope')),
     provenance    TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
     approval      TEXT NOT NULL DEFAULT 'draft'
                   CHECK (approval IN ('draft','pending','approved','contested')),
@@ -256,13 +256,13 @@ CREATE TABLE IF NOT EXISTS verdicts (
 -- Runtime: messages, sessions, receipts, checkpoints, claims.
 -- ---------------------------------------------------------------------------
 
--- Roots are principal utterances, gate events and ticks, so cause_id is nullable
+-- Roots are principal entries, gate events and ticks, so cause_id is nullable
 -- and cause_kind records which kind of root a message hangs from.
 CREATE TABLE IF NOT EXISTS messages (
     id          TEXT PRIMARY KEY,
     cause_id    TEXT REFERENCES messages(id),
     cause_kind  TEXT NOT NULL DEFAULT 'message'
-                CHECK (cause_kind IN ('message','utterance','gate','tick','receipt')),
+                CHECK (cause_kind IN ('message','conversation','gate','tick','receipt')),
     thread_id   TEXT NOT NULL,
     from_role   TEXT NOT NULL,
     to_role     TEXT NOT NULL,
@@ -284,7 +284,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     id           TEXT PRIMARY KEY,
     role         TEXT NOT NULL,
     trigger_msg  TEXT REFERENCES messages(id),
-    mode         TEXT NOT NULL DEFAULT 'normal' CHECK (mode IN ('normal','consult')),
+    mode         TEXT NOT NULL DEFAULT 'normal' CHECK (mode IN ('normal','readonly')),
     committed    INTEGER NOT NULL DEFAULT 0,
     seq          INTEGER NOT NULL,
     -- pins: a result without them is not a result

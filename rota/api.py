@@ -36,7 +36,7 @@ class Ctx:
     mode: str = "normal"
     session_id: str = ""
     batch_id: str | None = None
-    utterance_id: str | None = None
+    entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
     trigger: str | None = None
@@ -66,45 +66,45 @@ def _rows(cur) -> list[dict]:
 
 @op("transcript", "append")
 def transcript_append(ctx: Ctx, id: str, author: str, text: str) -> dict:
-    """Record an utterance verbatim. Greetings included: the transcript exists so
+    """Record an entry verbatim. Greetings included: the transcript exists so
     interpretations can be adjudicated against something un-interpreted."""
     nxt = ctx.conn.execute(
-        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM utterances").fetchone()["n"]
-    ctx.writes.append(("utterances", id,
+        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
+    ctx.writes.append(("entries", id,
                        {"author": author, "text": text, "ts_order": nxt}))
     return {"id": id, "ts_order": nxt}
 
 
 @op("transcript", "quote")
-def transcript_quote(ctx: Ctx, utterance_id: str) -> dict:
-    """Recover emphasis: one utterance, verbatim. Window scope — never bulk."""
+def transcript_quote(ctx: Ctx, entry_id: str) -> dict:
+    """Recover emphasis: one entry, verbatim. Window scope — never bulk."""
     row = ctx.conn.execute(
-        "SELECT id, author, text, ts_order FROM utterances WHERE id = ?",
-        (utterance_id,)).fetchone()
+        "SELECT id, author, text, ts_order FROM entries WHERE id = ?",
+        (entry_id,)).fetchone()
     return dict(row) if row else {}
 
 
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
-                  text: str, span_utterance: str | None = None) -> dict:
+                  text: str, span_entry: str | None = None) -> dict:
     """
     Propose one statement at principal granularity.
 
     One thing they asked for is one statement; downstream roles re-decompose into
     their own artefacts.
 
-    `span_utterance` defaults to the utterance this session is segmenting. A
-    session segments exactly one utterance and the system already knows which —
+    `span_entry` defaults to the entry this session is segmenting. A
+    session segments exactly one entry and the system already knows which —
     asking the model to supply it added an argument it got wrong, and a wrong
     foreign key takes down the whole session rather than one call.
     """
-    target = span_utterance or ctx.utterance_id
+    target = span_entry or ctx.entry_id
     if not target:
-        raise ValueError("no utterance to segment against")
+        raise ValueError("no entry to segment against")
     ctx.writes.append(("statements", id, {
-        "span_utterance": target, "span_start": span_start,
+        "span_entry": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed"}))
-    return {"id": id, "span_utterance": target}
+    return {"id": id, "span_entry": target}
 
 
 @op("brief", "ratify")
@@ -113,8 +113,8 @@ def brief_ratify(ctx: Ctx, id: str) -> dict:
     return {"id": id, "status": "ratified"}
 
 
-@op("brief", "index")
-def brief_index(ctx: Ctx, since_version: int = 0) -> list[dict]:
+@op("brief", "list")
+def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
     """Ratified statements, ids plus text. Superseded entries are excluded —
     the plateau is achieved by scoping, not by deleting."""
     return _rows(ctx.conn.execute(
@@ -127,7 +127,7 @@ def brief_index(ctx: Ctx, since_version: int = 0) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("problem", "assert")
-def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "scope",
+def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope",
                    provenance: str = "decided") -> dict:
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": provenance, "approval": "draft"}))
@@ -330,8 +330,8 @@ def criteria_scan(ctx: Ctx) -> list[dict]:
     return criteria_consult(ctx)
 
 
-@op("batches", "batch")
-def batches_batch(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dict:
+@op("batches", "group")
+def batches_group(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dict:
     """Collision judgement. Batches are complete feature sets, immutable once
     formed: only a scope change may recompose one."""
     ctx.writes.append(("batches", id, {"item_id": item_id, "status": "pending"}))

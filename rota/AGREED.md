@@ -24,16 +24,23 @@ when woken.
 | `developer` | `developer` | making it exist |
 | `critic` | `critic` | whether it was done, and done well |
 
-- [ ] **1.1** role ids renamed in `design/graph.json` (and `layout.json` keys)
-- [ ] **1.2** prompt directories renamed under `rota/prompts/`
-- [ ] **1.3** `from_role` / `to_role` string literals renamed across `rota/` and `tests/`
-- [ ] **1.4** predicate `wakes=` targets renamed in `predicates.py`
-- [ ] **1.5** `client` → `principal` everywhere, including `client.py` (module name),
+- [x] **1.1** role ids renamed in `design/graph.json` (and `layout.json` keys)
+- [x] **1.2** prompt directories renamed under `rota/prompts/`
+- [x] **1.3** `from_role` / `to_role` string literals renamed across `rota/` and `tests/`
+- [x] **1.4** predicate `wakes=` targets renamed in `predicates.py`
+- [x] **1.5** `client` → `principal` everywhere, including `client.py` (module name),
       `ClientBackend`, `client_present`, `to_role='client'`
-- [ ] **1.6** existing databases migrated (or documented as throwaway)
+- [x] **1.6** databases are throwaway — every one is built by `init_db` from
+      `schema.sql` at test or boot time, so there is nothing to migrate
+
+Done by `rota/tools/rename_roles.py` (`77dbe12`), which is kept because it
+records what was renamed and what was deliberately *not*: `clientX`,
+`getBoundingClientRect`, and three sentences where "interface" was English (now
+"protocol"). Its first run missed `.tools` files, and nothing failed — mode
+allowlists are data, so a stale name silently narrows the working set.
 
 **Verify:** `grep -rniE "\b(interface|vision|domain|client)\b" rota/ tests/rota/`
-returns only legitimate English usage — no role ids, no `to_role` values.
+returns nothing outside this file and the rename script. **Clean; 108 tests green.**
 
 ---
 
@@ -41,19 +48,38 @@ returns only legitimate English usage — no role ids, no `to_role` values.
 
 Seven found mechanically by `python -m rota.tools.vocabulary --analyse`.
 
-- [ ] **2.1** `consult` ×3 → operation keeps `consult`; **message verb → `ask`**;
+- [x] **2.1** `consult` ×3 → operation keeps `consult`; **message verb → `ask`**;
       **session mode → `readonly`**
-- [ ] **2.2** `batch` ×2 → Architect's operation → **`group`**; the reach value keeps `batch`
-- [ ] **2.3** `index` ×2 → `brief.index` operation → **`list`** (matching `ledger.list`);
+- [x] **2.2** `batch` ×2 → Architect's operation → **`group`**; the reach value keeps `batch`
+- [x] **2.3** `index` ×2 → `brief.index` operation → **`list`** (matching `ledger.list`);
       the reach value keeps `index`
-- [ ] **2.4** `brief` ×2 → artefact keeps `brief`; **message verb → `deliver`**
+- [x] **2.4** `brief` ×2 → artefact keeps `brief`; **message verb → `deliver`**
       (*broadcast* is the informal name for delivering to all three, not a wire verb)
-- [ ] **2.5** `scope` ×2 → item kinds become **`in_scope` / `out_of_scope`**
-- [ ] **2.6** `utterance` ×2 → journals hold **entries**; `cause_kind` value → **`conversation`**
-- [ ] **2.7** `amend` ×2 → operation keeps `amend`; reword the edge noun
+- [x] **2.5** `scope` ×2 → item kinds become **`in_scope` / `out_of_scope`**;
+      `non_goal` went with it, since the opposite of in-scope is out-of-scope
+- [x] **2.6** `utterance` ×2 → journals hold **entries**; `cause_kind` value → **`conversation`**
+- [x] **2.7** `amend` ×2 → operation keeps `amend` (the owner's act); the
+      principal's ruling becomes **`revise`** (a request for that act)
 
-**Verify:** `python -m rota.tools.vocabulary --analyse` reports zero collisions
-outside the artefact↔table pairs (which are composition, not collision).
+Done by `rota/tools/split_senses.py`. `graph.json` had to be handled
+structurally — `consult` and `brief` are told apart by *edge type*, which no
+textual pass can see.
+
+Two consequences worth recording, because neither was in the plan:
+
+- **the mode key is the message verb**, so renaming `brief → deliver` renamed
+  the prompt files with it (`gatekeeper/brief.md` → `deliver.md`). That coupling
+  is deliberate — it is what makes a role's modes enumerable from the graph
+- **`gatekeeper/consult.md` was the `consult` *verb*'s prompt, not the session
+  mode's.** It became `ask.md`, not `readonly.md`. The two senses were close
+  enough that the first pass renamed the wrong one and nothing complained
+
+**Verify:** `python -m rota.tools.vocabulary --analyse` reports zero collisions.
+**Zero**, and `tests/rota/test_vocabulary.py` now makes it a constraint rather
+than a report — including a case proving the check can fail, and one proving
+composition (artefact↔table, operation↔result) is not reported as collision. The
+first sweep's 17 findings were 10 parts noise, and an ignored check looks like
+coverage.
 
 ---
 

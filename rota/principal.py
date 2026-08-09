@@ -38,7 +38,7 @@ class Ask:
 class Answer:
     verb: str                     # converse | verdict
     text: str = ""
-    per_item: dict[str, str] = field(default_factory=dict)   # ref -> approve|contest|amend
+    per_item: dict[str, str] = field(default_factory=dict)   # ref -> approve|contest|revise
 
 
 class PrincipalBackend(Protocol):
@@ -48,7 +48,7 @@ class PrincipalBackend(Protocol):
         """Answer, or None to defer. Deferring is always allowed."""
 
 
-class ScriptedClient:
+class ScriptedPrincipal:
     """
     Canned answers keyed by step index, for arc tests.
 
@@ -68,7 +68,7 @@ class ScriptedClient:
         return self.script.pop(0) if self.script else None
 
 
-class TranscriptClient:
+class TranscriptPrincipal:
     """
     Answers from a fixed mapping of verb -> answer, replaying indefinitely.
 
@@ -87,7 +87,7 @@ class TranscriptClient:
         return self.answers.get(ask.verb)
 
 
-class ConsoleClient:                                    # pragma: no cover
+class ConsolePrincipal:                                    # pragma: no cover
     """The human. Same protocol, stdin instead of a script."""
 
     name = "console"
@@ -166,16 +166,16 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
         if answer.text:
             conn.execute(
                 "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                (f"utterance:{msg_id}", json.dumps(answer.text)),
+                (f"entry:{msg_id}", json.dumps(answer.text)),
             )
-            record_utterance(conn, msg_id, answer.text)
+            record_entry(conn, msg_id, answer.text)
 
         created.append(msg_id)
 
     return created
 
 
-def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> str:
+def record_entry(conn: sqlite3.Connection, message_id: str, text: str) -> str:
     """
     Append the principal's words to the transcript mechanically.
 
@@ -183,25 +183,25 @@ def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> st
     later interpretations can be checked against something. Routing it through an
     interpreter to get there is self-defeating: asking a model to retype text
     verbatim creates a paraphrase risk with no upside, costs a turn, and in
-    practice produced wrong ids and a fabricated second utterance.
+    practice produced wrong ids and a fabricated second entry.
 
     Liaison still *owns* the artefact; the write is attributed to its session.
     It is authored by the system on the role's behalf, the way a receipt is.
     What Liaison keeps is the part that needs judgement: segmentation.
     """
     existing = conn.execute(
-        "SELECT id FROM utterances WHERE id = ?", (f"u_{message_id}",)).fetchone()
+        "SELECT id FROM entries WHERE id = ?", (f"e_{message_id}",)).fetchone()
     if existing:
         return existing["id"]
 
-    uid = f"u_{message_id}"
+    uid = f"e_{message_id}"
     nxt = conn.execute(
-        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM utterances").fetchone()["n"]
+        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
     conn.execute(
-        "INSERT INTO utterances (id, author, text, ts_order) VALUES (?, 'principal', ?, ?)",
+        "INSERT INTO entries (id, author, text, ts_order) VALUES (?, 'principal', ?, ?)",
         (uid, text, nxt))
     conn.execute(
-        "INSERT INTO artefact_versions(table_name, version) VALUES ('utterances', 1) "
+        "INSERT INTO artefact_versions(table_name, version) VALUES ('entries', 1) "
         "ON CONFLICT(table_name) DO UPDATE SET version = version + 1")
     return uid
 
@@ -212,7 +212,7 @@ def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:
     return json.loads(row["value"]) if row else {}
 
 
-def utterance_for(conn: sqlite3.Connection, message_id: str) -> str:
+def entry_for(conn: sqlite3.Connection, message_id: str) -> str:
     row = conn.execute(
-        "SELECT value FROM config WHERE key = ?", (f"utterance:{message_id}",)).fetchone()
+        "SELECT value FROM config WHERE key = ?", (f"entry:{message_id}",)).fetchone()
     return json.loads(row["value"]) if row else ""

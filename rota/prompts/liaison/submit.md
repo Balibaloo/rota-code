@@ -1,6 +1,6 @@
 MODE: signoff presentation.
 
-Gatekeeper has submitted scope items and non-goals for the principal's approval. Present
+Gatekeeper has submitted in-scope and out-of-scope items for the principal's approval. Present
 them as **one document**, not a list of separate asks — the principal is approving an
 interpretation, and interpretations are read whole.
 

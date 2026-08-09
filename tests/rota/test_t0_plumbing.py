@@ -18,7 +18,7 @@ from rota.boot import (
     boot, quarantine_exhausted, reap_claims, reap_processes, reconcile_worktrees,
 )
 from rota.db import (
-    ConsultWriteError, OutboundMessage, SessionResult, Write, init_db,
+    ReadonlyWriteError, OutboundMessage, SessionResult, Write, init_db,
     session_commit, version_of,
 )
 from rota.scheduler import (
@@ -38,7 +38,7 @@ def db(tmp_path):
 def seed_item(conn, item_id="i1", approval="approved", version=1, approval_ver=1):
     conn.execute(
         "INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-        "VALUES (?, 'let users delete their account', 'scope', 'decided', ?, ?, ?)",
+        "VALUES (?, 'let users delete their account', 'in_scope', 'decided', ?, ?, ?)",
         (item_id, approval, approval_ver, version),
     )
 
@@ -56,17 +56,17 @@ def seed_batch(conn, batch_id="b1", item_id="i1", status="pending", worktree=Non
 
 def test_s1_atomic_commit_all_or_nothing(db):
     """A failing write inside a session leaves zero rows from that session."""
-    db.execute("INSERT INTO utterances (id, author, text, ts_order) VALUES ('u1','principal','x',1)")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES ('u1','principal','x',1)")
 
     bad = SessionResult(
         session_id="s1", role="liaison",
         writes=[
             Write("statements", "st1", {
-                "span_utterance": "u1", "span_start": 0, "span_end": 1,
+                "span_entry": "u1", "span_start": 0, "span_end": 1,
                 "text": "x", "status": "proposed"}),
             # violates the CHECK constraint: the whole session must roll back
             Write("statements", "st2", {
-                "span_utterance": "u1", "span_start": 0, "span_end": 1,
+                "span_entry": "u1", "span_start": 0, "span_end": 1,
                 "text": "y", "status": "nonsense"}),
         ],
         messages=[OutboundMessage(id="m1", to_role="principal", verb="confirm")],
@@ -83,11 +83,11 @@ def test_s1_atomic_commit_all_or_nothing(db):
 
 
 def test_s1_committed_session_produces_receipt_per_write(db):
-    db.execute("INSERT INTO utterances (id, author, text, ts_order) VALUES ('u1','principal','x',1)")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES ('u1','principal','x',1)")
     session_commit(db, SessionResult(
         session_id="s1", role="liaison",
         writes=[Write("statements", "st1", {
-            "span_utterance": "u1", "span_start": 0, "span_end": 1,
+            "span_entry": "u1", "span_start": 0, "span_end": 1,
             "text": "x", "status": "proposed"})],
     ))
     receipts = db.execute("SELECT * FROM receipts WHERE session_id='s1'").fetchall()
@@ -107,7 +107,7 @@ def test_s1_kill_between_tool_calls_leaves_nothing(tmp_path):
     conn = init_db(dbpath)
     conn.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-        "VALUES ('m1','t1','liaison','gatekeeper','brief',1)"
+        "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)"
     )
     conn.close()
 
@@ -121,7 +121,7 @@ conn.execute("BEGIN IMMEDIATE")
 conn.execute("INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq) "
              "VALUES ('s_dead','gatekeeper','m1','normal',1,1)")
 conn.execute("INSERT INTO items (id, text, kind, provenance) "
-             "VALUES ('i_dead','half written','scope','decided')")
+             "VALUES ('i_dead','half written','in_scope','decided')")
 print("READY", flush=True)
 time.sleep(30)
 '''
@@ -144,9 +144,9 @@ time.sleep(30)
 
 def test_s2_frontier_returns_open_tips_and_batch_root(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
-               "VALUES ('m_open','t1','liaison','gatekeeper','brief',1,'open')")
+               "VALUES ('m_open','t1','liaison','gatekeeper','deliver',1,'open')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
-               "VALUES ('m_done','t1','liaison','terminologist','brief',2,'answered')")
+               "VALUES ('m_done','t1','liaison','terminologist','deliver',2,'answered')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
                "VALUES ('m_principal','t1','liaison','principal','clarify',3,'open')")
     seed_item(db)
@@ -162,7 +162,7 @@ def test_s2_frontier_returns_open_tips_and_batch_root(db):
 def test_s2_quiescence_is_empty_frontier(db):
     assert is_quiescent(db)
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m1','t1','liaison','gatekeeper','brief',1)")
+               "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
     assert not is_quiescent(db)
 
 
@@ -199,7 +199,7 @@ def test_s3_scheduler_disposability(tmp_path):
     seed_item(conn)
     seed_batch(conn)
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','liaison','gatekeeper','brief',1)")
+                 "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
     conn.close()
 
@@ -350,11 +350,11 @@ def test_s8_consult_write_is_refused_and_bumps_nothing(db):
     not export writers at all; this is the belt to that braces.
     """
     before = version_of(db, "items")
-    with pytest.raises(ConsultWriteError):
+    with pytest.raises(ReadonlyWriteError):
         session_commit(db, SessionResult(
-            session_id="s_consult", role="gatekeeper", mode="consult",
+            session_id="s_readonly", role="gatekeeper", mode="readonly",
             writes=[Write("items", "i1", {
-                "text": "x", "kind": "scope", "provenance": "decided"})],
+                "text": "x", "kind": "in_scope", "provenance": "decided"})],
         ))
     assert version_of(db, "items") == before
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -362,7 +362,7 @@ def test_s8_consult_write_is_refused_and_bumps_nothing(db):
 
 def test_s8_consult_may_read_and_answer(db):
     session_commit(db, SessionResult(
-        session_id="s_consult", role="gatekeeper", mode="consult",
+        session_id="s_readonly", role="gatekeeper", mode="readonly",
         messages=[OutboundMessage(id="m_ans", to_role="liaison", verb="answer")],
         tool_calls=[("problem.consult", "")],
     ))
@@ -501,7 +501,7 @@ def test_boot_reaps_orphan_processes(db):
 
 def test_boot_quarantines_exhausted_message(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, attempts) "
-               "VALUES ('m1','t1','liaison','gatekeeper','brief',1,10)")
+               "VALUES ('m1','t1','liaison','gatekeeper','deliver',1,10)")
     assert quarantine_exhausted(db, cap=10) == ["m1"]
     assert open_tips(db) == [], "a quarantined message must leave the frontier"
 

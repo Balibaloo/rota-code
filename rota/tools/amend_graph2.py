@@ -194,7 +194,7 @@ def main() -> None:
     # the transcript is the one un-interpreted thing here, so nothing that can
     # paraphrase should touch it. Marking the edge keeps ownership (and coverage)
     # intact while removing the model's ability to author principal speech, which it
-    # will otherwise do — seven fabricated utterances in one live run.
+    # will otherwise do — seven fabricated entries in one live run.
     for e in edges:
         if e["s"] == "liaison" and e["t"] == "transcript" and e.get("v") == "append":
             e["actor"] = "system"
