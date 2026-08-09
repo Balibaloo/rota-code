@@ -304,7 +304,14 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
     wrapper.__doc__ = impl.__doc__
     # Expose the real signature with `ctx` bound away, so both the advertisement
     # in the prompt and the argument validation see what the model sees.
-    sig = inspect.signature(impl)
+    #
+    # eval_str resolves annotations that `from __future__ import annotations`
+    # leaves as strings. Without it every parameter types as `str` in the JSON
+    # schema, and a model told span_start is a string will send "0".
+    try:
+        sig = inspect.signature(impl, eval_str=True)
+    except (NameError, TypeError):
+        sig = inspect.signature(impl)
     wrapper.__signature__ = sig.replace(
         parameters=[p for n, p in sig.parameters.items() if n != "ctx"]
     )

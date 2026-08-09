@@ -22,7 +22,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import api, graph as graph_mod, llm, prompts, sandbox as sandbox_mod, toolproto
+from . import (api, graph as graph_mod, llm, prompts, sandbox as sandbox_mod,
+               toolproto, toolschema)
 from .db import OutboundMessage, SessionResult, Write, session_commit
 from .scheduler import Wake, claim, release
 
@@ -198,6 +199,7 @@ def run_session(
     mode: str = "normal",
     batch_id: str | None = None,
     max_iterations: int = MAX_ITERATIONS,
+    native_tools: bool | None = None,
     g: graph_mod.Graph | None = None,
 ) -> RunOutcome:
     """
@@ -241,6 +243,16 @@ def run_session(
 
         transcript = [user]
         allowed = set(sb.functions())
+
+        # Native function calling where the model supports it. This removes the
+        # failure that cost the most with small models: dropping the TOOL:
+        # marker, which made a session commit *empty* — success-shaped failure.
+        # The TOOL: protocol remains for models without tool support, which is
+        # exactly what it is for.
+        use_native = native_tools
+        if use_native is None:
+            use_native = getattr(backend, "name", "") == "ollama" and                 llm.supports_tools(pins.model)
+        schemas = toolschema.schemas_for_sandbox(sb) if use_native else None
 
         for iteration in range(1, max_iterations + 1):
             outcome.iterations = iteration

@@ -53,17 +53,31 @@ class Pins:
 
 
 @dataclass
+class NativeCall:
+    """A tool call the provider parsed for us. No marker to drop, no text to
+    misparse — the failure class that cost the most with small models."""
+    name: str
+    args: dict
+
+
+@dataclass
 class Completion:
     text: str
     pins: Pins
     backend: str = ""
     raw: dict = field(default_factory=dict)
+    tool_calls: list = field(default_factory=list)   # list[NativeCall]
+
+    @property
+    def used_native_tools(self) -> bool:
+        return bool(self.tool_calls)
 
 
 class Backend(Protocol):
     name: str
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion: ...
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion: ...
 
 
 class OllamaBackend:
@@ -82,7 +96,8 @@ class OllamaBackend:
         self.host = host.rstrip("/")
         self.timeout = timeout
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion:
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
         payload = {
             "model": pins.model,
             "stream": False,
@@ -92,6 +107,8 @@ class OllamaBackend:
                 {"role": "user", "content": user},
             ],
         }
+        if tools:
+            payload["tools"] = tools
         req = urllib.request.Request(
             f"{self.host}/api/chat",
             data=json.dumps(payload).encode("utf-8"),
@@ -103,9 +120,21 @@ class OllamaBackend:
         except urllib.error.URLError as exc:
             raise LLMUnavailable(f"ollama at {self.host}: {exc}") from exc
 
+        message = body.get("message", {}) or {}
+        native = []
+        for call in message.get("tool_calls") or []:
+            fn = call.get("function", {}) or {}
+            args = fn.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            native.append(NativeCall(name=fn.get("name", ""), args=args or {}))
+
         return Completion(
-            text=body.get("message", {}).get("content", ""),
-            pins=pins, backend=self.name, raw=body,
+            text=message.get("content", ""),
+            pins=pins, backend=self.name, raw=body, tool_calls=native,
         )
 
 
@@ -114,7 +143,8 @@ class LiteLLMBackend:
 
     name = "litellm"
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion:
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
         import litellm  # imported lazily: absence must not break the runner
 
         resp = litellm.completion(
@@ -137,8 +167,10 @@ class ScriptedBackend:
         self.script = list(script)
         self.calls: list[tuple[str, str]] = []
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion:
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
         self.calls.append((system, user))
+        self.tools_offered = tools
         text = self.script.pop(0) if self.script else ""
         return Completion(text=text, pins=pins, backend=self.name)
 
@@ -149,6 +181,28 @@ class LLMUnavailable(RuntimeError):
 
 def default_backend() -> Backend:
     return OllamaBackend()
+
+
+def supports_tools(model: str, host: str = OLLAMA_HOST) -> bool:
+    """
+    Whether this model advertises tool support.
+
+    Asked rather than assumed: a model without it silently ignores the `tools`
+    field and answers in prose, which would look like a reasoning failure. When
+    it is absent we fall back to the `TOOL:` text protocol, which is exactly what
+    that protocol is for.
+    """
+    try:
+        req = urllib.request.Request(
+            f"{host}/api/show",
+            data=json.dumps({"model": model}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return "tools" in (body.get("capabilities") or [])
+    except Exception:
+        return False
 
 
 def available_models(host: str = OLLAMA_HOST) -> list[str]:

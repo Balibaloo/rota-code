@@ -178,8 +178,7 @@ async function loadPrompts() {
         <b>mode: ${esc(m)}</b> <span class="sig">(composed ${v.composed_chars} chars)</span>
         <pre>${esc(v.piece)}</pre>`).join('')}
       <b>working set advertised to the model</b>
-      <pre>${r.signatures.map(s => 'TOOL: ' + esc(s)).join('
-')}</pre>
+      <pre>${r.signatures.map(s => 'TOOL: ' + esc(s) + '<br>').join('')}</pre>
     </details>`).join('');
 }
 

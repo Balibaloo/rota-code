@@ -15,3 +15,7 @@ env/
 
 # Crashes
 .crashes/
+
+# rota framework state
+.rota/
+.rota-coverage.json
