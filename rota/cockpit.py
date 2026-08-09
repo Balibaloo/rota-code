@@ -201,6 +201,14 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(json.dumps(data, default=str).encode("utf-8"),
                                "application/json")
+                elif path == "/messages.json":
+                    conn = connect(db_path)
+                    try:
+                        body = json.dumps(inspect_api.message_graph(conn),
+                                          default=str).encode("utf-8")
+                    finally:
+                        conn.close()
+                    self._send(body, "application/json")
                 elif path == "/trace.json":
                     conn = connect(db_path)
                     try:
@@ -240,6 +248,23 @@ def make_handler(db_path: Path):
                 self.send_error(404)
             except Exception as exc:                       # pragma: no cover
                 self.send_error(500, str(exc))
+
+        def do_POST(self):  # noqa: N802
+            """Persist a dragged layout. Positions are a viewer concern, kept out
+            of graph.json so editing what the graph *means* never touches
+            geometry — and out of git's way for the same reason."""
+            if urlparse(self.path).path != "/layout.json":
+                self.send_error(404)
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            payload = self.rfile.read(length).decode("utf-8")
+            try:
+                json.loads(payload)
+            except json.JSONDecodeError as exc:
+                self.send_error(400, str(exc))
+                return
+            (graph_mod.DESIGN_DIR / "layout.json").write_text(payload, encoding="utf-8")
+            self._send(b'{"ok":true}', "application/json")
 
         def log_message(self, *args):                      # quiet
             pass

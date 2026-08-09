@@ -21,7 +21,9 @@
   select{color:var(--ink)}
   main{position:absolute;top:46px;bottom:0;left:0;right:0;display:none}
   main.on{display:block}
-  #gwrap{display:grid;grid-template-columns:1fr 420px;height:100%}
+  #gwrap{display:grid;grid-template-columns:1fr 6px 430px;height:100%}
+  #phandle{background:var(--line);cursor:col-resize}
+  #phandle:hover{background:var(--accent)}
   #gstage{position:relative;overflow:hidden;background:
     radial-gradient(circle at 30% 20%,#12161d,#0e1014 70%)}
   #gsvg{width:100%;height:100%;cursor:grab}
@@ -32,7 +34,26 @@
   #gnarr{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(14,16,20,.94);
          border:1px solid var(--line);border-radius:7px;padding:9px 12px;max-height:150px;
          overflow:auto;z-index:2}
-  #gpanel{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:0}
+  #gpanel{background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
+  #ptabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  #ptabs button.on{color:var(--ink);border-color:var(--accent);background:#18202e}
+  #pscroll{overflow:auto;flex:1}
+  .pacts{margin-top:6px}
+  .grp{border-top:1px solid var(--line)}
+  .grphead{padding:7px 14px;font-size:10px;letter-spacing:.14em;color:var(--idle);
+           background:#12161d}
+  .note{padding:10px 14px;color:var(--dim);border-bottom:1px solid #1d222b}
+  .sub{margin-top:3px;font-size:11px}
+  .row{padding:5px 0;border-bottom:1px solid #1d222b}
+  .tw{overflow:auto;max-height:340px}
+  .step{padding:7px 10px;border-bottom:1px solid #1d222b;cursor:pointer}
+  .step.on{background:#18202e;border-left:2px solid var(--accent)}
+  .step:hover{background:#161d28}
+  .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+  .mfrom{fill:#e6e9ef;font:11px ui-monospace,monospace}
+  .mverb{fill:#e6b25a;font:10px ui-monospace,monospace;text-anchor:end}
+  .mout{fill:#8b94a3;font:10px ui-monospace,monospace}
+  .mrefs{fill:#5a6472;font:9.5px ui-monospace,monospace}
   .phead{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
          background:var(--panel);z-index:1}
   .phead h2{margin:0;font-size:15px;text-transform:none;letter-spacing:0;padding:0;border:0}
@@ -89,9 +110,22 @@
       <svg id="gsvg"></svg>
       <div id="gnarr"></div>
     </div>
-    <div id="gpanel"><div class="phead"><h2>nothing selected</h2>
-      <span class="sig">click a node or an edge · double-click a role to inhabit it</span>
-    </div></div>
+    <div id="phandle"></div>
+    <div id="gpanel">
+      <div id="ptabs">
+        <button data-ptab="detail" class="on">detail</button>
+        <button data-ptab="story">story</button>
+      </div>
+      <div id="pscroll">
+        <div id="pdetail">
+          <div class="phead" id="phead"><h2>nothing selected</h2>
+            <span class="sig">click a node or edge · double-click a role to inhabit it
+            · drag to move · team/chat to switch graph</span></div>
+          <div id="pbody"></div>
+        </div>
+        <div id="pstory" style="display:none"><div class="body" id="storybody"></div></div>
+      </div>
+    </div>
   </div>
 </main>
 

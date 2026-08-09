@@ -228,3 +228,54 @@ def blast_radius(artefact_id: str) -> dict[str, Any]:
         "artefacts": order,
         "wakes": [{"artefact": a, "owners": sorted(g.writer_of(a))} for a in order],
     }
+
+
+def message_graph(conn: sqlite3.Connection, limit: int = 400) -> dict[str, Any]:
+    """
+    The conversation, as a graph.
+
+    Every message refs its cause, so the message log *is* a DAG — roots are
+    client utterances, gate events and ticks. Drawing it shows the shape of a
+    conversation the way the role graph shows the shape of the team: which
+    threads branched, where a round closed, what is still open.
+
+    Each message carries what its session produced, so the picture answers "and
+    then what happened" without a second lookup.
+    """
+    rows = [dict(r) for r in conn.execute(
+        "SELECT id, cause_id, cause_kind, thread_id, from_role, to_role, verb, "
+        "       body_refs, round_no, seq, attempts, status "
+        "FROM messages ORDER BY seq LIMIT ?", (limit,))]
+
+    produced: dict[str, dict] = {}
+    for s in conn.execute(
+        "SELECT id, role, trigger_msg, mode, committed, model FROM sessions "
+        "WHERE trigger_msg IS NOT NULL"
+    ):
+        produced[s["trigger_msg"]] = {
+            "session": s["id"], "role": s["role"], "mode": s["mode"],
+            "committed": bool(s["committed"]), "model": s["model"],
+            "calls": [c["fn"] for c in conn.execute(
+                "SELECT fn FROM tool_calls WHERE session_id = ? ORDER BY seq",
+                (s["id"],))],
+            "writes": [f'{w["table_name"]}:{w["row_id"]}' for w in conn.execute(
+                "SELECT table_name, row_id FROM receipts WHERE session_id = ?",
+                (s["id"],))],
+        }
+
+    for r in rows:
+        r["body_refs"] = json.loads(r["body_refs"] or "[]")
+        r["produced"] = produced.get(r["id"])
+        r["utterance"] = None
+        if r["from_role"] == "client":
+            u = conn.execute(
+                "SELECT text FROM utterances WHERE id = ?", (f'u_{r["id"]}',)).fetchone()
+            if u:
+                r["utterance"] = u["text"]
+
+    threads: dict[str, list[str]] = {}
+    for r in rows:
+        threads.setdefault(r["thread_id"], []).append(r["id"])
+
+    return {"messages": rows, "threads": threads,
+            "open": [r["id"] for r in rows if r["status"] == "open"]}
