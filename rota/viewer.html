@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rota cockpit</title>
+<style>
+  :root {
+    --bg: #0e1014; --panel: #161a21; --line: #262c36; --ink: #e6e9ef;
+    --dim: #8b94a3; --accent: #6ea8fe; --ok: #55d187; --warn: #e6b25a;
+    --stop: #e8746a; --idle: #5a6472;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 18px;
+           border-bottom: 1px solid var(--line); position: sticky; top: 0;
+           background: var(--bg); z-index: 5; }
+  h1 { font-size: 14px; margin: 0; letter-spacing: .08em; text-transform: uppercase; }
+  .state { padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+  .state.idle { background: #1d2a20; color: var(--ok); }
+  .state.busy { background: #2a2418; color: var(--warn); }
+  .state.stuck { background: #2d1c1a; color: var(--stop); }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+         gap: 14px; padding: 14px 18px 40px; align-items: start; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            overflow: hidden; }
+  h2 { font-size: 11px; margin: 0; padding: 9px 12px; letter-spacing: .1em;
+       text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
+  .body { padding: 8px 12px 12px; max-height: 340px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 3px 6px 3px 0; vertical-align: top;
+           border-bottom: 1px solid #1d222b; }
+  th { color: var(--dim); font-weight: 500; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 4px;
+         background: #1e2532; color: var(--accent); }
+  .muted { color: var(--dim); }
+  .fire { color: var(--warn); }
+  .quiet { color: var(--idle); }
+  .pass { color: var(--ok); } .fail { color: var(--stop); }
+  .empty { color: var(--idle); font-style: italic; padding: 6px 0; }
+  .counts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .counts span { background: #1a1f28; border-radius: 4px; padding: 2px 8px; }
+  .counts b { color: var(--accent); font-weight: 600; }
+  footer { padding: 0 18px 30px; color: var(--dim); }
+</style>
+
+<header>
+  <h1>rota cockpit</h1>
+  <span id="state" class="state idle">…</span>
+  <span class="muted" id="tick"></span>
+</header>
+
+<main>
+  <section><h2>Frontier — message tips</h2><div class="body" id="tips"></div></section>
+  <section><h2>Frontier — predicates (state, not events)</h2><div class="body" id="preds"></div></section>
+  <section><h2>Sessions</h2><div class="body" id="sessions"></div></section>
+  <section><h2>Receipts</h2><div class="body" id="receipts"></div></section>
+  <section><h2>Messages</h2><div class="body" id="messages"></div></section>
+  <section><h2>Tool calls (evidence)</h2><div class="body" id="calls"></div></section>
+  <section><h2>Items &amp; approval</h2><div class="body" id="items"></div></section>
+  <section><h2>Claims / checkpoints / ledger</h2><div class="body" id="runtime"></div></section>
+  <section><h2>Artefact versions</h2><div class="body" id="versions"></div></section>
+  <section><h2>Artefact counts</h2><div class="body counts" id="counts"></div></section>
+</main>
+
+<footer>
+  Quiescence = no open tips + no predicate firing + no schedulable batch.
+  A frontier that is non-empty and not advancing is <b>stuck</b>, not idle.
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function table(rows, cols) {
+  if (!rows.length) return '<div class="empty">none</div>';
+  const head = cols.map(c => `<th>${esc(c)}</th>`).join('');
+  const body = rows.map(r =>
+    '<tr>' + cols.map(c => `<td>${esc(r[c])}</td>`).join('') + '</tr>').join('');
+  return `<table><tr>${head}</tr>${body}</table>`;
+}
+
+let lastSignature = '', stalledFor = 0;
+
+async function refresh() {
+  let s;
+  try { s = await (await fetch('/state.json')).json(); }
+  catch { $('state').textContent = 'server gone'; $('state').className = 'state stuck'; return; }
+
+  const tips = s.frontier.tips, preds = s.frontier.predicates;
+  const signature = JSON.stringify([tips, preds, s.versions]);
+  if (signature === lastSignature) stalledFor++; else { stalledFor = 0; lastSignature = signature; }
+
+  // idle vs stuck is the question you actually ask when glancing at this.
+  const busy = tips.length + preds.length > 0;
+  const stuck = busy && stalledFor > 6;
+  $('state').textContent = stuck ? 'STUCK' : busy ? 'WORK PENDING' : 'QUIESCENT';
+  $('state').className = 'state ' + (stuck ? 'stuck' : busy ? 'busy' : 'idle');
+  $('tick').textContent = `${tips.length} tip(s) · ${preds.length} predicate wake(s)`
+    + (stalledFor ? ` · unchanged for ${stalledFor} polls` : '');
+
+  $('tips').innerHTML = table(tips, ['role', 'verb', 'message']);
+  $('preds').innerHTML =
+    Object.entries(s.predicate_status).map(([name, wakes]) =>
+      `<div class="${wakes.length ? 'fire' : 'quiet'}">${wakes.length ? '●' : '○'} ${esc(name)}`
+      + (wakes.length ? ` <span class="muted">${esc(wakes.join(', '))}</span>` : '')
+      + '</div>').join('');
+
+  $('sessions').innerHTML = table(s.sessions, ['id', 'role', 'mode', 'committed', 'model']);
+  $('receipts').innerHTML = table(s.receipts, ['role', 'table_name', 'row_id', 'new_version']);
+  $('messages').innerHTML = table(s.messages, ['from_role', 'to_role', 'verb', 'status', 'attempts']);
+  $('calls').innerHTML = table(s.tool_calls, ['fn', 'args_summary']);
+  $('items').innerHTML = table(s.items, ['id', 'kind', 'approval', 'approval_ver', 'version', 'headline']);
+  $('versions').innerHTML = table(s.versions, ['table_name', 'version']);
+
+  $('runtime').innerHTML =
+    '<b>claims</b>' + table(s.claims, ['role', 'session_id'])
+    + '<b>checkpoints</b>' + table(s.checkpoints, ['session_id', 'role', 'valid'])
+    + '<b>open ledger</b>' + table(s.ledger, ['id', 'about_ref', 'default_taken', 'author']);
+
+  $('counts').innerHTML = Object.entries(s.counts)
+    .map(([k, v]) => `<span>${esc(k)} <b>${v}</b></span>`).join('');
+}
+
+refresh();
+setInterval(refresh, 1500);
+</script>
