@@ -82,3 +82,45 @@ def test_the_new_names_are_actually_in_use():
         if where:
             assert where in terms[word].sources, \
                 f"{word!r} exists but not as {where}: {sorted(terms[word].sources)}"
+
+
+# ---------------------------------------------------------------------------
+# L0 — the level every other source presupposed and none stated
+# ---------------------------------------------------------------------------
+
+def test_every_l0_term_is_actually_defined_somewhere():
+    """
+    The top level is *declared* in the tool rather than harvested, because there
+    was no source to harvest it from — which is exactly the problem. Now there
+    is one, and a declared term with no prose behind it is a term nobody has had
+    to mean anything by.
+    """
+    import pathlib
+
+    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8").lower()
+    missing = [t for t in V.L0_TERMS if t not in laws]
+    assert not missing, f"declared at L0 but never stated: {missing}"
+
+
+def test_the_laws_name_every_role():
+    import pathlib
+
+    from rota import graph as graph_mod
+
+    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8").lower()
+    missing = [r for r in graph_mod.load().roles if r not in laws]
+    assert not missing, f"a role the laws never mention: {missing}"
+
+
+def test_the_laws_carry_no_legacy_names():
+    """
+    The document the prompts hang from is the last place a stale name can hide,
+    because it is the one nobody re-reads once it looks finished.
+    """
+    import pathlib
+    import re
+
+    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8")
+    found = re.findall(r"\b(client|interface|vision|domain|utterance|non_goal)\b",
+                       laws, re.I)
+    assert not found, f"legacy vocabulary in LAWS.md: {sorted(set(found))}"

@@ -224,8 +224,10 @@ a default is invisible at both the call site and the setting site.
 
 ## 7. Still open, deliberately
 
-- **L0 has never been written.** Every source presupposes the engagement and none
-  states it. Concepts declared in `tools/vocabulary.py`; prose owed
+- ~~L0 has never been written~~ — **`rota/LAWS.md`**. The engagement, the eight
+  answerabilities, and the thirteen laws with every amendment marked and
+  reasoned. A test asserts each declared L0 term actually appears there, so the
+  vocabulary and the prose cannot drift apart again
 - **Phases** — law 7 says "phase-dependent" and `phase` appears **zero times** in
   `rota/`. On inspection it is two booleans (*does the problem statement exist*,
   *did the state folder exist at boot*) wearing a state machine's clothes. If we
