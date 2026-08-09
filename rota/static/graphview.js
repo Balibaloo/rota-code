@@ -37,6 +37,22 @@ function kindOf(n) {
   return 'record';
 }
 
+// State colours live here and nowhere else. The renderer and the legend had
+// drifted to different values for the same three states -- the legend claimed
+// #d97706 for "ready" while the graph drew #e6b25a -- which makes a legend worse
+// than none: it teaches a colour the picture does not use.
+const STATE = {
+  ready:  '#d97706',   // a wake is pending for this role
+  live:   '#dc2626',   // mid-session, holding a claim
+  blast:  '#9333ea',   // in the cascade path of the selected artefact
+  gap:    '#dc2626',   // an edge no test exercises
+  now:    '#b45309',   // the edge lit by the current step
+  ink:    '#334155',
+  faint:  '#94a3b8',
+  grid:   '#dde5ee',
+  arrow:  '#475569',
+};
+
 const SHAPE = {
   client:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
   role:    {w:152, h:50, rx:10, fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
@@ -220,15 +236,19 @@ function drawChat() {
     if (!m.cause_id || !pos[m.cause_id] || !pos[m.id]) continue;
     const a=pos[m.cause_id], b=pos[m.id];
     edges += `<path d="M${a.x} ${a.y+18} C${a.x} ${a.y+60} ${b.x} ${b.y-60} ${b.x} ${b.y-18}"
-      fill="none" stroke="#3d4757" stroke-width="1.6" marker-end="url(#head)"/>`;
+      fill="none" stroke="${ESTYLE.refs.c}" stroke-width="1.6" marker-end="url(#head)"/>`;
   }
 
   for (const m of msgs) {
     const p=pos[m.id]; if(!p) continue;
     const w=250, h=m.produced?58:38;
     const open = m.status==='open';
-    const stroke = open ? '#e6b25a' : m.produced?.committed ? '#3d5680' : '#3a3040';
-    const fill = m.from_role==='client' ? '#2b2517' : '#181d26';
+    // The chat graph shares the canvas, so it shares the palette. It was still
+    // drawn in dark-theme colours and went invisible when the ground changed.
+    const stroke = open ? STATE.ready
+      : m.produced?.committed ? SHAPE.role.stroke : STATE.faint;
+    const fill = m.from_role==='client' ? SHAPE.client.fill : '#ffffff';
+    const ink  = m.from_role==='client' ? SHAPE.client.ink  : SHAPE.role.ink;
     const out = m.produced
       ? `${m.produced.calls.length} call(s)` + (m.produced.writes.length
           ? ` · ${m.produced.writes.length} write(s)` : '')
@@ -237,12 +257,13 @@ function drawChat() {
     nodes += `<g class="gnode" data-msg="${m.id}" transform="translate(${p.x-w/2},${p.y-h/2})">
       <rect width="${w}" height="${h}" rx="7" fill="${fill}" stroke="${stroke}"
         stroke-width="${open?2.4:1.2}"/>
-      <text x="10" y="16" class="mfrom">${esc(m.from_role)} → ${esc(m.to_role)}</text>
-      <text x="${w-10}" y="16" class="mverb">${esc(m.verb)}</text>
-      ${m.produced?`<text x="10" y="34" class="mout">${esc(m.produced.role)}: ${esc(out)}</text>`:''}
-      ${m.produced?`<text x="10" y="50" class="mrefs">${esc(
+      <text x="10" y="16" class="mfrom" fill="${ink}">${esc(m.from_role)} → ${esc(m.to_role)}</text>
+      <text x="${w-10}" y="16" class="mverb" fill="${ESTYLE.messages.c}">${esc(m.verb)}</text>
+      ${m.produced?`<text x="10" y="34" class="mout" fill="${STATE.ink}">${
+        esc(m.produced.role)}: ${esc(out)}</text>`:''}
+      ${m.produced?`<text x="10" y="50" class="mrefs" fill="${STATE.faint}">${esc(
         (m.produced.calls||[]).slice(0,3).join(' '))}</text>`
-       :`<text x="10" y="32" class="mrefs">${esc(out)}</text>`}
+       :`<text x="10" y="32" class="mrefs" fill="${STATE.faint}">${esc(out)}</text>`}
     </g>`;
   }
   return {edges, nodes};
@@ -267,7 +288,7 @@ function drawTeam() {
     let op=0.16, w=1.2, col=st.c;
     if (GV.source==='coverage') {
       if (state==='covered'){op=.8;w=2;}
-      else if (uncovered.has(key)){op=.3;col='#e8746a';w=1.4;}
+      else if (uncovered.has(key)){op=.42;col=STATE.gap;w=1.5;}
     } else if (state==='now'){op=1;w=3.2;}
     else if (state==='past'){op=.42;w=1.8;}
     if (GV.focus) op = incident?Math.max(op,.95):.05;
@@ -299,7 +320,7 @@ function drawTeam() {
     if (e.v && op > 0.12) {
       const emph = state==='now'||incident;
       edges += `<text x="${lx}" y="${ly-4}" class="elabel"
-        fill="${emph?'#e6b25a':st.label}" opacity="${emph?1:Math.min(1,op+.35)}"
+        fill="${emph?STATE.now:st.label}" opacity="${emph?1:Math.min(1,op+.35)}"
         font-size="${emph?11:9.5}">${esc(e.v)}</text>`;
     }
   }
@@ -310,17 +331,16 @@ function drawTeam() {
     const k=kindOf(n), sh=SHAPE[k];
     const dim = GV.focus && n.id!==GV.focus &&
       !GV.graph.edges.some(e=>(e.s===GV.focus&&e.t===n.id)||(e.t===GV.focus&&e.s===n.id));
-    const ring = ready.has(n.id)?'#e6b25a' : claimed[n.id]?'#e8746a'
-      : blast&&blast.has(n.id)?'#c07ae8' : sh.stroke;
+    const ring = ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
+      : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
     const hot = ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
     nodes += `<g class="gnode" data-n="${n.id}" opacity="${dim?.2:1}"
       transform="translate(${p.x-sh.w/2},${p.y-sh.h/2})">
       <rect width="${sh.w}" height="${sh.h}" rx="${sh.rx}" fill="${sh.fill}"
         stroke="${ring}" stroke-width="${hot?2.5:1.3}" stroke-dasharray="${sh.dash}"/>
-      ${k==='role'?`<rect width="4" height="${sh.h}" rx="2" fill="${ring}" opacity=".8"/>`:''}
-      ${k==='record'||k==='journal'?`<line x1="0" y1="11" x2="${sh.w}" y2="11"
-        stroke="${ring}" stroke-width=".8" opacity=".45"/>`:''}
+      ${k==='record'||k==='journal'?`<line x1="1" y1="12" x2="${sh.w-1}" y2="12"
+        stroke="${sh.stroke}" stroke-width=".9" opacity=".5"/>`:''}
       <text x="${sh.w/2}" y="${sh.h/2+(k==='record'||k==='journal'?4:1)}"
         class="nlabel" fill="${sh.ink}">${esc(n.label)}</text>
       ${vol[n.id]?`<text x="${sh.w-7}" y="9" class="nvol">${vol[n.id]}</text>`:''}
@@ -332,11 +352,11 @@ function drawTeam() {
 function gvDraw() {
   const {edges, nodes} = GV.mode==='chat' ? drawChat() : drawTeam();
   const v=GV.view;
-  const R = '#64748b';
+  const R = ESTYLE.refs.c;
   document.getElementById('gsvg').innerHTML = `<defs>
       <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
         markerHeight="5" orient="auto-start-reverse">
-        <path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+        <path d="M0 0 L10 5 L0 10 z" fill="${STATE.arrow}"/></marker>
       <marker id="one-e" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9"
         markerHeight="9" orient="auto">
         <path d="M7 1 L7 11" stroke="${R}" stroke-width="1.6" fill="none"/></marker>
@@ -352,7 +372,7 @@ function gvDraw() {
         <path d="M1 6 L10 1 M1 6 L10 6 M1 6 L10 11" stroke="${R}"
           stroke-width="1.4" fill="none"/></marker>
       <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
-        <circle cx="1" cy="1" r="1" fill="#dbe2ea"/></pattern>
+        <circle cx="1" cy="1" r="1" fill="${STATE.grid}"/></pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dots)"/>
     <g transform="translate(${v.x},${v.y}) scale(${v.k})">${edges}${nodes}</g>`;
@@ -497,9 +517,9 @@ function gvLegend() {
       <span>${box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3')} journal</span>
       <span>${box(SHAPE.derived.fill,SHAPE.derived.stroke,'2 4')} derived</span></div>
     <div class="lgrp"><b>rings</b>
-      <span><i class="ring" style="border-color:#d97706"></i> ready to wake</span>
-      <span><i class="ring" style="border-color:#dc2626"></i> mid-session</span>
-      <span><i class="ring" style="border-color:#9333ea"></i> blast radius</span></div>`;
+      <span><i class="ring" style="border-color:${STATE.ready}"></i> ready to wake</span>
+      <span><i class="ring" style="border-color:${STATE.live}"></i> mid-session</span>
+      <span><i class="ring" style="border-color:${STATE.blast}"></i> blast radius</span></div>`;
 }
 
 document.addEventListener('DOMContentLoaded', () => gvLoad().then(gvLegend));

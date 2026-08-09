@@ -71,10 +71,12 @@
   .step.on{background:#18202e;border-left:2px solid var(--accent)}
   .step:hover{background:#161d28}
   .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
-  .mfrom{fill:#e6e9ef;font:11px ui-monospace,monospace}
-  .mverb{fill:#e6b25a;font:10px ui-monospace,monospace;text-anchor:end}
-  .mout{fill:#8b94a3;font:10px ui-monospace,monospace}
-  .mrefs{fill:#5a6472;font:9.5px ui-monospace,monospace}
+  /* Fills come from the renderer's palette, not from here — these carry type
+     only. A colour set in two places is a colour that will disagree. */
+  .mfrom{font:11px ui-monospace,monospace}
+  .mverb{font:10px ui-monospace,monospace;text-anchor:end}
+  .mout{font:10px ui-monospace,monospace}
+  .mrefs{font:9.5px ui-monospace,monospace}
   .phead{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
          background:var(--panel);z-index:1}
   .phead h2{margin:0;font-size:15px;text-transform:none;letter-spacing:0;padding:0;border:0}
@@ -94,10 +96,13 @@
   .sig{color:var(--dim)}.pass{color:var(--ok)}.fail{color:var(--stop)}
   .muted{color:var(--dim)}.empty{color:var(--idle);font-style:italic}
   .link{color:var(--accent);cursor:pointer}.link:hover{text-decoration:underline}
-  .nlabel{fill:var(--ink);font:12px ui-monospace,monospace;text-anchor:middle;
+  .nlabel{font:12px ui-monospace,monospace;text-anchor:middle;
           dominant-baseline:middle;pointer-events:none}
-  .nvol{fill:var(--accent);font:10px ui-monospace,monospace;text-anchor:end;pointer-events:none}
-  .elabel{fill:var(--warn);font:10px ui-monospace,monospace;text-anchor:middle;pointer-events:none}
+  .nvol{fill:#64748b;font:9.5px ui-monospace,monospace;text-anchor:end;pointer-events:none}
+  /* Edge labels sit on top of edges, so they need a halo in the canvas colour
+     to stay readable where lines cross. */
+  .elabel{font:10px ui-monospace,monospace;text-anchor:middle;pointer-events:none;
+          paint-order:stroke;stroke:#f7f9fb;stroke-width:3px;stroke-linejoin:round}
   .gnode,.gedge{cursor:pointer}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;
         padding:12px;overflow:auto;height:100%}
