@@ -222,45 +222,81 @@ a default is invisible at both the call site and the setting site.
 
 ---
 
-## 7. Still open, deliberately
+## 7. Closed since, and still open
 
-- ~~L0 has never been written~~ — **`rota/LAWS.md`**. The engagement, the eight
+**Closed while doing the rest** — each was on this list as owed:
+
+- ~~L0 has never been written~~ → **`rota/LAWS.md`**. The engagement, the eight
   answerabilities, and the thirteen laws with every amendment marked and
-  reasoned. A test asserts each declared L0 term actually appears there, so the
-  vocabulary and the prose cannot drift apart again
-- **Phases** — law 7 says "phase-dependent" and `phase` appears **zero times** in
+  reasoned. Three tests keep it honest: every declared L0 term must appear there,
+  every role must be named, and no legacy vocabulary may survive
+- ~~the dynamic-table exemption is a bypass~~ → gone with `batch_touch`. There is
+  no longer a way to declare a predicate against a table that does not exist
+- ~~prompts, not started~~ → all 43 modes have a piece, and three new constraints
+  hold them: every mode has one, every piece names its mode, and a `.tools`
+  narrowing may not name anything outside the role's namespace
+
+**Found while doing the rest** — neither was on any list, and no check we had
+could have seen either:
+
+- **Nothing turned tickets into batches.** `criteria` produced them, `batch_start`
+  waited for them, and no predicate connected the two — so the understanding loop
+  ran to completion and the delivery loop never began. Every check was about
+  *states*, and a missing step *between* two reachable states is invisible to all
+  of them. Closed by `grouping`; the gap it represents is not
+- **Neither owner could read its own bodies.** Terminologist had the glossary
+  index and no way to fetch a sense body it had itself written; Architect the
+  same for constraint text. Writing something you cannot read back is not
+  ownership. Closed by two read edges using operations that already existed
+
+**Still open, deliberately:**
+
+- **Phases** — law 7 said "phase-dependent" and `phase` appears **zero times** in
   `rota/`. On inspection it is two booleans (*does the problem statement exist*,
-  *did the state folder exist at boot*) wearing a state machine's clothes. If we
-  ever want real phases they should be predicated like everything else
+  *did the state folder exist at boot*) wearing a state machine's clothes. The
+  law now says caps are the principal's rather than phase-derived; if we ever
+  want real phases they should be predicated like everything else
 - **Ticket readiness** — Architect is accountable for it via the touch set, but
   Gatekeeper owns the text and Terminologist the criteria. Written down as an
   accountability rather than left an accident
 - **Reachability stops at link 1 of 5** — schema state → api function → role
   namespace → mode tools → a predicate that wakes that mode. Only the first is
-  checked
-- **The dynamic-table exemption is a bypass** — one predicate uses it; it must
-  stay one
+  checked, and links 2–5 are where `grouping` was hiding
 - **`survey_records.outcome`** is listed as a lifecycle but both values are
   terminal, so by my own definition it is a classification
-- **Prompts** — the whole point of the vocabulary pass. Not started
+- **`contest_defences` and `ledger_signoff` are declared, not enforced.** Both
+  are read by nothing yet; the paths they gate are not built
+- **Edge coverage is 34/99.** Developer has none at all — the delivery loop is
+  exercised through the scheduler and the harness rather than through sessions,
+  which is honest for what exists and is not the same as tested
 
 ---
 
 ## 8. Verification
 
-```bash
-python -m rota.graph                       # graph consistent, contacts derive
-python -m rota.predicates                  # every state has a way out
-python -m rota.tools.vocabulary --analyse  # collisions, duplication, hierarchy
-python -m rota.coverage                    # edge coverage
-python -m pytest tests/rota -q             # 108 green at the time of writing
-```
+Every command below, run at the point this checklist was closed:
+
+| check | result |
+|---|---|
+| `python -m rota.graph` | **graph consistent**, contacts derive with zero exceptions |
+| `python -m rota.predicates` | 21 predicates, four lints, **no problems** |
+| `python -m rota.tools.vocabulary --analyse` | **zero collisions** |
+| `python -m rota.coverage` | 34/99 edges |
+| `python -m pytest tests/rota -q` | **174 passed**, 6 skipped |
 
 **The legacy-terminology check**, which is the one that says the rename is done:
 
 ```bash
 grep -rniE "\b(interface|vision|domain|client|utterance|non_goal)\b" \
-  rota/ tests/rota/ | grep -v "AGREED.md"
+  rota/ tests/rota/ \
+  | grep -vE "AGREED.md|rename_roles.py|split_senses.py|test_vocabulary.py"
 ```
 
-Every remaining hit must be ordinary English, never an identifier.
+**Returns nothing.** The three excluded files are the two migration scripts and
+the test that asserts the terms are gone — all three are *about* the old names,
+which is the only legitimate reason to contain one.
+
+Every check above is also a test, so none of this depends on remembering to run
+it: `test_graph_reach`, `test_predicates`, `test_vocabulary`, `test_laws`,
+`test_config`, `test_frontier`, `test_delivery` and `test_prompts` each hold one
+part of this document.
