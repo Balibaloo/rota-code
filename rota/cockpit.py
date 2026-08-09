@@ -29,7 +29,7 @@ from urllib.parse import parse_qs, urlparse
 from . import graph as graph_mod, prompts as prompts_mod
 from .boot import state_dir
 from .coverage import render as render_coverage, report as coverage_report
-from .db import connect
+from .db import connect, init_db
 from . import inspect_api
 from .sandbox import build as build_sandbox
 from .traceview import (
@@ -89,7 +89,14 @@ def snapshot(conn: sqlite3.Connection) -> dict:
         "ledger": rows(
             "SELECT id, about_ref, default_taken, status, author FROM ledger "
             "WHERE status='open'"),
-        "batches": rows("SELECT id, item_id, status, priority, worktree FROM batches"),
+        # Priority comes from the item now, so this joins rather than selecting a
+        # column that no longer exists. The old query was still here because the
+        # database it was reading predated the move.
+        "batches": rows(
+            "SELECT b.id AS id, b.item_id AS item_id, b.status AS status, "
+            "       i.priority AS priority, b.worktree AS worktree "
+            "FROM batches b JOIN items i ON i.id = b.item_id "
+            "ORDER BY i.priority DESC, b.id"),
         "items": rows(
             "SELECT id, kind, approval, approval_ver, version, substr(text,1,90) AS headline "
             "FROM items ORDER BY id"),
@@ -150,6 +157,47 @@ def source_fingerprint() -> str:
             if f.is_file() and f.suffix in (".md", ".json", ".py", ".html"):
                 h.update(f"{f}:{f.stat().st_mtime_ns}".encode())
     return h.hexdigest()[:16]
+
+
+def schema_drift(db_path: Path) -> list[str]:
+    """
+    Tables and columns `schema.sql` declares that the file does not have.
+
+    Read off the DDL rather than a hand-kept list, so it cannot fall behind the
+    thing it is checking — which is the failure it exists to catch.
+    """
+    import re
+
+    from .db import SCHEMA_PATH
+
+    ddl = SCHEMA_PATH.read_text(encoding="utf-8")
+    declared: dict[str, set[str]] = {}
+    for block in re.finditer(
+            r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*?)\n\);", ddl, re.S):
+        table, body = block.group(1), block.group(2)
+        cols = set()
+        for line in body.splitlines():
+            line = line.strip()
+            m = re.match(r"(\w+)\s+(TEXT|INTEGER|REAL|BLOB)", line)
+            if m:
+                cols.add(m.group(1))
+        declared[table] = cols
+
+    problems = []
+    conn = connect(db_path)
+    try:
+        have = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, cols in sorted(declared.items()):
+            if table not in have:
+                problems.append(f"missing table {table}")
+                continue
+            actual = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for missing in sorted(cols - actual):
+                problems.append(f"{table} has no column {missing}")
+    finally:
+        conn.close()
+    return problems
 
 
 def make_handler(db_path: Path):
@@ -276,6 +324,28 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
     db_path = state_dir(project_root) / "rota.db"
     if not db_path.exists():
         raise SystemExit(f"no rota database at {db_path}; boot the project first")
+
+    # Bring the file up to the current schema, and refuse to serve it if that
+    # was not enough.
+    #
+    # `CREATE TABLE IF NOT EXISTS` adds missing *tables* and cannot add a
+    # missing *column*, so a database written before `items.priority` moved
+    # looks fine until one panel returns a 500 — which the viewer renders as an
+    # empty box that reads like "no rows yet". Saying so plainly is worth more
+    # than serving eight panels and lying about the ninth.
+    #
+    # It sits in `serve` rather than the request path on purpose: a *viewer*
+    # that migrates per request is a viewer with side effects, and the one thing
+    # this tool must never do is change what it is showing you.
+    init_db(db_path).close()
+    drift = schema_drift(db_path)
+    if drift:
+        raise SystemExit(
+            f"{db_path} is behind schema.sql:\n" +
+            "\n".join(f"  {d}" for d in drift) +
+            "\n\nDatabases here are throwaway — every one is built by init_db at "
+            "boot. Move it aside and it will be rebuilt:\n"
+            f"  mv {db_path} {db_path}.old")
 
     # Deliberately NOT allow_reuse_address. On Windows SO_REUSEADDR permits a
     # second process to bind a port that is already *actively listening* — not

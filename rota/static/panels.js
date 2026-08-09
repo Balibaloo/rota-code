@@ -104,7 +104,7 @@ async function showRole(id) {
     );
 
   phead(r.label, `role · woken by ${esc(r.inbound_verbs.join(', ')||'ticks only')}`,
-    `<span class="link" onclick="gvInhabit('${id}')">inhabit</span>`);
+    `<span class="link" onclick="gvInhabit('${id}')">show only what it reaches</span>`);
   P().innerHTML = `<div class="note">${esc(r.note)}</div>${modes}${wiring}${state}`;
 }
 
@@ -137,7 +137,7 @@ async function showArtefact(id) {
       : ''));
 
   phead(a.label, `artefact · written by ${esc(a.written_by.join(', ')||'the system')}`,
-    `<span class="link" onclick="showBlast('${id}')">blast radius</span>`);
+    `<span class="link" onclick="showBlast('${id}')">what this wakes</span>`);
   P().innerHTML =
     `<div class="note">${esc(a.note)}
       ${isJournal?`<div class="sub sig"><b>Fact artefact.</b> ${esc(a.contact_why)}</div>`:''}
@@ -194,7 +194,7 @@ async function showMessage(id) {
 async function showBlast(id) {
   const b = await (await fetch(`/blast.json?id=${encodeURIComponent(id)}`)).json();
   GV.blast=b; gvDraw(); showTab('detail');
-  phead(`blast radius · ${id}`, 'what a change here cascades to, in wake order',
+  phead(`what changing ${id} wakes`, 'the cascade, in the order owners are summoned',
     `<span class="link" onclick="GV.blast=null;gvDraw();showArtefact('${id}')">clear</span>`);
   P().innerHTML = group('WIRING', sec('wake order', b.wakes.length,
     table(b.wakes.map(w=>({artefact:w.artefact, owners:w.owners.join(', ')})),
@@ -281,12 +281,30 @@ async function refresh() {
     + (stalled?` · still for ${stalled}`:'');
 
   // Header hover: the detail without the real estate.
-  tick_.title =
-    `frontier tips:\n${tips.map(t=>`  ${t.role} ← ${t.verb}`).join('\n')||'  none'}\n\n`+
-    `predicates:\n${Object.entries(s.predicate_status).map(([n,w])=>
-      `  ${w.length?'●':'○'} ${n}${w.length?' '+w.join(', '):''}`).join('\n')}\n\n`+
-    `versions:\n${s.versions.map(v=>`  ${v.table_name} v${v.version}`).join('\n')||'  none'}`;
-  st_.title = Object.entries(s.counts).map(([k,v])=>`${k}: ${v}`).join('\n');
+  //
+  // These populate the `.pop` panels. They used to *also* set `title`, which is
+  // why hovering produced two things at once — an empty styled box, because
+  // nothing ever filled it, and the OS tooltip a second later carrying the
+  // content the box was supposed to have. One of them had to go, and the
+  // native tooltip is the one that cannot be laid out, coloured or clicked.
+  const rows = xs => xs.length ? xs.join('') : '<div class="pnone">none</div>';
+
+  document.getElementById('pop-tick').innerHTML =
+    `<h4>frontier tips</h4>` +
+    rows(tips.map(t=>`<div class="prow"><span>${esc(t.role)}</span>
+      <em>← ${esc(t.verb)}</em></div>`)) +
+    `<h4>predicates</h4>` +
+    rows(Object.entries(s.predicate_status).map(([n,w])=>
+      `<div class="prow"><span class="${w.length?'pon':'poff'}">${w.length?'●':'○'}
+        ${esc(n)}</span><em>${esc(w.join(', '))}</em></div>`)) +
+    `<h4>versions</h4>` +
+    rows(s.versions.map(v=>`<div class="prow"><span>${esc(v.table_name)}</span>
+      <em>v${v.version}</em></div>`));
+
+  document.getElementById('pop-state').innerHTML =
+    `<h4>rows on record</h4>` +
+    rows(Object.entries(s.counts).map(([k,v])=>
+      `<div class="prow"><span>${esc(k)}</span><em>${v}</em></div>`));
 
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
   set('tips', table(tips,['role','verb','message']));

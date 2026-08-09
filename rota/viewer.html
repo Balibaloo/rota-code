@@ -34,23 +34,40 @@
   #gctl button,#gctl select{border-color:#cbd5e1;color:#475569}
   #gctl button.on{background:#e0ecfb;border-color:#3b6ea5;color:#12325a}
   #gctl .sep{background:#cbd5e1}
-  #glegend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.95);
+  /* Top left, under the controls: the key is read before the picture, not
+     after it, so it belongs where the eye starts rather than in the corner
+     it ends up in. */
+  #glegend{position:absolute;left:12px;top:56px;background:rgba(255,255,255,.95);
         border:1px solid #cbd5e1;border-radius:7px;padding:8px 10px;z-index:2;
-        color:#475569;font-size:11px;display:flex;gap:18px;
+        color:#475569;font-size:11px;display:flex;gap:16px;
         box-shadow:0 1px 3px rgba(15,23,42,.08)}
-  #glegend .lgrp{display:flex;flex-direction:column;gap:3px}
+  #glegend .lgrp{display:flex;flex-direction:column;gap:2px}
   #glegend .lgrp b{color:#94a3b8;font-weight:600;font-size:9.5px;
-        letter-spacing:.12em;text-transform:uppercase}
-  #glegend span{display:flex;align-items:center;gap:6px}
+        letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}
+  #glegend .lkey{display:flex;align-items:center;gap:6px;cursor:help;
+        padding:1px 4px;margin:0 -4px;border-radius:4px}
+  #glegend .lkey:hover{background:#e8eef6;color:#1e293b}
   #glegend .ring{width:10px;height:10px;border-radius:3px;border:2px solid;display:block}
+  /* One line, under the key, explaining whatever is hovered. Reserved rather
+     than inserted, so the key does not jump as the pointer moves across it. */
+  #lwhat{margin-top:7px;padding-top:6px;border-top:1px solid #e2e8f0;
+        color:#64748b;font-size:10.5px;min-height:14px;max-width:430px;
+        font-style:italic}
   .pop{position:absolute;top:52px;background:var(--panel);border:1px solid var(--line);
-       border-radius:7px;padding:10px 12px;z-index:20;min-width:250px;
+       border-radius:7px;padding:10px 12px;z-index:20;min-width:280px;max-width:520px;
+       max-height:70vh;overflow:auto;
        box-shadow:0 6px 20px rgba(0,0,0,.45);display:none}
   .pop.on{display:block}
   .pop h4{margin:0 0 6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
           color:var(--dim)}
+  .pop h4:not(:first-child){margin-top:11px}
   .pop .prow{display:flex;justify-content:space-between;gap:14px;padding:2px 0;
              border-bottom:1px solid #1d222b}
+  .pop .prow:last-child{border-bottom:0}
+  .pop .prow em{color:var(--dim);font-style:normal}
+  .pop .pnone{color:var(--idle)}
+  .pop .pon{color:var(--warn)}
+  .pop .poff{color:var(--idle)}
   .hoverable{cursor:help;border-bottom:1px dotted var(--idle)}
   #gstatus{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .stnav{display:flex;gap:6px;align-items:center;margin-bottom:8px}
@@ -146,7 +163,7 @@
       <div id="pscroll">
         <div id="pdetail">
           <div class="phead" id="phead"><h2>nothing selected</h2>
-            <span class="sig">click a node or edge · double-click a role to inhabit it
+            <span class="sig">click a node or edge · double-click a role to see only what it reaches
             · drag to move · team/chat to switch graph</span></div>
           <div id="pbody"></div>
         </div>

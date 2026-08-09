@@ -11,7 +11,7 @@
 
 const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             mode:'team', source:'coverage', storyIx:0, stepIx:0,
-            focus:null, inhabit:null, blast:null,
+            focus:null, inhabit:null, blast:null, keyhl:null,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false};
 
 // Light canvas, dark chrome. On a light ground the edge colours can be
@@ -199,9 +199,13 @@ function gvLit() {
   return lit;
 }
 
-// Inhabit: the graph collapses to exactly what a role can reach. Not
-// "neighbours" — namespace. Double-click Critic and the system model is not
-// dimmed, it is gone.
+// The graph collapses to exactly what one role can reach. Not "neighbours" --
+// its namespace. Double-click Critic and the system model is not dimmed, it is
+// gone, because `sandbox.build` never created a function that could fetch it.
+//
+// It was called "inhabit", which reads as a mood rather than a filter. The UI
+// says "show only what it reaches"; the function keeps the short name because
+// it is called from six places and the label is the part people read.
 function gvVisible(id) {
   if (!GV.inhabit || id===GV.inhabit) return true;
   return GV.graph.edges.some(e =>
@@ -294,6 +298,11 @@ function drawTeam() {
     if (GV.focus) op = incident?Math.max(op,.95):.05;
     if (GV.inhabit) op = Math.max(op,.7);
 
+    // Hovering the key selects rather than annotates: everything else recedes,
+    // so "what is a journal" is answered by the picture instead of by the
+    // sentence underneath it.
+    if (GV.keyhl) op = GV.keyhl.edge===e.type ? Math.max(op,.95) : 0.05;
+
     let d, lx, ly;
     let markers = '';
     if (e.type === 'refs') {
@@ -311,16 +320,31 @@ function drawTeam() {
       lx=(a.x+2*cx+b.x)/4; ly=(a.y+2*cy+b.y)/4;
     }
 
+    // Arrowheads are per type and match the edge colour. They were there all
+    // along and invisible: one slate-grey marker, and `opacity` on a path
+    // applies to its markers too — so at the resting opacity of 0.16 the head
+    // was a grey smudge on a coloured line. A direction you have to zoom in to
+    // read is a direction the picture is not carrying.
+    const headId = markers ? '' : `marker-end="url(#head-${e.type})"`;
     edges += `<path d="${d}" fill="none"
       stroke="${col}" stroke-width="${w}" stroke-dasharray="${st.dash}" opacity="${op}"
-      ${markers || (st.head?'marker-end="url(#head)"':'')} class="gedge"
+      ${markers || (st.head?headId:'')} class="gedge"
       data-e="${e.s}|${e.t}|${e.type}|${esc(e.v||'')}"/>`;
 
     // Edge names always on — the grammar is the content, not a hover reward.
     if (e.v && op > 0.12) {
       const emph = state==='now'||incident;
+      const lop = emph?1:Math.min(1,op+.35);
+      // A second arrow under the label. The tip head says where the edge ends;
+      // this says which way it runs *where you are already looking*, which for
+      // a long bowed edge is not the same question. Only on edges that carry a
+      // verb — refs get ERD multiplicity markers instead, and a plain arrow on
+      // top of a crow's foot would be two different claims about one line.
+      const ang = Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI;
+      edges += `<path d="M-5 -3 L4 0 L-5 3 z" fill="${emph?STATE.now:st.label}"
+        opacity="${lop}" transform="translate(${lx},${ly+5}) rotate(${ang})"/>`;
       edges += `<text x="${lx}" y="${ly-4}" class="elabel"
-        fill="${emph?STATE.now:st.label}" opacity="${emph?1:Math.min(1,op+.35)}"
+        fill="${emph?STATE.now:st.label}" opacity="${lop}"
         font-size="${emph?11:9.5}">${esc(e.v)}</text>`;
     }
   }
@@ -329,11 +353,22 @@ function drawTeam() {
     const p=GV.layout[n.id];
     if(!p||!gvVisible(n.id)) continue;
     const k=kindOf(n), sh=SHAPE[k];
-    const dim = GV.focus && n.id!==GV.focus &&
+    let dim = GV.focus && n.id!==GV.focus &&
       !GV.graph.edges.some(e=>(e.s===GV.focus&&e.t===n.id)||(e.t===GV.focus&&e.s===n.id));
     const ring = ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
       : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
     const hot = ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
+
+    // Key hover selects nodes the same way it selects edges — by kind, or by
+    // the state ring they are currently wearing.
+    if (GV.keyhl) {
+      const h = GV.keyhl;
+      dim = !(h.kind ? k===h.kind
+            : h.ring==='ready' ? ready.has(n.id)
+            : h.ring==='live'  ? !!claimed[n.id]
+            : h.ring==='blast' ? !!(blast && blast.has(n.id))
+            : false);
+    }
 
     nodes += `<g class="gnode" data-n="${n.id}" opacity="${dim?.2:1}"
       transform="translate(${p.x-sh.w/2},${p.y-sh.h/2})">
@@ -354,8 +389,18 @@ function gvDraw() {
   const v=GV.view;
   const R = ESTYLE.refs.c;
   document.getElementById('gsvg').innerHTML = `<defs>
-      <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
-        markerHeight="5" orient="auto-start-reverse">
+      <!-- One head per edge type, in the edge's own colour, and sized in user
+           units rather than stroke widths. markerUnits defaults to strokeWidth,
+           so the old single head shrank with the line: on a 1.2px resting edge
+           it drew six pixels of grey, under the path's own 0.16 opacity. -->
+      ${['writes','reads','messages'].map(t=>`
+      <marker id="head-${t}" viewBox="0 0 10 10" refX="8.5" refY="5"
+        markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11"
+        orient="auto-start-reverse">
+        <path d="M0.5 0.5 L10 5 L0.5 9.5 z" fill="${ESTYLE[t].c}"/></marker>`).join('')}
+      <marker id="head" viewBox="0 0 10 10" refX="9" refY="5"
+        markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11"
+        orient="auto-start-reverse">
         <path d="M0 0 L10 5 L0 10 z" fill="${STATE.arrow}"/></marker>
       <marker id="one-e" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9"
         markerHeight="9" orient="auto">
@@ -405,7 +450,7 @@ function gvNarrate() {
     return;
   }
   if (GV.inhabit) {
-    box.innerHTML = `inhabiting <b>${esc(GV.inhabit)}</b> ·
+    box.innerHTML = `showing only what <b>${esc(GV.inhabit)}</b> can reach ·
       <span class="link" onclick="gvInhabit(null)">release</span>`;
     return;
   }
@@ -442,8 +487,14 @@ async function saveLayout(){
   if (!GV.dirty) return;
   await fetch('/layout.json', {method:'POST', body:JSON.stringify(GV.layout, null, 2)});
   GV.dirty=false;
-  document.getElementById('gsaved').textContent='layout saved';
-  setTimeout(()=>document.getElementById('gsaved').textContent='', 1600);
+  // Into `gstatus`, the toolbar's status slot. It used to write to `gsaved`,
+  // an element that does not exist and never did — so the save worked and the
+  // confirmation went nowhere, silently, every time. Found by the check that
+  // every id a script writes to is an id something creates.
+  const box=document.getElementById('gstatus');
+  if (!box) return;
+  box.textContent='layout saved';
+  setTimeout(gvNarrate, 1600);
 }
 
 function gvControls(){
@@ -498,28 +549,85 @@ function gvControls(){
   }, {passive:false});
 }
 
+// Every key row: how to draw it, what it *is*, and what it selects when hovered.
+//
+// The third field is the point. A key that only names things tells you which
+// colour is which; this one also answers "what is a journal", which is the
+// question someone actually has, and it lights the matching elements so the
+// answer is in the picture rather than in the sentence.
+const LEGEND = [
+  ["edges", [
+    ["writes",   {edge:"writes"},   "who may change this artefact. Exactly one role per row — that is law 1"],
+    ["reads",    {edge:"reads"},    "what a role may look at, and how much of it: every edge declares rows and depth"],
+    ["messages", {edge:"messages"}, "who may speak to whom. Derived from the read/write structure, never designed"],
+    ["refs",     {edge:"refs"},     "what points at what. The cascade walks these, so they are the blast path of any change"],
+  ]],
+  ["nodes", [
+    ["principal", {kind:"principal"}, "the person who wants it and rules on it. Not a role — nothing wakes them"],
+    ["role",      {kind:"role"},      "woken by one message, acts, ends. No memory of having been woken before"],
+    ["record",    {kind:"record"},    "state with one writer per row. Amending one revokes what depended on it"],
+    ["journal",   {kind:"journal"},   "append-only, many writers, one author per entry. Nothing is ever edited"],
+    ["derived",   {kind:"derived"},   "computed from the rest. No role writes it, so it carries no judgement"],
+  ]],
+  ["state", [
+    ["ready to wake", {ring:"ready"}, "a predicate is firing for this role right now"],
+    ["mid-session",   {ring:"live"},  "holding a claim. Roles are single-instance, so nothing else can wake it"],
+    ["cascade reach", {ring:"blast"}, "what a change to the selected artefact would wake, following refs"],
+  ]],
+];
+
 function gvLegend() {
-  const swatch = (c,dash) => `<svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4"
-    stroke="${c}" stroke-width="2" stroke-dasharray="${dash}"/></svg>`;
+  const swatch = (c,dash) => `<svg width="30" height="8">
+    <line x1="1" y1="4" x2="21" y2="4" stroke="${c}" stroke-width="2"
+      stroke-dasharray="${dash}"/>
+    <path d="M20 1 L27 4 L20 7 z" fill="${c}"/></svg>`;
   const box = (fill,stroke,dash) => `<svg width="16" height="11"><rect x="1" y="1"
     width="14" height="9" rx="2" fill="${fill}" stroke="${stroke}"
     stroke-dasharray="${dash}"/></svg>`;
-  document.getElementById('glegend').innerHTML = `
-    <div class="lgrp"><b>edges</b>
-      <span>${swatch(ESTYLE.writes.c,'')} writes</span>
-      <span>${swatch(ESTYLE.reads.c,'5 3')} reads</span>
-      <span>${swatch(ESTYLE.messages.c,'')} messages</span>
-      <span>${swatch(ESTYLE.refs.c,'')} refs (crow's foot = many)</span></div>
-    <div class="lgrp"><b>nodes</b>
-      <span>${box(SHAPE.principal.fill,SHAPE.principal.stroke,'')} principal</span>
-      <span>${box(SHAPE.role.fill,SHAPE.role.stroke,'')} role</span>
-      <span>${box(SHAPE.record.fill,SHAPE.record.stroke,'')} record</span>
-      <span>${box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3')} journal</span>
-      <span>${box(SHAPE.derived.fill,SHAPE.derived.stroke,'2 4')} derived</span></div>
-    <div class="lgrp"><b>rings</b>
-      <span><i class="ring" style="border-color:${STATE.ready}"></i> ready to wake</span>
-      <span><i class="ring" style="border-color:${STATE.live}"></i> mid-session</span>
-      <span><i class="ring" style="border-color:${STATE.blast}"></i> blast radius</span></div>`;
+
+  const mark = {
+    writes:   swatch(ESTYLE.writes.c,''),
+    reads:    swatch(ESTYLE.reads.c,'5 3'),
+    messages: swatch(ESTYLE.messages.c,''),
+    refs:     `<svg width="30" height="8"><line x1="1" y1="4" x2="21" y2="4"
+                 stroke="${ESTYLE.refs.c}" stroke-width="2"/>
+               <path d="M28 4 L21 1 M28 4 L21 4 M28 4 L21 7" stroke="${ESTYLE.refs.c}"
+                 stroke-width="1.3" fill="none"/></svg>`,
+    principal: box(SHAPE.principal.fill,SHAPE.principal.stroke,''),
+    role:      box(SHAPE.role.fill,SHAPE.role.stroke,''),
+    record:    box(SHAPE.record.fill,SHAPE.record.stroke,''),
+    journal:   box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3'),
+    derived:   box(SHAPE.derived.fill,SHAPE.derived.stroke,'2 4'),
+    ready: `<i class="ring" style="border-color:${STATE.ready}"></i>`,
+    live:  `<i class="ring" style="border-color:${STATE.live}"></i>`,
+    blast: `<i class="ring" style="border-color:${STATE.blast}"></i>`,
+  };
+
+  const el = document.getElementById('glegend');
+  el.innerHTML =
+    `<div style="display:flex;gap:16px">` +
+    LEGEND.map(([group, items]) => `<div class="lgrp"><b>${group}</b>` +
+      items.map(([label, sel, why], i) => {
+        const glyph = mark[sel.edge || sel.kind || sel.ring];
+        return `<span class="lkey" data-sel='${JSON.stringify(sel)}'
+          data-why="${esc(why)}">${glyph} ${esc(label)}</span>`;
+      }).join('') + `</div>`).join('') +
+    `</div><div id="lwhat"></div>`;
+
+  const what = document.getElementById('lwhat');
+  for (const row of el.querySelectorAll('.lkey')) {
+    row.addEventListener('mouseenter', () => {
+      what.textContent = row.dataset.why;
+      GV.keyhl = JSON.parse(row.dataset.sel);
+      gvDraw();
+    });
+  }
+  // One leave handler on the whole key rather than one per row: moving between
+  // adjacent rows fires leave-then-enter, and per-row clearing made the
+  // highlight flicker off between them.
+  el.addEventListener('mouseleave', () => {
+    what.textContent = ''; GV.keyhl = null; gvDraw();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => gvLoad().then(gvLegend));
