@@ -26,9 +26,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import graph as graph_mod
+from . import graph as graph_mod, prompts as prompts_mod
 from .boot import state_dir
+from .coverage import render as render_coverage, report as coverage_report
 from .db import connect
+from .sandbox import build as build_sandbox
 from .scheduler import (
     TICKS, is_quiescent, open_tips, predicate_wakes, tick_agenda,
 )
@@ -95,6 +97,56 @@ def snapshot(conn: sqlite3.Connection) -> dict:
     }
 
 
+def prompt_bundle(db_path: Path) -> dict:
+    """
+    What each role is actually told, assembled the way a session assembles it.
+
+    Base plus every mode piece, plus the tool signatures the runner advertises —
+    because the prompt a role receives is not the markdown file, it is the
+    composition, and the composition is what you need to read when a role
+    misbehaves. Rendering it anywhere but here would be a second implementation
+    that could disagree with the first.
+    """
+    g = graph_mod.load()
+    conn = connect(db_path)
+    try:
+        out = {}
+        for role in sorted(g.roles):
+            sb = build_sandbox(role, conn, g=g)
+            modes = {}
+            for mode in prompts_mod.available(role):
+                modes[mode] = {
+                    "piece": prompts_mod.piece(role, mode),
+                    "composed_chars": len(prompts_mod.compose(role, mode)),
+                }
+            out[role] = {
+                "base": prompts_mod.base(role),
+                "modes": modes,
+                "inbound_verbs": sorted(prompts_mod.inbound_verbs(role)),
+                "signatures": sb.signatures(),
+                "namespace_size": len(sb.functions()),
+            }
+        return out
+    finally:
+        conn.close()
+
+
+def source_fingerprint() -> str:
+    """Cheap change detector for hot reload: mtimes of everything that shapes a
+    prompt or the wiring."""
+    import hashlib
+
+    h = hashlib.sha256()
+    roots = [HERE / "prompts", graph_mod.DESIGN_DIR, HERE]
+    for root in roots:
+        if not root.exists():
+            continue
+        for f in sorted(root.rglob("*")):
+            if f.is_file() and f.suffix in (".md", ".json", ".py", ".html"):
+                h.update(f"{f}:{f.stat().st_mtime_ns}".encode())
+    return h.hexdigest()[:16]
+
+
 def make_handler(db_path: Path):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, body: bytes, content_type: str) -> None:
@@ -108,8 +160,11 @@ def make_handler(db_path: Path):
             path = urlparse(self.path).path
             try:
                 if path in ("/", "/index.html"):
+                    # Read from disk every request: editing the viewer and hitting
+                    # refresh should show the edit, not a cached copy.
                     self._send(VIEWER.read_bytes(), "text/html; charset=utf-8")
                 elif path == "/graph.json":
+                    graph_mod.load.cache_clear()      # hot reload: re-read on request
                     self._send((graph_mod.DESIGN_DIR / "graph.json").read_bytes(),
                                "application/json")
                 elif path == "/layout.json":
@@ -118,6 +173,21 @@ def make_handler(db_path: Path):
                 elif path == "/stories.json":
                     self._send((graph_mod.DESIGN_DIR / "stories.json").read_bytes(),
                                "application/json")
+                elif path == "/prompts.json":
+                    body = json.dumps(prompt_bundle(db_path), default=str).encode("utf-8")
+                    self._send(body, "application/json")
+                elif path == "/coverage.json":
+                    rep = coverage_report()
+                    body = json.dumps({
+                        "percent": rep.percent,
+                        "covered": len(rep.covered),
+                        "total": rep.total,
+                        "by_role": {r: list(v) for r, v in rep.by_role().items()},
+                        "missing": [str(k) for k in sorted(rep.missing, key=str)],
+                    }).encode("utf-8")
+                    self._send(body, "application/json")
+                elif path == "/fingerprint":
+                    self._send(source_fingerprint().encode("utf-8"), "text/plain")
                 elif path == "/state.json":
                     conn = connect(db_path)
                     try:

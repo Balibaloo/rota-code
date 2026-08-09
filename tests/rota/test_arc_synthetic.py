@@ -18,6 +18,7 @@ import json
 import pytest
 
 from rota import graph as graph_mod
+from rota.client import record_utterance
 from rota.db import init_db
 from rota.llm import Pins, ScriptedBackend
 from rota.runner import run_session
@@ -51,15 +52,16 @@ def test_arc_understanding_loop_reaches_approved_item(db):
     Every step is a real session through the real machine; only the completions
     are canned.
     """
-    # --- intake: Interface records verbatim, then segments -------------------
+    # --- intake: the utterance arrives already recorded, Interface segments ---
+    # Recording is mechanical: the transcript is the one un-interpreted thing in
+    # the system, so nothing retypes it. Interface owns the judgement half.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
                "VALUES ('m_intake','t1','client','interface','converse',1)")
+    record_utterance(db, "m_intake", "add a button so people can delete their account")
 
     drive(db, Wake("interface", "message", "m_intake", detail="converse"), [
-        "TOOL: transcript.append(id='u1', author='client', "
-        "text='add a button so people can delete their account')",
-        "TOOL: brief.segment(id='s1', span_utterance='u1', span_start=0, span_end=54, "
-        "text='add a button so people can delete their account')",
+        "TOOL: brief.segment(id='s1', span_utterance='u_m_intake', span_start=0, "
+        "span_end=46, text='add a button so people can delete their account')",
         "TOOL: msg.confirm_client(refs=['s1'])",
     ])
 

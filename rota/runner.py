@@ -128,6 +128,14 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     text = utterance_for(conn, wake.message_id)
     if text:
         out["client_said"] = text
+        # Already in the transcript, recorded mechanically. The role is told its
+        # id so it can segment against it rather than re-appending it.
+        recorded = conn.execute(
+            "SELECT id FROM utterances WHERE id = ?",
+            (f"u_{wake.message_id}",)).fetchone()
+        if recorded:
+            out["utterance_id"] = recorded["id"]
+            out["already_recorded"] = True
     ruling = verdict_for(conn, wake.message_id)
     if ruling:
         out["client_verdict"] = ruling
@@ -214,7 +222,8 @@ def run_session(
 
     session_id = new_id("s")
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
-                           session_id=session_id, g=g)
+                           session_id=session_id, g=g,
+                           allow=prompts.mode_tools(wake.role, _mode_key(wake)))
     sb.ctx.trigger = wake.message_id
 
     claim(conn, wake.role, session_id, wake.message_id)

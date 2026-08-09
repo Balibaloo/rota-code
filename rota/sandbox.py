@@ -194,6 +194,7 @@ def _verb_to_attr(verb: str) -> str:
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
+          allow: list[str] | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
     """
     Construct `role`'s namespace from its graph edges.
@@ -242,6 +243,18 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
             names.append(attr)
         grouped["msg"] = fns
         available["msg"] = names
+
+    if allow is not None:
+        # A narrowing, never a widening: anything named that the graph did not
+        # grant is simply absent, so a bad mode file cannot invent a capability.
+        keep = set(allow)
+        grouped = {
+            artefact: {fn: impl for fn, impl in fns.items()
+                       if f"{artefact}.{fn}" in keep}
+            for artefact, fns in grouped.items()
+        }
+        grouped = {a: f for a, f in grouped.items() if f}
+        available = {a: sorted(f) for a, f in grouped.items()}
 
     artefacts = {
         name: _Artefact(name, fns, available[name]) for name, fns in grouped.items()

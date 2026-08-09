@@ -21,6 +21,7 @@ import pytest
 
 from rota import validators
 from rota.cassettes import RecordingBackend, open_dev_db, record_case_run
+from rota.client import record_utterance
 from rota.db import init_db
 from rota.llm import OllamaBackend, Pins, available_models
 from rota.runner import run_session
@@ -92,6 +93,10 @@ def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
     inject(db, "m1", "client", "interface", "converse")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('utterance:m1', ?)",
                (json.dumps(UTTERANCE_I1),))
+    # The utterance is in the transcript before Interface wakes, recorded
+    # mechanically. Asking a model to retype text verbatim creates a paraphrase
+    # risk with no upside; what Interface owns is the judgement, not the typing.
+    record_utterance(db, "m1", UTTERANCE_I1)
 
     outcome = run_session(
         db, Wake("interface", "message", "m1", detail="converse"),
@@ -104,7 +109,11 @@ def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
 
     utterances = [dict(r) for r in db.execute("SELECT id, text FROM utterances")]
     if len(utterances) != 1:
-        problems.append(f"expected 1 utterance, got {len(utterances)}")
+        problems.append(
+            f"expected 1 utterance, got {len(utterances)} — Interface must not "
+            f"author client speech")
+    elif utterances[0]["text"] != UTTERANCE_I1:
+        problems.append("transcript is not verbatim")
     else:
         problems += validators.check_segmentation(db, utterances[0]["id"])
         problems += validators.check_statement_count(db, utterances[0]["id"], 1)

@@ -17,6 +17,7 @@ than hidden:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -285,6 +286,16 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         conn.execute("ROLLBACK")
         raise
 
+    # Edge coverage is derived from evidence a committed session already leaves
+    # behind, so any test running a session contributes without knowing this
+    # exists. Nothing to annotate, nothing to forget.
+    if os.environ.get("ROTA_COVERAGE_ON"):
+        from .coverage import record
+        try:
+            record(conn)
+        except Exception:
+            pass                       # instrumentation must never fail a commit
+
 
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
@@ -295,6 +306,16 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     except Exception:
         conn.execute("ROLLBACK")
         raise
+
+    # Edge coverage is derived from evidence a committed session already leaves
+    # behind, so any test running a session contributes without knowing this
+    # exists. Nothing to annotate, nothing to forget.
+    if os.environ.get("ROTA_COVERAGE_ON"):
+        from .coverage import record
+        try:
+            record(conn)
+        except Exception:
+            pass                       # instrumentation must never fail a commit
 
 
 def get_config(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:

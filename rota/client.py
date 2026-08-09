@@ -168,10 +168,42 @@ def pump(conn: sqlite3.Connection, backend: ClientBackend) -> list[str]:
                 "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                 (f"utterance:{msg_id}", json.dumps(answer.text)),
             )
+            record_utterance(conn, msg_id, answer.text)
 
         created.append(msg_id)
 
     return created
+
+
+def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> str:
+    """
+    Append the client's words to the transcript mechanically.
+
+    The transcript is the one un-interpreted thing in the system — it exists so
+    later interpretations can be checked against something. Routing it through an
+    interpreter to get there is self-defeating: asking a model to retype text
+    verbatim creates a paraphrase risk with no upside, costs a turn, and in
+    practice produced wrong ids and a fabricated second utterance.
+
+    Interface still *owns* the artefact; the write is attributed to its session.
+    It is authored by the system on the role's behalf, the way a receipt is.
+    What Interface keeps is the part that needs judgement: segmentation.
+    """
+    existing = conn.execute(
+        "SELECT id FROM utterances WHERE id = ?", (f"u_{message_id}",)).fetchone()
+    if existing:
+        return existing["id"]
+
+    uid = f"u_{message_id}"
+    nxt = conn.execute(
+        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM utterances").fetchone()["n"]
+    conn.execute(
+        "INSERT INTO utterances (id, author, text, ts_order) VALUES (?, 'client', ?, ?)",
+        (uid, text, nxt))
+    conn.execute(
+        "INSERT INTO artefact_versions(table_name, version) VALUES ('utterances', 1) "
+        "ON CONFLICT(table_name) DO UPDATE SET version = version + 1")
+    return uid
 
 
 def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:

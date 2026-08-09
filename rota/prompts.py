@@ -58,6 +58,26 @@ def compose(role: str, verb: str = "") -> str:
     return "\n\n".join(parts)
 
 
+def mode_tools(role: str, mode: str) -> list[str] | None:
+    """
+    The functions a mode narrows to, or None for "everything the role has".
+
+    **The graph grants the ceiling; a mode can only narrow it.** That direction
+    matters: a mode file cannot widen a role's power, so the graph stays the sole
+    authority over what exists, and mode scoping is purely about not putting
+    eleven functions in front of a model whose job needs four.
+
+    This came from watching Interface, in ratification mode, open with
+    `ledger.list()` and wander until it ran out of turns. It had every function
+    its role owns when it needed three.
+    """
+    path = PROMPT_DIR / role / f"{mode}.tools"
+    if not path.exists():
+        return None
+    return [line.strip() for line in _read(path).splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
 def available(role: str) -> list[str]:
     d = PROMPT_DIR / role
     if not d.exists():
