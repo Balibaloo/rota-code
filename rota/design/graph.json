@@ -1,26 +1,26 @@
 {
   "nodes": [
     {
-      "id": "client",
-      "label": "Client",
-      "type": "client",
+      "id": "principal",
+      "label": "Principal",
+      "type": "principal",
       "note": "Technical. Synchronous. Holds final authority. Optional PR gate."
     },
     {
-      "id": "interface",
-      "label": "Interface",
+      "id": "liaison",
+      "label": "Liaison",
       "type": "role",
-      "note": "Only role that sees the client. Records and broadcasts; does not interpret. Fields every client message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
+      "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
     },
     {
-      "id": "vision",
-      "label": "Vision",
+      "id": "gatekeeper",
+      "label": "Gatekeeper",
       "type": "role",
       "note": "Identity and scope over time. Owns non-goals, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
     },
     {
-      "id": "domain",
-      "label": "Domain",
+      "id": "terminologist",
+      "label": "Terminologist",
       "type": "role",
       "note": "Terms and business rules. Catches contradictions in the dump."
     },
@@ -41,7 +41,7 @@
       "id": "developer",
       "label": "Developer",
       "type": "role",
-      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Domain, criterion and scope gaps to Vision, constraint conflicts to Architect. Interface is reached only through an owner reporting blocked."
+      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Terminologist, criterion and scope gaps to Gatekeeper, constraint conflicts to Architect. Liaison is reached only through an owner reporting blocked."
     },
     {
       "id": "critic",
@@ -61,7 +61,7 @@
       "id": "brief",
       "label": "Brief (statements)",
       "type": "artefact",
-      "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the client, so segmentation can be aggressive."
+      "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the principal, so segmentation can be aggressive."
     },
     {
       "id": "problem",
@@ -73,7 +73,7 @@
       "id": "glossary",
       "label": "Glossary + rules",
       "type": "artefact",
-      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the client, or observed — extracted from an onboarded codebase and awaiting confirmation."
+      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed — extracted from an onboarded codebase and awaiting confirmation."
     },
     {
       "id": "model",
@@ -93,7 +93,7 @@
       "id": "ledger",
       "label": "Assumption ledger",
       "type": "artefact",
-      "note": "Any role writes. Becomes the agenda for the next client turn.",
+      "note": "Any role writes. Becomes the agenda for the next principal turn.",
       "contact": false,
       "contact_why": "append-only journal; open assumptions are facts to present, not questions"
     },
@@ -127,13 +127,13 @@
       "id": "tickets",
       "label": "Tickets",
       "type": "artefact",
-      "note": "Sliced by Vision from approved items. One writer. Tickets (Vision), criteria (Domain), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+      "note": "Sliced by Gatekeeper from approved items. One writer. Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
     },
     {
       "id": "criteria",
       "label": "Criteria",
       "type": "artefact",
-      "note": "Written by Domain in glossary terms, one set per ticket. One writer."
+      "note": "Written by Terminologist in glossary terms, one set per ticket. One writer."
     },
     {
       "id": "batches",
@@ -144,17 +144,17 @@
   ],
   "edges": [
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "transcript",
       "type": "writes",
       "v": "append",
       "n": "utterance",
       "a": "single",
       "actor": "system",
-      "label": "recorded mechanically; Interface owns it, does not type it"
+      "label": "recorded mechanically; Liaison owns it, does not type it"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "brief",
       "type": "writes",
       "v": "segment",
@@ -163,23 +163,23 @@
       "label": "atomise"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "brief",
       "type": "writes",
       "v": "ratify",
       "n": "status flags",
       "a": "delta",
-      "label": "client-confirmed"
+      "label": "principal-confirmed"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "problem",
       "type": "writes",
       "v": "assert",
       "n": "scope, non-goals"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "glossary",
       "type": "writes",
       "v": "amend",
@@ -212,7 +212,7 @@
       "a": "single"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "tickets",
       "type": "writes",
       "v": "slice",
@@ -220,7 +220,7 @@
       "label": "contested · approved items only"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "batches",
       "type": "writes",
       "v": "prioritize",
@@ -229,7 +229,7 @@
       "label": "moves whole batches"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "criteria",
       "type": "writes",
       "v": "specify",
@@ -245,7 +245,7 @@
       "label": "contested"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "ledger",
       "type": "writes",
       "v": "log",
@@ -253,7 +253,7 @@
       "a": "single"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "decisions",
       "type": "writes",
       "v": "author",
@@ -285,7 +285,7 @@
       "a": "single"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "brief",
       "type": "reads",
       "v": "index",
@@ -293,7 +293,7 @@
       "a": "index"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "brief",
       "type": "reads",
       "v": "index",
@@ -309,7 +309,7 @@
       "a": "index"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "transcript",
       "type": "reads",
       "v": "quote",
@@ -318,7 +318,7 @@
       "label": "recover emphasis"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "transcript",
       "type": "reads",
       "v": "quote",
@@ -336,7 +336,7 @@
       "label": "recover emphasis"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "problem",
       "type": "reads",
       "v": "consult",
@@ -345,7 +345,7 @@
       "label": "before amending"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "glossary",
       "type": "reads",
       "v": "consult",
@@ -363,7 +363,7 @@
       "label": "before amending"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "decisions",
       "type": "reads",
       "v": "search",
@@ -387,7 +387,7 @@
       "a": "query"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "code",
       "type": "reads",
       "v": "survey",
@@ -396,7 +396,7 @@
       "label": "onboarding"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "code",
       "type": "reads",
       "v": "survey",
@@ -455,7 +455,7 @@
       "label": "diff only"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "ledger",
       "type": "reads",
       "v": "list",
@@ -463,7 +463,7 @@
       "a": "delta"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "decisions",
       "type": "reads",
       "v": "search",
@@ -471,15 +471,15 @@
       "a": "query"
     },
     {
-      "s": "client",
-      "t": "interface",
+      "s": "principal",
+      "t": "liaison",
       "type": "messages",
       "v": "converse",
       "n": "free text"
     },
     {
-      "s": "interface",
-      "t": "client",
+      "s": "liaison",
+      "t": "principal",
       "type": "messages",
       "v": "confirm",
       "n": "statement list",
@@ -487,31 +487,31 @@
       "label": "ratification"
     },
     {
-      "s": "interface",
-      "t": "client",
+      "s": "liaison",
+      "t": "principal",
       "type": "messages",
       "v": "clarify",
       "n": "ordered questions",
       "a": "index"
     },
     {
-      "s": "interface",
-      "t": "vision",
+      "s": "liaison",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "brief",
       "n": "changed statements",
       "a": "delta"
     },
     {
-      "s": "interface",
-      "t": "domain",
+      "s": "liaison",
+      "t": "terminologist",
       "type": "messages",
       "v": "brief",
       "n": "changed statements",
       "a": "delta"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "architect",
       "type": "messages",
       "v": "brief",
@@ -519,16 +519,16 @@
       "a": "delta"
     },
     {
-      "s": "vision",
-      "t": "interface",
+      "s": "gatekeeper",
+      "t": "liaison",
       "type": "messages",
       "v": "report",
       "n": "blocker",
       "a": "single"
     },
     {
-      "s": "domain",
-      "t": "interface",
+      "s": "terminologist",
+      "t": "liaison",
       "type": "messages",
       "v": "report",
       "n": "blocker",
@@ -536,15 +536,15 @@
     },
     {
       "s": "architect",
-      "t": "interface",
+      "t": "liaison",
       "type": "messages",
       "v": "report",
       "n": "blocker",
       "a": "single"
     },
     {
-      "s": "domain",
-      "t": "vision",
+      "s": "terminologist",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "challenge",
       "n": "contradiction",
@@ -552,7 +552,7 @@
     },
     {
       "s": "architect",
-      "t": "vision",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "challenge",
       "n": "infeasibility",
@@ -560,7 +560,7 @@
     },
     {
       "s": "architect",
-      "t": "vision",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "propose",
       "n": "seam / refactor plan",
@@ -576,7 +576,7 @@
     },
     {
       "s": "developer",
-      "t": "vision",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap",
@@ -584,7 +584,7 @@
     },
     {
       "s": "developer",
-      "t": "domain",
+      "t": "terminologist",
       "type": "messages",
       "v": "question",
       "n": "term ambiguity",
@@ -608,43 +608,43 @@
       "label": "no reasoning — preserves critic isolation"
     },
     {
-      "s": "interface",
-      "t": "vision",
+      "s": "liaison",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "consult",
-      "n": "client question",
+      "n": "principal question",
       "a": "single",
       "label": "read-only session"
     },
     {
-      "s": "interface",
-      "t": "domain",
+      "s": "liaison",
+      "t": "terminologist",
       "type": "messages",
       "v": "consult",
-      "n": "client question",
+      "n": "principal question",
       "a": "single",
       "label": "read-only session"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "architect",
       "type": "messages",
       "v": "consult",
-      "n": "client question",
+      "n": "principal question",
       "a": "single",
       "label": "read-only session"
     },
     {
-      "s": "vision",
-      "t": "interface",
+      "s": "gatekeeper",
+      "t": "liaison",
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
       "a": "single"
     },
     {
-      "s": "domain",
-      "t": "interface",
+      "s": "terminologist",
+      "t": "liaison",
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
@@ -652,15 +652,15 @@
     },
     {
       "s": "architect",
-      "t": "interface",
+      "t": "liaison",
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
       "a": "single"
     },
     {
-      "s": "vision",
-      "t": "interface",
+      "s": "gatekeeper",
+      "t": "liaison",
       "type": "messages",
       "v": "submit",
       "n": "scope + non-goals",
@@ -668,8 +668,8 @@
       "label": "for sign-off"
     },
     {
-      "s": "interface",
-      "t": "client",
+      "s": "liaison",
+      "t": "principal",
       "type": "messages",
       "v": "present",
       "n": "draft statement",
@@ -677,23 +677,23 @@
       "label": "signoff · reads as one document"
     },
     {
-      "s": "client",
-      "t": "interface",
+      "s": "principal",
+      "t": "liaison",
       "type": "messages",
       "v": "verdict",
       "n": "per-item approve / contest / amend",
       "a": "index"
     },
     {
-      "s": "interface",
-      "t": "vision",
+      "s": "liaison",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "relay",
       "n": "verdicts",
       "a": "index"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "problem",
       "type": "writes",
       "v": "set approval",
@@ -702,7 +702,7 @@
       "label": "approved / pending / contested"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "developer",
       "type": "messages",
       "v": "reopen",
@@ -711,7 +711,7 @@
     },
     {
       "s": "developer",
-      "t": "vision",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "elect",
       "n": "amend or restart",
@@ -823,13 +823,13 @@
       "card": "n:1"
     },
     {
-      "s": "interface",
+      "s": "liaison",
       "t": "schedule",
       "type": "reads",
       "v": "consult",
       "n": "batch order",
       "a": "index",
-      "label": "client ordering questions"
+      "label": "principal ordering questions"
     },
     {
       "s": "tester",
@@ -899,7 +899,7 @@
     },
     {
       "s": "tester",
-      "t": "vision",
+      "t": "gatekeeper",
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap",
@@ -907,7 +907,7 @@
     },
     {
       "s": "tester",
-      "t": "domain",
+      "t": "terminologist",
       "type": "messages",
       "v": "question",
       "n": "term ambiguity",
@@ -928,7 +928,7 @@
       "card": "n:n"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "tickets",
       "type": "reads",
       "v": "consult",
@@ -937,7 +937,7 @@
       "label": "before amending"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "criteria",
       "type": "reads",
       "v": "consult",
@@ -946,7 +946,7 @@
       "label": "before amending"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "tickets",
       "type": "reads",
       "v": "scan",
@@ -1032,7 +1032,7 @@
       "label": "structural review needs the change"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "developer",
       "type": "messages",
       "v": "answer",
@@ -1041,7 +1041,7 @@
       "label": "answering is not amending"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "developer",
       "type": "messages",
       "v": "answer",
@@ -1057,7 +1057,7 @@
       "a": "single"
     },
     {
-      "s": "domain",
+      "s": "terminologist",
       "t": "tester",
       "type": "messages",
       "v": "answer",
@@ -1065,7 +1065,7 @@
       "a": "single"
     },
     {
-      "s": "vision",
+      "s": "gatekeeper",
       "t": "tester",
       "type": "messages",
       "v": "answer",

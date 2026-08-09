@@ -1,5 +1,5 @@
 """
-T1 — Interface role contract (I1–I6 from TESTS.md §7.1).
+T1 — Liaison role contract (I1–I6 from TESTS.md §7.1).
 
 These run a real model. They are marked `t1` and skipped unless a backend is
 reachable, so the deterministic suite stays runnable anywhere.
@@ -9,7 +9,7 @@ judgement only — never prose. Every case carries a `forbidden:` block, because
 most of what these laws say is a prohibition and a case without one is presumed
 incomplete.
 
-    ROTA_T1=1 python -m pytest tests/rota/test_t1_interface.py -q
+    ROTA_T1=1 python -m pytest tests/rota/test_t1_liaison.py -q
     ROTA_T1=1 ROTA_REFRESH=1 ...     # ignore cassettes, call the model
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ import pytest
 
 from rota import validators
 from rota.cassettes import RecordingBackend, open_dev_db, record_case_run
-from rota.client import record_utterance
+from rota.principal import record_utterance
 from rota.db import init_db
 from rota.llm import OllamaBackend, Pins, available_models
 from rota.runner import run_session
@@ -76,13 +76,13 @@ def tables_written(conn, session_id):
 
 
 # ---------------------------------------------------------------------------
-# I1 — Segmentation at client granularity
+# I1 — Segmentation at principal granularity
 # ---------------------------------------------------------------------------
 
 UTTERANCE_I1 = "morning! we need SSO, but only if it works with our LDAP"
 
 
-def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
+def test_i1_segmentation_at_principal_granularity(db, backend, dev_db):
     """
     The conditional is ONE statement — the condition is part of the ask.
 
@@ -90,18 +90,18 @@ def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
     diligence. Also asserts the transcript is verbatim and no paraphrase leaked
     into the statements.
     """
-    inject(db, "m1", "client", "interface", "converse")
+    inject(db, "m1", "principal", "liaison", "converse")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('utterance:m1', ?)",
                (json.dumps(UTTERANCE_I1),))
-    # The utterance is in the transcript before Interface wakes, recorded
+    # The utterance is in the transcript before Liaison wakes, recorded
     # mechanically. Asking a model to retype text verbatim creates a paraphrase
-    # risk with no upside; what Interface owns is the judgement, not the typing.
+    # risk with no upside; what Liaison owns is the judgement, not the typing.
     record_utterance(db, "m1", UTTERANCE_I1)
 
     outcome = run_session(
-        db, Wake("interface", "message", "m1", detail="converse"),
+        db, Wake("liaison", "message", "m1", detail="converse"),
         backend=backend, pins=PINS,
-        instructions=None or "",       # composed from prompts/interface/converse.md
+        instructions=None or "",       # composed from prompts/liaison/converse.md
     )
     problems = []
     if not outcome.committed:
@@ -110,8 +110,8 @@ def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
     utterances = [dict(r) for r in db.execute("SELECT id, text FROM utterances")]
     if len(utterances) != 1:
         problems.append(
-            f"expected 1 utterance, got {len(utterances)} — Interface must not "
-            f"author client speech")
+            f"expected 1 utterance, got {len(utterances)} — Liaison must not "
+            f"author principal speech")
     elif utterances[0]["text"] != UTTERANCE_I1:
         problems.append("transcript is not verbatim")
     else:
@@ -123,12 +123,12 @@ def test_i1_segmentation_at_client_granularity(db, backend, dev_db):
     for table in ("items", "glossary_terms", "constraints", "tickets", "criteria"):
         if table in written:
             problems.append(f"forbidden write to {table}")
-    if any(m["verb"] == "clarify" for m in messages_from(db, "interface")):
-        problems.append("clarify sent during intake — Interface must not ask")
+    if any(m["verb"] == "clarify" for m in messages_from(db, "liaison")):
+        problems.append("clarify sent during intake — Liaison must not ask")
 
-    confirms = [m for m in messages_from(db, "interface") if m["verb"] == "confirm"]
+    confirms = [m for m in messages_from(db, "liaison") if m["verb"] == "confirm"]
     if not confirms:
-        problems.append("no confirm sent to the client")
+        problems.append("no confirm sent to the principal")
 
     record_case_run(dev_db, "I1", PINS, 1, not problems, problems)
     assert not problems, "\n".join(problems)
@@ -146,26 +146,26 @@ def test_i3_harvest_dedupes_and_traces(db, backend, dev_db):
     question refs at least one report. The dedupe itself is checked by count.
     """
     db.execute("INSERT INTO utterances (id, author, text, ts_order) "
-               "VALUES ('u1','client','let people close their account',1)")
+               "VALUES ('u1','principal','let people close their account',1)")
     db.execute("INSERT INTO statements (id, span_utterance, span_start, span_end, "
                "text, status) VALUES ('s1','u1',0,29,'let people close their account','ratified')")
 
-    inject(db, "r1", "vision", "interface", "report", ["s1"], 1)
-    inject(db, "r2", "domain", "interface", "report", ["s1"], 2)
-    inject(db, "r3", "architect", "interface", "report", ["s1"], 3)
+    inject(db, "r1", "gatekeeper", "liaison", "report", ["s1"], 1)
+    inject(db, "r2", "terminologist", "liaison", "report", ["s1"], 2)
+    inject(db, "r3", "architect", "liaison", "report", ["s1"], 3)
     db.execute("UPDATE messages SET status='answered' WHERE id IN ('r2','r3')")
 
     outcome = run_session(
-        db, Wake("interface", "message", "r1", detail="report"),
+        db, Wake("liaison", "message", "r1", detail="report"),
         backend=backend, pins=PINS)
 
     problems = []
     if not outcome.committed:
         problems.append(f"did not commit: {outcome.errors}")
 
-    clarifies = [m for m in messages_from(db, "interface") if m["verb"] == "clarify"]
+    clarifies = [m for m in messages_from(db, "liaison") if m["verb"] == "clarify"]
     if not clarifies:
-        problems.append("no clarify reached the client")
+        problems.append("no clarify reached the principal")
     if len(clarifies) > 2:
         problems.append(f"{len(clarifies)} questions; cap is 2")
     problems += validators.check_messages_carry_refs(db, "clarify")
@@ -180,7 +180,7 @@ def test_i3_harvest_dedupes_and_traces(db, backend, dev_db):
 
 
 # ---------------------------------------------------------------------------
-# I6 — Interface never invents questions
+# I6 — Liaison never invents questions
 # ---------------------------------------------------------------------------
 
 def test_i6_no_reports_means_no_questions(db, backend, dev_db):
@@ -188,25 +188,25 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
     A vague ratified statement and ZERO reports. The temptation is the point.
 
     Expect a broadcast to the three shape roles; forbid any clarify. With no
-    blockers there are no questions, however vague the client was being.
+    blockers there are no questions, however vague the principal was being.
     """
     db.execute("INSERT INTO utterances (id, author, text, ts_order) "
-               "VALUES ('u1','client','make it better',1)")
+               "VALUES ('u1','principal','make it better',1)")
     db.execute("INSERT INTO statements (id, span_utterance, span_start, span_end, "
                "text, status) VALUES ('s1','u1',0,14,'make it better','ratified')")
-    inject(db, "m1", "client", "interface", "verdict", ["s1"])
+    inject(db, "m1", "principal", "liaison", "verdict", ["s1"])
 
     outcome = run_session(
-        db, Wake("interface", "message", "m1", detail="verdict"),
+        db, Wake("liaison", "message", "m1", detail="verdict"),
         backend=backend, pins=PINS)
 
     problems = []
     if not outcome.committed:
         problems.append(f"did not commit: {outcome.errors}")
 
-    sent = messages_from(db, "interface")
+    sent = messages_from(db, "liaison")
     briefed = {m["to_role"] for m in sent if m["verb"] == "brief"}
-    if briefed != {"vision", "domain", "architect"}:
+    if briefed != {"gatekeeper", "terminologist", "architect"}:
         problems.append(f"broadcast reached {briefed or 'nobody'}, expected all three")
     if any(m["verb"] == "clarify" for m in sent):
         problems.append("invented a question with no report to justify it")
@@ -228,13 +228,13 @@ def test_i4_consult_writes_nothing_and_bumps_nothing(db, backend, dev_db):
     db.execute("INSERT INTO checkpoints (session_id, role, working_set, valid) "
                "VALUES ('s_dev','developer','[]',1)")
     db.execute("INSERT INTO artefact_versions (table_name, version) VALUES ('items', 3)")
-    inject(db, "m1", "vision", "interface", "answer", ["i1"])
+    inject(db, "m1", "gatekeeper", "liaison", "answer", ["i1"])
 
     before = {r["table_name"]: r["version"] for r in
               db.execute("SELECT table_name, version FROM artefact_versions")}
 
     outcome = run_session(
-        db, Wake("interface", "message", "m1", detail="answer"),
+        db, Wake("liaison", "message", "m1", detail="answer"),
         backend=backend, pins=PINS, mode="consult")
 
     problems = []

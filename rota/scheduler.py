@@ -9,7 +9,7 @@ it safe: this file can be deleted and rewritten against the database contract.
 Frontier = open message tips ∪ tick predicates evaluated against current state.
 
 The second half matters as much as the first. An approved item with no tickets is
-not a message, it is a *state*; nothing would ever wake Vision for it. Because the
+not a message, it is a *state*; nothing would ever wake Gatekeeper for it. Because the
 predicates are re-evaluated every pass, residual work cannot be lost — deferred
 batches, half-sliced items, criteria-less tickets are all re-derived from state.
 That is also why the scheduler can be thrown away: pending work was never held in
@@ -50,13 +50,13 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
     """
     Messages awaiting a session: open, not quarantined, addressed to a role.
 
-    Messages to the client are open too, but the client is not schedulable — it
+    Messages to the principal are open too, but the principal is not schedulable — it
     answers when it answers. They are excluded here and surfaced by the agenda
     tick instead.
     """
     rows = conn.execute(
         "SELECT id, to_role, verb FROM messages "
-        "WHERE status = 'open' AND to_role != 'client' ORDER BY seq"
+        "WHERE status = 'open' AND to_role != 'principal' ORDER BY seq"
     ).fetchall()
     return [
         Wake(role=r["to_role"], kind="message", message_id=r["id"], detail=r["verb"])
@@ -70,27 +70,27 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
 
 def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Interface harvests once a broadcast's whole subtree has terminated.
+    Liaison harvests once a broadcast's whole subtree has terminated.
 
     A round exists for one reason: dedupe. Two roles reporting the same blocker
     in different vocabulary must become one question, which is impossible if
-    Interface wakes per report. Waiting is the feature.
+    Liaison wakes per report. Waiting is the feature.
 
     A role with nothing to say emits nothing — the committed session is the
     terminator, so silence is legible without a null-message convention.
     """
     broadcasts = conn.execute(
-        "SELECT DISTINCT thread_id FROM messages WHERE verb = 'brief' AND from_role = 'interface'"
+        "SELECT DISTINCT thread_id FROM messages WHERE verb = 'brief' AND from_role = 'liaison'"
     ).fetchall()
 
     wakes = []
     for b in broadcasts:
         thread = b["thread_id"]
         # Every recipient of the broadcast has committed, and nothing in the
-        # subtree is still open (a domain->vision challenge keeps it open).
+        # subtree is still open (a terminologist->gatekeeper challenge keeps it open).
         pending = conn.execute(
             "SELECT COUNT(*) AS n FROM messages "
-            "WHERE thread_id = ? AND status = 'open' AND to_role != 'interface'",
+            "WHERE thread_id = ? AND status = 'open' AND to_role != 'liaison'",
             (thread,),
         ).fetchone()["n"]
         if pending:
@@ -98,7 +98,7 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
         # Reports harvested already?
         harvested = conn.execute(
             "SELECT COUNT(*) AS n FROM messages "
-            "WHERE thread_id = ? AND from_role = 'interface' AND verb IN ('clarify','present')",
+            "WHERE thread_id = ? AND from_role = 'liaison' AND verb IN ('clarify','present')",
             (thread,),
         ).fetchone()["n"]
         reports = conn.execute(
@@ -106,14 +106,14 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
             (thread,),
         ).fetchone()["n"]
         if reports and not harvested:
-            wakes.append(Wake("interface", "tick:round_close", refs=(thread,),
+            wakes.append(Wake("liaison", "tick:round_close", refs=(thread,),
                               detail=f"{reports} report(s)"))
     return wakes
 
 
 def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Vision slices tickets from items whose approval postdates their last
+    Gatekeeper slices tickets from items whose approval postdates their last
     amendment. Fires per *gate result* rather than per item: one session with the
     whole batch of approvals is cheaper and better informed.
     """
@@ -125,12 +125,12 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     ).fetchall()
     if not rows:
         return []
-    return [Wake("vision", "tick:slicing", refs=tuple(r["id"] for r in rows))]
+    return [Wake("gatekeeper", "tick:slicing", refs=tuple(r["id"] for r in rows))]
 
 
 def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Domain writes criteria for tickets that have none. Fires per *item*: criteria
+    Terminologist writes criteria for tickets that have none. Fires per *item*: criteria
     written for one ticket in isolation is how you get criteria that contradict
     their siblings.
     """
@@ -139,7 +139,7 @@ def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
         "WHERE t.id NOT IN (SELECT ticket_id FROM criteria)"
     ).fetchall()
     return [
-        Wake("domain", "tick:criteria", refs=(r["item_id"],))
+        Wake("terminologist", "tick:criteria", refs=(r["item_id"],))
         for r in rows
     ]
 
@@ -174,10 +174,10 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
 
 def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Draft items with no gate open on them: Vision submits them for approval.
+    Draft items with no gate open on them: Gatekeeper submits them for approval.
 
     Fires per *set* rather than per item, because Signoff presents one document —
-    the client is approving an interpretation, and interpretations are read
+    the principal is approving an interpretation, and interpretations are read
     whole. An item already awaiting a verdict is not resubmitted.
     """
     drafts = [r["id"] for r in conn.execute(
@@ -190,13 +190,13 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     ).fetchone()["n"]
     if pending:
         return []
-    return [Wake("vision", "tick:signoff", refs=tuple(drafts))]
+    return [Wake("gatekeeper", "tick:signoff", refs=tuple(drafts))]
 
 
 def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     """
     Onboarding: one session per elected area, per role, in the order
-    Domain -> Architect -> Vision. Terms first, because constraints are written
+    Terminologist -> Architect -> Gatekeeper. Terms first, because constraints are written
     in glossary terms; observed baseline last, because it describes behaviour in
     those terms.
 
@@ -210,7 +210,7 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
         return []
 
     wakes = []
-    for role in ("domain", "architect", "vision"):
+    for role in ("terminologist", "architect", "gatekeeper"):
         for area in areas:
             done = conn.execute(
                 "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",
@@ -224,25 +224,25 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     return wakes
 
 
-def tick_agenda(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
     """
-    On client presence, with open ledger entries or gates awaiting a verdict,
-    wake Interface to present what is blocked on the client.
+    On principal presence, with open ledger entries or gates awaiting a verdict,
+    wake Liaison to present what is blocked on the principal.
 
-    Presentation, not a gate: the client may defer indefinitely and keep working.
+    Presentation, not a gate: the principal may defer indefinitely and keep working.
     What deferral costs is deferred, not waived — open assumptions reappear at
     each of their lineage's gates.
     """
-    if not client_present:
+    if not principal_present:
         return []
 
-    # If something is already open to the client, they can see they are being
+    # If something is already open to the principal, they can see they are being
     # waited on and there is nothing to add. This is also what makes the tick
-    # terminate: presenting an agenda opens a message to the client, which
+    # terminate: presenting an agenda opens a message to the principal, which
     # silences the predicate until it is answered. Without that it fires
-    # forever, because Interface has no verb that could satisfy it.
+    # forever, because Liaison has no verb that could satisfy it.
     awaiting = conn.execute(
-        "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'client'"
+        "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'principal'"
     ).fetchone()["n"]
     if awaiting:
         return []
@@ -252,7 +252,7 @@ def tick_agenda(conn: sqlite3.Connection, client_present: bool = False) -> list[
     ).fetchone()["n"]
     if not open_ledger:
         return []
-    return [Wake("interface", "tick:agenda", detail=f"ledger={open_ledger}")]
+    return [Wake("liaison", "tick:agenda", detail=f"ledger={open_ledger}")]
 
 
 TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
@@ -265,21 +265,21 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
 )
 
 
-def predicate_wakes(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+def predicate_wakes(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
     wakes: list[Wake] = []
     for tick in TICKS:
         wakes.extend(tick(conn))
-    wakes.extend(tick_agenda(conn, client_present))
+    wakes.extend(tick_agenda(conn, principal_present))
     return wakes
 
 
-def frontier(conn: sqlite3.Connection, client_present: bool = False) -> list[Wake]:
+def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
     """The ready queue: open message tips ∪ fired predicates."""
-    return open_tips(conn) + predicate_wakes(conn, client_present)
+    return open_tips(conn) + predicate_wakes(conn, principal_present)
 
 
-def is_quiescent(conn: sqlite3.Connection, client_present: bool = False) -> bool:
-    return not frontier(conn, client_present)
+def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:
+    return not frontier(conn, principal_present)
 
 
 # ---------------------------------------------------------------------------

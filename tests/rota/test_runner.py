@@ -19,14 +19,14 @@ from rota.scheduler import Wake
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
     conn.execute("INSERT INTO utterances (id, author, text, ts_order) "
-                 "VALUES ('u1','client','let users delete their account',1)")
+                 "VALUES ('u1','principal','let users delete their account',1)")
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','interface','vision','brief',1)")
+                 "VALUES ('m1','t1','liaison','gatekeeper','brief',1)")
     return conn
 
 
-def wake_vision():
-    return Wake(role="vision", kind="message", message_id="m1", detail="brief")
+def wake_gatekeeper():
+    return Wake(role="gatekeeper", kind="message", message_id="m1", detail="brief")
 
 
 def test_session_writes_commit_atomically_with_receipts(db):
@@ -35,7 +35,7 @@ def test_session_writes_commit_atomically_with_receipts(db):
         "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
@@ -46,18 +46,18 @@ def test_session_writes_commit_atomically_with_receipts(db):
 
 def test_trigger_message_is_answered_on_commit(db):
     backend = ScriptedBackend(["nothing to do"])
-    run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
     status = db.execute("SELECT status FROM messages WHERE id='m1'").fetchone()["status"]
     assert status == "answered"
 
 
 def test_out_of_working_set_call_is_an_error_not_a_write(db):
-    """Vision reaching for the system model gets told no and the session survives."""
+    """Gatekeeper reaching for the system model gets told no and the session survives."""
     backend = ScriptedBackend([
         "TOOL: model.amend(id='c1', headline='no')",
         "Understood.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed
     assert any("working set" in e for e in outcome.errors)
@@ -70,7 +70,7 @@ def test_malformed_call_is_reported_back_not_misparsed(db):
         "Sorry. TOOL: problem.assert(id='i1', text='ok', kind='scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed
     assert any("parse" in e or "unterminated" in e for e in outcome.errors)
@@ -79,30 +79,30 @@ def test_malformed_call_is_reported_back_not_misparsed(db):
 
 def test_messages_route_only_to_derived_contacts(db):
     backend = ScriptedBackend([
-        "TOOL: msg.report_interface(refs=['u1'])",
+        "TOOL: msg.report_liaison(refs=['u1'])",
         "Done.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
 
     rows = db.execute("SELECT from_role, to_role, verb, body_refs, cause_id FROM messages "
-                      "WHERE from_role='vision'").fetchall()
+                      "WHERE from_role='gatekeeper'").fetchall()
     assert len(rows) == 1
-    assert rows[0]["to_role"] == "interface" and rows[0]["verb"] == "report"
+    assert rows[0]["to_role"] == "liaison" and rows[0]["verb"] == "report"
     assert json.loads(rows[0]["body_refs"]) == ["u1"]
     assert rows[0]["cause_id"] == "m1", "message did not ref its cause"
 
 
-def test_role_cannot_address_the_client(db):
-    """Only Interface sees the client. Vision has no such function to call."""
+def test_role_cannot_address_the_principal(db):
+    """Only Liaison sees the principal. Gatekeeper has no such function to call."""
     backend = ScriptedBackend([
-        "TOOL: msg.converse_client(refs=[])",
+        "TOOL: msg.converse_principal(refs=[])",
         "Done.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
     assert any("working set" in e for e in outcome.errors)
     assert db.execute(
-        "SELECT COUNT(*) n FROM messages WHERE to_role='client'").fetchone()["n"] == 0
+        "SELECT COUNT(*) n FROM messages WHERE to_role='principal'").fetchone()["n"] == 0
 
 
 def test_failed_session_never_happened_and_raises_attempts(db):
@@ -113,7 +113,7 @@ def test_failed_session_never_happened_and_raises_attempts(db):
         def complete(self, system, user, pins):
             raise RuntimeError("model evicted")
 
-    outcome = run_session(db, wake_vision(), backend=Exploding(), pins=Pins(model="x"))
+    outcome = run_session(db, wake_gatekeeper(), backend=Exploding(), pins=Pins(model="x"))
 
     assert not outcome.committed
     assert db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"] == 0
@@ -126,7 +126,7 @@ def test_failed_session_never_happened_and_raises_attempts(db):
 
 def test_pins_are_recorded_on_the_session(db):
     backend = ScriptedBackend(["done"])
-    outcome = run_session(db, wake_vision(), backend=backend,
+    outcome = run_session(db, wake_gatekeeper(), backend=backend,
                           pins=Pins(model="qwen3.5:9b", temperature=0.0, num_ctx=8192))
     row = db.execute("SELECT model, temperature, num_ctx, prompt_hash FROM sessions").fetchone()
     assert row["model"] == "qwen3.5:9b"
@@ -139,7 +139,7 @@ def test_tool_calls_are_logged_for_assertion(db):
         "TOOL: problem.consult()",
         "Nothing there yet.",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
     calls = db.execute("SELECT fn FROM tool_calls WHERE session_id=? ORDER BY seq",
                        (outcome.session_id,)).fetchall()
     assert "problem.consult" in [c["fn"] for c in calls]
@@ -150,7 +150,7 @@ def test_consult_mode_cannot_write(db):
         "TOOL: problem.assert(id='i9', text='x', kind='scope')",
         "ok",
     ])
-    outcome = run_session(db, wake_vision(), backend=backend, mode="consult",
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, mode="consult",
                           pins=Pins(model="scripted"))
     assert any("working set" in e for e in outcome.errors)
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -162,7 +162,7 @@ def test_working_set_is_pushed_not_only_offered(db):
     db.execute("INSERT INTO items (id, text, kind, provenance) "
                "VALUES ('i_existing','prior scope','scope','decided')")
     backend = ScriptedBackend(["done"])
-    run_session(db, wake_vision(), backend=backend, pins=Pins(model="scripted"))
+    run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
 
     system, user = backend.calls[0]
     assert "i_existing" in user, "existing items were not pushed into the prompt"

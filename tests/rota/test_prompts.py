@@ -18,26 +18,26 @@ def test_every_role_has_a_base_prompt():
     assert prompts.check_coverage() == []
 
 
-def test_interface_has_a_piece_per_inbound_verb():
+def test_liaison_has_a_piece_per_inbound_verb():
     """
-    Interface's modes are enumerable from the graph, which is what makes each
+    Liaison's modes are enumerable from the graph, which is what makes each
     T1 case attributable to exactly one piece.
     """
-    verbs = prompts.inbound_verbs("interface")
-    have = set(prompts.available("interface"))
+    verbs = prompts.inbound_verbs("liaison")
+    have = set(prompts.available("liaison"))
     missing = verbs - have
-    assert not missing, f"Interface has no piece for {sorted(missing)}"
+    assert not missing, f"Liaison has no piece for {sorted(missing)}"
 
 
 def test_compose_includes_base_and_piece():
-    composed = prompts.compose("interface", "converse")
-    assert "You are Interface" in composed
+    composed = prompts.compose("liaison", "converse")
+    assert "You are Liaison" in composed
     assert "MODE: intake" in composed
 
 
 def test_compose_falls_back_to_base_for_unknown_mode():
-    composed = prompts.compose("interface", "not_a_verb")
-    assert "You are Interface" in composed
+    composed = prompts.compose("liaison", "not_a_verb")
+    assert "You are Liaison" in composed
     assert "MODE:" not in composed
 
 

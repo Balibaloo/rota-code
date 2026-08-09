@@ -2,7 +2,7 @@
 Prompt composition.
 
 A role's instructions are a **base** (who it is, standing law) plus a **piece**
-selected by what woke it. Interface has the most pieces because it has the most
+selected by what woke it. Liaison has the most pieces because it has the most
 verbs; every other role has one or two.
 
 Two properties this arrangement buys:
@@ -67,7 +67,7 @@ def mode_tools(role: str, mode: str) -> list[str] | None:
     authority over what exists, and mode scoping is purely about not putting
     eleven functions in front of a model whose job needs four.
 
-    This came from watching Interface, in ratification mode, open with
+    This came from watching Liaison, in ratification mode, open with
     `ledger.list()` and wander until it ran out of turns. It had every function
     its role owns when it needed three.
     """

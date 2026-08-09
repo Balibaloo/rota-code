@@ -132,7 +132,7 @@ def steps_from_trace(trace) -> list[dict[str, Any]]:
             continue
         edges = []
         if s.wake and s.wake.message_id:
-            edges.append(["client", s.wake.role, "messages", s.wake.detail])
+            edges.append(["principal", s.wake.role, "messages", s.wake.detail])
         steps.append({
             "title": f"{i}. {s.wake}" if s.wake else f"{i}.",
             "round": "run",
@@ -157,7 +157,7 @@ def frontier_overlay(conn: sqlite3.Connection) -> dict[str, Any]:
     """Who is about to move, and who is mid-session."""
     from .scheduler import frontier
 
-    ready = frontier(conn, client_present=True)
+    ready = frontier(conn, principal_present=True)
     claimed = {r["role"]: r["session_id"] for r in
                conn.execute("SELECT role, session_id FROM claims")}
     counts = {}

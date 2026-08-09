@@ -64,7 +64,7 @@ def test_s9_out_of_edge_access_raises(db):
 def test_s9_unknown_verb_on_a_permitted_artefact_raises(db):
     sb = build("critic", db)
     with pytest.raises(NotInWorkingSet):
-        sb["criteria"].specify          # Domain's write, not Critic's
+        sb["criteria"].specify          # Terminologist's write, not Critic's
 
 
 def test_s9_developer_cannot_write_the_model(db):
@@ -75,9 +75,9 @@ def test_s9_developer_cannot_write_the_model(db):
         sb["model"].amend
 
 
-def test_s9_interface_never_gains_an_interpreting_write(db):
-    """Interface records and broadcasts; it does not interpret."""
-    sb = build("interface", db)
+def test_s9_liaison_never_gains_an_interpreting_write(db):
+    """Liaison records and broadcasts; it does not interpret."""
+    sb = build("liaison", db)
     for artefact in ("problem", "glossary", "model", "tickets", "criteria"):
         with pytest.raises(NotInWorkingSet):
             sb[artefact]
@@ -88,8 +88,8 @@ def test_s9_consult_mode_has_no_writers(db):
     Read-only inquiry is free — and cannot cost anything, because a consult
     sandbox has no write functions at all.
     """
-    normal = build("vision", db)
-    consult = build("vision", db, mode="consult")
+    normal = build("gatekeeper", db)
+    consult = build("gatekeeper", db, mode="consult")
 
     assert "problem.assert" in normal.functions()
     assert "problem.consult" in consult.functions()
@@ -127,7 +127,7 @@ def test_s9_writes_are_staged_not_applied(db):
     A sandbox write goes into the session's pending set, never straight to the
     table — atomicity is not optional and cannot be bypassed by a tool.
     """
-    sb = build("vision", db)
+    sb = build("gatekeeper", db)
     sb.call("problem.assert", id="i1", text="delete account", kind="scope")
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0

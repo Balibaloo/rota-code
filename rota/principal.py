@@ -1,17 +1,17 @@
 """
-The client seam.
+The principal seam.
 
-The client is a node in the graph but not a role in the system — it is a person
-at a terminal. Arc tests, however, need a *scripted* client keyed to step index.
-Both must satisfy one interface, or T2 can never run without retrofitting one.
+The principal is a node in the graph but not a role in the system — it is a person
+at a terminal. Arc tests, however, need a *scripted* principal keyed to step index.
+Both must satisfy one protocol, or T2 can never run without retrofitting one.
 
-The interface is deliberately narrow, and mirrors exactly the edges the graph
-grants Interface toward the client:
+The protocol is deliberately narrow, and mirrors exactly the edges the graph
+grants Liaison toward the principal:
 
-    receive : confirm | clarify | present   (Interface -> client)
-    emit    : converse | verdict            (client -> Interface)
+    receive : confirm | clarify | present   (Liaison -> principal)
+    emit    : converse | verdict            (principal -> Liaison)
 
-Nothing else crosses. A client backend cannot write an artefact, cannot address
+Nothing else crosses. A principal backend cannot write an artefact, cannot address
 another role, and cannot see the frontier — it answers questions and holds final
 authority, which is the whole of its power.
 """
@@ -27,7 +27,7 @@ from .runner import new_id
 
 @dataclass
 class Ask:
-    """Something Interface has put to the client and is waiting on."""
+    """Something Liaison has put to the principal and is waiting on."""
     message_id: str
     verb: str                     # confirm | clarify | present
     refs: list[str] = field(default_factory=list)
@@ -41,7 +41,7 @@ class Answer:
     per_item: dict[str, str] = field(default_factory=dict)   # ref -> approve|contest|amend
 
 
-class ClientBackend(Protocol):
+class PrincipalBackend(Protocol):
     name: str
 
     def respond(self, ask: Ask) -> Answer | None:
@@ -52,7 +52,7 @@ class ScriptedClient:
     """
     Canned answers keyed by step index, for arc tests.
 
-    Deferral is representable — a `None` in the script means the client saw the
+    Deferral is representable — a `None` in the script means the principal saw the
     ask and chose not to answer yet, which the system must survive rather than
     treat as an error.
     """
@@ -72,7 +72,7 @@ class TranscriptClient:
     """
     Answers from a fixed mapping of verb -> answer, replaying indefinitely.
 
-    Useful for the T1 cases that need *a* client without caring which one; the
+    Useful for the T1 cases that need *a* principal without caring which one; the
     scripted variant is for arcs where the sequence is the point.
     """
 
@@ -88,7 +88,7 @@ class TranscriptClient:
 
 
 class ConsoleClient:                                    # pragma: no cover
-    """The human. Same interface, stdin instead of a script."""
+    """The human. Same protocol, stdin instead of a script."""
 
     name = "console"
 
@@ -110,26 +110,26 @@ class ConsoleClient:                                    # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
-# The pump: move asks to the client and answers back onto the frontier.
+# The pump: move asks to the principal and answers back onto the frontier.
 # ---------------------------------------------------------------------------
 
 def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
-    """Open messages addressed to the client. These never wake anything — the
-    client is not schedulable — so they sit until answered or deferred."""
+    """Open messages addressed to the principal. These never wake anything — the
+    principal is not schedulable — so they sit until answered or deferred."""
     return [
         Ask(message_id=r["id"], verb=r["verb"], refs=json.loads(r["body_refs"]))
         for r in conn.execute(
             "SELECT id, verb, body_refs FROM messages "
-            "WHERE status = 'open' AND to_role = 'client' ORDER BY seq")
+            "WHERE status = 'open' AND to_role = 'principal' ORDER BY seq")
     ]
 
 
-def pump(conn: sqlite3.Connection, backend: ClientBackend) -> list[str]:
+def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
     """
-    Offer every pending ask to the client; land any answers as new messages.
+    Offer every pending ask to the principal; land any answers as new messages.
 
     Returns the ids of messages created. A deferred ask stays open — that is the
-    agenda tick's material next time the client shows up, and it is why deferral
+    agenda tick's material next time the principal shows up, and it is why deferral
     costs nothing now and reappears at the lineage's gates later.
     """
     created: list[str] = []
@@ -150,14 +150,14 @@ def pump(conn: sqlite3.Connection, backend: ClientBackend) -> list[str]:
         conn.execute(
             "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
             "to_role, verb, body_refs, seq) "
-            "VALUES (?, ?, 'message', ?, 'client', 'interface', ?, ?, ?)",
+            "VALUES (?, ?, 'message', ?, 'principal', 'liaison', ?, ?, ?)",
             (msg_id, ask.message_id, thread, answer.verb, json.dumps(refs), seq),
         )
         conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
                      (ask.message_id,))
 
         # Per-item verdicts travel as refs; the ruling itself is recorded so
-        # Interface can relay it without re-asking.
+        # Liaison can relay it without re-asking.
         if answer.per_item:
             conn.execute(
                 "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
@@ -177,7 +177,7 @@ def pump(conn: sqlite3.Connection, backend: ClientBackend) -> list[str]:
 
 def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> str:
     """
-    Append the client's words to the transcript mechanically.
+    Append the principal's words to the transcript mechanically.
 
     The transcript is the one un-interpreted thing in the system — it exists so
     later interpretations can be checked against something. Routing it through an
@@ -185,9 +185,9 @@ def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> st
     verbatim creates a paraphrase risk with no upside, costs a turn, and in
     practice produced wrong ids and a fabricated second utterance.
 
-    Interface still *owns* the artefact; the write is attributed to its session.
+    Liaison still *owns* the artefact; the write is attributed to its session.
     It is authored by the system on the role's behalf, the way a receipt is.
-    What Interface keeps is the part that needs judgement: segmentation.
+    What Liaison keeps is the part that needs judgement: segmentation.
     """
     existing = conn.execute(
         "SELECT id FROM utterances WHERE id = ?", (f"u_{message_id}",)).fetchone()
@@ -198,7 +198,7 @@ def record_utterance(conn: sqlite3.Connection, message_id: str, text: str) -> st
     nxt = conn.execute(
         "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM utterances").fetchone()["n"]
     conn.execute(
-        "INSERT INTO utterances (id, author, text, ts_order) VALUES (?, 'client', ?, ?)",
+        "INSERT INTO utterances (id, author, text, ts_order) VALUES (?, 'principal', ?, ?)",
         (uid, text, nxt))
     conn.execute(
         "INSERT INTO artefact_versions(table_name, version) VALUES ('utterances', 1) "

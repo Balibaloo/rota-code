@@ -30,7 +30,7 @@ const ek = e => `${e[0]}|${e[1]}|${e[2]}`;
 // Entity kinds get different containers: a person is not a document is not a
 // journal, and the eye should not have to read the label to know which.
 function kindOf(n) {
-  if (n.type === 'client') return 'client';
+  if (n.type === 'principal') return 'principal';
   if (n.type === 'role') return 'role';
   if (n.contact === false) return 'journal';   // fact artefact: read, never asked
   if (n.owner === 'scheduler') return 'derived';
@@ -54,7 +54,7 @@ const STATE = {
 };
 
 const SHAPE = {
-  client:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
+  principal:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
   role:    {w:152, h:50, rx:10, fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
   record:  {w:172, h:42, rx:4,  fill:'#e4f3e8', stroke:'#2f855a', dash:'', ink:'#14532d'},
   journal: {w:172, h:42, rx:4,  fill:'#eef7f0', stroke:'#4b9e74', dash:'4 3', ink:'#166534'},
@@ -247,8 +247,8 @@ function drawChat() {
     // drawn in dark-theme colours and went invisible when the ground changed.
     const stroke = open ? STATE.ready
       : m.produced?.committed ? SHAPE.role.stroke : STATE.faint;
-    const fill = m.from_role==='client' ? SHAPE.client.fill : '#ffffff';
-    const ink  = m.from_role==='client' ? SHAPE.client.ink  : SHAPE.role.ink;
+    const fill = m.from_role==='principal' ? SHAPE.principal.fill : '#ffffff';
+    const ink  = m.from_role==='principal' ? SHAPE.principal.ink  : SHAPE.role.ink;
     const out = m.produced
       ? `${m.produced.calls.length} call(s)` + (m.produced.writes.length
           ? ` · ${m.produced.writes.length} write(s)` : '')
@@ -511,7 +511,7 @@ function gvLegend() {
       <span>${swatch(ESTYLE.messages.c,'')} messages</span>
       <span>${swatch(ESTYLE.refs.c,'')} refs (crow's foot = many)</span></div>
     <div class="lgrp"><b>nodes</b>
-      <span>${box(SHAPE.client.fill,SHAPE.client.stroke,'')} client</span>
+      <span>${box(SHAPE.principal.fill,SHAPE.principal.stroke,'')} principal</span>
       <span>${box(SHAPE.role.fill,SHAPE.role.stroke,'')} role</span>
       <span>${box(SHAPE.record.fill,SHAPE.record.stroke,'')} record</span>
       <span>${box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3')} journal</span>

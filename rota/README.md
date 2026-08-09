@@ -55,7 +55,7 @@ refuses the rest, but because nothing else was created. The only way to grant a
 capability is to draw an edge; a prompt has no authority.
 
 **The frontier includes state, not just messages.** An approved item with no
-tickets is not a message — nothing would ever wake Vision for it. Predicates are
+tickets is not a message — nothing would ever wake Gatekeeper for it. Predicates are
 re-evaluated every pass, so residual work is re-derived rather than remembered,
 which is also why the scheduler can be deleted and rewritten. The universal
 invariant: *at quiescence, no predicate fires.*

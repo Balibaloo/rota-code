@@ -6,7 +6,7 @@ mechanically decidable even though the choice is not. That is the pattern this
 module implements, and it is what keeps the suite from degenerating into judging
 prose:
 
-  * Interface's segmentation must cover the utterance — spans exist, do not
+  * Liaison's segmentation must cover the utterance — spans exist, do not
     overlap, and quote rather than paraphrase.
   * Architect's bindings must name grains that exist in the code index.
   * An ordering must be a valid topological sort of declared deps.
@@ -95,7 +95,7 @@ def uncovered_spans(conn: sqlite3.Connection, utterance_id: str) -> list[tuple[i
 def check_statement_count(conn: sqlite3.Connection, utterance_id: str,
                           expected: int) -> list[str]:
     """
-    Client granularity is a *count* assertion, which is why it is checkable.
+    Principal granularity is a *count* assertion, which is why it is checkable.
 
     "we need SSO, but only if it works with our LDAP" is one statement, not two:
     the condition is part of the ask. Over-segmentation is the failure mode worth
@@ -105,7 +105,7 @@ def check_statement_count(conn: sqlite3.Connection, utterance_id: str,
         "SELECT COUNT(*) c FROM statements WHERE span_utterance = ?",
         (utterance_id,)).fetchone()["c"]
     if n != expected:
-        return [f"expected {expected} statement(s) at client granularity, got {n}"]
+        return [f"expected {expected} statement(s) at principal granularity, got {n}"]
     return []
 
 
@@ -189,7 +189,7 @@ def check_messages_carry_refs(conn: sqlite3.Connection, verb: str) -> list[str]:
     """
     Structural traceability: a question must point at what raised it.
 
-    Interface never invents questions, and this is how that is asserted rather
+    Liaison never invents questions, and this is how that is asserted rather
     than trusted — an empty ref set means the question came from nowhere.
     """
     problems = []

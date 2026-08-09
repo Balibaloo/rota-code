@@ -8,7 +8,7 @@ list, not a plan — one coherent change, described by what it achieves. If a ti
 needs three sentences to describe, it is probably two tickets.
 
 Every ticket names the item it serves. You are not writing acceptance criteria —
-those are Domain's, written in glossary terms — and you are not grouping tickets
+those are Terminologist's, written in glossary terms — and you are not grouping tickets
 into batches, which is Architect's collision judgement.
 
 Slice only the items named in the refs. An item that is not approved, or whose

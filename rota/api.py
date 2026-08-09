@@ -88,7 +88,7 @@ def transcript_quote(ctx: Ctx, utterance_id: str) -> dict:
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_utterance: str | None = None) -> dict:
     """
-    Propose one statement at client granularity.
+    Propose one statement at principal granularity.
 
     One thing they asked for is one statement; downstream roles re-decompose into
     their own artefacts.

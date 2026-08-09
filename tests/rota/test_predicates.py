@@ -125,7 +125,7 @@ def test_contested_wakes_the_items_owner(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
                "VALUES ('i1','delete accounts','scope','decided','contested')")
     wakes = P.REGISTRY["contested"].fn(db)
-    assert [w.role for w in wakes] == ["vision"]
+    assert [w.role for w in wakes] == ["gatekeeper"]
     assert wakes[0].refs == ("i1",)
 
 

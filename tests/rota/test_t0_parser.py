@@ -120,7 +120,7 @@ def test_parse_args_empty():
 
 from rota.toolproto import extract_lenient
 
-ALLOWED = {"transcript.append", "brief.segment", "msg.confirm_client", "criteria.load"}
+ALLOWED = {"transcript.append", "brief.segment", "msg.confirm_principal", "criteria.load"}
 
 
 def test_lenient_recovers_bare_calls():
@@ -129,10 +129,10 @@ def test_lenient_recovers_bare_calls():
     a silent no-op session that commits empty — success-shaped failure, the worst
     kind.
     """
-    text = ("transcript.append(id='u1', author='client', text='hello')\n"
-            "msg.confirm_client(refs=['s1'])")
+    text = ("transcript.append(id='u1', author='principal', text='hello')\n"
+            "msg.confirm_principal(refs=['s1'])")
     calls = extract_lenient(text, ALLOWED)
-    assert [c.name for c in calls] == ["transcript.append", "msg.confirm_client"]
+    assert [c.name for c in calls] == ["transcript.append", "msg.confirm_principal"]
 
 
 def test_marked_calls_always_win():

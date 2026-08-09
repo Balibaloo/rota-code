@@ -125,7 +125,7 @@ def message_tips(conn) -> list[Wake]:
 # Understanding loop — these existed, now declared
 # ---------------------------------------------------------------------------
 
-@predicate("awaiting_confirm", wakes="interface",
+@predicate("awaiting_confirm", wakes="liaison",
            drains=[("statements", "status", "proposed")])
 def awaiting_confirm(conn) -> list[Wake]:
     """A proposed statement with no confirm outstanding: ratification has stalled.
@@ -140,15 +140,15 @@ def awaiting_confirm(conn) -> list[Wake]:
         return []
     pending = conn.execute(
         "SELECT COUNT(*) n FROM messages "
-        "WHERE status = 'open' AND to_role = 'client' AND verb = 'confirm'"
+        "WHERE status = 'open' AND to_role = 'principal' AND verb = 'confirm'"
     ).fetchone()["n"]
     if pending:
         return []
-    return [Wake("interface", "tick:awaiting_confirm",
+    return [Wake("liaison", "tick:awaiting_confirm",
                  refs=tuple(r["id"] for r in rows))]
 
 
-@predicate("contradiction", wakes="interface",
+@predicate("contradiction", wakes="liaison",
            drains=[("statements", "status", "contradicted")])
 def contradiction(conn) -> list[Wake]:
     """Two statements conflict. Only the requester can say which stands, so this
@@ -158,13 +158,13 @@ def contradiction(conn) -> list[Wake]:
     if not rows:
         return []
     asked = conn.execute(
-        "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='client' "
+        "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
         "AND verb='clarify'").fetchone()["n"]
     return [] if asked else [
-        Wake("interface", "tick:contradiction", refs=tuple(r["id"] for r in rows))]
+        Wake("liaison", "tick:contradiction", refs=tuple(r["id"] for r in rows))]
 
 
-@predicate("contested", wakes="vision",
+@predicate("contested", wakes="gatekeeper",
            drains=[("items", "approval", "contested")])
 def contested(conn) -> list[Wake]:
     """The requester rejected an item.
@@ -173,38 +173,38 @@ def contested(conn) -> list[Wake]:
     It wakes the item's owner to amend it or author a decision defending it."""
     rows = conn.execute(
         "SELECT id FROM items WHERE approval = 'contested'").fetchall()
-    return [Wake("vision", "tick:contested", refs=(r["id"],)) for r in rows]
+    return [Wake("gatekeeper", "tick:contested", refs=(r["id"],)) for r in rows]
 
 
-@predicate("signoff", wakes="vision", drains=[("items", "approval", "draft")])
+@predicate("signoff", wakes="gatekeeper", drains=[("items", "approval", "draft")])
 def signoff(conn) -> list[Wake]:
     """Draft items with no gate open: submit them for approval, together."""
     from .scheduler import tick_signoff
     return tick_signoff(conn)
 
 
-@predicate("round_close", wakes="interface")
+@predicate("round_close", wakes="liaison")
 def round_close(conn) -> list[Wake]:
     """A broadcast's subtree has terminated: harvest the reports."""
     from .scheduler import tick_round_close
     return tick_round_close(conn)
 
 
-@predicate("slicing", wakes="vision")
+@predicate("slicing", wakes="gatekeeper")
 def slicing(conn) -> list[Wake]:
     """An approved item with no tickets."""
     from .scheduler import tick_slicing
     return tick_slicing(conn)
 
 
-@predicate("criteria", wakes="domain")
+@predicate("criteria", wakes="terminologist")
 def criteria(conn) -> list[Wake]:
     """Tickets with no criteria, per item."""
     from .scheduler import tick_criteria
     return tick_criteria(conn)
 
 
-@predicate("observed_entries", wakes="interface",
+@predicate("observed_entries", wakes="liaison",
            drains=[("glossary_terms", "provenance", "observed"),
                    ("constraints", "provenance", "observed"),
                    ("items", "provenance", "observed")])
@@ -225,10 +225,10 @@ def observed_entries(conn) -> list[Wake]:
     if not counts:
         return []
     asked = conn.execute(
-        "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='client' "
+        "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
         "AND verb='present'").fetchone()["n"]
     return [] if asked else [
-        Wake("interface", "tick:observed_entries", detail=", ".join(counts))]
+        Wake("liaison", "tick:observed_entries", detail=", ".join(counts))]
 
 
 # ---------------------------------------------------------------------------
@@ -356,21 +356,21 @@ def checkpoint_invalid(conn) -> list[Wake]:
             for r in rows]
 
 
-@predicate("quarantined", wakes="interface",
+@predicate("quarantined", wakes="liaison",
            drains=[("messages", "status", "quarantined")])
 def quarantined(conn) -> list[Wake]:
     """The system gave up on a message. That is something the requester should be
     told, not something to bury — it was invisible before."""
     n = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status = 'quarantined'").fetchone()["n"]
-    return [Wake("interface", "tick:quarantined", detail=f"{n} abandoned")] if n else []
+    return [Wake("liaison", "tick:quarantined", detail=f"{n} abandoned")] if n else []
 
 
-@predicate("agenda", wakes="interface", drains=[("ledger", "status", "open")])
+@predicate("agenda", wakes="liaison", drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
     """On requester presence, present what is blocked on them."""
     from .scheduler import tick_agenda
-    return tick_agenda(conn, client_present=True)
+    return tick_agenda(conn, principal_present=True)
 
 
 @predicate("survey", wakes="")

@@ -8,15 +8,15 @@ reviewable as code and re-runnable if the HTML is re-extracted.
 Amendments (all agreed in the design session preceding implementation):
 
   1. Planner dissolved. Ordering is a topological sort in scheduler code, not an
-     LLM role. Its schedule artefact survives (the scheduler reads it); Interface
-     gains a schedule read so client ordering questions can still be answered.
-  2. Tester added, between Domain/Vision and Critic. Reads criteria + glossary,
+     LLM role. Its schedule artefact survives (the scheduler reads it); Liaison
+     gains a schedule read so principal ordering questions can still be answered.
+  2. Tester added, between Terminologist/Gatekeeper and Critic. Reads criteria + glossary,
      writes tests. Starved of the diff on purpose: tests written after seeing an
      implementation encode the implementation.
   3. Developer reads tests; Critic reads tests. Critic judges the diff *given*
      the tests and may challenge Tester; Developer may challenge Tester too.
   4. Backlog read edges for its three writers. They previously wrote an artefact
-     none of them could read — Domain specified criteria for tickets it could not
+     none of them could read — Terminologist specified criteria for tickets it could not
      see, Architect batched tickets it could not read.
 """
 from __future__ import annotations
@@ -51,10 +51,10 @@ def main() -> None:
             )
             n["owner"] = "scheduler"
 
-    # Interface answers client ordering questions from the schedule directly.
+    # Liaison answers principal ordering questions from the schedule directly.
     edges.append(
-        {"s": "interface", "t": "schedule", "type": "reads", "v": "consult",
-         "n": "batch order", "a": "index", "label": "client ordering questions"}
+        {"s": "liaison", "t": "schedule", "type": "reads", "v": "consult",
+         "n": "batch order", "a": "index", "label": "principal ordering questions"}
     )
 
     # ---- 2. Tester ------------------------------------------------------------
@@ -98,9 +98,9 @@ def main() -> None:
          "n": "test disputes criterion", "a": "single"},
         {"s": "critic", "t": "tester", "type": "messages", "v": "challenge",
          "n": "test does not encode criterion", "a": "single"},
-        {"s": "tester", "t": "vision", "type": "messages", "v": "question",
+        {"s": "tester", "t": "gatekeeper", "type": "messages", "v": "question",
          "n": "criterion or scope gap", "a": "single"},
-        {"s": "tester", "t": "domain", "type": "messages", "v": "question",
+        {"s": "tester", "t": "terminologist", "type": "messages", "v": "question",
          "n": "term ambiguity", "a": "single"},
 
         # refs
@@ -110,11 +110,11 @@ def main() -> None:
          "card": "n:n"},
 
         # ---- 4. Backlog reads for its three writers --------------------------
-        {"s": "vision", "t": "backlog", "type": "reads", "v": "consult",
+        {"s": "gatekeeper", "t": "backlog", "type": "reads", "v": "consult",
          "n": "own tickets", "a": "full", "label": "before amending"},
-        {"s": "domain", "t": "backlog", "type": "reads", "v": "consult",
+        {"s": "terminologist", "t": "backlog", "type": "reads", "v": "consult",
          "n": "own criteria", "a": "full", "label": "before amending"},
-        {"s": "domain", "t": "backlog", "type": "reads", "v": "scan",
+        {"s": "terminologist", "t": "backlog", "type": "reads", "v": "scan",
          "n": "tickets", "a": "index", "label": "cannot specify for unseen tickets"},
         {"s": "architect", "t": "backlog", "type": "reads", "v": "consult",
          "n": "own batches", "a": "full", "label": "before amending"},
@@ -126,7 +126,7 @@ def main() -> None:
     for n in nodes:
         if n["id"] == "backlog":
             n["note"] = (
-                "Tickets (Vision), criteria (Domain), batches (Architect) — one "
+                "Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) — one "
                 "writer per table, which is what law 1 means by single writer: one "
                 "writer per row. Batches are complete feature sets, immutable once "
                 "formed: priority moves them whole; only a scope change may "

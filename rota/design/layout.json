@@ -1,17 +1,17 @@
 {
-  "client": {
+  "principal": {
     "x": 80,
     "y": 620
   },
-  "interface": {
+  "liaison": {
     "x": 280,
     "y": 620
   },
-  "vision": {
+  "gatekeeper": {
     "x": 520,
     "y": 500
   },
-  "domain": {
+  "terminologist": {
     "x": 520,
     "y": 750
   },

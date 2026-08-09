@@ -1,6 +1,6 @@
 MODE: a role is challenging an approved item.
 
-Architect or Domain has found something that makes an item as written unworkable
+Architect or Terminologist has found something that makes an item as written unworkable
 or contradictory. You decide whether the item changes.
 
 If it does: amend it with `problem.assert`. Amending drops the item to pending and

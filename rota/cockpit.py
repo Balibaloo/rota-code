@@ -47,7 +47,7 @@ STATIC = HERE / "static"
 def snapshot(conn: sqlite3.Connection) -> dict:
     """Everything the viewer needs, in one read."""
     tips = open_tips(conn)
-    preds = predicate_wakes(conn, client_present=True)
+    preds = predicate_wakes(conn, principal_present=True)
 
     per_tick = {}
     for tick in TICKS:
@@ -56,13 +56,13 @@ def snapshot(conn: sqlite3.Connection) -> dict:
             per_tick[name] = [str(w) for w in tick(conn)]
         except Exception as exc:
             per_tick[name] = [f"ERROR {exc}"]
-    per_tick["agenda"] = [str(w) for w in tick_agenda(conn, client_present=True)]
+    per_tick["agenda"] = [str(w) for w in tick_agenda(conn, principal_present=True)]
 
     def rows(sql, *args):
         return [dict(r) for r in conn.execute(sql, args)]
 
     return {
-        "quiescent": is_quiescent(conn, client_present=True),
+        "quiescent": is_quiescent(conn, principal_present=True),
         "frontier": {
             "tips": [{"role": w.role, "message": w.message_id, "verb": w.detail}
                      for w in tips],

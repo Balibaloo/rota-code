@@ -46,7 +46,7 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "outcome":    ("constraints_found", "none_found"),
     "result":     ("pass", "fail"),
     "status":     ("proposed", "ratified", "superseded", "contradicted", "clarified"),
-    "author":     ("client", "interface"),
+    "author":     ("principal", "liaison"),
 }
 
 

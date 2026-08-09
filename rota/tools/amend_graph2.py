@@ -11,7 +11,7 @@ They had three causes, all real:
      -> fixed in rota/graph.py, not here.
 
   2. `backlog` is one node with three writers, so deriving contacts at artefact
-     granularity gave Critic a channel to all of Vision, Domain and Architect
+     granularity gave Critic a channel to all of Gatekeeper, Terminologist and Architect
      merely for reading criteria. Law 1 means one writer per *row*; the schema
      splits the backlog into tickets/criteria/batches, and the graph must match
      or the derivation stays too coarse.
@@ -40,13 +40,13 @@ LAYOUT = DESIGN / "layout.json"
 
 # Which of the old `backlog` edges belong to which split table.
 BACKLOG_SPLIT = {
-    ("vision", "writes", "slice"): "tickets",
-    ("vision", "writes", "prioritize"): "batches",
-    ("domain", "writes", "specify"): "criteria",
+    ("gatekeeper", "writes", "slice"): "tickets",
+    ("gatekeeper", "writes", "prioritize"): "batches",
+    ("terminologist", "writes", "specify"): "criteria",
     ("architect", "writes", "batch"): "batches",
-    ("vision", "reads", "consult"): "tickets",
-    ("domain", "reads", "consult"): "criteria",
-    ("domain", "reads", "scan"): "tickets",
+    ("gatekeeper", "reads", "consult"): "tickets",
+    ("terminologist", "reads", "consult"): "criteria",
+    ("terminologist", "reads", "scan"): "tickets",
     ("architect", "reads", "consult"): "batches",
     ("architect", "reads", "scan"): "tickets",
     ("developer", "reads", "load"): "criteria",
@@ -83,9 +83,9 @@ def main() -> None:
     nodes = [n for n in nodes if n["id"] != "backlog"]
     nodes += [
         {"id": "tickets", "label": "Tickets", "type": "artefact",
-         "note": "Sliced by Vision from approved items. One writer. " + backlog_note},
+         "note": "Sliced by Gatekeeper from approved items. One writer. " + backlog_note},
         {"id": "criteria", "label": "Criteria", "type": "artefact",
-         "note": "Written by Domain in glossary terms, one set per ticket. One writer."},
+         "note": "Written by Terminologist in glossary terms, one set per ticket. One writer."},
         {"id": "batches", "label": "Batches", "type": "artefact",
          "note": ("Ticket groups formed by Architect on collision judgement. Complete "
                   "feature sets, immutable once formed: priority moves them whole, and "
@@ -121,8 +121,8 @@ def main() -> None:
 
     # ---- 4. two read edges the oracle proved missing -------------------------
     # Running the contact check with the split backlog left exactly four
-    # underivable message edges (developer->vision, tester->vision,
-    # vision->developer, critic->developer). All four resolve to omissions in the
+    # underivable message edges (developer->gatekeeper, tester->gatekeeper,
+    # gatekeeper->developer, critic->developer). All four resolve to omissions in the
     # original graph rather than needing exceptions:
     #
     #   * Developer and Tester read criteria but not the *ticket* those criteria
@@ -166,7 +166,7 @@ def main() -> None:
         # the design specified asking thoroughly and never drew the answering
         # half. Most are fine, because the answer *is* a write and the cascade
         # carries it — Architect resolves an escalation by amending the model,
-        # Vision resolves a challenge by amending an item, and the receipt wakes
+        # Gatekeeper resolves a challenge by amending an item, and the receipt wakes
         # the asker.
         #
         # The rule: **an ask needs a reply edge exactly when answering it writes
@@ -174,31 +174,31 @@ def main() -> None:
         # amending the glossary — so it produces no receipt, so no cascade, so
         # without an edge the answer has nowhere to go and the asker waits
         # forever on a question that was in fact answered.
-        {"s": "domain", "t": "developer", "type": "messages", "v": "answer",
+        {"s": "terminologist", "t": "developer", "type": "messages", "v": "answer",
          "n": "term sense", "a": "single", "label": "answering is not amending"},
-        {"s": "vision", "t": "developer", "type": "messages", "v": "answer",
+        {"s": "gatekeeper", "t": "developer", "type": "messages", "v": "answer",
          "n": "criterion or scope clarification", "a": "single"},
         {"s": "architect", "t": "developer", "type": "messages", "v": "answer",
          "n": "constraint clarification", "a": "single"},
-        {"s": "domain", "t": "tester", "type": "messages", "v": "answer",
+        {"s": "terminologist", "t": "tester", "type": "messages", "v": "answer",
          "n": "term sense", "a": "single"},
-        {"s": "vision", "t": "tester", "type": "messages", "v": "answer",
+        {"s": "gatekeeper", "t": "tester", "type": "messages", "v": "answer",
          "n": "criterion clarification", "a": "single"},
         {"s": "tester", "t": "developer", "type": "messages", "v": "answer",
          "n": "test intent", "a": "single"},
     ]
 
     # ---- 7. system-performed writes -----------------------------------------
-    # Interface owns the transcript, and always will — single writer is about
+    # Liaison owns the transcript, and always will — single writer is about
     # ownership. But the *write* is performed by the system, not by the model:
     # the transcript is the one un-interpreted thing here, so nothing that can
     # paraphrase should touch it. Marking the edge keeps ownership (and coverage)
-    # intact while removing the model's ability to author client speech, which it
+    # intact while removing the model's ability to author principal speech, which it
     # will otherwise do — seven fabricated utterances in one live run.
     for e in edges:
-        if e["s"] == "interface" and e["t"] == "transcript" and e.get("v") == "append":
+        if e["s"] == "liaison" and e["t"] == "transcript" and e.get("v") == "append":
             e["actor"] = "system"
-            e["label"] = "recorded mechanically; Interface owns it, does not type it"
+            e["label"] = "recorded mechanically; Liaison owns it, does not type it"
 
     # ---- 3. mark fact artefacts --------------------------------------------
     for n in nodes:

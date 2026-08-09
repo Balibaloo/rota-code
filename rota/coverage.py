@@ -102,7 +102,7 @@ def observed_in(conn: sqlite3.Connection) -> set[EdgeKey]:
             seen.add(EdgeKey(r["role"], "writes", artefact, "*"))
 
     for r in conn.execute(
-        "SELECT from_role, to_role, verb FROM messages WHERE from_role != 'client'"
+        "SELECT from_role, to_role, verb FROM messages WHERE from_role != 'principal'"
     ):
         seen.add(EdgeKey(r["from_role"], "messages", r["to_role"], r["verb"]))
 

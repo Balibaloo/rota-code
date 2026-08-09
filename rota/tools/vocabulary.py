@@ -1,7 +1,7 @@
 """
-Vocabulary extraction — Domain's job, run on ourselves.
+Vocabulary extraction — Terminologist's job, run on ourselves.
 
-The system's whole thesis is that meaning must be canonical: the Domain role
+The system's whole thesis is that meaning must be canonical: the Terminologist role
 exists because a term quietly meaning two things is the most expensive kind of
 bug. Building it in sloppy vocabulary is not ironic, it is the same failure one
 level up — our terms leak into every prompt, and the roles reason in them.
@@ -14,7 +14,7 @@ hang from.
 
 Levels, highest first:
 
-    L0  the engagement   what the whole thing is, and its relationship to a client
+    L0  the engagement   what the whole thing is, and its relationship to a principal
     L1  the team         who exists, and why each one exists separately
     L2  the record       what is written down and who owns it
     L3  the work         operations performed on the record
@@ -47,8 +47,8 @@ DOCS = ROOT / "rota_tui"
 # thing rests on, and there is no source to extract them from because they are
 # what every other source presupposes.
 L0_TERMS = {
-    "engagement": "the whole relationship with one client, from first ask to milestone",
-    "client": "the single technical person who holds final authority",
+    "engagement": "the whole relationship with one principal, from first ask to milestone",
+    "principal": "the single technical person who holds final authority",
     "team": "the roles, which never share context and communicate only by artefact",
     "understanding loop": "hear, shape, agree — turning what was said into what is meant",
     "delivery loop": "plan, build, judge — turning what is meant into what exists",
@@ -151,7 +151,7 @@ def harvest() -> dict[str, Term]:
     # ---- graph: roles, artefacts, operations, traffic -----------------------
     graph = json.loads((DESIGN / "graph.json").read_text(encoding="utf-8"))
     for n in graph["nodes"]:
-        level = {"role": "L1", "artefact": "L2", "client": "L0"}.get(n["type"], "L2")
+        level = {"role": "L1", "artefact": "L2", "principal": "L0"}.get(n["type"], "L2")
         _add(terms, n["id"], level, "graph.node",
              (n.get("note") or "").split(".")[0][:160])
         if n["label"].lower() != n["id"]:
@@ -356,7 +356,7 @@ def collisions(terms: dict[str, Term]) -> list[tuple[str, list[str]]]:
     """
     One word carrying more than one job.
 
-    This is exactly what D1 asks Domain to catch, and it is the finding that
+    This is exactly what D1 asks Terminologist to catch, and it is the finding that
     matters most: a word meaning two things costs more than a word that is merely
     ugly, because nobody notices it going wrong.
     """

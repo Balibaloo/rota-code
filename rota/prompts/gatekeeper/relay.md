@@ -1,6 +1,6 @@
 MODE: signoff verdicts relayed.
 
-The client has ruled per item. Apply the rulings with `problem.set_approval`:
+The principal has ruled per item. Apply the rulings with `problem.set_approval`:
 approve, contest, or leave pending.
 
 Approval is stamped against the item's current version, which is what makes "no

@@ -52,7 +52,7 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     enumerable — the verbs from the graph, the ticks from the scheduler — so the
     set of modes a role has is a fact about the system rather than a convention.
 
-    One refinement the gates force: a client `verdict` means two different things
+    One refinement the gates force: a principal `verdict` means two different things
     depending on what it answers. After a `confirm` it is ratification (L1);
     after a `present` it is a signoff ruling to relay. Same verb, different job,
     so the mode is keyed by the *cause* rather than by the verb alone. Without
@@ -120,8 +120,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     reason to think of, so the refs are resolved here to exactly one level: the
     rows they name, nothing those rows point at in turn.
 
-    Client utterances are the exception that needs handling: the client's actual
-    words are not yet an artefact when Interface is woken to record them, so they
+    Principal utterances are the exception that needs handling: the principal's actual
+    words are not yet an artefact when Liaison is woken to record them, so they
     are carried on the message itself.
     """
     if not wake.message_id:
@@ -138,11 +138,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         "refs": json.loads(row["body_refs"] or "[]"),
     }
 
-    from .client import utterance_for, verdict_for
+    from .principal import utterance_for, verdict_for
 
     text = utterance_for(conn, wake.message_id)
     if text:
-        out["client_said"] = text
+        out["principal_said"] = text
         # Already in the transcript, recorded mechanically. The role is told its
         # id so it can segment against it rather than re-appending it.
         recorded = conn.execute(
@@ -153,7 +153,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             out["already_recorded"] = True
     ruling = verdict_for(conn, wake.message_id)
     if ruling:
-        out["client_verdict"] = ruling
+        out["principal_verdict"] = ruling
 
     resolved = {}
     for ref in out["refs"]:
@@ -307,8 +307,8 @@ def run_session(
 
             # A role that has sent its outbound message has, in almost every
             # mode, finished. Without saying so the model keeps going and starts
-            # inventing work — an Interface intake session will happily fabricate
-            # a second client utterance, which is the one thing it must never do.
+            # inventing work — an Liaison intake session will happily fabricate
+            # a second principal utterance, which is the one thing it must never do.
             if sb.ctx.outbound:
                 feedback.append(
                     "You have sent your message. Your work for this session is "

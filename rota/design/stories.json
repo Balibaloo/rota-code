@@ -5,17 +5,17 @@
       {
         "title": "Before you start",
         "round": "context",
-        "text": "A technical client with final authority sends one sentence. Nothing in the graph knows what it means yet. Over 30 steps every role and nearly every edge fires — not because the story reaches for them, but because an eleven-word ask turns out to contain a term collision, a constraint that cannot be satisfied, and a refusal from eight months ago whose reasoning has quietly expired. Each role is awoken cold, one at a time, with no memory and no visibility of the others. Everything they know arrives through an artefact or a message. Watch for three things: where a question comes from (roles report what they cannot determine; Interface never invents questions), where authority stops (escalation routes to whoever writes the artefact holding the answer), and what happens to uncertainty that never resolves (it gets written down rather than guessed). Bright edges are the current step, faint ones are the path already walked.",
+        "text": "A technical principal with final authority sends one sentence. Nothing in the graph knows what it means yet. Over 30 steps every role and nearly every edge fires — not because the story reaches for them, but because an eleven-word ask turns out to contain a term collision, a constraint that cannot be satisfied, and a refusal from eight months ago whose reasoning has quietly expired. Each role is awoken cold, one at a time, with no memory and no visibility of the others. Everything they know arrives through an artefact or a message. Watch for three things: where a question comes from (roles report what they cannot determine; Liaison never invents questions), where authority stops (escalation routes to whoever writes the artefact holding the answer), and what happens to uncertainty that never resolves (it gets written down rather than guessed). Bright edges are the current step, faint ones are the path already walked.",
         "edges": []
       },
       {
         "title": "Eleven words",
         "round": "intake",
-        "text": "The client sends a single sentence: add a button so people can delete their account. It sounds like an afternoon of work.",
+        "text": "The principal sends a single sentence: add a button so people can delete their account. It sounds like an afternoon of work.",
         "edges": [
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ]
@@ -27,7 +27,7 @@
         "text": "The utterance goes into the transcript verbatim, greetings and all. Nothing downstream will ever read it in bulk — it exists so that later interpretations have something un-interpreted to be checked against.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "transcript",
             "writes"
           ]
@@ -36,10 +36,10 @@
       {
         "title": "Atomised into statements",
         "round": "intake",
-        "text": "Interface splits the utterance into atoms and IDs them, each with a span back into the transcript. It may split aggressively, because it is about to be checked.",
+        "text": "Liaison splits the utterance into atoms and IDs them, each with a span back into the transcript. It may split aggressively, because it is about to be checked.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "segment"
@@ -47,24 +47,24 @@
         ]
       },
       {
-        "title": "The client ratifies the list",
+        "title": "The principal ratifies the list",
         "round": "intake",
-        "text": "Here is what I heard you ask for. The pleasantries fall away without Interface deciding what counts as substance, and a bad split gets caught by the only party who knows what was meant.",
+        "text": "Here is what I heard you ask for. The pleasantries fall away without Liaison deciding what counts as substance, and a bad split gets caught by the only party who knows what was meant.",
         "edges": [
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "confirm"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "ratify"
@@ -74,33 +74,33 @@
       {
         "title": "Three roles, three readings",
         "round": "round 1",
-        "text": "Vision, Domain and Architect each read the same eleven words against different artefacts, and immediately understand three different features.",
+        "text": "Gatekeeper, Terminologist and Architect each read the same eleven words against different artefacts, and immediately understand three different features.",
         "edges": [
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "brief"
           ],
           [
-            "interface",
-            "domain",
+            "liaison",
+            "terminologist",
             "messages",
             "brief"
           ],
           [
-            "interface",
+            "liaison",
             "architect",
             "messages",
             "brief"
           ],
           [
-            "vision",
+            "gatekeeper",
             "brief",
             "reads"
           ],
           [
-            "domain",
+            "terminologist",
             "brief",
             "reads"
           ],
@@ -114,15 +114,15 @@
       {
         "title": "We said no to this before",
         "round": "round 1",
-        "text": "`Vision` checks the new statements against the rejection log — not out of suspicion, but because guarding the project’s identity over time is its job at every intake. A refusal from eight months ago surfaces: deletion was declined because billing history had to survive.",
+        "text": "`Gatekeeper` checks the new statements against the rejection log — not out of suspicion, but because guarding the project’s identity over time is its job at every intake. A refusal from eight months ago surfaces: deletion was declined because billing history had to survive.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "decisions",
             "reads"
           ],
           [
-            "interface",
+            "liaison",
             "decisions",
             "reads"
           ]
@@ -131,16 +131,16 @@
       {
         "title": "Which account?",
         "round": "round 1",
-        "text": "The glossary already carries two senses — the login identity and the billing entity. Deleting one is a profile removal; deleting the other ends a contract. Domain is blocked.",
+        "text": "The glossary already carries two senses — the login identity and the billing entity. Deleting one is a profile removal; deleting the other ends a contract. Terminologist is blocked.",
         "edges": [
           [
-            "domain",
+            "terminologist",
             "glossary",
             "reads"
           ],
           [
-            "domain",
-            "interface",
+            "terminologist",
+            "liaison",
             "messages",
             "report"
           ]
@@ -158,7 +158,7 @@
           ],
           [
             "architect",
-            "interface",
+            "liaison",
             "messages",
             "report"
           ]
@@ -167,16 +167,16 @@
       {
         "title": "Is the old refusal still valid?",
         "round": "round 1",
-        "text": "Vision reads the rejection log and cannot tell whether the reasoning that killed this last time still holds. Blocked — and this is the question nobody would have thought to ask.",
+        "text": "Gatekeeper reads the rejection log and cannot tell whether the reasoning that killed this last time still holds. Blocked — and this is the question nobody would have thought to ask.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "decisions",
             "reads"
           ],
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "report"
           ]
@@ -185,11 +185,11 @@
       {
         "title": "Three blockers, two questions",
         "round": "round 1",
-        "text": "Interface merges the two deletion questions into one, orders them so the meaning of \"account\" is settled first, and asks in the client’s language rather than the model’s.",
+        "text": "Liaison merges the two deletion questions into one, orders them so the meaning of \"account\" is settled first, and asks in the principal’s language rather than the model’s.",
         "edges": [
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
@@ -201,13 +201,13 @@
         "text": "It is the login identity, not the billing entity — and a regulator now requires it, which is precisely why the old refusal no longer stands.",
         "edges": [
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "ratify"
@@ -217,21 +217,21 @@
       {
         "title": "The rejection is overturned on the record",
         "round": "round 2",
-        "text": "`Vision` commits the problem statement with explicit non-goals — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
+        "text": "`Gatekeeper` commits the problem statement with explicit non-goals — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "brief",
             "reads"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "vision",
+            "gatekeeper",
             "decisions",
             "writes",
             "author"
@@ -241,11 +241,11 @@
       {
         "title": "Architect challenges the scope",
         "round": "round 2",
-        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Vision` to name that as a non-goal, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
+        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Gatekeeper` to name that as a non-goal, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
         "edges": [
           [
             "architect",
-            "vision",
+            "gatekeeper",
             "messages",
             "challenge"
           ],
@@ -269,17 +269,17 @@
         ]
       },
       {
-        "title": "Domain challenges the wording",
+        "title": "Terminologist challenges the wording",
         "round": "round 2",
-        "text": "The client said delete; the applicable rule says erasure, which has a specific legal meaning and obligations attached. Domain writes both into the glossary.",
+        "text": "The principal said delete; the applicable rule says erasure, which has a specific legal meaning and obligations attached. Terminologist writes both into the glossary.",
         "edges": [
           [
-            "domain",
-            "vision",
+            "terminologist",
+            "gatekeeper",
             "messages"
           ],
           [
-            "domain",
+            "terminologist",
             "glossary",
             "writes"
           ]
@@ -288,10 +288,10 @@
       {
         "title": "One thing nobody can settle",
         "round": "round 2",
-        "text": "How long the anonymised tombstone should live is a legal question the client has not answered. Round budget spent — Vision decides, and writes the assumption down instead of hiding it.",
+        "text": "How long the anonymised tombstone should live is a legal question the principal has not answered. Round budget spent — Gatekeeper decides, and writes the assumption down instead of hiding it.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "ledger",
             "writes"
           ]
@@ -300,11 +300,11 @@
       {
         "title": "Submitted for sign-off",
         "round": "signoff",
-        "text": "Nothing can be sliced yet. `Vision` hands `Interface` the scope items and non-goals — not for wording review, but for the client to agree that this is what gets built.",
+        "text": "Nothing can be sliced yet. `Gatekeeper` hands `Liaison` the scope items and non-goals — not for wording review, but for the principal to agree that this is what gets built.",
         "edges": [
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "submit"
           ]
@@ -313,22 +313,22 @@
       {
         "title": "Reads as a document, records as items",
         "round": "signoff",
-        "text": "The client sees one page, not eleven checkboxes — scope, non-goals, and the one open assumption attached to this lineage (the retention window nobody could settle). Approval given with an assumption visible ratifies its default. `Interface` records a verdict per item behind the scenes; lgtm approves everything raised.",
+        "text": "The principal sees one page, not eleven checkboxes — scope, non-goals, and the one open assumption attached to this lineage (the retention window nobody could settle). Approval given with an assumption visible ratifies its default. `Liaison` records a verdict per item behind the scenes; lgtm approves everything raised.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "ledger",
             "reads"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "present"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "verdict"
           ]
@@ -337,16 +337,16 @@
       {
         "title": "The non-goal is contested",
         "round": "signoff",
-        "text": "Everything approved except one: the client will not accept that invoices survive deletion without knowing what the user is told. A contested item is not a rejection — it re-enters shaping as a blocker.",
+        "text": "Everything approved except one: the principal will not accept that invoices survive deletion without knowing what the user is told. A contested item is not a rejection — it re-enters shaping as a blocker.",
         "edges": [
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "relay"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "set approval"
@@ -356,16 +356,16 @@
       {
         "title": "One more round, one item wide",
         "round": "signoff",
-        "text": "Only the contested item goes back round. `Domain` names the wording the user will see; `Vision` amends that non-goal and nothing else.",
+        "text": "Only the contested item goes back round. `Terminologist` names the wording the user will see; `Gatekeeper` amends that non-goal and nothing else.",
         "edges": [
           [
-            "domain",
-            "vision",
+            "terminologist",
+            "gatekeeper",
             "messages",
             "challenge"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "assert"
@@ -375,28 +375,28 @@
       {
         "title": "Approved, and the gate opens",
         "round": "signoff",
-        "text": "Every item now carries an approval that postdates its last amendment. That predicate is what the scheduler checks before it wakes anybody — no judgement call about whether the client needs involving.",
+        "text": "Every item now carries an approval that postdates its last amendment. That predicate is what the scheduler checks before it wakes anybody — no judgement call about whether the principal needs involving.",
         "edges": [
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "present"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "verdict"
           ],
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "relay"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "set approval"
@@ -406,16 +406,16 @@
       {
         "title": "Sliced, then batched",
         "round": "backlog",
-        "text": "`Vision` slices tickets from the approved items; `Domain` writes criteria in glossary terms; `Architect` groups tickets into batches — each a complete feature set: one discrete change, one worktree, one PR, tracing to exactly one approved item — and declares any inter-batch dependencies as backlog facts. Batches are immutable once formed: priority moves them whole, and only a scope change may recompose one. The scheduler will read `Planner`’s ordering directly; nobody announces it.",
+        "text": "`Gatekeeper` slices tickets from the approved items; `Terminologist` writes criteria in glossary terms; `Architect` groups tickets into batches — each a complete feature set: one discrete change, one worktree, one PR, tracing to exactly one approved item — and declares any inter-batch dependencies as backlog facts. Batches are immutable once formed: priority moves them whole, and only a scope change may recompose one. The scheduler will read `Planner`’s ordering directly; nobody announces it.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "backlog",
             "writes",
             "slice"
           ],
           [
-            "domain",
+            "terminologist",
             "backlog",
             "writes"
           ],
@@ -456,23 +456,23 @@
       {
         "title": "Shared content",
         "round": "batch 1",
-        "text": "The user owns documents other people are still using. Nothing in the batch criteria covers it — a scope gap, so the question routes to the gap’s owner: `Vision`, not `Interface`. `Vision` cannot determine the answer either, reports blocked, and the same harvesting chain runs — entered one link higher, arriving at the client owned and translated.",
+        "text": "The user owns documents other people are still using. Nothing in the batch criteria covers it — a scope gap, so the question routes to the gap’s owner: `Gatekeeper`, not `Liaison`. `Gatekeeper` cannot determine the answer either, reports blocked, and the same harvesting chain runs — entered one link higher, arriving at the principal owned and translated.",
         "edges": [
           [
             "developer",
-            "vision",
+            "gatekeeper",
             "messages",
             "question"
           ],
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "report"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
@@ -498,22 +498,22 @@
       {
         "title": "The amendment revokes an approval",
         "round": "batch 1",
-        "text": "Every fix changes something the client was told. `Architect` does not have to judge whether that warrants involving the client — amending an approved item drops it to pending, and the batch stops. The gate decides, not the role.",
+        "text": "Every fix changes something the principal was told. `Architect` does not have to judge whether that warrants involving the principal — amending an approved item drops it to pending, and the batch stops. The gate decides, not the role.",
         "edges": [
           [
             "architect",
-            "vision",
+            "gatekeeper",
             "messages",
             "challenge"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "set approval"
           ],
           [
-            "vision",
+            "gatekeeper",
             "developer",
             "messages",
             "reopen"
@@ -527,7 +527,7 @@
         "edges": [
           [
             "developer",
-            "vision",
+            "gatekeeper",
             "messages",
             "elect"
           ]
@@ -536,34 +536,34 @@
       {
         "title": "Re-approved on one item",
         "round": "batch 1",
-        "text": "`Interface` turns a foreign key problem into a plain trade-off: shared documents keep working, authorship shows as a removed user. The client rules in under a minute, and the item’s approval is reinstated.",
+        "text": "`Liaison` turns a foreign key problem into a plain trade-off: shared documents keep working, authorship shows as a removed user. The principal rules in under a minute, and the item’s approval is reinstated.",
         "edges": [
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "submit"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "present"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "verdict"
           ],
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "relay"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "set approval"
@@ -613,7 +613,7 @@
       {
         "title": "Critic, criteria and diff only",
         "round": "review",
-        "text": "The batch criteria and the batch diff. No escalation thread, no client ruling, no `Developer` reasoning — just what was promised and what was built.",
+        "text": "The batch criteria and the batch diff. No escalation thread, no principal ruling, no `Developer` reasoning — just what was promised and what was built.",
         "edges": [
           [
             "critic",
@@ -669,22 +669,22 @@
       {
         "title": "The gate",
         "round": "review",
-        "text": "PR review mode is on because this one has legal exposure. `Interface` presents the batch with the open assumptions in its lineage — in-flight invoices, mid-cycle deletion — so nothing ships whose assumptions the client never saw. From inside the system nothing looks different; a verdict simply takes longer to arrive.",
+        "text": "PR review mode is on because this one has legal exposure. `Liaison` presents the batch with the open assumptions in its lineage — in-flight invoices, mid-cycle deletion — so nothing ships whose assumptions the principal never saw. From inside the system nothing looks different; a verdict simply takes longer to arrive.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "ledger",
             "reads"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "present"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "verdict"
           ]
@@ -693,10 +693,10 @@
       {
         "title": "Merged",
         "round": "close",
-        "text": "The batch merges. `Vision` authors the closing entry — what shipped against which approved item — because shipped scope is an identity fact about the project, and identity is `Vision`’s artefact.",
+        "text": "The batch merges. `Gatekeeper` authors the closing entry — what shipped against which approved item — because shipped scope is an identity fact about the project, and identity is `Gatekeeper`’s artefact.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "decisions",
             "writes",
             "author"
@@ -706,16 +706,16 @@
       {
         "title": "Three assumptions become the next conversation",
         "round": "close",
-        "text": "Retention window, in-flight invoices, mid-cycle deletion. The eleven-word feature ships with its uncertainty named rather than buried — and that list is the agenda for the next client call.",
+        "text": "Retention window, in-flight invoices, mid-cycle deletion. The eleven-word feature ships with its uncertainty named rather than buried — and that list is the agenda for the next principal call.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "ledger",
             "reads"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
@@ -729,22 +729,22 @@
       {
         "title": "Before you start",
         "round": "context",
-        "text": "A working system, four years of commits, no documentation anyone trusts. Onboarding treats the repo as an utterance nobody ratified: code is ground truth, comments and commit messages are hearsay from absent authors. The survey extracts hypotheses; only the client can turn them into a baseline. Watch for the bootstrap constraint that makes ignorance safe, the first decision entry a legacy system ever gets, and the client electing how much confirmation to pay for up front.",
+        "text": "A working system, four years of commits, no documentation anyone trusts. Onboarding treats the repo as an utterance nobody ratified: code is ground truth, comments and commit messages are hearsay from absent authors. The survey extracts hypotheses; only the principal can turn them into a baseline. Watch for the bootstrap constraint that makes ignorance safe, the first decision entry a legacy system ever gets, and the principal electing how much confirmation to pay for up front.",
         "edges": []
       },
       {
         "title": "Opened, not pointed",
         "round": "initiation",
-        "text": "The tool is opened inside the project directory — it lives with the code, storing all framework state in a project subfolder. No state folder exists here, and that absence is the trigger: presence means boot, absence means onboard. One decision, no separate initiation command. The client’s first exchange of the interview is recorded verbatim like any other utterance; the repo itself never enters the transcript — it is its own artefact, already durable, already versioned.",
+        "text": "The tool is opened inside the project directory — it lives with the code, storing all framework state in a project subfolder. No state folder exists here, and that absence is the trigger: presence means boot, absence means onboard. One decision, no separate initiation command. The principal’s first exchange of the interview is recorded verbatim like any other utterance; the repo itself never enters the transcript — it is its own artefact, already durable, already versioned.",
         "edges": [
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ],
           [
-            "interface",
+            "liaison",
             "transcript",
             "writes"
           ]
@@ -753,7 +753,7 @@
       {
         "title": "The index comes first",
         "round": "survey",
-        "text": "Before any role wakes, mechanical tooling builds an index: module graph, symbol table, term frequencies, routes, schemas — respecting .gitignore throughout, so build artefacts, dependencies, and the framework’s own state folder never enter it — plus the trust-ranked extras the client pointed at: the test suite (machine-ratified intent), the issue tracker, usage data. No judgement, no LLM. Roles will consume the index and drill into single files on demand.",
+        "text": "Before any role wakes, mechanical tooling builds an index: module graph, symbol table, term frequencies, routes, schemas — respecting .gitignore throughout, so build artefacts, dependencies, and the framework’s own state folder never enter it — plus the trust-ranked extras the principal pointed at: the test suite (machine-ratified intent), the issue tracker, usage data. No judgement, no LLM. Roles will consume the index and drill into single files on demand.",
         "edges": [],
         "nodes": [
           "code"
@@ -780,15 +780,15 @@
       {
         "title": "The language as found",
         "round": "survey",
-        "text": "`Domain` surveys term frequencies and schemas, and finds what legacy code always holds: “order” means a purchase in half the modules and a sort sequence in the other half. Both enter the glossary marked observed — found, not chosen.",
+        "text": "`Terminologist` surveys term frequencies and schemas, and finds what legacy code always holds: “order” means a purchase in half the modules and a sort sequence in the other half. Both enter the glossary marked observed — found, not chosen.",
         "edges": [
           [
-            "domain",
+            "terminologist",
             "code",
             "reads"
           ],
           [
-            "domain",
+            "terminologist",
             "glossary",
             "writes",
             "amend"
@@ -798,15 +798,15 @@
       {
         "title": "What it appears to be for",
         "round": "survey",
-        "text": "`Vision` reads the user-facing surfaces — routes, screens, entry points — and drafts baseline statements of what the system appears to do. Code shows what a system does, never what it is for; every item is marked observed and waits for the only party who can say otherwise.",
+        "text": "`Gatekeeper` reads the user-facing surfaces — routes, screens, entry points — and drafts baseline statements of what the system appears to do. Code shows what a system does, never what it is for; every item is marked observed and waits for the only party who can say otherwise.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "code",
             "reads"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "assert"
@@ -819,20 +819,20 @@
         "text": "The harvest, unchanged from greenfield: each role reports what it cannot determine. A module nothing imports — dead or dormant? An unreachable discount path — bug or feature? Which of the two “order” senses is canonical? Nobody invents questions; the code simply underdetermines.",
         "edges": [
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "report"
           ],
           [
-            "domain",
-            "interface",
+            "terminologist",
+            "liaison",
             "messages",
             "report"
           ],
           [
             "architect",
-            "interface",
+            "liaison",
             "messages",
             "report"
           ]
@@ -841,35 +841,35 @@
       {
         "title": "Questions only intent can settle",
         "round": "survey",
-        "text": "`Interface` dedupes, orders, and asks — and adds the two questions only onboarding has: what changes next (which steers survey depth), and the election: confirm the whole baseline up front, or lazily as work first touches each area. The client’s call, not the system’s.",
+        "text": "`Liaison` dedupes, orders, and asks — and adds the two questions only onboarding has: what changes next (which steers survey depth), and the election: confirm the whole baseline up front, or lazily as work first touches each area. The principal’s call, not the system’s.",
         "edges": [
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
         ]
       },
       {
-        "title": "The client answers — and elects",
+        "title": "The principal answers — and elects",
         "round": "survey",
-        "text": "Payments is where change is planned next, so: upfront confirmation for the payments core, lazy for everything else. The dormant module is dead. The discount path — the client pauses — that one needs looking at. Answers land as utterances and become ratified statements.",
+        "text": "Payments is where change is planned next, so: upfront confirmation for the payments core, lazy for everything else. The dormant module is dead. The discount path — the principal pauses — that one needs looking at. Answers land as utterances and become ratified statements.",
         "edges": [
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "segment"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "ratify"
@@ -879,22 +879,22 @@
       {
         "title": "Drafts absorb the answers",
         "round": "survey",
-        "text": "The delta rebroadcasts. `Domain` marks the purchase sense canonical; `Architect` writes the dead module as removable and deepens the payments survey, narrowing constraint zero off the surveyed core. The periphery keeps its global trigger — honest ignorance, priced visibly.",
+        "text": "The delta rebroadcasts. `Terminologist` marks the purchase sense canonical; `Architect` writes the dead module as removable and deepens the payments survey, narrowing constraint zero off the surveyed core. The periphery keeps its global trigger — honest ignorance, priced visibly.",
         "edges": [
           [
-            "interface",
-            "domain",
+            "liaison",
+            "terminologist",
             "messages",
             "brief"
           ],
           [
-            "interface",
+            "liaison",
             "architect",
             "messages",
             "brief"
           ],
           [
-            "domain",
+            "terminologist",
             "glossary",
             "writes",
             "amend"
@@ -910,16 +910,16 @@
       {
         "title": "A bug becomes the first decision",
         "round": "baseline",
-        "text": "The client rules: the unreachable discount path is a bug, not a feature. An observed behaviour has been challenged — and challenging an observed entry forces its first decision. `Vision` authors the entry at the moment of the ruling: the project’s decision record begins here, four years after its codebase did.",
+        "text": "The principal rules: the unreachable discount path is a bug, not a feature. An observed behaviour has been challenged — and challenging an observed entry forces its first decision. `Gatekeeper` authors the entry at the moment of the ruling: the project’s decision record begins here, four years after its codebase did.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "vision",
+            "gatekeeper",
             "decisions",
             "writes",
             "author"
@@ -929,11 +929,11 @@
       {
         "title": "Baseline submitted",
         "round": "signoff",
-        "text": "Roughly thirty statements describing what the system is, each marked observed, plus the intent going forward. `Vision` hands it to `Interface` for the signoff — the client confirming not what will be built, but what already exists.",
+        "text": "Roughly thirty statements describing what the system is, each marked observed, plus the intent going forward. `Gatekeeper` hands it to `Liaison` for the signoff — the principal confirming not what will be built, but what already exists.",
         "edges": [
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "submit"
           ]
@@ -942,28 +942,28 @@
       {
         "title": "Signoff on what already is",
         "round": "signoff",
-        "text": "One page. The client reads, corrects two statements, and lgtms the rest — a complete, valid response. `Interface` records per-item verdicts; `Vision` sets approval. Client effort scaled with the ambiguity the code held, not with its size.",
+        "text": "One page. The principal reads, corrects two statements, and lgtms the rest — a complete, valid response. `Liaison` records per-item verdicts; `Gatekeeper` sets approval. Principal effort scaled with the ambiguity the code held, not with its size.",
         "edges": [
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "present"
           ],
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "verdict"
           ],
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "relay"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "set approval"
@@ -973,10 +973,10 @@
       {
         "title": "The lazy periphery is named debt",
         "round": "signoff",
-        "text": "Everything under the lazy election — unconfirmed observed items outside the payments core — is logged to the ledger: assumptions awaiting their first touch. Uncertainty the client chose to defer, written down rather than forgotten, drained through the same gates as everything else.",
+        "text": "Everything under the lazy election — unconfirmed observed items outside the payments core — is logged to the ledger: assumptions awaiting their first touch. Uncertainty the principal chose to defer, written down rather than forgotten, drained through the same gates as everything else.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "ledger",
             "writes",
             "log"
@@ -986,23 +986,23 @@
       {
         "title": "An optional product: the seam plan",
         "round": "signoff",
-        "text": "The survey already holds the raw material — fan-in, constraint zero’s residue, the areas the client named as least familiar. `Architect` proposes a boundary plan; `Vision` drafts it as structural items whose criteria are behaviour preserved, boundary exists; it goes to signoff like any scope. The client funds seams explicitly or declines them knowingly — the monolith’s cost stops being ambient.",
+        "text": "The survey already holds the raw material — fan-in, constraint zero’s residue, the areas the principal named as least familiar. `Architect` proposes a boundary plan; `Gatekeeper` drafts it as structural items whose criteria are behaviour preserved, boundary exists; it goes to signoff like any scope. The principal funds seams explicitly or declines them knowingly — the monolith’s cost stops being ambient.",
         "edges": [
           [
             "architect",
-            "vision",
+            "gatekeeper",
             "messages",
             "propose"
           ],
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "submit"
           ]
@@ -1011,7 +1011,7 @@
       {
         "title": "Ready",
         "round": "ready",
-        "text": "The frontier is quiet. Two gauges now measure how understood this codebase is: the observed-to-decided ratio in the model, and how far constraint zero has shrunk. The first feature request enters the ordinary flow — against a baseline the client has actually agreed exists.",
+        "text": "The frontier is quiet. Two gauges now measure how understood this codebase is: the observed-to-decided ratio in the model, and how far constraint zero has shrunk. The first feature request enters the ordinary flow — against a baseline the principal has actually agreed exists.",
         "edges": []
       }
     ]
@@ -1022,7 +1022,7 @@
       {
         "title": "Before you start",
         "round": "context",
-        "text": "Two use cases in one arc. First: the system boots with no client message — and boot turns out not to be special, because every session was always a cold start. Second: mid-batch, the client re-prioritizes — which is not an amendment: nothing the client approved changes content, so no revocation fires and no batch is edited. Batches are complete feature sets and move whole. Watch the flattened priority signal recovered from the raw transcript, the refs walk that finds which batch to bump, the whole-batch reorder with `Architect` nowhere in the path, and the clean kill: the preempted batch’s runtime dies entirely while its worktree and commits persist as deferred work.",
+        "text": "Two use cases in one arc. First: the system boots with no principal message — and boot turns out not to be special, because every session was always a cold start. Second: mid-batch, the principal re-prioritizes — which is not an amendment: nothing the principal approved changes content, so no revocation fires and no batch is edited. Batches are complete feature sets and move whole. Watch the flattened priority signal recovered from the raw transcript, the refs walk that finds which batch to bump, the whole-batch reorder with `Architect` nowhere in the path, and the clean kill: the preempted batch’s runtime dies entirely while its worktree and commits persist as deferred work.",
         "edges": []
       },
       {
@@ -1078,22 +1078,22 @@
       {
         "title": "A question, not a directive",
         "round": "inquiry",
-        "text": "First the client just asks: “how does deletion handle search results right now?” `Interface` cannot answer from its own reads, so it opens consult-mode sessions — read-only wakes. `Vision` answers what was promised, `Domain` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
+        "text": "First the principal just asks: “how does deletion handle search results right now?” `Liaison` cannot answer from its own reads, so it opens consult-mode sessions — read-only wakes. `Gatekeeper` answers what was promised, `Terminologist` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
         "edges": [
           [
-            "interface",
-            "vision",
+            "liaison",
+            "gatekeeper",
             "messages",
             "consult"
           ],
           [
-            "interface",
-            "domain",
+            "liaison",
+            "terminologist",
             "messages",
             "consult"
           ],
           [
-            "interface",
+            "liaison",
             "architect",
             "messages",
             "consult"
@@ -1106,26 +1106,26 @@
         "text": "Three answers compose into one reply. Because consult sessions write nothing, no version bumped, no receipt exists, and the suspended batch’s checkpoint remains valid by construction — the running development never learns the question was asked. Read-only inquiry is free.",
         "edges": [
           [
-            "vision",
-            "interface",
+            "gatekeeper",
+            "liaison",
             "messages",
             "answer"
           ],
           [
-            "domain",
-            "interface",
+            "terminologist",
+            "liaison",
             "messages",
             "answer"
           ],
           [
             "architect",
-            "interface",
+            "liaison",
             "messages",
             "answer"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
@@ -1134,23 +1134,23 @@
       {
         "title": "And what is still ahead?",
         "round": "inquiry",
-        "text": "A follow-up: “what happens after this batch?” Ordering is `Planner`’s artefact, so the inquiry consults `Planner` — the one asker with a legitimate schedule question is the client, never a role. Same read-only isolation; the running batch never stirs.",
+        "text": "A follow-up: “what happens after this batch?” Ordering is `Planner`’s artefact, so the inquiry consults `Planner` — the one asker with a legitimate schedule question is the principal, never a role. Same read-only isolation; the running batch never stirs.",
         "edges": [
           [
-            "interface",
+            "liaison",
             "planner",
             "messages",
             "consult"
           ],
           [
             "planner",
-            "interface",
+            "liaison",
             "messages",
             "answer"
           ],
           [
-            "interface",
-            "client",
+            "liaison",
+            "principal",
             "messages",
             "clarify"
           ]
@@ -1159,27 +1159,27 @@
       {
         "title": "The interrupt",
         "round": "interrupt",
-        "text": "Mid-batch, the client writes: “actually — honestly the thing I care about most is that deleted users vanish from search immediately. That matters more than the rest.” Intake always lands: appended verbatim, segmented, ratified. And this one ratifies as something the revocation predicate ignores: it amends nothing the client approved — it re-prioritizes, a different lever entirely. Scope changes revoke; priority changes reorder.",
+        "text": "Mid-batch, the principal writes: “actually — honestly the thing I care about most is that deleted users vanish from search immediately. That matters more than the rest.” Intake always lands: appended verbatim, segmented, ratified. And this one ratifies as something the revocation predicate ignores: it amends nothing the principal approved — it re-prioritizes, a different lever entirely. Scope changes revoke; priority changes reorder.",
         "edges": [
           [
-            "client",
-            "interface",
+            "principal",
+            "liaison",
             "messages",
             "converse"
           ],
           [
-            "interface",
+            "liaison",
             "transcript",
             "writes"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "segment"
           ],
           [
-            "interface",
+            "liaison",
             "brief",
             "writes",
             "ratify"
@@ -1192,12 +1192,12 @@
         "text": "Ratified, the statement reads like any other: deleted users are excluded from search. The urgency — “honestly”, “most”, “immediately” — did not survive segmentation. All three shaping roles pull the transcript window around it to recover what the atomisation flattened: this is a priority signal, not just a requirement.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "transcript",
             "reads"
           ],
           [
-            "domain",
+            "terminologist",
             "transcript",
             "reads"
           ],
@@ -1209,18 +1209,18 @@
         ]
       },
       {
-        "title": "Vision maps the priority to a batch",
+        "title": "Gatekeeper maps the priority to a batch",
         "round": "interrupt",
-        "text": "Which batch moves? A refs walk, not a judgement: `Vision` consults its own problem statement to find the item the statement is about, and item → batch is already in the refs. It writes the priority onto that backlog entry — and touches nothing else. No amendment, no approval change, no `Architect`: batches are complete feature sets, and priority never edits their composition.",
+        "text": "Which batch moves? A refs walk, not a judgement: `Gatekeeper` consults its own problem statement to find the item the statement is about, and item → batch is already in the refs. It writes the priority onto that backlog entry — and touches nothing else. No amendment, no approval change, no `Architect`: batches are complete feature sets, and priority never edits their composition.",
         "edges": [
           [
-            "vision",
+            "gatekeeper",
             "problem",
             "reads",
             "consult"
           ],
           [
-            "vision",
+            "gatekeeper",
             "backlog",
             "writes",
             "prioritize"
@@ -1291,11 +1291,11 @@
       {
         "title": "A term wobbles mid-batch",
         "round": "reorder",
-        "text": "Implementing the exclusion, `Developer` hits “search”: the site search, or the admin lookup too? A term question routes to the term’s owner — `Domain`, not `Interface`, not the client. `Domain` answers from the glossary; no harvest needed; the chain never leaves the building.",
+        "text": "Implementing the exclusion, `Developer` hits “search”: the site search, or the admin lookup too? A term question routes to the term’s owner — `Terminologist`, not `Liaison`, not the principal. `Terminologist` answers from the glossary; no harvest needed; the chain never leaves the building.",
         "edges": [
           [
             "developer",
-            "domain",
+            "terminologist",
             "messages",
             "question"
           ]

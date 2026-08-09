@@ -18,12 +18,12 @@ PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
 
 -- ---------------------------------------------------------------------------
--- Transcript and brief (Interface)
+-- Transcript and brief (Liaison)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS utterances (
     id          TEXT PRIMARY KEY,
-    author      TEXT NOT NULL,              -- 'client' | 'interface'
+    author      TEXT NOT NULL,              -- 'principal' | 'liaison'
     text        TEXT NOT NULL,
     ts_order    INTEGER NOT NULL,           -- sequence, not a timestamp
     version     INTEGER NOT NULL DEFAULT 1
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS statements (
 CREATE INDEX IF NOT EXISTS ix_statements_status ON statements(status);
 
 -- ---------------------------------------------------------------------------
--- Problem statement (Vision)
+-- Problem statement (Gatekeeper)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS items (
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS item_statements (   -- refs: problem derives from bri
 );
 
 -- ---------------------------------------------------------------------------
--- Glossary and rules (Domain). Index/body split.
+-- Glossary and rules (Terminologist). Index/body split.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS glossary_terms (
@@ -150,14 +150,14 @@ CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to parti
 -- old "backlog has three writers" risk.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS tickets (         -- Vision
+CREATE TABLE IF NOT EXISTS tickets (         -- Gatekeeper
     id       TEXT PRIMARY KEY,
     item_id  TEXT NOT NULL REFERENCES items(id),
     text     TEXT NOT NULL,
     version  INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE IF NOT EXISTS criteria (        -- Domain
+CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     id         TEXT PRIMARY KEY,
     ticket_id  TEXT NOT NULL REFERENCES tickets(id),
     text       TEXT NOT NULL,
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Domain
     version    INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE IF NOT EXISTS batches (         -- Architect (priority: Vision)
+CREATE TABLE IF NOT EXISTS batches (         -- Architect (priority: Gatekeeper)
     id        TEXT PRIMARY KEY,
     item_id   TEXT NOT NULL REFERENCES items(id),
     worktree  TEXT,
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS verdicts (
 -- Runtime: messages, sessions, receipts, checkpoints, claims.
 -- ---------------------------------------------------------------------------
 
--- Roots are client utterances, gate events and ticks, so cause_id is nullable
+-- Roots are principal utterances, gate events and ticks, so cause_id is nullable
 -- and cause_kind records which kind of root a message hangs from.
 CREATE TABLE IF NOT EXISTS messages (
     id          TEXT PRIMARY KEY,

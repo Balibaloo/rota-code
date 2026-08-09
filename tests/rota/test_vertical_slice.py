@@ -1,13 +1,13 @@
 """
 The understanding loop, end to end (HANDOFF §8 step 5).
 
-One client sentence -> transcript -> statements -> L1 ratification -> scope items
--> Signoff -> approval. Interface plus the shape roles, no Developer.
+One principal sentence -> transcript -> statements -> L1 ratification -> scope items
+-> Signoff -> approval. Liaison plus the shape roles, no Developer.
 
 Two variants of the same arc:
 
   * scripted roles — deterministic, runs everywhere, proves the *loop* composes
-    (gates pause it, the client pump resumes it, quiescence is reached);
+    (gates pause it, the principal pump resumes it, quiescence is reached);
   * live roles — the same arc against a real model, opt-in via ROTA_T1.
 
 Splitting them matters: when the live one fails, the scripted one tells you
@@ -21,7 +21,7 @@ import os
 import pytest
 
 from rota import loop
-from rota.client import Answer, ScriptedClient, TranscriptClient, record_utterance
+from rota.principal import Answer, ScriptedClient, TranscriptClient, record_utterance
 from rota.db import init_db
 from rota.llm import Pins, ScriptedBackend
 from rota.scheduler import frontier
@@ -34,7 +34,7 @@ def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
     conn.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-        "VALUES ('m_in','t1','client','interface','converse',1)")
+        "VALUES ('m_in','t1','principal','liaison','converse',1)")
     record_utterance(conn, "m_in", UTTERANCE)
     return conn
 
@@ -76,58 +76,58 @@ def test_understanding_loop_scripted(db):
     settle?
     """
     backend = RoleScript({
-        "interface:intake": [
+        "liaison:intake": [
             "TOOL: brief.segment(id='s1', span_utterance='u_m_in', span_start=0, "
             f"span_end={len(UTTERANCE)}, text='{UTTERANCE}')",
-            "TOOL: msg.confirm_client(refs=['s1'])",
+            "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
-        "interface:ratification": [
+        "liaison:ratification": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.brief_vision(refs=['s1'])",
-            "TOOL: msg.brief_domain(refs=['s1'])",
+            "TOOL: msg.brief_gatekeeper(refs=['s1'])",
+            "TOOL: msg.brief_terminologist(refs=['s1'])",
             "TOOL: msg.brief_architect(refs=['s1'])",
         ],
-        "vision:new ratified statements": [
+        "gatekeeper:new ratified statements": [
             "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
         ],
-        "vision:submit for signoff": [
-            "TOOL: msg.submit_interface(refs=['i1'])",
+        "gatekeeper:submit for signoff": [
+            "TOOL: msg.submit_liaison(refs=['i1'])",
         ],
-        "interface:signoff presentation": [
-            "TOOL: msg.present_client(refs=['i1'])",
+        "liaison:signoff presentation": [
+            "TOOL: msg.present_principal(refs=['i1'])",
         ],
-        "interface:signoff ruling": [
-            "TOOL: msg.relay_vision(refs=['i1'])",
+        "liaison:signoff ruling": [
+            "TOOL: msg.relay_gatekeeper(refs=['i1'])",
         ],
-        "vision:signoff verdicts relayed": [
+        "gatekeeper:signoff verdicts relayed": [
             "TOOL: problem.set_approval(id='i1', approval='approved')",
         ],
-        "vision:slice tickets": [
+        "gatekeeper:slice tickets": [
             "TOOL: tickets.slice(id='tk1', item_id='i1', text='add a delete button')",
         ],
-        "domain:criteria for an item": [
+        "terminologist:criteria for an item": [
             "TOOL: criteria.specify(id='c1', ticket_id='tk1', "
             "text='deleting tombstones the account', term_refs=['g1'])",
         ],
-        "domain": [
+        "terminologist": [
             "TOOL: glossary.amend(id='g1', term='account', sense_short='login identity')",
         ],
-        "vision": [""],
+        "gatekeeper": [""],
         "architect": [""],
         "tester": [""],
         "critic": [""],
         "developer": [""],
     })
 
-    # The client ratifies, then approves. Anything else it defers.
-    client = TranscriptClient({
+    # The principal ratifies, then approves. Anything else it defers.
+    principal = TranscriptClient({
         "confirm": Answer(verb="verdict", per_item={"s1": "approve"}),
         "present": Answer(verb="verdict", per_item={"i1": "approve"}),
         "clarify": Answer(verb="converse", text="yes, soft delete is fine"),
     })
 
     trace = loop.run(db, backend=backend, pins=Pins(model="scripted"),
-                     client=client, max_steps=25)
+                     principal=principal, max_steps=25)
 
     print("\n" + trace.render())
 
@@ -148,44 +148,44 @@ def test_understanding_loop_scripted(db):
     assert not trace.failures, f"failed sessions: {[str(s) for s in trace.failures]}"
 
 
-def test_gate_pauses_the_loop_and_the_client_resumes_it(db):
+def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
     """
-    A gate is what the loop looks like while the client has not answered.
+    A gate is what the loop looks like while the principal has not answered.
 
     Deferral must be survivable: the loop settles cleanly, says *why* it is idle,
     and picks up exactly where it left off once an answer arrives.
     """
     backend = RoleScript({
-        "interface:intake": [
+        "liaison:intake": [
             "TOOL: brief.segment(id='s1', span_utterance='u_m_in', span_start=0, "
             f"span_end={len(UTTERANCE)}, text='{UTTERANCE}')",
-            "TOOL: msg.confirm_client(refs=['s1'])",
+            "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
-        "interface:ratification": [
+        "liaison:ratification": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.brief_vision(refs=['s1'])",
+            "TOOL: msg.brief_gatekeeper(refs=['s1'])",
         ],
-        "vision": [""],
-        "domain": [""],
+        "gatekeeper": [""],
+        "terminologist": [""],
         "architect": [""],
     })
 
     deferring = ScriptedClient([None])          # sees the ask, declines to answer
 
     trace = loop.run(db, backend=backend, pins=Pins(model="scripted"),
-                     client=deferring, max_steps=10)
+                     principal=deferring, max_steps=10)
 
     last = trace.steps[-1]
     assert last.quiescent
     assert "gate" in last.note, f"idle for the wrong reason: {last.note!r}"
-    assert loop.gates_open(db), "no gate recorded while waiting on the client"
-    assert deferring.seen, "the client was never offered the ask"
+    assert loop.gates_open(db), "no gate recorded while waiting on the principal"
+    assert deferring.seen, "the principal was never offered the ask"
 
     # ... and now they answer.
     answering = TranscriptClient({"confirm": Answer(verb="verdict",
                                                     per_item={"s1": "approve"})})
     trace2 = loop.run(db, backend=backend, pins=Pins(model="scripted"),
-                      client=answering, max_steps=10)
+                      principal=answering, max_steps=10)
 
     assert db.execute(
         "SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "ratified"
@@ -194,7 +194,7 @@ def test_gate_pauses_the_loop_and_the_client_resumes_it(db):
 
 def test_loop_is_idempotent_when_quiescent(db):
     """Turning the crank on a settled system must not invent work."""
-    backend = RoleScript({"interface:intake": [""], "vision": [""]})
+    backend = RoleScript({"liaison:intake": [""], "gatekeeper": [""]})
     loop.run(db, backend=backend, pins=Pins(model="scripted"), max_steps=5)
 
     before = db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"]
@@ -215,7 +215,7 @@ def test_understanding_loop_live(db):
     if model not in available_models():
         pytest.skip(f"{model} unavailable")
 
-    client = TranscriptClient({
+    principal = TranscriptClient({
         "confirm": Answer(verb="verdict", per_item={"s1": "approve"}),
         "present": Answer(verb="verdict", per_item={}),
         "clarify": Answer(verb="converse", text="soft delete is fine"),
@@ -223,22 +223,22 @@ def test_understanding_loop_live(db):
 
     trace = loop.run(db, backend=OllamaBackend(timeout=180),
                      pins=Pins(model=model, temperature=0.0, num_ctx=8192),
-                     client=client, max_steps=14)
+                     principal=principal, max_steps=14)
     print("\n" + trace.render())
 
-    # More than one utterance is legitimate — the client answers questions. A
+    # More than one utterance is legitimate — the principal answers questions. A
     # role *authoring* one is not, and that is the thing worth asserting.
-    # Interface has no callable transcript write at all now; this is the
+    # Liaison has no callable transcript write at all now; this is the
     # end-to-end proof of it.
     authors = {r["author"] for r in db.execute("SELECT DISTINCT author FROM utterances")}
-    assert authors <= {"client"}, f"a role authored client speech: {authors}"
+    assert authors <= {"principal"}, f"a role authored principal speech: {authors}"
 
     assert db.execute(
         "SELECT COUNT(*) n FROM statements").fetchone()["n"] >= 1, "no segmentation"
     assert trace.committed >= 2, f"too little happened:\n{trace.render()}"
 
-    # The loop must settle rather than spin. Today it does not: Interface
-    # re-clarifies without limit because the client-touch cap is not built. That
+    # The loop must settle rather than spin. Today it does not: Liaison
+    # re-clarifies without limit because the principal-touch cap is not built. That
     # cap is a real design law (2 consecutive non-closing touches per blocker in
     # steady state), and this assertion is the thing that will hold it honest.
     assert trace.stuck is None, f"livelocked: {trace.stuck}"

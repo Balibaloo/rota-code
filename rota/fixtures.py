@@ -10,19 +10,19 @@ Case format (YAML, per TESTS.md §5):
 
     id: V2
     tier: T1
-    role: vision
+    role: gatekeeper
     runs: 5
     pass: 4
     fixture:
       decisions: [{id: R1, text: "deletion rejected: billing history must survive"}]
-    inbound: {from: interface, to: vision, verb: brief, body_refs: [s2, s3]}
+    inbound: {from: liaison, to: gatekeeper, verb: brief, body_refs: [s2, s3]}
     expect:
       writes:
         items: [{kind: scope, count: ">=1"}]
       messages: []
     forbidden:
       writes: [glossary_terms, constraints]
-      recipients: [client, developer, critic]
+      recipients: [principal, developer, critic]
     same_session: [items, decisions]
 
 `forbidden:` is not optional garnish. Most laws here are prohibitions, and a case

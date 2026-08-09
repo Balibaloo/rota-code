@@ -2,7 +2,7 @@
 The crank.
 
 Everything else was parts: the scheduler picks wakes, the runner runs sessions,
-the client pump moves asks and answers. Nothing turned them. This does, and it is
+the principal pump moves asks and answers. Nothing turned them. This does, and it is
 short on purpose — the design's claim is that dispatch is a *query*, so the loop
 that consumes it should be almost nothing.
 
@@ -13,9 +13,9 @@ that consumes it should be almost nothing.
         cascade
 
 Gates need this to exist before they mean anything, because a gate is a pause in
-a cycle and there was no cycle. L1 is `confirm` sitting unanswered on the client's
+a cycle and there was no cycle. L1 is `confirm` sitting unanswered on the principal's
 side of the pump; Signoff is `present` doing the same. Neither needs machinery of
-its own — a gate is what a loop looks like when the client hasn't answered yet.
+its own — a gate is what a loop looks like when the principal hasn't answered yet.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 from . import llm
-from .client import ClientBackend, pump
+from .principal import PrincipalBackend, pump
 from .runner import RunOutcome, run_session
 from .scheduler import (
     RoleBusy, Wake, cascade_wakes, frontier, is_quiescent, release,
@@ -35,7 +35,7 @@ class Step:
     """One turn of the crank, and what it produced."""
     wake: Wake | None = None
     outcome: RunOutcome | None = None
-    client_messages: list[str] = field(default_factory=list)
+    principal_messages: list[str] = field(default_factory=list)
     cascaded: list[str] = field(default_factory=list)
     quiescent: bool = False
     note: str = ""
@@ -98,23 +98,23 @@ def step(
     *,
     backend: llm.Backend | None = None,
     pins: llm.Pins | None = None,
-    client: ClientBackend | None = None,
-    client_present: bool = True,
+    principal: PrincipalBackend | None = None,
+    principal_present: bool = True,
     max_iterations: int = 8,
 ) -> Step:
     """
-    One iteration: offer pending asks to the client, then wake one role.
+    One iteration: offer pending asks to the principal, then wake one role.
 
-    The client is pumped *first* so an answer given between steps lands before
+    The principal is pumped *first* so an answer given between steps lands before
     the frontier is computed — otherwise the system would look quiescent while
     holding a reply it had not read yet.
     """
     result = Step()
 
-    if client is not None:
-        result.client_messages = pump(conn, client)
+    if principal is not None:
+        result.principal_messages = pump(conn, principal)
 
-    ready = frontier(conn, client_present=client_present)
+    ready = frontier(conn, principal_present=principal_present)
     if not ready:
         result.quiescent = True
         result.note = _why_idle(conn)
@@ -159,8 +159,8 @@ def run(
     *,
     backend: llm.Backend | None = None,
     pins: llm.Pins | None = None,
-    client: ClientBackend | None = None,
-    client_present: bool = True,
+    principal: PrincipalBackend | None = None,
+    principal_present: bool = True,
     max_steps: int = 40,
     stop_on_failure: bool = False,
     on_step=None,
@@ -176,8 +176,8 @@ def run(
     barren: dict[str, int] = {}
 
     for _ in range(max_steps):
-        s = step(conn, backend=backend, pins=pins, client=client,
-                 client_present=client_present)
+        s = step(conn, backend=backend, pins=pins, principal=principal,
+                 principal_present=principal_present)
         trace.steps.append(s)
         if on_step:
             on_step(s)
@@ -206,15 +206,15 @@ def _why_idle(conn: sqlite3.Connection) -> str:
     """
     Distinguish the two kinds of nothing-happening.
 
-    Waiting on the client is a *gate* and is healthy. An empty frontier with
+    Waiting on the principal is a *gate* and is healthy. An empty frontier with
     nothing pending is quiescence. They look identical in a log and are entirely
     different situations.
     """
     waiting = [dict(r) for r in conn.execute(
-        "SELECT verb, body_refs FROM messages WHERE status = 'open' AND to_role = 'client'")]
+        "SELECT verb, body_refs FROM messages WHERE status = 'open' AND to_role = 'principal'")]
     if waiting:
         verbs = ", ".join(sorted({w["verb"] for w in waiting}))
-        return f"gate: waiting on the client ({verbs})"
+        return f"gate: waiting on the principal ({verbs})"
     open_ledger = conn.execute(
         "SELECT COUNT(*) n FROM ledger WHERE status = 'open'").fetchone()["n"]
     if open_ledger:
@@ -223,12 +223,12 @@ def _why_idle(conn: sqlite3.Connection) -> str:
 
 
 def gates_open(conn: sqlite3.Connection) -> list[dict]:
-    """Everything the client is currently being waited on for."""
+    """Everything the principal is currently being waited on for."""
     import json
 
     return [
         {"id": r["id"], "verb": r["verb"], "refs": json.loads(r["body_refs"] or "[]")}
         for r in conn.execute(
             "SELECT id, verb, body_refs FROM messages "
-            "WHERE status = 'open' AND to_role = 'client' ORDER BY seq")
+            "WHERE status = 'open' AND to_role = 'principal' ORDER BY seq")
     ]

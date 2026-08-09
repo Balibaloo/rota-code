@@ -18,7 +18,7 @@ import json
 import pytest
 
 from rota import graph as graph_mod
-from rota.client import record_utterance
+from rota.principal import record_utterance
 from rota.db import init_db
 from rota.llm import Pins, ScriptedBackend
 from rota.runner import run_session
@@ -47,61 +47,61 @@ def drive(conn, wake: Wake, script: list[str], **kw):
 
 def test_arc_understanding_loop_reaches_approved_item(db):
     """
-    Client utterance -> statements -> ratification -> scope item -> approval.
+    Principal utterance -> statements -> ratification -> scope item -> approval.
 
     Every step is a real session through the real machine; only the completions
     are canned.
     """
-    # --- intake: the utterance arrives already recorded, Interface segments ---
+    # --- intake: the utterance arrives already recorded, Liaison segments ---
     # Recording is mechanical: the transcript is the one un-interpreted thing in
-    # the system, so nothing retypes it. Interface owns the judgement half.
+    # the system, so nothing retypes it. Liaison owns the judgement half.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_intake','t1','client','interface','converse',1)")
+               "VALUES ('m_intake','t1','principal','liaison','converse',1)")
     record_utterance(db, "m_intake", "add a button so people can delete their account")
 
-    drive(db, Wake("interface", "message", "m_intake", detail="converse"), [
+    drive(db, Wake("liaison", "message", "m_intake", detail="converse"), [
         "TOOL: brief.segment(id='s1', span_utterance='u_m_intake', span_start=0, "
         "span_end=46, text='add a button so people can delete their account')",
-        "TOOL: msg.confirm_client(refs=['s1'])",
+        "TOOL: msg.confirm_principal(refs=['s1'])",
     ])
 
     assert db.execute("SELECT COUNT(*) n FROM utterances").fetchone()["n"] == 1
     assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "proposed"
 
-    # The client is not schedulable: a message to them waits, it does not wake.
-    assert not [w for w in frontier(db) if w.role == "client"]
+    # The principal is not schedulable: a message to them waits, it does not wake.
+    assert not [w for w in frontier(db) if w.role == "principal"]
 
     # --- ratification --------------------------------------------------------
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_ratify','t1','client','interface','verdict',3)")
-    drive(db, Wake("interface", "message", "m_ratify", detail="verdict"), [
+               "VALUES ('m_ratify','t1','principal','liaison','verdict',3)")
+    drive(db, Wake("liaison", "message", "m_ratify", detail="verdict"), [
         "TOOL: brief.ratify(id='s1')",
-        "TOOL: msg.brief_vision(refs=['s1'])",
-        "TOOL: msg.brief_domain(refs=['s1'])",
+        "TOOL: msg.brief_gatekeeper(refs=['s1'])",
+        "TOOL: msg.brief_terminologist(refs=['s1'])",
         "TOOL: msg.brief_architect(refs=['s1'])",
     ])
 
     assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "ratified"
     tips = {w.role for w in frontier(db) if w.kind == "message"}
-    assert tips == {"vision", "domain", "architect"}, "broadcast did not reach three shape roles"
+    assert tips == {"gatekeeper", "terminologist", "architect"}, "broadcast did not reach three shape roles"
 
-    # --- Vision asserts scope; Domain amends the glossary -------------------
-    vision_msg = db.execute(
-        "SELECT id FROM messages WHERE to_role='vision' AND verb='brief'").fetchone()["id"]
-    drive(db, Wake("vision", "message", vision_msg, detail="brief"), [
+    # --- Gatekeeper asserts scope; Terminologist amends the glossary -------------------
+    gatekeeper_msg = db.execute(
+        "SELECT id FROM messages WHERE to_role='gatekeeper' AND verb='brief'").fetchone()["id"]
+    drive(db, Wake("gatekeeper", "message", gatekeeper_msg, detail="brief"), [
         "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
     ])
 
-    domain_msg = db.execute(
-        "SELECT id FROM messages WHERE to_role='domain' AND verb='brief'").fetchone()["id"]
-    drive(db, Wake("domain", "message", domain_msg, detail="brief"), [
+    terminologist_msg = db.execute(
+        "SELECT id FROM messages WHERE to_role='terminologist' AND verb='brief'").fetchone()["id"]
+    drive(db, Wake("terminologist", "message", terminologist_msg, detail="brief"), [
         "TOOL: glossary.amend(id='g1', term='account', sense_short='login identity')",
     ])
 
     # --- approval ------------------------------------------------------------
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_signoff','t1','interface','vision','relay',20)")
-    drive(db, Wake("vision", "message", "m_signoff", detail="relay"), [
+               "VALUES ('m_signoff','t1','liaison','gatekeeper','relay',20)")
+    drive(db, Wake("gatekeeper", "message", "m_signoff", detail="relay"), [
         "TOOL: problem.set_approval(id='i1', approval='approved')",
     ])
 
@@ -121,14 +121,14 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','account','login identity','decided')")
 
-    # Vision slices, woken by a predicate rather than a message.
+    # Gatekeeper slices, woken by a predicate rather than a message.
     slicing = [w for w in predicate_wakes(db) if w.kind == "tick:slicing"]
     assert slicing, "slicing predicate did not fire for an approved item"
     drive(db, slicing[0], [
         "TOOL: tickets.slice(id='tk1', item_id='i1', text='add delete button')",
     ])
 
-    # Domain writes criteria — woken by the criteria predicate.
+    # Terminologist writes criteria — woken by the criteria predicate.
     crit = [w for w in predicate_wakes(db) if w.kind == "tick:criteria"]
     assert crit, "criteria predicate did not fire for a ticket with no criteria"
     drive(db, crit[0], [
@@ -141,14 +141,14 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
 
     # Architect batches.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_arch','t1','interface','architect','brief',50)")
+               "VALUES ('m_arch','t1','liaison','architect','brief',50)")
     drive(db, Wake("architect", "message", "m_arch", detail="brief"), [
         "TOOL: batches.batch(id='b1', item_id='i1', ticket_ids=['tk1'])",
     ])
 
     # Tester writes from criteria — and cannot see a diff, because none exists.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_test','t1','interface','tester','question',60)")
+               "VALUES ('m_test','t1','liaison','tester','question',60)")
     drive(db, Wake("tester", "message", "m_test", detail="tick"), [
         "TOOL: tests.author(id='t1', batch_id='b1', criterion_id='c1', "
         "path='test_delete.py', body='assert tombstoned(account)')",
@@ -158,7 +158,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
 
     # Critic judges the diff given the tests, and emits a verdict.
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_review','t1','interface','critic','challenge',70)")
+               "VALUES ('m_review','t1','liaison','critic','challenge',70)")
     drive(db, Wake("critic", "message", "m_review", detail="review"), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
@@ -188,8 +188,8 @@ def test_arc_revocation_stops_the_batch(db):
     assert tick_batch_start(db), "approved item should schedule its batch"
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_ch','t1','architect','vision','challenge',1)")
-    drive(db, Wake("vision", "message", "m_ch", detail="challenge"), [
+               "VALUES ('m_ch','t1','architect','gatekeeper','challenge',1)")
+    drive(db, Wake("gatekeeper", "message", "m_ch", detail="challenge"), [
         "TOOL: problem.assert(id='i1', text='x, but only for unverified accounts', kind='scope')",
     ])
 
@@ -207,7 +207,7 @@ def test_arc_global_negative_no_undeclared_contacts(db):
     test_arc_understanding_loop_reaches_approved_item(db)
     g = graph_mod.load()
 
-    for r in db.execute("SELECT from_role, to_role, verb FROM messages WHERE from_role != 'client'"):
+    for r in db.execute("SELECT from_role, to_role, verb FROM messages WHERE from_role != 'principal'"):
         assert g.may_message(r["from_role"], r["to_role"], r["verb"]), \
             f"undeclared contact: {r['from_role']} -> {r['to_role']} ({r['verb']})"
 
