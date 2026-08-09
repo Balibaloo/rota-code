@@ -149,9 +149,9 @@
       "type": "writes",
       "v": "append",
       "n": "entry",
-      "a": "single",
       "actor": "system",
-      "label": "recorded mechanically; Liaison owns it, does not type it"
+      "label": "recorded mechanically; Liaison owns it, does not type it",
+      "rows": "single"
     },
     {
       "s": "liaison",
@@ -159,8 +159,8 @@
       "type": "writes",
       "v": "segment",
       "n": "statements",
-      "a": "delta",
-      "label": "atomise"
+      "label": "atomise",
+      "rows": "delta"
     },
     {
       "s": "liaison",
@@ -168,8 +168,8 @@
       "type": "writes",
       "v": "ratify",
       "n": "status flags",
-      "a": "delta",
-      "label": "principal-confirmed"
+      "label": "principal-confirmed",
+      "rows": "delta"
     },
     {
       "s": "gatekeeper",
@@ -184,7 +184,7 @@
       "type": "writes",
       "v": "amend",
       "n": "terms, rules",
-      "a": "delta"
+      "rows": "delta"
     },
     {
       "s": "architect",
@@ -192,7 +192,7 @@
       "type": "writes",
       "v": "amend",
       "n": "constraints",
-      "a": "delta"
+      "rows": "delta"
     },
     {
       "s": "developer",
@@ -200,8 +200,8 @@
       "type": "writes",
       "v": "commit",
       "n": "branch + diff",
-      "a": "batch",
-      "label": "one worktree per batch"
+      "label": "one worktree per batch",
+      "rows": "batch"
     },
     {
       "s": "critic",
@@ -209,7 +209,7 @@
       "type": "writes",
       "v": "emit",
       "n": "verdict per batch",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -225,8 +225,8 @@
       "type": "writes",
       "v": "prioritize",
       "n": "item priority",
-      "a": "single",
-      "label": "moves whole batches"
+      "label": "moves whole batches",
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -250,7 +250,7 @@
       "type": "writes",
       "v": "log",
       "n": "assumption",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -258,7 +258,7 @@
       "type": "writes",
       "v": "author",
       "n": "own decision + reason",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -266,7 +266,7 @@
       "type": "writes",
       "v": "author",
       "n": "own decision + reason",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -274,7 +274,7 @@
       "type": "writes",
       "v": "log",
       "n": "assumption",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "developer",
@@ -282,7 +282,7 @@
       "type": "writes",
       "v": "log",
       "n": "assumption",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -290,7 +290,8 @@
       "type": "reads",
       "v": "list",
       "n": "statements",
-      "a": "index"
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "terminologist",
@@ -298,7 +299,8 @@
       "type": "reads",
       "v": "list",
       "n": "statements",
-      "a": "index"
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -306,7 +308,8 @@
       "type": "reads",
       "v": "list",
       "n": "statements",
-      "a": "index"
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "gatekeeper",
@@ -314,8 +317,9 @@
       "type": "reads",
       "v": "quote",
       "n": "entry",
-      "a": "window",
-      "label": "recover emphasis"
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
     },
     {
       "s": "terminologist",
@@ -323,8 +327,9 @@
       "type": "reads",
       "v": "quote",
       "n": "entry",
-      "a": "window",
-      "label": "recover emphasis"
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
     },
     {
       "s": "architect",
@@ -332,8 +337,9 @@
       "type": "reads",
       "v": "quote",
       "n": "entry",
-      "a": "window",
-      "label": "recover emphasis"
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
     },
     {
       "s": "gatekeeper",
@@ -341,8 +347,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own statement",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "terminologist",
@@ -350,8 +357,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own terms",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -359,8 +367,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own model",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "gatekeeper",
@@ -368,7 +377,8 @@
       "type": "reads",
       "v": "search",
       "n": "rejections",
-      "a": "query"
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -376,7 +386,8 @@
       "type": "reads",
       "v": "lookup",
       "n": "term",
-      "a": "single"
+      "rows": "single",
+      "depth": "body"
     },
     {
       "s": "architect",
@@ -384,7 +395,8 @@
       "type": "reads",
       "v": "probe",
       "n": "modules",
-      "a": "query"
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "terminologist",
@@ -392,8 +404,9 @@
       "type": "reads",
       "v": "survey",
       "n": "terms in use",
-      "a": "query",
-      "label": "onboarding"
+      "label": "onboarding",
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "gatekeeper",
@@ -401,8 +414,9 @@
       "type": "reads",
       "v": "survey",
       "n": "observed behaviour",
-      "a": "query",
-      "label": "onboarding"
+      "label": "onboarding",
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "developer",
@@ -410,7 +424,8 @@
       "type": "reads",
       "v": "load",
       "n": "batch of tickets + criteria",
-      "a": "batch"
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "developer",
@@ -418,7 +433,8 @@
       "type": "reads",
       "v": "lookup",
       "n": "term",
-      "a": "single"
+      "rows": "single",
+      "depth": "body"
     },
     {
       "s": "developer",
@@ -426,7 +442,8 @@
       "type": "reads",
       "v": "load",
       "n": "constraints",
-      "a": "delta"
+      "rows": "delta",
+      "depth": "body"
     },
     {
       "s": "developer",
@@ -434,7 +451,8 @@
       "type": "reads",
       "v": "probe",
       "n": "modules",
-      "a": "query"
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "critic",
@@ -442,8 +460,9 @@
       "type": "reads",
       "v": "load",
       "n": "criteria for batch",
-      "a": "batch",
-      "label": "criteria only"
+      "label": "criteria only",
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "critic",
@@ -451,8 +470,9 @@
       "type": "reads",
       "v": "read",
       "n": "batch diff",
-      "a": "batch",
-      "label": "diff only"
+      "label": "diff only",
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "liaison",
@@ -460,7 +480,8 @@
       "type": "reads",
       "v": "list",
       "n": "open assumptions",
-      "a": "delta"
+      "rows": "delta",
+      "depth": "index"
     },
     {
       "s": "liaison",
@@ -468,7 +489,8 @@
       "type": "reads",
       "v": "search",
       "n": "prior art",
-      "a": "query"
+      "rows": "query",
+      "depth": "index"
     },
     {
       "s": "principal",
@@ -483,8 +505,8 @@
       "type": "messages",
       "v": "confirm",
       "n": "statement list",
-      "a": "index",
-      "label": "ratification"
+      "label": "ratification",
+      "rows": "all"
     },
     {
       "s": "liaison",
@@ -492,7 +514,7 @@
       "type": "messages",
       "v": "clarify",
       "n": "ordered questions",
-      "a": "index"
+      "rows": "all"
     },
     {
       "s": "liaison",
@@ -500,7 +522,7 @@
       "type": "messages",
       "v": "deliver",
       "n": "changed statements",
-      "a": "delta"
+      "rows": "delta"
     },
     {
       "s": "liaison",
@@ -508,7 +530,7 @@
       "type": "messages",
       "v": "deliver",
       "n": "changed statements",
-      "a": "delta"
+      "rows": "delta"
     },
     {
       "s": "liaison",
@@ -516,7 +538,7 @@
       "type": "messages",
       "v": "deliver",
       "n": "changed statements",
-      "a": "delta"
+      "rows": "delta"
     },
     {
       "s": "gatekeeper",
@@ -524,7 +546,7 @@
       "type": "messages",
       "v": "report",
       "n": "blocker",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -532,7 +554,7 @@
       "type": "messages",
       "v": "report",
       "n": "blocker",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -540,7 +562,7 @@
       "type": "messages",
       "v": "report",
       "n": "blocker",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -548,7 +570,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "contradiction",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -556,7 +578,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "infeasibility",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -564,7 +586,7 @@
       "type": "messages",
       "v": "propose",
       "n": "seam / refactor plan",
-      "a": "index"
+      "rows": "all"
     },
     {
       "s": "developer",
@@ -572,7 +594,7 @@
       "type": "messages",
       "v": "escalate",
       "n": "constraint conflict",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "developer",
@@ -580,7 +602,7 @@
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "developer",
@@ -588,7 +610,7 @@
       "type": "messages",
       "v": "question",
       "n": "term ambiguity",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "critic",
@@ -596,7 +618,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "failed criterion",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -604,8 +626,8 @@
       "type": "messages",
       "v": "finding",
       "n": "constraint id + satisfied / violated",
-      "a": "single",
-      "label": "no reasoning — preserves critic isolation"
+      "label": "no reasoning — preserves critic isolation",
+      "rows": "single"
     },
     {
       "s": "liaison",
@@ -613,8 +635,8 @@
       "type": "messages",
       "v": "ask",
       "n": "principal question",
-      "a": "single",
-      "label": "read-only session"
+      "label": "read-only session",
+      "rows": "single"
     },
     {
       "s": "liaison",
@@ -622,8 +644,8 @@
       "type": "messages",
       "v": "ask",
       "n": "principal question",
-      "a": "single",
-      "label": "read-only session"
+      "label": "read-only session",
+      "rows": "single"
     },
     {
       "s": "liaison",
@@ -631,8 +653,8 @@
       "type": "messages",
       "v": "ask",
       "n": "principal question",
-      "a": "single",
-      "label": "read-only session"
+      "label": "read-only session",
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -640,7 +662,7 @@
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -648,7 +670,7 @@
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -656,7 +678,7 @@
       "type": "messages",
       "v": "answer",
       "n": "from own artefact",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -664,8 +686,8 @@
       "type": "messages",
       "v": "submit",
       "n": "in-scope and out-of-scope items",
-      "a": "index",
-      "label": "for sign-off"
+      "label": "for sign-off",
+      "rows": "all"
     },
     {
       "s": "liaison",
@@ -673,8 +695,8 @@
       "type": "messages",
       "v": "present",
       "n": "draft statement",
-      "a": "full",
-      "label": "signoff · reads as one document"
+      "label": "signoff · reads as one document",
+      "rows": "all"
     },
     {
       "s": "principal",
@@ -682,7 +704,7 @@
       "type": "messages",
       "v": "verdict",
       "n": "per-item approve / contest / revise",
-      "a": "index"
+      "rows": "all"
     },
     {
       "s": "liaison",
@@ -690,7 +712,7 @@
       "type": "messages",
       "v": "relay",
       "n": "verdicts",
-      "a": "index"
+      "rows": "all"
     },
     {
       "s": "gatekeeper",
@@ -698,8 +720,8 @@
       "type": "writes",
       "v": "set approval",
       "n": "item status",
-      "a": "single",
-      "label": "approved / pending / contested"
+      "label": "approved / pending / contested",
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -707,7 +729,7 @@
       "type": "messages",
       "v": "reopen",
       "n": "revoked item + prior batch",
-      "a": "batch"
+      "rows": "batch"
     },
     {
       "s": "developer",
@@ -715,7 +737,7 @@
       "type": "messages",
       "v": "elect",
       "n": "revise or restart",
-      "a": "none"
+      "rows": "none"
     },
     {
       "s": "brief",
@@ -828,8 +850,9 @@
       "type": "reads",
       "v": "consult",
       "n": "batch order",
-      "a": "index",
-      "label": "principal ordering questions"
+      "label": "principal ordering questions",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "tester",
@@ -837,7 +860,7 @@
       "type": "writes",
       "v": "author",
       "n": "executable tests",
-      "a": "batch"
+      "rows": "batch"
     },
     {
       "s": "tester",
@@ -845,8 +868,9 @@
       "type": "reads",
       "v": "load",
       "n": "criteria for batch",
-      "a": "batch",
-      "label": "criteria only — no diff"
+      "label": "criteria only — no diff",
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "tester",
@@ -854,7 +878,8 @@
       "type": "reads",
       "v": "lookup",
       "n": "term",
-      "a": "single"
+      "rows": "single",
+      "depth": "body"
     },
     {
       "s": "tester",
@@ -862,8 +887,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own suite",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "developer",
@@ -871,7 +897,8 @@
       "type": "reads",
       "v": "load",
       "n": "tests for batch",
-      "a": "batch"
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "critic",
@@ -879,7 +906,8 @@
       "type": "reads",
       "v": "load",
       "n": "tests for batch",
-      "a": "batch"
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "developer",
@@ -887,7 +915,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "test disputes criterion",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "critic",
@@ -895,7 +923,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "test does not encode criterion",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "tester",
@@ -903,7 +931,7 @@
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "tester",
@@ -911,7 +939,7 @@
       "type": "messages",
       "v": "question",
       "n": "term ambiguity",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "tests",
@@ -933,8 +961,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own tickets",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "terminologist",
@@ -942,8 +971,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own criteria",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "terminologist",
@@ -951,8 +981,9 @@
       "type": "reads",
       "v": "scan",
       "n": "tickets",
-      "a": "index",
-      "label": "cannot specify for unseen tickets"
+      "label": "cannot specify for unseen tickets",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -960,8 +991,9 @@
       "type": "reads",
       "v": "consult",
       "n": "own batches",
-      "a": "full",
-      "label": "before amending"
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -969,8 +1001,9 @@
       "type": "reads",
       "v": "scan",
       "n": "tickets + criteria",
-      "a": "index",
-      "label": "collision judgement needs touch sets"
+      "label": "collision judgement needs touch sets",
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "developer",
@@ -978,8 +1011,9 @@
       "type": "reads",
       "v": "load",
       "n": "tickets for batch",
-      "a": "batch",
-      "label": "criteria are meaningless without the ticket they serve"
+      "label": "criteria are meaningless without the ticket they serve",
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "tester",
@@ -987,7 +1021,8 @@
       "type": "reads",
       "v": "load",
       "n": "tickets for batch",
-      "a": "batch"
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "developer",
@@ -995,7 +1030,8 @@
       "type": "reads",
       "v": "load",
       "n": "verdict for own batch",
-      "a": "batch"
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "architect",
@@ -1003,8 +1039,8 @@
       "type": "writes",
       "v": "survey",
       "n": "survey record + citations",
-      "a": "single",
-      "label": "citations validated against the index"
+      "label": "citations validated against the index",
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -1012,7 +1048,8 @@
       "type": "reads",
       "v": "scan",
       "n": "criteria",
-      "a": "index"
+      "rows": "all",
+      "depth": "index"
     },
     {
       "s": "architect",
@@ -1020,7 +1057,8 @@
       "type": "reads",
       "v": "source",
       "n": "source by path",
-      "a": "window"
+      "rows": "window",
+      "depth": "body"
     },
     {
       "s": "architect",
@@ -1028,8 +1066,9 @@
       "type": "reads",
       "v": "diff",
       "n": "batch diff",
-      "a": "batch",
-      "label": "structural review needs the change"
+      "label": "structural review needs the change",
+      "rows": "batch",
+      "depth": "body"
     },
     {
       "s": "terminologist",
@@ -1037,8 +1076,8 @@
       "type": "messages",
       "v": "answer",
       "n": "term sense",
-      "a": "single",
-      "label": "answering is not amending"
+      "label": "answering is not amending",
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -1046,7 +1085,7 @@
       "type": "messages",
       "v": "answer",
       "n": "criterion or scope clarification",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -1054,7 +1093,7 @@
       "type": "messages",
       "v": "answer",
       "n": "constraint clarification",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -1062,7 +1101,7 @@
       "type": "messages",
       "v": "answer",
       "n": "term sense",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -1070,7 +1109,7 @@
       "type": "messages",
       "v": "answer",
       "n": "criterion clarification",
-      "a": "single"
+      "rows": "single"
     },
     {
       "s": "tester",
@@ -1078,7 +1117,7 @@
       "type": "messages",
       "v": "answer",
       "n": "test intent",
-      "a": "single"
+      "rows": "single"
     }
   ],
   "contact_exceptions": [

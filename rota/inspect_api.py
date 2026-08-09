@@ -56,7 +56,8 @@ def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> di
         "written_by": sorted(g.writer_of(artefact_id)),
         "read_by": sorted(r for r in g.roles if artefact_id in g.read_set(r)),
         "operations": [
-            {"role": e.s, "type": e.type, "verb": e.v, "noun": e.n, "scope": e.a,
+            {"role": e.s, "type": e.type, "verb": e.v, "noun": e.n,
+             "rows": e.rows, "depth": e.depth,
              "label": e.label, "actor": e.actor}
             for e in g.edges
             if e.t == artefact_id and e.type in ("reads", "writes")
@@ -173,7 +174,8 @@ def edge(conn: sqlite3.Connection, s: str, t: str, etype: str) -> dict[str, Any]
     out: dict[str, Any] = {
         "source": s, "target": t, "type": etype,
         "variants": [
-            {"verb": e.v, "noun": e.n, "scope": e.a, "label": e.label,
+            {"verb": e.v, "noun": e.n, "rows": e.rows, "depth": e.depth,
+             "label": e.label,
              "actor": e.actor, "card": e.card}
             for e in matches
         ],

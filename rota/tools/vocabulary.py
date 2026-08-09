@@ -164,8 +164,10 @@ def harvest() -> dict[str, Term]:
             _add(terms, e.get("v", ""), "L4", "graph.verb", e.get("n", ""))
         elif e["type"] == "refs":
             _add(terms, e.get("v", ""), "L6", "graph.refs")
-        if e.get("a"):
-            _add(terms, e["a"], "L6", "graph.scope", "scope adjective")
+        if e.get("rows"):
+            _add(terms, e["rows"], "L6", "graph.rows", "which rows")
+        if e.get("depth"):
+            _add(terms, e["depth"], "L6", "graph.depth", "how much of each row")
         for noun in re.split(r"[+,/]| and ", e.get("n", "")):
             noun = noun.strip()
             if noun and len(noun.split()) <= 2:

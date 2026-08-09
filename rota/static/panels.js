@@ -129,7 +129,7 @@ async function showArtefact(id) {
 
   const wiring = group('WIRING',
     sec('who touches it', (a.operations||[]).length,
-        table(a.operations, ['role','type','verb','scope','actor']), true) +
+        table(a.operations, ['role','type','verb','rows','depth','actor']), true) +
     (((a.refs_out||[]).length + (a.refs_in||[]).length)
       ? sec('refs', (a.refs_out||[]).length+(a.refs_in||[]).length,
           `<b class="sig">points at</b>${table(a.refs_out,['to','rel','card'])}
@@ -160,7 +160,7 @@ async function showEdge(data) {
 
   P().innerHTML =
     group('WIRING', sec('grammar', e.variants.length,
-      table(e.variants,['verb','noun','scope','actor','label']), true)) +
+      table(e.variants,['verb','noun','rows','depth','actor','label']), true)) +
     group('STATE', sec(type==='messages'?'messages sent':'calls made',
       (e.evidence||[]).length, table(e.evidence||[]), true));
 }

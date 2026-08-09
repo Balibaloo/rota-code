@@ -29,9 +29,15 @@ DESIGN_DIR = Path(__file__).resolve().parent / "design"
 
 EdgeType = Literal["reads", "writes", "messages", "refs"]
 
-# Scope adjectives, cheapest first. Ordering matters: a role may never be granted
-# a wider scope than its edge declares.
-SCOPES = ("none", "single", "batch", "index", "window", "delta", "query", "full")
+# Reach, in two axes, because one word was answering two questions.
+#
+# Which rows, cheapest first. A role may never be granted more rows than its edge
+# declares.
+ROWS = ("none", "single", "batch", "window", "delta", "query", "all")
+
+# How much of each row. `index` is the identifying line — an id and a headline,
+# or for something already one line, that line. `body` is the prose as well.
+DEPTH = ("index", "body")
 
 
 @dataclass(frozen=True)
@@ -41,7 +47,8 @@ class Edge:
     type: str
     v: str = ""
     n: str = ""
-    a: str = ""
+    rows: str = ""
+    depth: str = ""              # reads only; a message carries refs, never bodies
     label: str = ""
     card: str = ""
     actor: str = "role"          # 'role' (the model calls it) | 'system'
@@ -51,8 +58,10 @@ class Edge:
         return self.actor != "system"
 
     @property
-    def scope(self) -> str:
-        return self.a or "none"
+    def reach(self) -> str:
+        """The pair, for display. Two facts, one line, still two facts."""
+        rows = self.rows or "none"
+        return f"{rows}/{self.depth}" if self.depth else rows
 
 
 @dataclass(frozen=True)
@@ -184,7 +193,8 @@ def _load(path: Path) -> Graph:
     edges = [
         Edge(
             s=e["s"], t=e["t"], type=e["type"], v=e.get("v", ""), n=e.get("n", ""),
-            a=e.get("a", ""), label=e.get("label", ""), card=e.get("card", ""),
+            rows=e.get("rows", ""), depth=e.get("depth", ""),
+            label=e.get("label", ""), card=e.get("card", ""),
             actor=e.get("actor", "role"),
         )
         for e in raw["edges"]
@@ -208,22 +218,39 @@ class GraphInconsistency(AssertionError):
 
 
 def check_structure(g: Graph) -> list[str]:
-    """Endpoints resolve, scopes are legal, `full` is only ever self-consult."""
+    """
+    Endpoints resolve, reach values are legal, and nobody takes an artefact whole.
+
+    The last one is the authority rule, and it is the reason `full` was deleted.
+    `full` bundled three claims — every row, headline depth, and *you own this* —
+    of which only the first two are about reach. Stated properly:
+
+        a non-owner may take every row, or take bodies, but never both.
+
+    Nothing in the graph violates it today, which is what a green lint means. The
+    shape it forbids is a role quietly hoovering up an artefact it does not own,
+    and that is a thing an edge could easily be written to do.
+    """
     problems: list[str] = []
     for e in g.edges:
         if e.s not in g.nodes:
             problems.append(f"edge source not a node: {e.s} -> {e.t} ({e.type})")
         if e.t not in g.nodes:
             problems.append(f"edge target not a node: {e.s} -> {e.t} ({e.type})")
-        if e.a and e.a not in SCOPES:
-            problems.append(f"unknown scope {e.a!r} on {e.s} -> {e.t}")
-        # `full` is a statement about authority, not cost: only an owner may
-        # survey its own artefact wholesale.
-        if e.type == "reads" and e.a == "full" and e.s not in g.writer_of(e.t):
+        if e.rows and e.rows not in ROWS:
+            problems.append(f"unknown rows {e.rows!r} on {e.s} -> {e.t}")
+        if e.depth and e.depth not in DEPTH:
+            problems.append(f"unknown depth {e.depth!r} on {e.s} -> {e.t}")
+        if e.depth and e.type != "reads":
+            problems.append(
+                f"depth on a {e.type} edge: {e.s} -> {e.t}. A message carries "
+                f"refs, never bodies; a write's depth is whatever was written")
+        if (e.type == "reads" and e.rows == "all" and e.depth == "body"
+                and e.s not in g.writer_of(e.t)):
             owner = g.writer_of(e.t) or {"<nobody>"}
             problems.append(
-                f"full-scope read by non-owner: {e.s} reads {e.t} (written by {sorted(owner)})"
-            )
+                f"non-owner takes {e.t} whole: {e.s} reads every row at body "
+                f"depth (written by {sorted(owner)})")
     return problems
 
 

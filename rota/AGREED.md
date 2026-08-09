@@ -94,15 +94,29 @@ rows:  none | single | batch | window | delta | query | all
 depth: index | body
 ```
 
-- [ ] **3.1** edge field `a:` → `rows:` + `depth:` in `design/graph.json` (91 edges)
-- [ ] **3.2** `graph.py`: `SCOPES` → `ROWS` + `DEPTH`; `Edge.a` → `Edge.rows`/`Edge.depth`
-- [ ] **3.3** `check_structure`'s `full`-is-owner-only rule becomes
-      **`rows: all` reads are owner-only** — a rule about *authority*, stated once
-- [ ] **3.4** `inspect_api.py` and `panels.js` display both fields
-- [ ] **3.5** `full` disappears as a value — it and `index` returned the same
+- [x] **3.1** edge field `a:` → `rows:` + `depth:` in `design/graph.json` (93 edges)
+- [x] **3.2** `graph.py`: `SCOPES` → `ROWS` + `DEPTH`; `Edge.a` → `Edge.rows`/`Edge.depth`
+- [x] **3.3** `check_structure`'s `full`-is-owner-only rule becomes a rule about
+      *authority*, stated once — **but not in the agreed words.** "`rows: all`
+      reads are owner-only" would have banned seven ordinary reads: the three
+      shape roles reading the brief index, Architect scanning criteria,
+      Terminologist scanning tickets, Liaison consulting the schedule. Reading a
+      whole index is the normal case and always was. The rule that survives is
+      the pair: **a non-owner may take every row, or take bodies, but never
+      both.** Same intent, correct extension
+- [x] **3.4** `inspect_api.py` and `panels.js` display both fields
+- [x] **3.5** `full` disappears as a value — it and `index` returned the same
       thing once `full` meant the full index; the only difference was permission
+- [x] **3.6** *not agreed, but necessary:* **`depth` is a read concept only.** A
+      message carries refs, never bodies — a law, not a setting — and a write's
+      depth is whatever was written. Putting the field on those edges to hold a
+      constant would be inventing data, so `check_structure` rejects it
 
-**Verify:** no `"a":` key remains in `graph.json`; `full` appears nowhere as a reach value.
+**Verify:** no `"a":` key remains in `graph.json`; `full` appears nowhere.
+**Both hold.** `tests/rota/test_graph_reach.py` proves the authority rule can
+fail (a non-owner taking the model whole) and that ownership makes the identical
+read legal — the rule catches nothing today, which is what a satisfied lint
+looks like, not a weak one.
 
 ---
 

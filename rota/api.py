@@ -2,20 +2,19 @@
 Artefact operations. One function per (artefact, verb) edge in the graph.
 
 These are the bodies behind the wiring. The graph declares that
-`critic reads criteria (load, batch)` exists; this file says what `load` *does*,
-and the scope adjective on the edge decides how much it may return:
+`critic reads criteria (load, rows=batch, depth=body)` exists; this file says
+what `load` *does*. Two axes on the edge decide how much it may return:
 
-    single  one row by id                index   ids plus one line each
-    batch   everything for one batch     window  a bounded span around an anchor
-    delta   what changed since a version query   matches, not the corpus
-    full    the full *index* of an artefact — never the full text
+    rows    none | single | batch | window | delta | query | all
+    depth   index (id plus one line each) | body (the prose too)
 
-`full` deserves the emphasis. It means id-plus-headline for every row, with
-bodies fetched singly. That is what keeps an 8k working set viable whether the
-glossary holds ninety terms or nine hundred, and it is why the restriction to
-owners is about authority rather than cost.
+The pair is what keeps an 8k working set viable whether the glossary holds
+ninety terms or nine hundred: almost everything reads `all` rows at `index`
+depth and fetches bodies singly. It also makes the one dangerous combination
+sayable — every row, in full — so the graph can forbid it to non-owners. That
+restriction is about authority, not cost.
 
-Every function takes the session context first so scope and provenance can be
+Every function takes the session context first so reach and provenance can be
 enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
@@ -77,7 +76,7 @@ def transcript_append(ctx: Ctx, id: str, author: str, text: str) -> dict:
 
 @op("transcript", "quote")
 def transcript_quote(ctx: Ctx, entry_id: str) -> dict:
-    """Recover emphasis: one entry, verbatim. Window scope — never bulk."""
+    """Recover emphasis: one entry, verbatim. A window, never bulk."""
     row = ctx.conn.execute(
         "SELECT id, author, text, ts_order FROM entries WHERE id = ?",
         (entry_id,)).fetchone()
@@ -146,7 +145,7 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
 
 @op("problem", "consult")
 def problem_consult(ctx: Ctx) -> list[dict]:
-    """Full scope = the full index. Ids, kind and approval, no prose bodies."""
+    """Every row at index depth: ids, kind and approval, no prose bodies."""
     return _rows(ctx.conn.execute(
         "SELECT id, kind, approval, approval_ver, version, substr(text, 1, 120) AS headline "
         "FROM items ORDER BY id"))
@@ -176,7 +175,7 @@ def glossary_lookup(ctx: Ctx, term: str) -> list[dict]:
 @op("glossary", "consult")
 def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
     """
-    Full scope = the full index: id, term, one-line sense. Bodies stay out.
+    Every row at index depth: id, term, one-line sense. Bodies stay out.
 
     Optionally filtered to terms in play. Filtering is principled rather than
     economising: a term absent from the working set's statements cannot collide
@@ -211,7 +210,7 @@ def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
 @op("model", "consult")
 def model_consult(ctx: Ctx, grains: list[str] | None = None) -> list[dict]:
     """
-    Full scope = the full index, optionally filtered by binding intersection.
+    Every row at index depth, optionally filtered by binding intersection.
 
     A constraint that does not bind the modules in play genuinely does not apply
     there, so excluding it is correct rather than economising. Unbound and
