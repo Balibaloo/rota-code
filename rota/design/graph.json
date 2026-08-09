@@ -1015,6 +1015,23 @@
       "a": "index"
     },
     {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "a": "window"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "diff",
+      "n": "batch diff",
+      "a": "batch",
+      "label": "structural review needs the change"
+    },
+    {
       "s": "domain",
       "t": "developer",
       "type": "messages",

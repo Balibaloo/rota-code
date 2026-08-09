@@ -152,6 +152,15 @@ def main() -> None:
         {"s": "architect", "t": "criteria", "type": "reads", "v": "scan",
          "n": "criteria", "a": "index"},
 
+        # Architect could probe the code *index* -- grain names and fan-in -- and
+        # nothing else, while A3 asks it to judge whether a diff satisfies a
+        # constraint. Judging conformance without reading the code is an
+        # intersection, not a finding.
+        {"s": "architect", "t": "code", "type": "reads", "v": "source",
+         "n": "source by path", "a": "window"},
+        {"s": "architect", "t": "code", "type": "reads", "v": "diff",
+         "n": "batch diff", "a": "batch", "label": "structural review needs the change"},
+
         # ---- 6. reply paths -------------------------------------------------
         # Auditing ask-vs-reply found eleven ask edges and almost no reply edges:
         # the design specified asking thoroughly and never drew the answering

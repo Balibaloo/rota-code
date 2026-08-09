@@ -474,6 +474,55 @@ def code_survey(ctx: Ctx, area: str) -> list[dict]:
         "ORDER BY fan_in DESC", (area,)))
 
 
+@op("code", "source")
+def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
+    """
+    Read source, by path and line range.
+
+    Structural review was asking Architect to judge whether a change satisfies a
+    constraint while giving it only the code *index* — grain names and fan-in
+    counts. That is a collision detector wearing a reviewer's title: it can say a
+    diff touched a bound path, which is an intersection, not a judgement.
+    """
+    from pathlib import Path as _P
+
+    root = ctx.conn.execute(
+        "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+    base = _P(root["value"].strip('"')) if root else _P(".")
+    target = (base / path).resolve()
+    if not str(target).startswith(str(base.resolve())):
+        raise ValueError(f"{path!r} escapes the project root")
+    if not target.exists():
+        return {"path": path, "error": "not found"}
+    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    return {"path": path, "start": start, "end": min(end, len(lines)),
+            "total_lines": len(lines), "text": chr(10).join(lines[start:end])}
+
+
+@op("code", "diff")
+def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
+    """
+    What changed in a batch's worktree.
+
+    Distinct from `probe`, which searches the index, and from `source`, which
+    reads a file as it stands. A review needs the change, not the state.
+    """
+    import subprocess
+
+    bid = batch_id or ctx.batch_id
+    row = ctx.conn.execute(
+        "SELECT worktree, head_commit FROM batches WHERE id = ?", (bid,)).fetchone()
+    if not row or not row["worktree"]:
+        return {"batch": bid, "error": "no worktree"}
+    try:
+        out = subprocess.run(
+            ["git", "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
+            capture_output=True, text=True, timeout=30)
+        return {"batch": bid, "diff": out.stdout[:20000]}
+    except Exception as exc:
+        return {"batch": bid, "error": str(exc)}
+
+
 @op("code", "read")
 def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
     """The batch diff. Critic's entire view of the implementation."""
