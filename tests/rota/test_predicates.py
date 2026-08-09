@@ -144,3 +144,66 @@ def test_tests_failing_stops_at_the_cap(db):
 
     db.execute("UPDATE test_runs SET attempt = 10")
     assert not P.REGISTRY["tests_failing"].fn(db), "should stop at the cap"
+
+
+# ---------------------------------------------------------------------------
+# Declarations are not implementations
+# ---------------------------------------------------------------------------
+
+KNOWN_GAPS_CAN_FIRE = {
+    "annotate queries 'batch_touch', which is not in the schema",
+    "merge can never return a wake — its body always returns []",
+    "merge declares it drains verdicts.'pass' but never queries verdicts",
+}
+
+KNOWN_GAPS_REACHABLE = {
+    "batches.status = 'running'", "batches.status = 'deferred'",
+    "batches.status = 'merged'", "test_runs.result = 'pass'",
+    "test_runs.result = 'fail'", "ledger.status = 'resolved'",
+}
+
+
+def test_no_new_predicate_is_unfireable():
+    """
+    `check_terminal_states` reads *declarations*, so it can be satisfied by
+    lying — and was: `merge` declared it drained a passing verdict with a body of
+    `return []`, in the same commit that claimed to close that dead end.
+
+    The known gaps are listed rather than fixed because they are the unbuilt
+    delivery loop, not mistakes. What this guards is that the list does not grow.
+    """
+    found = set(P.check_predicates_can_fire())
+    assert found <= KNOWN_GAPS_CAN_FIRE, f"new unfireable predicate: {found - KNOWN_GAPS_CAN_FIRE}"
+
+
+def test_no_new_unreachable_state():
+    """
+    A state nothing writes is a state nothing can be in, and anything gated on it
+    is dead. `batches.status = 'running'` was declared, three predicates waited on
+    it, and no code path ever set it — so the delivery loop was gated on a value
+    that could not occur.
+    """
+    found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
+    assert found <= KNOWN_GAPS_REACHABLE, f"newly unreachable: {found - KNOWN_GAPS_REACHABLE}"
+
+
+def test_the_reachability_check_distinguishes_reads_from_writes():
+    """
+    Its first version grepped every file and found 'running' inside a SELECT, so
+    it called the state reachable when nothing could set it. Reading a value and
+    writing one look identical to a grep unless you say which you mean.
+    """
+    found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
+    assert "batches.status = 'running'" in found
+
+
+def test_the_reachability_check_understands_parameterised_writes():
+    """
+    Most writes are parameterised — the model supplies `approval='approved'` and
+    the sandbox validates it against the enum — so there is no literal to grep.
+    Flagging those would bury the real holes in noise.
+    """
+    found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
+    for parameterised in ("items.approval = 'approved'", "verdicts.result = 'pass'",
+                          "items.provenance = 'observed'"):
+        assert parameterised not in found

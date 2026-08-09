@@ -437,6 +437,107 @@ def check_terminal_states() -> list[str]:
     return problems
 
 
+def check_predicates_can_fire() -> list[str]:
+    """
+    A declared drain is not an implemented one.
+
+    `check_terminal_states` reads declarations, so it can be satisfied by lying —
+    a predicate that claims to drain a state and does nothing passes it. That is
+    exactly what happened: `merge` declared it drained a passing verdict and its
+    body was `return []`, in the same commit that claimed to close the dead end.
+
+    Three static checks, all cheap:
+      * every table a predicate queries must exist
+      * a predicate declaring a drain must actually query that table
+      * a predicate must be able to return something
+    """
+    import inspect
+
+    schema = SCHEMA.read_text(encoding="utf-8")
+    tables = set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", schema))
+    problems = []
+
+    for name, p in REGISTRY.items():
+        src = inspect.getsource(p.fn)
+        queried = set(re.findall(r"FROM (\w+)", src)) | set(re.findall(r"JOIN (\w+)", src))
+        # A predicate may build its table name at runtime (`FROM {table}`), which
+        # no static read can follow. Those are exempt rather than falsely flagged.
+        dynamic = "FROM {" in src or "from {" in src
+        delegated = "from .scheduler import" in src or dynamic
+
+        for t in queried - tables:
+            if t.isupper() or t in ("sqlite_master",):
+                continue
+            problems.append(f"{name} queries {t!r}, which is not in the schema")
+
+        body = src.split('"""')[-1]
+        if not delegated and body.count("return") and "return []" in body.strip()[-12:]:
+            problems.append(f"{name} can never return a wake — its body always returns []")
+
+        for table, _col, value in p.drains:
+            if not delegated and table not in queried:
+                problems.append(
+                    f"{name} declares it drains {table}.{value!r} but never queries {table}")
+    return problems
+
+
+def check_states_are_reachable() -> list[str]:
+    """
+    A state nothing ever writes is a state nothing can be in.
+
+    `batches.status = 'running'` was declared, three predicates depended on it,
+    and no code path ever set it — so the whole delivery loop was gated on a
+    value that could not occur. Crude grep, but it is the check that would have
+    said so.
+    """
+    root = SCHEMA.parent
+    schema = SCHEMA.read_text(encoding="utf-8")
+
+    # Only *writes* count. A first attempt grepped every file and found
+    # 'running' in a SELECT, so it reported the state reachable when nothing
+    # could ever set it. Reading a value and writing one look identical to a
+    # grep unless you say which you mean.
+    writes = (root / "api.py").read_text(encoding="utf-8")          # all artefact writes
+    for f in root.glob("*.py"):
+        if f.name in ("api.py", "predicates.py"):
+            continue
+        text = f.read_text(encoding="utf-8")
+        writes += chr(10).join(
+            line for line in text.splitlines()
+            if "UPDATE " in line or "SET " in line or "INSERT INTO" in line)
+    defaults = re.findall(r"DEFAULT '([^']+)'", schema)
+
+    # Many writes are *parameterised*: the model supplies `approval='approved'`
+    # and the sandbox validates it against the column's enum. Those are correct
+    # and leave no literal to grep for, so a column is also reachable if some
+    # write function takes it as an argument.
+    api_src = (root / "api.py").read_text(encoding="utf-8")
+    parameterised = set()
+    for block in re.split(r"@op\(", api_src)[1:]:
+        head = block.split(")", 1)[0]
+        artefact = head.split(",")[0].strip().strip("\"'")
+        params = set(re.findall(r"(\w+):\s*\w", block.split("->")[0]))
+        for table in re.findall(r'ctx\.writes\.append\(\(\s*"(\w+)"', block):
+            for prm in params:
+                parameterised.add((table, prm))
+
+    problems = []
+    for (table, column), values in schema_states().items():
+        if (table, column) not in LIFECYCLE_COLUMNS:
+            continue
+        if (table, column) in parameterised:
+            continue
+        for value in values:
+            if value in defaults:
+                continue
+            if f"'{value}'" in writes or f'"{value}"' in writes:
+                continue
+            problems.append(
+                f"{table}.{column} = '{value}' is never written by any code path — "
+                f"nothing can reach this state, so anything gated on it is dead")
+    return problems
+
+
 def check_predicates_wake_real_roles() -> list[str]:
     from . import graph as graph_mod
 
@@ -463,7 +564,8 @@ if __name__ == "__main__":
     for name, p in sorted(REGISTRY.items()):
         target = p.wakes or "(scheduler)"
         print(f"  {name:22s} -> {target:12s} drains {len(p.drains)}")
-    issues = check_terminal_states() + check_predicates_wake_real_roles()
+    issues = (check_terminal_states() + check_predicates_wake_real_roles()
+              + check_predicates_can_fire() + check_states_are_reachable())
     print()
     if issues:
         print(f"{len(issues)} PROBLEMS:")
