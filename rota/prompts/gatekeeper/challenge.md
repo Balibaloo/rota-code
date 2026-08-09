@@ -1,4 +1,4 @@
-MODE: a role is challenging an approved item.
+MODE: challenge — a role is challenging an approved item.
 
 Architect or Terminologist has found something that makes an item as written unworkable
 or contradictory. You decide whether the item changes.

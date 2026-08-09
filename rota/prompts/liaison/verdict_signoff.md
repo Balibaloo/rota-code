@@ -1,4 +1,4 @@
-MODE: signoff ruling.
+MODE: verdict_signoff — the principal has ruled on the items.
 
 The principal has ruled on the items you presented. Relay the ruling to Gatekeeper with
 `msg.relay_gatekeeper`, refs naming every item they ruled on.

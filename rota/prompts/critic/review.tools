@@ -1,0 +1,6 @@
+criteria.load
+tests.load
+code.read
+verdicts.emit
+msg.challenge_developer
+msg.challenge_tester

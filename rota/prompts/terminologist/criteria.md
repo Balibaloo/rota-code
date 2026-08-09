@@ -1,4 +1,4 @@
-MODE: criteria for an item's tickets.
+MODE: criteria — write what done means for an item's tickets.
 
 Write acceptance criteria for every ticket of this item, using `criteria.specify`.
 

@@ -1,0 +1,6 @@
+tests.load
+criteria.load
+code.probe
+code.commit
+msg.challenge_tester
+msg.escalate_architect

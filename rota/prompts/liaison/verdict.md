@@ -1,4 +1,4 @@
-MODE: ratification.
+MODE: verdict — ratification. The principal has ruled on the segmentation.
 
 The principal has answered a confirmation. Two steps, in order.
 

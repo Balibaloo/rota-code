@@ -1,4 +1,4 @@
-MODE: a role is asking what a term means.
+MODE: question — a role is asking what a term means.
 
 Answer from the glossary with `msg.answer_developer` (or the asking role), refs
 pointing at the term ids.

@@ -1,4 +1,4 @@
-MODE: signoff presentation.
+MODE: submit — present the items for signoff.
 
 Gatekeeper has submitted in-scope and out-of-scope items for the principal's approval. Present
 them as **one document**, not a list of separate asks — the principal is approving an

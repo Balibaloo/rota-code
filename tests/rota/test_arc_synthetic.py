@@ -139,10 +139,13 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     row = db.execute("SELECT term_refs FROM criteria WHERE id='c1'").fetchone()
     assert json.loads(row["term_refs"]) == ["g1"], "criteria must be written in glossary terms"
 
-    # Architect batches.
-    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_arch','t1','liaison','architect','deliver',50)")
-    drive(db, Wake("architect", "message", "m_arch", detail="deliver"), [
+    # Architect groups tickets into batches. Its own tick, not the `deliver`
+    # message: grouping is a different job from reading new statements, and the
+    # mode's tool list says so -- the first version of this arc grouped in
+    # `deliver` mode and the narrowing refused it, which is the narrowing working.
+    grouping = [w for w in predicate_wakes(db) if w.kind == "tick:grouping"]
+    assert grouping, "tickets with criteria never became a batch"
+    drive(db, Wake("architect", "tick:grouping", refs=grouping[0].refs), [
         "TOOL: batches.group(id='b1', item_id='i1', ticket_ids=['tk1'])",
     ])
 

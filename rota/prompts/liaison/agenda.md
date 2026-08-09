@@ -1,4 +1,4 @@
-MODE: agenda.
+MODE: agenda — the principal is here and something is blocked on them.
 
 The principal is here and something is waiting on them. Tell them what, with one
 `msg.clarify_principal` whose refs name the open assumptions.

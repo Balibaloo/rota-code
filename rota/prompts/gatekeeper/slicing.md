@@ -1,4 +1,4 @@
-MODE: slice tickets.
+MODE: slicing — cut approved items into tickets.
 
 These items are approved and have no tickets yet. Cut each into tickets with
 `tickets.slice`.

@@ -1,4 +1,4 @@
-MODE: new ratified statements.
+MODE: deliver — new ratified statements.
 
 Read the statements. For every term they use that matters to meaning:
 

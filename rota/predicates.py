@@ -236,6 +236,29 @@ def criteria(conn) -> list[Wake]:
     return tick_criteria(conn)
 
 
+@predicate("grouping", wakes="architect", band="start")
+def grouping(conn) -> list[Wake]:
+    """
+    Tickets that have criteria and belong to no batch.
+
+    This was the hole between the two loops. `criteria` produced them and
+    `batch_start` waited for batches, and nothing turned one into the other — so
+    the understanding loop ran to completion and the delivery loop never began.
+
+    Nothing caught it, because every check we had was about *states*: no state
+    was unreachable and no state was undrained. A missing step between two
+    reachable states is invisible to both.
+    """
+    rows = conn.execute(
+        "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
+        "WHERE c.ticket_id NOT IN (SELECT ticket_id FROM batch_tickets)"
+    ).fetchall()
+    if not rows:
+        return []
+    return [Wake("architect", "tick:grouping",
+                 refs=tuple(r["tid"] for r in rows))]
+
+
 @predicate("observed_entries", wakes="liaison", band="start",
            drains=[("glossary_terms", "provenance", "observed"),
                    ("constraints", "provenance", "observed"),

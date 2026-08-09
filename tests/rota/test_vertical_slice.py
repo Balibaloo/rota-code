@@ -65,9 +65,26 @@ class RoleScript:
 
 
 def _matches(key: str, system: str, user: str) -> bool:
+    """
+    Match a role and, optionally, a mode.
+
+    The mode needs a boundary after it. Without one, `verdict` matches
+    `MODE: verdict_signoff` -- and since the first matching key wins, the
+    ratification script was handed to the signoff session. Prefix collisions
+    between mode names are exactly as invisible here as they were in the
+    vocabulary.
+
+    The header alone decides. There used to be an `or mode in user` fallback for
+    modes whose prompt did not name them; every piece names its mode now, and the
+    fallback matched `verdict` against the word "verdict" in the message body,
+    which put the two signoff modes back into collision by a different route.
+    """
+    import re
+
     role, _, mode = key.partition(":")
-    return f"You are {role}" in system and (not mode or f"MODE: {mode}" in system
-                                            or mode in user)
+    if f"You are {role}" not in system:
+        return False
+    return not mode or bool(re.search(rf"MODE: {re.escape(mode)}\b", system))
 
 
 def test_understanding_loop_scripted(db):
@@ -76,41 +93,55 @@ def test_understanding_loop_scripted(db):
     settle?
     """
     backend = RoleScript({
-        "liaison:intake": [
+        "liaison:converse": [
             "TOOL: brief.segment(id='s1', span_entry='e_m_in', span_start=0, "
             f"span_end={len(ENTRY)}, text='{ENTRY}')",
             "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
-        "liaison:ratification": [
+        "liaison:verdict": [
             "TOOL: brief.ratify(id='s1')",
             "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
             "TOOL: msg.deliver_terminologist(refs=['s1'])",
             "TOOL: msg.deliver_architect(refs=['s1'])",
         ],
-        "gatekeeper:new ratified statements": [
+        "gatekeeper:deliver": [
             "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
         ],
-        "gatekeeper:submit for signoff": [
+        "gatekeeper:signoff": [
             "TOOL: msg.submit_liaison(refs=['i1'])",
         ],
-        "liaison:signoff presentation": [
+        "liaison:submit": [
             "TOOL: msg.present_principal(refs=['i1'])",
         ],
-        "liaison:signoff ruling": [
+        "liaison:verdict_signoff": [
             "TOOL: msg.relay_gatekeeper(refs=['i1'])",
         ],
-        "gatekeeper:signoff verdicts relayed": [
+        "gatekeeper:relay": [
             "TOOL: problem.set_approval(id='i1', approval='approved')",
         ],
-        "gatekeeper:slice tickets": [
+        "gatekeeper:slicing": [
             "TOOL: tickets.slice(id='tk1', item_id='i1', text='add a delete button')",
         ],
-        "terminologist:criteria for an item": [
+        "terminologist:criteria": [
             "TOOL: criteria.specify(id='c1', ticket_id='tk1', "
             "text='deleting tombstones the account', term_refs=['g1'])",
         ],
         "terminologist": [
             "TOOL: glossary.amend(id='g1', term='account', sense_short='login identity')",
+        ],
+        # The understanding loop ends where the delivery loop begins, and the
+        # handover is Architect grouping tickets into batches. Before `grouping`
+        # existed the two loops did not meet: criteria were written and nothing
+        # ever turned them into a batch.
+        "architect:grouping": [
+            "TOOL: batches.group(id='b1', item_id='i1', ticket_ids=['tk1'])",
+        ],
+        "architect:annotate": [
+            "TOOL: batches.annotate(batch_id='b1', paths=['src/account.py'])",
+        ],
+        "tester:tests_missing": [
+            "TOOL: tests.author(id='tst1', batch_id='b1', criterion_id='c1', "
+            "path='test_delete.py', body='assert tombstoned(account)')",
         ],
         "gatekeeper": [""],
         "architect": [""],
@@ -156,12 +187,12 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
     and picks up exactly where it left off once an answer arrives.
     """
     backend = RoleScript({
-        "liaison:intake": [
+        "liaison:converse": [
             "TOOL: brief.segment(id='s1', span_entry='e_m_in', span_start=0, "
             f"span_end={len(ENTRY)}, text='{ENTRY}')",
             "TOOL: msg.confirm_principal(refs=['s1'])",
         ],
-        "liaison:ratification": [
+        "liaison:verdict": [
             "TOOL: brief.ratify(id='s1')",
             "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
         ],
@@ -194,7 +225,7 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
 
 def test_loop_is_idempotent_when_quiescent(db):
     """Turning the crank on a settled system must not invent work."""
-    backend = RoleScript({"liaison:intake": [""], "gatekeeper": [""]})
+    backend = RoleScript({"liaison:converse": [""], "gatekeeper": [""]})
     loop.run(db, backend=backend, pins=Pins(model="scripted"), max_steps=5)
 
     before = db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"]

@@ -1,4 +1,4 @@
-MODE: new ratified statements.
+MODE: deliver — new ratified statements.
 
 Statements have been ratified by the principal. Decide what they mean for scope.
 

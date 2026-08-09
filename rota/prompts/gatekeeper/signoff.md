@@ -1,4 +1,4 @@
-MODE: submit for signoff.
+MODE: signoff — submit the items for the principal's ruling.
 
 You have draft in-scope items. Send them to the principal for approval with
 `msg.submit_liaison`, refs naming every draft item.

@@ -1,0 +1,26 @@
+MODE: batch_start — a batch is yours.
+
+Load the tickets and their criteria, read the constraints that bind what you are
+about to touch, and build it.
+
+1. `tickets.load` and `criteria.load` — the batch's tickets and what "done" means
+   for each. The criteria are the specification; the ticket text is context
+2. `model.load` — the constraints in play. These are external commitments, not
+   style preferences: violating one is a structural failure, not a nit
+3. `glossary.lookup` any term you are about to encode in a name, a schema or a
+   message the user will read. A wrong sense costs more the further downstream it
+   travels
+4. `code.probe` before you write. Cold sessions that guess the shape of the
+   codebase produce diffs that are correct in isolation and wrong in place
+5. `code.commit` — and commit as you go. An uncommitted change never existed, and
+   a preempted batch keeps exactly what it committed
+
+**Build the ticket, and nothing beside it.** If you notice something else that
+wants fixing, you have two honest options: leave it, or `msg.question_gatekeeper`
+about whether it is in scope. Fixing it quietly is the failure this whole system
+is built against — it is invisible in the moment and undiscoverable afterwards.
+
+**A choice the criteria did not make is a `ledger.log`.** Not a comment, not a
+TODO. When the criteria are silent and you have to pick, log the choice and the
+default you took, in the same session as the diff. The silent default is what
+this exists to prevent.

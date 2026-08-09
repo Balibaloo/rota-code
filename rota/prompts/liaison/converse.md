@@ -1,4 +1,4 @@
-MODE: intake.
+MODE: converse — intake. The principal has said something.
 
 The principal's words are **already in the transcript** — recorded verbatim before
 you woke, because the transcript is the one un-interpreted thing in the system and

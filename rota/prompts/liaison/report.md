@@ -1,4 +1,4 @@
-MODE: harvest.
+MODE: report — a role is blocked and it has to go out.
 
 One or more roles reported something they could not determine. Turn those reports
 into at most **two** questions for the principal.

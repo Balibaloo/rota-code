@@ -1,4 +1,4 @@
-MODE: signoff verdicts relayed.
+MODE: relay — the principal's signoff verdicts, relayed.
 
 The principal has ruled per item. Apply the rulings with `problem.set_approval`:
 approve, contest, or leave pending.
