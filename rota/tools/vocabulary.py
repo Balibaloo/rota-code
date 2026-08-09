@@ -223,6 +223,132 @@ def _register(word: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Steps 2-4 of the system-glossary pass: purpose, hierarchy, duplication.
+#
+# The method is from plans/system-prompt-fixer.md, which had five steps to my
+# one and a half. Steps 2 and 4 (purpose, name synthesis) are judgement and stay
+# judgement -- the tool surfaces candidates and structure; a person names things.
+# Pretending otherwise produces a dictionary that is internally consistent and
+# describes nothing.
+# ---------------------------------------------------------------------------
+
+def purposes() -> dict[str, str]:
+    """Step 2: what each named thing is for, taken from where it was defined."""
+    out: dict[str, str] = {}
+    graph = json.loads((DESIGN / "graph.json").read_text(encoding="utf-8"))
+    for n in graph["nodes"]:
+        note = (n.get("note") or "").strip()
+        if note:
+            out[n["id"]] = note.split(".")[0][:150]
+
+    # Schema comments sit above the table they explain.
+    sql = (ROTA / "schema.sql").read_text(encoding="utf-8").splitlines()
+    comment: list[str] = []
+    for line in sql:
+        st = line.strip()
+        if st.startswith("--"):
+            comment.append(st.lstrip("- ").strip())
+        elif st.startswith("CREATE TABLE"):
+            m = re.search(r"CREATE TABLE IF NOT EXISTS (\w+)", st)
+            if m and comment:
+                out.setdefault(m.group(1), " ".join(comment)[:150])
+            comment = []
+        elif not st:
+            comment = []
+    return out
+
+
+def aliases() -> list[tuple[str, tuple[str, ...], str]]:
+    """
+    Step 3, duplications: one referent carrying two names.
+
+    The graph speaks in artefacts and the schema in tables, and the binding
+    between them is deliberate -- but where the two names differ, a role reads
+    one word and the database holds another. That is the same failure the
+    Lexicon of Behavior would introduce by renaming for effect, except it is
+    already here.
+    """
+    from rota.db import TABLES_OF_ARTEFACT
+
+    out = []
+    for artefact, tables in TABLES_OF_ARTEFACT.items():
+        differing = tuple(t for t in tables if t != artefact)
+        if differing:
+            verdict = ("same referent, two names" if len(tables) == 1
+                       else "one artefact spread over several tables")
+            out.append((artefact, differing, verdict))
+    return out
+
+
+def hierarchy() -> list[dict]:
+    """Step 3, relationships: what owns what, and what points at what."""
+    from rota import graph as graph_mod
+
+    g = graph_mod.load()
+    rows = []
+    for a in sorted(g.artefacts):
+        node = g.nodes[a]
+        rows.append({
+            "term": a,
+            "owner": ", ".join(sorted(g.writer_of(a))) or "(the system)",
+            "readers": ", ".join(sorted(r for r in g.roles if a in g.read_set(r))) or "-",
+            "refs": ", ".join(sorted(e.t for e in g.of_type("refs") if e.s == a)) or "-",
+            "kind": "journal" if not node.contact else "record",
+        })
+    return rows
+
+
+def render_analysis() -> str:
+    """The top-down report: levels first, then structure, then the candidates."""
+    terms = harvest()
+    pur = purposes()
+    lines = []
+
+    lines.append("=" * 78)
+    lines.append("STEP 1-2  every named thing, and what it is for — top down")
+    lines.append("=" * 78)
+    grouped = by_level(terms)
+    for level, label in LEVELS.items():
+        entries = grouped.get(level, [])
+        if not entries or level in ("L5", "L6"):
+            continue
+        lines.append(f"\n--- {level}  {label}  ({len(entries)})")
+        for t in entries:
+            why = pur.get(t.word, t.sense)
+            mark = {"machine": "!", "trade": "~", "plain": " "}[t.register]
+            lines.append(f" {mark} {t.word:<24} {why[:88]}")
+
+    lines.append("\n" + "=" * 78)
+    lines.append("STEP 3  hierarchy — who owns what, who reads it, what it points at")
+    lines.append("=" * 78)
+    for r in hierarchy():
+        lines.append(f"  {r['term']:<14} {r['kind']:<8} owner={r['owner']:<20} "
+                     f"readers={r['readers'][:40]}")
+        if r["refs"] != "-":
+            lines.append(f"  {'':<14} {'':<8} refs -> {r['refs']}")
+
+    lines.append("\n" + "=" * 78)
+    lines.append("STEP 3  duplication — one referent, two names")
+    lines.append("=" * 78)
+    for artefact, tables, verdict in aliases():
+        lines.append(f"  graph says {artefact:<12} schema says {', '.join(tables):<38} {verdict}")
+
+    lines.append("\n" + "=" * 78)
+    lines.append("STEP 3  collision — one name, two referents")
+    lines.append("=" * 78)
+    for word, sources in collisions(terms):
+        kinds = sorted({s.split('.')[-1] for s in sources})
+        if len(kinds) > 1:
+            lines.append(f"  {word:<16} {', '.join(kinds)}")
+
+    counts = defaultdict(int)
+    for t in terms.values():
+        counts[t.register] += 1
+    lines.append(f"\nregister: {dict(counts)}   (! machine  ~ trade  · plain)")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # The findings
 # ---------------------------------------------------------------------------
 
@@ -294,6 +420,9 @@ def render(terms: dict[str, Term]) -> str:
 
 
 def main() -> None:
+    if "--analyse" in sys.argv:
+        print(render_analysis())
+        return
     terms = harvest()
     if "--json" in sys.argv:
         print(json.dumps([t.as_dict() for t in terms.values()], indent=2))
