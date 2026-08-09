@@ -162,7 +162,7 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         "SELECT b.id AS id FROM batches b JOIN items i ON i.id = b.item_id "
         "WHERE b.status IN ('pending','deferred') "
         "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
-        "ORDER BY b.priority DESC, b.id"
+        "ORDER BY i.priority DESC, b.id"
     ).fetchall()]
     if not candidates:
         return []

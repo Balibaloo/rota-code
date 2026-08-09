@@ -221,11 +221,11 @@
     },
     {
       "s": "gatekeeper",
-      "t": "batches",
+      "t": "problem",
       "type": "writes",
       "v": "prioritize",
       "n": "item priority",
-      "label": "moves whole batches",
+      "label": "moves the item; batches follow whole",
       "rows": "single"
     },
     {
@@ -618,15 +618,6 @@
       "type": "messages",
       "v": "challenge",
       "n": "failed criterion",
-      "rows": "single"
-    },
-    {
-      "s": "architect",
-      "t": "critic",
-      "type": "messages",
-      "v": "finding",
-      "n": "constraint id + satisfied / violated",
-      "label": "no reasoning — preserves critic isolation",
       "rows": "single"
     },
     {
@@ -1118,14 +1109,25 @@
       "v": "answer",
       "n": "test intent",
       "rows": "single"
-    }
-  ],
-  "contact_exceptions": [
+    },
     {
       "s": "architect",
-      "t": "critic",
-      "v": "finding",
-      "why": "Critic must not read the system model — that starvation is what makes its verdict independent. The conclusion is therefore pushed to it precisely because it cannot fetch it. Underivable by construction."
+      "t": "model",
+      "type": "writes",
+      "v": "find",
+      "n": "constraint id + status + grain",
+      "rows": "single",
+      "label": "structural verdict, after Critic's"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
+      "v": "annotate",
+      "n": "expected touch set",
+      "rows": "batch",
+      "label": "a prediction, not a permission"
     }
-  ]
+  ],
+  "contact_exceptions": []
 }

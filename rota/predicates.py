@@ -18,7 +18,6 @@ legal only if some predicate drains it or it is declared terminal with a reason.
 That is a hard constraint: adding a state to the schema without a way out fails
 the build.
 
-Role names are the current ids; the rename lands separately.
 """
 from __future__ import annotations
 
@@ -78,7 +77,7 @@ LIFECYCLE_COLUMNS = {
 # further is owed — which is exactly the claim worth having to write down.
 TERMINAL: dict[tuple[str, str, str], str] = {
     ("statements", "status", "ratified"):
-        "the requester confirmed it; it is now material, not pending work",
+        "the principal confirmed it; it is now material, not pending work",
     ("statements", "status", "superseded"):
         "replaced by a later statement, which carries the work forward",
     ("statements", "status", "clarified"):
@@ -86,7 +85,7 @@ TERMINAL: dict[tuple[str, str, str], str] = {
     ("items", "approval", "approved"):
         "drained by slicing once tickets exist; approval itself owes nothing",
     ("items", "approval", "pending"):
-        "an open gate to the requester holds it; the gate is the pending work",
+        "an open gate to the principal holds it; the gate is the pending work",
     ("items", "provenance", "decided"):
         "someone chose it and the reason is on file",
     ("glossary_terms", "provenance", "decided"): "reason on file",
@@ -115,8 +114,8 @@ TERMINAL: dict[tuple[str, str, str], str] = {
 
 @predicate("message_tips", wakes="", drains=[("messages", "status", "open")])
 def message_tips(conn) -> list[Wake]:
-    """Messages awaiting a session. Messages to the requester are excluded — they
-    are a gate, and the requester is not schedulable."""
+    """Messages awaiting a session. Messages to the principal are excluded — they
+    are a gate, and the principal is not schedulable."""
     from .scheduler import open_tips
     return open_tips(conn)
 
@@ -130,7 +129,7 @@ def message_tips(conn) -> list[Wake]:
 def awaiting_confirm(conn) -> list[Wake]:
     """A proposed statement with no confirm outstanding: ratification has stalled.
 
-    Without this, a segmentation that never reached the requester sits forever
+    Without this, a segmentation that never reached the principal sits forever
     and the system reports itself quiescent."""
     rows = conn.execute(
         "SELECT id FROM statements WHERE status = 'proposed' AND id NOT IN ("
@@ -151,7 +150,7 @@ def awaiting_confirm(conn) -> list[Wake]:
 @predicate("contradiction", wakes="liaison",
            drains=[("statements", "status", "contradicted")])
 def contradiction(conn) -> list[Wake]:
-    """Two statements conflict. Only the requester can say which stands, so this
+    """Two statements conflict. Only the principal can say which stands, so this
     goes back out rather than being resolved internally."""
     rows = conn.execute(
         "SELECT id FROM statements WHERE status = 'contradicted'").fetchall()
@@ -167,7 +166,7 @@ def contradiction(conn) -> list[Wake]:
 @predicate("contested", wakes="gatekeeper",
            drains=[("items", "approval", "contested")])
 def contested(conn) -> list[Wake]:
-    """The requester rejected an item.
+    """The principal rejected an item.
 
     This was a dead end: the highest-value signal in the system landed nowhere.
     It wakes the item's owner to amend it or author a decision defending it."""
@@ -213,7 +212,7 @@ def observed_entries(conn) -> list[Wake]:
     Entries extracted from a codebase, awaiting their first decision.
 
     Onboarding produces these by the hundred and nothing was ever going to ask
-    the requester to confirm them, so `observed` was a state with no exit.
+    the principal to confirm them, so `observed` was a state with no exit.
     """
     counts = []
     for table in ("glossary_terms", "constraints", "items"):
@@ -260,7 +259,7 @@ def annotate(conn) -> list[Wake]:
         "SELECT id FROM batches WHERE status IN ('pending','deferred') "
         "  AND id NOT IN (SELECT DISTINCT batch_id FROM batch_touch)"
         "  LIMIT 1"
-    ).fetchall() if _has_table(conn, "batch_touch") else []
+    ).fetchall()
     return [Wake("architect", "tick:annotate", refs=(r["id"],)) for r in rows]
 
 
@@ -277,14 +276,22 @@ def batch_start(conn) -> list[Wake]:
            drains=[("test_runs", "result", "fail"), ("test_runs", "result", "error")])
 def tests_failing(conn) -> list[Wake]:
     """A failing test goes straight back, capped. This *is* the cheap loop —
-    a test costs a subprocess, so it bounces rather than waiting for review."""
+    a test costs a subprocess, so it bounces rather than waiting for review.
+
+    The cap was a literal `10` sitting here, which made it a decision nobody
+    could find and nobody could change. It is `loop_cap` now, and it spends
+    compute — which is why it is generous, and why it is not the same number as
+    the cap on interrupting the principal."""
+    from . import config
+
+    cap = config.get(conn, "loop_cap")
     rows = conn.execute(
         "SELECT DISTINCT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
         "WHERE result IN ('fail','error') GROUP BY batch_id"
     ).fetchall()
     return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
                  detail=f"attempt {r['att']}")
-            for r in rows if (r["att"] or 1) < 10]
+            for r in rows if (r["att"] or 1) < cap]
 
 
 @predicate("review", wakes="critic")
@@ -336,7 +343,7 @@ def merge(conn) -> list[Wake]:
 
     This was the worst dead end: the delivery loop terminated one step before
     delivering. It wakes nobody — merging is mechanical once the verdict is in,
-    the same shape as the harness. The optional requester review gates it.
+    the same shape as the harness. The optional principal review gates it.
     """
     return []
 
@@ -359,7 +366,7 @@ def checkpoint_invalid(conn) -> list[Wake]:
 @predicate("quarantined", wakes="liaison",
            drains=[("messages", "status", "quarantined")])
 def quarantined(conn) -> list[Wake]:
-    """The system gave up on a message. That is something the requester should be
+    """The system gave up on a message. That is something the principal should be
     told, not something to bury — it was invisible before."""
     n = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status = 'quarantined'").fetchone()["n"]
@@ -368,7 +375,7 @@ def quarantined(conn) -> list[Wake]:
 
 @predicate("agenda", wakes="liaison", drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
-    """On requester presence, present what is blocked on them."""
+    """On principal presence, present what is blocked on them."""
     from .scheduler import tick_agenda
     return tick_agenda(conn, principal_present=True)
 
@@ -378,11 +385,6 @@ def survey(conn) -> list[Wake]:
     """Onboarding: one elected area at a time, in role order."""
     from .scheduler import tick_survey
     return tick_survey(conn)
-
-
-def _has_table(conn, name: str) -> bool:
-    return bool(conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone())
 
 
 # ---------------------------------------------------------------------------

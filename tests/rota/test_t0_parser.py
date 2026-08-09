@@ -57,7 +57,7 @@ def test_multiple_calls_in_order():
 def test_list_and_int_arguments():
     call = only("TOOL: model.amend(id='c1', headline='x', bindings=['a.py','b.py'])")
     assert call.args["bindings"] == ["a.py", "b.py"]
-    call = only("TOOL: batches.prioritize(id='b1', priority=3)")
+    call = only("TOOL: problem.prioritize(id='b1', priority=3)")
     assert call.args["priority"] == 3
 
 

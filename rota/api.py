@@ -143,6 +143,20 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     return {"id": id, "approval": approval}
 
 
+@op("problem", "prioritize")
+def problem_prioritize(ctx: Ctx, id: str, priority: int) -> dict:
+    """
+    Priority moves batches whole, by moving the item they trace to.
+
+    It alters no approved content, trips no revocation, involves no Architect
+    and never recomposes a batch — hence `amends=False`. Putting the number on
+    the item rather than the batch is what makes that true by construction:
+    there is no per-batch priority for a recomposition to have to preserve.
+    """
+    ctx.writes.append(("items", id, {"priority": priority}, False))
+    return {"id": id, "priority": priority}
+
+
 @op("problem", "consult")
 def problem_consult(ctx: Ctx) -> list[dict]:
     """Every row at index depth: ids, kind and approval, no prose bodies."""
@@ -205,6 +219,24 @@ def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
             "constraint_id": id, "grain": grain, "grain_kind": "path"}))
     return {"id": id, "bindings": bindings or []}
+
+
+@op("model", "find")
+def model_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
+               status: str, grain: str) -> dict:
+    """
+    Architect's structural verdict on one constraint, for one batch.
+
+    Three fields and no fourth. A finding says which constraint, whether the
+    diff satisfied or violated it, and which grain triggered the check — the
+    reasoning stays in the decision record, reachable by a ref if anyone needs
+    it. Nobody usually does: what the merge gate needs is whether anything is
+    violated, and that question has no interesting prose answer.
+    """
+    ctx.writes.append(("findings", id, {
+        "batch_id": batch_id, "constraint_id": constraint_id,
+        "status": status, "grain": grain}))
+    return {"id": id, "status": status}
 
 
 @op("model", "consult")
@@ -340,20 +372,40 @@ def batches_group(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dic
     return {"id": id, "tickets": ticket_ids}
 
 
-@op("batches", "prioritize")
-def batches_prioritize(ctx: Ctx, id: str, priority: int) -> dict:
+@op("batches", "annotate")
+def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
+                     symbols: list[str] | None = None) -> dict:
     """
-    Priority moves batches whole. It alters no approved content, trips no
-    revocation, involves no Architect and never recomposes a batch.
+    What this batch is expected to touch.
+
+    Paths always; symbols only where you are confident, which is why they are a
+    separate argument rather than a flag on each grain — being asked to rate
+    your own confidence per item invites rating everything "high".
+
+    Nothing rejects a diff for straying outside this. It exists so that "was
+    this change incidental?" has an answer at review time rather than an
+    argument, and a prediction that could block work would quietly become a
+    permission system nobody designed.
     """
-    ctx.writes.append(("batches", id, {"priority": priority}, False))
-    return {"id": id, "priority": priority}
+    for path in paths:
+        ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
+            "batch_id": batch_id, "grain": path, "grain_kind": "path",
+            "confidence": "expected"}))
+    for symbol in symbols or []:
+        ctx.writes.append(("batch_touch", f"{batch_id}:{symbol}", {
+            "batch_id": batch_id, "grain": symbol, "grain_kind": "symbol",
+            "confidence": "possible"}))
+    return {"batch_id": batch_id, "grains": len(paths) + len(symbols or [])}
 
 
 @op("batches", "consult")
 def batches_consult(ctx: Ctx) -> list[dict]:
+    """Priority comes from the item, which is where the principal set it."""
     return _rows(ctx.conn.execute(
-        "SELECT id, item_id, status, priority FROM batches ORDER BY priority DESC, id"))
+        "SELECT b.id AS id, b.item_id AS item_id, b.status AS status, "
+        "       i.priority AS priority "
+        "FROM batches b JOIN items i ON i.id = b.item_id "
+        "ORDER BY i.priority DESC, b.id"))
 
 
 # ---------------------------------------------------------------------------
@@ -411,12 +463,22 @@ def ledger_list(ctx: Ctx) -> list[dict]:
 def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None,
                      supersedes: str | None = None,
                      resolves_ledger: str | None = None) -> dict:
-    """Authored by whoever decided, in the same session as the decision. There is
-    no recording step and no scribe role."""
+    """
+    Authored by whoever decided, in the same session as the decision. There is
+    no recording step and no scribe role.
+
+    Resolving a ledger entry happens *here* and nowhere else. There is no
+    `ledger.resolve`, deliberately: an assumption that could close itself would
+    void "no milestone with open assumptions", which is the only thing making
+    the ledger more than a list of regrets. Both writes land in one commit, so a
+    resolved entry always has the decision that resolved it.
+    """
     ctx.writes.append(("decisions", id, {
         "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
         "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
-    return {"id": id}
+    if resolves_ledger:
+        ctx.writes.append(("ledger", resolves_ledger, {"status": "resolved"}, False))
+    return {"id": id, "resolves_ledger": resolves_ledger}
 
 
 @op("decisions", "search")

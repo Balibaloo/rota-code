@@ -422,7 +422,9 @@ def test_s12_non_derived_recipients_are_rejected():
 def test_s12_verb_vocabulary_is_closed():
     g = graph_mod.load()
     verbs = g.message_verbs()
-    assert "escalate" in verbs and "finding" in verbs and "challenge" in verbs
+    # `finding` left this set when Architect's structural review became a gate
+    # rather than an input: it is a row on the model now, not a message.
+    assert "escalate" in verbs and "challenge" in verbs and "finding" not in verbs
     assert "order" not in verbs, "planner's verb should have left with the role"
 
 

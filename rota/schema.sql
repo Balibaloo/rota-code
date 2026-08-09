@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS items (
     approval      TEXT NOT NULL DEFAULT 'draft'
                   CHECK (approval IN ('draft','pending','approved','contested')),
     approval_ver  INTEGER,                  -- version the approval was granted at
+    -- Priority lives here, not on batches: it is a property of what the
+    -- principal wants, and what they want is an item. It is also what makes
+    -- batches single-writer, and gives law 9's "priority moves batches whole"
+    -- for free -- there is no per-batch number to disagree with.
+    -- Changing it is not an amendment: it touches no approved content, so
+    -- `problem.prioritize` writes with amends=False and trips no revocation.
+    priority      INTEGER NOT NULL DEFAULT 0,
     version       INTEGER NOT NULL DEFAULT 1
 );
 
@@ -129,6 +136,47 @@ CREATE TABLE IF NOT EXISTS survey_citations (
     PRIMARY KEY (survey_id, grain)
 );
 
+-- What Architect expects a batch to touch. A *prediction*, never a permission:
+-- nothing rejects a diff for straying outside it. Its job is to make "was this
+-- change incidental?" answerable at review time instead of arguable.
+--
+-- Paths are recorded always; symbols only where Architect is confident, and the
+-- confidence is written down rather than implied. A symbol that no longer
+-- resolves against the code index drops silently, the same way an unresolvable
+-- constraint binding does — a stale prediction should decay, not accumulate
+-- into noise that makes the whole set untrustworthy.
+CREATE TABLE IF NOT EXISTS batch_touch (
+    batch_id    TEXT NOT NULL REFERENCES batches(id),
+    grain       TEXT NOT NULL,
+    grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route')),
+    confidence  TEXT NOT NULL DEFAULT 'expected'
+                CHECK (confidence IN ('expected','possible')),
+    PRIMARY KEY (batch_id, grain)
+);
+
+-- Architect's structural verdict on one batch, one row per constraint checked.
+--
+-- It is a row and not a message. The old design pushed findings to Critic,
+-- which was the system's only declared contact exception -- underivable because
+-- Critic must not read the model, so the conclusion had to be pushed to it
+-- precisely because it could not fetch it. With the review order flipped
+-- (harness, then Critic, then Architect) Architect's judgement is a *gate*
+-- rather than an input, so it has nobody to tell: the merge predicate reads it,
+-- and the scheduler is not a role. Critic's starvation survives intact and law
+-- 3 now derives every message edge with no exceptions at all.
+--
+-- `grain` is the addressable thing the finding is about -- the same vocabulary
+-- as constraint bindings, so a finding can be traced to what triggered it. It
+-- carries no reasoning: law 2, conclusions travel, reasoning stays home.
+CREATE TABLE IF NOT EXISTS findings (
+    id            TEXT PRIMARY KEY,
+    batch_id      TEXT NOT NULL REFERENCES batches(id),
+    constraint_id TEXT NOT NULL REFERENCES constraints(id),
+    status        TEXT NOT NULL CHECK (status IN ('satisfied','violated')),
+    grain         TEXT NOT NULL,
+    version       INTEGER NOT NULL DEFAULT 1
+);
+
 -- Mechanical index of the codebase (tree-sitter/ripgrep). Not an artefact any
 -- role writes: it is rebuilt, never decided.
 CREATE TABLE IF NOT EXISTS code_index (
@@ -165,14 +213,13 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     version    INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE IF NOT EXISTS batches (         -- Architect (priority: Gatekeeper)
+CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer
     id        TEXT PRIMARY KEY,
     item_id   TEXT NOT NULL REFERENCES items(id),
     worktree  TEXT,
     head_commit TEXT,                        -- last commit the DB has a receipt for
     status    TEXT NOT NULL DEFAULT 'pending'
               CHECK (status IN ('pending','running','deferred','merged')),
-    priority  INTEGER NOT NULL DEFAULT 0,
     version   INTEGER NOT NULL DEFAULT 1
 );
 

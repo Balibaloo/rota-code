@@ -45,8 +45,23 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "provenance": ("observed", "decided"),
     "outcome":    ("constraints_found", "none_found"),
     "result":     ("pass", "fail"),
-    "status":     ("proposed", "ratified", "superseded", "contradicted", "clarified"),
     "author":     ("principal", "liaison"),
+}
+
+# Where one argument name means different things in different operations, the
+# operation has to say which. `status` is the case: a statement's status and a
+# finding's status share a column name and share nothing else.
+#
+# The flat map above had `status` twice, and Python kept the second silently —
+# the sort of collision the vocabulary pass exists to remove, hiding in the code
+# that enforces vocabulary. A name-keyed map cannot express two senses, so the
+# senses that need distinguishing are keyed by operation instead.
+# A statement's status is not here because no operation takes it as an argument
+# — `segment` and `ratify` each write one fixed value. Listing it would be a
+# rule guarding a door nobody can walk through, which is how the duplicate got
+# in unnoticed in the first place.
+ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
+    ("model", "find"): {"status": ("satisfied", "violated")},
 }
 
 
@@ -62,7 +77,8 @@ def _render_signature(fn: Callable) -> str:
     return ", ".join(params)
 
 
-def validate_args(fn: Callable, kwargs: dict) -> str | None:
+def validate_args(fn: Callable, kwargs: dict,
+                  op: tuple[str, str] | None = None) -> str | None:
     """Return a human-readable problem, or None if the call is well formed."""
     import inspect
 
@@ -81,7 +97,8 @@ def validate_args(fn: Callable, kwargs: dict) -> str | None:
     if missing:
         return f"missing required argument(s) {missing}; accepts ({_render_signature(fn)})"
 
-    for key, allowed in ENUMS.items():
+    checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
+    for key, allowed in checks.items():
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:
             return f"{key}={kwargs[key]!r} is not one of {list(allowed)}"
 
@@ -180,7 +197,7 @@ class Sandbox:
         artefact, fn = dotted.split(".", 1)
         target = getattr(self[artefact], fn)
 
-        problem = validate_args(target, kwargs)
+        problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)))
         if problem:
             raise ArgumentError(f"{dotted}: {problem}")
 
@@ -190,6 +207,11 @@ class Sandbox:
 def _verb_to_attr(verb: str) -> str:
     """`set approval` -> `set_approval`. Graph verbs are prose; Python is not."""
     return verb.replace(" ", "_").replace("-", "_")
+
+
+def _attr_to_verb(attr: str) -> str:
+    """Back the other way, so per-operation rules can be keyed by graph verb."""
+    return attr.replace("_", " ")
 
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",

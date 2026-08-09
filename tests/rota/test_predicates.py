@@ -61,7 +61,7 @@ def test_the_four_dead_ends_are_drained():
     """
     drained = P.drained_states()
     for state in [
-        ("items", "approval", "contested"),          # the requester's rejection
+        ("items", "approval", "contested"),          # the principal's rejection
         ("statements", "status", "contradicted"),    # two statements conflict
         ("verdicts", "result", "pass"),              # nothing merged it
         ("messages", "status", "quarantined"),       # the system gave up, silently
@@ -150,16 +150,21 @@ def test_tests_failing_stops_at_the_cap(db):
 # Declarations are not implementations
 # ---------------------------------------------------------------------------
 
+# `annotate` left this list when `batch_touch` was built — with it, the dynamic
+# table exemption in the lint went too, so there is no longer a way to declare a
+# predicate against a table that does not exist.
 KNOWN_GAPS_CAN_FIRE = {
-    "annotate queries 'batch_touch', which is not in the schema",
     "merge can never return a wake — its body always returns []",
     "merge declares it drains verdicts.'pass' but never queries verdicts",
 }
 
+# `ledger.status = 'resolved'` left this list when resolution became
+# decision-linked: `decisions.author` now stages the close in the same commit,
+# so there is a code path that writes it.
 KNOWN_GAPS_REACHABLE = {
     "batches.status = 'running'", "batches.status = 'deferred'",
     "batches.status = 'merged'", "test_runs.result = 'pass'",
-    "test_runs.result = 'fail'", "ledger.status = 'resolved'",
+    "test_runs.result = 'fail'",
 }
 
 

@@ -25,7 +25,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import graph as graph_mod
+from . import config, graph as graph_mod
 from .db import init_db
 from .scheduler import sweep_checkpoints
 
@@ -132,7 +132,8 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
     return diverged
 
 
-def quarantine_exhausted(conn: sqlite3.Connection, cap: int) -> list[str]:
+def quarantine_exhausted(conn: sqlite3.Connection,
+                         cap: int | None = None) -> list[str]:
     """
     A message past its attempt cap stops being schedulable.
 
@@ -141,6 +142,8 @@ def quarantine_exhausted(conn: sqlite3.Connection, cap: int) -> list[str]:
     exhausted. Without a bound the scheduler wakes the same role with the same
     message forever, and across restarts too.
     """
+    if cap is None:
+        cap = config.get(conn, "message_attempt_cap")
     rows = conn.execute(
         "SELECT id FROM messages WHERE status = 'open' AND attempts >= ?", (cap,)
     ).fetchall()
@@ -151,7 +154,7 @@ def quarantine_exhausted(conn: sqlite3.Connection, cap: int) -> list[str]:
 
 
 def boot(project_root: str | Path, *, kill_processes: bool = True,
-         attempt_cap: int = 10) -> tuple[sqlite3.Connection, BootReport]:
+         attempt_cap: int | None = None) -> tuple[sqlite3.Connection, BootReport]:
     """Run the full sequence and hand back a live connection."""
     report = BootReport()
 

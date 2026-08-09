@@ -22,7 +22,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
-from . import llm
+from . import config, llm
 from .principal import PrincipalBackend, pump
 from .runner import RunOutcome, run_session
 from .scheduler import (
@@ -111,8 +111,22 @@ def step(
     """
     result = Step()
 
+    # Intake lands whether or not the system is dispatching. Recording what the
+    # principal said and hearing their answers costs nothing and revokes
+    # nothing; a stopped system that also stopped listening would just be a
+    # broken one, and the work would be waiting anyway when it resumed.
     if principal is not None:
         result.principal_messages = pump(conn, principal)
+
+    if not config.dispatchable(conn):
+        state = config.get(conn, "run_state")
+        holding = conn.execute("SELECT COUNT(*) n FROM claims").fetchone()["n"]
+        if state == "stopping" and holding:
+            result.note = f"stopping: {holding} session(s) still in flight"
+            return result
+        result.quiescent = True
+        result.note = f"{state}: resume is explicit"
+        return result
 
     ready = frontier(conn, principal_present=principal_present)
     if not ready:
@@ -210,6 +224,10 @@ def _why_idle(conn: sqlite3.Connection) -> str:
     nothing pending is quiescence. They look identical in a log and are entirely
     different situations.
     """
+    state = config.get(conn, "run_state")
+    if state != "running":
+        return f"{state} by the principal; resume is explicit"
+
     waiting = [dict(r) for r in conn.execute(
         "SELECT verb, body_refs FROM messages WHERE status = 'open' AND to_role = 'principal'")]
     if waiting:
