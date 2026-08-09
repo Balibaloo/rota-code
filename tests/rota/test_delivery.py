@@ -244,3 +244,92 @@ def test_the_harness_is_an_action_not_a_wake(db, tmp_path):
     s = loop.step(db, backend=ScriptedBackend([]), pins=Pins(model="scripted"))
     assert s.wake.kind == "do:harness" and s.wake.role == ""
     assert "1 test(s), 0 not passing" in s.note
+
+
+# ---------------------------------------------------------------------------
+# Exhaustion escalates, never abandons
+# ---------------------------------------------------------------------------
+
+def exhaust(conn, attempt=None):
+    """Push the batch past loop_cap."""
+    cap = attempt or config.get(conn, "loop_cap")
+    add_test(conn, "tst_no", "test_no.py", FAILS)
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) "
+                 "VALUES ('r1','b1','tst_no','fail',?)", (cap,))
+
+
+def test_below_the_cap_it_bounces(db):
+    committed(db)
+    exhaust(db, attempt=2)
+    kinds = {w.kind for w in frontier(db)}
+    assert "tick:tests_failing" in kinds
+    assert "tick:exhausted" not in kinds
+
+
+def test_at_the_cap_it_escalates_rather_than_going_quiet(db):
+    """
+    `tests_failing` stops firing above the cap, which on its own is abandonment
+    wearing the clothes of a budget: the work is undone, nothing fires, and the
+    system reports itself quiescent.
+    """
+    committed(db)
+    exhaust(db)
+
+    kinds = {w.kind for w in frontier(db)}
+    assert "tick:tests_failing" not in kinds, "it should have stopped bouncing"
+    assert "tick:exhausted" in kinds, "and it went quiet instead of escalating"
+
+
+def test_the_ladder_climbs_one_rung_at_a_time(db):
+    """
+    The usual reason a loop exhausts itself is not knowing who to ask, so
+    handing it straight to the principal skips the two people who could have
+    answered it.
+    """
+    committed(db)
+    exhaust(db)
+
+    def waiting_on():
+        return [w.role for w in frontier(db) if w.kind == "tick:exhausted"]
+
+    assert waiting_on() == ["developer"]
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m1','t1','developer','architect','escalate','[\"b1\"]',1)")
+    assert waiting_on() == ["architect"]
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m2','t1','architect','gatekeeper','challenge','[\"b1\"]',2)")
+    assert waiting_on() == ["gatekeeper"]
+
+
+def test_the_ladder_stops_at_gatekeeper(db):
+    """
+    Above Gatekeeper is the principal, and nothing wakes a person. Reaching them
+    is Liaison's `report`, sent by Gatekeeper's own session.
+    """
+    committed(db)
+    exhaust(db)
+    for i, (frm, to, verb) in enumerate([
+            ("developer", "architect", "escalate"),
+            ("architect", "gatekeeper", "challenge"),
+            ("gatekeeper", "liaison", "report")], start=1):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, seq) VALUES (?,'t1',?,?,?,'[\"b1\"]',?)",
+                   (f"m{i}", frm, to, verb, i))
+
+    assert not [w for w in frontier(db) if w.kind == "tick:exhausted"]
+
+
+def test_the_cap_is_the_principals(db):
+    """Raising loop_cap buys more bounces before the escalation, which is the
+    whole point of it being a setting."""
+    committed(db)
+    exhaust(db, attempt=10)
+    assert [w for w in frontier(db) if w.kind == "tick:exhausted"]
+
+    config.set(db, "loop_cap", 40)
+    assert not [w for w in frontier(db) if w.kind == "tick:exhausted"]
+    assert [w for w in frontier(db) if w.kind == "tick:tests_failing"]

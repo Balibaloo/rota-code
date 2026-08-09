@@ -351,6 +351,63 @@ def tests_failing(conn) -> list[Wake]:
             for r in rows if (r["att"] or 1) < cap]
 
 
+# Law 6's ladder, and the only place it is written down as a sequence. Each rung
+# is a role that can be *asked*, in the order a question climbs.
+LADDER = ("developer", "architect", "gatekeeper")
+
+
+@predicate("exhausted", wakes=DERIVED, band="fix",
+           drains=[("test_runs", "result", "fail")])
+def exhausted(conn) -> list[Wake]:
+    """
+    A batch that hit `loop_cap` and stopped bouncing.
+
+    `tests_failing` goes quiet above the cap, which on its own is abandonment
+    wearing the clothes of a budget: the work is still undone, nothing fires,
+    and the system reports itself quiescent. Exhaustion escalates instead.
+
+    One rung at a time, because the usual *reason* a loop exhausts itself is not
+    knowing who to ask — and handing it straight to the principal skips the two
+    people who could have answered it. The rung is derived from what has already
+    been sent about this batch rather than stored, so it cannot drift out of step
+    with the messages that are the actual escalation.
+    """
+    from . import config
+
+    cap = config.get(conn, "loop_cap")
+    rows = conn.execute(
+        "SELECT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
+        "WHERE result IN ('fail','error') GROUP BY batch_id"
+    ).fetchall()
+
+    wakes = []
+    for r in rows:
+        if (r["att"] or 1) < cap:
+            continue                       # still bouncing; tests_failing has it
+        role = _next_rung(conn, r["bid"])
+        if role:
+            wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
+                              detail=f"attempt {r['att']} of {cap}"))
+    return wakes
+
+
+def _next_rung(conn, batch_id: str) -> str:
+    """
+    Who has not yet been asked about this batch.
+
+    Empty once it has reached Gatekeeper, who is the last rung that can be woken
+    — above that is the principal, and reaching them is Liaison's `report`, which
+    Gatekeeper's own session sends. Nothing wakes a person.
+    """
+    sent = {r["from_role"] for r in conn.execute(
+        "SELECT DISTINCT from_role FROM messages WHERE body_refs LIKE ?",
+        (f"%{batch_id}%",))}
+    for role in LADDER:
+        if role not in sent:
+            return role
+    return ""
+
+
 @predicate("review", wakes="critic", band="gate")
 def review(conn) -> list[Wake]:
     """A batch with a committed diff and a green harness, not yet judged.

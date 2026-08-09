@@ -162,23 +162,38 @@ looks like, not a weak one.
 - [x] **5.3** `check_predicates_can_fire()` — declarations are not implementations
 - [x] **5.4** `check_states_are_reachable()` — a state nothing writes is a state
       nothing can be in
-- [ ] **5.5** **Wire the predicates into `loop.py`** — declared and tested, not
-      yet dispatched
-- [ ] **5.6** **Build the six unreachable states' writers**:
-      `batches.status` running/deferred/merged · `test_runs` results ·
-      `ledger.status = resolved`
-- [ ] **5.7** `batch_touch` table, so `annotate` can fire
-- [ ] **5.8** `merge` implemented (currently `return []`)
-- [ ] **5.9** **Predicate priority: fix-before-start.** Failed verdicts and
-      failing tests outrank new batches. One thing at a time
-- [ ] **5.10** **Retry exhaustion escalates, never abandons** — climbing law 6's
-      ladder one rung at a time (Architect → Gatekeeper → principal), because the
-      usual *reason* for exhaustion is not knowing who to ask
-- [ ] **5.11** Split `Predicate` — waking a role and "the scheduler should act"
-      are different types; flattening them is why `wakes` drifted twice
-- [ ] **5.12** **Per-batch `annotate` mode** for Architect, separate from
+- [x] **5.5** **Wire the predicates into `loop.py`** — all 21, and `frontier()`
+      is now one call instead of `open_tips(...) + predicate_wakes(...)`. That
+      union was the frontier stated twice, with the tips half invisible to every
+      check written against the other
+- [x] **5.6** **Build the unreachable states' writers** — `rota/lifecycle.py` is
+      the single writer of batch runtime state, and `rota/harness.py` records
+      what the tests said. `ledger.status = resolved` was closed by §4.9
+- [x] **5.7** `batch_touch` table, so `annotate` can fire — and the dynamic-table
+      exemption in the lint went with it
+- [x] **5.8** `merge` implemented. `lifecycle.mergeable` returns the *reason* a
+      batch cannot merge rather than a boolean, so a finished-looking batch that
+      is stuck says why
+- [x] **5.9** **Predicate priority: fix-before-start**, as four bands —
+      `traffic` (already in flight) · `fix` · `gate` · `start`
+- [x] **5.10** **Retry exhaustion escalates, never abandons** — the `exhausted`
+      predicate. `tests_failing` going quiet above the cap was abandonment
+      wearing the clothes of a budget: work undone, nothing firing, the system
+      reporting itself quiescent. The rung is *derived* from what has already
+      been sent about the batch rather than stored, so it cannot drift out of
+      step with the messages that are the escalation. It stops at Gatekeeper —
+      above that is the principal, and nothing wakes a person
+- [x] **5.11** Split `Predicate` — `DERIVED` and `SCHEDULER` sentinels. `wakes=""`
+      meant both "computed per row" and "no role at all", so the lint could not
+      tell a typo from a deliberate blank
+- [x] **5.12** **Per-batch `annotate` mode** for Architect, separate from
       `group`: grouping is cheap and index-only, annotating reads source, and one
       session across all batches would exhaust the context that makes it useful
+
+**Verify:** `python -m rota.predicates` — 21 predicates, four lints, **no
+problems**. The delivery loop runs end to end in `tests/rota/test_delivery.py`
+with no model in it at all; if any step there had needed one, the design would
+be wrong.
 
 ---
 
