@@ -226,8 +226,19 @@ def test_understanding_loop_live(db):
                      client=client, max_steps=14)
     print("\n" + trace.render())
 
-    assert db.execute("SELECT COUNT(*) n FROM utterances").fetchone()["n"] == 1, \
-        "a role authored client speech"
+    # More than one utterance is legitimate — the client answers questions. A
+    # role *authoring* one is not, and that is the thing worth asserting.
+    # Interface has no callable transcript write at all now; this is the
+    # end-to-end proof of it.
+    authors = {r["author"] for r in db.execute("SELECT DISTINCT author FROM utterances")}
+    assert authors <= {"client"}, f"a role authored client speech: {authors}"
+
     assert db.execute(
         "SELECT COUNT(*) n FROM statements").fetchone()["n"] >= 1, "no segmentation"
     assert trace.committed >= 2, f"too little happened:\n{trace.render()}"
+
+    # The loop must settle rather than spin. Today it does not: Interface
+    # re-clarifies without limit because the client-touch cap is not built. That
+    # cap is a real design law (2 consecutive non-closing touches per blocker in
+    # steady state), and this assertion is the thing that will hold it honest.
+    assert trace.stuck is None, f"livelocked: {trace.stuck}"
