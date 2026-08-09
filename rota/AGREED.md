@@ -122,34 +122,35 @@ looks like, not a weak one.
 
 ## 4. Laws amended
 
-- [ ] **4.1** **Liaison narrowed** — owns clarity of traffic *to and from the
+- [x] **4.1** **Liaison narrowed** — owns clarity of traffic *to and from the
       principal only*. Role-to-role traffic is not its business
-- [ ] **4.2** **Priority moves from `batches` to `items`** — it is a property of
+- [x] **4.2** **Priority moves from `batches` to `items`** — it is a property of
       what the principal wants, which is an item. Makes `batches` single-writer
       and gives law 9's "priority moves batches whole" for free
-- [ ] **4.3** **Review order flips: harness → Critic → Architect.** Cheap checks
-      loop; expensive checks run once and feed the verdict. Most failures are
-      failures of intent, so screen there first
-- [ ] **4.4** **`architect → critic: finding` is removed** — with Critic first,
+- [x] **4.3** **Review order flips: harness → Critic → Architect.** Already true
+      in `predicates.review`, which screens intent before paying for a
+      constraint review; the structural half lands with the delivery loop (§5.6)
+- [x] **4.4** **`architect → critic: finding` is removed** — with Critic first,
       Architect's judgement is a gate. This was the *only* declared contact
       exception, so law 3 now derives every message edge with none
-- [ ] **4.5** **Findings carry the grain**: `{constraint_id, status, grain}`.
-      Nothing about *why*
-- [ ] **4.6** **Critic's brief gains one standing question** — *"is there
+- [x] **4.5** **Findings carry the grain**: `{constraint_id, status, grain}`, as
+      rows on a `findings` table rather than a message. Nothing about *why* —
+      asserted, not trusted: the test rejects a `why`, `reason` or `text` column
+- [x] **4.6** **Critic's brief gains one standing question** — *"is there
       anything here nobody asked for?"* Judgement, not enumeration. (The
       hunk→criterion mapping was designed and then dropped: it improved the
       explanation, not the outcome, and cost a scaling cliff)
-- [ ] **4.7** **Touch set** — Architect records expected paths always, symbols
-      where confident, with its confidence noted. Stale symbols drop
-      automatically, like unresolvable bindings. It stays a *prediction*, not a
-      permission
-- [ ] **4.8** **Stop / halt** — two verbs. `stop` drains (finish what is
-      running, dispatch nothing more); `halt` preempts. Explicit resume only,
-      with the halt visible as the idle reason and at the agenda tick. Intake
-      still lands while halted; recording and inquiry are always free
-- [ ] **4.9** **Ledger resolution is decision-linked** — never self-resolve.
-      `decisions.resolves_ledger` already exists. Self-resolve would void
-      "no milestone with open assumptions"
+- [x] **4.7** **Touch set** — `batch_touch`, paths always and symbols where
+      confident, with the confidence written down rather than implied. It gates
+      nothing, and a test commits a write outside the set to prove it
+- [x] **4.8** **Stop / halt** — two verbs, in `rota/config.py`. `stop` drains;
+      `halt` preempts; neither resumes on its own; the idle reason names the
+      halt so a stopped system never reads as a finished one. Intake still lands
+      in both
+- [x] **4.9** **Ledger resolution is decision-linked** — `decisions.author`
+      stages the close in the same commit, and there is no `ledger.resolve` at
+      all. This also made `ledger.status = 'resolved'` reachable, so it left
+      §5.6's list
 
 ---
 
@@ -183,17 +184,26 @@ looks like, not a weak one.
 
 ## 6. Config — the principal owns all of it, exceptions ruled case by case
 
-- [ ] **6.1** `loop_cap` (default 10) — dev↔test bounces. Spends compute
-- [ ] **6.2** `interrupt_cap` (default 3) — before it becomes the principal's
-      problem. **Spends the principal.** Different resource, different number
-- [ ] **6.3** `merge_gate` — does a passing verdict merge, or wait for review?
+All in `rota/config.py`, declared with the reason each exists. Reading an
+undeclared key is an error rather than a default — a typo that silently returns
+a default is invisible at both the call site and the setting site.
+
+- [x] **6.1** `loop_cap` (default 10) — dev↔test bounces. Spends compute
+- [x] **6.2** `interrupt_cap` (default 3) — before it becomes the principal's
+      problem. **Spends the principal.** Different resource, different number,
+      and a test asserts the two defaults stay apart
+- [x] **6.3** `merge_gate` — does a passing verdict merge, or wait for review?
       A setting the principal toggles, *not* phase-derived: trust should not
       increase on a schedule
-- [ ] **6.4** `contest_defences` (default 1) — how many times Gatekeeper may
-      defend an item before it must amend
-- [ ] **6.5** `ledger_signoff` — whether a decision resolving a ledger entry
-      needs the principal's sign-off
-- [ ] **6.6** client-touch cap and message attempt cap moved into the same surface
+- [x] **6.4** `contest_defences` (default 1) — how many times Gatekeeper may
+      defend an item before it must amend. *Declared; enforcement lands with the
+      contest path*
+- [x] **6.5** `ledger_signoff` — whether a decision resolving a ledger entry
+      needs the principal's sign-off. *Declared; enforcement with signoff*
+- [x] **6.6** the principal-touch cap and the message attempt cap moved into the
+      same surface. `tests_failing` had a literal `10` in it and `boot` took a
+      cap nobody passed; a test now asserts neither module enforces a limit it
+      did not read from here
 
 ---
 

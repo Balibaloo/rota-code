@@ -266,16 +266,32 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
 
 
 def predicate_wakes(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
-    wakes: list[Wake] = []
-    for tick in TICKS:
-        wakes.extend(tick(conn))
-    wakes.extend(tick_agenda(conn, principal_present))
-    return wakes
+    """
+    Every predicate except the message tips, for callers that want the second
+    half on its own. The registry is the definition; `TICKS` above is the set of
+    query bodies several of them delegate to.
+    """
+    from .predicates import REGISTRY, all_wakes
+
+    tips = {id(REGISTRY["message_tips"])}
+    return [w for p, w in (
+        (p, w) for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name))
+        if id(p) not in tips and (principal_present or not p.needs_principal)
+        for w in p.fn(conn))]
 
 
 def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
-    """The ready queue: open message tips ∪ fired predicates."""
-    return open_tips(conn) + predicate_wakes(conn, principal_present)
+    """
+    The ready queue.
+
+    It used to be `open_tips(conn) + predicate_wakes(...)`, which stated the
+    frontier in two places — and the tips half was invisible to every check
+    written against the predicate half. Open tips are a predicate now, so this
+    is one call, ordered fix-before-start.
+    """
+    from .predicates import all_wakes
+
+    return all_wakes(conn, principal_present=principal_present)
 
 
 def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:

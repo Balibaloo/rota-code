@@ -245,7 +245,9 @@ def test_arc_quiescence_means_no_predicate_fires(db):
         db.execute("UPDATE messages SET status='answered' WHERE id=?", (tips[0].message_id,))
 
     remaining = predicate_wakes(db)
-    # A batch that is still pending legitimately keeps batch_start firing; every
-    # *other* predicate must be silent.
-    unexpected = [w for w in remaining if w.kind != "tick:batch_start"]
+    # A batch that is still pending legitimately keeps two predicates firing:
+    # it has not started, and it has no expected touch set yet. Both are real
+    # residual work. Every *other* predicate must be silent.
+    pending_batch = {"tick:batch_start", "tick:annotate"}
+    unexpected = [w for w in remaining if w.kind not in pending_batch]
     assert not unexpected, f"work left undone at quiescence: {unexpected}"

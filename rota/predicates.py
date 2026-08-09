@@ -32,22 +32,53 @@ from .scheduler import Wake
 SCHEMA = Path(__file__).resolve().parent / "schema.sql"
 
 
+# What a predicate does when it fires. `wakes` was a role id or the empty string,
+# and the empty string was carrying two unrelated meanings — "the role is
+# computed per row" and "no role at all, the scheduler acts". That flattening is
+# why the field drifted twice: a lint checking it could not tell a typo from a
+# deliberate blank.
+DERIVED = "*"        # the wake's role comes from the rows, not the declaration
+SCHEDULER = "-"      # no role: the scheduler does this itself
+
+# When a predicate fires, relative to the others. Lower goes first.
+#
+# Fix before start. A failed verdict and a failing test outrank a new batch,
+# because a system that starts new work while old work is broken accumulates
+# both. One thing at a time is not a scheduling nicety here — every role is
+# single-instance, so starting something new is *how* the fix gets starved.
+ORDER = {
+    "traffic": 0,    # a message already in flight; someone is waiting
+    "fix":    10,    # something is wrong and known
+    "gate":   20,    # work finished, awaiting judgement
+    "start":  30,    # new work
+}
+
+
 @dataclass(frozen=True)
 class Predicate:
     name: str
-    wakes: str                      # role id, or "" for a scheduler action
+    wakes: str                      # a role id, or DERIVED, or SCHEDULER
     drains: tuple[tuple[str, str, str], ...]   # (table, column, value)
     fn: Callable[[sqlite3.Connection], list[Wake]]
     why: str = ""
+    band: str = "start"
+    needs_principal: bool = False   # only meaningful while they are here
+
+    @property
+    def order(self) -> int:
+        return ORDER[self.band]
 
 
 REGISTRY: dict[str, Predicate] = {}
 
 
-def predicate(name: str, wakes: str, drains: tuple = (), why: str = ""):
+def predicate(name: str, wakes: str, drains: tuple = (), why: str = "",
+              band: str = "start", needs_principal: bool = False):
     def deco(fn):
-        REGISTRY[name] = Predicate(name=name, wakes=wakes, drains=tuple(drains),
-                                   fn=fn, why=why or (fn.__doc__ or "").strip())
+        REGISTRY[name] = Predicate(
+            name=name, wakes=wakes, drains=tuple(drains), fn=fn,
+            why=why or (fn.__doc__ or "").strip(),
+            band=band, needs_principal=needs_principal)
         return fn
     return deco
 
@@ -112,7 +143,8 @@ TERMINAL: dict[tuple[str, str, str], str] = {
 # "every predicate", and one of them happens to be a message query.
 # ---------------------------------------------------------------------------
 
-@predicate("message_tips", wakes="", drains=[("messages", "status", "open")])
+@predicate("message_tips", wakes=DERIVED, band="traffic",
+           drains=[("messages", "status", "open")])
 def message_tips(conn) -> list[Wake]:
     """Messages awaiting a session. Messages to the principal are excluded — they
     are a gate, and the principal is not schedulable."""
@@ -124,7 +156,7 @@ def message_tips(conn) -> list[Wake]:
 # Understanding loop — these existed, now declared
 # ---------------------------------------------------------------------------
 
-@predicate("awaiting_confirm", wakes="liaison",
+@predicate("awaiting_confirm", wakes="liaison", band="gate",
            drains=[("statements", "status", "proposed")])
 def awaiting_confirm(conn) -> list[Wake]:
     """A proposed statement with no confirm outstanding: ratification has stalled.
@@ -147,7 +179,7 @@ def awaiting_confirm(conn) -> list[Wake]:
                  refs=tuple(r["id"] for r in rows))]
 
 
-@predicate("contradiction", wakes="liaison",
+@predicate("contradiction", wakes="liaison", band="fix",
            drains=[("statements", "status", "contradicted")])
 def contradiction(conn) -> list[Wake]:
     """Two statements conflict. Only the principal can say which stands, so this
@@ -163,7 +195,7 @@ def contradiction(conn) -> list[Wake]:
         Wake("liaison", "tick:contradiction", refs=tuple(r["id"] for r in rows))]
 
 
-@predicate("contested", wakes="gatekeeper",
+@predicate("contested", wakes="gatekeeper", band="fix",
            drains=[("items", "approval", "contested")])
 def contested(conn) -> list[Wake]:
     """The principal rejected an item.
@@ -175,35 +207,36 @@ def contested(conn) -> list[Wake]:
     return [Wake("gatekeeper", "tick:contested", refs=(r["id"],)) for r in rows]
 
 
-@predicate("signoff", wakes="gatekeeper", drains=[("items", "approval", "draft")])
+@predicate("signoff", wakes="gatekeeper", band="gate",
+           drains=[("items", "approval", "draft")])
 def signoff(conn) -> list[Wake]:
     """Draft items with no gate open: submit them for approval, together."""
     from .scheduler import tick_signoff
     return tick_signoff(conn)
 
 
-@predicate("round_close", wakes="liaison")
+@predicate("round_close", wakes="liaison", band="gate")
 def round_close(conn) -> list[Wake]:
     """A broadcast's subtree has terminated: harvest the reports."""
     from .scheduler import tick_round_close
     return tick_round_close(conn)
 
 
-@predicate("slicing", wakes="gatekeeper")
+@predicate("slicing", wakes="gatekeeper", band="start")
 def slicing(conn) -> list[Wake]:
     """An approved item with no tickets."""
     from .scheduler import tick_slicing
     return tick_slicing(conn)
 
 
-@predicate("criteria", wakes="terminologist")
+@predicate("criteria", wakes="terminologist", band="start")
 def criteria(conn) -> list[Wake]:
     """Tickets with no criteria, per item."""
     from .scheduler import tick_criteria
     return tick_criteria(conn)
 
 
-@predicate("observed_entries", wakes="liaison",
+@predicate("observed_entries", wakes="liaison", band="start",
            drains=[("glossary_terms", "provenance", "observed"),
                    ("constraints", "provenance", "observed"),
                    ("items", "provenance", "observed")])
@@ -234,7 +267,7 @@ def observed_entries(conn) -> list[Wake]:
 # Delivery loop — one predicate existed; these are the rest
 # ---------------------------------------------------------------------------
 
-@predicate("tests_missing", wakes="tester")
+@predicate("tests_missing", wakes="tester", band="start")
 def tests_missing(conn) -> list[Wake]:
     """Criteria for a batch with no tests. Tester needs only criteria, so it can
     run as soon as they exist — it does not wait for the Developer."""
@@ -246,7 +279,7 @@ def tests_missing(conn) -> list[Wake]:
     return [Wake("tester", "tick:tests_missing", refs=(r["bid"],)) for r in rows]
 
 
-@predicate("annotate", wakes="architect")
+@predicate("annotate", wakes="architect", band="start")
 def annotate(conn) -> list[Wake]:
     """
     A batch with no expected touch set.
@@ -263,7 +296,7 @@ def annotate(conn) -> list[Wake]:
     return [Wake("architect", "tick:annotate", refs=(r["id"],)) for r in rows]
 
 
-@predicate("batch_start", wakes="developer",
+@predicate("batch_start", wakes="developer", band="start",
            drains=[("batches", "status", "pending"),
                    ("batches", "status", "deferred")])
 def batch_start(conn) -> list[Wake]:
@@ -272,7 +305,7 @@ def batch_start(conn) -> list[Wake]:
     return tick_batch_start(conn)
 
 
-@predicate("tests_failing", wakes="developer",
+@predicate("tests_failing", wakes="developer", band="fix",
            drains=[("test_runs", "result", "fail"), ("test_runs", "result", "error")])
 def tests_failing(conn) -> list[Wake]:
     """A failing test goes straight back, capped. This *is* the cheap loop —
@@ -294,7 +327,7 @@ def tests_failing(conn) -> list[Wake]:
             for r in rows if (r["att"] or 1) < cap]
 
 
-@predicate("review", wakes="critic")
+@predicate("review", wakes="critic", band="gate")
 def review(conn) -> list[Wake]:
     """A batch with a committed diff and a green harness, not yet judged.
 
@@ -310,7 +343,7 @@ def review(conn) -> list[Wake]:
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 
 
-@predicate("structural_review", wakes="architect")
+@predicate("structural_review", wakes="architect", band="gate")
 def structural_review(conn) -> list[Wake]:
     """A diff whose grains intersect constraint bindings, after intent passed.
 
@@ -325,7 +358,7 @@ def structural_review(conn) -> list[Wake]:
             for r in rows]
 
 
-@predicate("verdict_failed", wakes="developer",
+@predicate("verdict_failed", wakes="developer", band="fix",
            drains=[("verdicts", "result", "fail")])
 def verdict_failed(conn) -> list[Wake]:
     """A failed verdict with no newer commit: the Developer has not answered it."""
@@ -336,7 +369,8 @@ def verdict_failed(conn) -> list[Wake]:
     return [Wake("developer", "tick:verdict_failed", refs=(r["bid"],)) for r in rows]
 
 
-@predicate("merge", wakes="", drains=[("verdicts", "result", "pass")])
+@predicate("merge", wakes=SCHEDULER, band="gate",
+           drains=[("verdicts", "result", "pass")])
 def merge(conn) -> list[Wake]:
     """
     A batch that passed review and was never merged.
@@ -352,7 +386,7 @@ def merge(conn) -> list[Wake]:
 # Runtime
 # ---------------------------------------------------------------------------
 
-@predicate("checkpoint_invalid", wakes="")
+@predicate("checkpoint_invalid", wakes=DERIVED, band="fix")
 def checkpoint_invalid(conn) -> list[Wake]:
     """An invalidated checkpoint: the suspended role must restart cold. Boot
     sweeps these; nothing did at runtime, so a mid-run invalidation stranded the
@@ -363,7 +397,7 @@ def checkpoint_invalid(conn) -> list[Wake]:
             for r in rows]
 
 
-@predicate("quarantined", wakes="liaison",
+@predicate("quarantined", wakes="liaison", band="fix",
            drains=[("messages", "status", "quarantined")])
 def quarantined(conn) -> list[Wake]:
     """The system gave up on a message. That is something the principal should be
@@ -373,14 +407,15 @@ def quarantined(conn) -> list[Wake]:
     return [Wake("liaison", "tick:quarantined", detail=f"{n} abandoned")] if n else []
 
 
-@predicate("agenda", wakes="liaison", drains=[("ledger", "status", "open")])
+@predicate("agenda", wakes="liaison", band="gate", needs_principal=True,
+           drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
     """On principal presence, present what is blocked on them."""
     from .scheduler import tick_agenda
     return tick_agenda(conn, principal_present=True)
 
 
-@predicate("survey", wakes="")
+@predicate("survey", wakes=DERIVED, band="start")
 def survey(conn) -> list[Wake]:
     """Onboarding: one elected area at a time, in role order."""
     from .scheduler import tick_survey
@@ -543,30 +578,55 @@ def check_states_are_reachable() -> list[str]:
 def check_predicates_wake_real_roles() -> list[str]:
     from . import graph as graph_mod
 
-    roles = set(graph_mod.load().roles)
+    legal = set(graph_mod.load().roles) | {DERIVED, SCHEDULER}
     return [f"predicate {p.name!r} wakes {p.wakes!r}, which is not a role"
-            for p in REGISTRY.values() if p.wakes and p.wakes not in roles]
+            for p in REGISTRY.values() if p.wakes not in legal]
 
 
-def all_wakes(conn: sqlite3.Connection) -> list[Wake]:
-    """Every predicate, evaluated. The frontier's second half."""
-    out = []
-    for p in REGISTRY.values():
-        try:
-            out.extend(p.fn(conn))
-        except sqlite3.Error:
-            continue                      # a predicate over a table not yet made
+def check_bands_are_declared() -> list[str]:
+    return [f"predicate {p.name!r} is in band {p.band!r}, which has no order"
+            for p in REGISTRY.values() if p.band not in ORDER]
+
+
+def all_wakes(conn: sqlite3.Connection,
+              principal_present: bool = False) -> list[Wake]:
+    """
+    Every predicate, evaluated, in band order.
+
+    This is the whole frontier, not half of it. It used to be "open message tips
+    ∪ the six ticks", which put the definition in two places and left the tips
+    invisible to every check written against the other half. `message_tips` is a
+    predicate now, and the ∪ is gone.
+
+    Errors are not swallowed. The old version caught `sqlite3.Error` and carried
+    on, for predicates over tables that had not been built yet — which meant a
+    predicate silently contributing nothing looked exactly like one correctly
+    finding nothing. The tables exist; a query that fails now is a bug and
+    should say so.
+    """
+    out: list[Wake] = []
+    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name)):
+        if p.needs_principal and not principal_present:
+            continue
+        out.extend(p.fn(conn))
     return out
 
 
 if __name__ == "__main__":
     import sys
 
-    print(f"{len(REGISTRY)} predicates")
-    for name, p in sorted(REGISTRY.items()):
-        target = p.wakes or "(scheduler)"
-        print(f"  {name:22s} -> {target:12s} drains {len(p.drains)}")
+    print(f"{len(REGISTRY)} predicates, in the order they are offered\n")
+    labels = {DERIVED: "(per row)", SCHEDULER: "(scheduler)"}
+    band = None
+    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name)):
+        if p.band != band:
+            band = p.band
+            print(f"  --- {band}")
+        target = labels.get(p.wakes, p.wakes)
+        print(f"  {p.name:22s} -> {target:14s} drains {len(p.drains)}")
+
     issues = (check_terminal_states() + check_predicates_wake_real_roles()
+              + check_bands_are_declared()
               + check_predicates_can_fire() + check_states_are_reachable())
     print()
     if issues:
