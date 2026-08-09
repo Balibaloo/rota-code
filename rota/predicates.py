@@ -279,6 +279,30 @@ def tests_missing(conn) -> list[Wake]:
     return [Wake("tester", "tick:tests_missing", refs=(r["bid"],)) for r in rows]
 
 
+@predicate("harness", wakes=SCHEDULER, band="gate",
+           drains=[("test_runs", "result", "error")])
+def harness(conn) -> list[Wake]:
+    """
+    A batch with tests and a commit, whose tests have not been run against it.
+
+    An action, not a wake: running tests is the one gate with no judgement in it.
+    It is also the first gate, because it is the cheapest — a subprocess against
+    a model call — which is what makes `loop_cap` bounces affordable enough to
+    be the normal way a batch converges rather than a failure path.
+
+    `head_commit` is the guard against re-running: a commit that has already
+    been tested has its results, and the Developer committing again is what asks
+    for another attempt.
+    """
+    rows = conn.execute(
+        "SELECT b.id AS bid FROM batches b "
+        "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+        "  AND b.id IN (SELECT batch_id FROM tests) "
+        "  AND b.id NOT IN (SELECT batch_id FROM test_runs)"
+    ).fetchall()
+    return [Wake("", "do:harness", refs=(r["bid"],)) for r in rows]
+
+
 @predicate("annotate", wakes="architect", band="start")
 def annotate(conn) -> list[Wake]:
     """
@@ -348,11 +372,16 @@ def structural_review(conn) -> list[Wake]:
     """A diff whose grains intersect constraint bindings, after intent passed.
 
     Expensive — it costs a session — so it runs once, late, on work that already
-    satisfies its criteria."""
+    satisfies its criteria.
+
+    *Once*: batches that already carry findings are excluded. Without that it
+    fires forever on every reviewed batch, which is the livelock the loop guard
+    catches — after two wasted sessions, and only if someone reads the trace."""
     rows = conn.execute(
         "SELECT v.batch_id AS bid FROM verdicts v "
         "WHERE v.result = 'pass' AND v.batch_id IN "
-        "  (SELECT id FROM batches WHERE status = 'running')"
+        "  (SELECT id FROM batches WHERE status = 'running') "
+        "  AND v.batch_id NOT IN (SELECT batch_id FROM findings)"
     ).fetchall()
     return [Wake("architect", "tick:structural_review", refs=(r["bid"],))
             for r in rows]
@@ -378,8 +407,21 @@ def merge(conn) -> list[Wake]:
     This was the worst dead end: the delivery loop terminated one step before
     delivering. It wakes nobody — merging is mechanical once the verdict is in,
     the same shape as the harness. The optional principal review gates it.
+
+    An action, not a wake. The role is empty, and the loop performs `do:` wakes
+    itself rather than dispatching a session for them. Declaring `wakes` as
+    SCHEDULER and then returning role wakes would be the same flattening the
+    sentinel exists to prevent.
     """
-    return []
+    from .lifecycle import mergeable
+
+    rows = conn.execute(
+        "SELECT DISTINCT batch_id AS bid FROM verdicts v "
+        "WHERE v.result = 'pass' AND v.batch_id IN "
+        "  (SELECT id FROM batches WHERE status = 'running')"
+    ).fetchall()
+    return [Wake("", "do:merge", refs=(r["bid"],))
+            for r in rows if mergeable(conn, r["bid"]) is None]
 
 
 # ---------------------------------------------------------------------------
@@ -518,6 +560,45 @@ def check_predicates_can_fire() -> list[str]:
     return problems
 
 
+def _parameterised_writes(root: Path) -> set[tuple[str, str]]:
+    """
+    (table, column) pairs written from an argument rather than a literal.
+
+    Most writes are parameterised — the model supplies `approval='approved'` and
+    the sandbox validates it against the column's enum — so there is no literal
+    to grep for. Flagging those would bury the real holes in noise.
+
+    This looked only at `api.py`'s `@op` blocks, which was fine while every
+    write was a role's. `lifecycle.record_test_run` is not: the harness writes
+    a result nobody decided. Walking every function that writes finds both, and
+    removes a special case that would have had to grow one entry per exception.
+    """
+    import ast
+
+    pairs: set[tuple[str, str]] = set()
+    for path in sorted(root.glob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:                      # pragma: no cover
+            continue
+        for fn in (n for n in ast.walk(tree)
+                   if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))):
+            body = ast.get_source_segment(source, fn) or ""
+            args = {a.arg for a in fn.args.args + fn.args.kwonlyargs} - {"conn", "ctx"}
+
+            tables = set(re.findall(r"INSERT (?:OR \w+ )?INTO (\w+)", body))
+            tables |= set(re.findall(r"UPDATE (\w+) SET", body))
+            # api.py stages writes rather than issuing SQL, so its table name is
+            # a tuple element instead of a keyword.
+            tables |= set(re.findall(r"""writes\.append\(\(\s*["'](\w+)["']""", body))
+
+            for table in tables:
+                for arg in args:
+                    pairs.add((table, arg))
+    return pairs
+
+
 def check_states_are_reachable() -> list[str]:
     """
     A state nothing ever writes is a state nothing can be in.
@@ -544,19 +625,7 @@ def check_states_are_reachable() -> list[str]:
             if "UPDATE " in line or "SET " in line or "INSERT INTO" in line)
     defaults = re.findall(r"DEFAULT '([^']+)'", schema)
 
-    # Many writes are *parameterised*: the model supplies `approval='approved'`
-    # and the sandbox validates it against the column's enum. Those are correct
-    # and leave no literal to grep for, so a column is also reachable if some
-    # write function takes it as an argument.
-    api_src = (root / "api.py").read_text(encoding="utf-8")
-    parameterised = set()
-    for block in re.split(r"@op\(", api_src)[1:]:
-        head = block.split(")", 1)[0]
-        artefact = head.split(",")[0].strip().strip("\"'")
-        params = set(re.findall(r"(\w+):\s*\w", block.split("->")[0]))
-        for table in re.findall(r'ctx\.writes\.append\(\(\s*"(\w+)"', block):
-            for prm in params:
-                parameterised.add((table, prm))
+    parameterised = _parameterised_writes(root)
 
     problems = []
     for (table, column), values in schema_states().items():

@@ -150,22 +150,14 @@ def test_tests_failing_stops_at_the_cap(db):
 # Declarations are not implementations
 # ---------------------------------------------------------------------------
 
-# `annotate` left this list when `batch_touch` was built — with it, the dynamic
-# table exemption in the lint went too, so there is no longer a way to declare a
-# predicate against a table that does not exist.
-KNOWN_GAPS_CAN_FIRE = {
-    "merge can never return a wake — its body always returns []",
-    "merge declares it drains verdicts.'pass' but never queries verdicts",
-}
-
-# `ledger.status = 'resolved'` left this list when resolution became
-# decision-linked: `decisions.author` now stages the close in the same commit,
-# so there is a code path that writes it.
-KNOWN_GAPS_REACHABLE = {
-    "batches.status = 'running'", "batches.status = 'deferred'",
-    "batches.status = 'merged'", "test_runs.result = 'pass'",
-    "test_runs.result = 'fail'",
-}
+# Both known-gap lists are empty. They existed while the delivery loop did not:
+# `merge` returned `[]`, `annotate` queried a table nobody had built, and six
+# states were declared with nothing able to write them. Kept as empty sets
+# rather than deleted, because the assertion they carry — *this list may not
+# grow* — is the useful half, and it is easier to see that it is at zero than to
+# notice that a check went missing.
+KNOWN_GAPS_CAN_FIRE: set[str] = set()
+KNOWN_GAPS_REACHABLE: set[str] = set()
 
 
 def test_no_new_predicate_is_unfireable():
@@ -173,9 +165,6 @@ def test_no_new_predicate_is_unfireable():
     `check_terminal_states` reads *declarations*, so it can be satisfied by
     lying — and was: `merge` declared it drained a passing verdict with a body of
     `return []`, in the same commit that claimed to close that dead end.
-
-    The known gaps are listed rather than fixed because they are the unbuilt
-    delivery loop, not mistakes. What this guards is that the list does not grow.
     """
     found = set(P.check_predicates_can_fire())
     assert found <= KNOWN_GAPS_CAN_FIRE, f"new unfireable predicate: {found - KNOWN_GAPS_CAN_FIRE}"
@@ -192,14 +181,22 @@ def test_no_new_unreachable_state():
     assert found <= KNOWN_GAPS_REACHABLE, f"newly unreachable: {found - KNOWN_GAPS_REACHABLE}"
 
 
-def test_the_reachability_check_distinguishes_reads_from_writes():
+def test_the_reachability_check_distinguishes_reads_from_writes(monkeypatch):
     """
     Its first version grepped every file and found 'running' inside a SELECT, so
     it called the state reachable when nothing could set it. Reading a value and
     writing one look identical to a grep unless you say which you mean.
+
+    Nothing is unreachable now, so the case is made rather than observed: a
+    state that appears only in queries must still be reported.
     """
+    monkeypatch.setattr(
+        P, "schema_states",
+        lambda: {("batches", "status"): ["pending", "running", "abandoned"]})
+    monkeypatch.setattr(P, "LIFECYCLE_COLUMNS", {("batches", "status")})
+
     found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
-    assert "batches.status = 'running'" in found
+    assert "batches.status = 'abandoned'" in found, found
 
 
 def test_the_reachability_check_understands_parameterised_writes():

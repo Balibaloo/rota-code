@@ -10,8 +10,9 @@
 --     no dates, durations or deadlines appear anywhere in this file.
 --   * Every state artefact carries a per-row version. artefact_versions carries
 --     the per-table version bumped on each committed write.
---   * Index/body split on glossary_terms and constraints: `full` scope means the
---     full *index* (id + one line), never the full text. Bodies are fetched
+--   * Index/body split on glossary_terms and constraints. An edge's `depth` says
+--     which half it gets: `index` is the id plus one line, `body` is the prose
+--     as well, and almost everything reads at index depth and fetches bodies
 --     singly. This is what keeps an 8k working set viable at any artefact size.
 
 PRAGMA foreign_keys = ON;
@@ -364,6 +365,10 @@ CREATE TABLE IF NOT EXISTS receipts (
 CREATE TABLE IF NOT EXISTS checkpoints (
     session_id   TEXT PRIMARY KEY REFERENCES sessions(id),
     role         TEXT NOT NULL,
+    -- Which batch was suspended. Invalidation on preemption is per *batch* --
+    -- the batch is what got displaced -- and without this the question could
+    -- only be answered by joining back through the session that made it.
+    batch_id     TEXT REFERENCES batches(id),
     working_set  TEXT NOT NULL,              -- [[table, version], ...]
     valid        INTEGER NOT NULL DEFAULT 1
 );

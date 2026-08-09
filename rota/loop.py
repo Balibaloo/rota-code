@@ -22,7 +22,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
-from . import config, llm
+from . import config, lifecycle, llm
 from .principal import PrincipalBackend, pump
 from .runner import RunOutcome, run_session
 from .scheduler import (
@@ -134,6 +134,16 @@ def step(
         result.note = _why_idle(conn)
         return result
 
+    # Actions the scheduler performs itself. They wake nobody, cost no model
+    # call, and unblock role work — so they go before dispatch rather than
+    # queueing behind it.
+    for wake in ready:
+        if wake.kind.startswith("do:"):
+            result.wake = wake
+            result.note = _perform(conn, wake)
+            result.productive = True
+            return result
+
     # Skip roles that already hold a claim: single-instance is a property to
     # respect here, not an error to raise.
     for wake in ready:
@@ -150,6 +160,12 @@ def step(
         return result
 
     batch_id = result.wake.refs[0] if result.wake.kind == "tick:batch_start" else None
+    if batch_id:
+        # The batch is running from the moment it is dispatched, not from
+        # whenever the session gets round to saying so. `batch_start` refuses
+        # while anything is running, so leaving this to the session would let a
+        # second batch start in the gap.
+        lifecycle.start(conn, batch_id)
     try:
         result.outcome = run_session(
             conn, result.wake, backend=backend, pins=pins,
@@ -166,6 +182,31 @@ def step(
         release(conn, result.wake.role)
 
     return result
+
+
+def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
+    """
+    Do what the scheduler said to do.
+
+    These are the predicates that wake nobody. A merge is not a judgement — the
+    verdict already made it, the findings already cleared it — so dispatching a
+    session to press the button would be inventing a decision to have.
+    """
+    action = wake.kind.split(":", 1)[1]
+    if action == "merge":
+        for batch_id in wake.refs:
+            lifecycle.merge(conn, batch_id)
+        return f"merged {', '.join(wake.refs)}"
+    if action == "harness":
+        from . import harness
+
+        done = []
+        for batch_id in wake.refs:
+            results = harness.run(conn, batch_id)
+            failed = sum(1 for _, r in results if r != "pass")
+            done.append(f"{batch_id}: {len(results)} test(s), {failed} not passing")
+        return "; ".join(done)
+    return f"unknown action {action!r}"
 
 
 def run(

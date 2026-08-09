@@ -265,9 +265,11 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
 
         if result.checkpoint is not None:
             conn.execute(
-                "INSERT OR REPLACE INTO checkpoints (session_id, role, working_set, valid) "
-                "VALUES (?, ?, ?, 1)",
+                "INSERT OR REPLACE INTO checkpoints "
+                "(session_id, role, batch_id, working_set, valid) "
+                "VALUES (?, ?, ?, ?, 1)",
                 (result.session_id, result.role,
+                 result.checkpoint.get("batch_id"),
                  json.dumps(result.checkpoint.get("working_set", []))),
             )
         else:
