@@ -81,17 +81,25 @@ async function showRole(id) {
 
   const state = group('STATE', sec('sessions', r.sessions.length, sessions, true));
 
-  const brief = group('BRIEF',
-    sec('base', '', `<pre>${esc(r.base_prompt)}</pre>`, true) +
-    Object.entries(r.modes).map(([m,v])=>sec(
-      `mode · ${m}`, `${v.tools.length} tools`,
-      `<pre>${esc(v.piece)}</pre>
-       <b class="sig">tools in this mode</b>
-       <pre>${v.tools.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>`)).join(''));
+  // Mode first. A mode is the unit a session actually runs in — it decides the
+  // prompt *and* the tools, and the two only make sense read together. Grouping
+  // by artefact kind and listing modes underneath had it backwards.
+  const modes = group('MODES', Object.entries(r.modes).map(([m,v])=>sec(
+      m, `${v.tools.length} tools`,
+      `<b class="sig">tools in this mode</b>
+       <pre>${v.tools.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>
+       <b class="sig">what it is told</b>
+       <pre>${esc(v.piece)}</pre>
+       <details><summary class="sig">full composed prompt</summary>
+         <pre>${esc(v.composed)}</pre></details>`)).join('')
+    || '<div class="empty">no modes — runs on its base alone</div>');
+
+  const brief = group('BASE BRIEF',
+    `<div class="body"><pre>${esc(r.base_prompt)}</pre></div>`);
 
   phead(r.label, `role · woken by ${esc(r.inbound_verbs.join(', ')||'ticks only')}`,
     `<span class="link" onclick="gvInhabit('${id}')">inhabit</span>`);
-  P().innerHTML = `<div class="note">${esc(r.note)}</div>${wiring}${state}${brief}`;
+  P().innerHTML = `<div class="note">${esc(r.note)}</div>${modes}${wiring}${state}${brief}`;
 }
 
 // ---------------------------------------------------------------- artefacts
@@ -192,9 +200,17 @@ async function showBlast(id) {
 // ---------------------------------------------------------------- story subtab
 function buildStoryTab() {
   const el = document.getElementById('storybody');
-  el.innerHTML = `<select id="ststory" style="width:100%;margin-bottom:8px">
+  el.innerHTML = `<select id="ststory" style="width:100%;margin-bottom:6px">
       ${GV.stories.map((s,i)=>`<option value="${i}">${esc(s.name)}</option>`).join('')}
-    </select><div id="ststeps"></div>`;
+    </select>
+    <div class="stnav"><button id="stprev">‹ prev</button>
+      <span class="sig" id="stpos"></span>
+      <button id="stnext">next ›</button></div>
+    <div id="ststeps"></div>`;
+  document.getElementById('stprev').onclick = ()=>{
+    GV.stepIx=Math.max(0,GV.stepIx-1); gvDraw(); syncStoryTab();};
+  document.getElementById('stnext').onclick = ()=>{
+    GV.stepIx=Math.min(gvSteps().length-1,GV.stepIx+1); gvDraw(); syncStoryTab();};
   document.getElementById('ststory').onchange = e=>{
     GV.storyIx=+e.target.value; GV.stepIx=0; GV.source='story';
     document.getElementById('gsrc').value='story'; gvDraw(); syncStoryTab();
@@ -207,6 +223,9 @@ function syncStoryTab() {
               : (GV.stories[GV.storyIx]?.steps||[]);
   const el = document.getElementById('ststeps');
   if (!el) return;
+  const pos = document.getElementById('stpos');
+  if (pos) pos.textContent = steps.length
+    ? `${GV.stepIx+1} / ${steps.length}${GV.source==='run'?' · this run':''}` : '—';
   el.innerHTML = steps.map((s,i)=>`
     <div class="step ${i===GV.stepIx?'on':''}" onclick="jumpStep(${i})">
       <b>${i+1}. ${esc(s.title)}</b>
@@ -237,9 +256,8 @@ function showTab(t){
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   view=b.dataset.view;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
-  ['graph','live','prompts','coverage'].forEach(v=>
+  ['graph','live','coverage'].forEach(v=>
     document.getElementById(v).classList.toggle('on', v===view));
-  if (view==='prompts') loadPrompts();
   if (view==='coverage') loadCoverage();
 });
 
@@ -282,19 +300,6 @@ async function refresh() {
 }
 
 const st_=document.getElementById('state'), tick_=document.getElementById('tick');
-
-async function loadPrompts(){
-  const p = await (await fetch('/prompts.json')).json();
-  document.getElementById('promptbody').innerHTML = Object.entries(p).map(([role,r])=>`
-    <details class="sec"><summary>${esc(role)} — ${r.namespace_size} functions,
-      ${Object.keys(r.modes).length} mode(s)</summary><div class="body">
-      <b>base</b><pre>${esc(r.base)}</pre>
-      ${Object.entries(r.modes).map(([m,v])=>
-        `<b>mode: ${esc(m)}</b><pre>${esc(v.piece)}</pre>`).join('')}
-      <b>advertised working set</b>
-      <pre>${r.signatures.map(s=>'TOOL: '+esc(s)+'<br>').join('')}</pre>
-    </div></details>`).join('');
-}
 
 async function loadCoverage(){
   const c = await (await fetch('/coverage.json')).json();

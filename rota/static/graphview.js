@@ -42,6 +42,91 @@ const SHAPE = {
   derived: {w:172, h:42, rx:4,  fill:'#12161c', stroke:'#2b3340', dash:'2 4'},
 };
 
+// Reference edges route as orthogonal segments, ported from the design viewer.
+// A bezier between two artefacts reads as "these are related somehow"; an elbow
+// that visibly avoids the boxes in between reads as a *structural* relation,
+// which is what a ref is. Channels are chosen so no segment crosses another
+// artefact — the same reason the original did it rather than using taxi routing,
+// which cannot avoid obstacles.
+function refPath(e) {
+  const W = 172, H = 42, M = 18;
+  const boxes = GV.graph.nodes
+    .filter(n => n.type === 'artefact' && GV.layout[n.id])
+    .map(n => ({id:n.id, x1:GV.layout[n.id].x-W/2-M, x2:GV.layout[n.id].x+W/2+M,
+                y1:GV.layout[n.id].y-H/2-M, y2:GV.layout[n.id].y+H/2+M}));
+  const hitV=(x,ya,yb,skip)=>boxes.some(b=>!skip.includes(b.id)&&
+    x>b.x1&&x<b.x2&&Math.max(ya,yb)>b.y1&&Math.min(ya,yb)<b.y2);
+  const hitH=(y,xa,xb,skip)=>boxes.some(b=>!skip.includes(b.id)&&
+    y>b.y1&&y<b.y2&&Math.max(xa,xb)>b.x1&&Math.min(xa,xb)<b.x2);
+
+  const s0=GV.layout[e.s], t0=GV.layout[e.t];
+  if (!s0||!t0) return null;
+  const skip=[e.s,e.t], cand=[];
+  const mids=a=>a.slice(1).map((v,i)=>(v+a[i])/2);
+  const colCh=mids([...new Set(boxes.map(b=>(b.x1+b.x2)/2))].sort((a,b)=>a-b));
+  const rowCh=mids([...new Set(boxes.map(b=>(b.y1+b.y2)/2))].sort((a,b)=>a-b));
+
+  [...colCh,(s0.x+t0.x)/2].forEach(xm=>{
+    if (xm<=Math.min(s0.x,t0.x)+10||xm>=Math.max(s0.x,t0.x)-10) return;
+    cand.push({o:'h', ch:xm, pref:Math.abs(xm-(s0.x+t0.x)/2),
+      cost:(hitH(s0.y,s0.x,xm,skip)?1:0)+(hitV(xm,s0.y,t0.y,skip)?1:0)+(hitH(t0.y,xm,t0.x,skip)?1:0)});
+  });
+  [...rowCh,(s0.y+t0.y)/2].forEach(ym=>{
+    if (ym<=Math.min(s0.y,t0.y)+10||ym>=Math.max(s0.y,t0.y)-10) return;
+    cand.push({o:'v', ch:ym, pref:Math.abs(ym-(s0.y+t0.y)/2)+5,
+      cost:(hitV(s0.x,s0.y,ym,skip)?1:0)+(hitH(ym,s0.x,t0.x,skip)?1:0)+(hitV(t0.x,ym,t0.y,skip)?1:0)});
+  });
+  if (Math.abs(s0.y-t0.y)<6) cand.push({o:'s',ch:0,pref:-1,cost:hitH(s0.y,s0.x,t0.x,skip)?1:0});
+  if (Math.abs(s0.x-t0.x)<6) cand.push({o:'sv',ch:0,pref:-1,cost:hitV(s0.x,s0.y,t0.y,skip)?1:0});
+  cand.sort((a,b)=>a.cost-b.cost||a.pref-b.pref);
+  const best=cand[0]||{o:'h',ch:(s0.x+t0.x)/2};
+
+  const horiz = best.o==='h'||best.o==='s';
+  const sf = horiz ? (t0.x>s0.x?'right':'left') : (t0.y>s0.y?'bottom':'top');
+  const tf = horiz ? (t0.x>s0.x?'left':'right')  : (t0.y>s0.y?'top':'bottom');
+  const off = GV.refOffset[`${e.s}|${e.t}`] || 0;
+  const anchor=(n,face)=>{
+    const p=GV.layout[n];
+    return face==='left' ?{x:p.x-W/2, y:p.y+off}
+         : face==='right'?{x:p.x+W/2, y:p.y+off}
+         : face==='top'  ?{x:p.x+off, y:p.y-H/2}
+         :                {x:p.x+off, y:p.y+H/2};
+  };
+  const A=anchor(e.s,sf), B=anchor(e.t,tf);
+  const pts = best.o==='h' ? [A,{x:best.ch,y:A.y},{x:best.ch,y:B.y},B]
+            : best.o==='v' ? [A,{x:A.x,y:best.ch},{x:B.x,y:best.ch},B]
+            : [A,B];
+  return {d:'M'+pts.map(p=>`${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L'),
+          mid:pts[Math.floor(pts.length/2)]};
+}
+
+// A multigraph draws several edges between the same pair. Without spreading
+// them they land on one path and only the last is visible — the picture then
+// silently claims a single relationship where there are three.
+function computeSpread() {
+  const pairs = {}, refs = {};
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') { (refs[`${e.s}|${e.t}`] = refs[`${e.s}|${e.t}`] || []).push(e); continue; }
+    const k = [e.s, e.t].sort().join('|');
+    (pairs[k] = pairs[k] || []).push(e);
+  }
+  GV.spread = {};
+  for (const list of Object.values(pairs)) {
+    list.forEach((e, i) => {
+      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] =
+        list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 34;
+    });
+  }
+  GV.refOffset = {};
+  let seen = {};
+  for (const [k, list] of Object.entries(refs)) {
+    list.forEach((e, i) => {
+      const n = list.length;
+      GV.refOffset[k] = n === 1 ? 0 : (i - (n - 1) / 2) * 13;
+    });
+  }
+}
+
 async function gvLoad() {
   const [g,l,st,tr,ms] = await Promise.all([
     fetch('/graph.json').then(r=>r.json()),
@@ -51,7 +136,7 @@ async function gvLoad() {
     fetch('/messages.json').then(r=>r.json()),
   ]);
   GV.graph=g; GV.layout=l; GV.stories=st; GV.trace=tr; GV.msgs=ms;
-  gvControls(); gvFit(); gvDraw(); buildStoryTab();
+  computeSpread(); gvControls(); gvFit(); gvDraw(); buildStoryTab();
 }
 
 const gvSteps = () =>
@@ -160,12 +245,22 @@ function drawTeam() {
     if (GV.focus) op = incident?Math.max(op,.95):.05;
     if (GV.inhabit) op = Math.max(op,.7);
 
-    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dx=b.x-a.x,dy=b.y-a.y;
-    const len=Math.hypot(dx,dy)||1, bow=Math.min(46,len*.13);
-    const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
-    const lx=(a.x+2*cx+b.x)/4, ly=(a.y+2*cy+b.y)/4;
+    let d, lx, ly;
+    if (e.type === 'refs') {
+      const r = refPath(e);
+      if (!r) continue;
+      d = r.d; lx = r.mid.x; ly = r.mid.y;
+    } else {
+      // Spread parallel edges so a multigraph does not collapse onto one path.
+      const off = GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] || 0;
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
+      const len=Math.hypot(dx,dy)||1, bow=Math.min(46,len*.13)+off;
+      const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
+      d = `M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}`;
+      lx=(a.x+2*cx+b.x)/4; ly=(a.y+2*cy+b.y)/4;
+    }
 
-    edges += `<path d="M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}" fill="none"
+    edges += `<path d="${d}" fill="none"
       stroke="${col}" stroke-width="${w}" stroke-dasharray="${st.dash}" opacity="${op}"
       ${st.head?'marker-end="url(#head)"':''} class="gedge"
       data-e="${e.s}|${e.t}|${e.type}|${esc(e.v||'')}"/>`;
@@ -232,32 +327,29 @@ function gvDraw() {
 }
 
 function gvNarrate() {
-  const box=document.getElementById('gnarr');
+  const box=document.getElementById('gstatus');
+  if (!box) return;
   if (GV.mode==='chat') {
     const m=GV.msgs;
-    box.innerHTML=`<b>The conversation</b> <span class="sig">${m.messages.length} message(s),
-      ${Object.keys(m.threads).length} thread(s), ${m.open.length} open. Every
-      message refs its cause; roots are client utterances, gates and ticks.</span>`;
+    box.textContent = `${m.messages.length} messages · ${
+      Object.keys(m.threads).length} threads · ${m.open.length} open`;
     return;
   }
   if (GV.inhabit) {
-    box.innerHTML=`<b>Inhabiting ${esc(GV.inhabit)}</b> <span class="sig">— its
-      entire world. Everything else does not exist to it.</span>
+    box.innerHTML = `inhabiting <b>${esc(GV.inhabit)}</b> ·
       <span class="link" onclick="gvInhabit(null)">release</span>`;
     return;
   }
   if (GV.source==='coverage') {
     const c=GV.trace.coverage;
-    box.innerHTML=`<b>Edge coverage</b> <span class="sig">${c.covered.length}/${
-      c.covered.length+c.missing.length} exercised. Red edges have no test;
-      drawing an edge creates one.</span>`;
+    box.textContent = `${c.covered.length}/${c.covered.length+c.missing.length}
+      edges covered · red has no test`;
     return;
   }
-  const steps=gvSteps(), s=steps[GV.stepIx];
-  box.innerHTML = s
-    ? `<b>${esc(s.title)}</b> <span class="sig">${esc(s.round||'')} · ${GV.stepIx+1}/${steps.length}</span>
-       <p>${esc(s.text||'')}</p>`
-    : '<i class="empty">no steps — run the loop, or pick a story</i>';
+  const steps=gvSteps();
+  box.textContent = steps.length
+    ? `step ${GV.stepIx+1}/${steps.length} — narration in the story tab`
+    : 'no steps yet';
 }
 
 function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);}
@@ -286,6 +378,9 @@ async function saveLayout(){
 }
 
 function gvControls(){
+  // Actions and status only. Everything about *stepping* moved to the story
+  // subtab, which is where the steps themselves live — a control separated from
+  // the thing it controls is how a toolbar stops making sense.
   document.getElementById('gctl').innerHTML=`
     <button data-gmode="team" class="on" onclick="gvMode('team')">team</button>
     <button data-gmode="chat" onclick="gvMode('chat')">chat</button>
@@ -293,13 +388,12 @@ function gvControls(){
     <select id="gsrc"><option value="coverage">coverage</option>
       <option value="story">design stories</option>
       <option value="run">this run</option></select>
-    <button id="gprev">‹</button><button id="gnext">›</button>
+    <span class="sep"></span>
     <button id="gfit">fit</button><button id="gsave">save layout</button>
-    <span class="sig" id="gsaved"></span>`;
+    <span class="sig" id="gstatus"></span>`;
 
-  gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; GV.mode='team'; gvMode('team');};
-  gprev.onclick=()=>{GV.stepIx=Math.max(0,GV.stepIx-1); gvDraw(); syncStoryTab();};
-  gnext.onclick=()=>{GV.stepIx=Math.min(gvSteps().length-1,GV.stepIx+1); gvDraw(); syncStoryTab();};
+  gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; gvMode('team');
+    showTab('story'); syncStoryTab();};
   gfit.onclick=()=>{gvFit(); gvDraw();};
   gsave.onclick=saveLayout;
 

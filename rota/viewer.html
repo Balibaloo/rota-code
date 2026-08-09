@@ -31,9 +31,9 @@
   #gctl{position:absolute;top:10px;left:12px;display:flex;gap:6px;align-items:center;
         background:rgba(14,16,20,.9);padding:6px 8px;border-radius:7px;
         border:1px solid var(--line);z-index:2}
-  #gnarr{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(14,16,20,.94);
-         border:1px solid var(--line);border-radius:7px;padding:9px 12px;max-height:150px;
-         overflow:auto;z-index:2}
+  #gstatus{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stnav{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+  .stnav button{flex:1}
   #gpanel{background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   #ptabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line)}
   #ptabs button.on{color:var(--ink);border-color:var(--accent);background:#18202e}
@@ -97,7 +97,6 @@
   <nav>
     <button class="tab on" data-view="graph">graph</button>
     <button class="tab" data-view="live">live</button>
-    <button class="tab" data-view="prompts">prompts</button>
     <button class="tab" data-view="coverage">coverage</button>
   </nav>
   <span class="muted" id="reload"></span>
@@ -108,7 +107,6 @@
     <div id="gstage">
       <div id="gctl"></div>
       <svg id="gsvg"></svg>
-      <div id="gnarr"></div>
     </div>
     <div id="phandle"></div>
     <div id="gpanel">
@@ -140,10 +138,6 @@
   <section><h2>Claims / checkpoints / ledger</h2><div class="body" id="runtime"></div></section>
   <section><h2>Artefact counts</h2><div class="body counts" id="counts"></div></section>
 </div></main>
-
-<main id="prompts"><div class="grid"><section style="grid-column:1/-1">
-  <h2>System prompts — what a role is actually told</h2>
-  <div class="body" id="promptbody" style="max-height:none"></div></section></div></main>
 
 <main id="coverage"><div class="grid"><section style="grid-column:1/-1">
   <h2>Edge coverage — the graph generates the obligation</h2>
