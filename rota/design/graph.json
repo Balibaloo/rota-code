@@ -1,0 +1,1073 @@
+{
+  "nodes": [
+    {
+      "id": "client",
+      "label": "Client",
+      "type": "client",
+      "note": "Technical. Synchronous. Holds final authority. Optional PR gate."
+    },
+    {
+      "id": "interface",
+      "label": "Interface",
+      "type": "role",
+      "note": "Only role that sees the client. Records and broadcasts; does not interpret. Fields every client message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
+    },
+    {
+      "id": "vision",
+      "label": "Vision",
+      "type": "role",
+      "note": "Identity and scope over time. Owns non-goals, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
+    },
+    {
+      "id": "domain",
+      "label": "Domain",
+      "type": "role",
+      "note": "Terms and business rules. Catches contradictions in the dump."
+    },
+    {
+      "id": "architect",
+      "label": "Architect",
+      "type": "role",
+      "note": "Feasibility and constraints. Groups tickets into batches — a dependency-and-collision judgement that lives in the system model."
+    },
+    {
+      "id": "schedule",
+      "label": "Batch schedule",
+      "type": "artefact",
+      "note": "Order between batches, derived by the scheduler as a topological sort of Architect's declared dependency facts. No dates. Not owned by any role: ordering carries no judgement beyond the deps, so there is nothing for a role to decide. Unsatisfiable deps (a cycle) wake Architect with the conflicting facts.",
+      "owner": "scheduler"
+    },
+    {
+      "id": "developer",
+      "label": "Developer",
+      "type": "role",
+      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Domain, criterion and scope gaps to Vision, constraint conflicts to Architect. Interface is reached only through an owner reporting blocked."
+    },
+    {
+      "id": "critic",
+      "label": "Critic",
+      "type": "role",
+      "note": "Judges diff against intent. Never sees the developer reasoning."
+    },
+    {
+      "id": "transcript",
+      "label": "Transcript",
+      "type": "artefact",
+      "note": "Append-only, verbatim utterances with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.",
+      "contact": false,
+      "contact_why": "verbatim record; read to recover emphasis, never to ask its recorder"
+    },
+    {
+      "id": "brief",
+      "label": "Brief (statements)",
+      "type": "artefact",
+      "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the client, so segmentation can be aggressive."
+    },
+    {
+      "id": "problem",
+      "label": "Problem statement",
+      "type": "artefact",
+      "note": "Scope items and non-goals, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
+    },
+    {
+      "id": "glossary",
+      "label": "Glossary + rules",
+      "type": "artefact",
+      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the client, or observed — extracted from an onboarded codebase and awaiting confirmation."
+    },
+    {
+      "id": "model",
+      "label": "System model",
+      "type": "artefact",
+      "note": "Constraints, and what is buildable here. Each constraint declares bindings — the modules it governs — so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase — found, not chosen). Challenging an observed entry forces its first decision."
+    },
+    {
+      "id": "decisions",
+      "label": "Decision record",
+      "type": "artefact",
+      "note": "Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state — which is why multi-writer is safe here and not on the backlog.",
+      "contact": false,
+      "contact_why": "append-only journal; entries carry authors but are read as evidence"
+    },
+    {
+      "id": "ledger",
+      "label": "Assumption ledger",
+      "type": "artefact",
+      "note": "Any role writes. Becomes the agenda for the next client turn.",
+      "contact": false,
+      "contact_why": "append-only journal; open assumptions are facts to present, not questions"
+    },
+    {
+      "id": "code",
+      "label": "Codebase + diffs",
+      "type": "artefact",
+      "note": "One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch’s runtime whole — processes and ports die with it, half-dead environments forbidden — while the worktree and its commits persist as deferred work (commit-first bounds the loss).",
+      "contact": false,
+      "contact_why": "self-describing; a question about the codebase is answered by probing it"
+    },
+    {
+      "id": "verdicts",
+      "label": "Review verdicts",
+      "type": "artefact",
+      "note": "Pass, or the criterion that failed."
+    },
+    {
+      "id": "tester",
+      "label": "Tester",
+      "type": "role",
+      "note": "Writes executable tests from criteria, before the Developer's diff exists and without ever seeing it. Its isolation is temporal, not informational: Critic can read everything Tester reads, so the only thing that makes these tests intent rather than description is that they were written first. Do not merge this role into Critic."
+    },
+    {
+      "id": "tests",
+      "label": "Test suite",
+      "type": "artefact",
+      "note": "Criteria made executable. Machine-ratified intent: outranks all prose in the repo as evidence. One suite per batch, refs the criteria it encodes."
+    },
+    {
+      "id": "tickets",
+      "label": "Tickets",
+      "type": "artefact",
+      "note": "Sliced by Vision from approved items. One writer. Tickets (Vision), criteria (Domain), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+    },
+    {
+      "id": "criteria",
+      "label": "Criteria",
+      "type": "artefact",
+      "note": "Written by Domain in glossary terms, one set per ticket. One writer."
+    },
+    {
+      "id": "batches",
+      "label": "Batches",
+      "type": "artefact",
+      "note": "Ticket groups formed by Architect on collision judgement. Complete feature sets, immutable once formed: priority moves them whole, and only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+    }
+  ],
+  "edges": [
+    {
+      "s": "interface",
+      "t": "transcript",
+      "type": "writes",
+      "v": "append",
+      "n": "utterance",
+      "a": "single"
+    },
+    {
+      "s": "interface",
+      "t": "brief",
+      "type": "writes",
+      "v": "segment",
+      "n": "statements",
+      "a": "delta",
+      "label": "atomise"
+    },
+    {
+      "s": "interface",
+      "t": "brief",
+      "type": "writes",
+      "v": "ratify",
+      "n": "status flags",
+      "a": "delta",
+      "label": "client-confirmed"
+    },
+    {
+      "s": "vision",
+      "t": "problem",
+      "type": "writes",
+      "v": "assert",
+      "n": "scope, non-goals"
+    },
+    {
+      "s": "domain",
+      "t": "glossary",
+      "type": "writes",
+      "v": "amend",
+      "n": "terms, rules",
+      "a": "delta"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "writes",
+      "v": "amend",
+      "n": "constraints",
+      "a": "delta"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "writes",
+      "v": "commit",
+      "n": "branch + diff",
+      "a": "batch",
+      "label": "one worktree per batch"
+    },
+    {
+      "s": "critic",
+      "t": "verdicts",
+      "type": "writes",
+      "v": "emit",
+      "n": "verdict per batch",
+      "a": "single"
+    },
+    {
+      "s": "vision",
+      "t": "tickets",
+      "type": "writes",
+      "v": "slice",
+      "n": "batches of tickets",
+      "label": "contested · approved items only"
+    },
+    {
+      "s": "vision",
+      "t": "batches",
+      "type": "writes",
+      "v": "prioritize",
+      "n": "item priority",
+      "a": "single",
+      "label": "moves whole batches"
+    },
+    {
+      "s": "domain",
+      "t": "criteria",
+      "type": "writes",
+      "v": "specify",
+      "n": "criteria",
+      "label": "contested"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
+      "v": "batch",
+      "n": "ticket groups + constraints",
+      "label": "contested"
+    },
+    {
+      "s": "vision",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "a": "single"
+    },
+    {
+      "s": "vision",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "a": "single"
+    },
+    {
+      "s": "developer",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "a": "single"
+    },
+    {
+      "s": "vision",
+      "t": "brief",
+      "type": "reads",
+      "v": "index",
+      "n": "statements",
+      "a": "index"
+    },
+    {
+      "s": "domain",
+      "t": "brief",
+      "type": "reads",
+      "v": "index",
+      "n": "statements",
+      "a": "index"
+    },
+    {
+      "s": "architect",
+      "t": "brief",
+      "type": "reads",
+      "v": "index",
+      "n": "statements",
+      "a": "index"
+    },
+    {
+      "s": "vision",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "utterance",
+      "a": "window",
+      "label": "recover emphasis"
+    },
+    {
+      "s": "domain",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "utterance",
+      "a": "window",
+      "label": "recover emphasis"
+    },
+    {
+      "s": "architect",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "utterance",
+      "a": "window",
+      "label": "recover emphasis"
+    },
+    {
+      "s": "vision",
+      "t": "problem",
+      "type": "reads",
+      "v": "consult",
+      "n": "own statement",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "domain",
+      "t": "glossary",
+      "type": "reads",
+      "v": "consult",
+      "n": "own terms",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "reads",
+      "v": "consult",
+      "n": "own model",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "vision",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "rejections",
+      "a": "query"
+    },
+    {
+      "s": "architect",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "a": "query"
+    },
+    {
+      "s": "domain",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "terms in use",
+      "a": "query",
+      "label": "onboarding"
+    },
+    {
+      "s": "vision",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "observed behaviour",
+      "a": "query",
+      "label": "onboarding"
+    },
+    {
+      "s": "developer",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "batch of tickets + criteria",
+      "a": "batch"
+    },
+    {
+      "s": "developer",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "a": "single"
+    },
+    {
+      "s": "developer",
+      "t": "model",
+      "type": "reads",
+      "v": "load",
+      "n": "constraints",
+      "a": "delta"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "a": "query"
+    },
+    {
+      "s": "critic",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "criteria for batch",
+      "a": "batch",
+      "label": "criteria only"
+    },
+    {
+      "s": "critic",
+      "t": "code",
+      "type": "reads",
+      "v": "read",
+      "n": "batch diff",
+      "a": "batch",
+      "label": "diff only"
+    },
+    {
+      "s": "interface",
+      "t": "ledger",
+      "type": "reads",
+      "v": "list",
+      "n": "open assumptions",
+      "a": "delta"
+    },
+    {
+      "s": "interface",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "a": "query"
+    },
+    {
+      "s": "client",
+      "t": "interface",
+      "type": "messages",
+      "v": "converse",
+      "n": "free text"
+    },
+    {
+      "s": "interface",
+      "t": "client",
+      "type": "messages",
+      "v": "confirm",
+      "n": "statement list",
+      "a": "index",
+      "label": "ratification"
+    },
+    {
+      "s": "interface",
+      "t": "client",
+      "type": "messages",
+      "v": "clarify",
+      "n": "ordered questions",
+      "a": "index"
+    },
+    {
+      "s": "interface",
+      "t": "vision",
+      "type": "messages",
+      "v": "brief",
+      "n": "changed statements",
+      "a": "delta"
+    },
+    {
+      "s": "interface",
+      "t": "domain",
+      "type": "messages",
+      "v": "brief",
+      "n": "changed statements",
+      "a": "delta"
+    },
+    {
+      "s": "interface",
+      "t": "architect",
+      "type": "messages",
+      "v": "brief",
+      "n": "changed statements",
+      "a": "delta"
+    },
+    {
+      "s": "vision",
+      "t": "interface",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "a": "single"
+    },
+    {
+      "s": "domain",
+      "t": "interface",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "interface",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "a": "single"
+    },
+    {
+      "s": "domain",
+      "t": "vision",
+      "type": "messages",
+      "v": "challenge",
+      "n": "contradiction",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "vision",
+      "type": "messages",
+      "v": "challenge",
+      "n": "infeasibility",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "vision",
+      "type": "messages",
+      "v": "propose",
+      "n": "seam / refactor plan",
+      "a": "index"
+    },
+    {
+      "s": "developer",
+      "t": "architect",
+      "type": "messages",
+      "v": "escalate",
+      "n": "constraint conflict",
+      "a": "single"
+    },
+    {
+      "s": "developer",
+      "t": "vision",
+      "type": "messages",
+      "v": "question",
+      "n": "criterion or scope gap",
+      "a": "single"
+    },
+    {
+      "s": "developer",
+      "t": "domain",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity",
+      "a": "single"
+    },
+    {
+      "s": "critic",
+      "t": "developer",
+      "type": "messages",
+      "v": "challenge",
+      "n": "failed criterion",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "critic",
+      "type": "messages",
+      "v": "finding",
+      "n": "constraint id + satisfied / violated",
+      "a": "single",
+      "label": "no reasoning — preserves critic isolation"
+    },
+    {
+      "s": "interface",
+      "t": "vision",
+      "type": "messages",
+      "v": "consult",
+      "n": "client question",
+      "a": "single",
+      "label": "read-only session"
+    },
+    {
+      "s": "interface",
+      "t": "domain",
+      "type": "messages",
+      "v": "consult",
+      "n": "client question",
+      "a": "single",
+      "label": "read-only session"
+    },
+    {
+      "s": "interface",
+      "t": "architect",
+      "type": "messages",
+      "v": "consult",
+      "n": "client question",
+      "a": "single",
+      "label": "read-only session"
+    },
+    {
+      "s": "vision",
+      "t": "interface",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "a": "single"
+    },
+    {
+      "s": "domain",
+      "t": "interface",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "interface",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "a": "single"
+    },
+    {
+      "s": "vision",
+      "t": "interface",
+      "type": "messages",
+      "v": "submit",
+      "n": "scope + non-goals",
+      "a": "index",
+      "label": "for sign-off"
+    },
+    {
+      "s": "interface",
+      "t": "client",
+      "type": "messages",
+      "v": "present",
+      "n": "draft statement",
+      "a": "full",
+      "label": "signoff · reads as one document"
+    },
+    {
+      "s": "client",
+      "t": "interface",
+      "type": "messages",
+      "v": "verdict",
+      "n": "per-item approve / contest / amend",
+      "a": "index"
+    },
+    {
+      "s": "interface",
+      "t": "vision",
+      "type": "messages",
+      "v": "relay",
+      "n": "verdicts",
+      "a": "index"
+    },
+    {
+      "s": "vision",
+      "t": "problem",
+      "type": "writes",
+      "v": "set approval",
+      "n": "item status",
+      "a": "single",
+      "label": "approved / pending / contested"
+    },
+    {
+      "s": "vision",
+      "t": "developer",
+      "type": "messages",
+      "v": "reopen",
+      "n": "revoked item + prior batch",
+      "a": "batch"
+    },
+    {
+      "s": "developer",
+      "t": "vision",
+      "type": "messages",
+      "v": "elect",
+      "n": "amend or restart",
+      "a": "none"
+    },
+    {
+      "s": "brief",
+      "t": "transcript",
+      "type": "refs",
+      "v": "cites span",
+      "card": "n:1"
+    },
+    {
+      "s": "problem",
+      "t": "brief",
+      "type": "refs",
+      "v": "derives from",
+      "card": "n:n"
+    },
+    {
+      "s": "glossary",
+      "t": "brief",
+      "type": "refs",
+      "v": "defined by",
+      "card": "n:n"
+    },
+    {
+      "s": "model",
+      "t": "glossary",
+      "type": "refs",
+      "v": "constrains term",
+      "card": "n:n"
+    },
+    {
+      "s": "model",
+      "t": "code",
+      "type": "refs",
+      "v": "binds",
+      "card": "n:n"
+    },
+    {
+      "s": "tickets",
+      "t": "problem",
+      "type": "refs",
+      "v": "satisfies",
+      "card": "n:1"
+    },
+    {
+      "s": "criteria",
+      "t": "glossary",
+      "type": "refs",
+      "v": "criteria use",
+      "card": "n:n"
+    },
+    {
+      "s": "batches",
+      "t": "model",
+      "type": "refs",
+      "v": "bounded by",
+      "card": "n:n"
+    },
+    {
+      "s": "ledger",
+      "t": "brief",
+      "type": "refs",
+      "v": "assumes about",
+      "card": "n:1"
+    },
+    {
+      "s": "code",
+      "t": "batches",
+      "type": "refs",
+      "v": "implements",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "code",
+      "type": "refs",
+      "v": "judges",
+      "card": "1:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "criteria",
+      "type": "refs",
+      "v": "against criterion",
+      "card": "n:1"
+    },
+    {
+      "s": "decisions",
+      "t": "ledger",
+      "type": "refs",
+      "v": "resolves",
+      "card": "n:1"
+    },
+    {
+      "s": "schedule",
+      "t": "batches",
+      "type": "refs",
+      "v": "orders",
+      "card": "n:n"
+    },
+    {
+      "s": "decisions",
+      "t": "problem",
+      "type": "refs",
+      "v": "explains",
+      "card": "n:1"
+    },
+    {
+      "s": "interface",
+      "t": "schedule",
+      "type": "reads",
+      "v": "consult",
+      "n": "batch order",
+      "a": "index",
+      "label": "client ordering questions"
+    },
+    {
+      "s": "tester",
+      "t": "tests",
+      "type": "writes",
+      "v": "author",
+      "n": "executable tests",
+      "a": "batch"
+    },
+    {
+      "s": "tester",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "criteria for batch",
+      "a": "batch",
+      "label": "criteria only — no diff"
+    },
+    {
+      "s": "tester",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "a": "single"
+    },
+    {
+      "s": "tester",
+      "t": "tests",
+      "type": "reads",
+      "v": "consult",
+      "n": "own suite",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "developer",
+      "t": "tests",
+      "type": "reads",
+      "v": "load",
+      "n": "tests for batch",
+      "a": "batch"
+    },
+    {
+      "s": "critic",
+      "t": "tests",
+      "type": "reads",
+      "v": "load",
+      "n": "tests for batch",
+      "a": "batch"
+    },
+    {
+      "s": "developer",
+      "t": "tester",
+      "type": "messages",
+      "v": "challenge",
+      "n": "test disputes criterion",
+      "a": "single"
+    },
+    {
+      "s": "critic",
+      "t": "tester",
+      "type": "messages",
+      "v": "challenge",
+      "n": "test does not encode criterion",
+      "a": "single"
+    },
+    {
+      "s": "tester",
+      "t": "vision",
+      "type": "messages",
+      "v": "question",
+      "n": "criterion or scope gap",
+      "a": "single"
+    },
+    {
+      "s": "tester",
+      "t": "domain",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity",
+      "a": "single"
+    },
+    {
+      "s": "tests",
+      "t": "criteria",
+      "type": "refs",
+      "v": "encodes criterion",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "tests",
+      "type": "refs",
+      "v": "cites result",
+      "card": "n:n"
+    },
+    {
+      "s": "vision",
+      "t": "tickets",
+      "type": "reads",
+      "v": "consult",
+      "n": "own tickets",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "domain",
+      "t": "criteria",
+      "type": "reads",
+      "v": "consult",
+      "n": "own criteria",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "domain",
+      "t": "tickets",
+      "type": "reads",
+      "v": "scan",
+      "n": "tickets",
+      "a": "index",
+      "label": "cannot specify for unseen tickets"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "reads",
+      "v": "consult",
+      "n": "own batches",
+      "a": "full",
+      "label": "before amending"
+    },
+    {
+      "s": "architect",
+      "t": "tickets",
+      "type": "reads",
+      "v": "scan",
+      "n": "tickets + criteria",
+      "a": "index",
+      "label": "collision judgement needs touch sets"
+    },
+    {
+      "s": "developer",
+      "t": "tickets",
+      "type": "reads",
+      "v": "load",
+      "n": "tickets for batch",
+      "a": "batch",
+      "label": "criteria are meaningless without the ticket they serve"
+    },
+    {
+      "s": "tester",
+      "t": "tickets",
+      "type": "reads",
+      "v": "load",
+      "n": "tickets for batch",
+      "a": "batch"
+    },
+    {
+      "s": "developer",
+      "t": "verdicts",
+      "type": "reads",
+      "v": "load",
+      "n": "verdict for own batch",
+      "a": "batch"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "writes",
+      "v": "survey",
+      "n": "survey record + citations",
+      "a": "single",
+      "label": "citations validated against the index"
+    },
+    {
+      "s": "architect",
+      "t": "criteria",
+      "type": "reads",
+      "v": "scan",
+      "n": "criteria",
+      "a": "index"
+    },
+    {
+      "s": "domain",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "term sense",
+      "a": "single",
+      "label": "answering is not amending"
+    },
+    {
+      "s": "vision",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "criterion or scope clarification",
+      "a": "single"
+    },
+    {
+      "s": "architect",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "constraint clarification",
+      "a": "single"
+    },
+    {
+      "s": "domain",
+      "t": "tester",
+      "type": "messages",
+      "v": "answer",
+      "n": "term sense",
+      "a": "single"
+    },
+    {
+      "s": "vision",
+      "t": "tester",
+      "type": "messages",
+      "v": "answer",
+      "n": "criterion clarification",
+      "a": "single"
+    },
+    {
+      "s": "tester",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "test intent",
+      "a": "single"
+    }
+  ],
+  "contact_exceptions": [
+    {
+      "s": "architect",
+      "t": "critic",
+      "v": "finding",
+      "why": "Critic must not read the system model — that starvation is what makes its verdict independent. The conclusion is therefore pushed to it precisely because it cannot fetch it. Underivable by construction."
+    }
+  ]
+}
