@@ -1,0 +1,249 @@
+"""
+Synthetic arc — composition evidence, with zero LLM judgement involved.
+
+Each part of the machine passing does not prove the parts compose, and the
+design's real composition evidence (T2 arcs) needs roles to exist. This closes
+that gap early: canned completions stand in for every role and drive a full
+lifecycle through the *real* scheduler, sandbox, bus and commit path.
+
+What it exercises: frontier as tips ∪ predicates, the tick predicates firing in
+sequence, claims, derived contacts, atomic commits, receipts, cascade, and the
+revocation predicate. What it does not exercise: whether any role reasons well.
+That is deliberate — this is the wiring test.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from rota import graph as graph_mod
+from rota.db import init_db
+from rota.llm import Pins, ScriptedBackend
+from rota.runner import run_session
+from rota.scheduler import (
+    Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
+)
+
+
+PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
+
+
+@pytest.fixture
+def db(tmp_path):
+    return init_db(tmp_path / "rota.db")
+
+
+def drive(conn, wake: Wake, script: list[str], **kw):
+    """Run one session with canned completions and assert it committed."""
+    outcome = run_session(conn, wake, backend=ScriptedBackend(script + ["done"]),
+                          pins=PINS, **kw)
+    assert outcome.committed, f"{wake} failed: {outcome.errors}"
+    return outcome
+
+
+# ---------------------------------------------------------------------------
+
+def test_arc_understanding_loop_reaches_approved_item(db):
+    """
+    Client utterance -> statements -> ratification -> scope item -> approval.
+
+    Every step is a real session through the real machine; only the completions
+    are canned.
+    """
+    # --- intake: Interface records verbatim, then segments -------------------
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_intake','t1','client','interface','converse',1)")
+
+    drive(db, Wake("interface", "message", "m_intake", detail="converse"), [
+        "TOOL: transcript.append(id='u1', author='client', "
+        "text='add a button so people can delete their account')",
+        "TOOL: brief.segment(id='s1', span_utterance='u1', span_start=0, span_end=54, "
+        "text='add a button so people can delete their account')",
+        "TOOL: msg.confirm_client(refs=['s1'])",
+    ])
+
+    assert db.execute("SELECT COUNT(*) n FROM utterances").fetchone()["n"] == 1
+    assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "proposed"
+
+    # The client is not schedulable: a message to them waits, it does not wake.
+    assert not [w for w in frontier(db) if w.role == "client"]
+
+    # --- ratification --------------------------------------------------------
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_ratify','t1','client','interface','verdict',3)")
+    drive(db, Wake("interface", "message", "m_ratify", detail="verdict"), [
+        "TOOL: brief.ratify(id='s1')",
+        "TOOL: msg.brief_vision(refs=['s1'])",
+        "TOOL: msg.brief_domain(refs=['s1'])",
+        "TOOL: msg.brief_architect(refs=['s1'])",
+    ])
+
+    assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "ratified"
+    tips = {w.role for w in frontier(db) if w.kind == "message"}
+    assert tips == {"vision", "domain", "architect"}, "broadcast did not reach three shape roles"
+
+    # --- Vision asserts scope; Domain amends the glossary -------------------
+    vision_msg = db.execute(
+        "SELECT id FROM messages WHERE to_role='vision' AND verb='brief'").fetchone()["id"]
+    drive(db, Wake("vision", "message", vision_msg, detail="brief"), [
+        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='scope')",
+    ])
+
+    domain_msg = db.execute(
+        "SELECT id FROM messages WHERE to_role='domain' AND verb='brief'").fetchone()["id"]
+    drive(db, Wake("domain", "message", domain_msg, detail="brief"), [
+        "TOOL: glossary.amend(id='g1', term='account', sense_short='login identity')",
+    ])
+
+    # --- approval ------------------------------------------------------------
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_signoff','t1','interface','vision','relay',20)")
+    drive(db, Wake("vision", "message", "m_signoff", detail="relay"), [
+        "TOOL: problem.set_approval(id='i1', approval='approved')",
+    ])
+
+    item = db.execute("SELECT approval, approval_ver, version FROM items WHERE id='i1'").fetchone()
+    assert item["approval"] == "approved"
+    assert item["approval_ver"] >= item["version"], "approval must postdate the last amendment"
+
+    # --- and now residual work is *derived*, not remembered ------------------
+    assert any(w.kind == "tick:slicing" for w in predicate_wakes(db)), \
+        "an approved unsliced item should re-derive work with no message involved"
+
+
+def test_arc_delivery_loop_slices_batches_and_tests(db):
+    """Approved item -> tickets -> criteria -> batch -> tests -> verdict."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
+               "VALUES ('i1','users can delete their account','scope','decided','approved',1,1)")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','account','login identity','decided')")
+
+    # Vision slices, woken by a predicate rather than a message.
+    slicing = [w for w in predicate_wakes(db) if w.kind == "tick:slicing"]
+    assert slicing, "slicing predicate did not fire for an approved item"
+    drive(db, slicing[0], [
+        "TOOL: tickets.slice(id='tk1', item_id='i1', text='add delete button')",
+    ])
+
+    # Domain writes criteria — woken by the criteria predicate.
+    crit = [w for w in predicate_wakes(db) if w.kind == "tick:criteria"]
+    assert crit, "criteria predicate did not fire for a ticket with no criteria"
+    drive(db, crit[0], [
+        "TOOL: criteria.specify(id='c1', ticket_id='tk1', "
+        "text='deleting tombstones the account', term_refs=['g1'])",
+    ])
+
+    row = db.execute("SELECT term_refs FROM criteria WHERE id='c1'").fetchone()
+    assert json.loads(row["term_refs"]) == ["g1"], "criteria must be written in glossary terms"
+
+    # Architect batches.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_arch','t1','interface','architect','brief',50)")
+    drive(db, Wake("architect", "message", "m_arch", detail="brief"), [
+        "TOOL: batches.batch(id='b1', item_id='i1', ticket_ids=['tk1'])",
+    ])
+
+    # Tester writes from criteria — and cannot see a diff, because none exists.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_test','t1','interface','tester','question',60)")
+    drive(db, Wake("tester", "message", "m_test", detail="tick"), [
+        "TOOL: tests.author(id='t1', batch_id='b1', criterion_id='c1', "
+        "path='test_delete.py', body='assert tombstoned(account)')",
+    ], batch_id="b1")
+
+    assert db.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"] == 1
+
+    # Critic judges the diff given the tests, and emits a verdict.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_review','t1','interface','critic','challenge',70)")
+    drive(db, Wake("critic", "message", "m_review", detail="review"), [
+        "TOOL: criteria.load(batch_id='b1')",
+        "TOOL: tests.load(batch_id='b1')",
+        "TOOL: verdicts.emit(id='v1', batch_id='b1', result='fail', failed_criterion='c1')",
+        "TOOL: msg.challenge_developer(refs=['c1'])",
+    ], batch_id="b1")
+
+    verdict = db.execute("SELECT result, failed_criterion FROM verdicts WHERE id='v1'").fetchone()
+    assert verdict["result"] == "fail" and verdict["failed_criterion"] == "c1", \
+        "a failing verdict must name the criterion"
+
+    # Critic's trace touched criteria, tests and its own write — nothing else.
+    calls = {r["fn"] for r in db.execute(
+        "SELECT fn FROM tool_calls WHERE session_id = "
+        "(SELECT id FROM sessions WHERE role='critic')")}
+    assert calls <= {"criteria.load", "tests.load", "code.read",
+                     "verdicts.emit", "msg.challenge_developer"}, calls
+
+
+def test_arc_revocation_stops_the_batch(db):
+    """Amending an approved item drops it to pending and stops its batches."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
+               "VALUES ('i1','x','scope','decided','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
+
+    from rota.scheduler import tick_batch_start
+    assert tick_batch_start(db), "approved item should schedule its batch"
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m_ch','t1','architect','vision','challenge',1)")
+    drive(db, Wake("vision", "message", "m_ch", detail="challenge"), [
+        "TOOL: problem.assert(id='i1', text='x, but only for unverified accounts', kind='scope')",
+    ])
+
+    assert db.execute("SELECT approval FROM items WHERE id='i1'").fetchone()["approval"] == "draft"
+    assert not tick_batch_start(db), "an amended item must stop its batches"
+
+
+def test_arc_global_negative_no_undeclared_contacts(db):
+    """
+    Across a whole arc: zero messages between non-derived contacts.
+
+    Asserted against the graph rather than a hand-written list, so the check
+    cannot drift from the wiring.
+    """
+    test_arc_understanding_loop_reaches_approved_item(db)
+    g = graph_mod.load()
+
+    for r in db.execute("SELECT from_role, to_role, verb FROM messages WHERE from_role != 'client'"):
+        assert g.may_message(r["from_role"], r["to_role"], r["verb"]), \
+            f"undeclared contact: {r['from_role']} -> {r['to_role']} ({r['verb']})"
+
+
+def test_arc_global_negative_no_writes_by_non_owners(db):
+    """Every receipt must belong to a role the graph says may write that artefact."""
+    test_arc_delivery_loop_slices_batches_and_tests(db)
+
+    from rota.db import ARTEFACT_OF_TABLE
+    g = graph_mod.load()
+
+    for r in db.execute(
+        "SELECT s.role AS role, rc.table_name AS tbl FROM receipts rc "
+        "JOIN sessions s ON s.id = rc.session_id"
+    ):
+        artefact = ARTEFACT_OF_TABLE.get(r["tbl"])
+        assert artefact, f"receipt on unmapped table {r['tbl']}"
+        assert r["role"] in g.writer_of(artefact), \
+            f"{r['role']} wrote {artefact}, which it does not own"
+
+
+def test_arc_quiescence_means_no_predicate_fires(db):
+    """
+    The universal invariant. Every residual-work bug — unsliced items,
+    criteria-less tickets, deferred batches nobody resumed — violates this one
+    assertion, which is worth more than most individual cases.
+    """
+    test_arc_delivery_loop_slices_batches_and_tests(db)
+
+    # Drain the remaining message tips the way the loop would.
+    for _ in range(20):
+        tips = [w for w in frontier(db) if w.kind == "message"]
+        if not tips:
+            break
+        db.execute("UPDATE messages SET status='answered' WHERE id=?", (tips[0].message_id,))
+
+    remaining = predicate_wakes(db)
+    # A batch that is still pending legitimately keeps batch_start firing; every
+    # *other* predicate must be silent.
+    unexpected = [w for w in remaining if w.kind != "tick:batch_start"]
+    assert not unexpected, f"work left undone at quiescence: {unexpected}"

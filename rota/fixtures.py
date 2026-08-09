@@ -1,0 +1,296 @@
+"""
+Fixture loader and case runner.
+
+The shape every role test takes: **seed rows -> inject message -> run session ->
+assert on deltas.** This module is the machinery for that, and it deliberately
+arrives before any role exists, because it needs only the schema — which also
+makes it the tool for inspecting anything the scheduler does.
+
+Case format (YAML, per TESTS.md §5):
+
+    id: V2
+    tier: T1
+    role: vision
+    runs: 5
+    pass: 4
+    fixture:
+      decisions: [{id: R1, text: "deletion rejected: billing history must survive"}]
+    inbound: {from: interface, to: vision, verb: brief, body_refs: [s2, s3]}
+    expect:
+      writes:
+        items: [{kind: scope, count: ">=1"}]
+      messages: []
+    forbidden:
+      writes: [glossary_terms, constraints]
+      recipients: [client, developer, critic]
+    same_session: [items, decisions]
+
+`forbidden:` is not optional garnish. Most laws here are prohibitions, and a case
+with no forbidden block is presumed incomplete — so an empty one must be written
+deliberately rather than omitted.
+"""
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .db import ARTEFACT_TABLES, init_db
+from .llm import Pins
+from .runner import RunOutcome, run_session
+from .scheduler import Wake
+
+
+# ---------------------------------------------------------------------------
+# Seeding
+# ---------------------------------------------------------------------------
+
+def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
+    """
+    Insert fixture rows verbatim.
+
+    Fixtures should be tiny — three to five rows, turning on exactly one
+    judgement. A nine-billion-parameter model will not fail a structural
+    assertion, but it will drown in twenty statements with three plausible
+    readings, and then the pass rate measures the fixture rather than the role.
+    """
+    for table, rows in fixture.items():
+        for row in rows:
+            payload = {k: _encode(v) for k, v in row.items()}
+            cols = ", ".join(payload)
+            marks = ", ".join("?" for _ in payload)
+            conn.execute(
+                f"INSERT INTO {table} ({cols}) VALUES ({marks})",
+                list(payload.values()),
+            )
+
+
+def _encode(value: Any) -> Any:
+    return json.dumps(value) if isinstance(value, (list, dict)) else value
+
+
+def load_case(path: str | Path) -> dict:
+    """Parse a case file. YAML if available, else JSON."""
+    text = Path(path).read_text(encoding="utf-8")
+    if str(path).endswith((".yaml", ".yml")):
+        try:
+            import yaml
+            return yaml.safe_load(text)
+        except ImportError as exc:                      # pragma: no cover
+            raise RuntimeError("PyYAML needed for .yaml cases") from exc
+    return json.loads(text)
+
+
+# ---------------------------------------------------------------------------
+# Delta capture
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Delta:
+    """What one session changed. The assertion target for every role test."""
+    session_id: str
+    committed: bool
+    writes: dict[str, list[str]] = field(default_factory=dict)
+    messages: list[dict] = field(default_factory=list)
+    tool_calls: list[str] = field(default_factory=list)
+    versions_moved: dict[str, int] = field(default_factory=dict)
+
+    def tables_written(self) -> set[str]:
+        return set(self.writes)
+
+    def recipients(self) -> set[str]:
+        return {m["to_role"] for m in self.messages}
+
+
+def capture(conn: sqlite3.Connection, session_id: str,
+            versions_before: dict[str, int]) -> Delta:
+    writes: dict[str, list[str]] = {}
+    for r in conn.execute(
+        "SELECT table_name, row_id FROM receipts WHERE session_id = ? ORDER BY table_name",
+        (session_id,),
+    ):
+        writes.setdefault(r["table_name"], []).append(r["row_id"])
+
+    messages = [dict(r) for r in conn.execute(
+        "SELECT id, to_role, verb, body_refs, cause_id FROM messages "
+        "WHERE id IN (SELECT id FROM messages WHERE from_role = "
+        "  (SELECT role FROM sessions WHERE id = ?)) ORDER BY seq", (session_id,),
+    )]
+
+    tool_calls = [r["fn"] for r in conn.execute(
+        "SELECT fn FROM tool_calls WHERE session_id = ? ORDER BY seq", (session_id,))]
+
+    committed = bool(conn.execute(
+        "SELECT committed FROM sessions WHERE id = ?", (session_id,)).fetchone() or [0])
+
+    moved = {}
+    for r in conn.execute("SELECT table_name, version FROM artefact_versions"):
+        before = versions_before.get(r["table_name"], 0)
+        if r["version"] != before:
+            moved[r["table_name"]] = r["version"] - before
+
+    return Delta(session_id=session_id, committed=committed, writes=writes,
+                 messages=messages, tool_calls=tool_calls, versions_moved=moved)
+
+
+def snapshot_versions(conn: sqlite3.Connection) -> dict[str, int]:
+    return {r["table_name"]: r["version"]
+            for r in conn.execute("SELECT table_name, version FROM artefact_versions")}
+
+
+# ---------------------------------------------------------------------------
+# Assertions
+# ---------------------------------------------------------------------------
+
+_COUNT = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+)$")
+
+
+def _count_ok(actual: int, spec: Any) -> bool:
+    if spec is None:
+        return actual > 0
+    m = _COUNT.match(str(spec).strip())
+    if not m:
+        return False
+    op, n = m.group(1) or "==", int(m.group(2))
+    return {
+        "==": actual == n, ">=": actual >= n, "<=": actual <= n,
+        ">": actual > n, "<": actual < n,
+    }[op]
+
+
+def check(case: dict, delta: Delta) -> list[str]:
+    """
+    Structural assertions only. Never on prose.
+
+    Which tables changed, which rows appeared, who received which message type,
+    what refs a row carries — those are checkable. Whether the wording is good is
+    not, and pretending otherwise is how a suite starts measuring the model's
+    prose style instead of the law.
+    """
+    problems: list[str] = []
+    expect = case.get("expect", {})
+    forbidden = case.get("forbidden", {})
+
+    for table, specs in (expect.get("writes") or {}).items():
+        rows = delta.writes.get(table, [])
+        for spec in (specs if isinstance(specs, list) else [specs]):
+            want = spec.get("count") if isinstance(spec, dict) else None
+            if not _count_ok(len(rows), want):
+                problems.append(
+                    f"expected writes to {table} ({want or '>0'}), got {len(rows)}")
+
+    for spec in expect.get("messages") or []:
+        matches = [
+            m for m in delta.messages
+            if m["to_role"] == spec.get("to", m["to_role"])
+            and m["verb"] == spec.get("verb", m["verb"])
+        ]
+        if not _count_ok(len(matches), spec.get("count")):
+            problems.append(f"expected message {spec}, got {len(matches)} match(es)")
+        for m in matches:
+            need = set(spec.get("refs_include") or [])
+            if need and not need <= set(json.loads(m["body_refs"])):
+                problems.append(f"message {m['id']} missing refs {need}")
+
+    # --- the negative half ---------------------------------------------------
+    if "forbidden" not in case:
+        problems.append("case declares no `forbidden:` block and is presumed incomplete")
+
+    for table in forbidden.get("writes") or []:
+        if table in delta.writes:
+            problems.append(f"forbidden write to {table}: {delta.writes[table]}")
+
+    for role in forbidden.get("recipients") or []:
+        if role in delta.recipients():
+            problems.append(f"forbidden message to {role}")
+
+    for table in forbidden.get("versions") or []:
+        if table in delta.versions_moved:
+            problems.append(f"forbidden version bump on {table}")
+
+    if expect.get("messages") == [] and delta.messages:
+        problems.append(f"expected no messages, got {[m['verb'] for m in delta.messages]}")
+
+    return problems
+
+
+def check_same_session(conn: sqlite3.Connection, tables: list[str],
+                       session_id: str) -> list[str]:
+    """Law 11: several laws are *about* what happens inside a single commit."""
+    written = {r["table_name"] for r in conn.execute(
+        "SELECT DISTINCT table_name FROM receipts WHERE session_id = ?", (session_id,))}
+    return [f"{t} not written in the same session" for t in tables if t not in written]
+
+
+# ---------------------------------------------------------------------------
+# Running a case
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CaseResult:
+    case_id: str
+    run: int
+    passed: bool
+    problems: list[str] = field(default_factory=list)
+    delta: Delta | None = None
+    outcome: RunOutcome | None = None
+
+
+def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
+             instructions: str = "", run_no: int = 1) -> CaseResult:
+    conn = init_db(db_path)
+    seed(conn, case.get("fixture") or {})
+
+    inbound = case.get("inbound") or {}
+    msg_id = inbound.get("id", "m_in")
+    if inbound:
+        conn.execute(
+            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, seq) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1)",
+            (msg_id, inbound.get("thread", "t1"), inbound["from"], inbound["to"],
+             inbound["verb"], json.dumps(inbound.get("body_refs", []))),
+        )
+
+    before = snapshot_versions(conn)
+    wake = Wake(role=case["role"], kind="message",
+                message_id=msg_id if inbound else None,
+                detail=inbound.get("verb", case.get("tick", "")))
+
+    outcome = run_session(conn, wake, backend=backend, pins=pins,
+                          instructions=instructions,
+                          mode=case.get("mode", "normal"))
+    delta = capture(conn, outcome.session_id, before)
+
+    problems = check(case, delta)
+    if case.get("same_session"):
+        problems += check_same_session(conn, case["same_session"], outcome.session_id)
+    if not outcome.committed and case.get("expect_commit", True):
+        problems.append(f"session did not commit: {outcome.errors}")
+
+    return CaseResult(case_id=case.get("id", "?"), run=run_no,
+                      passed=not problems, problems=problems,
+                      delta=delta, outcome=outcome)
+
+
+def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None = None,
+                instructions: str = "") -> tuple[int, int, list[CaseResult]]:
+    """
+    Run a case `runs` times and compare against its `pass` threshold.
+
+    LLM output is stochastic; the harness treats that as a measured quantity
+    rather than an excuse. A case that passed 5/5 for weeks and now passes 3/5 is
+    a prompt regression signal, which is why the count is returned rather than a
+    bare boolean.
+    """
+    runs = int(case.get("runs", 1))
+    threshold = int(case.get("pass", runs))
+    results = []
+    for i in range(1, runs + 1):
+        results.append(run_case(case, tmpdir / f"{case.get('id','case')}_{i}.db",
+                                backend_factory(), pins=pins,
+                                instructions=instructions, run_no=i))
+    passed = sum(1 for r in results if r.passed)
+    return passed, threshold, results
