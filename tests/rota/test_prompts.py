@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from rota import graph as graph_mod, prompts
-from rota.db import init_db
-from rota.sandbox import build
+from rota.design import graph as graph_mod
+from rota.roles import prompts
+from rota.core.db import init_db
+from rota.core.sandbox import build
 
 
 def test_every_role_has_a_base_prompt():
@@ -81,7 +82,7 @@ def test_every_mode_has_a_piece():
     """
     import collections
 
-    from rota import predicates as P
+    from rota.core import predicates as P
 
     g = graph_mod.load()
     ticks = collections.defaultdict(set)
@@ -120,7 +121,7 @@ def test_a_mode_narrowing_cannot_widen_the_role():
     naming something outside the role's namespace would be a prompt granting a
     capability, which is the one thing prompts must never do.
     """
-    conn = init_db(__import__("tempfile").mkdtemp() + "/rota.db")
+    conn = init_db(__import__("tempfile").mkdtemp() + "/rota.core.db")
     problems = []
     for role in sorted(graph_mod.load().roles):
         have = set(build(role, conn).functions())

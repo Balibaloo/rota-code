@@ -21,7 +21,7 @@ import json
 import sqlite3
 from typing import Any
 
-from .db import ARTEFACT_OF_TABLE
+from ..core.db import ARTEFACT_OF_TABLE
 
 
 def steps_from_db(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -144,7 +144,7 @@ def steps_from_trace(trace) -> list[dict[str, Any]]:
 
 def coverage_edges() -> dict[str, list[list[str]]]:
     """Covered and uncovered edges, for painting the graph."""
-    from .coverage import report
+    from ..testkit.coverage import report
 
     rep = report()
     return {
@@ -155,7 +155,7 @@ def coverage_edges() -> dict[str, list[list[str]]]:
 
 def frontier_overlay(conn: sqlite3.Connection) -> dict[str, Any]:
     """Who is about to move, and who is mid-session."""
-    from .scheduler import frontier
+    from ..core.scheduler import frontier
 
     ready = frontier(conn, principal_present=True)
     claimed = {r["role"]: r["session_id"] for r in
@@ -177,6 +177,6 @@ def frontier_overlay(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def _artefact_tables() -> dict[str, tuple[str, ...]]:
-    from .db import TABLES_OF_ARTEFACT
+    from ..core.db import TABLES_OF_ARTEFACT
 
     return TABLES_OF_ARTEFACT

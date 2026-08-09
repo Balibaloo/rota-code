@@ -19,13 +19,13 @@ import os
 
 import pytest
 
-from rota import validators
-from rota.cassettes import RecordingBackend, open_dev_db, record_case_run
-from rota.principal import record_entry
-from rota.db import init_db
-from rota.llm import OllamaBackend, Pins, available_models
-from rota.runner import run_session
-from rota.scheduler import Wake
+from rota.roles import validators
+from rota.llm.cassettes import RecordingBackend, open_dev_db, record_case_run
+from rota.roles.principal import record_entry
+from rota.core.db import init_db
+from rota.llm.llm import OllamaBackend, Pins, available_models
+from rota.core.runner import run_session
+from rota.core.scheduler import Wake
 
 MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 PINS = Pins(model=MODEL, temperature=0.0, num_ctx=8192)

@@ -98,6 +98,42 @@ pinning; vendoring puts someone else's licence in this tree.
 
 ---
 
+## 3B · Developer buildout — the role has a namespace and no hands
+
+This was missing from the plan. I had covered *testing* Developer — the git
+harness above, its actions in L1, its handoffs in L3 — and assumed the role was
+built. It is not, and the gap is the same shape as onboarding: a role wired into
+a world that does not exist.
+
+| what it needs | state |
+|---|---|
+| a worktree to work in | `batches.worktree` is **read** by boot and the harness, **written by nobody** |
+| a way to change a file | there is **no `code.write` or `code.edit` operation at all** |
+| `code.commit` | records a sha in the database; **it does not run git** |
+| an environment | `runtime_processes` is reaped at boot and **spawned by nothing** |
+
+So Developer can read its tickets, criteria, model and verdicts, ask questions —
+and then record that a commit happened which never did.
+
+- [ ] **3Ba · worktree lifecycle.** Created on `batch_start`, torn down on
+      merge, *surviving* deferral — law 9 says the commits persist and the
+      checkpoint does not. Belongs in `lifecycle.py` beside `start`/`defer`/
+      `merge`, because it is scheduler work, not a role's choice
+- [ ] **3Bb · file operations.** The missing verbs. Needs graph edges, which
+      makes it an edge-audit-shaped decision about reach, not just a function
+- [ ] **3Bc · `code.commit` actually commits**, and stamps `head_commit`
+- [ ] **3Bd · environment.** Law 9's *"processes and ports die with it;
+      half-dead environments are forbidden"* has no implementation
+- [ ] **3Be** then the harness and fixtures from 3.4
+
+**Two consequences.** This is a bigger stage than 7 — it is the only place the
+system touches the filesystem, spawns processes, and can damage something, in a
+repo with 107 live worktrees. And **P1 depends on a slice of it**: the loop
+closes when judgements are stamped with the commit they judged, and nothing
+produces a real commit today. That slice lands inside stage 1.
+
+---
+
 ## 4 · L1 — every action a role can take · 63 operations
 
 - [ ] **4.1** one fixture per action, where that action is the only right move
@@ -179,15 +215,18 @@ to calibrate against.
 ## Order
 
 ```
-0 reorg → 1 edges → 2 tool calling → 3 fixtures → 4 L1 → 5 L2 → 6 L3
-                                              → 7a…7f onboarding
-                                              8 results, throughout
+0 reorg → 1 edges → 2 tool calling → 3 fixtures → 3B developer → 4 L1 → 5 L2 → 6 L3
+                                                              → 7a…7f onboarding
+                                                              8 results, throughout
 ```
 
 - **0 first** or never
 - **1 before everything** — validating a system whose loop cannot close
   validates the wrong thing
 - **2 before 3** — the protocol decides what a cassette is evidence about
+- **3B before 4** — L1 for Developer is untestable until it can act, and the
+  git harness and the real worktree lifecycle are the same machinery approached
+  from two sides
 - **7 after 6** — an onboarding failure is unattributable until single actions
   and handoffs are already trusted, and 7 inherits the whole fixture layer
 

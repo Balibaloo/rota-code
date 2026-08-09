@@ -95,19 +95,18 @@ def test_every_l0_term_is_actually_defined_somewhere():
     is one, and a declared term with no prose behind it is a term nobody has had
     to mean anything by.
     """
-    import pathlib
+    from rota import paths
 
-    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8").lower()
+    laws = (paths.PACKAGE / "LAWS.md").read_text(encoding="utf-8").lower()
     missing = [t for t in V.L0_TERMS if t not in laws]
     assert not missing, f"declared at L0 but never stated: {missing}"
 
 
 def test_the_laws_name_every_role():
-    import pathlib
+    from rota import paths
+    from rota.design import graph as graph_mod
 
-    from rota import graph as graph_mod
-
-    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8").lower()
+    laws = (paths.PACKAGE / "LAWS.md").read_text(encoding="utf-8").lower()
     missing = [r for r in graph_mod.load().roles if r not in laws]
     assert not missing, f"a role the laws never mention: {missing}"
 
@@ -117,10 +116,11 @@ def test_the_laws_carry_no_legacy_names():
     The document the prompts hang from is the last place a stale name can hide,
     because it is the one nobody re-reads once it looks finished.
     """
-    import pathlib
     import re
 
-    laws = (pathlib.Path(V.ROTA) / "LAWS.md").read_text(encoding="utf-8")
+    from rota import paths
+
+    laws = (paths.PACKAGE / "LAWS.md").read_text(encoding="utf-8")
     found = re.findall(r"\b(client|interface|vision|domain|utterance|non_goal)\b",
                        laws, re.I)
     assert not found, f"legacy vocabulary in LAWS.md: {sorted(set(found))}"

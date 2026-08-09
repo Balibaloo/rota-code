@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from rota import graph as graph_mod
-from rota.db import init_db
-from rota.sandbox import build
+from rota.design import graph as graph_mod
+from rota.core.db import init_db
+from rota.core.sandbox import build
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def test_the_touch_set_gates_nothing(db):
     nobody designed. Committing a change to a grain outside the set must be an
     ordinary commit, not a refusal.
     """
-    from rota.db import SessionResult, Write, session_commit
+    from rota.core.db import SessionResult, Write, session_commit
 
     db.execute("INSERT INTO items (id, text, kind, provenance) "
                "VALUES ('i1','x','in_scope','decided')")

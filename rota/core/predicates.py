@@ -26,7 +26,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import paths
+from .. import paths
 from typing import Callable
 
 from .scheduler import Wake
@@ -658,7 +658,9 @@ def _parameterised_writes(root: Path) -> set[tuple[str, str]]:
     import ast
 
     pairs: set[tuple[str, str]] = set()
-    for path in sorted(root.glob("*.py")):
+    for path in sorted(root.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
         source = path.read_text(encoding="utf-8")
         try:
             tree = ast.parse(source)
@@ -690,16 +692,19 @@ def check_states_are_reachable() -> list[str]:
     value that could not occur. Crude grep, but it is the check that would have
     said so.
     """
-    root = SCHEMA.parent
     schema = SCHEMA.read_text(encoding="utf-8")
 
     # Only *writes* count. A first attempt grepped every file and found
     # 'running' in a SELECT, so it reported the state reachable when nothing
     # could ever set it. Reading a value and writing one look identical to a
     # grep unless you say which you mean.
-    writes = (root / "api.py").read_text(encoding="utf-8")          # all artefact writes
-    for f in root.glob("*.py"):
-        if f.name in ("api.py", "predicates.py"):
+    #
+    # `rglob` over the package, not `glob` beside the schema: the two used to be
+    # the same directory. After the regroup, `SCHEMA.parent` is `core/` and
+    # `api.py` — the file holding every artefact write — is in `roles/`.
+    writes = (paths.PACKAGE / "roles" / "api.py").read_text(encoding="utf-8")
+    for f in sorted(paths.PACKAGE.rglob("*.py")):
+        if f.name in ("api.py", "predicates.py") or "__pycache__" in f.parts:
             continue
         text = f.read_text(encoding="utf-8")
         writes += chr(10).join(
@@ -707,7 +712,7 @@ def check_states_are_reachable() -> list[str]:
             if "UPDATE " in line or "SET " in line or "INSERT INTO" in line)
     defaults = re.findall(r"DEFAULT '([^']+)'", schema)
 
-    parameterised = _parameterised_writes(root)
+    parameterised = _parameterised_writes(paths.PACKAGE)
 
     problems = []
     for (table, column), values in schema_states().items():
@@ -727,7 +732,7 @@ def check_states_are_reachable() -> list[str]:
 
 
 def check_predicates_wake_real_roles() -> list[str]:
-    from . import graph as graph_mod
+    from ..design import graph as graph_mod
 
     legal = set(graph_mod.load().roles) | {DERIVED, SCHEDULER}
     return [f"predicate {p.name!r} wakes {p.wakes!r}, which is not a role"

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from rota import graph as graph_mod
-from rota.graph import DEPTH, ROWS, Edge, check_structure
+from rota.design import graph as graph_mod
+from rota.design.graph import DEPTH, ROWS, Edge, check_structure
 
 
 @pytest.fixture

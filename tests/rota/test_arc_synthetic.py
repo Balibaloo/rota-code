@@ -17,12 +17,12 @@ import json
 
 import pytest
 
-from rota import graph as graph_mod
-from rota.principal import record_entry
-from rota.db import init_db
-from rota.llm import Pins, ScriptedBackend
-from rota.runner import run_session
-from rota.scheduler import (
+from rota.design import graph as graph_mod
+from rota.roles.principal import record_entry
+from rota.core.db import init_db
+from rota.llm.llm import Pins, ScriptedBackend
+from rota.core.runner import run_session
+from rota.core.scheduler import (
     Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
 )
 
@@ -187,7 +187,7 @@ def test_arc_revocation_stops_the_batch(db):
                "VALUES ('i1','x','in_scope','decided','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
 
-    from rota.scheduler import tick_batch_start
+    from rota.core.scheduler import tick_batch_start
     assert tick_batch_start(db), "approved item should schedule its batch"
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
@@ -219,7 +219,7 @@ def test_arc_global_negative_no_writes_by_non_owners(db):
     """Every receipt must belong to a role the graph says may write that artefact."""
     test_arc_delivery_loop_slices_batches_and_tests(db)
 
-    from rota.db import ARTEFACT_OF_TABLE
+    from rota.core.db import ARTEFACT_OF_TABLE
     g = graph_mod.load()
 
     for r in db.execute(

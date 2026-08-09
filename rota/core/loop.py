@@ -22,8 +22,10 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
-from . import config, lifecycle, llm
-from .principal import PrincipalBackend, pump
+from . import config
+from . import lifecycle
+from ..llm import llm
+from ..roles.principal import PrincipalBackend, pump
 from .runner import RunOutcome, run_session
 from .scheduler import (
     RoleBusy, Wake, cascade_wakes, frontier, is_quiescent, release,

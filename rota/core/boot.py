@@ -25,7 +25,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import config, graph as graph_mod
+from . import config
+from ..design import graph as graph_mod
 from .db import init_db
 from .scheduler import sweep_checkpoints
 

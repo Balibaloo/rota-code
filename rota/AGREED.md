@@ -190,7 +190,7 @@ looks like, not a weak one.
       `group`: grouping is cheap and index-only, annotating reads source, and one
       session across all batches would exhaust the context that makes it useful
 
-**Verify:** `python -m rota.predicates` — 21 predicates, four lints, **no
+**Verify:** `python -m rota.core.predicates` — 21 predicates, four lints, **no
 problems**. The delivery loop runs end to end in `tests/rota/test_delivery.py`
 with no model in it at all; if any step there had needed one, the design would
 be wrong.
@@ -278,10 +278,10 @@ Every command below, run at the point this checklist was closed:
 
 | check | result |
 |---|---|
-| `python -m rota.graph` | **graph consistent**, contacts derive with zero exceptions |
-| `python -m rota.predicates` | 21 predicates, four lints, **no problems** |
+| `python -m rota.design.graph` | **graph consistent**, contacts derive with zero exceptions |
+| `python -m rota.core.predicates` | 21 predicates, four lints, **no problems** |
 | `python -m rota.tools.vocabulary --analyse` | **zero collisions** |
-| `python -m rota.coverage` | 34/99 edges |
+| `python -m rota.testkit.coverage` | 34/99 edges |
 | `python -m pytest tests/rota -q` | **174 passed**, 6 skipped |
 
 **The legacy-terminology check**, which is the one that says the rename is done:

@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import paths
+from .. import paths
 from typing import Any, Iterator
 
 SCHEMA_PATH = paths.SCHEMA
@@ -294,7 +294,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
     # behind, so any test running a session contributes without knowing this
     # exists. Nothing to annotate, nothing to forget.
     if os.environ.get("ROTA_COVERAGE_ON"):
-        from .coverage import record
+        from ..testkit.coverage import record
         try:
             record(conn)
         except Exception:
@@ -315,7 +315,7 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     # behind, so any test running a session contributes without knowing this
     # exists. Nothing to annotate, nothing to forget.
     if os.environ.get("ROTA_COVERAGE_ON"):
-        from .coverage import record
+        from ..testkit.coverage import record
         try:
             record(conn)
         except Exception:

@@ -22,7 +22,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from .runner import new_id
+from ..core.runner import new_id
 
 
 @dataclass

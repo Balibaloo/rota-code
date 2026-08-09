@@ -37,11 +37,11 @@ Not built: T2 arcs against real models, onboarding/survey, the TUI seam.
 ## Running it
 
 ```bash
-python -m rota.graph                       # namespaces, contacts, consistency
-python -m rota.predicates                  # every state has a way out
+python -m rota.design.graph                       # namespaces, contacts, consistency
+python -m rota.core.predicates                  # every state has a way out
 python -m rota.tools.vocabulary --analyse  # collisions, duplication, hierarchy
 python -m pytest tests/rota/ -q            # 171 tests
-python -m rota.cockpit <project_root>      # http://127.0.0.1:8899
+python -m rota.cockpit.server <project_root>      # http://127.0.0.1:8899
 ```
 
 Rebuilding the graph from the design viewer (only needed if `team-graph.html`
@@ -71,7 +71,7 @@ which is also why the scheduler can be deleted and rewritten. The universal
 invariant: *at quiescence, no predicate fires.*
 
 That only holds if every state a row can be in has a way out, so that is a hard
-constraint rather than a hope: `python -m rota.predicates` fails the build on a
+constraint rather than a hope: `python -m rota.core.predicates` fails the build on a
 state nothing drains, a predicate that cannot fire, and a state nothing writes.
 
 **A session is atomic, except for git.** Writes, messages, receipts and version

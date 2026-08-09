@@ -305,4 +305,4 @@ And one check that is about the laws themselves: **every state a row can be in
 must have a way out.** A state with no predicate draining it is a place work stops
 silently — and quiescence is defined as "no predicate fires", so a dead end makes
 the system report itself *finished* while work has been abandoned. The invariant
-we rely on would pass. `python -m rota.predicates` is the check.
+we rely on would pass. `python -m rota.core.predicates` is the check.

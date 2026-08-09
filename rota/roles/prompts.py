@@ -23,7 +23,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from . import paths
+from .. import paths
 
 PROMPT_DIR = paths.PROMPTS
 
@@ -94,7 +94,7 @@ def check_coverage() -> list[str]:
     Missing pieces are reported, not fatal — a role can run on its base alone,
     and forcing a file per verb before the verb is exercised would be ceremony.
     """
-    from . import graph as graph_mod
+    from ..design import graph as graph_mod
 
     g = graph_mod.load()
     problems = []
@@ -108,7 +108,7 @@ def check_coverage() -> list[str]:
 
 def inbound_verbs(role: str) -> set[str]:
     """Verbs this role can be woken by — the enumeration of its modes."""
-    from . import graph as graph_mod
+    from ..design import graph as graph_mod
 
     g = graph_mod.load()
     return {e.v for e in g.of_type("messages") if e.t == role}

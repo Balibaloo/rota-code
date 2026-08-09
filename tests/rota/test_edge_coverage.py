@@ -9,7 +9,7 @@ obligation cannot drift from the design because the design generates it.
 Run the suite with coverage recording on:
 
     ROTA_COVERAGE_ON=1 python -m pytest tests/rota -q
-    python -m rota.coverage          # the matrix
+    python -m rota.testkit.coverage          # the matrix
 """
 from __future__ import annotations
 
@@ -17,7 +17,8 @@ import os
 
 import pytest
 
-from rota import coverage, graph as graph_mod
+from rota.testkit import coverage
+from rota.design import graph as graph_mod
 
 
 def test_every_declared_edge_is_enumerable():

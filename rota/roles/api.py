@@ -249,7 +249,7 @@ def model_consult(ctx: Ctx, grains: list[str] | None = None) -> list[dict]:
     unresolvable constraints are always included — degradation lands on
     expensive, never on wrong.
     """
-    from .scheduler import constraints_for_grains
+    from ..core.scheduler import constraints_for_grains
     ids = constraints_for_grains(ctx.conn, grains or []) if grains is not None else None
     if ids is None:
         return _rows(ctx.conn.execute(

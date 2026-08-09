@@ -20,11 +20,11 @@ import os
 
 import pytest
 
-from rota import loop
-from rota.principal import Answer, ScriptedPrincipal, TranscriptPrincipal, record_entry
-from rota.db import init_db
-from rota.llm import Pins, ScriptedBackend
-from rota.scheduler import frontier
+from rota.core import loop
+from rota.roles.principal import Answer, ScriptedPrincipal, TranscriptPrincipal, record_entry
+from rota.core.db import init_db
+from rota.llm.llm import Pins, ScriptedBackend
+from rota.core.scheduler import frontier
 
 ENTRY = "add a button so people can delete their account"
 
@@ -55,7 +55,7 @@ class RoleScript:
         self.seen: list[str] = []
 
     def complete(self, system: str, user: str, pins, tools=None):
-        from rota.llm import Completion
+        from rota.llm.llm import Completion
 
         key = next((k for k in self.table if _matches(k, system, user)), None)
         self.seen.append(key or "UNMATCHED")
@@ -240,7 +240,7 @@ def test_loop_is_idempotent_when_quiescent(db):
                     reason="live arc hits a real model; set ROTA_T1=1")
 def test_understanding_loop_live(db):
     """The same arc, real model, real prompts. The slice, for real."""
-    from rota.llm import OllamaBackend, available_models
+    from rota.llm.llm import OllamaBackend, available_models
 
     model = os.environ.get("ROTA_MODEL", "llama3.1:8b")
     if model not in available_models():

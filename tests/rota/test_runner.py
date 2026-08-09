@@ -9,10 +9,10 @@ import json
 
 import pytest
 
-from rota.db import init_db, version_of
-from rota.llm import Pins, ScriptedBackend
-from rota.runner import run_session
-from rota.scheduler import Wake
+from rota.core.db import init_db, version_of
+from rota.llm.llm import Pins, ScriptedBackend
+from rota.core.runner import run_session
+from rota.core.scheduler import Wake
 
 
 @pytest.fixture

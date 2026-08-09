@@ -66,7 +66,7 @@ def _json_type(annotation: Any) -> dict[str, Any]:
 
 
 def schema_for(dotted: str, fn: Callable) -> dict[str, Any]:
-    from .sandbox import ENUMS
+    from ..core.sandbox import ENUMS
 
     sig = inspect.signature(fn)
     properties: dict[str, Any] = {}

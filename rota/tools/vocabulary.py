@@ -40,7 +40,6 @@ from pathlib import Path
 from .. import paths
 
 ROOT = paths.REPO
-ROTA = paths.PACKAGE
 DESIGN = paths.DESIGN
 PROMPTS = paths.PROMPTS
 DOCS = paths.DOCS
@@ -176,7 +175,7 @@ def harvest() -> dict[str, Term]:
                 _add(terms, noun, "L2", "graph.noun")
 
     # ---- schema: the record, and the states ---------------------------------
-    sql = (ROTA / "schema.sql").read_text(encoding="utf-8")
+    sql = paths.SCHEMA.read_text(encoding="utf-8")
     for table in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", sql):
         _add(terms, table, "L2", "schema.table")
     for enum_block in re.findall(r"CHECK \(\w+ IN \(([^)]+)\)\)", sql):
@@ -207,7 +206,11 @@ def harvest() -> dict[str, Term]:
             _add(terms, bold, "L0", f"doc.{doc}", enrich_only=True)
 
     # ---- machinery: runtime concepts in the code ----------------------------
-    for path in sorted(ROTA.glob("*.py")):
+    # `rglob`, not `glob`: the package is grouped now, so a top-level scan finds
+    # only `paths.py` and the harvest quietly loses every L6 term.
+    for path in sorted(paths.PACKAGE.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
         for cls in re.findall(r"^class (\w+)", path.read_text(encoding="utf-8"), re.M):
             _add(terms, re.sub(r"(?<!^)(?=[A-Z])", " ", cls), "L6",
                  f"code.{path.stem}")
@@ -246,7 +249,7 @@ def purposes() -> dict[str, str]:
             out[n["id"]] = note.split(".")[0][:150]
 
     # Schema comments sit above the table they explain.
-    sql = (ROTA / "schema.sql").read_text(encoding="utf-8").splitlines()
+    sql = paths.SCHEMA.read_text(encoding="utf-8").splitlines()
     comment: list[str] = []
     for line in sql:
         st = line.strip()
@@ -272,7 +275,7 @@ def aliases() -> list[tuple[str, tuple[str, ...], str]]:
     Lexicon of Behavior would introduce by renaming for effect, except it is
     already here.
     """
-    from rota.db import TABLES_OF_ARTEFACT
+    from rota.core.db import TABLES_OF_ARTEFACT
 
     out = []
     for artefact, tables in TABLES_OF_ARTEFACT.items():
@@ -286,7 +289,7 @@ def aliases() -> list[tuple[str, tuple[str, ...], str]]:
 
 def hierarchy() -> list[dict]:
     """Step 3, relationships: what owns what, and what points at what."""
-    from rota import graph as graph_mod
+    from rota.design import graph as graph_mod
 
     g = graph_mod.load()
     rows = []

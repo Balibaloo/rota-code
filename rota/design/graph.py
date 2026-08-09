@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from . import paths
+from .. import paths
 from typing import Iterable, Literal
 
 DESIGN_DIR = paths.DESIGN

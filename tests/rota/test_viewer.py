@@ -18,8 +18,12 @@ from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parents[2] / "rota" / "static"
-VIEWER = Path(__file__).resolve().parents[2] / "rota" / "viewer.html"
+from rota import paths
+
+# From the same anchor the package uses. Computing them here would be a second
+# claim about where things are, and the regroup is exactly when it diverges.
+STATIC = paths.STATIC
+VIEWER = paths.VIEWER
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
@@ -134,7 +138,7 @@ def test_no_module_computes_its_own_location():
     import re
     from pathlib import Path
 
-    root = Path(__file__).resolve().parents[2] / "rota"
+    root = paths.PACKAGE
     offenders = []
     for py in sorted(root.rglob("*.py")):
         if py.name == "paths.py" or "__pycache__" in py.parts:

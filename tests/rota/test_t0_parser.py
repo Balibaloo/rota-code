@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from rota.toolproto import ToolCall, ToolError, extract, parse_args, validate
+from rota.llm.toolproto import ToolCall, ToolError, extract, parse_args, validate
 
 
 def only(text: str):
@@ -118,7 +118,7 @@ def test_parse_args_empty():
 # Lenient extraction — the fallback for completions that drop the marker
 # ---------------------------------------------------------------------------
 
-from rota.toolproto import extract_lenient
+from rota.llm.toolproto import extract_lenient
 
 ALLOWED = {"transcript.append", "brief.segment", "msg.confirm_principal", "criteria.load"}
 

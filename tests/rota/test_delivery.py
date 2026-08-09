@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import pytest
 
-from rota import config, harness, lifecycle, loop
-from rota import predicates as P
-from rota.db import init_db
-from rota.llm import Pins, ScriptedBackend
-from rota.scheduler import frontier
+from rota.core import config
+from rota.core import harness
+from rota.core import lifecycle
+from rota.core import loop
+from rota.core import predicates as P
+from rota.core.db import init_db
+from rota.llm.llm import Pins, ScriptedBackend
+from rota.core.scheduler import frontier
 
 
 @pytest.fixture

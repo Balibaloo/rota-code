@@ -13,15 +13,15 @@ import sys
 
 import pytest
 
-from rota import graph as graph_mod
-from rota.boot import (
+from rota.design import graph as graph_mod
+from rota.core.boot import (
     boot, quarantine_exhausted, reap_claims, reap_processes, reconcile_worktrees,
 )
-from rota.db import (
+from rota.core.db import (
     ReadonlyWriteError, OutboundMessage, SessionResult, Write, init_db,
     session_commit, version_of,
 )
-from rota.scheduler import (
+from rota.core.scheduler import (
     RoleBusy, Wake, cascade_order, cascade_wakes, claim, constraints_for_grains,
     constraint_zero_area_coverage, frontier, is_quiescent, open_tips,
     predicate_wakes, rebuild_schedule, schedule_order, sweep_checkpoints,
@@ -115,7 +115,7 @@ def test_s1_kill_between_tool_calls_leaves_nothing(tmp_path):
 import sys, os, time
 sys.path.insert(0, {str(tmp_path.parents[0] / "x")!r})
 sys.path.insert(0, {os.getcwd()!r})
-from rota.db import connect
+from rota.core.db import connect
 conn = connect({str(dbpath)!r})
 conn.execute("BEGIN IMMEDIATE")
 conn.execute("INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq) "
@@ -205,8 +205,8 @@ def test_s3_scheduler_disposability(tmp_path):
 
     probe = (
         "import sys; sys.path.insert(0, %r)\n"
-        "from rota.db import connect\n"
-        "from rota.scheduler import frontier\n"
+        "from rota.core.db import connect\n"
+        "from rota.core.scheduler import frontier\n"
         "conn = connect(%r)\n"
         "print('|'.join(str(w) for w in frontier(conn)))\n"
     ) % (os.getcwd(), str(dbpath))

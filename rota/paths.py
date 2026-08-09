@@ -19,12 +19,15 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parent
 REPO = PACKAGE.parent
 
-SCHEMA = PACKAGE / "schema.sql"
+# Each asset lives with the group that reads it. When the package was
+# regrouped, this file was the only one that had to change — which was the
+# point of writing it.
+SCHEMA = PACKAGE / "core" / "schema.sql"
 DESIGN = PACKAGE / "design"
-PROMPTS = PACKAGE / "prompts"
+PROMPTS = PACKAGE / "roles" / "prompts"
 
-VIEWER = PACKAGE / "viewer.html"
-STATIC = PACKAGE / "static"
+VIEWER = PACKAGE / "cockpit" / "viewer.html"
+STATIC = PACKAGE / "cockpit" / "static"
 
 # Instrumentation, not artefacts: these live beside the repo, not inside the
 # package, because they are about a run rather than about the system.

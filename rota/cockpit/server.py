@@ -15,7 +15,7 @@ It also answers the question you will actually be asking when you glance at it:
 stuck is a frontier that is not advancing. Those look alike in a log and are
 plainly different here.
 
-Run:  python -m rota.cockpit [project_root] [--port 8899]
+Run:  python -m rota.cockpit.server [project_root] [--port 8899]
 """
 from __future__ import annotations
 
@@ -25,19 +25,20 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import paths
+from .. import paths
 from urllib.parse import parse_qs, urlparse
 
-from . import graph as graph_mod, prompts as prompts_mod
-from .boot import state_dir
-from .coverage import render as render_coverage, report as coverage_report
-from .db import connect, init_db
+from ..design import graph as graph_mod
+from ..roles import prompts as prompts_mod
+from ..core.boot import state_dir
+from ..testkit.coverage import render as render_coverage, report as coverage_report
+from ..core.db import connect, init_db
 from . import inspect_api
-from .sandbox import build as build_sandbox
+from ..core.sandbox import build as build_sandbox
 from .traceview import (
     coverage_edges, frontier_overlay, steps_from_db,
 )
-from .scheduler import (
+from ..core.scheduler import (
     TICKS, is_quiescent, open_tips, predicate_wakes, tick_agenda,
 )
 
@@ -170,7 +171,7 @@ def schema_drift(db_path: Path) -> list[str]:
     """
     import re
 
-    from .db import SCHEMA_PATH
+    from ..core.db import SCHEMA_PATH
 
     ddl = SCHEMA_PATH.read_text(encoding="utf-8")
     declared: dict[str, set[str]] = {}

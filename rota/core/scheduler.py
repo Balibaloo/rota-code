@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from graphlib import CycleError, TopologicalSorter
 from typing import Callable, Iterable
 
-from . import graph as graph_mod
+from ..design import graph as graph_mod
 
 
 @dataclass(frozen=True)

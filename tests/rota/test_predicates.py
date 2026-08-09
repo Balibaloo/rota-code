@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from rota import predicates as P
-from rota.db import init_db
+from rota.core import predicates as P
+from rota.core.db import init_db
 
 
 @pytest.fixture

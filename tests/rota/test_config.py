@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from rota import config, loop
-from rota.db import init_db
-from rota.llm import Pins, ScriptedBackend
+from rota.core import config
+from rota.core import loop
+from rota.core.db import init_db
+from rota.llm.llm import Pins, ScriptedBackend
 
 
 @pytest.fixture
@@ -66,7 +67,8 @@ def test_no_cap_is_hard_coded():
     """
     import inspect
 
-    from rota import boot, predicates
+    from rota.core import boot
+    from rota.core import predicates
     for module in (predicates, boot):
         src = inspect.getsource(module)
         assert "config.get" in src, f"{module.__name__} enforces caps without reading them"
@@ -126,7 +128,7 @@ def test_intake_still_lands_while_halted(db):
     stopped system that also stopped listening is just a broken one — and the
     work would be waiting anyway when it resumed.
     """
-    from rota.principal import Answer, TranscriptPrincipal
+    from rota.roles.principal import Answer, TranscriptPrincipal
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
                "VALUES ('m1','t1','liaison','principal','confirm',1)")

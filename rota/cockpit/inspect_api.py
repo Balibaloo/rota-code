@@ -14,9 +14,10 @@ import json
 import sqlite3
 from typing import Any
 
-from . import graph as graph_mod, prompts as prompts_mod
-from .db import TABLES_OF_ARTEFACT, connect
-from .sandbox import build as build_sandbox
+from ..design import graph as graph_mod
+from ..roles import prompts as prompts_mod
+from ..core.db import TABLES_OF_ARTEFACT, connect
+from ..core.sandbox import build as build_sandbox
 
 # Columns worth showing first, per table. Everything else follows.
 LEAD_COLUMNS = {
@@ -143,7 +144,7 @@ def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
         s["calls"] = [r["fn"] for r in conn.execute(
             "SELECT fn FROM tool_calls WHERE session_id = ? ORDER BY seq", (s["id"],))]
 
-    from .coverage import all_edges, load as load_coverage
+    from ..testkit.coverage import all_edges, load as load_coverage
 
     seen = load_coverage()
     mine = [e for e in all_edges(g) if e.role == role_id]
@@ -198,7 +199,7 @@ def edge(conn: sqlite3.Connection, s: str, t: str, etype: str) -> dict[str, Any]
                 f"WHERE ses.role = ? AND tc.fn IN ({', '.join('?' * len(verbs))}) "
                 "ORDER BY tc.rowid DESC LIMIT 40", (s, *verbs))]
 
-    from .coverage import load as load_coverage
+    from ..testkit.coverage import load as load_coverage
 
     seen = load_coverage()
     out["covered"] = any(k.role == s and k.target == t and k.kind == etype for k in seen)
@@ -212,7 +213,7 @@ def blast_radius(artefact_id: str) -> dict[str, Any]:
     The cascade walks the refs DAG and summons each owner; this is that walk,
     made visible before it happens rather than reconstructed afterwards.
     """
-    from .scheduler import cascade_order
+    from ..core.scheduler import cascade_order
 
     g = graph_mod.load()
     dependents: dict[str, set[str]] = {a: set() for a in g.artefacts}

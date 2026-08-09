@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from rota import graph as graph_mod
-from rota.api import Ctx
-from rota.db import init_db
-from rota.sandbox import (
+from rota.design import graph as graph_mod
+from rota.roles.api import Ctx
+from rota.core.db import init_db
+from rota.core.sandbox import (
     NotInWorkingSet, build, check_implementations, check_no_orphan_implementations,
 )
 
@@ -110,7 +110,7 @@ def test_s9_tool_calls_are_recorded_as_evidence(db):
     The tool_calls log is an assertion target, not decoration: "Developer re-read
     exactly the receipt-touched entries" is a query over it.
     """
-    from rota.sandbox import drain_calls
+    from rota.core.sandbox import drain_calls
 
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('t1','account','login identity','decided')")

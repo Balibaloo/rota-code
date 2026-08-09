@@ -22,8 +22,10 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import (api, graph as graph_mod, llm, prompts, sandbox as sandbox_mod,
-               toolproto, toolschema)
+from . import sandbox as sandbox_mod
+from ..design import graph as graph_mod
+from ..llm import llm, toolproto, toolschema
+from ..roles import api, prompts
 from .db import OutboundMessage, SessionResult, Write, session_commit
 from .scheduler import Wake, claim, release
 
@@ -138,7 +140,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         "refs": json.loads(row["body_refs"] or "[]"),
     }
 
-    from .principal import entry_for, verdict_for
+    from ..roles.principal import entry_for, verdict_for
 
     text = entry_for(conn, wake.message_id)
     if text:

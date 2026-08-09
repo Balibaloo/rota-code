@@ -21,7 +21,8 @@ import sqlite3
 from types import SimpleNamespace
 from typing import Any, Callable
 
-from . import api, graph as graph_mod
+from ..roles import api
+from ..design import graph as graph_mod
 
 
 class SandboxError(RuntimeError):
