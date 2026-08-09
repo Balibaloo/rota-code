@@ -277,7 +277,18 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
     if not db_path.exists():
         raise SystemExit(f"no rota database at {db_path}; boot the project first")
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(db_path))
+    # Deliberately NOT allow_reuse_address. On Windows SO_REUSEADDR permits a
+    # second process to bind a port that is already *actively listening* — not
+    # merely in TIME_WAIT — so setting it stacks servers silently and the oldest
+    # one keeps answering. A restart then appears to succeed while serving stale
+    # code, which is a worse failure than a refused bind.
+    ThreadingHTTPServer.daemon_threads = True
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(db_path))
+    except OSError as exc:
+        raise SystemExit(
+            f"port {port} is in use ({exc}). Stop the other cockpit, or pass "
+            f"--port. Refusing to stack a second server on it.") from exc
     url = f"http://127.0.0.1:{port}/"
     print(f"cockpit: {url}  (db: {db_path})")
     if open_browser:
@@ -288,6 +299,25 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
         pass
 
 
+def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
+    """
+    Restart the server when Python changes, the way the page already reloads
+    when prompts or the graph change.
+
+    The page had hot reload from the start and the *server* did not, so every
+    backend edit meant killing a process, picking a new port because the old one
+    had not released, and losing the browser state. Half a reload loop is worse
+    than none: it teaches you to distrust what you are looking at.
+    """
+    from watchfiles import run_process
+
+    watch = [Path(__file__).parent]
+    print(f"watching {watch[0]} for changes")
+    run_process(*watch, target=serve, args=(project_root, port, open_browser),
+                callback=lambda changes: print(
+                    f"reload: {', '.join(sorted(Path(c[1]).name for c in changes))}"))
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -295,5 +325,8 @@ if __name__ == "__main__":
     ap.add_argument("project_root", nargs="?", default=".")
     ap.add_argument("--port", type=int, default=8899)
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--no-reload", action="store_true",
+                    help="do not restart on source changes")
     args = ap.parse_args()
-    serve(args.project_root, args.port, not args.no_browser)
+    runner = serve if args.no_reload else serve_reloading
+    runner(args.project_root, args.port, not args.no_browser)

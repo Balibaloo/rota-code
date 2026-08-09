@@ -14,11 +14,14 @@ const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             focus:null, inhabit:null, blast:null,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false};
 
+// Light canvas, dark chrome. On a light ground the edge colours can be
+// saturated enough to tell four relationships apart without shouting, which
+// they could not on the dark one.
 const ESTYLE = {
-  writes:   {c:'#6ea8fe', dash:'',    head:true,  label:'#7d9fd6'},
-  reads:    {c:'#55d187', dash:'5 3', head:true,  label:'#5fa87c'},
-  messages: {c:'#e6b25a', dash:'',    head:true,  label:'#c99a52'},
-  refs:     {c:'#3b4454', dash:'2 5', head:false, label:'#4d566a'},
+  writes:   {c:'#2563eb', dash:'',    head:true,  label:'#1d4ed8'},
+  reads:    {c:'#15803d', dash:'5 3', head:true,  label:'#166534'},
+  messages: {c:'#c2410c', dash:'',    head:true,  label:'#9a3412'},
+  refs:     {c:'#64748b', dash:'',    head:false, label:'#475569'},
 };
 
 const esc = s => String(s ?? '').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
@@ -35,11 +38,11 @@ function kindOf(n) {
 }
 
 const SHAPE = {
-  client:  {w:140, h:52, rx:26, fill:'#2b2517', stroke:'#8a7233', dash:''},
-  role:    {w:152, h:50, rx:10, fill:'#1b2333', stroke:'#3d5680', dash:''},
-  record:  {w:172, h:42, rx:4,  fill:'#191e28', stroke:'#33405a', dash:''},
-  journal: {w:172, h:42, rx:4,  fill:'#15191f', stroke:'#333a46', dash:'4 3'},
-  derived: {w:172, h:42, rx:4,  fill:'#12161c', stroke:'#2b3340', dash:'2 4'},
+  client:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
+  role:    {w:152, h:50, rx:10, fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
+  record:  {w:172, h:42, rx:4,  fill:'#e4f3e8', stroke:'#2f855a', dash:'', ink:'#14532d'},
+  journal: {w:172, h:42, rx:4,  fill:'#eef7f0', stroke:'#4b9e74', dash:'4 3', ink:'#166534'},
+  derived: {w:172, h:42, rx:4,  fill:'#f1f5f2', stroke:'#94a3a0', dash:'2 4', ink:'#475569'},
 };
 
 // Reference edges route as orthogonal segments, ported from the design viewer.
@@ -84,7 +87,7 @@ function refPath(e) {
   const horiz = best.o==='h'||best.o==='s';
   const sf = horiz ? (t0.x>s0.x?'right':'left') : (t0.y>s0.y?'bottom':'top');
   const tf = horiz ? (t0.x>s0.x?'left':'right')  : (t0.y>s0.y?'top':'bottom');
-  const off = GV.refOffset[`${e.s}|${e.t}`] || 0;
+  const off = GV.refOffset[`${e.s}|${e.t}|${e.v}`] || 0;
   const anchor=(n,face)=>{
     const p=GV.layout[n];
     return face==='left' ?{x:p.x-W/2, y:p.y+off}
@@ -96,33 +99,58 @@ function refPath(e) {
   const pts = best.o==='h' ? [A,{x:best.ch,y:A.y},{x:best.ch,y:B.y},B]
             : best.o==='v' ? [A,{x:A.x,y:best.ch},{x:B.x,y:best.ch},B]
             : [A,B];
+  // Multiplicity, read off the cardinality: crow's foot for many, bar for one.
+  // A ref without it says two things are related; with it, it says how.
+  const [sc, tc] = (e.card || 'n:1').split(':');
   return {d:'M'+pts.map(p=>`${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L'),
-          mid:pts[Math.floor(pts.length/2)]};
+          mid:pts[Math.floor(pts.length/2)],
+          startMarker: sc.trim()==='1' ? 'one-s' : 'many-s',
+          endMarker:   tc.trim()==='1' ? 'one-e' : 'many-e'};
 }
 
 // A multigraph draws several edges between the same pair. Without spreading
 // them they land on one path and only the last is visible — the picture then
 // silently claims a single relationship where there are three.
+// One slotting pass over *every* edge between a pair, whatever its type and
+// whichever way it points. Slotting per type only moved the collision: a write
+// and a read between the same two nodes still landed on the same curve, and a
+// b->a edge mirrored onto its a->b twin.
+//
+// The fix is a canonical side. Every offset is measured against the sorted pair,
+// so direction no longer decides which side of the line an edge sits on — the
+// slot does.
 function computeSpread() {
   const pairs = {}, refs = {};
   for (const e of GV.graph.edges) {
-    if (e.type === 'refs') { (refs[`${e.s}|${e.t}`] = refs[`${e.s}|${e.t}`] || []).push(e); continue; }
+    if (e.type === 'refs') {
+      const rk = [e.s, e.t].sort().join('|');
+      (refs[rk] = refs[rk] || []).push(e);
+      continue;
+    }
     const k = [e.s, e.t].sort().join('|');
     (pairs[k] = pairs[k] || []).push(e);
   }
+
   GV.spread = {};
-  for (const list of Object.values(pairs)) {
+  const ORDER = {writes: 0, reads: 1, messages: 2};
+  for (const [k, list] of Object.entries(pairs)) {
+    const [first] = k.split('|');
+    list.sort((a, b) =>
+      (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) ||
+      (a.v || '').localeCompare(b.v || ''));
     list.forEach((e, i) => {
-      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] =
-        list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 34;
+      const slot = list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 30;
+      // Canonical side: mirror when the edge runs against the sorted order, so
+      // both directions read off the same ruler.
+      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] = e.s === first ? slot : -slot;
     });
   }
+
   GV.refOffset = {};
-  let seen = {};
   for (const [k, list] of Object.entries(refs)) {
     list.forEach((e, i) => {
-      const n = list.length;
-      GV.refOffset[k] = n === 1 ? 0 : (i - (n - 1) / 2) * 13;
+      GV.refOffset[`${e.s}|${e.t}|${e.v}`] =
+        list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 14;
     });
   }
 }
@@ -246,10 +274,12 @@ function drawTeam() {
     if (GV.inhabit) op = Math.max(op,.7);
 
     let d, lx, ly;
+    let markers = '';
     if (e.type === 'refs') {
       const r = refPath(e);
       if (!r) continue;
       d = r.d; lx = r.mid.x; ly = r.mid.y;
+      markers = `marker-start="url(#${r.startMarker})" marker-end="url(#${r.endMarker})"`;
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
       const off = GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] || 0;
@@ -262,7 +292,7 @@ function drawTeam() {
 
     edges += `<path d="${d}" fill="none"
       stroke="${col}" stroke-width="${w}" stroke-dasharray="${st.dash}" opacity="${op}"
-      ${st.head?'marker-end="url(#head)"':''} class="gedge"
+      ${markers || (st.head?'marker-end="url(#head)"':'')} class="gedge"
       data-e="${e.s}|${e.t}|${e.type}|${esc(e.v||'')}"/>`;
 
     // Edge names always on — the grammar is the content, not a hover reward.
@@ -292,7 +322,7 @@ function drawTeam() {
       ${k==='record'||k==='journal'?`<line x1="0" y1="11" x2="${sh.w}" y2="11"
         stroke="${ring}" stroke-width=".8" opacity=".45"/>`:''}
       <text x="${sh.w/2}" y="${sh.h/2+(k==='record'||k==='journal'?4:1)}"
-        class="nlabel">${esc(n.label)}</text>
+        class="nlabel" fill="${sh.ink}">${esc(n.label)}</text>
       ${vol[n.id]?`<text x="${sh.w-7}" y="9" class="nvol">${vol[n.id]}</text>`:''}
     </g>`;
   }
@@ -302,11 +332,30 @@ function drawTeam() {
 function gvDraw() {
   const {edges, nodes} = GV.mode==='chat' ? drawChat() : drawTeam();
   const v=GV.view;
-  document.getElementById('gsvg').innerHTML =
-    `<defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
-      markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"
-      fill="#6b7688"/></marker></defs>
-     <g transform="translate(${v.x},${v.y}) scale(${v.k})">${edges}${nodes}</g>`;
+  const R = '#64748b';
+  document.getElementById('gsvg').innerHTML = `<defs>
+      <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
+        markerHeight="5" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+      <marker id="one-e" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9"
+        markerHeight="9" orient="auto">
+        <path d="M7 1 L7 11" stroke="${R}" stroke-width="1.6" fill="none"/></marker>
+      <marker id="one-s" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="9"
+        markerHeight="9" orient="auto">
+        <path d="M5 1 L5 11" stroke="${R}" stroke-width="1.6" fill="none"/></marker>
+      <marker id="many-e" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10"
+        markerHeight="10" orient="auto">
+        <path d="M11 6 L2 1 M11 6 L2 6 M11 6 L2 11" stroke="${R}"
+          stroke-width="1.4" fill="none"/></marker>
+      <marker id="many-s" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="10"
+        markerHeight="10" orient="auto">
+        <path d="M1 6 L10 1 M1 6 L10 6 M1 6 L10 11" stroke="${R}"
+          stroke-width="1.4" fill="none"/></marker>
+      <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+        <circle cx="1" cy="1" r="1" fill="#dbe2ea"/></pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#dots)"/>
+    <g transform="translate(${v.x},${v.y}) scale(${v.k})">${edges}${nodes}</g>`;
 
   document.querySelectorAll('.gnode').forEach(el=>{
     if (el.dataset.msg) { el.onclick = ev=>{ev.stopPropagation(); showMessage(el.dataset.msg);}; return; }
@@ -412,8 +461,45 @@ function gvControls(){
   });
   window.addEventListener('mouseup',()=>{pan=null; GV.dragNode=null;
     setTimeout(()=>{GV.dragged=false;},50);});
-  svg.addEventListener('wheel',e=>{e.preventDefault();
-    GV.view.k*= e.deltaY<0?1.12:0.89; gvDraw();},{passive:false});
+  // Zoom about the cursor: the point under the pointer stays put, which is what
+  // every map does and what the hand expects. Scaling about the origin makes the
+  // thing you were looking at slide away, so you chase it with the pan.
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const f = e.deltaY < 0 ? 1.12 : 0.89;
+    const k2 = Math.min(4, Math.max(0.15, GV.view.k * f));
+    const scale = k2 / GV.view.k;
+    GV.view.x = mx - (mx - GV.view.x) * scale;
+    GV.view.y = my - (my - GV.view.y) * scale;
+    GV.view.k = k2;
+    gvDraw();
+  }, {passive:false});
 }
 
-document.addEventListener('DOMContentLoaded', gvLoad);
+function gvLegend() {
+  const swatch = (c,dash) => `<svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4"
+    stroke="${c}" stroke-width="2" stroke-dasharray="${dash}"/></svg>`;
+  const box = (fill,stroke,dash) => `<svg width="16" height="11"><rect x="1" y="1"
+    width="14" height="9" rx="2" fill="${fill}" stroke="${stroke}"
+    stroke-dasharray="${dash}"/></svg>`;
+  document.getElementById('glegend').innerHTML = `
+    <div class="lgrp"><b>edges</b>
+      <span>${swatch(ESTYLE.writes.c,'')} writes</span>
+      <span>${swatch(ESTYLE.reads.c,'5 3')} reads</span>
+      <span>${swatch(ESTYLE.messages.c,'')} messages</span>
+      <span>${swatch(ESTYLE.refs.c,'')} refs (crow's foot = many)</span></div>
+    <div class="lgrp"><b>nodes</b>
+      <span>${box(SHAPE.client.fill,SHAPE.client.stroke,'')} client</span>
+      <span>${box(SHAPE.role.fill,SHAPE.role.stroke,'')} role</span>
+      <span>${box(SHAPE.record.fill,SHAPE.record.stroke,'')} record</span>
+      <span>${box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3')} journal</span>
+      <span>${box(SHAPE.derived.fill,SHAPE.derived.stroke,'2 4')} derived</span></div>
+    <div class="lgrp"><b>rings</b>
+      <span><i class="ring" style="border-color:#d97706"></i> ready to wake</span>
+      <span><i class="ring" style="border-color:#dc2626"></i> mid-session</span>
+      <span><i class="ring" style="border-color:#9333ea"></i> blast radius</span></div>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => gvLoad().then(gvLegend));

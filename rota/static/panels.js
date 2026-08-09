@@ -84,7 +84,16 @@ async function showRole(id) {
   // Mode first. A mode is the unit a session actually runs in — it decides the
   // prompt *and* the tools, and the two only make sense read together. Grouping
   // by artefact kind and listing modes underneath had it backwards.
-  const modes = group('MODES', Object.entries(r.modes).map(([m,v])=>sec(
+  // The base is the mode a session runs in when nothing more specific applies,
+  // so it belongs in the list rather than beside it — collapsed, because it is
+  // the one you read least often.
+  const modes = group('MODES',
+    sec('base — when no mode applies', `${r.working_set.length} tools`,
+      `<b class="sig">full working set</b>
+       <pre>${r.working_set.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>
+       <b class="sig">what it is told</b>
+       <pre>${esc(r.base_prompt)}</pre>`) +
+    Object.entries(r.modes).map(([m,v])=>sec(
       m, `${v.tools.length} tools`,
       `<b class="sig">tools in this mode</b>
        <pre>${v.tools.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>
@@ -92,14 +101,11 @@ async function showRole(id) {
        <pre>${esc(v.piece)}</pre>
        <details><summary class="sig">full composed prompt</summary>
          <pre>${esc(v.composed)}</pre></details>`)).join('')
-    || '<div class="empty">no modes — runs on its base alone</div>');
-
-  const brief = group('BASE BRIEF',
-    `<div class="body"><pre>${esc(r.base_prompt)}</pre></div>`);
+    );
 
   phead(r.label, `role · woken by ${esc(r.inbound_verbs.join(', ')||'ticks only')}`,
     `<span class="link" onclick="gvInhabit('${id}')">inhabit</span>`);
-  P().innerHTML = `<div class="note">${esc(r.note)}</div>${modes}${wiring}${state}${brief}`;
+  P().innerHTML = `<div class="note">${esc(r.note)}</div>${modes}${wiring}${state}`;
 }
 
 // ---------------------------------------------------------------- artefacts
@@ -300,6 +306,19 @@ async function refresh() {
 }
 
 const st_=document.getElementById('state'), tick_=document.getElementById('tick');
+
+for (const [el, pop] of [[st_, 'pop-state'], [tick_, 'pop-tick']]) {
+  const box = document.getElementById(pop);
+  const place = () => {
+    const r = el.getBoundingClientRect();
+    box.style.left = Math.max(8, r.left) + 'px';
+  };
+  el.addEventListener('mouseenter', () => {place(); box.classList.add('on');});
+  el.addEventListener('mouseleave', e => {
+    if (!box.matches(':hover')) box.classList.remove('on');
+  });
+  box.addEventListener('mouseleave', () => box.classList.remove('on'));
+}
 
 async function loadCoverage(){
   const c = await (await fetch('/coverage.json')).json();
