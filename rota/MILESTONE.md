@@ -15,9 +15,19 @@ Written to be **checked**, like `AGREED.md`. Status: `[ ]` · `[~]` · `[x]`
 
 ## 0 · Reorg
 
-- [ ] **0.1** flat `rota/` becomes grouped — `core/ roles/ design/ tools/`
-- [ ] **0.2** imports updated, suite green either side, no behaviour change
-- [ ] **0.3** one commit, reviewable as a move
+- [x] **0.1** flat `rota/` becomes grouped — `design/ core/ roles/ llm/
+      cockpit/ testkit/ tools/`
+- [x] **0.2** imports updated, suite green either side, no behaviour change
+- [x] **0.3** two commits: `paths.py` first so the move could not break a path,
+      then the move — 92 renames
+
+**Landed.** 183 green, one more than before (the check that no module computes
+its own location). Five things the move broke that a rename cannot see, each
+caught by the suite: parenthesised imports, a non-idempotent second pass on
+`rota.llm.llm`, string literals (`"rota.db"` became `"rota.core.db"`), indented
+deferred imports that fail at *call* time rather than import time, and two file
+scans keyed to the flat layout — one of which would have silently emptied the
+vocabulary harvest of every L6 term.
 
 **Why first:** cassette keys hash the prompt, and prompt paths moving after
 cassettes exist invalidates evidence for nothing. Moving 40 modules is cheap;
