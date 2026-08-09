@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM team — role and artefact graph</title>
+<style>
+  :root {
+    --ink: #1b2128;
+    --ink-soft: #5c6672;
+    --paper: #f4f6f7;
+    --panel: #ffffff;
+    --line: #d9dee2;
+    --role: #3c4a82;
+    --role-bg: #e8ebf5;
+    --artefact: #1c6b62;
+    --artefact-bg: #e0edea;
+    --client: #8a5a18;
+    --client-bg: #f7ecda;
+    --side: 300px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 400 14px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7px var(--side);
+    grid-template-rows: auto 1fr;
+  }
+  #grip {
+    grid-column: 2; grid-row: 2;
+    cursor: col-resize; background: var(--line);
+    position: relative; touch-action: none;
+  }
+  #grip::after {
+    content: ''; position: absolute; inset: 0 -4px;
+  }
+  #grip:hover, #grip.dragging { background: var(--role); }
+  body.resizing { user-select: none; cursor: col-resize; }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 14px; font-weight: 500; margin: 0; letter-spacing: 0.01em; }
+  .filters { display: flex; gap: 14px; flex-wrap: wrap; }
+  .filters label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--ink-soft); cursor: pointer; user-select: none;
+  }
+  .swatch { width: 22px; height: 0; border-top-width: 2px; display: inline-block; }
+  button {
+    font: inherit; font-size: 13px; padding: 4px 12px;
+    background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  }
+  button:hover { background: var(--paper); color: var(--ink); }
+  button:focus-visible { outline: 2px solid var(--role); outline-offset: 1px; }
+  #cy { background: var(--paper); }
+  aside {
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  aside h2 { font-size: 15px; font-weight: 500; margin: 0 0 2px; }
+  .kind {
+    display: inline-block; font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-bottom: 12px;
+  }
+  .kind.role { background: var(--role-bg); color: var(--role); }
+  .kind.artefact { background: var(--artefact-bg); color: var(--artefact); }
+  .kind.client { background: var(--client-bg); color: var(--client); }
+  .note { color: var(--ink-soft); font-size: 13px; margin: 0 0 16px; }
+  .group { margin-bottom: 14px; }
+  .group h3 {
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-soft); font-weight: 500; margin: 0 0 6px;
+  }
+  .group ul { list-style: none; margin: 0; padding: 0; }
+  .group li {
+    font-size: 13px; padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .group li:last-child { border-bottom: none; }
+  .group li span { color: var(--ink-soft); }
+  #cov[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .covlist { list-style: none; margin: 0 0 14px; padding: 0; }
+  .covlist li { font-size: 12px; padding: 3px 0; border-bottom: 1px solid var(--line); font-family: ui-monospace, monospace; }
+  .covlist li:last-child { border-bottom: none; }
+  .scope {
+    font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
+    background: var(--paper); border: 1px solid var(--line);
+    padding: 0 5px; border-radius: 3px; color: var(--ink-soft);
+  }
+  .empty { color: var(--ink-soft); font-size: 13px; }
+  .tabs { display: flex; gap: 4px; margin-left: auto; }
+  .tabs button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  .steps li {
+    counter-increment: s; padding: 8px 10px 8px 30px; position: relative;
+    font-size: 13px; cursor: pointer; border-radius: 4px; color: var(--ink-soft);
+    border-left: 2px solid transparent;
+  }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 8px; top: 8px;
+    font-size: 11px; font-variant-numeric: tabular-nums; color: var(--line);
+  }
+  .steps li:hover { background: var(--paper); }
+  .steps li[aria-current="true"] { background: var(--paper); color: var(--ink); border-left-color: var(--role); }
+  .steps li[aria-current="true"]::before { color: var(--role); }
+  .steps li.done { color: var(--ink); }
+  .steps li strong { font-weight: 500; display: block; }
+  .steps li p { margin: 3px 0 0; font-size: 12px; color: var(--ink-soft); }
+  .steps li[aria-current="true"] p { color: var(--ink); }
+  .storybar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .storybar .pos { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .round { font-size: 11px; color: var(--client); background: var(--client-bg); padding: 2px 7px; border-radius: 3px; }
+  @media (max-width: 780px) {
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr 6px 40vh; }
+    #grip { grid-column: 1; grid-row: 3; cursor: row-resize; }
+    aside { grid-column: 1; grid-row: 4; border-left: none; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LLM team — roles, artefacts, access</h1>
+  <div class="filters">
+    <label><input type="checkbox" data-edge="writes" checked><span class="swatch" style="border-top:2px solid #3c4a82"></span>writes</label>
+    <label><input type="checkbox" data-edge="reads" checked><span class="swatch" style="border-top:2px dashed #7a8391"></span>reads</label>
+    <label><input type="checkbox" data-edge="messages" checked><span class="swatch" style="border-top:2px dotted #a15c3e"></span>messages</label>
+    <label><input type="checkbox" data-edge="refs" checked><span class="swatch" style="border-top:2px solid #8f6fa8"></span>refs</label>
+  </div>
+  <button id="cov">Coverage</button>
+  <button id="fit">Fit</button>
+  <button id="reset">Reset layout</button>
+  <div class="tabs">
+    <button id="tab-explore" aria-pressed="true">Explore</button>
+    <button id="tab-story" aria-pressed="false">Story</button>
+  </div>
+</header>
+
+<div id="cy"></div>
+
+<div id="grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize sidebar"></div>
+
+<aside id="panel">
+  <p class="empty">Select a node to see what it touches. Each node is a placeholder for its own graph — the internals get filled in decision by decision.</p>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<script>
+/* ---------------------------------------------------------------------------
+   GRAPH DATA — edit this block only.
+   node.type:  client | role | artefact
+   edge.type:  writes | reads | messages
+   Positions: x flows left to right along the lifecycle.
+              Artefacts sit in the upper band, roles in the lower band.
+--------------------------------------------------------------------------- */
+const NODES = [
+  // client
+  { id: 'client',    label: 'Client',                 type: 'client',   x:      80, y:  620, note: 'Technical. Synchronous. Holds final authority. Optional PR gate.' },
+
+  // roles (lower band)
+  { id: 'interface', label: 'Interface',              type: 'role',     x:    280, y:  620, note: 'Only role that sees the client. Records and broadcasts; does not interpret. Fields every client message as inquiry first: consult-mode sessions answer questions read-only \u2014 no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change.' },
+  { id: 'vision',    label: 'Vision',                 type: 'role',     x:    520, y:  500, note: 'Identity and scope over time. Owns non-goals, the rejection log, and the check of every new statement against prior refusals \u2014 including noticing when an old no has expired.' },
+  { id: 'domain',    label: 'Domain',                 type: 'role',     x:    520, y:  750, note: 'Terms and business rules. Catches contradictions in the dump.' },
+  { id: 'architect', label: 'Architect',              type: 'role',     x:    760, y:  620, note: 'Feasibility and constraints. Groups tickets into batches \u2014 a dependency-and-collision judgement that lives in the system model.' },
+  { id: 'planner',   label: 'Planner',                type: 'role',     x:   960, y:  850, note: 'Orders whole batches \u2014 never time, and under the single-role constraint parallelism is dormant: this is purely an orderer. Dependencies arrive as backlog facts declared by Architect. The scheduler reads this artefact directly (dispatch is a query; being woken is the assignment). Woken by the cascade when a receipt lands on anything the schedule refs; answerable via consult mode for client ordering questions.' },
+  { id: 'schedule',  label: 'Batch schedule',         type: 'artefact', x:  1200, y:  400, note: 'Order and parallelism constraints between batches. No dates.' },
+  { id: 'developer', label: 'Developer',              type: 'role',     x:   1200, y:  620, note: 'Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Domain, criterion and scope gaps to Vision, constraint conflicts to Architect. Interface is reached only through an owner reporting blocked.' },
+  { id: 'critic',    label: 'Critic',                 type: 'role',     x:  1420, y:  620, note: 'Judges diff against intent. Never sees the developer reasoning.' },
+
+  // artefacts (upper band)
+  { id: 'transcript',label: 'Transcript',            type: 'artefact', x:    280, y:  400, note: 'Append-only, verbatim utterances with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.' },
+  { id: 'brief',     label: 'Brief (statements)',    type: 'artefact', x:    280, y:  230, note: 'Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the client, so segmentation can be aggressive.' },
+  { id: 'problem',   label: 'Problem statement',      type: 'artefact', x:    520, y:   90, note: 'Scope items and non-goals, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item\u2019s last amendment.' },
+  { id: 'glossary',  label: 'Glossary + rules',       type: 'artefact', x:    740, y:  230, note: 'Canonical meaning of every term. Entries carry provenance: ratified by the client, or observed \u2014 extracted from an onboarded codebase and awaiting confirmation.' },
+  { id: 'model',     label: 'System model',           type: 'artefact', x:    960, y:   90, note: 'Constraints, and what is buildable here. Each constraint declares bindings \u2014 the modules it governs \u2014 so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase \u2014 found, not chosen). Challenging an observed entry forces its first decision.' },
+  { id: 'decisions', label: 'Decision record',        type: 'artefact', x:    740, y:  400, note: 'Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state \u2014 which is why multi-writer is safe here and not on the backlog.' },
+  { id: 'backlog',   label: 'Backlog + criteria',     type: 'artefact', x:    980, y:  230, note: 'Tickets grouped into batches — complete feature sets, immutable once formed: priority (Vision\u2019s write) moves batches whole, and only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item. Three writers; still a candidate for single ownership.' },
+  { id: 'ledger',    label: 'Assumption ledger',      type: 'artefact', x:    980, y:  400, note: 'Any role writes. Becomes the agenda for the next client turn.' },
+  { id: 'code',      label: 'Codebase + diffs',       type: 'artefact', x:   1200, y:   90, note: 'One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch\u2019s runtime whole — processes and ports die with it, half-dead environments forbidden — while the worktree and its commits persist as deferred work (commit-first bounds the loss).' },
+  { id: 'verdicts',  label: 'Review verdicts',        type: 'artefact', x:  1420, y:  230, note: 'Pass, or the criterion that failed.' },
+];
+
+/* edge grammar:  v = verb (the operation) · n = noun (what moves) · a = scope adjective
+   scope adjectives, cheapest first:
+     none      no payload — a signal only
+     single    one object fetched by id
+     index     ids plus one line each, no bodies
+     window    a bounded span around an anchor
+     delta     only what changed since this role last ran
+     query     a search that returns matches, not the corpus
+     full      the entire artefact — the expensive case, justify each one          */
+const EDGES = [
+  // writes
+  { s: 'interface', t: 'transcript', type: 'writes', v: 'append',   n: 'utterance',     a: 'single' },
+  { s: 'interface', t: 'brief',      type: 'writes', v: 'segment',  n: 'statements',    a: 'delta', label: 'atomise' },
+  { s: 'interface', t: 'brief',      type: 'writes', v: 'ratify',   n: 'status flags',  a: 'delta', label: 'client-confirmed' },
+  { s: 'vision',    t: 'problem',    type: 'writes', v: 'assert',   n: 'scope, non-goals' },
+  { s: 'domain',    t: 'glossary',   type: 'writes', v: 'amend',    n: 'terms, rules',  a: 'delta' },
+  { s: 'architect', t: 'model',      type: 'writes', v: 'amend',    n: 'constraints',   a: 'delta' },
+  { s: 'developer', t: 'code',       type: 'writes', v: 'commit',   n: 'branch + diff', a: 'batch', label: 'one worktree per batch' },
+  { s: 'critic',    t: 'verdicts',   type: 'writes', v: 'emit',     n: 'verdict per batch', a: 'single' },
+  { s: 'vision',    t: 'backlog',    type: 'writes', v: 'slice',    n: 'batches of tickets', label: 'contested · approved items only' },
+  { s: 'vision',    t: 'backlog',    type: 'writes', v: 'prioritize', n: 'item priority', a: 'single', label: 'moves whole batches' },
+  { s: 'domain',    t: 'backlog',    type: 'writes', v: 'specify',  n: 'criteria',      label: 'contested' },
+  { s: 'architect', t: 'backlog',    type: 'writes', v: 'batch',    n: 'ticket groups + constraints', label: 'contested' },
+  { s: 'vision',    t: 'ledger',     type: 'writes', v: 'log',      n: 'assumption',    a: 'single' },
+  { s: 'vision',    t: 'decisions',  type: 'writes', v: 'author',   n: 'own decision + reason', a: 'single' },
+  { s: 'architect', t: 'decisions',  type: 'writes', v: 'author',   n: 'own decision + reason', a: 'single' },
+  { s: 'architect', t: 'ledger',     type: 'writes', v: 'log',      n: 'assumption',    a: 'single' },
+  { s: 'developer', t: 'ledger',     type: 'writes', v: 'log',      n: 'assumption',    a: 'single' },
+
+  // reads
+  { s: 'vision',    t: 'brief',      type: 'reads',  v: 'index',    n: 'statements',    a: 'index' },
+  { s: 'domain',    t: 'brief',      type: 'reads',  v: 'index',    n: 'statements',    a: 'index' },
+  { s: 'architect', t: 'brief',      type: 'reads',  v: 'index',    n: 'statements',    a: 'index' },
+  { s: 'vision',    t: 'transcript', type: 'reads',  v: 'quote',    n: 'utterance',     a: 'window', label: 'recover emphasis' },
+  { s: 'domain',    t: 'transcript', type: 'reads',  v: 'quote',    n: 'utterance',     a: 'window', label: 'recover emphasis' },
+  { s: 'architect', t: 'transcript', type: 'reads',  v: 'quote',    n: 'utterance',     a: 'window', label: 'recover emphasis' },
+  { s: 'vision',    t: 'problem',    type: 'reads',  v: 'consult',  n: 'own statement', a: 'full',  label: 'before amending' },
+  { s: 'domain',    t: 'glossary',   type: 'reads',  v: 'consult',  n: 'own terms',     a: 'full',  label: 'before amending' },
+  { s: 'architect', t: 'model',      type: 'reads',  v: 'consult',  n: 'own model',     a: 'full',  label: 'before amending' },
+  { s: 'vision',    t: 'decisions',  type: 'reads',  v: 'search',   n: 'rejections',    a: 'query' },
+  { s: 'architect', t: 'glossary',   type: 'reads',  v: 'lookup',   n: 'term',          a: 'single' },
+  { s: 'architect', t: 'code',       type: 'reads',  v: 'probe',    n: 'modules',       a: 'query' },
+  { s: 'domain',    t: 'code',       type: 'reads',  v: 'survey',   n: 'terms in use',  a: 'query', label: 'onboarding' },
+  { s: 'vision',    t: 'code',       type: 'reads',  v: 'survey',   n: 'observed behaviour', a: 'query', label: 'onboarding' },
+  { s: 'developer', t: 'backlog',    type: 'reads',  v: 'load',     n: 'batch of tickets + criteria', a: 'batch' },
+  { s: 'developer', t: 'glossary',   type: 'reads',  v: 'lookup',   n: 'term',          a: 'single' },
+  { s: 'developer', t: 'model',      type: 'reads',  v: 'load',     n: 'constraints',   a: 'delta' },
+  { s: 'developer', t: 'code',       type: 'reads',  v: 'probe',    n: 'modules',       a: 'query' },
+  { s: 'critic',    t: 'backlog',    type: 'reads',  v: 'load',     n: 'criteria for batch', a: 'batch', label: 'criteria only' },
+  { s: 'critic',    t: 'code',       type: 'reads',  v: 'read',     n: 'batch diff',    a: 'batch', label: 'diff only' },
+  { s: 'interface', t: 'ledger',     type: 'reads',  v: 'list',     n: 'open assumptions', a: 'delta' },
+  { s: 'interface', t: 'decisions',  type: 'reads',  v: 'search',   n: 'prior art',     a: 'query' },
+
+  // messages
+  { s: 'client',    t: 'interface',  type: 'messages', v: 'converse', n: 'free text' },
+  { s: 'interface', t: 'client',     type: 'messages', v: 'confirm',  n: 'statement list', a: 'index', label: 'ratification' },
+  { s: 'interface', t: 'client',     type: 'messages', v: 'clarify',  n: 'ordered questions', a: 'index' },
+  { s: 'interface', t: 'vision',     type: 'messages', v: 'brief',    n: 'changed statements', a: 'delta' },
+  { s: 'interface', t: 'domain',     type: 'messages', v: 'brief',    n: 'changed statements', a: 'delta' },
+  { s: 'interface', t: 'architect',  type: 'messages', v: 'brief',    n: 'changed statements', a: 'delta' },
+  { s: 'vision',    t: 'interface',  type: 'messages', v: 'report',   n: 'blocker',    a: 'single' },
+  { s: 'domain',    t: 'interface',  type: 'messages', v: 'report',   n: 'blocker',    a: 'single' },
+  { s: 'architect', t: 'interface',  type: 'messages', v: 'report',   n: 'blocker',    a: 'single' },
+  { s: 'domain',    t: 'vision',     type: 'messages', v: 'challenge', n: 'contradiction', a: 'single' },
+  { s: 'architect', t: 'vision',     type: 'messages', v: 'challenge', n: 'infeasibility', a: 'single' },
+  { s: 'architect', t: 'vision',     type: 'messages', v: 'propose',  n: 'seam / refactor plan', a: 'index' },
+  { s: 'developer', t: 'architect',  type: 'messages', v: 'escalate', n: 'constraint conflict', a: 'single' },
+  { s: 'developer', t: 'vision',     type: 'messages', v: 'question', n: 'criterion or scope gap', a: 'single' },
+  { s: 'developer', t: 'domain',     type: 'messages', v: 'question', n: 'term ambiguity', a: 'single' },
+  { s: 'critic',    t: 'developer',  type: 'messages', v: 'challenge', n: 'failed criterion', a: 'single' },
+  { s: 'architect', t: 'critic',     type: 'messages', v: 'finding',  n: 'constraint id + satisfied / violated', a: 'single', label: 'no reasoning \u2014 preserves critic isolation' },
+
+  // planner
+  { s: 'planner',   t: 'schedule',   type: 'writes', v: 'order',    n: 'batch dependencies, parallelism', a: 'delta' },
+  { s: 'planner',   t: 'backlog',    type: 'reads',  v: 'scan',     n: 'batches',       a: 'index' },
+  { s: 'planner',   t: 'schedule',   type: 'reads',  v: 'consult',  n: 'own schedule',  a: 'full', label: 'before amending' },
+
+  // consult mode — read-only sessions; no writes, so no revocation, no checkpoint invalidation
+  { s: 'interface', t: 'vision',     type: 'messages', v: 'consult',  n: 'client question', a: 'single', label: 'read-only session' },
+  { s: 'interface', t: 'domain',     type: 'messages', v: 'consult',  n: 'client question', a: 'single', label: 'read-only session' },
+  { s: 'interface', t: 'architect',  type: 'messages', v: 'consult',  n: 'client question', a: 'single', label: 'read-only session' },
+  { s: 'interface', t: 'planner',    type: 'messages', v: 'consult',  n: 'client question', a: 'single', label: 'read-only session' },
+  { s: 'vision',    t: 'interface',  type: 'messages', v: 'answer',   n: 'from own artefact', a: 'single' },
+  { s: 'domain',    t: 'interface',  type: 'messages', v: 'answer',   n: 'from own artefact', a: 'single' },
+  { s: 'architect', t: 'interface',  type: 'messages', v: 'answer',   n: 'from own artefact', a: 'single' },
+  { s: 'planner',   t: 'interface',  type: 'messages', v: 'answer',   n: 'from own artefact', a: 'single' },
+
+  // Client Signoff gate — the client approves the interpretation, not just the wording
+  { s: 'vision',    t: 'interface',  type: 'messages', v: 'submit',   n: 'scope + non-goals', a: 'index', label: 'for sign-off' },
+  { s: 'interface', t: 'client',     type: 'messages', v: 'present',  n: 'draft statement', a: 'full', label: 'signoff · reads as one document' },
+  { s: 'client',    t: 'interface',  type: 'messages', v: 'verdict',  n: 'per-item approve / contest / amend', a: 'index' },
+  { s: 'interface', t: 'vision',     type: 'messages', v: 'relay',    n: 'verdicts',   a: 'index' },
+  { s: 'vision',    t: 'problem',    type: 'writes',   v: 'set approval', n: 'item status', a: 'single', label: 'approved / pending / contested' },
+
+  // revocation — amending an approved item stops its batch and re-awakens its author
+  { s: 'vision',    t: 'developer',  type: 'messages', v: 'reopen',   n: 'revoked item + prior batch', a: 'batch' },
+  { s: 'developer', t: 'vision',     type: 'messages', v: 'elect',    n: 'amend or restart', a: 'none' },
+
+  // refs — structural relations between artefacts (which record points at which)
+  { s: 'brief',     t: 'transcript', type: 'refs', v: 'cites span',       card: 'n:1' },
+  { s: 'problem',   t: 'brief',      type: 'refs', v: 'derives from',     card: 'n:n' },
+  { s: 'glossary',  t: 'brief',      type: 'refs', v: 'defined by',       card: 'n:n' },
+  { s: 'model',     t: 'glossary',   type: 'refs', v: 'constrains term',  card: 'n:n' },
+  { s: 'model',     t: 'code',       type: 'refs', v: 'binds',            card: 'n:n' },
+  { s: 'backlog',   t: 'problem',    type: 'refs', v: 'satisfies',        card: 'n:1' },
+  { s: 'backlog',   t: 'glossary',   type: 'refs', v: 'criteria use',     card: 'n:n' },
+  { s: 'backlog',   t: 'model',      type: 'refs', v: 'bounded by',       card: 'n:n' },
+  { s: 'ledger',    t: 'brief',      type: 'refs', v: 'assumes about',    card: 'n:1' },
+  { s: 'code',      t: 'backlog',    type: 'refs', v: 'implements',       card: 'n:1' },
+  { s: 'verdicts',  t: 'code',       type: 'refs', v: 'judges',           card: '1:1' },
+  { s: 'verdicts',  t: 'backlog',    type: 'refs', v: 'against criterion', card: 'n:1' },
+  { s: 'decisions', t: 'ledger',     type: 'refs', v: 'resolves',         card: 'n:1' },
+  { s: 'schedule',  t: 'backlog',    type: 'refs', v: 'orders',           card: 'n:n' },
+  { s: 'decisions', t: 'problem',    type: 'refs', v: 'explains',         card: 'n:1' },
+];
+
+/* ---------------------------------------------------------------------------
+   STORIES — each is a named traversal, authored step by step.
+   edges are [source, target, type]; edge endpoints highlight automatically,
+   so `nodes: []` is only needed for a node with no edge in that step.
+--------------------------------------------------------------------------- */
+const STORIES = [];
+
+STORIES.push({ name: 'One small feature — "let users delete their account"', steps: [
+  { title: 'Before you start', round: 'context',
+    text: 'A technical client with final authority sends one sentence. Nothing in the graph knows what it means yet. Over 30 steps every role and nearly every edge fires \u2014 not because the story reaches for them, but because an eleven-word ask turns out to contain a term collision, a constraint that cannot be satisfied, and a refusal from eight months ago whose reasoning has quietly expired. Each role is awoken cold, one at a time, with no memory and no visibility of the others. Everything they know arrives through an artefact or a message. Watch for three things: where a question comes from (roles report what they cannot determine; Interface never invents questions), where authority stops (escalation routes to whoever writes the artefact holding the answer), and what happens to uncertainty that never resolves (it gets written down rather than guessed). Bright edges are the current step, faint ones are the path already walked.',
+    edges: [] },
+  { title: 'Eleven words', round: 'intake',
+    text: 'The client sends a single sentence: add a button so people can delete their account. It sounds like an afternoon of work.',
+    edges: [['client','interface','messages','converse']] },
+
+  { title: 'Appended, not interpreted', round: 'intake',
+    text: 'The utterance goes into the transcript verbatim, greetings and all. Nothing downstream will ever read it in bulk \u2014 it exists so that later interpretations have something un-interpreted to be checked against.',
+    edges: [['interface','transcript','writes']] },
+
+  { title: 'Atomised into statements', round: 'intake',
+    text: 'Interface splits the utterance into atoms and IDs them, each with a span back into the transcript. It may split aggressively, because it is about to be checked.',
+    edges: [['interface','brief','writes','segment']] },
+
+  { title: 'The client ratifies the list', round: 'intake',
+    text: 'Here is what I heard you ask for. The pleasantries fall away without Interface deciding what counts as substance, and a bad split gets caught by the only party who knows what was meant.',
+    edges: [['interface','client','messages','confirm'],['client','interface','messages','converse'],['interface','brief','writes','ratify']] },
+
+  { title: 'Three roles, three readings', round: 'round 1',
+    text: 'Vision, Domain and Architect each read the same eleven words against different artefacts, and immediately understand three different features.',
+    edges: [['interface','vision','messages','brief'],['interface','domain','messages','brief'],['interface','architect','messages','brief'],['vision','brief','reads'],['domain','brief','reads'],['architect','brief','reads']] },
+
+  { title: 'We said no to this before', round: 'round 1',
+    text: '`Vision` checks the new statements against the rejection log \u2014 not out of suspicion, but because guarding the project\u2019s identity over time is its job at every intake. A refusal from eight months ago surfaces: deletion was declined because billing history had to survive.',
+    edges: [['vision','decisions','reads'],['interface','decisions','reads']] },
+
+  { title: 'Which account?', round: 'round 1',
+    text: 'The glossary already carries two senses \u2014 the login identity and the billing entity. Deleting one is a profile removal; deleting the other ends a contract. Domain is blocked.',
+    edges: [['domain','glossary','reads'],['domain','interface','messages','report']] },
+
+  { title: 'And what does delete mean?', round: 'round 1',
+    text: 'Rows gone, or tombstoned and anonymised? The audit log is append-only by design, so one of those answers is not available at any price. Architect is blocked.',
+    edges: [['architect','model','reads'],['architect','interface','messages','report']] },
+
+  { title: 'Is the old refusal still valid?', round: 'round 1',
+    text: 'Vision reads the rejection log and cannot tell whether the reasoning that killed this last time still holds. Blocked \u2014 and this is the question nobody would have thought to ask.',
+    edges: [['vision','decisions','reads'],['vision','interface','messages','report']] },
+
+  { title: 'Three blockers, two questions', round: 'round 1',
+    text: 'Interface merges the two deletion questions into one, orders them so the meaning of "account" is settled first, and asks in the client\u2019s language rather than the model\u2019s.',
+    edges: [['interface','client','messages','clarify']] },
+
+  { title: 'The reason the no expired', round: 'round 2',
+    text: 'It is the login identity, not the billing entity \u2014 and a regulator now requires it, which is precisely why the old refusal no longer stands.',
+    edges: [['client','interface','messages','converse'],['interface','brief','writes','ratify']] },
+
+  { title: 'The rejection is overturned on the record', round: 'round 2',
+    text: '`Vision` commits the problem statement with explicit non-goals \u2014 and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.',
+    edges: [['vision','brief','reads'],['vision','problem','writes','assert'],['vision','decisions','writes','author']] },
+
+  { title: 'Architect challenges the scope', round: 'round 2',
+    text: 'Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Vision` to name that as a non-goal, writes the constraint into the model \u2014 and authors its reasoning in the decision record in the same session.',
+    edges: [['architect','vision','messages','challenge'],['architect','glossary','reads'],['architect','model','writes','amend'],['architect','decisions','writes','author']] },
+
+  { title: 'Domain challenges the wording', round: 'round 2',
+    text: 'The client said delete; the applicable rule says erasure, which has a specific legal meaning and obligations attached. Domain writes both into the glossary.',
+    edges: [['domain','vision','messages'],['domain','glossary','writes']] },
+
+  { title: 'One thing nobody can settle', round: 'round 2',
+    text: 'How long the anonymised tombstone should live is a legal question the client has not answered. Round budget spent \u2014 Vision decides, and writes the assumption down instead of hiding it.',
+    edges: [['vision','ledger','writes']] },
+
+  { title: 'Submitted for sign-off', round: 'signoff',
+    text: 'Nothing can be sliced yet. `Vision` hands `Interface` the scope items and non-goals \u2014 not for wording review, but for the client to agree that this is what gets built.',
+    edges: [['vision','interface','messages','submit']] },
+
+  { title: 'Reads as a document, records as items', round: 'signoff',
+    text: 'The client sees one page, not eleven checkboxes \u2014 scope, non-goals, and the one open assumption attached to this lineage (the retention window nobody could settle). Approval given with an assumption visible ratifies its default. `Interface` records a verdict per item behind the scenes; lgtm approves everything raised.',
+    edges: [['interface','ledger','reads'],['interface','client','messages','present'],['client','interface','messages','verdict']] },
+
+  { title: 'The non-goal is contested', round: 'signoff',
+    text: 'Everything approved except one: the client will not accept that invoices survive deletion without knowing what the user is told. A contested item is not a rejection \u2014 it re-enters shaping as a blocker.',
+    edges: [['interface','vision','messages','relay'],['vision','problem','writes','set approval']] },
+
+  { title: 'One more round, one item wide', round: 'signoff',
+    text: 'Only the contested item goes back round. `Domain` names the wording the user will see; `Vision` amends that non-goal and nothing else.',
+    edges: [['domain','vision','messages','challenge'],['vision','problem','writes','assert']] },
+
+  { title: 'Approved, and the gate opens', round: 'signoff',
+    text: 'Every item now carries an approval that postdates its last amendment. That predicate is what the scheduler checks before it wakes anybody \u2014 no judgement call about whether the client needs involving.',
+    edges: [['interface','client','messages','present'],['client','interface','messages','verdict'],['interface','vision','messages','relay'],['vision','problem','writes','set approval']] },
+
+  { title: 'Sliced, then batched', round: 'backlog',
+    text: '`Vision` slices tickets from the approved items; `Domain` writes criteria in glossary terms; `Architect` groups tickets into batches \u2014 each a complete feature set: one discrete change, one worktree, one PR, tracing to exactly one approved item \u2014 and declares any inter-batch dependencies as backlog facts. Batches are immutable once formed: priority moves them whole, and only a scope change may recompose one. The scheduler will read `Planner`\u2019s ordering directly; nobody announces it.',
+    edges: [['vision','backlog','writes','slice'],['domain','backlog','writes'],['architect','backlog','writes']] },
+
+  { title: 'Developer wakes up cold', round: 'batch 1',
+    text: 'One batch: four tickets that together deliver deletion, in one worktree. `Developer` sees the criteria in glossary terms, the constraints, and the code. It has no idea a regulator is involved, and does not need to.',
+    edges: [['developer','backlog','reads'],['developer','glossary','reads'],['developer','model','reads'],['developer','code','reads']] },
+
+  { title: 'Shared content', round: 'batch 1',
+    text: 'The user owns documents other people are still using. Nothing in the batch criteria covers it \u2014 a scope gap, so the question routes to the gap\u2019s owner: `Vision`, not `Interface`. `Vision` cannot determine the answer either, reports blocked, and the same harvesting chain runs \u2014 entered one link higher, arriving at the client owned and translated.',
+    edges: [['developer','vision','messages','question'],['vision','interface','messages','report'],['interface','client','messages','clarify']] },
+
+  { title: 'A constraint in the way', round: 'batch 1',
+    text: 'Anonymising the author field breaks a foreign key the audit log depends on. `Developer` cannot write the system model, so it escalates by artefact.',
+    edges: [['developer','architect','messages'],['architect','code','reads']] },
+
+  { title: 'The amendment revokes an approval', round: 'batch 1',
+    text: 'Every fix changes something the client was told. `Architect` does not have to judge whether that warrants involving the client — amending an approved item drops it to pending, and the batch stops. The gate decides, not the role.',
+    edges: [['architect','vision','messages','challenge'],['vision','problem','writes','set approval'],['vision','developer','messages','reopen']] },
+
+  { title: 'Amend or start over', round: 'batch 1',
+    text: '`Developer` is re-awoken with the revoked item and its own prior work, and elects: amend, or wipe and restart. The election covers both layers of its state \u2014 the worktree (durable partial work) and the suspended session history (its reasoning so far). Its checkpoint is stale by definition here \u2014 the model changed while it slept \u2014 so amend means: keep the worktree, reconstruct the understanding fresh from artefacts. It picks amend; three of the four tickets are untouched.',
+    edges: [['developer','vision','messages','elect']] },
+
+  { title: 'Re-approved on one item', round: 'batch 1',
+    text: '`Interface` turns a foreign key problem into a plain trade-off: shared documents keep working, authorship shows as a removed user. The client rules in under a minute, and the item’s approval is reinstated.',
+    edges: [['vision','interface','messages','submit'],['interface','client','messages','present'],['client','interface','messages','verdict'],['interface','vision','messages','relay'],['vision','problem','writes','set approval']] },
+
+  { title: 'Model bends, reason authored', round: 'batch 1',
+    text: '`Architect` relaxes the constraint, logs an assumption about in-flight invoices, and authors the decision entry itself \u2014 why the audit log was allowed to keep a dangling reference. Nobody reconstructs this later from a message body; the party who knew wrote it down when it was decided.',
+    edges: [['architect','model','writes'],['architect','ledger','writes'],['architect','decisions','writes','author']] },
+
+  { title: 'The batch lands', round: 'batch 1',
+    text: 'All four tickets implemented in one worktree, one PR. `Developer` logs its own assumption about a deletion requested mid-billing-cycle.',
+    edges: [['developer','code','writes'],['developer','ledger','writes']] },
+
+  { title: 'Critic, criteria and diff only', round: 'review',
+    text: 'The batch criteria and the batch diff. No escalation thread, no client ruling, no `Developer` reasoning — just what was promised and what was built.',
+    edges: [['critic','backlog','reads'],['critic','code','reads']] },
+
+  { title: 'The button lies', round: 'review',
+    text: 'Everything passes except the confirmation copy, which says permanently deleted when it is a tombstone. A reviewer who had read the escalation thread would have known what was meant and waved it through.',
+    edges: [['critic','verdicts','writes'],['critic','developer','messages']] },
+
+  { title: 'Second pass, Architect pulled in', round: 'review',
+    text: 'The copy fix is trivial; the accompanying data-retention note touches the model, so `Architect` reviews the revision \u2014 and returns a finding, not advice: constraint ID, satisfied or violated. `Critic` composes the two verdicts without ever learning why the model says what it says; its starvation survives the second opinion.',
+    edges: [['developer','code','writes'],['architect','code','reads'],['architect','critic','messages']] },
+
+  { title: 'The gate', round: 'review',
+    text: 'PR review mode is on because this one has legal exposure. `Interface` presents the batch with the open assumptions in its lineage \u2014 in-flight invoices, mid-cycle deletion \u2014 so nothing ships whose assumptions the client never saw. From inside the system nothing looks different; a verdict simply takes longer to arrive.',
+    edges: [['interface','ledger','reads'],['interface','client','messages','present'],['client','interface','messages','verdict']] },
+
+  { title: 'Merged', round: 'close',
+    text: 'The batch merges. `Vision` authors the closing entry \u2014 what shipped against which approved item \u2014 because shipped scope is an identity fact about the project, and identity is `Vision`\u2019s artefact.',
+    edges: [['vision','decisions','writes','author']] },
+
+  { title: 'Three assumptions become the next conversation', round: 'close',
+    text: 'Retention window, in-flight invoices, mid-cycle deletion. The eleven-word feature ships with its uncertainty named rather than buried \u2014 and that list is the agenda for the next client call.',
+    edges: [['interface','ledger','reads'],['interface','client','messages','clarify']] },
+]});
+
+
+STORIES.push({ name: 'Onboarding \u2014 a legacy repo nobody ratified', steps: [
+  { title: 'Before you start', round: 'context',
+    text: 'A working system, four years of commits, no documentation anyone trusts. Onboarding treats the repo as an utterance nobody ratified: code is ground truth, comments and commit messages are hearsay from absent authors. The survey extracts hypotheses; only the client can turn them into a baseline. Watch for the bootstrap constraint that makes ignorance safe, the first decision entry a legacy system ever gets, and the client electing how much confirmation to pay for up front.',
+    edges: [] },
+
+  { title: 'Opened, not pointed', round: 'initiation',
+    text: 'The tool is opened inside the project directory \u2014 it lives with the code, storing all framework state in a project subfolder. No state folder exists here, and that absence is the trigger: presence means boot, absence means onboard. One decision, no separate initiation command. The client\u2019s first exchange of the interview is recorded verbatim like any other utterance; the repo itself never enters the transcript \u2014 it is its own artefact, already durable, already versioned.',
+    edges: [['client','interface','messages','converse'],['interface','transcript','writes']] },
+
+  { title: 'The index comes first', round: 'survey',
+    text: 'Before any role wakes, mechanical tooling builds an index: module graph, symbol table, term frequencies, routes, schemas \u2014 respecting .gitignore throughout, so build artefacts, dependencies, and the framework\u2019s own state folder never enter it \u2014 plus the trust-ranked extras the client pointed at: the test suite (machine-ratified intent), the issue tracker, usage data. No judgement, no LLM. Roles will consume the index and drill into single files on demand.',
+    edges: [], nodes: ['code'] },
+
+  { title: 'Constraint zero', round: 'survey',
+    text: '`Architect` reads the module graph and writes the bootstrap entry: this codebase is not yet understood \u2014 bound globally, provenance observed. From this moment every diff would trigger structural review, which is exactly right for total ignorance. Surveying is the act of shrinking this constraint.',
+    edges: [['architect','code','reads'],['architect','model','writes','amend']] },
+
+  { title: 'The language as found', round: 'survey',
+    text: '`Domain` surveys term frequencies and schemas, and finds what legacy code always holds: \u201corder\u201d means a purchase in half the modules and a sort sequence in the other half. Both enter the glossary marked observed \u2014 found, not chosen.',
+    edges: [['domain','code','reads'],['domain','glossary','writes','amend']] },
+
+  { title: 'What it appears to be for', round: 'survey',
+    text: '`Vision` reads the user-facing surfaces \u2014 routes, screens, entry points \u2014 and drafts baseline statements of what the system appears to do. Code shows what a system does, never what it is for; every item is marked observed and waits for the only party who can say otherwise.',
+    edges: [['vision','code','reads'],['vision','problem','writes','assert']] },
+
+  { title: 'What code cannot answer', round: 'survey',
+    text: 'The harvest, unchanged from greenfield: each role reports what it cannot determine. A module nothing imports \u2014 dead or dormant? An unreachable discount path \u2014 bug or feature? Which of the two \u201corder\u201d senses is canonical? Nobody invents questions; the code simply underdetermines.',
+    edges: [['vision','interface','messages','report'],['domain','interface','messages','report'],['architect','interface','messages','report']] },
+
+  { title: 'Questions only intent can settle', round: 'survey',
+    text: '`Interface` dedupes, orders, and asks \u2014 and adds the two questions only onboarding has: what changes next (which steers survey depth), and the election: confirm the whole baseline up front, or lazily as work first touches each area. The client\u2019s call, not the system\u2019s.',
+    edges: [['interface','client','messages','clarify']] },
+
+  { title: 'The client answers \u2014 and elects', round: 'survey',
+    text: 'Payments is where change is planned next, so: upfront confirmation for the payments core, lazy for everything else. The dormant module is dead. The discount path \u2014 the client pauses \u2014 that one needs looking at. Answers land as utterances and become ratified statements.',
+    edges: [['client','interface','messages','converse'],['interface','brief','writes','segment'],['interface','brief','writes','ratify']] },
+
+  { title: 'Drafts absorb the answers', round: 'survey',
+    text: 'The delta rebroadcasts. `Domain` marks the purchase sense canonical; `Architect` writes the dead module as removable and deepens the payments survey, narrowing constraint zero off the surveyed core. The periphery keeps its global trigger \u2014 honest ignorance, priced visibly.',
+    edges: [['interface','domain','messages','brief'],['interface','architect','messages','brief'],['domain','glossary','writes','amend'],['architect','model','writes','amend']] },
+
+  { title: 'A bug becomes the first decision', round: 'baseline',
+    text: 'The client rules: the unreachable discount path is a bug, not a feature. An observed behaviour has been challenged \u2014 and challenging an observed entry forces its first decision. `Vision` authors the entry at the moment of the ruling: the project\u2019s decision record begins here, four years after its codebase did.',
+    edges: [['vision','problem','writes','assert'],['vision','decisions','writes','author']] },
+
+  { title: 'Baseline submitted', round: 'signoff',
+    text: 'Roughly thirty statements describing what the system is, each marked observed, plus the intent going forward. `Vision` hands it to `Interface` for the signoff \u2014 the client confirming not what will be built, but what already exists.',
+    edges: [['vision','interface','messages','submit']] },
+
+  { title: 'Signoff on what already is', round: 'signoff',
+    text: 'One page. The client reads, corrects two statements, and lgtms the rest \u2014 a complete, valid response. `Interface` records per-item verdicts; `Vision` sets approval. Client effort scaled with the ambiguity the code held, not with its size.',
+    edges: [['interface','client','messages','present'],['client','interface','messages','verdict'],['interface','vision','messages','relay'],['vision','problem','writes','set approval']] },
+
+  { title: 'The lazy periphery is named debt', round: 'signoff',
+    text: 'Everything under the lazy election \u2014 unconfirmed observed items outside the payments core \u2014 is logged to the ledger: assumptions awaiting their first touch. Uncertainty the client chose to defer, written down rather than forgotten, drained through the same gates as everything else.',
+    edges: [['vision','ledger','writes','log']] },
+
+  { title: 'An optional product: the seam plan', round: 'signoff',
+    text: 'The survey already holds the raw material \u2014 fan-in, constraint zero\u2019s residue, the areas the client named as least familiar. `Architect` proposes a boundary plan; `Vision` drafts it as structural items whose criteria are behaviour preserved, boundary exists; it goes to signoff like any scope. The client funds seams explicitly or declines them knowingly \u2014 the monolith\u2019s cost stops being ambient.',
+    edges: [['architect','vision','messages','propose'],['vision','problem','writes','assert'],['vision','interface','messages','submit']] },
+
+  { title: 'Ready', round: 'ready',
+    text: 'The frontier is quiet. Two gauges now measure how understood this codebase is: the observed-to-decided ratio in the model, and how far constraint zero has shrunk. The first feature request enters the ordinary flow \u2014 against a baseline the client has actually agreed exists.',
+    edges: [] },
+]});
+
+
+STORIES.push({ name: 'Load and interrupt \u2014 a changed mind against a running system', steps: [
+  { title: 'Before you start', round: 'context',
+    text: 'Two use cases in one arc. First: the system boots with no client message \u2014 and boot turns out not to be special, because every session was always a cold start. Second: mid-batch, the client re-prioritizes \u2014 which is not an amendment: nothing the client approved changes content, so no revocation fires and no batch is edited. Batches are complete feature sets and move whole. Watch the flattened priority signal recovered from the raw transcript, the refs walk that finds which batch to bump, the whole-batch reorder with `Architect` nowhere in the path, and the clean kill: the preempted batch\u2019s runtime dies entirely while its worktree and commits persist as deferred work.',
+    edges: [] },
+
+  { title: 'Boot is just scheduling', round: 'load',
+    text: 'Power on. No role holds state, so nothing is lost: the frontier is rebuilt from the message log, checkpoints are swept against artefact version stamps, and the schedule says batch 2 is next. A session that crashed mid-run never happened \u2014 writes commit atomically at session end, and its trigger message still sits on the frontier.',
+    edges: [], nodes: ['schedule','backlog'] },
+
+  { title: 'Batch 2 wakes', round: 'load',
+    text: 'The scheduler starts the next approved batch \u2014 a scheduler-originated root, same species as a gate event. `Developer` wakes cold into notification preferences: criteria, constraints, code.',
+    edges: [['developer','backlog','reads'],['developer','glossary','reads'],['developer','model','reads'],['developer','code','reads']] },
+
+  { title: 'The batch is a complete world', round: 'load',
+    text: 'The first ticket lands early \u2014 and nothing happens, because nothing should. Within a batch the `Developer` needs nobody: criteria, constraints, glossary, and code are its whole working set by construction, and implementation order inside the worktree is its own business. When the batch completes, the session simply ends; the scheduler reads `Planner`\u2019s artefact and starts the next root. Being woken is the assignment \u2014 no role ever asks what to work on.',
+    edges: [['developer','code','writes','commit']] },
+
+  { title: 'A question, not a directive', round: 'inquiry',
+    text: 'First the client just asks: \u201chow does deletion handle search results right now?\u201d `Interface` cannot answer from its own reads, so it opens consult-mode sessions \u2014 read-only wakes. `Vision` answers what was promised, `Domain` what the terms mean, `Architect` what the index actually does. No writes anywhere.',
+    edges: [['interface','vision','messages','consult'],['interface','domain','messages','consult'],['interface','architect','messages','consult']] },
+
+  { title: 'Answered without a ripple', round: 'inquiry',
+    text: 'Three answers compose into one reply. Because consult sessions write nothing, no version bumped, no receipt exists, and the suspended batch\u2019s checkpoint remains valid by construction \u2014 the running development never learns the question was asked. Read-only inquiry is free.',
+    edges: [['vision','interface','messages','answer'],['domain','interface','messages','answer'],['architect','interface','messages','answer'],['interface','client','messages','clarify']] },
+
+  { title: 'And what is still ahead?', round: 'inquiry',
+    text: 'A follow-up: \u201cwhat happens after this batch?\u201d Ordering is `Planner`\u2019s artefact, so the inquiry consults `Planner` \u2014 the one asker with a legitimate schedule question is the client, never a role. Same read-only isolation; the running batch never stirs.',
+    edges: [['interface','planner','messages','consult'],['planner','interface','messages','answer'],['interface','client','messages','clarify']] },
+
+  { title: 'The interrupt', round: 'interrupt',
+    text: 'Mid-batch, the client writes: \u201cactually \u2014 honestly the thing I care about most is that deleted users vanish from search immediately. That matters more than the rest.\u201d Intake always lands: appended verbatim, segmented, ratified. And this one ratifies as something the revocation predicate ignores: it amends nothing the client approved \u2014 it re-prioritizes, a different lever entirely. Scope changes revoke; priority changes reorder.',
+    edges: [['client','interface','messages','converse'],['interface','transcript','writes'],['interface','brief','writes','segment'],['interface','brief','writes','ratify']] },
+
+  { title: 'The statement is too flat', round: 'interrupt',
+    text: 'Ratified, the statement reads like any other: deleted users are excluded from search. The urgency \u2014 \u201chonestly\u201d, \u201cmost\u201d, \u201cimmediately\u201d \u2014 did not survive segmentation. All three shaping roles pull the transcript window around it to recover what the atomisation flattened: this is a priority signal, not just a requirement.',
+    edges: [['vision','transcript','reads'],['domain','transcript','reads'],['architect','transcript','reads']] },
+
+  { title: 'Vision maps the priority to a batch', round: 'interrupt',
+    text: 'Which batch moves? A refs walk, not a judgement: `Vision` consults its own problem statement to find the item the statement is about, and item \u2192 batch is already in the refs. It writes the priority onto that backlog entry \u2014 and touches nothing else. No amendment, no approval change, no `Architect`: batches are complete feature sets, and priority never edits their composition.',
+    edges: [['vision','problem','reads','consult'],['vision','backlog','writes','prioritize']] },
+
+  { title: 'The cascade summons the orderer', round: 'reorder',
+    text: 'No notification is sent, because none exists: the receipt lands on the backlog, the refs say the schedule orders the backlog, and the scheduler summons `Planner` mechanically. `Planner` consults its own schedule \u2014 the same before-amending discipline as every owner \u2014 and moves the search batch, whole, ahead of the running one.',
+    edges: [['planner','schedule','reads','consult'],['planner','backlog','reads'],['planner','schedule','writes','order']] },
+
+  { title: 'The old environment dies whole', round: 'reorder',
+    text: 'The reorder puts a different batch first, so the scheduler preempts: the running batch\u2019s processes and ports are killed outright \u2014 half-dead environments are how port conflicts happen \u2014 and its checkpoint is discarded. What survives is exactly what was committed: the worktree persists as deferred work, and commit-first means an uncommitted change never existed. The batch is not cancelled; it is parked.',
+    edges: [], nodes: ['code','schedule'] },
+
+  { title: 'A fresh batch, a fresh world', round: 'reorder',
+    text: '`Developer` wakes cold on the search batch in a brand-new worktree \u2014 one worktree per batch, never reused, so nothing half-alive from the parked batch can collide with it. Criteria, constraints, glossary, code: the complete working set, same as any other morning.',
+    edges: [['developer','backlog','reads'],['developer','glossary','reads'],['developer','model','reads'],['developer','code','reads']] },
+
+  { title: 'A term wobbles mid-batch', round: 'reorder',
+    text: 'Implementing the exclusion, `Developer` hits \u201csearch\u201d: the site search, or the admin lookup too? A term question routes to the term\u2019s owner \u2014 `Domain`, not `Interface`, not the client. `Domain` answers from the glossary; no harvest needed; the chain never leaves the building.',
+    edges: [['developer','domain','messages','question']] },
+
+  { title: 'Quiet again', round: 'close',
+    text: 'The search batch lands, the parked batch is rescheduled and resumes as a cold session in its surviving worktree, the frontier drains, the system idles \u2014 a valid state, indistinguishable from the moment before boot. The interrupt cost one ratification, one whole-batch reorder, one clean kill \u2014 no batch was edited, no approval was touched, and zero judgement calls about whether any of it was warranted. The refs decided which batch; the schedule decided when; the predicate correctly stayed asleep.',
+    edges: [] },
+]});
+
+let si = 0, STORY = STORIES[0].steps;
+
+/* --------------------------- rendering below ----------------------------- */
+const POS = Object.fromEntries(NODES.map(n => [n.id, n]));
+const tShape = c => (c === 'n:n' ? 'triangle-tee' : 'tee');
+const sShape = c => (c === '1:1' ? 'tee' : 'triangle-tee');
+
+/* Reference edges route as computed orthogonal segments. Taxi cannot avoid
+   obstacles, so channels are chosen so no segment crosses another artefact box.
+   Faces follow the chosen orientation; same-arrowhead edges share an anchor on
+   a face, different arrowheads are spaced apart.                              */
+function routeRefs() {
+  const W = 128, H = 46, M = 16;
+  const boxes = NODES.filter(n => n.type === 'artefact')
+    .map(n => ({ id: n.id, x1: n.x - W/2 - M, x2: n.x + W/2 + M, y1: n.y - H/2 - M, y2: n.y + H/2 + M }));
+  const hitV = (x, ya, yb, skip) => boxes.some(b => !skip.includes(b.id) &&
+    x > b.x1 && x < b.x2 && Math.max(ya, yb) > b.y1 && Math.min(ya, yb) < b.y2);
+  const hitH = (y, xa, xb, skip) => boxes.some(b => !skip.includes(b.id) &&
+    y > b.y1 && y < b.y2 && Math.max(xa, xb) > b.x1 && Math.min(xa, xb) < b.x2);
+
+  const cols = [...new Set(boxes.map(b => (b.x1 + b.x2) / 2))].sort((a, b) => a - b);
+  const rows = [...new Set(boxes.map(b => (b.y1 + b.y2) / 2))].sort((a, b) => a - b);
+  const mids = arr => arr.slice(1).map((v, i) => (v + arr[i]) / 2);
+  const colCh = mids(cols), rowCh = mids(rows);
+
+  const plan = [];
+  EDGES.forEach((e, i) => {
+    if (e.type !== 'refs') return;
+    const s = POS[e.s], t = POS[e.t];
+    const skip = [e.s, e.t];
+    const cand = [];
+    // horizontal-first: bend at vertical channel xm
+    [...colCh, (s.x + t.x) / 2].forEach(xm => {
+      if (xm <= Math.min(s.x, t.x) + 10 || xm >= Math.max(s.x, t.x) - 10) return;
+      const cost = (hitH(s.y, s.x, xm, skip) ? 1 : 0) + (hitV(xm, s.y, t.y, skip) ? 1 : 0) + (hitH(t.y, xm, t.x, skip) ? 1 : 0);
+      cand.push({ o: 'h', ch: xm, cost, pref: Math.abs(xm - (s.x + t.x) / 2) });
+    });
+    // vertical-first: bend at horizontal channel ym
+    [...rowCh, (s.y + t.y) / 2].forEach(ym => {
+      if (ym <= Math.min(s.y, t.y) + 10 || ym >= Math.max(s.y, t.y) - 10) return;
+      const cost = (hitV(s.x, s.y, ym, skip) ? 1 : 0) + (hitH(ym, s.x, t.x, skip) ? 1 : 0) + (hitV(t.x, ym, t.y, skip) ? 1 : 0);
+      cand.push({ o: 'v', ch: ym, cost, pref: Math.abs(ym - (s.y + t.y) / 2) + 5 });
+    });
+    // straight (aligned nodes)
+    if (Math.abs(s.y - t.y) < 4) cand.push({ o: 's', ch: 0, cost: hitH(s.y, s.x, t.x, skip) ? 1 : 0, pref: -1 });
+    if (Math.abs(s.x - t.x) < 4) cand.push({ o: 'sv', ch: 0, cost: hitV(s.x, s.y, t.y, skip) ? 1 : 0, pref: -1 });
+    cand.sort((a, b) => a.cost - b.cost || a.pref - b.pref);
+    const best = cand[0] || { o: 'h', ch: (s.x + t.x) / 2, cost: 9 };
+    const horiz = best.o === 'h' || best.o === 's';
+    plan.push({
+      i, e, best, horiz,
+      sFace: best.o === 's' || best.o === 'h' ? (t.x > s.x ? 'right' : 'left') : (t.y > s.y ? 'bottom' : 'top'),
+      tFace: best.o === 's' || best.o === 'h' ? (t.x > s.x ? 'left' : 'right') : (t.y > s.y ? 'top' : 'bottom'),
+      sShape: sShape(e.card), tShape: tShape(e.card),
+    });
+  });
+
+  // group anchors per node face by arrowhead shape
+  const offs = {};
+  ['s', 't'].forEach(end => {
+    const groups = {};
+    plan.forEach(p => {
+      const k = (end === 't' ? p.e.t : p.e.s) + '|' + (end === 't' ? p.tFace : p.sFace);
+      (groups[k] = groups[k] || []).push(p);
+    });
+    Object.values(groups).forEach(list => {
+      const shapes = [...new Set(list.map(p => (end === 't' ? p.tShape : p.sShape)))];
+      const span = shapes.length === 1 ? [0] : shapes.map((_, j) => -26 + (52 * j) / (shapes.length - 1));
+      list.forEach(p => {
+        (offs[p.i] = offs[p.i] || {})[end] = Math.round(span[shapes.indexOf(end === 't' ? p.tShape : p.sShape)]);
+      });
+    });
+  });
+
+  const anchor = (nid, face, off) => {
+    const n = POS[nid];
+    return face === 'left'  ? { x: n.x - W/2, y: n.y + off * H / 100 }
+         : face === 'right' ? { x: n.x + W/2, y: n.y + off * H / 100 }
+         : face === 'top'   ? { x: n.x + off * W / 100, y: n.y - H/2 }
+         :                    { x: n.x + off * W / 100, y: n.y + H/2 };
+  };
+  const pct = (face, off) =>
+    face === 'left' ? `-50% ${off}%` : face === 'right' ? `50% ${off}%`
+    : face === 'top' ? `${off}% -50%` : `${off}% 50%`;
+
+  const ep = {};
+  plan.forEach(p => {
+    const so = offs[p.i].s, to = offs[p.i].t;
+    const P0 = anchor(p.e.s, p.sFace, so), P1 = anchor(p.e.t, p.tFace, to);
+    let wps = [];
+    if (p.best.o === 'h') wps = [{ x: p.best.ch, y: P0.y }, { x: p.best.ch, y: P1.y }];
+    if (p.best.o === 'v') wps = [{ x: P0.x, y: p.best.ch }, { x: P1.x, y: p.best.ch }];
+    const dx = P1.x - P0.x, dy = P1.y - P0.y, L = Math.hypot(dx, dy) || 1;
+    const dux = dx / L, duy = dy / L, nx = -duy, ny = dux;
+    const sw = [], sd = [];
+    wps.forEach(w => {
+      const vx = w.x - P0.x, vy = w.y - P0.y;
+      sw.push(((vx * dux + vy * duy) / L).toFixed(4));
+      sd.push((vx * nx + vy * ny).toFixed(1));
+    });
+    if (!sw.length) { sw.push('0.5'); sd.push('0'); }
+    ep[p.i] = { sep: pct(p.sFace, so), tep: pct(p.tFace, to), sw: sw.join(' '), sd: sd.join(' ') };
+  });
+  return ep;
+}
+const REF_EP = routeRefs();
+const elements = [
+  ...NODES.map(n => ({ data: { ...n }, position: { x: n.x, y: n.y } })),
+  ...EDGES.map((e, i) => ({ data: {
+    id: 'e' + i, source: e.s, target: e.t, type: e.type,
+    v: e.v || '', n: e.n || '', a: e.a || '', card: e.card || '', nb: e.label || '',
+    tep: (REF_EP[i] && REF_EP[i].tep) || 'outside-to-node',
+    sep: (REF_EP[i] && REF_EP[i].sep) || 'outside-to-node',
+    sw: (REF_EP[i] && REF_EP[i].sw) || '0.5',
+    sd: (REF_EP[i] && REF_EP[i].sd) || '0',
+  } })),
+];
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements,
+  wheelSensitivity: 0.2,
+  style: [
+    { selector: 'node', style: {
+      'label': 'data(label)', 'font-size': 12, 'font-family': 'ui-sans-serif, system-ui, sans-serif',
+      'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap', 'text-max-width': 108,
+      'width': 128, 'height': 46, 'border-width': 1.5, 'shape': 'round-rectangle',
+    }},
+    { selector: 'node[type="role"]', style: {
+      'background-color': '#e8ebf5', 'border-color': '#3c4a82', 'color': '#2a3560', 'shape': 'ellipse', 'width': 132, 'height': 62,
+    }},
+    { selector: 'node[type="artefact"]', style: {
+      'background-color': '#e0edea', 'border-color': '#1c6b62', 'color': '#12463f',
+    }},
+    { selector: 'node[type="client"]', style: {
+      'background-color': '#f7ecda', 'border-color': '#8a5a18', 'color': '#6b4512', 'shape': 'diamond', 'width': 116, 'height': 92,
+    }},
+    { selector: 'edge', style: {
+      'curve-style': 'bezier', 'control-point-step-size': 64,
+      'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'width': 1.4,
+    }},
+    { selector: 'edge[type="writes"]',   style: { 'line-color': '#3c4a82', 'target-arrow-color': '#3c4a82', 'width': 1.8 } },
+    { selector: 'edge[type="reads"]',    style: { 'line-color': '#7a8391', 'target-arrow-color': '#7a8391', 'line-style': 'dashed', 'opacity': 0.75 } },
+    { selector: 'edge[type="messages"]', style: {
+      'line-color': '#a15c3e', 'target-arrow-color': '#a15c3e', 'line-style': 'dotted',
+      'label': 'data(v)', 'font-size': 10, 'color': '#8a4a2e',
+      'text-background-color': '#f4f6f7', 'text-background-opacity': 0.92, 'text-background-padding': 2,
+      'text-rotation': 'autorotate',
+    }},
+    { selector: 'edge[type="refs"]', style: {
+      'curve-style': 'segments', 'segment-weights': 'data(sw)', 'segment-distances': 'data(sd)',
+      'edge-distances': 'endpoints',
+      'line-color': '#1b2128', 'target-arrow-color': '#1b2128', 'source-arrow-color': '#1b2128',
+      'width': 1.2, 'target-arrow-shape': 'tee', 'source-arrow-shape': 'triangle-tee', 'arrow-scale': 1.1,
+      'target-endpoint': 'data(tep)', 'source-endpoint': 'data(sep)',
+    }},
+    { selector: 'edge[type="refs"][card="n:n"]', style: { 'target-arrow-shape': 'triangle-tee' } },
+    { selector: 'edge[type="refs"][card="1:1"]', style: { 'source-arrow-shape': 'tee' } },
+    { selector: '.dim',      style: { 'opacity': 0.12 } },
+    { selector: 'node.sel',  style: { 'border-width': 3 } },
+    { selector: 'edge.hi',   style: { 'width': 2.6, 'opacity': 1, 'z-index': 20 } },
+    { selector: '.covered',   style: { 'opacity': 0.14, 'text-opacity': 0 } },
+    { selector: '.uncovered', style: { 'line-color': '#b3352b', 'target-arrow-color': '#b3352b', 'source-arrow-color': '#b3352b', 'width': 2.6, 'opacity': 1, 'z-index': 25 } },
+    { selector: '.off',      style: { 'opacity': 0.07, 'text-opacity': 0 } },
+    { selector: '.past',     style: { 'opacity': 0.32, 'text-opacity': 0 } },
+    { selector: 'node.now',  style: { 'border-width': 4, 'opacity': 1, 'z-index': 30 } },
+    { selector: 'edge.now',  style: { 'width': 3.4, 'opacity': 1, 'text-opacity': 1, 'z-index': 30, 'arrow-scale': 1.3 } },
+  ],
+  layout: { name: 'preset' },
+});
+
+const VERB = { writes: 'Writes', reads: 'Reads', messages: 'Messages', refs: 'References' };
+const SCOPE_ORDER = ['none', 'single', 'batch', 'index', 'window', 'delta', 'query', 'full'];
+const panel = document.getElementById('panel');
+
+const phrase = e => {
+  const d = e.data();
+  const bits = [];
+  if (d.v) bits.push(`<em style="font-style:normal;color:var(--ink)">${d.v}</em>`);
+  if (d.n) bits.push(d.n);
+  const tail = [d.a && `<span class="scope">${d.a}</span>`, d.nb && `· ${d.nb}`].filter(Boolean).join(' ');
+  return (bits.join(' ') || '—') + (tail ? ' ' + tail : '');
+};
+
+function describe(node) {
+  const d = node.data();
+  const out = [];
+
+  if (d.type === 'role' || d.type === 'client') {
+    const rd = node.outgoers('edge').filter(e => e.data('type') === 'reads');
+    if (rd.length) {
+      const worst = rd.map(e => SCOPE_ORDER.indexOf(e.data('a') || 'none')).reduce((a, b) => Math.max(a, b), 0);
+      out.push(`<div class="group"><h3>Working set when awoken</h3><ul>` +
+        rd.map(e => `<li>${e.target().data('label')} <span>· ${e.data('a') || 'none'}</span></li>`).join('') +
+        `</ul><p class="note" style="margin:6px 0 0">Heaviest fetch: <strong style="font-weight:500">${SCOPE_ORDER[worst]}</strong>. ${rd.length} artefact${rd.length > 1 ? 's' : ''} to load.</p></div>`);
+    }
+  }
+
+  for (const type of ['writes', 'reads', 'messages', 'refs']) {
+    const rows = [];
+    node.outgoers('edge').filter(e => e.data('type') === type).forEach(e =>
+      rows.push(`→ ${e.target().data('label')}${e.data('card') ? ` <span>· ${e.data('card')}</span>` : ''}<br><span style="padding-left:14px">${phrase(e)}</span>`));
+    node.incomers('edge').filter(e => e.data('type') === type).forEach(e =>
+      rows.push(`← ${e.source().data('label')}${e.data('card') ? ` <span>· ${e.data('card')}</span>` : ''}<br><span style="padding-left:14px">${phrase(e)}</span>`));
+    if (rows.length) out.push(`<div class="group"><h3>${VERB[type]}</h3><ul>${rows.map(r => `<li>${r}</li>`).join('')}</ul></div>`);
+  }
+  panel.innerHTML =
+    `<h2>${d.label}</h2><div class="kind ${d.type}">${d.type}</div>` +
+    (d.note ? `<p class="note">${d.note}</p>` : '') +
+    (out.join('') || '<p class="empty">No edges yet.</p>');
+}
+
+cy.on('tap', 'node', evt => {
+  if (mode !== 'explore') return;
+  const n = evt.target;
+  const keep = n.closedNeighborhood();
+  cy.elements().addClass('dim');
+  keep.removeClass('dim');
+  cy.nodes().removeClass('sel'); n.addClass('sel');
+  cy.edges().removeClass('hi'); n.connectedEdges().addClass('hi');
+  describe(n);
+});
+
+cy.on('tap', evt => {
+  if (mode !== 'explore' || evt.target !== cy) return;
+  cy.elements().removeClass('dim hi sel');
+  panel.innerHTML = '<p class="empty">Select a node to see what it touches. Each node is a placeholder for its own graph — the internals get filled in decision by decision.</p>';
+});
+
+document.querySelectorAll('[data-edge]').forEach(box => {
+  box.addEventListener('change', () => {
+    const t = box.dataset.edge;
+    cy.edges(`[type="${t}"]`).style('display', box.checked ? 'element' : 'none');
+  });
+});
+
+/* ------------------------------ story mode ------------------------------- */
+const E = (s, t, ty, v) => cy.edges(`[source="${s}"][target="${t}"][type="${ty}"]` + (v ? `[v="${v}"]` : ''));
+const stepEles = i => {
+  let els = cy.collection();
+  (STORY[i].edges || []).forEach(([s, t, ty, v]) => { const e = E(s, t, ty, v); els = els.union(e).union(e.connectedNodes()); });
+  (STORY[i].nodes || []).forEach(id => { els = els.union(cy.$id(id)); });
+  return els;
+};
+
+let mode = 'explore', at = 0, follow = true;
+
+function renderStoryPanel() {
+  const s = STORY[at];
+  panel.innerHTML =
+    `<select id="pick" style="width:100%;margin-bottom:10px;font:inherit;font-size:13px;padding:5px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)">
+       ${STORIES.map((st, i) => `<option value="${i}" ${i === si ? 'selected' : ''}>${st.name}</option>`).join('')}
+     </select>
+     <div class="storybar">
+       <button id="prev" ${at === 0 ? 'disabled' : ''}>&larr;</button>
+       <button id="next" ${at === STORY.length - 1 ? 'disabled' : ''}>&rarr;</button>
+       <span class="pos">${at + 1} / ${STORY.length}</span>
+       ${s.round ? `<span class="round">${s.round}</span>` : ''}
+       <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;cursor:pointer">
+         <input type="checkbox" id="follow" ${follow ? 'checked' : ''}>follow</label>
+     </div>
+     <ol class="steps">${STORY.map((st, i) =>
+       `<li data-i="${i}" ${i === at ? 'aria-current="true"' : ''} class="${i < at ? 'done' : ''}">
+          <strong>${st.title}</strong>${i === at ? `<p>${st.text}</p>` : ''}</li>`).join('')}</ol>`;
+
+  panel.querySelector('#prev').onclick = () => go(at - 1);
+  panel.querySelector('#next').onclick = () => go(at + 1);
+  panel.querySelector('#pick').onchange = e => { si = +e.target.value; STORY = STORIES[si].steps; go(0); };
+  panel.querySelector('#follow').onchange = e => { follow = e.target.checked; };
+  panel.querySelectorAll('.steps li').forEach(li => { li.onclick = () => go(+li.dataset.i); });
+  const cur = panel.querySelector('[aria-current="true"]');
+  if (cur) cur.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function go(i) {
+  if (i < 0 || i >= STORY.length) return;
+  at = i;
+  cy.elements().removeClass('now past').addClass('off');
+  for (let k = 0; k < at; k++) stepEles(k).removeClass('off').addClass('past');
+  const now = stepEles(at);
+  if (now.empty()) cy.elements().removeClass('off past now');
+  else now.removeClass('off past').addClass('now');
+  renderStoryPanel();
+  if (follow) {
+    if (now.empty()) cy.animate({ fit: { eles: cy.elements(), padding: 40 } }, { duration: 420 });
+    else {
+      const bb = now.boundingBox(), pad = 130;
+      const z = Math.max(0.2, Math.min((cy.width() - 2 * pad) / bb.w, (cy.height() - 2 * pad) / bb.h, 1.05));
+      cy.animate({ zoom: z, center: { eles: now } }, { duration: 420 });
+    }
+  }
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('tab-explore').setAttribute('aria-pressed', m === 'explore');
+  document.getElementById('tab-story').setAttribute('aria-pressed', m === 'story');
+  cy.elements().removeClass('dim hi sel now past off');
+  if (m === 'story') { go(at); }
+  else {
+    panel.innerHTML = '<p class="empty">Select a node to see what it touches. Each node is a placeholder for its own graph — the internals get filled in decision by decision.</p>';
+    cy.fit(40);
+  }
+}
+
+document.getElementById('tab-explore').onclick = () => setMode('explore');
+document.getElementById('tab-story').onclick = () => setMode('story');
+
+addEventListener('keydown', e => {
+  if (mode !== 'story' || document.activeElement === grip) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(at + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1); }
+});
+
+/* ------------------------------- coverage -------------------------------- */
+/* An operational edge (writes / reads / messages) is covered if any story step
+   references it; verb-specific references cover only that parallel edge.
+   Refs edges are structural claims, not operations, and are excluded.        */
+function coverage() {
+  const hits = new Set();
+  STORIES.forEach(st => st.steps.forEach(step => (step.edges || []).forEach(([s, t, ty, v]) => {
+    hits.add(s + '|' + t + '|' + ty + '|' + (v || '*'));
+  })));
+  const un = [];
+  cy.edges().forEach(e => {
+    const d = e.data();
+    if (d.type === 'refs') return;
+    const exact = hits.has(d.source + '|' + d.target + '|' + d.type + '|' + d.v);
+    const wild  = hits.has(d.source + '|' + d.target + '|' + d.type + '|*');
+    if (!exact && !wild) un.push(e);
+  });
+  return un;
+}
+
+let covOn = false;
+document.getElementById('cov').onclick = () => {
+  covOn = !covOn;
+  document.getElementById('cov').setAttribute('aria-pressed', covOn);
+  cy.elements().removeClass('covered uncovered dim hi sel now past off');
+  if (!covOn) {
+    panel.innerHTML = '<p class="empty">Select a node to see what it touches.</p>';
+    return;
+  }
+  const un = coverage();
+  const ops = cy.edges().filter(e => e.data('type') !== 'refs');
+  cy.edges().filter(e => e.data('type') !== 'refs').addClass('covered');
+  cy.edges().filter(e => e.data('type') === 'refs').addClass('covered');
+  un.forEach(e => { e.removeClass('covered').addClass('uncovered'); e.connectedNodes().removeClass('covered'); });
+  const rows = un.map(e => {
+    const d = e.data();
+    return `<li>${d.source} → ${d.target} <span style="color:var(--ink-soft)">${d.type}${d.v ? ' · ' + d.v : ''}</span></li>`;
+  }).join('');
+  panel.innerHTML =
+    `<h2>Coverage</h2>
+     <p class="note">${ops.length - un.length} of ${ops.length} operational edges are exercised by at least one story step. Each red edge is an untested claim \u2014 either write a story step that fires it, or question whether the edge belongs.</p>
+     <ul class="covlist">${rows || '<li>All operational edges covered.</li>'}</ul>`;
+};
+
+/* ---------------------------- resizable sidebar -------------------------- */
+const grip = document.getElementById('grip');
+const DEFAULT_SIDE = 300;
+const setSide = px => {
+  const max = Math.min(760, innerWidth - 320);
+  document.documentElement.style.setProperty('--side', Math.max(220, Math.min(max, px)) + 'px');
+  cy.resize();
+};
+
+grip.addEventListener('pointerdown', e => {
+  grip.setPointerCapture(e.pointerId);
+  grip.classList.add('dragging');
+  document.body.classList.add('resizing');
+});
+grip.addEventListener('pointermove', e => {
+  if (!grip.classList.contains('dragging')) return;
+  setSide(innerWidth - e.clientX - 3);
+});
+const endDrag = e => {
+  grip.classList.remove('dragging');
+  document.body.classList.remove('resizing');
+  if (e.pointerId !== undefined && grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+};
+grip.addEventListener('pointerup', endDrag);
+grip.addEventListener('pointercancel', endDrag);
+grip.addEventListener('dblclick', () => setSide(DEFAULT_SIDE));
+grip.addEventListener('keydown', e => {
+  const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side'), 10) || DEFAULT_SIDE;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); setSide(cur + 24); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); setSide(cur - 24); }
+  if (e.key === 'Home') { e.preventDefault(); setSide(DEFAULT_SIDE); }
+});
+addEventListener('resize', () => cy.resize());
+
+document.getElementById('fit').onclick = () => cy.fit(40);
+document.getElementById('reset').onclick = () => {
+  cy.nodes().forEach(n => n.position({ x: n.data('x'), y: n.data('y') }));
+  cy.fit(40);
+};
+cy.ready(() => cy.fit(40));
+</script>
+</body>
+</html>

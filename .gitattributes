@@ -1,0 +1,4 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+tests/rota/cassettes.db filter=lfs diff=lfs merge=lfs -text

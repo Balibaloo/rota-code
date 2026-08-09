@@ -1,0 +1,17 @@
+active_sessions*/
+.env
+__pycache__/
+*.jsonl
+debug_log.jsonl 
+
+# Environments
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# Crashes
+.crashes/
