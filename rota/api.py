@@ -1,0 +1,478 @@
+"""
+Artefact operations. One function per (artefact, verb) edge in the graph.
+
+These are the bodies behind the wiring. The graph declares that
+`critic reads criteria (load, batch)` exists; this file says what `load` *does*,
+and the scope adjective on the edge decides how much it may return:
+
+    single  one row by id                index   ids plus one line each
+    batch   everything for one batch     window  a bounded span around an anchor
+    delta   what changed since a version query   matches, not the corpus
+    full    the full *index* of an artefact — never the full text
+
+`full` deserves the emphasis. It means id-plus-headline for every row, with
+bodies fetched singly. That is what keeps an 8k working set viable whether the
+glossary holds ninety terms or nine hundred, and it is why the restriction to
+owners is about authority rather than cost.
+
+Every function takes the session context first so scope and provenance can be
+enforced centrally; the sandbox binds that away before the model ever sees them.
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+from dataclasses import dataclass
+from typing import Any, Callable
+
+REGISTRY: dict[tuple[str, str], Callable] = {}
+
+
+@dataclass
+class Ctx:
+    """What a session is allowed to do, carried alongside the connection."""
+    conn: sqlite3.Connection
+    role: str
+    mode: str = "normal"
+    session_id: str = ""
+    batch_id: str | None = None
+    writes: list = None          # populated by the sandbox; committed atomically
+    outbound: list = None        # messages staged this session
+    trigger: str | None = None
+
+    def __post_init__(self):
+        if self.writes is None:
+            self.writes = []
+        if self.outbound is None:
+            self.outbound = []
+
+
+def op(artefact: str, verb: str):
+    """Register an implementation for one graph edge."""
+    def deco(fn: Callable) -> Callable:
+        REGISTRY[(artefact, verb)] = fn
+        return fn
+    return deco
+
+
+def _rows(cur) -> list[dict]:
+    return [dict(r) for r in cur.fetchall()]
+
+
+# ---------------------------------------------------------------------------
+# transcript / brief
+# ---------------------------------------------------------------------------
+
+@op("transcript", "append")
+def transcript_append(ctx: Ctx, id: str, author: str, text: str) -> dict:
+    """Record an utterance verbatim. Greetings included: the transcript exists so
+    interpretations can be adjudicated against something un-interpreted."""
+    nxt = ctx.conn.execute(
+        "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM utterances").fetchone()["n"]
+    ctx.writes.append(("utterances", id,
+                       {"author": author, "text": text, "ts_order": nxt}))
+    return {"id": id, "ts_order": nxt}
+
+
+@op("transcript", "quote")
+def transcript_quote(ctx: Ctx, utterance_id: str) -> dict:
+    """Recover emphasis: one utterance, verbatim. Window scope — never bulk."""
+    row = ctx.conn.execute(
+        "SELECT id, author, text, ts_order FROM utterances WHERE id = ?",
+        (utterance_id,)).fetchone()
+    return dict(row) if row else {}
+
+
+@op("brief", "segment")
+def brief_segment(ctx: Ctx, id: str, span_utterance: str, span_start: int,
+                  span_end: int, text: str) -> dict:
+    """Propose one statement at client granularity. One thing they asked for is
+    one statement; downstream roles re-decompose into their own artefacts."""
+    ctx.writes.append(("statements", id, {
+        "span_utterance": span_utterance, "span_start": span_start,
+        "span_end": span_end, "text": text, "status": "proposed"}))
+    return {"id": id}
+
+
+@op("brief", "ratify")
+def brief_ratify(ctx: Ctx, id: str) -> dict:
+    ctx.writes.append(("statements", id, {"status": "ratified"}, False))
+    return {"id": id, "status": "ratified"}
+
+
+@op("brief", "index")
+def brief_index(ctx: Ctx, since_version: int = 0) -> list[dict]:
+    """Ratified statements, ids plus text. Superseded entries are excluded —
+    the plateau is achieved by scoping, not by deleting."""
+    return _rows(ctx.conn.execute(
+        "SELECT id, text, status FROM statements "
+        "WHERE status = 'ratified' AND version > ? ORDER BY id", (since_version,)))
+
+
+# ---------------------------------------------------------------------------
+# problem statement
+# ---------------------------------------------------------------------------
+
+@op("problem", "assert")
+def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "scope",
+                   provenance: str = "decided") -> dict:
+    ctx.writes.append(("items", id, {
+        "text": text, "kind": kind, "provenance": provenance, "approval": "draft"}))
+    return {"id": id}
+
+
+@op("problem", "set approval")
+def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
+    """Approval must postdate the item's last amendment, so it is stamped with
+    the item's current version at the moment it is granted."""
+    row = ctx.conn.execute("SELECT version FROM items WHERE id = ?", (id,)).fetchone()
+    ctx.writes.append(("items", id, {
+        "approval": approval, "approval_ver": row["version"] if row else 1}, False))
+    return {"id": id, "approval": approval}
+
+
+@op("problem", "consult")
+def problem_consult(ctx: Ctx) -> list[dict]:
+    """Full scope = the full index. Ids, kind and approval, no prose bodies."""
+    return _rows(ctx.conn.execute(
+        "SELECT id, kind, approval, approval_ver, version, substr(text, 1, 120) AS headline "
+        "FROM items ORDER BY id"))
+
+
+# ---------------------------------------------------------------------------
+# glossary
+# ---------------------------------------------------------------------------
+
+@op("glossary", "amend")
+def glossary_amend(ctx: Ctx, id: str, term: str, sense_short: str,
+                   sense_body: str = "", provenance: str = "decided") -> dict:
+    ctx.writes.append(("glossary_terms", id, {
+        "term": term, "sense_short": sense_short, "sense_body": sense_body,
+        "provenance": provenance}))
+    return {"id": id}
+
+
+@op("glossary", "lookup")
+def glossary_lookup(ctx: Ctx, term: str) -> list[dict]:
+    """One term, all senses — collisions are visible by construction."""
+    return _rows(ctx.conn.execute(
+        "SELECT id, term, sense_short, sense_body, provenance FROM glossary_terms "
+        "WHERE term = ? ORDER BY id", (term,)))
+
+
+@op("glossary", "consult")
+def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
+    """
+    Full scope = the full index: id, term, one-line sense. Bodies stay out.
+
+    Optionally filtered to terms in play. Filtering is principled rather than
+    economising: a term absent from the working set's statements cannot collide
+    with them.
+    """
+    if terms:
+        marks = ", ".join("?" for _ in terms)
+        return _rows(ctx.conn.execute(
+            f"SELECT id, term, sense_short, provenance FROM glossary_terms "
+            f"WHERE term IN ({marks}) ORDER BY term", terms))
+    return _rows(ctx.conn.execute(
+        "SELECT id, term, sense_short, provenance FROM glossary_terms ORDER BY term"))
+
+
+# ---------------------------------------------------------------------------
+# system model
+# ---------------------------------------------------------------------------
+
+@op("model", "amend")
+def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
+                bindings: list[str] | None = None,
+                provenance: str = "decided") -> dict:
+    ctx.writes.append(("constraints", id, {
+        "headline": headline, "text": text, "provenance": provenance,
+        "is_global": 0 if bindings else 1}))
+    for grain in bindings or []:
+        ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
+            "constraint_id": id, "grain": grain, "grain_kind": "path"}))
+    return {"id": id, "bindings": bindings or []}
+
+
+@op("model", "consult")
+def model_consult(ctx: Ctx, grains: list[str] | None = None) -> list[dict]:
+    """
+    Full scope = the full index, optionally filtered by binding intersection.
+
+    A constraint that does not bind the modules in play genuinely does not apply
+    there, so excluding it is correct rather than economising. Unbound and
+    unresolvable constraints are always included — degradation lands on
+    expensive, never on wrong.
+    """
+    from .scheduler import constraints_for_grains
+    ids = constraints_for_grains(ctx.conn, grains or []) if grains is not None else None
+    if ids is None:
+        return _rows(ctx.conn.execute(
+            "SELECT id, headline, provenance, is_global FROM constraints ORDER BY id"))
+    if not ids:
+        return []
+    marks = ", ".join("?" for _ in ids)
+    return _rows(ctx.conn.execute(
+        f"SELECT id, headline, provenance, is_global FROM constraints "
+        f"WHERE id IN ({marks}) ORDER BY id", ids))
+
+
+@op("model", "load")
+def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
+    """Bodies, fetched singly by id. The other half of the index/body split."""
+    if not ids:
+        return []
+    marks = ", ".join("?" for _ in ids)
+    return _rows(ctx.conn.execute(
+        f"SELECT id, headline, text, provenance FROM constraints WHERE id IN ({marks})", ids))
+
+
+@op("model", "survey")
+def model_survey(ctx: Ctx, id: str, area: str, outcome: str,
+                 citations: list[str] | None = None) -> dict:
+    """
+    Record a survey. Citations are validated against the code index, so
+    "surveyed, none found" is evidence rather than a claim — a lazy surveyor
+    cannot starve constraint zero by asserting it everywhere.
+    """
+    ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
+    unknown = []
+    for grain in citations or []:
+        exists = ctx.conn.execute(
+            "SELECT 1 FROM code_index WHERE grain = ?", (grain,)).fetchone()
+        if not exists:
+            unknown.append(grain)
+        ctx.writes.append(("survey_citations", f"{id}:{grain}", {
+            "survey_id": id, "grain": grain, "resolves": 1 if exists else 0}))
+    return {"id": id, "unresolved_citations": unknown}
+
+
+# ---------------------------------------------------------------------------
+# backlog: tickets / criteria / batches — one writer each
+# ---------------------------------------------------------------------------
+
+@op("tickets", "slice")
+def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
+    """Only approved lineages may be sliced; the caller is expected to have
+    consulted the problem statement, and the predicate only fires for items whose
+    approval postdates their last amendment."""
+    ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text}))
+    return {"id": id}
+
+
+@op("tickets", "load")
+def tickets_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    bid = batch_id or ctx.batch_id
+    if bid:
+        return _rows(ctx.conn.execute(
+            "SELECT t.id, t.item_id, t.text FROM tickets t "
+            "JOIN batch_tickets bt ON bt.ticket_id = t.id WHERE bt.batch_id = ?", (bid,)))
+    return []
+
+
+@op("tickets", "scan")
+def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
+    if item_id:
+        return _rows(ctx.conn.execute(
+            "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
+            "WHERE item_id = ? ORDER BY id", (item_id,)))
+    return _rows(ctx.conn.execute(
+        "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets ORDER BY id"))
+
+
+@op("tickets", "consult")
+def tickets_consult(ctx: Ctx) -> list[dict]:
+    return tickets_scan(ctx)
+
+
+@op("criteria", "specify")
+def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
+                     term_refs: list[str] | None = None) -> dict:
+    """Criteria are written in glossary terms; term_refs is not decoration."""
+    ctx.writes.append(("criteria", id, {
+        "ticket_id": ticket_id, "text": text,
+        "term_refs": json.dumps(term_refs or [])}))
+    return {"id": id}
+
+
+@op("criteria", "load")
+def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    bid = batch_id or ctx.batch_id
+    if not bid:
+        return []
+    return _rows(ctx.conn.execute(
+        "SELECT c.id, c.ticket_id, c.text, c.term_refs FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,)))
+
+
+@op("criteria", "consult")
+def criteria_consult(ctx: Ctx) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT id, ticket_id, substr(text,1,120) AS headline FROM criteria ORDER BY id"))
+
+
+@op("criteria", "scan")
+def criteria_scan(ctx: Ctx) -> list[dict]:
+    return criteria_consult(ctx)
+
+
+@op("batches", "batch")
+def batches_batch(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dict:
+    """Collision judgement. Batches are complete feature sets, immutable once
+    formed: only a scope change may recompose one."""
+    ctx.writes.append(("batches", id, {"item_id": item_id, "status": "pending"}))
+    for tid in ticket_ids:
+        ctx.writes.append(("batch_tickets", f"{id}:{tid}", {
+            "batch_id": id, "ticket_id": tid}))
+    return {"id": id, "tickets": ticket_ids}
+
+
+@op("batches", "prioritize")
+def batches_prioritize(ctx: Ctx, id: str, priority: int) -> dict:
+    """
+    Priority moves batches whole. It alters no approved content, trips no
+    revocation, involves no Architect and never recomposes a batch.
+    """
+    ctx.writes.append(("batches", id, {"priority": priority}, False))
+    return {"id": id, "priority": priority}
+
+
+@op("batches", "consult")
+def batches_consult(ctx: Ctx) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT id, item_id, status, priority FROM batches ORDER BY priority DESC, id"))
+
+
+# ---------------------------------------------------------------------------
+# tests
+# ---------------------------------------------------------------------------
+
+@op("tests", "author")
+def tests_author(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
+                 path: str, body: str) -> dict:
+    """Criteria made executable, written before the diff exists."""
+    ctx.writes.append(("tests", id, {
+        "batch_id": batch_id, "criterion_id": criterion_id,
+        "path": path, "body": body}))
+    return {"id": id}
+
+
+@op("tests", "load")
+def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    bid = batch_id or ctx.batch_id
+    if not bid:
+        return []
+    return _rows(ctx.conn.execute(
+        "SELECT id, criterion_id, path, body FROM tests WHERE batch_id = ?", (bid,)))
+
+
+@op("tests", "consult")
+def tests_consult(ctx: Ctx) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT id, batch_id, criterion_id, path FROM tests ORDER BY id"))
+
+
+# ---------------------------------------------------------------------------
+# journals
+# ---------------------------------------------------------------------------
+
+@op("ledger", "log")
+def ledger_log(ctx: Ctx, id: str, about_ref: str, about_table: str,
+               default_taken: str) -> dict:
+    """A choice made where the criteria were silent. Logged with the diff, in the
+    same session — the silent default is the failure this exists to prevent."""
+    ctx.writes.append(("ledger", id, {
+        "about_ref": about_ref, "about_table": about_table,
+        "default_taken": default_taken, "status": "open", "author": ctx.role}))
+    return {"id": id}
+
+
+@op("ledger", "list")
+def ledger_list(ctx: Ctx) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT id, about_ref, about_table, default_taken, author FROM ledger "
+        "WHERE status = 'open' ORDER BY id"))
+
+
+@op("decisions", "author")
+def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None,
+                     supersedes: str | None = None,
+                     resolves_ledger: str | None = None) -> dict:
+    """Authored by whoever decided, in the same session as the decision. There is
+    no recording step and no scribe role."""
+    ctx.writes.append(("decisions", id, {
+        "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
+        "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
+    return {"id": id}
+
+
+@op("decisions", "search")
+def decisions_search(ctx: Ctx, query: str) -> list[dict]:
+    """Query scope: matches, never the corpus."""
+    return _rows(ctx.conn.execute(
+        "SELECT id, author, substr(text,1,200) AS headline, supersedes FROM decisions "
+        "WHERE text LIKE ? ORDER BY id", (f"%{query}%",)))
+
+
+@op("verdicts", "emit")
+def verdicts_emit(ctx: Ctx, id: str, batch_id: str, result: str,
+                  failed_criterion: str | None = None, diff_ref: str = "") -> dict:
+    ctx.writes.append(("verdicts", id, {
+        "batch_id": batch_id, "result": result,
+        "failed_criterion": failed_criterion, "diff_ref": diff_ref}))
+    return {"id": id, "result": result}
+
+
+@op("verdicts", "load")
+def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    bid = batch_id or ctx.batch_id
+    return _rows(ctx.conn.execute(
+        "SELECT id, batch_id, result, failed_criterion FROM verdicts WHERE batch_id = ?",
+        (bid,)))
+
+
+# ---------------------------------------------------------------------------
+# schedule (derived; read-only for everyone)
+# ---------------------------------------------------------------------------
+
+@op("schedule", "consult")
+def schedule_consult(ctx: Ctx) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
+
+
+# ---------------------------------------------------------------------------
+# code — probes, not questions. The codebase is self-describing, which is why
+# reading it grants no contact to its author.
+# ---------------------------------------------------------------------------
+
+@op("code", "probe")
+def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT grain, grain_kind, area, fan_in FROM code_index "
+        "WHERE grain LIKE ? ORDER BY fan_in DESC LIMIT 200", (f"%{pattern}%",)))
+
+
+@op("code", "survey")
+def code_survey(ctx: Ctx, area: str) -> list[dict]:
+    return _rows(ctx.conn.execute(
+        "SELECT grain, grain_kind, fan_in FROM code_index WHERE area = ? "
+        "ORDER BY fan_in DESC", (area,)))
+
+
+@op("code", "read")
+def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
+    """The batch diff. Critic's entire view of the implementation."""
+    bid = batch_id or ctx.batch_id
+    row = ctx.conn.execute(
+        "SELECT id, worktree, head_commit FROM batches WHERE id = ?", (bid,)).fetchone()
+    return dict(row) if row else {}
+
+
+@op("code", "commit")
+def code_commit(ctx: Ctx, batch_id: str, head_commit: str) -> dict:
+    """Record the commit the database now has a receipt for. Git itself is
+    outside the transaction; this is the marker boot reconciles against."""
+    ctx.writes.append(("batches", batch_id, {"head_commit": head_commit}, False))
+    return {"batch_id": batch_id, "head_commit": head_commit}
