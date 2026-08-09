@@ -194,6 +194,7 @@ def _verb_to_attr(verb: str) -> str:
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
+          utterance_id: str | None = None,
           allow: list[str] | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
     """
@@ -208,7 +209,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         raise SandboxError(f"{role!r} is not a role in the graph")
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
-                  batch_id=batch_id)
+                  batch_id=batch_id, utterance_id=utterance_id)
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}
@@ -218,6 +219,8 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
             continue
         if mode == "consult" and edge.type == "writes":
             continue                      # read-only inquiry is free, and cannot cost
+        if not edge.model_callable:
+            continue                      # owned by the role, performed by the system
 
         impl = api.REGISTRY.get((edge.t, edge.v))
         if impl is None:

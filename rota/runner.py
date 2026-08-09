@@ -44,16 +44,30 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 
-def _mode_key(wake: Wake) -> str:
+def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     """
     Which prompt piece this wake selects.
 
     A message wake is keyed by its verb; a tick by the tick's name. Both are
     enumerable — the verbs from the graph, the ticks from the scheduler — so the
     set of modes a role has is a fact about the system rather than a convention.
+
+    One refinement the gates force: a client `verdict` means two different things
+    depending on what it answers. After a `confirm` it is ratification (L1);
+    after a `present` it is a signoff ruling to relay. Same verb, different job,
+    so the mode is keyed by the *cause* rather than by the verb alone. Without
+    this the two gates would share one prompt and neither would be right.
     """
     if wake.kind == "message":
-        return wake.detail or ""
+        verb = wake.detail or ""
+        if verb == "verdict" and conn is not None and wake.message_id:
+            row = conn.execute(
+                "SELECT c.verb AS cause_verb FROM messages m "
+                "LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+                (wake.message_id,)).fetchone()
+            if row and row["cause_verb"] == "present":
+                return "verdict_signoff"
+        return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
     return wake.kind
@@ -218,14 +232,21 @@ def run_session(
     # than chosen.
     if not instructions:
         try:
-            instructions = prompts.compose(wake.role, _mode_key(wake))
+            instructions = prompts.compose(wake.role, _mode_key(wake, conn))
         except prompts.MissingPrompt:
             instructions = ""
 
     session_id = new_id("s")
+    utterance_id = None
+    if wake.message_id:
+        row = conn.execute(
+            "SELECT id FROM utterances WHERE id = ?",
+            (f"u_{wake.message_id}",)).fetchone()
+        utterance_id = row["id"] if row else None
+
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
-                           session_id=session_id, g=g,
-                           allow=prompts.mode_tools(wake.role, _mode_key(wake)))
+                           session_id=session_id, utterance_id=utterance_id, g=g,
+                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)))
     sb.ctx.trigger = wake.message_id
 
     claim(conn, wake.role, session_id, wake.message_id)

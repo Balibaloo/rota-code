@@ -179,6 +179,18 @@ def main() -> None:
          "n": "test intent", "a": "single"},
     ]
 
+    # ---- 7. system-performed writes -----------------------------------------
+    # Interface owns the transcript, and always will — single writer is about
+    # ownership. But the *write* is performed by the system, not by the model:
+    # the transcript is the one un-interpreted thing here, so nothing that can
+    # paraphrase should touch it. Marking the edge keeps ownership (and coverage)
+    # intact while removing the model's ability to author client speech, which it
+    # will otherwise do — seven fabricated utterances in one live run.
+    for e in edges:
+        if e["s"] == "interface" and e["t"] == "transcript" and e.get("v") == "append":
+            e["actor"] = "system"
+            e["label"] = "recorded mechanically; Interface owns it, does not type it"
+
     # ---- 3. mark fact artefacts --------------------------------------------
     for n in nodes:
         if n["id"] in FACT_ARTEFACTS:

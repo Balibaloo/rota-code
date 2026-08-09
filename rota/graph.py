@@ -44,6 +44,11 @@ class Edge:
     a: str = ""
     label: str = ""
     card: str = ""
+    actor: str = "role"          # 'role' (the model calls it) | 'system'
+
+    @property
+    def model_callable(self) -> bool:
+        return self.actor != "system"
 
     @property
     def scope(self) -> str:
@@ -180,6 +185,7 @@ def _load(path: Path) -> Graph:
         Edge(
             s=e["s"], t=e["t"], type=e["type"], v=e.get("v", ""), n=e.get("n", ""),
             a=e.get("a", ""), label=e.get("label", ""), card=e.get("card", ""),
+            actor=e.get("actor", "role"),
         )
         for e in raw["edges"]
     ]

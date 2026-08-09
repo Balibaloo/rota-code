@@ -19,13 +19,14 @@ nobody asked for anything, so there is nothing to segment.
 
 Each statement's text must appear in the utterance exactly. Do not paraphrase.
 `span_start` and `span_end` are character offsets into the utterance, from 0, and
-spans must not overlap.
+spans must not overlap. You do not need to say *which* utterance — this session is
+segmenting exactly one, and it is already known.
 
 Then send **one** `msg.confirm_client` with every statement id.
 
 Example — utterance `u_m1` is `hi there. let people export their invoices`:
 
-    TOOL: brief.segment(id='s1', span_utterance='u_m1', span_start=10, span_end=41, text='let people export their invoices')
+    TOOL: brief.segment(id='s1', span_start=10, span_end=41, text='let people export their invoices')
     TOOL: msg.confirm_client(refs=['s1'])
 
 Two calls. The greeting is not segmented. Then stop.

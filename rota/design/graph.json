@@ -149,7 +149,9 @@
       "type": "writes",
       "v": "append",
       "n": "utterance",
-      "a": "single"
+      "a": "single",
+      "actor": "system",
+      "label": "recorded mechanically; Interface owns it, does not type it"
     },
     {
       "s": "interface",

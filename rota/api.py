@@ -36,6 +36,7 @@ class Ctx:
     mode: str = "normal"
     session_id: str = ""
     batch_id: str | None = None
+    utterance_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
     trigger: str | None = None
@@ -84,14 +85,26 @@ def transcript_quote(ctx: Ctx, utterance_id: str) -> dict:
 
 
 @op("brief", "segment")
-def brief_segment(ctx: Ctx, id: str, span_utterance: str, span_start: int,
-                  span_end: int, text: str) -> dict:
-    """Propose one statement at client granularity. One thing they asked for is
-    one statement; downstream roles re-decompose into their own artefacts."""
+def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
+                  text: str, span_utterance: str | None = None) -> dict:
+    """
+    Propose one statement at client granularity.
+
+    One thing they asked for is one statement; downstream roles re-decompose into
+    their own artefacts.
+
+    `span_utterance` defaults to the utterance this session is segmenting. A
+    session segments exactly one utterance and the system already knows which —
+    asking the model to supply it added an argument it got wrong, and a wrong
+    foreign key takes down the whole session rather than one call.
+    """
+    target = span_utterance or ctx.utterance_id
+    if not target:
+        raise ValueError("no utterance to segment against")
     ctx.writes.append(("statements", id, {
-        "span_utterance": span_utterance, "span_start": span_start,
+        "span_utterance": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed"}))
-    return {"id": id}
+    return {"id": id, "span_utterance": target}
 
 
 @op("brief", "ratify")

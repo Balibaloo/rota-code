@@ -172,6 +172,27 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
     return [Wake("developer", "tick:batch_start", refs=(ranked[0],))]
 
 
+def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    Draft items with no gate open on them: Vision submits them for approval.
+
+    Fires per *set* rather than per item, because Signoff presents one document —
+    the client is approving an interpretation, and interpretations are read
+    whole. An item already awaiting a verdict is not resubmitted.
+    """
+    drafts = [r["id"] for r in conn.execute(
+        "SELECT id FROM items WHERE approval = 'draft' ORDER BY id")]
+    if not drafts:
+        return []
+    pending = conn.execute(
+        "SELECT COUNT(*) n FROM messages "
+        "WHERE status = 'open' AND verb IN ('submit', 'present')"
+    ).fetchone()["n"]
+    if pending:
+        return []
+    return [Wake("vision", "tick:signoff", refs=tuple(drafts))]
+
+
 def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     """
     Onboarding: one session per elected area, per role, in the order
@@ -214,25 +235,29 @@ def tick_agenda(conn: sqlite3.Connection, client_present: bool = False) -> list[
     """
     if not client_present:
         return []
-    open_ledger = conn.execute(
-        "SELECT COUNT(*) AS n FROM ledger WHERE status = 'open'"
-    ).fetchone()["n"]
+
+    # If something is already open to the client, they can see they are being
+    # waited on and there is nothing to add. This is also what makes the tick
+    # terminate: presenting an agenda opens a message to the client, which
+    # silences the predicate until it is answered. Without that it fires
+    # forever, because Interface has no verb that could satisfy it.
     awaiting = conn.execute(
         "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'client'"
     ).fetchone()["n"]
-    if not (open_ledger or awaiting):
+    if awaiting:
         return []
-    already = conn.execute(
-        "SELECT COUNT(*) AS n FROM messages "
-        "WHERE from_role = 'interface' AND verb = 'agenda' AND status = 'open'"
+
+    open_ledger = conn.execute(
+        "SELECT COUNT(*) AS n FROM ledger WHERE status = 'open'"
     ).fetchone()["n"]
-    if already:
+    if not open_ledger:
         return []
-    return [Wake("interface", "tick:agenda", detail=f"ledger={open_ledger} gates={awaiting}")]
+    return [Wake("interface", "tick:agenda", detail=f"ledger={open_ledger}")]
 
 
 TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_round_close,
+    tick_signoff,
     tick_slicing,
     tick_criteria,
     tick_batch_start,
