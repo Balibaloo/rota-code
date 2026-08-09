@@ -24,19 +24,24 @@ import sqlite3
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from . import graph as graph_mod, prompts as prompts_mod
 from .boot import state_dir
 from .coverage import render as render_coverage, report as coverage_report
 from .db import connect
+from . import inspect_api
 from .sandbox import build as build_sandbox
+from .traceview import (
+    coverage_edges, frontier_overlay, steps_from_db,
+)
 from .scheduler import (
     TICKS, is_quiescent, open_tips, predicate_wakes, tick_agenda,
 )
 
 HERE = Path(__file__).resolve().parent
 VIEWER = HERE / "viewer.html"
+STATIC = HERE / "static"
 
 
 def snapshot(conn: sqlite3.Connection) -> dict:
@@ -157,7 +162,9 @@ def make_handler(db_path: Path):
             self.wfile.write(body)
 
         def do_GET(self):  # noqa: N802
-            path = urlparse(self.path).path
+            parsed = urlparse(self.path)
+            path = parsed.path
+            q = parse_qs(parsed.query)
             try:
                 if path in ("/", "/index.html"):
                     # Read from disk every request: editing the viewer and hitting
@@ -173,6 +180,38 @@ def make_handler(db_path: Path):
                 elif path == "/stories.json":
                     self._send((graph_mod.DESIGN_DIR / "stories.json").read_bytes(),
                                "application/json")
+                elif path.endswith(".js"):
+                    self._send((STATIC / Path(path).name).read_bytes(),
+                               "application/javascript; charset=utf-8")
+                elif path in ("/artefact.json", "/role.json", "/edge.json",
+                              "/blast.json"):
+                    conn = connect(db_path)
+                    try:
+                        if path == "/artefact.json":
+                            data = inspect_api.artefact(conn, q.get("id", [""])[0])
+                        elif path == "/role.json":
+                            data = inspect_api.role(conn, q.get("id", [""])[0])
+                        elif path == "/blast.json":
+                            data = inspect_api.blast_radius(q.get("id", [""])[0])
+                        else:
+                            data = inspect_api.edge(
+                                conn, q.get("s", [""])[0], q.get("t", [""])[0],
+                                q.get("type", ["reads"])[0])
+                    finally:
+                        conn.close()
+                    self._send(json.dumps(data, default=str).encode("utf-8"),
+                               "application/json")
+                elif path == "/trace.json":
+                    conn = connect(db_path)
+                    try:
+                        body = json.dumps({
+                            "steps": steps_from_db(conn),
+                            "overlay": frontier_overlay(conn),
+                            "coverage": coverage_edges(),
+                        }, default=str).encode("utf-8")
+                    finally:
+                        conn.close()
+                    self._send(body, "application/json")
                 elif path == "/prompts.json":
                     body = json.dumps(prompt_bundle(db_path), default=str).encode("utf-8")
                     self._send(body, "application/json")

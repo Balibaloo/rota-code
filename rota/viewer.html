@@ -2,219 +2,118 @@
 <meta charset="utf-8">
 <title>rota cockpit</title>
 <style>
-  :root {
-    --bg: #0e1014; --panel: #161a21; --line: #262c36; --ink: #e6e9ef;
-    --dim: #8b94a3; --accent: #6ea8fe; --ok: #55d187; --warn: #e6b25a;
-    --stop: #e8746a; --idle: #5a6472;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 18px;
-           border-bottom: 1px solid var(--line); position: sticky; top: 0;
-           background: var(--bg); z-index: 5; }
-  h1 { font-size: 14px; margin: 0; letter-spacing: .08em; text-transform: uppercase; }
-  .state { padding: 2px 10px; border-radius: 999px; font-weight: 600; }
-  .state.idle { background: #1d2a20; color: var(--ok); }
-  .state.busy { background: #2a2418; color: var(--warn); }
-  .state.stuck { background: #2d1c1a; color: var(--stop); }
-  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-         gap: 14px; padding: 14px 18px 40px; align-items: start; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-            overflow: hidden; }
-  h2 { font-size: 11px; margin: 0; padding: 9px 12px; letter-spacing: .1em;
-       text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
-  .body { padding: 8px 12px 12px; max-height: 340px; overflow: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { text-align: left; padding: 3px 6px 3px 0; vertical-align: top;
-           border-bottom: 1px solid #1d222b; }
-  th { color: var(--dim); font-weight: 500; }
-  .tag { display: inline-block; padding: 0 6px; border-radius: 4px;
-         background: #1e2532; color: var(--accent); }
-  .muted { color: var(--dim); }
-  .fire { color: var(--warn); }
-  .quiet { color: var(--idle); }
-  .pass { color: var(--ok); } .fail { color: var(--stop); }
-  .empty { color: var(--idle); font-style: italic; padding: 6px 0; }
-  .counts { display: flex; flex-wrap: wrap; gap: 6px; }
-  .counts span { background: #1a1f28; border-radius: 4px; padding: 2px 8px; }
-  .counts b { color: var(--accent); font-weight: 600; }
-  footer { padding: 0 18px 30px; color: var(--dim); }
-  nav { margin-left: auto; display: flex; gap: 4px; }
-  .tab { background: transparent; border: 1px solid var(--line); color: var(--dim);
-         padding: 3px 12px; border-radius: 5px; cursor: pointer; font: inherit; }
-  .tab.on { color: var(--ink); border-color: var(--accent); background: #18202e; }
-  details { border-bottom: 1px solid #1d222b; padding: 6px 0; }
-  summary { cursor: pointer; color: var(--accent); }
-  pre { white-space: pre-wrap; margin: 8px 0 8px 14px; color: var(--ink);
-        background: #10141a; padding: 10px; border-radius: 6px; border: 1px solid var(--line); }
-  .sig { color: var(--dim); font-size: 12px; }
-  .barwrap { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
-  .bar { flex: 1; height: 10px; background: #1d222b; border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--ok); }
+  :root{--bg:#0e1014;--panel:#161a21;--line:#262c36;--ink:#e6e9ef;--dim:#8b94a3;
+        --accent:#6ea8fe;--ok:#55d187;--warn:#e6b25a;--stop:#e8746a;--idle:#5a6472;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  header{display:flex;align-items:center;gap:14px;padding:9px 16px;
+         border-bottom:1px solid var(--line);height:46px}
+  h1{font-size:13px;margin:0;letter-spacing:.09em;text-transform:uppercase}
+  .state{padding:2px 10px;border-radius:999px;font-weight:600}
+  .state.idle{background:#1d2a20;color:var(--ok)}
+  .state.busy{background:#2a2418;color:var(--warn)}
+  .state.stuck{background:#2d1c1a;color:var(--stop)}
+  nav{margin-left:auto;display:flex;gap:4px}
+  .tab,button,select{background:transparent;border:1px solid var(--line);color:var(--dim);
+       padding:3px 11px;border-radius:5px;cursor:pointer;font:inherit}
+  .tab.on{color:var(--ink);border-color:var(--accent);background:#18202e}
+  select{color:var(--ink)}
+  main{position:absolute;top:46px;bottom:0;left:0;right:0;display:none}
+  main.on{display:block}
+  #gwrap{display:grid;grid-template-columns:1fr 420px;height:100%}
+  #gstage{position:relative;overflow:hidden;background:
+    radial-gradient(circle at 30% 20%,#12161d,#0e1014 70%)}
+  #gsvg{width:100%;height:100%;cursor:grab}
+  #gsvg:active{cursor:grabbing}
+  #gctl{position:absolute;top:10px;left:12px;display:flex;gap:6px;align-items:center;
+        background:rgba(14,16,20,.9);padding:6px 8px;border-radius:7px;
+        border:1px solid var(--line);z-index:2}
+  #gnarr{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(14,16,20,.94);
+         border:1px solid var(--line);border-radius:7px;padding:9px 12px;max-height:150px;
+         overflow:auto;z-index:2}
+  #gpanel{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:0}
+  .phead{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
+         background:var(--panel);z-index:1}
+  .phead h2{margin:0;font-size:15px;text-transform:none;letter-spacing:0;padding:0;border:0}
+  .sec{border-bottom:1px solid #1d222b}
+  .sec>summary{cursor:pointer;padding:8px 14px;color:var(--accent);
+       list-style:none;display:flex;justify-content:space-between}
+  .sec>summary::-webkit-details-marker{display:none}
+  .sec .body{padding:4px 14px 14px}
+  h2{font-size:11px;margin:0;padding:9px 12px;letter-spacing:.1em;text-transform:uppercase;
+     color:var(--dim);border-bottom:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  td,th{text-align:left;padding:3px 8px 3px 0;vertical-align:top;
+        border-bottom:1px solid #1d222b;max-width:230px;overflow-wrap:anywhere}
+  th{color:var(--dim);font-weight:500;position:sticky;top:0;background:var(--panel)}
+  pre{white-space:pre-wrap;margin:6px 0;background:#10141a;padding:9px;border-radius:6px;
+      border:1px solid var(--line);font-size:12px;max-height:340px;overflow:auto}
+  .sig{color:var(--dim)}.pass{color:var(--ok)}.fail{color:var(--stop)}
+  .muted{color:var(--dim)}.empty{color:var(--idle);font-style:italic}
+  .link{color:var(--accent);cursor:pointer}.link:hover{text-decoration:underline}
+  .nlabel{fill:var(--ink);font:12px ui-monospace,monospace;text-anchor:middle;
+          dominant-baseline:middle;pointer-events:none}
+  .nvol{fill:var(--accent);font:10px ui-monospace,monospace;text-anchor:end;pointer-events:none}
+  .elabel{fill:var(--warn);font:10px ui-monospace,monospace;text-anchor:middle;pointer-events:none}
+  .gnode,.gedge{cursor:pointer}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;
+        padding:12px;overflow:auto;height:100%}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  section>.body{padding:8px 12px 12px;max-height:330px;overflow:auto}
+  .counts{display:flex;flex-wrap:wrap;gap:6px}
+  .counts span{background:#1a1f28;border-radius:4px;padding:2px 8px}
+  .counts b{color:var(--accent)}
+  .barwrap{display:flex;align-items:center;gap:10px;margin:4px 0}
+  .bar{flex:1;height:9px;background:#1d222b;border-radius:3px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--ok)}
 </style>
 
 <header>
-  <h1>rota cockpit</h1>
+  <h1>rota</h1>
   <span id="state" class="state idle">…</span>
   <span class="muted" id="tick"></span>
   <nav>
-    <button class="tab on" data-view="live">live</button>
+    <button class="tab on" data-view="graph">graph</button>
+    <button class="tab" data-view="live">live</button>
     <button class="tab" data-view="prompts">prompts</button>
     <button class="tab" data-view="coverage">coverage</button>
   </nav>
   <span class="muted" id="reload"></span>
 </header>
 
-<main id="live">
+<main id="graph" class="on">
+  <div id="gwrap">
+    <div id="gstage">
+      <div id="gctl"></div>
+      <svg id="gsvg"></svg>
+      <div id="gnarr"></div>
+    </div>
+    <div id="gpanel"><div class="phead"><h2>nothing selected</h2>
+      <span class="sig">click a node or an edge · double-click a role to inhabit it</span>
+    </div></div>
+  </div>
+</main>
+
+<main id="live"><div class="grid">
   <section><h2>Frontier — message tips</h2><div class="body" id="tips"></div></section>
-  <section><h2>Frontier — predicates (state, not events)</h2><div class="body" id="preds"></div></section>
+  <section><h2>Frontier — predicates</h2><div class="body" id="preds"></div></section>
   <section><h2>Sessions</h2><div class="body" id="sessions"></div></section>
   <section><h2>Receipts</h2><div class="body" id="receipts"></div></section>
   <section><h2>Messages</h2><div class="body" id="messages"></div></section>
-  <section><h2>Tool calls (evidence)</h2><div class="body" id="calls"></div></section>
+  <section><h2>Tool calls</h2><div class="body" id="calls"></div></section>
   <section><h2>Items &amp; approval</h2><div class="body" id="items"></div></section>
   <section><h2>Claims / checkpoints / ledger</h2><div class="body" id="runtime"></div></section>
-  <section><h2>Artefact versions</h2><div class="body" id="versions"></div></section>
   <section><h2>Artefact counts</h2><div class="body counts" id="counts"></div></section>
-</main>
+</div></main>
 
-<main id="prompts" hidden>
-  <section style="grid-column: 1 / -1">
-    <h2>System prompts — what a role is actually told</h2>
-    <div class="body" id="promptbody" style="max-height: none"></div>
-  </section>
-</main>
+<main id="prompts"><div class="grid"><section style="grid-column:1/-1">
+  <h2>System prompts — what a role is actually told</h2>
+  <div class="body" id="promptbody" style="max-height:none"></div></section></div></main>
 
-<main id="coverage" hidden>
-  <section style="grid-column: 1 / -1">
-    <h2>Edge coverage — the graph generates the obligation</h2>
-    <div class="body" id="coveragebody" style="max-height: none"></div>
-  </section>
-</main>
+<main id="coverage"><div class="grid"><section style="grid-column:1/-1">
+  <h2>Edge coverage — the graph generates the obligation</h2>
+  <div class="body" id="coveragebody" style="max-height:none"></div></section></div></main>
 
-<footer>
-  Quiescence = no open tips + no predicate firing + no schedulable batch.
-  A frontier that is non-empty and not advancing is <b>stuck</b>, not idle.
-</footer>
-
-<script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-
-function table(rows, cols) {
-  if (!rows.length) return '<div class="empty">none</div>';
-  const head = cols.map(c => `<th>${esc(c)}</th>`).join('');
-  const body = rows.map(r =>
-    '<tr>' + cols.map(c => `<td>${esc(r[c])}</td>`).join('') + '</tr>').join('');
-  return `<table><tr>${head}</tr>${body}</table>`;
-}
-
-let lastSignature = '', stalledFor = 0;
-
-async function refresh() {
-  let s;
-  try { s = await (await fetch('/state.json')).json(); }
-  catch { $('state').textContent = 'server gone'; $('state').className = 'state stuck'; return; }
-
-  const tips = s.frontier.tips, preds = s.frontier.predicates;
-  const signature = JSON.stringify([tips, preds, s.versions]);
-  if (signature === lastSignature) stalledFor++; else { stalledFor = 0; lastSignature = signature; }
-
-  // idle vs stuck is the question you actually ask when glancing at this.
-  const busy = tips.length + preds.length > 0;
-  const stuck = busy && stalledFor > 6;
-  $('state').textContent = stuck ? 'STUCK' : busy ? 'WORK PENDING' : 'QUIESCENT';
-  $('state').className = 'state ' + (stuck ? 'stuck' : busy ? 'busy' : 'idle');
-  $('tick').textContent = `${tips.length} tip(s) · ${preds.length} predicate wake(s)`
-    + (stalledFor ? ` · unchanged for ${stalledFor} polls` : '');
-
-  $('tips').innerHTML = table(tips, ['role', 'verb', 'message']);
-  $('preds').innerHTML =
-    Object.entries(s.predicate_status).map(([name, wakes]) =>
-      `<div class="${wakes.length ? 'fire' : 'quiet'}">${wakes.length ? '●' : '○'} ${esc(name)}`
-      + (wakes.length ? ` <span class="muted">${esc(wakes.join(', '))}</span>` : '')
-      + '</div>').join('');
-
-  $('sessions').innerHTML = table(s.sessions, ['id', 'role', 'mode', 'committed', 'model']);
-  $('receipts').innerHTML = table(s.receipts, ['role', 'table_name', 'row_id', 'new_version']);
-  $('messages').innerHTML = table(s.messages, ['from_role', 'to_role', 'verb', 'status', 'attempts']);
-  $('calls').innerHTML = table(s.tool_calls, ['fn', 'args_summary']);
-  $('items').innerHTML = table(s.items, ['id', 'kind', 'approval', 'approval_ver', 'version', 'headline']);
-  $('versions').innerHTML = table(s.versions, ['table_name', 'version']);
-
-  $('runtime').innerHTML =
-    '<b>claims</b>' + table(s.claims, ['role', 'session_id'])
-    + '<b>checkpoints</b>' + table(s.checkpoints, ['session_id', 'role', 'valid'])
-    + '<b>open ledger</b>' + table(s.ledger, ['id', 'about_ref', 'default_taken', 'author']);
-
-  $('counts').innerHTML = Object.entries(s.counts)
-    .map(([k, v]) => `<span>${esc(k)} <b>${v}</b></span>`).join('');
-}
-
-// ---- tabs ----------------------------------------------------------------
-let view = 'live';
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
-  view = b.dataset.view;
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
-  ['live', 'prompts', 'coverage'].forEach(v =>
-    document.getElementById(v).hidden = (v !== view));
-  if (view === 'prompts') loadPrompts();
-  if (view === 'coverage') loadCoverage();
-});
-
-// ---- prompt inspector ----------------------------------------------------
-// The prompt a role receives is the *composition*, not the markdown file. This
-// renders what a session actually assembles: base, each mode piece, and the tool
-// signatures the runner advertises alongside them.
-async function loadPrompts() {
-  const p = await (await fetch('/prompts.json')).json();
-  document.getElementById('promptbody').innerHTML = Object.entries(p).map(([role, r]) => `
-    <details>
-      <summary>${esc(role)} — ${r.namespace_size} functions, ${Object.keys(r.modes).length} mode(s)
-        <span class="sig">inbound: ${esc(r.inbound_verbs.join(', ') || 'ticks only')}</span></summary>
-      <b>base</b><pre>${esc(r.base)}</pre>
-      ${Object.entries(r.modes).map(([m, v]) => `
-        <b>mode: ${esc(m)}</b> <span class="sig">(composed ${v.composed_chars} chars)</span>
-        <pre>${esc(v.piece)}</pre>`).join('')}
-      <b>working set advertised to the model</b>
-      <pre>${r.signatures.map(s => 'TOOL: ' + esc(s) + '<br>').join('')}</pre>
-    </details>`).join('');
-}
-
-// ---- coverage ------------------------------------------------------------
-async function loadCoverage() {
-  const c = await (await fetch('/coverage.json')).json();
-  const rows = Object.entries(c.by_role).map(([role, [cov, miss]]) => {
-    const pct = 100 * cov / (cov + miss);
-    return `<div class="barwrap"><span style="width:90px">${esc(role)}</span>
-      <span class="sig" style="width:60px">${cov}/${cov + miss}</span>
-      <span class="bar"><i style="width:${pct}%"></i></span></div>`;
-  }).join('');
-  document.getElementById('coveragebody').innerHTML =
-    `<h3>${c.covered}/${c.total} edges (${c.percent.toFixed(0)}%)</h3>${rows}
-     <p class="muted">Drawing an edge creates a red row. Coverage cannot drift from
-     the design, because the design generates it.</p>
-     <b>uncovered</b>${table(c.missing.map(m => ({edge: m})), ['edge'])}`;
-}
-
-// ---- hot reload ----------------------------------------------------------
-// Prompts, graph and viewer are read from disk per request, so a change on disk
-// only needs the page to notice. The fingerprint covers everything that shapes a
-// prompt or the wiring.
-let fingerprint = null;
-async function checkReload() {
-  try {
-    const fp = (await (await fetch('/fingerprint')).text()).trim();
-    if (fingerprint === null) { fingerprint = fp; return; }
-    if (fp !== fingerprint) {
-      document.getElementById('reload').textContent = 'sources changed — reloading…';
-      setTimeout(() => location.reload(), 300);
-    }
-  } catch { /* server restarting; try again next tick */ }
-}
-
-refresh();
-setInterval(() => { if (view === 'live') refresh(); }, 1500);
-setInterval(checkReload, 1000);
-</script>
+<script src="/graphview.js"></script>
+<script src="/panels.js"></script>
