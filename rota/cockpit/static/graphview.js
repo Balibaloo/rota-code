@@ -10,7 +10,7 @@
 // work reclassifies things the visual language already covers it.
 
 const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
-            mode:'team', source:'coverage', storyIx:0, stepIx:0,
+            mode:'team', source:'design', storyIx:0, stepIx:0,
             focus:null, inhabit:null, blast:null, keyhl:null,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false};
 
@@ -207,6 +207,7 @@ function computeSpread() {
   }
 
   GV.spread = {};
+  GV.spreadN = {};
   const ORDER = {writes: 0, reads: 1, messages: 2};
   for (const [k, list] of Object.entries(pairs)) {
     const [first] = k.split('|');
@@ -214,10 +215,15 @@ function computeSpread() {
       (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) ||
       (a.v || '').localeCompare(b.v || ''));
     list.forEach((e, i) => {
-      const slot = list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 30;
+      const slot = list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 34;
       // Canonical side: mirror when the edge runs against the sorted order, so
       // both directions read off the same ruler.
       GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] = e.s === first ? slot : -slot;
+      // How many edges share this pair. A spread offset only separates lines
+      // if it straddles zero, and it was being *added* to a base bow of up to
+      // 46 -- so two parallel edges bowed 61 and 31, the same way, converging
+      // at both ends. With more than one edge the spread is the whole bow.
+      GV.spreadN[`${e.s}|${e.t}|${e.type}|${e.v}`] = list.length;
     });
   }
 
@@ -248,6 +254,11 @@ const gvSteps = () =>
 
 function gvLit() {
   const lit=new Map();
+  // The default lens makes no claim. Opening on coverage meant the first thing
+  // anybody saw was a picture half-painted red about a question they had not
+  // asked yet — the structure, which is what the graph is *for*, was the one
+  // thing you had to switch to.
+  if (GV.source==='design') return lit;
   // A case lights what it *instantiates*, plus what it asserts on top.
   //
   // The first version lit the edges the mode offered, which is a picture of
@@ -365,7 +376,8 @@ function drawTeam() {
     // halo. Recolouring meant a forbidden read and an untested write looked
     // like the same thing, and neither looked like a read or a write.
     let op=0.16, w=1.2, col=st.c, halo=null;
-    if (GV.source==='coverage') {
+    if (GV.source==='design') { op=.5; w=1.5; }
+    else if (GV.source==='coverage') {
       if (state==='covered'){op=.8;w=2;}
       else if (uncovered.has(key)){op=.6;w=1.6;halo=LENS.denied;}
     } else if (state==='now'){op=1;w=2.6;halo=LENS.output;}
@@ -389,9 +401,11 @@ function drawTeam() {
       markers = `marker-start="url(#${r.startMarker})" marker-end="url(#${r.endMarker})"`;
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
-      const off = GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] || 0;
+      const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
+      const off = GV.spread[key] || 0, n = GV.spreadN[key] || 1;
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
-      const len=Math.hypot(dx,dy)||1, bow=Math.min(46,len*.13)+off;
+      const len=Math.hypot(dx,dy)||1;
+      const bow = n > 1 ? off : Math.min(46, len*.13);
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
 
       // Start and end on the boxes, not in them. This drew centre to centre,
@@ -566,6 +580,12 @@ function gvNarrate() {
       <span class="link" onclick="gvInhabit(null)">release</span>`;
     return;
   }
+  if (GV.source==='design') {
+    const g=GV.graph;
+    box.textContent = `${g.nodes.length} nodes · ${g.edges.length} edges · `
+      + `no lens — pick one above, or open a case`;
+    return;
+  }
   if (GV.source==='coverage') {
     const c=GV.trace.coverage;
     box.textContent = `${c.covered.length}/${c.covered.length+c.missing.length}
@@ -617,7 +637,8 @@ function gvControls(){
     <button data-gmode="team" class="on" onclick="gvMode('team')">team</button>
     <button data-gmode="chat" onclick="gvMode('chat')">chat</button>
     <span class="sep"></span>
-    <select id="gsrc"><option value="coverage">coverage</option>
+    <select id="gsrc"><option value="design">the design</option>
+      <option value="coverage">coverage</option>
       <option value="story">design stories</option>
       <option value="run">this run</option></select>
     <span class="sep"></span>
@@ -728,7 +749,23 @@ function gvLegend() {
     denied:`<i class="ring" style="border-color:${LENS.denied}"></i>`,
   };
 
-  const groups = GV.source === 'case' ? [...LEGEND, CASE_LEGEND] : LEGEND;
+  const LENS_KEY = {
+    coverage: ["coverage", [
+      ["exercised", {ring:"ready"}, "some test drives this edge. Drawing an edge creates the obligation, so this cannot drift from the design"],
+      ["untested",  {ring:"denied"}, "no test touches it. A capability nothing exercises is a claim nobody has checked"],
+    ]],
+    story: ["this story", [
+      ["current step", {ring:"ready"}, "the edge this step of the story uses"],
+      ["so far",       {ring:"blast"}, "everything the story has used up to here"],
+    ]],
+    run: ["this run", [
+      ["current step", {ring:"ready"}, "the edge the selected session used"],
+      ["so far",       {ring:"blast"}, "everything the run has done up to here"],
+    ]],
+    case: CASE_LEGEND,
+  };
+  const extra = LENS_KEY[GV.source];
+  const groups = extra ? [...LEGEND, extra] : LEGEND;
 
   const el = document.getElementById('glegend');
   el.innerHTML =
