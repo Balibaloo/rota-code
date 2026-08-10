@@ -1,0 +1,89 @@
+# L1 — Gatekeeper. One action per case, in a state where it is the only right
+# move, asserted structurally: which rows appeared, who was messaged, what did
+# not happen. Never on prose — a case that graded wording would measure my taste
+# rather than the role's judgement.
+#
+# Every case carries a `forbidden:` block. The runner rejects one that does not,
+# because the interesting half of "did it do the right thing" is usually "and
+# nothing else".
+#
+# 4 of 5. Stochastic output is a measured quantity, not an excuse: a case that
+# passed 5/5 for a week and now passes 3/5 is a prompt regression.
+
+- id: L1-GK-assert
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  fixture:
+    entries:
+      - {id: e1, author: principal, text: "users should be able to delete their account", ts_order: 1}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 43,
+         text: "users should be able to delete their account", status: ratified}
+  inbound: {from: liaison, to: gatekeeper, verb: deliver, body_refs: [s1]}
+  expect:
+    writes:
+      items: {count: ">=1"}
+  forbidden:
+    # Gatekeeper does not approve its own work: the principal rules on items.
+    # Nor does it touch the brief, which is Liaison's.
+    writes: [statements, entries]
+    recipients: [developer, tester, critic]
+
+- id: L1-GK-slice
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  tick: slicing
+  fixture:
+    items:
+      - {id: i1, text: "users can delete their account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+  expect:
+    writes:
+      tickets: {count: ">=1"}
+  forbidden:
+    # Slicing an approved item must not amend it — that would revoke the
+    # approval that made it sliceable in the first place.
+    versions: [items]
+    writes: [criteria, batches]
+
+- id: L1-GK-relay-the-ruling
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  fixture:
+    items:
+      - {id: i1, text: "delete an account", kind: in_scope, provenance: decided,
+         approval: pending, version: 1}
+  inbound: {from: liaison, to: gatekeeper, verb: relay, body_refs: [i1]}
+  expect:
+    writes:
+      items: {count: ">=1"}
+  forbidden:
+    # Applying a ruling is not re-deciding it: no new items, nobody else told.
+    writes: [tickets, decisions]
+    recipients: [developer, architect, terminologist]
+
+- id: L1-GK-answer-a-scope-question
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  fixture:
+    items:
+      - {id: i1, text: "deleting an account tombstones it, keeping invoices",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [i1]}
+  expect:
+    messages:
+      - {to: developer, verb: answer, count: 1}
+  forbidden:
+    # Answering is not amending. The problem statement already settles this one,
+    # so a write here would be inventing scope nobody approved.
+    writes: [items, tickets]
+    versions: [items]

@@ -59,6 +59,29 @@ def _rows(cur) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
+def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
+    """
+    A state change needs something to change the state *of*.
+
+    Without this, setting the approval of an id that does not exist stages a
+    partial write, `_apply_write` inserts it because there is no row to update,
+    and SQLite raises NOT NULL inside the transaction — taking down a session
+    that was otherwise sound. That is precisely what the sandbox's argument
+    validation exists to prevent, applied one level deeper: a bad *reference* is
+    as recoverable as a bad enum, and both should come back as tool errors the
+    model can correct on its next turn.
+
+    Found by L1: a Gatekeeper session ruled on an item id it had invented, and
+    the whole session was lost instead of one call.
+    """
+    hit = ctx.conn.execute(
+        f"SELECT 1 FROM {table} WHERE id = ?", (id,)).fetchone()
+    if hit is None:
+        raise ValueError(
+            f"no {table} row with id={id!r}; this changes an existing row, so "
+            f"the id has to be one you were given")
+
+
 # ---------------------------------------------------------------------------
 # transcript / brief
 # ---------------------------------------------------------------------------
@@ -108,6 +131,7 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
 
 @op("brief", "ratify")
 def brief_ratify(ctx: Ctx, id: str) -> dict:
+    _must_exist(ctx, "statements", id)
     ctx.writes.append(("statements", id, {"status": "ratified"}, False))
     return {"id": id, "status": "ratified"}
 
@@ -137,9 +161,10 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope",
 def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     """Approval must postdate the item's last amendment, so it is stamped with
     the item's current version at the moment it is granted."""
+    _must_exist(ctx, "items", id)
     row = ctx.conn.execute("SELECT version FROM items WHERE id = ?", (id,)).fetchone()
     ctx.writes.append(("items", id, {
-        "approval": approval, "approval_ver": row["version"] if row else 1}, False))
+        "approval": approval, "approval_ver": row["version"]}, False))
     return {"id": id, "approval": approval}
 
 
@@ -153,6 +178,7 @@ def problem_prioritize(ctx: Ctx, id: str, priority: int) -> dict:
     the item rather than the batch is what makes that true by construction:
     there is no per-batch priority for a recomposition to have to preserve.
     """
+    _must_exist(ctx, "items", id)
     ctx.writes.append(("items", id, {"priority": priority}, False))
     return {"id": id, "priority": priority}
 

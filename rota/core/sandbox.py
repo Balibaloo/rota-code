@@ -299,6 +299,25 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str) -> Callable:
     from .runner import new_id
 
     def send(refs: list[str] | None = None, round_no: int = 0):
+        # One session may not send the same message twice.
+        #
+        # Not a cap on messages — Liaison delivering the same statements to
+        # three roles is three recipients and entirely correct. This is the same
+        # recipient, the same verb, the same refs, which is one message sent
+        # again. L1 caught Gatekeeper answering a question twice, and once
+        # eleven times: the model finishes, does not notice it has finished, and
+        # says it again. Telling it afterwards is weaker than making it
+        # impossible.
+        duplicate = any(
+            m["to_role"] == recipient and m["verb"] == verb
+            and m["body_refs"] == list(refs or [])
+            for m in ctx.outbound
+        )
+        if duplicate:
+            raise ValueError(
+                f"you have already sent {verb} to {recipient} with these refs; "
+                f"your work for this session is done")
+
         msg_id = new_id("m")
         ctx.outbound.append({
             "id": msg_id, "to_role": recipient, "verb": verb,

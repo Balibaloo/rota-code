@@ -38,7 +38,18 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="session")
 def dev_db(tmp_path_factory):
-    return open_dev_db(tmp_path_factory.mktemp("dev") / "dev.db")
+    """
+    `.rota/dev.db`, in the repo — not a temp directory.
+
+    Cassettes went to `tmp_path_factory` and were thrown away every run, so the
+    whole point of the layer had never been collected: nothing was ever
+    replayed, every run paid full model time, and no recording survived to be
+    evidence about anything. The file has never existed until now.
+    """
+    from rota import paths
+
+    paths.DEV_DB.parent.mkdir(parents=True, exist_ok=True)
+    return open_dev_db(paths.DEV_DB)
 
 
 @pytest.fixture

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS cassettes (
     system       TEXT NOT NULL,
     user         TEXT NOT NULL,
     completion   TEXT NOT NULL,
+    tool_calls   TEXT NOT NULL DEFAULT '[]',   -- native calls, as JSON
     backend      TEXT NOT NULL,
     hits         INTEGER NOT NULL DEFAULT 0
 );
@@ -68,11 +69,38 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def key_for(system: str, user: str, pins: Pins) -> str:
+def key_for(system: str, user: str, pins: Pins, protocol: str = "text") -> str:
+    """
+    A recording is evidence about one prompt, one model, and one *protocol*.
+
+    Native tool calling and the `TOOL:` text protocol produce different replies
+    to the same prompt and fail in different ways. Keying them together would
+    let a text-protocol recording answer for a native run, which is not evidence
+    about it.
+    """
     blob = json.dumps(
-        [pins.model, pins.temperature, pins.num_ctx, system, user], sort_keys=True
+        [pins.model, pins.temperature, pins.num_ctx, protocol, system, user],
+        sort_keys=True,
     )
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
+
+
+def _calls_to(calls) -> str:
+    """Native calls, as JSON. A cassette that dropped them would replay an empty
+    completion — with native tool calling the text is usually blank and every
+    instruction is in the structure."""
+    return json.dumps([{"name": c.name, "args": c.args} for c in calls or []])
+
+
+def _calls_from(blob: str):
+    from .llm import NativeCall
+
+    return [NativeCall(name=c["name"], args=c["args"])
+            for c in json.loads(blob or "[]")]
+
+
 
 
 class RecordingBackend:
@@ -94,28 +122,33 @@ class RecordingBackend:
         self.hits = 0
         self.misses = 0
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion:
-        key = key_for(system, user, pins)
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
+        protocol = "native" if tools else "text"
+        key = key_for(system, user, pins, protocol)
 
         if self.replay and not self.refresh:
             row = self.conn.execute(
-                "SELECT completion, backend FROM cassettes WHERE key = ?", (key,)
-            ).fetchone()
+                "SELECT completion, backend, tool_calls FROM cassettes "
+                "WHERE key = ?", (key,)).fetchone()
             if row:
                 self.hits += 1
                 self.conn.execute(
                     "UPDATE cassettes SET hits = hits + 1 WHERE key = ?", (key,))
-                return Completion(text=row["completion"], pins=pins,
-                                  backend=f"cassette:{row['backend']}")
+                return Completion(
+                    text=row["completion"], pins=pins,
+                    backend=f"cassette:{row['backend']}",
+                    tool_calls=_calls_from(row["tool_calls"]))
 
         self.misses += 1
-        result = self.inner.complete(system, user, pins)
+        result = self.inner.complete(system, user, pins, tools=tools)
         self.conn.execute(
             "INSERT OR REPLACE INTO cassettes "
             "(key, model, temperature, num_ctx, prompt_hash, system, user, "
-            " completion, backend, hits) VALUES (?,?,?,?,?,?,?,?,?,0)",
+            " completion, tool_calls, backend, hits) VALUES (?,?,?,?,?,?,?,?,?,?,0)",
             (key, pins.model, pins.temperature, pins.num_ctx, pins.prompt_hash,
-             system, user, result.text, result.backend),
+             system, user, result.text, _calls_to(result.tool_calls),
+             result.backend),
         )
         return result
 
@@ -135,10 +168,12 @@ class ReplayOnlyBackend:
     def __init__(self, dev_conn: sqlite3.Connection):
         self.conn = dev_conn
 
-    def complete(self, system: str, user: str, pins: Pins) -> Completion:
-        key = key_for(system, user, pins)
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
+        key = key_for(system, user, pins, "native" if tools else "text")
         row = self.conn.execute(
-            "SELECT completion, backend FROM cassettes WHERE key = ?", (key,)
+            "SELECT completion, backend, tool_calls FROM cassettes WHERE key = ?",
+            (key,)
         ).fetchone()
         if not row:
             raise LLMUnavailable(
@@ -146,7 +181,8 @@ class ReplayOnlyBackend:
                 f"RecordingBackend, or the prompt changed since it was made"
             )
         return Completion(text=row["completion"], pins=pins,
-                          backend=f"cassette:{row['backend']}")
+                          backend=f"cassette:{row['backend']}",
+                          tool_calls=_calls_from(row["tool_calls"]))
 
 
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
