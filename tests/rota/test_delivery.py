@@ -54,10 +54,14 @@ def add_test(conn, test_id, path, body):
                  "VALUES (?, 'b1', 'c1', ?, ?)", (test_id, path, body))
 
 
+HEAD = "abc123"
+
+
 def committed(conn, worktree=None):
     """A batch that has started and has a diff to judge."""
-    conn.execute("UPDATE batches SET status='running', head_commit='abc123', "
-                 "worktree=? WHERE id='b1'", (str(worktree) if worktree else None,))
+    conn.execute("UPDATE batches SET status='running', head_commit=?, "
+                 "worktree=? WHERE id='b1'",
+                 (HEAD, str(worktree) if worktree else None))
 
 
 # ---------------------------------------------------------------------------
@@ -112,12 +116,15 @@ def test_deferring_keeps_the_worktree_and_drops_the_checkpoint(db):
 # ---------------------------------------------------------------------------
 
 def reviewed(conn, *, verdict="pass", finding="satisfied"):
-    conn.execute("INSERT INTO verdicts (id, batch_id, result) VALUES ('v1','b1',?)",
-                 (verdict,))
+    """Judgements carry the commit they judged — one against a different diff is
+    not evidence about this one."""
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                 "VALUES ('v1','b1',?,?)", (HEAD, verdict))
     conn.execute("INSERT INTO constraints (id, headline, provenance) "
                  "VALUES ('k1','no data loss','decided')")
-    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, status, grain) "
-                 "VALUES ('f1','b1','k1',?,'src/db.py')", (finding,))
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
+                 "status, grain) VALUES ('f1','b1','k1',?,?,'src/db.py')",
+                 (HEAD, finding))
 
 
 def test_a_clean_batch_merges_without_waking_anyone(db):
@@ -142,8 +149,9 @@ def test_a_clean_batch_merges_without_waking_anyone(db):
 @pytest.mark.parametrize("setup,reason", [
     (lambda c: None, "no verdict"),
     (lambda c: reviewed(c, verdict="fail"), "verdict fail"),
-    (lambda c: c.execute("INSERT INTO verdicts (id, batch_id, result) "
-                         "VALUES ('v1','b1','pass')"), "no structural review yet"),
+    (lambda c: c.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                         "VALUES ('v1','b1','abc123','pass')"),
+     "no structural review yet"),
     (lambda c: reviewed(c, finding="violated"), "1 constraint(s) violated"),
 ])
 def test_the_gate_says_why_it_is_shut(db, setup, reason):
@@ -177,13 +185,15 @@ def test_structural_review_runs_once(db):
     wasted sessions, and only if someone reads the trace.
     """
     committed(db)
-    db.execute("INSERT INTO verdicts (id, batch_id, result) VALUES ('v1','b1','pass')")
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+               "VALUES ('v1','b1',?,'pass')", (HEAD,))
     assert [w for w in frontier(db) if w.kind == "tick:structural_review"]
 
     db.execute("INSERT INTO constraints (id, headline, provenance) "
                "VALUES ('k1','no data loss','decided')")
-    db.execute("INSERT INTO findings (id, batch_id, constraint_id, status, grain) "
-               "VALUES ('f1','b1','k1','satisfied','src/db.py')")
+    db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
+               "status, grain) VALUES ('f1','b1','k1',?,'satisfied','src/db.py')",
+               (HEAD,))
     assert not [w for w in frontier(db) if w.kind == "tick:structural_review"]
 
 
@@ -336,3 +346,101 @@ def test_the_cap_is_the_principals(db):
     config.set(db, "loop_cap", 40)
     assert not [w for w in frontier(db) if w.kind == "tick:exhausted"]
     assert [w for w in frontier(db) if w.kind == "tick:tests_failing"]
+
+
+# ---------------------------------------------------------------------------
+# The loop is a loop
+# ---------------------------------------------------------------------------
+
+def judged(conn, commit, *, verdict="pass", finding="satisfied", tests="pass"):
+    """One full round of judgement against one commit."""
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+                 "VALUES (?,'b1','tst1',?,?)", (f"r_{commit}", commit, tests))
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                 "VALUES (?,'b1',?,?)", (f"v_{commit}", commit, verdict))
+    if finding:
+        conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
+                     "status, grain) VALUES (?,'b1','k1',?,?,'src/db.py')",
+                     (f"f_{commit}", commit, finding))
+
+
+def test_a_failed_batch_can_still_pass(db):
+    """
+    Fail, fix, pass. The case that would have caught the whole class.
+
+    Each gate guarded itself with "does a row exist for this batch", so each
+    fired once per batch ever: after one failed verdict `review` never re-fired,
+    the harness never re-ran, and the Developer bounced on `verdict_failed`
+    until the livelock guard tripped. The batch could not converge.
+    """
+    committed(db)                                   # head_commit = abc123
+    add_test(db, "tst1", "test_it.py", PASSES)
+    db.execute("INSERT INTO constraints (id, headline, provenance) "
+               "VALUES ('k1','no data loss','decided')")
+
+    judged(db, "abc123", verdict="fail", finding=None)
+    assert lifecycle.mergeable(db, "b1") == "verdict fail"
+
+    # The Developer fixes it and commits.
+    db.execute("UPDATE batches SET head_commit='def456' WHERE id='b1'")
+
+    kinds = {w.kind for w in frontier(db)}
+    assert "do:harness" in kinds, f"the fix was never re-tested: {kinds}"
+
+    judged(db, "def456", verdict="pass", finding="satisfied")
+    assert lifecycle.mergeable(db, "b1") is None
+    assert [w.kind for w in frontier(db) if w.kind == "do:merge"]
+
+
+def test_each_gate_re_fires_on_a_new_commit(db):
+    """Named individually, so a regression says which gate went back to
+    once-per-batch."""
+    committed(db)
+    add_test(db, "tst1", "test_it.py", PASSES)
+    db.execute("INSERT INTO constraints (id, headline, provenance) "
+               "VALUES ('k1','no data loss','decided')")
+
+    for gate, setup in (
+        ("do:harness", lambda: None),
+        ("tick:review", lambda: db.execute(
+            "INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+            "VALUES ('r2','b1','tst1','xyz789','pass')")),
+        ("tick:structural_review", lambda: db.execute(
+            "INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+            "VALUES ('v2','b1','xyz789','pass')")),
+    ):
+        db.execute("UPDATE batches SET head_commit='xyz789' WHERE id='b1'")
+        setup()
+        assert gate in {w.kind for w in frontier(db)}, \
+            f"{gate} did not fire for a commit it had not judged"
+
+
+def test_a_stale_pass_does_not_merge(db):
+    """
+    A verdict against an older diff is not evidence about the one on disk.
+    Without the commit stamp this merges a change nobody judged, which is worse
+    than not merging at all.
+    """
+    committed(db)
+    add_test(db, "tst1", "test_it.py", PASSES)
+    db.execute("INSERT INTO constraints (id, headline, provenance) "
+               "VALUES ('k1','no data loss','decided')")
+    judged(db, "abc123")
+    assert lifecycle.mergeable(db, "b1") is None
+
+    db.execute("UPDATE batches SET head_commit='newer' WHERE id='b1'")
+    assert lifecycle.mergeable(db, "b1") == "no verdict"
+    assert not [w for w in frontier(db) if w.kind == "do:merge"]
+
+
+def test_the_judgement_records_what_it_judged(db):
+    """Filled by the system. Critic judges a diff and has no reason to know its
+    sha; asking would add an argument it could get wrong."""
+    from rota.core.sandbox import build
+
+    committed(db)
+    sb = build("critic", db)
+    sb.call("verdicts.emit", id="v1", batch_id="b1", result="pass")
+
+    values = sb.ctx.writes[-1][2]
+    assert values["commit_sha"] == "abc123"

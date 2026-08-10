@@ -49,8 +49,15 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
 
 
+def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
+    row = conn.execute(
+        "SELECT head_commit FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    return row["head_commit"] if row else None
+
+
 def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
-                    test_id: str, result: str, attempt: int = 1) -> None:
+                    test_id: str, result: str, attempt: int = 1,
+                    commit_sha: str | None = None) -> None:
     """
     One test, one outcome.
 
@@ -59,8 +66,12 @@ def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
     risk over a boolean.
     """
     conn.execute(
-        "INSERT OR REPLACE INTO test_runs (id, batch_id, test_id, result, attempt) "
-        "VALUES (?, ?, ?, ?, ?)", (run_id, batch_id, test_id, result, attempt))
+        "INSERT OR REPLACE INTO test_runs "
+        "(id, batch_id, test_id, commit_sha, result, attempt) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (run_id, batch_id, test_id,
+         commit_sha if commit_sha is not None else head_of(conn, batch_id),
+         result, attempt))
 
 
 def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
@@ -83,29 +94,37 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     rather than a boolean is what lets the loop say why a batch is sitting there
     instead of leaving it to be inferred from its absence.
     """
+    # Every question is about *this* commit. A verdict against an older diff is
+    # not evidence about the one on disk, and treating it as such would merge a
+    # change nobody judged — the precise failure the commit stamps exist for.
+    head = head_of(conn, batch_id)
+    if head is None:
+        return "nothing committed"
+
     verdict = conn.execute(
-        "SELECT result FROM verdicts WHERE batch_id = ? "
-        "ORDER BY rowid DESC LIMIT 1", (batch_id,)).fetchone()
+        "SELECT result FROM verdicts WHERE batch_id = ? AND commit_sha = ? "
+        "ORDER BY rowid DESC LIMIT 1", (batch_id, head)).fetchone()
     if not verdict:
         return "no verdict"
     if verdict["result"] != "pass":
         return f"verdict {verdict['result']}"
 
     failing = conn.execute(
-        "SELECT COUNT(*) AS n FROM test_runs WHERE batch_id = ? AND result != 'pass'",
-        (batch_id,)).fetchone()["n"]
+        "SELECT COUNT(*) AS n FROM test_runs "
+        "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'",
+        (batch_id, head)).fetchone()["n"]
     if failing:
         return f"{failing} test(s) not passing"
 
     reviewed = conn.execute(
-        "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ?",
-        (batch_id,)).fetchone()["n"]
+        "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ? AND commit_sha = ?",
+        (batch_id, head)).fetchone()["n"]
     if not reviewed:
         return "no structural review yet"
 
     violated = conn.execute(
-        "SELECT COUNT(*) AS n FROM findings "
-        "WHERE batch_id = ? AND status = 'violated'", (batch_id,)).fetchone()["n"]
+        "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ? AND commit_sha = ? "
+        "  AND status = 'violated'", (batch_id, head)).fetchone()["n"]
     if violated:
         return f"{violated} constraint(s) violated"
 

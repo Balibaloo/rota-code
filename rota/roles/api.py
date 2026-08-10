@@ -235,6 +235,7 @@ def model_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     """
     ctx.writes.append(("findings", id, {
         "batch_id": batch_id, "constraint_id": constraint_id,
+        "commit_sha": _head_commit(ctx, batch_id),
         "status": status, "grain": grain}))
     return {"id": id, "status": status}
 
@@ -489,11 +490,26 @@ def decisions_search(ctx: Ctx, query: str) -> list[dict]:
         "WHERE text LIKE ? ORDER BY id", (f"%{query}%",)))
 
 
+def _head_commit(ctx: Ctx, batch_id: str) -> str | None:
+    """
+    Which diff a judgement is about.
+
+    Filled by the system, not asked of the role. Critic judges a diff; it has no
+    reason to know the sha, and asking would add an argument it could get wrong.
+    Same shape as recording an entry: the judgement is the role's, the record of
+    what it judged is not.
+    """
+    row = ctx.conn.execute(
+        "SELECT head_commit FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    return row["head_commit"] if row else None
+
+
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, id: str, batch_id: str, result: str,
                   failed_criterion: str | None = None, diff_ref: str = "") -> dict:
     ctx.writes.append(("verdicts", id, {
         "batch_id": batch_id, "result": result,
+        "commit_sha": _head_commit(ctx, batch_id),
         "failed_criterion": failed_criterion, "diff_ref": diff_ref}))
     return {"id": id, "result": result}
 

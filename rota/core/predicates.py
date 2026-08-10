@@ -317,13 +317,16 @@ def harness(conn) -> list[Wake]:
 
     `head_commit` is the guard against re-running: a commit that has already
     been tested has its results, and the Developer committing again is what asks
-    for another attempt.
+    for another attempt. Matching on the *commit* rather than on the batch is
+    what makes that true — the first version asked whether any run existed, so
+    a batch was tested once and never again.
     """
     rows = conn.execute(
         "SELECT b.id AS bid FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
         "  AND b.id IN (SELECT batch_id FROM tests) "
-        "  AND b.id NOT IN (SELECT batch_id FROM test_runs)"
+        "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
+        "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit)"
     ).fetchall()
     return [Wake("", "do:harness", refs=(r["bid"],)) for r in rows]
 
@@ -439,12 +442,21 @@ def review(conn) -> list[Wake]:
 
     Critic runs before Architect: most failures are failures of intent, and
     screening them first means never paying for a constraint review on work that
-    does not do what was asked."""
+    does not do what was asked.
+
+    Per commit, not per batch. Guarding on "has a verdict" meant a batch that
+    failed review could never pass: the Developer fixed it, committed, and
+    nothing re-judged."""
     rows = conn.execute(
         "SELECT b.id AS bid FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
-        "  AND b.id NOT IN (SELECT batch_id FROM verdicts) "
-        "  AND b.id NOT IN (SELECT batch_id FROM test_runs WHERE result != 'pass')"
+        "  AND NOT EXISTS (SELECT 1 FROM verdicts v "
+        "                  WHERE v.batch_id = b.id AND v.commit_sha = b.head_commit) "
+        "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
+        "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
+        "                    AND r.result != 'pass') "
+        "  AND EXISTS (SELECT 1 FROM test_runs r "
+        "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit)"
     ).fetchall()
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 
@@ -461,9 +473,11 @@ def structural_review(conn) -> list[Wake]:
     catches — after two wasted sessions, and only if someone reads the trace."""
     rows = conn.execute(
         "SELECT v.batch_id AS bid FROM verdicts v "
-        "WHERE v.result = 'pass' AND v.batch_id IN "
-        "  (SELECT id FROM batches WHERE status = 'running') "
-        "  AND v.batch_id NOT IN (SELECT batch_id FROM findings)"
+        "JOIN batches b ON b.id = v.batch_id "
+        "WHERE v.result = 'pass' AND b.status = 'running' "
+        "  AND v.commit_sha = b.head_commit "
+        "  AND NOT EXISTS (SELECT 1 FROM findings f "
+        "                  WHERE f.batch_id = b.id AND f.commit_sha = b.head_commit)"
     ).fetchall()
     return [Wake("architect", "tick:structural_review", refs=(r["bid"],))
             for r in rows]

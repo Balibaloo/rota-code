@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS findings (
     id            TEXT PRIMARY KEY,
     batch_id      TEXT NOT NULL REFERENCES batches(id),
     constraint_id TEXT NOT NULL REFERENCES constraints(id),
+    commit_sha    TEXT,                      -- the diff this finding judged
     status        TEXT NOT NULL CHECK (status IN ('satisfied','violated')),
     grain         TEXT NOT NULL,
     version       INTEGER NOT NULL DEFAULT 1
@@ -259,12 +260,21 @@ CREATE TABLE IF NOT EXISTS tests (
     version       INTEGER NOT NULL DEFAULT 1
 );
 
+-- Every judgement records the commit it judged.
+--
+-- Without it each gate guards itself with "does a row exist for this batch",
+-- which fires once per batch ever -- so a batch that failed review could never
+-- pass: review would not re-fire because a verdict existed, the harness would
+-- not re-run because test_runs existed, and the Developer bounced on
+-- verdict_failed until the livelock guard tripped. The question is never "has
+-- this been judged", it is "has anything happened since".
 CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Critic
-    id        TEXT PRIMARY KEY,
-    batch_id  TEXT NOT NULL REFERENCES batches(id),
-    test_id   TEXT NOT NULL REFERENCES tests(id),
-    result    TEXT NOT NULL CHECK (result IN ('pass','fail','error')),
-    attempt   INTEGER NOT NULL DEFAULT 1
+    id          TEXT PRIMARY KEY,
+    batch_id    TEXT NOT NULL REFERENCES batches(id),
+    test_id     TEXT NOT NULL REFERENCES tests(id),
+    commit_sha  TEXT,                        -- the diff this run judged
+    result      TEXT NOT NULL CHECK (result IN ('pass','fail','error')),
+    attempt     INTEGER NOT NULL DEFAULT 1
 );
 
 -- ---------------------------------------------------------------------------
@@ -294,6 +304,7 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE TABLE IF NOT EXISTS verdicts (
     id                TEXT PRIMARY KEY,
     batch_id          TEXT NOT NULL REFERENCES batches(id),
+    commit_sha        TEXT,                  -- the diff this verdict judged
     diff_ref          TEXT,
     result            TEXT NOT NULL CHECK (result IN ('pass','fail')),
     failed_criterion  TEXT REFERENCES criteria(id),
