@@ -741,6 +741,14 @@ const CASE_LEGEND = ["this case", [
 
 // Which nodes and edges a case-key row is about. One place, so the key and the
 // picture cannot disagree about what "given" means.
+// Which swatch a case-key row wears. Named here rather than inline so the key
+// and `LENS` cannot drift: both answer "what colour is `given`" from one place.
+const GROUP_RING = {
+  roles: 'live', given: 'blast', watched: 'now',
+  forbidden: 'denied', scaffolding: 'gap',
+};
+
+
 function caseGroup(name) {
   const sit = GV.caseSituation || {}, ce = GV.caseEdges || {};
   const ends = k => new Set((ce[k]||[]).flatMap(e=>[e[0], e[1]]));
@@ -813,12 +821,23 @@ function gvLegend() {
   const extra = LENS_KEY[GV.source];
   const groups = extra ? [...base, extra] : base;
 
+  // A row whose swatch does not resolve renders the string "undefined" beside
+  // its label, which is what happened the moment case rows started selecting
+  // by `group` while the lookup still only knew `edge`, `kind` and `ring`.
+  for (const [, items] of [...LEGEND, CASE_LEGEND, ...Object.values(LENS_KEY)])
+    for (const [label, sel] of items)
+      if (!mark[sel.edge || sel.kind || sel.ring || GROUP_RING[sel.group]])
+        console.error('legend row has no swatch:', label, sel);
+
   const el = document.getElementById('glegend');
   el.innerHTML =
     `<div style="display:flex;gap:16px">` +
     groups.map(([group, items]) => `<div class="lgrp"><b>${group}</b>` +
       items.map(([label, sel, why], i) => {
-        const glyph = mark[sel.edge || sel.kind || sel.ring];
+        // Case rows select by `group`, not by `ring` -- the swatch has to
+        // follow, or the row renders the string "undefined" beside its label.
+        const glyph = mark[sel.edge || sel.kind || sel.ring
+                           || GROUP_RING[sel.group]];
         return `<span class="lkey" data-sel='${JSON.stringify(sel)}'
           data-why="${esc(why)}">${glyph} ${esc(label)}</span>`;
       }).join('') + `</div>`).join('') +
