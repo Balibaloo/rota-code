@@ -159,6 +159,12 @@
   .nvol{fill:#64748b;font:9.5px ui-monospace,monospace;text-anchor:end;pointer-events:none}
   /* Edge labels sit on top of edges, so they need a halo in the canvas colour
      to stay readable where lines cross. */
+  /* Stand-ins for destinations that ran off the canvas. Dashed border and a
+     drop shadow so they read as pinned to the glass rather than as nodes that
+     happen to be sitting at the edge. */
+  .ghost{cursor:pointer;filter:drop-shadow(0 1px 3px rgba(15,23,42,.28))}
+  .ghost:hover rect{stroke-width:2.4}
+  .ghost .glabel{font:10px ui-monospace,monospace;pointer-events:none}
   .elabel{font:10px ui-monospace,monospace;text-anchor:middle;pointer-events:none;
           paint-order:stroke;stroke:#f7f9fb;stroke-width:3px;stroke-linejoin:round}
   .gnode,.gedge{cursor:pointer}

@@ -79,7 +79,7 @@ const ek = e => `${e[0]}|${e[1]}|${e[2]}`;
 // Entity kinds get different containers: a person is not a document is not a
 // journal, and the eye should not have to read the label to know which.
 // Where a ray leaves a node's box, in its own dimensions. Nodes are not one
-// size -- a role is 152x50 against a record's 172x42 -- so a shared constant
+// size -- a role is 152x50 against a record's 152x42 -- so a shared constant
 // puts the point inside one of them.
 function onBox(id, dx, dy) {
   const p = GV.layout[id];
@@ -166,9 +166,9 @@ const STATE = {
 const SHAPE = {
   principal:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
   role:    {w:152, h:50, rx:10, fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
-  record:  {w:172, h:42, rx:4,  fill:'#e4f3e8', stroke:'#2f855a', dash:'', ink:'#14532d'},
-  journal: {w:172, h:42, rx:4,  fill:'#eef7f0', stroke:'#4b9e74', dash:'4 3', ink:'#166534'},
-  derived: {w:172, h:42, rx:4,  fill:'#f1f5f2', stroke:'#94a3a0', dash:'2 4', ink:'#475569'},
+  record:  {w:152, h:42, rx:4,  fill:'#e4f3e8', stroke:'#2f855a', dash:'', ink:'#14532d'},
+  journal: {w:152, h:42, rx:4,  fill:'#eef7f0', stroke:'#4b9e74', dash:'4 3', ink:'#166534'},
+  derived: {w:152, h:42, rx:4,  fill:'#f1f5f2', stroke:'#94a3a0', dash:'2 4', ink:'#475569'},
 };
 
 // Reference edges route as orthogonal segments, ported from the design viewer.
@@ -178,7 +178,7 @@ const SHAPE = {
 // artefact — the same reason the original did it rather than using taxi routing,
 // which cannot avoid obstacles.
 function refPath(e) {
-  const W = 172, H = 42, M = 18;
+  const W = SHAPE.record.w, H = SHAPE.record.h, M = 18;
   const boxes = GV.graph.nodes
     .filter(n => n.type === 'artefact' && GV.layout[n.id])
     .map(n => ({id:n.id, x1:GV.layout[n.id].x-W/2-M, x2:GV.layout[n.id].x+W/2+M,
@@ -215,7 +215,7 @@ function refPath(e) {
   const tf = horiz ? (t0.x>s0.x?'left':'right')  : (t0.y>s0.y?'top':'bottom');
   const off = GV.refOffset[`${e.s}|${e.t}|${e.v}`] || 0;
   // Each node's *own* box, not the widest one. `W`/`H` are the record shape,
-  // and a role is 152x50 against that 172x42 -- so every arrow into a role
+  // and a role is 152x50 against that 152x42 -- so every arrow into a role
   // landed ten pixels inside it and every vertical one stopped four short.
   // At full opacity the head is simply hidden by the fill, which reads as an
   // edge with no direction.
@@ -515,7 +515,24 @@ function drawTeam() {
       const A = onBox(e.s, cx-a.x, cy-a.y);
       const B = onBox(e.t, cx-b.x, cy-b.y);
       d = `M${A.x} ${A.y} Q${cx} ${cy} ${B.x} ${B.y}`;
-      lx=(A.x+2*cx+B.x)/4; ly=(A.y+2*cy+B.y)/4;
+
+      // Slide each parallel edge's label to a different point *along* its
+      // curve, instead of putting every one at the midpoint.
+      //
+      // The bow already separates the lines, and for a horizontal run that
+      // separates the labels too. For a vertical one it does not: the offset is
+      // sideways, so three labels sit at the same height 30px apart, and
+      // `consult` is wider than 30px. They overlapped into a single unreadable
+      // stack -- on exactly the edges where knowing which line is which matters
+      // most, since a vertical pair is usually a role and the artefact it owns.
+      //
+      // Staggering along the curve works whichever way the edge runs, and the
+      // ends are left alone: past about a third from either box the label
+      // drifts under the node it is describing.
+      const t = n > 1 ? 0.34 + 0.32 * (rank % n) / (n - 1) : 0.5;
+      const u = 1 - t;
+      lx = u*u*A.x + 2*u*t*cx + t*t*B.x;
+      ly = u*u*A.y + 2*u*t*cy + t*t*B.y;
     }
 
     // Arrowheads are per type and match the edge colour. They were there all
@@ -659,7 +676,13 @@ function gvDraw() {
         <circle cx="1" cy="1" r="1" fill="${STATE.grid}"/></pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dots)"/>
-    <g transform="translate(${v.x},${v.y}) scale(${v.k})">${edges}${nodes}</g>`;
+    <g transform="translate(${v.x},${v.y}) scale(${v.k})">${edges}${nodes}</g>
+    ${ghostChips()}`;
+
+  document.querySelectorAll('.ghost').forEach(el=>{
+    el.onclick = ev=>{ev.stopPropagation(); gvGoto(el.dataset.ghost);};
+    el.onmousedown = ev=>ev.stopPropagation();   // a chip is not the canvas to pan
+  });
 
   document.querySelectorAll('.gnode').forEach(el=>{
     if (el.dataset.msg) { el.onclick = ev=>{ev.stopPropagation(); showMessage(el.dataset.msg);}; return; }
@@ -709,6 +732,114 @@ function gvNarrate() {
   box.textContent = steps.length
     ? `step ${GV.stepIx+1}/${steps.length} — narration in the story tab`
     : 'no steps yet';
+}
+
+// ---------------------------------------------------------------------------
+// Where the arrows go when the arrows leave the screen.
+//
+// Focusing a node lights its neighbourhood, and then you zoom in far enough to
+// read it and the neighbourhood is gone -- edges run off every side to nodes
+// you cannot see, and the only way to find out what is out there is to zoom
+// back out, which loses the thing you zoomed in for.
+//
+// So each off-screen neighbour gets a chip on the border where its edge exits,
+// carrying the node's own colours, its name, and which way the relationship
+// runs. Clicking one focuses that node exactly as clicking the node itself
+// would -- and brings it into view, because focusing something off-screen is a
+// dead end rather than a navigation.
+// ---------------------------------------------------------------------------
+const GHOST_INSET = 34;
+
+// Where the line from `from` to `to` leaves the inset rectangle: the smallest
+// positive step along the ray that lands on one of its four edges.
+//
+// Split out from the drawing because it is the only part with arithmetic in it,
+// and the drawing needs a DOM to run. A chip placed by a sign error points
+// confidently at the wrong side of the screen, which is worse than no chip.
+function ghostAnchor(from, to, W, H, m) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  if (from.x < 0 || from.x > W || from.y < 0 || from.y > H) return null;
+  let t = Infinity;
+  if (dx > 0) t = Math.min(t, (W - m - from.x) / dx);
+  if (dx < 0) t = Math.min(t, (m - from.x) / dx);
+  if (dy > 0) t = Math.min(t, (H - m - from.y) / dy);
+  if (dy < 0) t = Math.min(t, (m - from.y) / dy);
+  if (!isFinite(t) || t <= 0 || t > 1) return null;
+  return {x: from.x + dx * t, y: from.y + dy * t};
+}
+
+function ghostChips() {
+  if (GV.mode !== 'team' || !GV.focus || !GV.layout[GV.focus]) return '';
+  const svg = document.getElementById('gsvg');
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const v = GV.view;
+  const screen = p => ({x: p.x * v.k + v.x, y: p.y * v.k + v.y});
+  const from = screen(GV.layout[GV.focus]);
+  const inside = (p, m) => p.x >= m && p.x <= W - m && p.y >= m && p.y <= H - m;
+
+  // Every distinct neighbour once, remembering which ways the edges run. A
+  // node reached by three edges is one destination, not three chips.
+  const out = new Map();
+  for (const e of GV.graph.edges) {
+    const other = e.s === GV.focus ? e.t : (e.t === GV.focus ? e.s : null);
+    if (!other || other === GV.focus || !GV.layout[other] || !gvVisible(other)) continue;
+    const rec = out.get(other) || {to: false, back: false};
+    if (e.s === GV.focus) rec.to = true; else rec.back = true;
+    out.set(other, rec);
+  }
+
+  let svgOut = '';
+  for (const [id, dir] of out) {
+    const p = screen(GV.layout[id]);
+    if (inside(p, GHOST_INSET)) continue;              // visible: no stand-in
+
+    const at = ghostAnchor(from, p, W, H, GHOST_INSET);
+    if (!at) continue;
+    const dx = p.x - from.x, dy = p.y - from.y;
+
+    const node = GV.graph.nodes.find(n => n.id === id);
+    if (!node) continue;
+    const sh = SHAPE[kindOf(node)];
+    const name = node.label || id;
+    const w = Math.min(150, 15 + name.length * 6.2), h = 20;
+    // Clamped so a chip near a corner does not hang off the canvas it is
+    // meant to be pointing at the inside of.
+    const cx = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, at.x));
+    const cy = Math.max(h / 2 + 4, Math.min(H - h / 2 - 4, at.y));
+
+    // Which way the relationship runs, said in one character rather than by
+    // colour -- the chip is already carrying the node's colours, and asking one
+    // channel to answer two questions is the mistake the palette exists to
+    // avoid.
+    const arrow = dir.to && dir.back ? '↔' : (dir.to ? '→' : '←');
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    svgOut += `<g class="ghost" data-ghost="${esc(id)}"
+        transform="translate(${cx},${cy})">
+      <path d="M0 -5 L11 0 L0 5 z" fill="${sh.stroke}" opacity=".85"
+        transform="rotate(${ang}) translate(${w / 2 + 3},0)"/>
+      <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${sh.rx}"
+        fill="${sh.fill}" stroke="${sh.stroke}" stroke-width="1.5"
+        stroke-dasharray="4 2.5"/>
+      <text x="0" y="4" text-anchor="middle" class="glabel"
+        fill="${sh.ink}">${arrow} ${esc(name)}</text>
+    </g>`;
+  }
+  return svgOut;
+}
+
+// Focus, and put it where it can be seen. Focusing alone is what clicking the
+// real node does, but a chip only exists because its node is off-screen.
+function gvGoto(id) {
+  const p = GV.layout[id];
+  const svg = document.getElementById('gsvg');
+  if (p && svg) {
+    GV.view.x = svg.clientWidth / 2 - p.x * GV.view.k;
+    GV.view.y = svg.clientHeight / 2 - p.y * GV.view.k;
+  }
+  GV.focus = id;                       // set, never toggled: you came here to arrive
+  gvDraw();
+  showNode(id);
 }
 
 function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);}

@@ -148,6 +148,40 @@ GV.view.k = kWas; Object.assign(GV.settings, setWas);
 console.log('fold threshold: ' + (honoured ? 'follows the setting' : 'IGNORED'));
 if (!honoured) problems.push('fold threshold not honoured');
 
+// ---- off-screen destination chips ------------------------------------------
+//
+// A chip placed by a sign error points confidently at the wrong side of the
+// screen, which is worse than no chip at all, and it is not something reading
+// the code proves. Eight directions from the middle of an 800x600 canvas, and
+// each one has to leave through the side it is heading for.
+
+const W = 800, H = 600, m = 34, mid = {x: 400, y: 300};
+const compass = [
+  ['east',       {x: 5000, y: 300},   p => Math.abs(p.x - (W - m)) < .01],
+  ['west',       {x: -5000, y: 300},  p => Math.abs(p.x - m) < .01],
+  ['south',      {x: 400, y: 5000},   p => Math.abs(p.y - (H - m)) < .01],
+  ['north',      {x: 400, y: -5000},  p => Math.abs(p.y - m) < .01],
+  ['south-east', {x: 5000, y: 5000},  p => p.x > mid.x && p.y > mid.y],
+  ['north-west', {x: -5000, y: -5000},p => p.x < mid.x && p.y < mid.y],
+];
+
+let wrongWay = [];
+for (const [name, to, ok] of compass) {
+  const at = ghostAnchor(mid, to, W, H, m);
+  if (!at || !ok(at) || at.x < 0 || at.x > W || at.y < 0 || at.y > H)
+    wrongWay.push(name + (at ? ` -> ${at.x.toFixed(0)},${at.y.toFixed(0)}` : ' -> null'));
+}
+
+// A destination already on screen must not get a chip: the ray never reaches
+// the border inside one step.
+if (ghostAnchor(mid, {x: 450, y: 320}, W, H, m) !== null)
+  wrongWay.push('an on-screen node was given a chip');
+
+console.log('\noff-screen chips: ' + (wrongWay.length
+  ? 'WRONG SIDE: ' + wrongWay.join(', ')
+  : compass.length + ' directions all exit through the right side'));
+if (wrongWay.length) problems.push('ghost chips point the wrong way');
+
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
 
