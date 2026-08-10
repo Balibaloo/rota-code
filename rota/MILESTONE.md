@@ -195,7 +195,7 @@ visible to any deterministic check:
 
 ## 6 · L3 — handoffs · 235 chains
 
-- [ ] **6.1** prioritise chains where B *changes an artefact*, not chains that
+- [x] **6.1** prioritise chains where B *changes an artefact*, not chains that
       relay
 - [ ] **6.2** the tier that tests the thesis — does the message vocabulary carry
       enough to coordinate strangers. Nothing currently touches it
@@ -243,7 +243,7 @@ to calibrate against.
 
 ## 8 · Results surface — throughout
 
-- [ ] **8.1** cockpit tab beside coverage: per-role, per-tier, pass rate, model
+- [x] **8.1** cockpit tab beside coverage: per-role, per-tier, pass rate, model
 - [x] **8.2** cassettes committed — passing runs only, keyed by prompt hash, at
       case granularity so a diff shows which case's evidence moved
 - [x] **8.3** GPU serialised — no `xdist` on model-touching tests
