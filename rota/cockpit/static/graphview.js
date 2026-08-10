@@ -211,7 +211,10 @@ function computeSpread() {
       (refs[rk] = refs[rk] || []).push(e);
       continue;
     }
-    const k = [e.s, e.t].sort().join('|');
+    // Ordered, not sorted: rank is a position within the edges running the
+    // *same way*, because the two directions bow to opposite sides and never
+    // need to avoid each other.
+    const k = `${e.s}|${e.t}`;
     (pairs[k] = pairs[k] || []).push(e);
   }
 
@@ -219,7 +222,6 @@ function computeSpread() {
   GV.spreadN = {};
   const ORDER = {writes: 0, reads: 1, messages: 2};
   for (const [k, list] of Object.entries(pairs)) {
-    const [first] = k.split('|');
     list.sort((a, b) =>
       (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) ||
       (a.v || '').localeCompare(b.v || ''));
@@ -422,12 +424,15 @@ function drawTeam() {
       const rank = GV.spread[key] || 0, n = GV.spreadN[key] || 1;
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
       const len=Math.hypot(dx,dy)||1;
-      // The perpendicular (-dy, dx) points one way for a rightward edge and
-      // the other for a leftward one, so a single sign puts every L-to-R line
-      // above and every R-to-L line below without asking which is which.
-      const side = (Math.abs(dx) > Math.abs(dy) ? (dx >= 0 ? 1 : -1)
-                                                : (dy >= 0 ? 1 : -1));
-      const bow = side * (Math.min(34, len*.11) + rank * 30);
+      // Always bow to the left of the direction of travel.
+      //
+      // The offset added below is `(-dy, dx) * bow / len`. For an edge running
+      // rightwards that is `(0, +1)` -- *downwards*, since y grows down the
+      // screen -- so a positive bow put every left-to-right edge under the line
+      // between its boxes and every right-to-left edge over it, which is the
+      // opposite of what it should be. One negative sign fixes both directions
+      // at once and gives a consistent rotation for vertical edges too.
+      const bow = -(Math.min(34, len*.11) + rank * 30);
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
 
       // Start and end on the boxes, not in them. This drew centre to centre,
