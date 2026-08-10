@@ -54,12 +54,51 @@ function kindOf(n) {
 // drifted to different values for the same three states -- the legend claimed
 // #d97706 for "ready" while the graph drew #e6b25a -- which makes a legend worse
 // than none: it teaches a colour the picture does not use.
+// ---------------------------------------------------------------------------
+// The visual language, stated once.
+//
+// **One channel answers one question.** The rule the picture had lost: states
+// were added to whichever channel was free, so `live` and `gap` ended up the
+// same red meaning different things, `ready` and `now` two ambers apart, and
+// violet meant "cascade reach" in one lens and "given" in another.
+//
+//   node shape + fill   what kind of thing this is        never varies by lens
+//   node border colour  what this lens says about it      never varies by kind
+//   node border weight  emphasis
+//   edge colour + dash  what kind of relationship         never varies by lens
+//   edge halo           the lens making a claim about it
+//   edge weight         how strongly the lens points at it
+//   opacity             in scope for this lens, or not
+//
+// Edges keep their type colour under every lens, because that colour *is* their
+// identity — a read is green whether or not a case forbids it. When a lens has
+// something to say about an edge it says it with a halo underneath, so the
+// claim and the identity are both readable instead of overwriting each other.
+//
+// **Five meanings, one colour each, the same in every lens.** That is what
+// makes a second lens learnable rather than a second vocabulary.
+//
+//            live tab        coverage      story / run    case
+//   ACTOR    mid-session     --            --             role under test
+//   INPUT    cascade reach   --            steps so far   given to the role
+//   OUTPUT   ready to wake   exercised     current step   watched / required
+//   DENIED   --              untested      --             forbidden
+//   INERT    --              --            --             scaffolding
+// ---------------------------------------------------------------------------
+const LENS = {
+  actor:  '#7c3aed',   // who is acting
+  input:  '#0891b2',   // what it was given, or what a change would reach
+  output: '#d97706',   // what it produces, and what we are watching for
+  denied: '#dc2626',   // what must not happen, or has not happened
+  inert:  '#94a3b8',   // present, and out of reach for this lens
+};
+
 const STATE = {
-  ready:  '#d97706',   // a wake is pending for this role
-  live:   '#dc2626',   // mid-session, holding a claim
-  blast:  '#9333ea',   // in the cascade path of the selected artefact
-  gap:    '#dc2626',   // an edge no test exercises
-  now:    '#b45309',   // the edge lit by the current step
+  ready:  LENS.output,
+  live:   LENS.actor,
+  blast:  LENS.input,
+  gap:    LENS.denied,
+  now:    LENS.output,
   ink:    '#334155',
   faint:  '#94a3b8',
   grid:   '#dde5ee',
@@ -322,14 +361,17 @@ function drawTeam() {
     const st=ESTYLE[e.type]||ESTYLE.refs, key=ek([e.s,e.t,e.type]), state=lit.get(key);
     const incident = GV.focus && (e.s===GV.focus||e.t===GV.focus);
 
-    let op=0.16, w=1.2, col=st.c;
+    // The line keeps its type colour under every lens; the lens speaks with a
+    // halo. Recolouring meant a forbidden read and an untested write looked
+    // like the same thing, and neither looked like a read or a write.
+    let op=0.16, w=1.2, col=st.c, halo=null;
     if (GV.source==='coverage') {
       if (state==='covered'){op=.8;w=2;}
-      else if (uncovered.has(key)){op=.42;col=STATE.gap;w=1.5;}
-    } else if (state==='now'){op=1;w=3.2;}
-    else if (state==='seeded'){op=.85;w=2.2;col=STATE.blast;}
-    else if (state==='forbidden'){op=.95;w=2.4;col=STATE.gap;}
-    else if (state==='past'){op=.42;w=1.8;}
+      else if (uncovered.has(key)){op=.6;w=1.6;halo=LENS.denied;}
+    } else if (state==='now'){op=1;w=2.6;halo=LENS.output;}
+    else if (state==='seeded'){op=.8;w=2;halo=LENS.input;}
+    else if (state==='forbidden'){op=.85;w=2;halo=LENS.denied;}
+    else if (state==='past'){op=.45;w=1.8;}
     if (GV.focus) op = incident?Math.max(op,.95):.05;
     if (GV.inhabit) op = Math.max(op,.7);
 
@@ -371,6 +413,8 @@ function drawTeam() {
     // was a grey smudge on a coloured line. A direction you have to zoom in to
     // read is a direction the picture is not carrying.
     const headId = markers ? '' : `marker-end="url(#head-${e.type})"`;
+    if (halo) edges += `<path d="${d}" fill="none" stroke="${halo}"
+      stroke-width="${w + 5}" opacity=".22" stroke-linecap="round"/>`;
     edges += `<path d="${d}" fill="none"
       stroke="${col}" stroke-width="${w}" stroke-dasharray="${st.dash}" opacity="${op}"
       ${markers || (st.head?headId:'')} class="gedge"
@@ -416,12 +460,14 @@ function drawTeam() {
     // needs an item to exist, and Developer cannot read `problem` at all.
     if (sit && scaff.has(n.id) && !watched.has(n.id)) dim = true;
 
-    const ring = sit && roles.has(n.id)    ? STATE.live
-      : sit && watched.has(n.id)           ? STATE.now
-      : sit && given.has(n.id)             ? STATE.blast
-      : sit && scaff.has(n.id)             ? STATE.gap
-      : ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
-      : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
+    const ring = sit && roles.has(n.id)    ? LENS.actor
+      : sit && watched.has(n.id)           ? LENS.output
+      : sit && given.has(n.id)             ? LENS.input
+      : sit && scaff.has(n.id)             ? LENS.inert
+      : claimed[n.id] ? LENS.actor
+      : ready.has(n.id) ? LENS.output
+      : blast&&blast.has(n.id) ? LENS.input
+      : sh.stroke;
     const hot = (sit && (roles.has(n.id)||given.has(n.id)||watched.has(n.id)))
       || ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
@@ -635,20 +681,21 @@ const LEGEND = [
     ["journal",   {kind:"journal"},   "append-only, many writers, one author per entry. Nothing is ever edited"],
     ["derived",   {kind:"derived"},   "computed from the rest. No role writes it, so it carries no judgement"],
   ]],
-  ["state", [
-    ["ready to wake", {ring:"ready"}, "a predicate is firing for this role right now"],
-    ["mid-session",   {ring:"live"},  "holding a claim. Roles are single-instance, so nothing else can wake it"],
-    ["cascade reach", {ring:"blast"}, "what a change to the selected artefact would wake, following refs"],
+  ["right now", [
+    ["mid-session",   {ring:"live"},  "holding a claim. Roles are single-instance, so nothing else can wake it. Violet is ‘this is acting’ in every lens"],
+    ["ready to wake", {ring:"ready"}, "a predicate is firing for this role right now. Amber is ‘what comes out’ in every lens"],
+    ["cascade reach", {ring:"blast"}, "what a change to the selected artefact would wake, following refs. Cyan is ‘what goes in’ in every lens"],
   ]],
 ];
 
 // Shown only with a case open, because the three states mean nothing without
 // one — and with one open they are the whole picture.
-const CASE_LEGEND = ["case", [
-  ["under test", {ring:"live"},  "the role this case wakes. A chain case wakes two"],
-  ["given",      {ring:"blast"}, "seeded by the fixture. What the role was handed before it acted"],
-  ["watched",    {ring:"now"},   "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
-  ["scaffolding",{ring:"gap"},   "seeded because the schema demands it -- a ticket needs an item -- and unreachable from this role. Present, not given"],
+const CASE_LEGEND = ["this case", [
+  ["role under test", {ring:"live"},   "who this case wakes. A chain case wakes two, and the same violet means ‘this is acting’ in every lens"],
+  ["given",           {ring:"blast"},  "seeded by the fixture and reachable from the role. What it was handed before it acted"],
+  ["watched",         {ring:"now"},    "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
+  ["forbidden",       {ring:"denied"}, "the case fails if this happens. Halo, not recolour — a forbidden read is still a read"],
+  ["scaffolding",     {ring:"gap"},    "seeded because the schema demands it — a ticket needs an item — and unreachable from this role. Present, not given"],
 ]];
 
 function gvLegend() {
@@ -673,11 +720,12 @@ function gvLegend() {
     record:    box(SHAPE.record.fill,SHAPE.record.stroke,''),
     journal:   box(SHAPE.journal.fill,SHAPE.journal.stroke,'4 3'),
     derived:   box(SHAPE.derived.fill,SHAPE.derived.stroke,'2 4'),
-    ready: `<i class="ring" style="border-color:${STATE.ready}"></i>`,
-    live:  `<i class="ring" style="border-color:${STATE.live}"></i>`,
-    blast: `<i class="ring" style="border-color:${STATE.blast}"></i>`,
-    now:   `<i class="ring" style="border-color:${STATE.now}"></i>`,
-    gap:   `<i class="ring" style="border-color:${STATE.gap}"></i>`,
+    ready: `<i class="ring" style="border-color:${LENS.output}"></i>`,
+    live:  `<i class="ring" style="border-color:${LENS.actor}"></i>`,
+    blast: `<i class="ring" style="border-color:${LENS.input}"></i>`,
+    now:   `<i class="ring" style="border-color:${LENS.output}"></i>`,
+    gap:   `<i class="ring" style="border-color:${LENS.inert}"></i>`,
+    denied:`<i class="ring" style="border-color:${LENS.denied}"></i>`,
   };
 
   const groups = GV.source === 'case' ? [...LEGEND, CASE_LEGEND] : LEGEND;
