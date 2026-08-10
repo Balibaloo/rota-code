@@ -768,6 +768,53 @@ function ghostAnchor(from, to, W, H, m) {
   return {x: from.x + dx * t, y: from.y + dy * t};
 }
 
+// Which side of the canvas an anchor landed on. Separation is a one-dimensional
+// problem per side, and knowing the side is what makes it one.
+function ghostSide(at, W, H, m) {
+  const d = [['left', at.x - m], ['right', W - m - at.x],
+             ['top', at.y - m], ['bottom', H - m - at.y]];
+  return d.sort((a, b) => a[1] - b[1])[0][0];
+}
+
+// Rectangles the chips must stay out of: the controls, the key, the settings
+// popover when it is open. They sit on top of the canvas, so a chip placed
+// underneath one is a chip that does not exist -- and between them they cover
+// the top edge and the left edge, which is where chips land most.
+function ghostBlockers() {
+  const svg = document.getElementById('gsvg');
+  if (!svg) return [];
+  const base = svg.getBoundingClientRect();
+  const out = [];
+  // `gprefs` is a child of `gctl` but absolutely positioned, so it hangs below
+  // its parent's rectangle and has to be measured on its own.
+  for (const id of ['gctl', 'glegend', 'gprefs']) {
+    const el = document.getElementById(id);
+    if (!el || el.offsetParent === null) continue;     // not laid out: not in the way
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    out.push({x1: r.left - base.left - 8, y1: r.top - base.top - 8,
+              x2: r.right - base.left + 8, y2: r.bottom - base.top + 8});
+  }
+  return out;
+}
+
+// Spread chips that landed on the same side until none of them touch.
+//
+// They cluster because they are placed where their edges exit, and the edges
+// leaving one node are not evenly spread -- four artefacts stacked in a column
+// all leave through the same short stretch of border. Sorted along the side,
+// pushed apart, then pushed back inside it.
+function ghostSpread(list, lo, hi, step, axis) {
+  list.sort((a, b) => a[axis] - b[axis]);
+  for (let i = 1; i < list.length; i++)
+    list[i][axis] = Math.max(list[i][axis], list[i - 1][axis] + step);
+  const over = list.length ? list[list.length - 1][axis] - hi : 0;
+  if (over > 0) for (const c of list) c[axis] -= over;
+  for (let i = list.length - 2; i >= 0; i--)
+    list[i][axis] = Math.min(list[i][axis], list[i + 1][axis] - step);
+  for (const c of list) c[axis] = Math.max(lo, c[axis]);
+}
+
 function ghostChips() {
   if (GV.mode !== 'team' || !GV.focus || !GV.layout[GV.focus]) return '';
   const svg = document.getElementById('gsvg');
@@ -777,55 +824,103 @@ function ghostChips() {
   const from = screen(GV.layout[GV.focus]);
   const inside = (p, m) => p.x >= m && p.x <= W - m && p.y >= m && p.y <= H - m;
 
-  // Every distinct neighbour once, remembering which ways the edges run. A
-  // node reached by three edges is one destination, not three chips.
+  // Every distinct neighbour once, carrying the edges that reach it. A node
+  // reached three ways is one destination with three lines into it, not three
+  // destinations.
   const out = new Map();
   for (const e of GV.graph.edges) {
     const other = e.s === GV.focus ? e.t : (e.t === GV.focus ? e.s : null);
     if (!other || other === GV.focus || !GV.layout[other] || !gvVisible(other)) continue;
-    const rec = out.get(other) || {to: false, back: false};
-    if (e.s === GV.focus) rec.to = true; else rec.back = true;
-    out.set(other, rec);
+    if (!out.has(other)) out.set(other, []);
+    out.get(other).push(e);
   }
 
-  let svgOut = '';
-  for (const [id, dir] of out) {
+  // --- place ---------------------------------------------------------------
+  const chips = [];
+  for (const [id, edges] of out) {
     const p = screen(GV.layout[id]);
     if (inside(p, GHOST_INSET)) continue;              // visible: no stand-in
-
     const at = ghostAnchor(from, p, W, H, GHOST_INSET);
     if (!at) continue;
-    const dx = p.x - from.x, dy = p.y - from.y;
-
     const node = GV.graph.nodes.find(n => n.id === id);
     if (!node) continue;
     const sh = SHAPE[kindOf(node)];
-    const name = node.label || id;
-    const w = Math.min(150, 15 + name.length * 6.2), h = 20;
-    // Clamped so a chip near a corner does not hang off the canvas it is
-    // meant to be pointing at the inside of.
-    const cx = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, at.x));
-    const cy = Math.max(h / 2 + 4, Math.min(H - h / 2 - 4, at.y));
+    const name = String(node.label || id);
+    const short = name.length > 18 ? name.slice(0, 17) + '…' : name;
+    chips.push({id, node, sh, short, edges,
+                w: Math.max(56, Math.min(148, 16 + short.length * 6.4)),
+                h: 24, x: at.x, y: at.y, side: ghostSide(at, W, H, GHOST_INSET)});
+  }
 
-    // Which way the relationship runs, said in one character rather than by
-    // colour -- the chip is already carrying the node's colours, and asking one
-    // channel to answer two questions is the mistake the palette exists to
-    // avoid.
-    const arrow = dir.to && dir.back ? '↔' : (dir.to ? '→' : '←');
-    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const blockers = ghostBlockers();
+  const clear = c => {
+    for (let i = 0; i < 8; i++) {
+      const hit = blockers.find(r =>
+        c.x - c.w / 2 < r.x2 && c.x + c.w / 2 > r.x1 &&
+        c.y - c.h / 2 < r.y2 && c.y + c.h / 2 > r.y1);
+      if (!hit) return;
+      // Pushed *inward* from the border it is pinned to, which walks it out
+      // from under the panel rather than off the canvas.
+      if (c.side === 'top')         c.y = hit.y2 + c.h / 2;
+      else if (c.side === 'bottom') c.y = hit.y1 - c.h / 2;
+      else if (c.side === 'left')   c.x = hit.x2 + c.w / 2;
+      else                          c.x = hit.x1 - c.w / 2;
+    }
+  };
+  chips.forEach(clear);
 
-    svgOut += `<g class="ghost" data-ghost="${esc(id)}"
-        transform="translate(${cx},${cy})">
-      <path d="M0 -5 L11 0 L0 5 z" fill="${sh.stroke}" opacity=".85"
-        transform="rotate(${ang}) translate(${w / 2 + 3},0)"/>
-      <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${sh.rx}"
-        fill="${sh.fill}" stroke="${sh.stroke}" stroke-width="1.5"
-        stroke-dasharray="4 2.5"/>
+  for (const side of ['top', 'bottom', 'left', 'right']) {
+    const mine = chips.filter(c => c.side === side);
+    if (mine.length < 2) continue;
+    const vertical = side === 'left' || side === 'right';
+    const step = vertical ? 30 : Math.max(...mine.map(c => c.w)) + 10;
+    ghostSpread(mine, vertical ? 20 : 80, vertical ? H - 20 : W - 80,
+                step, vertical ? 'y' : 'x');
+  }
+  chips.forEach(clear);                        // spreading can walk one back under
+
+  // --- draw ----------------------------------------------------------------
+  //
+  // Lines first, boxes on top of them, exactly as the canvas proper does it. An
+  // arrowhead on its own read as pointing *past* the destination; a line
+  // arriving at a box reads as arriving.
+  let lines = '', boxes = '';
+  for (const c of chips) {
+    const ux = from.x - c.x, uy = from.y - c.y;
+    const len = Math.hypot(ux, uy) || 1;
+    const nx = ux / len, ny = uy / len;               // unit vector, chip -> focus
+    const px = -ny, py = nx;                          // and its perpendicular
+
+    // One line per relationship, in its own colour and dash, spread across the
+    // chip's inward face: the same grammar as the canvas, at a smaller size.
+    const kinds = [...new Map(c.edges.map(e =>
+      [`${e.type}|${e.s === GV.focus}`, e])).values()];
+    kinds.forEach((e, i) => {
+      const st = ESTYLE[e.type];
+      const off = (i - (kinds.length - 1) / 2) * 6;
+      const edge = 0.5 * (Math.abs(nx) * c.w + Math.abs(ny) * c.h) + 1;
+      const ax = c.x + nx * edge + px * off, ay = c.y + ny * edge + py * off;
+      const bx = c.x + nx * (edge + 34) + px * off;
+      const by = c.y + ny * (edge + 34) + py * off;
+      // Outbound from the focus arrives *at* the chip, so the head goes on the
+      // chip end. Inbound points the other way, back to the node you are
+      // standing on. Direction is carried by the arrow, as it is everywhere.
+      const head = e.s === GV.focus ? 'marker-end' : 'marker-start';
+      lines += `<path d="M${bx} ${by} L${ax} ${ay}" fill="none"
+        stroke="${st.c}" stroke-width="1.8" stroke-dasharray="${st.dash}"
+        ${st.head ? `${head}="url(#head-${e.type})"` : ''} opacity=".85"/>`;
+    });
+
+    boxes += `<g class="ghost" data-ghost="${esc(c.id)}"
+        transform="translate(${c.x},${c.y})">
+      <rect x="${-c.w / 2}" y="${-c.h / 2}" width="${c.w}" height="${c.h}"
+        rx="${c.sh.rx}" fill="${c.sh.fill}" stroke="${c.sh.stroke}"
+        stroke-width="1.6" stroke-dasharray="${c.sh.dash}"/>
       <text x="0" y="4" text-anchor="middle" class="glabel"
-        fill="${sh.ink}">${arrow} ${esc(name)}</text>
+        fill="${c.sh.ink}">${esc(c.short)}</text>
     </g>`;
   }
-  return svgOut;
+  return lines + boxes;
 }
 
 // Focus, and put it where it can be seen. Focusing alone is what clicking the

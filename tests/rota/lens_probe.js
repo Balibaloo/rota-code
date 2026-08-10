@@ -182,6 +182,32 @@ console.log('\noff-screen chips: ' + (wrongWay.length
   : compass.length + ' directions all exit through the right side'));
 if (wrongWay.length) problems.push('ghost chips point the wrong way');
 
+// Chips cluster where their edges exit, and edges do not leave a node evenly:
+// four artefacts stacked in a column all leave through the same short stretch
+// of border. Six landing within twelve pixels of each other is the real case.
+const packed = [{y: 300}, {y: 304}, {y: 306}, {y: 309}, {y: 311}, {y: 312}];
+ghostSpread(packed, 20, H - 20, 30, 'y');
+let tooClose = 0, offCanvas = 0;
+for (let i = 0; i < packed.length; i++) {
+  if (i && packed[i].y - packed[i - 1].y < 29.99) tooClose++;
+  if (packed[i].y < 20 || packed[i].y > H - 20) offCanvas++;
+}
+console.log('  separation: 6 chips within 12px -> gaps '
+  + packed.map(c => c.y.toFixed(0)).join(', ')
+  + (tooClose || offCanvas ? '  OVERLAPPING' : '  all clear'));
+if (tooClose || offCanvas) problems.push('ghost chips still overlap');
+
+// A side with more chips than it has room for. Forty at thirty pixels needs
+// twice the canvas, so they *will* overlap -- the property being asserted is
+// which way it fails. An overlapping chip is still half-readable and still
+// clickable; one pushed past the border is neither.
+const crowded = Array.from({length: 40}, (_, i) => ({y: 300 + i}));
+ghostSpread(crowded, 20, H - 20, 30, 'y');
+const spill = crowded.filter(c => c.y < 19.99 || c.y > H - 19.99).length;
+console.log('  overflow: 40 chips where 19 fit -> ' + spill
+            + ' pushed off the canvas (they crowd instead)');
+if (spill) problems.push('ghost chips overflow the canvas');
+
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
 
