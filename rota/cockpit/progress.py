@@ -369,6 +369,19 @@ def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
             "impossible": impossible}
 
 
+def _woken(case: dict) -> str:
+    """One sentence saying what put this role in this mode.
+
+    "woken by liaison — ask" is the system's own vocabulary read back at you.
+    What happened is that Liaison sent an `ask` message, and that is a sentence
+    about the world rather than about the wake record."""
+    inbound = case.get("inbound") or (case.get("first") or {})
+    if inbound.get("from"):
+        return f"{inbound['from']} sends {inbound.get('verb', 'a')} message"
+    tick = case.get("tick") or (case.get("first") or {}).get("tick")
+    return f"the {tick} predicate fires" if tick else "woken with no trigger"
+
+
 def cases(dev_db: Path | None = None) -> list[dict]:
     """
     Every case, in a shape the viewer can render and light the graph from.
@@ -392,6 +405,17 @@ def cases(dev_db: Path | None = None) -> list[dict]:
 
         situation = _situation(case, g)
         situation["roles"] = [r for r in (role, second) if r]
+        # Three different things the picture has to keep apart: who is under
+        # test, what they were *given*, and what is being *watched*. An artefact
+        # can be all three, and which it is changes what a failure means.
+        from ..core.db import ARTEFACT_OF_TABLE as _A
+
+        watched = {_A.get(t, t) for branch in
+                   ((case.get("expect") or {}).get("any_of")
+                    or [case.get("expect") or {}])
+                   for t in (branch.get("writes") or {})}
+        situation["watched"] = sorted(watched)
+        situation["fixtured"] = sorted(e["artefact"] for e in situation["seeded"])
 
         edges = _edges_for(role, mode, case, g)
         if chain:
@@ -415,6 +439,16 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             "forbidden": case.get("forbidden") or {},
             "edges": edges,
             "source": _source_for(case["id"]),
+            # What the role is actually told, assembled the way a session
+            # assembles it. The markdown file is not the prompt; the
+            # composition is, and the composition is what you read when a role
+            # misbehaves.
+            "brief": {
+                "base": prompts.base(role),
+                "mode": prompts.piece(role, mode),
+                "tools": prompts.mode_tools(role, mode) or [],
+            },
+            "woken": _woken(case),
             "history": [{"run": r["run_no"], "passed": bool(r["passed"]),
                          "problems": json.loads(r["problems"] or "[]"),
                          "transcript": json.loads(r["transcript"] or "[]")}

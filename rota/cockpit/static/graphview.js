@@ -104,12 +104,19 @@ function refPath(e) {
   const sf = horiz ? (t0.x>s0.x?'right':'left') : (t0.y>s0.y?'bottom':'top');
   const tf = horiz ? (t0.x>s0.x?'left':'right')  : (t0.y>s0.y?'top':'bottom');
   const off = GV.refOffset[`${e.s}|${e.t}|${e.v}`] || 0;
+  // Each node's *own* box, not the widest one. `W`/`H` are the record shape,
+  // and a role is 152x50 against that 172x42 -- so every arrow into a role
+  // landed ten pixels inside it and every vertical one stopped four short.
+  // At full opacity the head is simply hidden by the fill, which reads as an
+  // edge with no direction.
   const anchor=(n,face)=>{
     const p=GV.layout[n];
-    return face==='left' ?{x:p.x-W/2, y:p.y+off}
-         : face==='right'?{x:p.x+W/2, y:p.y+off}
-         : face==='top'  ?{x:p.x+off, y:p.y-H/2}
-         :                {x:p.x+off, y:p.y+H/2};
+    const node=GV.graph.nodes.find(x=>x.id===n);
+    const sh=SHAPE[node?kindOf(node):'record']||SHAPE.record;
+    return face==='left' ?{x:p.x-sh.w/2, y:p.y+off}
+         : face==='right'?{x:p.x+sh.w/2, y:p.y+off}
+         : face==='top'  ?{x:p.x+off, y:p.y-sh.h/2}
+         :                {x:p.x+off, y:p.y+sh.h/2};
   };
   const A=anchor(e.s,sf), B=anchor(e.t,tf);
   const pts = best.o==='h' ? [A,{x:best.ch,y:A.y},{x:best.ch,y:B.y},B]
@@ -370,19 +377,24 @@ function drawTeam() {
     const k=kindOf(n), sh=SHAPE[k];
     let dim = GV.focus && n.id!==GV.focus &&
       !GV.graph.edges.some(e=>(e.s===GV.focus&&e.t===n.id)||(e.t===GV.focus&&e.s===n.id));
-    // In case mode the situation *is* the picture: an artefact with rows is
-    // part of what the case set up, and one without is scenery. Everything not
-    // in the situation dims, so the shape of the case reads without a caption.
-    const seeded = GV.source==='case' && GV.caseSituation
-      ? new Set([...(GV.caseSituation.seeded||[]).map(x=>x.artefact),
-                 ...(GV.caseSituation.roles||[])])
-      : null;
-    if (seeded) dim = !seeded.has(n.id);
+    // In case mode the situation *is* the picture, and it keeps three things
+    // apart: who is under test, what they were *given*, and what is being
+    // *watched*. An artefact can be given and watched at once, and which it is
+    // changes what a failure there means -- a wrong read is a briefing problem,
+    // a wrong write is a judgement problem.
+    const sit = GV.source==='case' ? GV.caseSituation : null;
+    const roles    = new Set(sit?.roles||[]);
+    const fixtured = new Set(sit?.fixtured||[]);
+    const watched  = new Set(sit?.watched||[]);
+    const inCase = id => roles.has(id)||fixtured.has(id)||watched.has(id);
+    if (sit) dim = !inCase(n.id);
 
-    const ring = seeded && seeded.has(n.id) ? STATE.blast
+    const ring = sit && roles.has(n.id)    ? STATE.live
+      : sit && watched.has(n.id)           ? STATE.now
+      : sit && fixtured.has(n.id)          ? STATE.blast
       : ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
       : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
-    const hot = (seeded && seeded.has(n.id))
+    const hot = (sit && inCase(n.id))
       || ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
     // Key hover selects nodes the same way it selects edges — by kind, or by

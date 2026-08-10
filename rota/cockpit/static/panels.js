@@ -622,25 +622,44 @@ function showCase(id){
     `${c.second?' → '+esc(c.second):''} · ${esc(c.mode)} · needs ` +
     `${c.threshold}/${c.runs}${c.repo?' · real checkout':''}` +
     `${c.onboarded?' · onboarded':''}</span>`;
-  document.getElementById('pbody').innerHTML = `
+  const seededBlocks = (c.situation.seeded||[]).map(sd=>
+    fold(`${sd.artefact} — ${sd.rows} row(s)`,
+      sd.sample.map(r=>`<pre>${esc(JSON.stringify(r,null,1))}</pre>`).join(''))
+    ).join('') || '<p class="empty">nothing seeded</p>';
 
-    <h4>the situation</h4>
-    ${c.situation.seeded.length ? c.situation.seeded.map(sd=>
-        `<div class="row link" data-art="${esc(sd.artefact)}">${esc(sd.artefact)}
-         <span class="sig">${sd.rows} row(s) · ${esc(sd.tables.join(', '))}</span></div>`
-      ).join('') : '<p class="empty">nothing seeded</p>'}
-    ${c.situation.links.length?`<p class="sig">linked by:
+  document.getElementById('pbody').innerHTML = `
+    <h4>situation</h4>
+    <p class="pad"><b>${esc(c.woken)}</b>${c.refs.length
+      ? ` <span class="sig">carrying ${c.refs.map(esc).join(', ')}</span>` : ''}</p>
+    ${c.repo?`<p class="sig pad">in a real checkout${
+       c.onboarded?', indexed and partitioned':''}</p>`:''}
+
+    ${fold('what the role is told — standing brief',
+       `<pre>${esc(c.brief.base)}</pre>`)}
+    ${fold(`what the role is told — mode ${c.mode}`,
+       `<pre>${esc(c.brief.mode)}</pre>`)}
+    ${fold(`what the role may call — ${c.brief.tools.length} tools`,
+       c.brief.tools.map(t=>`<div class="row">${esc(t)}</div>`).join(''))}
+    ${fold(`what the role is given — ${c.situation.seeded.length} artefact(s)`,
+       seededBlocks, true)}
+    ${c.situation.links.length?`<p class="sig pad">linked by
        ${c.situation.links.map(l=>esc(l[2])).join(', ')}</p>`:''}
-    ${c.refs.length?`<p class="sig">refs: ${c.refs.map(esc).join(', ')}</p>`:''}
-    ${c.inbound.verb?`<p class="sig">woken by ${esc(c.inbound.from)} —
-        ${esc(c.inbound.verb)}</p>`:''}
-    <h4>required</h4>${edgeList(c.edges.required,'req')}
-    <h4>forbidden</h4>${edgeList(c.edges.forbidden,'forb')}
-    ${c.edges.impossible.length?`<p class="sig">Already impossible — the graph
-      grants no such edge, so these are belt on braces:
-      ${c.edges.impossible.map(esc).join(', ')}</p>`:''}
-    <h4>offered by the mode</h4>${edgeList(c.edges.offered)}
-    <h4>the case as written</h4>
-    <pre>${esc(c.source)}</pre>
+
+    <h4>expectations</h4>
+    <div class="pad"><b>required</b></div>${edgeList(c.edges.required,'req')}
+    <div class="pad"><b>forbidden</b></div>${edgeList(c.edges.forbidden,'forb')}
+    ${c.edges.impossible.length?`<p class="sig pad">Structurally impossible
+      anyway — the graph grants no such edge, so the case is guarding a door
+      with no doorway: ${c.edges.impossible.map(esc).join(', ')}</p>`:''}
+    ${fold('the case as written', `<pre>${esc(c.source)}</pre>`)}
+
     <h4>runs</h4>${hist}`;
+}
+
+// Collapsed by default: the panel's job is the shape of the case at a glance,
+// and a role's standing brief is two thousand characters of prose that is the
+// same for every case it appears in.
+function fold(label, body, open){
+  return body ? `<details class="sec" ${open?'open':''}>
+    <summary>${esc(label)}</summary><div class="body">${body}</div></details>` : '';
 }
