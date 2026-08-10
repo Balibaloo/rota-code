@@ -403,10 +403,10 @@ function drawTeam() {
     // so "what is a journal" is answered by the picture instead of by the
     // sentence underneath it.
     if (GV.keyhl) {
-      const g = GV.keyhl.group ? caseGroup(GV.keyhl.group) : null;
-      const mine = g && g.edges
-        && (GV.caseEdges?.[g.edges]||[]).some(x=>ek(x)===key && (x[3]||'')===(e.v||''));
-      op = GV.keyhl.edge===e.type || mine ? Math.max(op,.95) : 0.05;
+      const sel = keySelects(GV.keyhl);
+      if (sel.edges) op = sel.edges(e) ? Math.max(op, .95) : 0.05;
+      else if (sel.nodes) op = (sel.nodes.has(e.s) || sel.nodes.has(e.t))
+                             ? Math.max(op, .6) : 0.05;
     }
 
     let d, lx, ly;
@@ -520,13 +520,10 @@ function drawTeam() {
     // Key hover selects nodes the same way it selects edges — by kind, or by
     // the state ring they are currently wearing.
     if (GV.keyhl) {
-      const h = GV.keyhl;
-      dim = !(h.kind  ? k===h.kind
-            : h.group ? caseGroup(h.group).nodes.has(n.id)
-            : h.ring==='ready' ? ready.has(n.id)
-            : h.ring==='live'  ? !!claimed[n.id]
-            : h.ring==='blast' ? !!(blast && blast.has(n.id))
-            : false);
+      const sel = keySelects(GV.keyhl);
+      // A row that says nothing about nodes leaves them alone rather than
+      // hiding them: hovering "untested" is a question about edges.
+      dim = sel.nodes ? !sel.nodes.has(n.id) : dim;
     }
 
     nodes += `<g class="gnode" data-n="${n.id}" opacity="${dim?.2:1}"
@@ -762,6 +759,57 @@ const GROUP_RING = {
 };
 
 
+// What a key row selects, whatever kind of row it is.
+//
+// One resolver, because the alternative kept costing the same bug. The node
+// loop tested `ring` against live state and the edge loop tested `edge`
+// against type, so every row using neither -- the five case rows, then the two
+// coverage rows -- matched nothing and dimmed the whole picture. Adding a
+// branch per row-set fixed it twice and would have gone on failing for the
+// next lens.
+//
+// Returns the nodes to keep lit and a predicate over edges. Either may be
+// null, meaning "this row says nothing about those".
+function keySelects(sel) {
+  const none = {nodes: null, edges: null};
+  if (!sel) return none;
+
+  if (sel.kind) return {
+    nodes: new Set(GV.graph.nodes.filter(n => kindOf(n) === sel.kind).map(n => n.id)),
+    edges: null,
+  };
+  if (sel.edge) return {nodes: null, edges: e => e.type === sel.edge};
+
+  if (sel.group) {
+    const g = caseGroup(sel.group);
+    const list = g.edges ? (GV.caseEdges ? GV.caseEdges[g.edges] || [] : []) : [];
+    const keys = new Set(list.map(x => ek(x) + '|' + (x[3] || '')));
+    return {nodes: g.nodes,
+            edges: g.edges ? (e => keys.has(ek([e.s, e.t, e.type]) + '|' + (e.v || '')))
+                           : null};
+  }
+
+  if (sel.lens) {
+    const cov = (GV.trace && GV.trace.coverage) || {};
+    const keys = new Set((cov[sel.lens] || []).map(ek));
+    return {nodes: null, edges: e => keys.has(ek([e.s, e.t, e.type]))};
+  }
+
+  if (sel.ring) {
+    const overlay = (GV.trace && GV.trace.overlay) || {};
+    const ready = new Set((overlay.ready || []).map(w => w.role));
+    const claimed = overlay.claimed || {};
+    const blast = GV.blast ? new Set(GV.blast.artefacts) : null;
+    const pick = sel.ring === 'ready' ? id => ready.has(id)
+               : sel.ring === 'live'  ? id => !!claimed[id]
+               : sel.ring === 'blast' ? id => !!(blast && blast.has(id))
+               : () => false;
+    return {nodes: new Set(GV.graph.nodes.map(n => n.id).filter(pick)), edges: null};
+  }
+  return none;
+}
+
+
 function caseGroup(name) {
   const sit = GV.caseSituation || {}, ce = GV.caseEdges || {};
   const ends = k => new Set((ce[k]||[]).flatMap(e=>[e[0], e[1]]));
@@ -774,6 +822,10 @@ function caseGroup(name) {
     default:            return {nodes:new Set(),                     edges:null};
   }
 }
+
+// Per-lens key groups, reachable outside `gvLegend` so a check can walk every
+// row and assert it selects something.
+function LENS_KEY_FOR(src) { return (LENS_KEY_FOR.all || {})[src]; }
 
 function gvLegend() {
   const swatch = (c,dash) => `<svg width="30" height="8">
@@ -806,10 +858,10 @@ function gvLegend() {
     proven:`<i class="ring" style="border-color:${LENS.proven}"></i>`,
   };
 
-  const LENS_KEY = {
+  const LENS_KEY = LENS_KEY_FOR.all = {
     coverage: ["coverage", [
-      ["exercised", {ring:"proven"}, "some test drives this edge. Drawing an edge creates the obligation, so this cannot drift from the design"],
-      ["untested",  {ring:"denied"}, "no test touches it. A capability nothing exercises is a claim nobody has checked"],
+      ["exercised", {lens:"covered", ring:"proven"}, "some test drives this edge. Drawing an edge creates the obligation, so this cannot drift from the design"],
+      ["untested",  {lens:"missing", ring:"denied"}, "no test touches it. A capability nothing exercises is a claim nobody has checked"],
     ]],
     story: ["this story", [
       ["current step", {ring:"ready"}, "the edge this step of the story uses"],
