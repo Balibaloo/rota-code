@@ -30,9 +30,11 @@ the system may never do. Everything below is how those are made true.
 | `llm.py` | the `complete()` seam. Ollama direct, litellm optional, scripted for tests |
 | `runner.py` | one message in → tool loop → one atomic commit out |
 | `fixtures.py` | seed → inject → run → assert on deltas; the case format |
-| `cockpit.py` + `viewer.html` | local server: design structure + live state in one picture |
+| `cockpit/` | local server: design structure, live state, cases and progress in one picture |
+| `onboarding/` | an existing checkout -> index, dependency edges, areas, constraint zero |
 
-Not built: T2 arcs against real models, onboarding/survey, the TUI seam.
+Not built: the environment half of Developer (nothing spawns a process yet), and
+the TUI seam.
 
 ## Running it
 
@@ -40,8 +42,20 @@ Not built: T2 arcs against real models, onboarding/survey, the TUI seam.
 python -m rota.design.graph                       # namespaces, contacts, consistency
 python -m rota.core.predicates                  # every state has a way out
 python -m rota.tools.vocabulary --analyse  # collisions, duplication, hierarchy
-python -m pytest tests/rota/ -q            # 171 tests
-python -m rota.cockpit.server <project_root>      # http://127.0.0.1:8899
+python -m pytest tests/rota/ -q             # the deterministic suite
+python -m rota.cockpit.server [root] [--open]     # http://127.0.0.1:8899
+```
+
+`--open` opens a browser tab; without it the URL is printed. Reloads never open
+one. The server restarts itself when `rota/` changes, so leave it running.
+
+Against a real model — these cost model time, and replay from committed
+cassettes when the prompts have not changed:
+
+```bash
+ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q   # one case per mode
+ROTA_L1=1 python -m pytest tests/rota/test_l3.py -q   # handoffs, two sessions
+ROTA_L1=1 ROTA_REFRESH=1 python -m pytest tests/rota/test_l1.py -q  # re-record
 ```
 
 Rebuilding the graph from the design viewer (only needed if `team-graph.html`

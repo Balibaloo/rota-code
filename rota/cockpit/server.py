@@ -338,7 +338,14 @@ def make_handler(db_path: Path):
 def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool = False):
     db_path = state_dir(project_root) / "rota.db"
     if not db_path.exists():
-        raise SystemExit(f"no rota database at {db_path}; boot the project first")
+        # Boot rather than refuse. This is a viewer; "no database" is not a
+        # condition it should make somebody resolve by hand, and boot is
+        # idempotent — it reconciles what is there and creates what is not.
+        from ..core.boot import boot as boot_project
+
+        print(f"no database at {db_path}; booting")
+        conn, _ = boot_project(project_root)
+        conn.close()
 
     # Bring the file up to the current schema, and refuse to serve it if that
     # was not enough.
