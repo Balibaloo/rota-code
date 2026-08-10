@@ -670,14 +670,27 @@ def _head_commit(ctx: Ctx, batch_id: str) -> str | None:
 
 
 @op("verdicts", "emit")
-def verdicts_emit(ctx: Ctx, id: str, batch_id: str, result: str,
+def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                   failed_criterion: str | None = None, diff_ref: str = "") -> dict:
+    """
+    Judge a commit. `result` is 'pass' or 'fail'; name the criterion a fail
+    fails.
+
+    The id is *derived* from the judge, the batch and the commit, because that is
+    what a verdict is: one judgement, by one role, on one commit. `review` gates
+    on exactly that triple. Asking the role to name it meant a Critic that
+    emitted twice in a session left two verdicts on one commit -- which is not a
+    judge changing its mind, it is a judge contradicting itself and leaving both
+    on the record.
+    """
     _must_exist(ctx, "batches", batch_id)
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
+    commit = _head_commit(ctx, batch_id)
+    id = f"{ctx.role}:{batch_id}:{commit}"
     ctx.writes.append(("verdicts", id, {
         "batch_id": batch_id, "result": result,
-        "commit_sha": _head_commit(ctx, batch_id),
+        "commit_sha": commit,
         "failed_criterion": failed_criterion, "diff_ref": diff_ref}))
     return {"id": id, "result": result}
 

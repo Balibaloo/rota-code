@@ -440,7 +440,7 @@ def test_the_judgement_records_what_it_judged(db):
 
     committed(db)
     sb = build("critic", db)
-    sb.call("verdicts.emit", id="v1", batch_id="b1", result="pass")
+    sb.call("verdicts.emit", batch_id="b1", result="pass")
 
     values = sb.ctx.writes[-1][2]
     assert values["commit_sha"] == "abc123"

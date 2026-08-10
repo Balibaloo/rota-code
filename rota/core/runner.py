@@ -138,19 +138,30 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         f"Emit no tool calls when you are done."
     )
 
+    # Background first, then the wake. The working set is what you know; the wake
+    # is why you are awake, and it is the thing the session is about -- so it
+    # goes last, nearest what the model is about to write.
+    #
+    # The order used to be the other way round and it read as a preamble. Liaison
+    # was handed three reports, two of them the same blocker in two vocabularies,
+    # and then a working set ending in `schedule.consult: []`. It answered the
+    # working set: "there are no blockers or questions raised by other roles",
+    # with the blockers sitting in the middle of its own prompt.
     body = [f"You were woken by: {wake.kind}"]
+    if pushed:
+        body.append("\nWhat you already know:")
+        for key, value in pushed.items():
+            body.append(f"\n[{key}]\n{json.dumps(value, indent=2, default=str)}")
     if wake.message_id:
-        body.append(f"Inbound message: {wake.message_id} ({wake.detail})")
+        body.append(f"\nInbound message: {wake.message_id} ({wake.detail})")
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
     if inbound:
-        body.append("\nThe reports that came back:" if "reports" in inbound
-                    else "\nThe message that woke you:")
+        body.append("\nThe reports that came back, and what this session is "
+                    "about:" if "reports" in inbound
+                    else "\nThe message that woke you, and what this session is "
+                         "about:")
         body.append(json.dumps(inbound, indent=2, default=str))
-    if pushed:
-        body.append("\nYour working set:")
-        for key, value in pushed.items():
-            body.append(f"\n[{key}]\n{json.dumps(value, indent=2, default=str)}")
     return system, "\n".join(body)
 
 

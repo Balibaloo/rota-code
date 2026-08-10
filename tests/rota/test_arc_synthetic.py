@@ -165,11 +165,15 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     drive(db, Wake("critic", "message", "m_review", detail="review"), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
-        "TOOL: verdicts.emit(id='v1', batch_id='b1', result='fail', failed_criterion='c1')",
+        "TOOL: verdicts.emit(batch_id='b1', result='fail', failed_criterion='c1')",
         "TOOL: msg.challenge_developer(refs=['c1'])",
     ], batch_id="b1")
 
-    verdict = db.execute("SELECT result, failed_criterion FROM verdicts WHERE id='v1'").fetchone()
+    # One verdict, and its id is derived rather than named: a judgement is by
+    # one role, on one batch, at one commit, which is the triple `review` gates
+    # on. Asserting on the row rather than on an id the model chose.
+    verdict = db.execute(
+        "SELECT result, failed_criterion FROM verdicts WHERE batch_id='b1'").fetchone()
     assert verdict["result"] == "fail" and verdict["failed_criterion"] == "c1", \
         "a failing verdict must name the criterion"
 
