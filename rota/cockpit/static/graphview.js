@@ -81,15 +81,24 @@ function kindOf(n) {
 //            live tab        coverage      story / run    case
 //   ACTOR    mid-session     --            --             role under test
 //   INPUT    cascade reach   --            steps so far   given to the role
-//   OUTPUT   ready to wake   exercised     current step   watched / required
+//   OUTPUT   ready to wake   --            current step   watched / required
+//   PROVEN   --              exercised     --             --
 //   DENIED   --              untested      --             forbidden
 //   INERT    --              --            --             scaffolding
+//
+// `exercised` was OUTPUT for a while and it was a stretch: a covered edge is
+// not "what comes out", it is "this has been checked and it holds". That is a
+// meaning of its own, and it pairs with DENIED the way a pass pairs with a
+// fail -- which is also why a coverage picture with no positive mark read as
+// broken. Eighty-four red halos and nothing saying the other thirty-four were
+// fine.
 // ---------------------------------------------------------------------------
 const LENS = {
   actor:  '#7c3aed',   // who is acting
   input:  '#0891b2',   // what it was given, or what a change would reach
   output: '#d97706',   // what it produces, and what we are watching for
   denied: '#dc2626',   // what must not happen, or has not happened
+  proven: '#15803d',   // checked, and satisfied
   inert:  '#94a3b8',   // present, and out of reach for this lens
 };
 
@@ -381,8 +390,8 @@ function drawTeam() {
     let op=0.16, w=1.2, col=st.c, halo=null;
     if (GV.source==='design') { op=.5; w=1.5; }
     else if (GV.source==='coverage') {
-      if (state==='covered'){op=.8;w=2;}
-      else if (uncovered.has(key)){op=.6;w=1.6;halo=LENS.denied;}
+      if (state==='covered'){op=.9;w=2;halo=LENS.proven;}
+      else if (uncovered.has(key)){op=.55;w=1.6;halo=LENS.denied;}
     } else if (state==='now'){op=1;w=2.6;halo=LENS.output;}
     else if (state==='seeded'){op=.8;w=2;halo=LENS.input;}
     else if (state==='forbidden'){op=.85;w=2;halo=LENS.denied;}
@@ -790,11 +799,12 @@ function gvLegend() {
     now:   `<i class="ring" style="border-color:${LENS.output}"></i>`,
     gap:   `<i class="ring" style="border-color:${LENS.inert}"></i>`,
     denied:`<i class="ring" style="border-color:${LENS.denied}"></i>`,
+    proven:`<i class="ring" style="border-color:${LENS.proven}"></i>`,
   };
 
   const LENS_KEY = {
     coverage: ["coverage", [
-      ["exercised", {ring:"ready"}, "some test drives this edge. Drawing an edge creates the obligation, so this cannot drift from the design"],
+      ["exercised", {ring:"proven"}, "some test drives this edge. Drawing an edge creates the obligation, so this cannot drift from the design"],
       ["untested",  {ring:"denied"}, "no test touches it. A capability nothing exercises is a claim nobody has checked"],
     ]],
     story: ["this story", [
