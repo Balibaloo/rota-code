@@ -449,8 +449,12 @@ function drawTeam() {
     // was a grey smudge on a coloured line. A direction you have to zoom in to
     // read is a direction the picture is not carrying.
     const headId = markers ? '' : `marker-end="url(#head-${e.type})"`;
+    // Wide and clearly tinted. The first version was five pixels at 22%
+    // opacity, which on a near-white canvas is nothing at all -- the coverage
+    // lens looked switched off because its whole signal was invisible.
     if (halo) edges += `<path d="${d}" fill="none" stroke="${halo}"
-      stroke-width="${w + 5}" opacity=".22" stroke-linecap="round"/>`;
+      stroke-width="${w + 7}" opacity="${Math.min(.55, op * .7)}"
+      stroke-linecap="round"/>`;
     edges += `<path d="${d}" fill="none"
       stroke="${col}" stroke-width="${w}" stroke-dasharray="${st.dash}" opacity="${op}"
       ${markers || (st.head?headId:'')} class="gedge"

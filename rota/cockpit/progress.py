@@ -421,9 +421,22 @@ def message_text(case_id: str) -> dict:
                                 prompts.compose(role, mode),
                                 resolve_inbound(conn, wake))
     conn.close()
-    return {"system": system, "user": user,
-            "chars": len(system) + len(user),
-            "tokens": (len(system) + len(user)) // 4}
+    return {
+        "system": system, "user": user,
+        "chars": len(system) + len(user),
+        "tokens": (len(system) + len(user)) // 4,
+        # The prose travels with the case you opened rather than with the list.
+        # Carried for all fifty-nine, the source and both prompts made
+        # `/cases.json` 1.2 MB -- fetched every time the tab is opened, to
+        # render a list of names and scores.
+        "source": _source_for(case_id),
+        "base": prompts.base(role),
+        "mode_brief": prompts.piece(role, mode),
+        "runs": [{"run": r["run_no"], "passed": bool(r["passed"]),
+                  "problems": json.loads(r["problems"] or "[]"),
+                  "transcript": json.loads(r["transcript"] or "[]")}
+                 for r in (_runs().get(case_id) or [])[-5:]],
+    }
 
 
 def _woken(case: dict) -> str:
@@ -523,20 +536,13 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             "expect": case.get("expect") or {},
             "forbidden": case.get("forbidden") or {},
             "edges": edges,
-            "source": _source_for(case["id"]),
-            # What the role is actually told, assembled the way a session
-            # assembles it. The markdown file is not the prompt; the
-            # composition is, and the composition is what you read when a role
-            # misbehaves.
-            "brief": {
-                "base": prompts.base(role),
-                "mode": prompts.piece(role, mode),
-                "tools": prompts.mode_tools(role, mode) or [],
-            },
+            "tools": prompts.mode_tools(role, mode) or [],
             "woken": _woken(case),
+            # Verdicts here, evidence with the case you opened. Five
+            # transcripts per case across fifty-nine cases was most of a
+            # megabyte, fetched to draw a list of names.
             "history": [{"run": r["run_no"], "passed": bool(r["passed"]),
-                         "problems": json.loads(r["problems"] or "[]"),
-                         "transcript": json.loads(r["transcript"] or "[]")}
+                         "problems": json.loads(r["problems"] or "[]")}
                         for r in latest],
         })
     return out

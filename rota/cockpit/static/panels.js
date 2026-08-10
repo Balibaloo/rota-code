@@ -632,7 +632,7 @@ function showCase(id){
   if(window.gvLegend) gvLegend();
   if(window.gvDraw) gvDraw();
 
-  const hist = c.history.map((h,i)=>`
+  const runRow = (h,i)=>`
     <details class="sec"><summary>run ${h.run||i+1} — ${h.passed?'<span class="pass">pass</span>':'<span class="fail">fail</span>'}
       <span class="sig">${esc((h.problems[0]||'').slice(0,70))}</span></summary>
     <div class="body">
@@ -641,7 +641,14 @@ function showCase(id){
           ? `<h4>said</h4><pre>${esc(String(t.say).slice(0,4000))}</pre>`
           : t.errors ? `<h4>errors</h4><pre>${esc(t.errors.join('\n'))}</pre>`
           : `<h4>did</h4><pre>${esc(JSON.stringify(t,null,1))}</pre>`).join('')}
-    </div></details>`).join('') || '<p class="empty">never run</p>';
+    </div></details>`;
+  const hist = c.history.length
+    ? c.history.map((h,i)=>`<details class="sec"><summary>run ${h.run||i+1} — ${
+        h.passed?'<span class="pass">pass</span>':'<span class="fail">fail</span>'}
+        <span class="sig">${esc((h.problems[0]||'').slice(0,70))}</span></summary>
+        <div class="body" id="run-${i}"><p class="empty">loading…</p></div>
+      </details>`).join('')
+    : '<p class="empty">never run</p>';
 
   showTab('detail');
   document.getElementById('phead').innerHTML =
@@ -662,11 +669,11 @@ function showCase(id){
     ${c.repo?`<p class="sig pad">in a real checkout${
        c.onboarded?', indexed and partitioned':''}</p>`:''}
 
-    ${fold('role prompt', `<pre>${esc(c.brief.base)}</pre>`)}
-    ${fold(`mode prompt — ${c.mode}`, `<pre>${esc(c.brief.mode)}</pre>`)}
-    ${fold(`tools — ${c.brief.tools.length}`,
-       c.brief.tools.map(t=>`<div class="row">${esc(t)}</div>`).join(''))}
-    ${fold('message text', `<pre id="msgtext" class="empty">loading…</pre>`)}
+    ${fold('role prompt', `<pre id="c-base" class="empty">loading…</pre>`)}
+    ${fold(`mode prompt — ${c.mode}`, `<pre id="c-mode" class="empty">loading…</pre>`)}
+    ${fold(`tools — ${c.tools.length}`,
+       c.tools.map(t=>`<div class="row">${esc(t)}</div>`).join(''))}
+    ${fold('message text', `<pre id="c-msg" class="empty">loading…</pre>`)}
     ${fold(`fixtured data — ${c.situation.given.length} given, ${
        c.situation.scaffolding.length} scaffolding`, seededBlocks, true)}
     ${c.situation.scaffolding.length?`<p class="sig pad">scaffolding:
@@ -680,7 +687,7 @@ function showCase(id){
     <div class="pad"><b>forbidden</b></div>${edgeList(c.edges.forbidden,'forb')}
     ${c.edges.impossible.length?`<div class="pad"><b>impossible by construction</b>
       </div><div class="sig pad">${c.edges.impossible.map(esc).join(', ')}</div>`:''}
-    ${fold('the case as written', `<pre>${esc(c.source)}</pre>`)}
+    ${fold('the case as written', `<pre id="c-src" class="empty">loading…</pre>`)}
 
     <h4>runs</h4>${hist}`;
 
@@ -689,12 +696,20 @@ function showCase(id){
   // costs a database and a sandbox each, and nobody wants fifty-nine at once.
   fetch(`/message.json?id=${encodeURIComponent(c.id)}`)
     .then(r => r.json()).then(m => {
-      const el = document.getElementById('msgtext');
-      if (!el) return;
-      el.className = '';
-      el.textContent = (m.user || '(none)') + `
+      const put = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) { el.className = ''; el.textContent = text || '(none)'; }
+      };
+      put('c-msg', (m.user || '') + `
 
-— ${m.tokens} tokens`;
+— ${m.tokens} tokens`);
+      put('c-base', m.base);
+      put('c-mode', m.mode_brief);
+      put('c-src', m.source);
+      (m.runs || []).forEach((h, i) => {
+        const el = document.getElementById(`run-${i}`);
+        if (el) el.innerHTML = runRow(h, i);
+      });
     }).catch(()=>{});
 }
 
