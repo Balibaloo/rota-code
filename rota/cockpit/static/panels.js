@@ -590,7 +590,11 @@ async function loadCases(){
             <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
             <span class="sig">${esc(c.mode)}</span>
             <span class="sig">${score}</span></div>`;}).join('')).join('');
-      return `<details class="ctier" open><summary>${name} · ${esc(what)}
+      // Collapsed by default, except the tier holding the open case — so
+      // "← all cases" lands you where you left rather than at three shut
+      // drawers.
+      const holds = all.some(c => c.id === CASE_ID);
+      return `<details class="ctier" ${holds?'open':''}><summary>${name} · ${esc(what)}
         <span class="sig">${green}/${all.length}</span></summary>${roles}</details>`;
     }).join('');
 
