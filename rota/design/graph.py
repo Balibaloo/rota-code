@@ -53,6 +53,7 @@ class Edge:
     depth: str = ""              # reads only; a message carries refs, never bodies
     label: str = ""
     card: str = ""
+    cascade: bool = True         # refs only: does a change here wake the source
     actor: str = "role"          # 'role' (the model calls it) | 'system'
 
     @property
@@ -197,6 +198,7 @@ def _load(path: Path) -> Graph:
             s=e["s"], t=e["t"], type=e["type"], v=e.get("v", ""), n=e.get("n", ""),
             rows=e.get("rows", ""), depth=e.get("depth", ""),
             label=e.get("label", ""), card=e.get("card", ""),
+            cascade=e.get("cascade", True),
             actor=e.get("actor", "role"),
         )
         for e in raw["edges"]
@@ -253,6 +255,69 @@ def check_structure(g: Graph) -> list[str]:
             problems.append(
                 f"non-owner takes {e.t} whole: {e.s} reads every row at body "
                 f"depth (written by {sorted(owner)})")
+    return problems
+
+
+def check_refs_acyclic(g: Graph) -> list[str]:
+    """
+    The refs graph is called a DAG in three docstrings and in law 9. Nothing
+    asserted it, and it was not one: `model -> code -> batches -> model`.
+
+    A cycle makes "dependency order" meaningless, and `cascade_order` used to
+    swallow it and return alphabetical order — so the documented behaviour never
+    ran and looked exactly like it had.
+    """
+    from graphlib import CycleError, TopologicalSorter
+
+    deps: dict[str, set[str]] = {a: set() for a in g.artefacts}
+    for e in g.of_type("refs"):
+        if not e.cascade:
+            continue
+        deps.setdefault(e.s, set()).add(e.t)
+        deps.setdefault(e.t, set())
+    try:
+        list(TopologicalSorter(deps).static_order())
+    except CycleError as exc:
+        return [f"refs cycle, so cascade order is undefined: {exc.args[1]}"]
+    return []
+
+
+def check_refs_cover_the_schema(g: Graph) -> list[str]:
+    """
+    Every foreign key that crosses an artefact boundary should have a refs edge.
+
+    Nothing referenced `tickets`, so re-slicing one cascaded to nothing while
+    its criteria, its batch and its tests kept working from wording that no
+    longer existed. It was not a one-off: seven crossings had no edge, because
+    the refs graph was drawn around the understanding artefacts and left thin
+    around the delivery ones.
+    """
+    import re
+
+    from ..core.db import ARTEFACT_OF_TABLE
+    from .. import paths
+
+    # Deliberate exclusions, with the reason. A decision is superseded rather
+    # than amended, so nothing downstream of one needs waking when it changes.
+    NOT_A_CASCADE = {("model", "decisions")}
+
+    ddl = paths.SCHEMA.read_text(encoding="utf-8")
+    refs = {(e.s, e.t) for e in g.of_type("refs")} | NOT_A_CASCADE
+    problems, seen, table = [], set(), None
+    for line in ddl.splitlines():
+        m = re.search(r"CREATE TABLE IF NOT EXISTS (\w+)", line)
+        if m:
+            table = m.group(1)
+        fk = re.search(r"(\w+)\s+TEXT[^,]*REFERENCES (\w+)\(", line)
+        if not (fk and table):
+            continue
+        a, b = ARTEFACT_OF_TABLE.get(table), ARTEFACT_OF_TABLE.get(fk.group(2))
+        if not a or not b or a == b or (a, b) in refs or (a, b) in seen:
+            continue
+        seen.add((a, b))
+        problems.append(
+            f"{table}.{fk.group(1)} -> {fk.group(2)} crosses {a} -> {b}, "
+            f"which has no refs edge: a change there cascades to nothing")
     return problems
 
 
@@ -315,7 +380,8 @@ def latent_contacts(g: Graph) -> list[str]:
 
 def check_all(g: Graph | None = None) -> list[str]:
     g = g or load()
-    return check_structure(g) + check_writers(g) + check_contacts(g)
+    return (check_structure(g) + check_writers(g) + check_contacts(g)
+            + check_refs_acyclic(g) + check_refs_cover_the_schema(g))
 
 
 def assert_consistent(g: Graph | None = None) -> None:

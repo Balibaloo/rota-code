@@ -62,7 +62,7 @@ ENUMS: dict[str, tuple[str, ...]] = {
 # rule guarding a door nobody can walk through, which is how the duplicate got
 # in unnoticed in the first place.
 ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
-    ("model", "find"): {"status": ("satisfied", "violated")},
+    ("findings", "find"): {"status": ("satisfied", "violated")},
 }
 
 

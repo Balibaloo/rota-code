@@ -42,7 +42,12 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "problem":    ("items", "item_statements"),
     "glossary":   ("glossary_terms", "business_rules"),
     "model":      ("constraints", "constraint_bindings",
-                   "survey_records", "survey_citations", "findings"),
+                   "survey_records", "survey_citations"),
+    # Not part of `model`. A finding is a verdict on a batch, and binding it to
+    # the model meant one *satisfied* finding -- a clean review saying nothing
+    # is wrong -- cascaded as though the system model had changed, waking the
+    # whole delivery chain including the role that had just written it.
+    "findings":   ("findings",),
     "tickets":    ("tickets",),
     "criteria":   ("criteria",),
     "batches":    ("batches", "batch_tickets", "batch_dep_facts", "batch_touch"),

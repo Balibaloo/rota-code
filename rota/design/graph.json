@@ -140,6 +140,14 @@
       "label": "Batches",
       "type": "artefact",
       "note": "Ticket groups formed by Architect on collision judgement. Complete feature sets, immutable once formed: priority moves them whole, and only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+    },
+    {
+      "id": "findings",
+      "label": "Findings",
+      "type": "artefact",
+      "contact": false,
+      "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role — so there is nobody to ask about one.",
+      "note": "Constraint id, satisfied or violated, and the grain that brought the constraint into range. No reasoning: law 2. One row per constraint checked, per commit."
     }
   ],
   "edges": [
@@ -763,7 +771,9 @@
       "t": "code",
       "type": "refs",
       "v": "binds",
-      "card": "n:n"
+      "card": "n:n",
+      "cascade": false,
+      "label": "a binding, not a wake path: it triggers review by intersection"
     },
     {
       "s": "tickets",
@@ -805,7 +815,7 @@
       "t": "code",
       "type": "refs",
       "v": "judges",
-      "card": "1:1"
+      "card": "n:1"
     },
     {
       "s": "verdicts",
@@ -1112,7 +1122,7 @@
     },
     {
       "s": "architect",
-      "t": "model",
+      "t": "findings",
       "type": "writes",
       "v": "find",
       "n": "constraint id + status + grain",
@@ -1147,6 +1157,55 @@
       "rows": "single",
       "depth": "body",
       "label": "its own bodies, singly"
+    },
+    {
+      "s": "findings",
+      "t": "model",
+      "type": "refs",
+      "v": "about constraint",
+      "card": "n:1"
+    },
+    {
+      "s": "findings",
+      "t": "batches",
+      "type": "refs",
+      "v": "judges",
+      "card": "n:1"
+    },
+    {
+      "s": "criteria",
+      "t": "tickets",
+      "type": "refs",
+      "v": "specified for",
+      "card": "n:1"
+    },
+    {
+      "s": "batches",
+      "t": "tickets",
+      "type": "refs",
+      "v": "groups",
+      "card": "n:n"
+    },
+    {
+      "s": "batches",
+      "t": "problem",
+      "type": "refs",
+      "v": "satisfies",
+      "card": "n:1"
+    },
+    {
+      "s": "tests",
+      "t": "batches",
+      "type": "refs",
+      "v": "cover",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "batches",
+      "type": "refs",
+      "v": "judge",
+      "card": "n:1"
     }
   ],
   "contact_exceptions": []

@@ -221,8 +221,8 @@ def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
     return {"id": id, "bindings": bindings or []}
 
 
-@op("model", "find")
-def model_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
+@op("findings", "find")
+def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                status: str, grain: str) -> dict:
     """
     Architect's structural verdict on one constraint, for one batch.

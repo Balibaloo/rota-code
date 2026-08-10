@@ -360,18 +360,40 @@ def release(conn: sqlite3.Connection, role: str) -> None:
 # exist anywhere in the cascade; the scheduler walks the DAG and summons owners.
 # ---------------------------------------------------------------------------
 
+class UnorderableCascade(RuntimeError):
+    """The refs graph has a cycle, so "dependency order" has no meaning."""
+
+
 def cascade_order(g: graph_mod.Graph | None = None) -> list[str]:
-    """Artefacts in dependency order, derived from the graph's refs edges."""
+    """
+    Artefacts in dependency order, derived from the graph's refs edges.
+
+    Non-cascading refs are excluded. `model -> code` is one: it is a *binding*,
+    used for the mechanical intersection that triggers structural review, not a
+    path along which a change propagates. Including it closed the cycle
+    model -> code -> batches -> model.
+
+    This used to catch `CycleError` and return `sorted(deps)`. The cycle was
+    always present, so the documented order in law 9 had never once run — every
+    cascade since the system was built fired alphabetically, and a cascade in
+    the wrong order looks exactly like one in the right order. A fallback that
+    silently changes documented behaviour is worse than the failure it hides.
+    """
     g = g or graph_mod.load()
     deps: dict[str, set[str]] = {a: set() for a in g.artefacts}
     for e in g.of_type("refs"):
+        if not e.cascade:
+            continue
         # `s refs t` means s depends on t: t is resolved first.
         deps.setdefault(e.s, set()).add(e.t)
         deps.setdefault(e.t, set())
     try:
         return list(TopologicalSorter(deps).static_order())
-    except CycleError:
-        return sorted(deps)
+    except CycleError as exc:
+        raise UnorderableCascade(
+            f"the refs graph has a cycle, so cascade order is undefined: "
+            f"{exc.args[1]}. Mark one of those refs `cascade: false` if it is a "
+            f"lookup rather than a wake path.") from exc
 
 
 def cascade_wakes(conn: sqlite3.Connection, session_id: str,

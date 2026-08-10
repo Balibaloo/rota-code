@@ -8,7 +8,7 @@ mechanical — the diff's grains intersect a constraint's bindings — so the
 question is not "is there anything I dislike" but "does this diff satisfy or
 violate each constraint it touched".
 
-`model.find` per constraint checked: the constraint id, `satisfied` or
+`findings.find` per constraint checked: the constraint id, `satisfied` or
 `violated`, and the grain that brought it into range. Nothing else. There is no
 field for why, and that is not an oversight — your reasoning belongs in
 `decisions.author`, reachable by a ref if anyone ever needs it. What the merge
