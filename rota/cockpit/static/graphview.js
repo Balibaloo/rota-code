@@ -393,7 +393,12 @@ function drawTeam() {
     // Hovering the key selects rather than annotates: everything else recedes,
     // so "what is a journal" is answered by the picture instead of by the
     // sentence underneath it.
-    if (GV.keyhl) op = GV.keyhl.edge===e.type ? Math.max(op,.95) : 0.05;
+    if (GV.keyhl) {
+      const g = GV.keyhl.group ? caseGroup(GV.keyhl.group) : null;
+      const mine = g && g.edges
+        && (GV.caseEdges?.[g.edges]||[]).some(x=>ek(x)===key && (x[3]||'')===(e.v||''));
+      op = GV.keyhl.edge===e.type || mine ? Math.max(op,.95) : 0.05;
+    }
 
     let d, lx, ly;
     let markers = '';
@@ -503,7 +508,8 @@ function drawTeam() {
     // the state ring they are currently wearing.
     if (GV.keyhl) {
       const h = GV.keyhl;
-      dim = !(h.kind ? k===h.kind
+      dim = !(h.kind  ? k===h.kind
+            : h.group ? caseGroup(h.group).nodes.has(n.id)
             : h.ring==='ready' ? ready.has(n.id)
             : h.ring==='live'  ? !!claimed[n.id]
             : h.ring==='blast' ? !!(blast && blast.has(n.id))
@@ -726,12 +732,27 @@ const LEGEND = [
 // Shown only with a case open, because the three states mean nothing without
 // one — and with one open they are the whole picture.
 const CASE_LEGEND = ["this case", [
-  ["role under test", {ring:"live"},   "who this case wakes. A chain case wakes two, and the same violet means ‘this is acting’ in every lens"],
-  ["given",           {ring:"blast"},  "seeded by the fixture and reachable from the role. What it was handed before it acted"],
-  ["watched",         {ring:"now"},    "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
-  ["forbidden",       {ring:"denied"}, "the case fails if this happens. Halo, not recolour — a forbidden read is still a read"],
-  ["scaffolding",     {ring:"gap"},    "seeded because the schema demands it — a ticket needs an item — and unreachable from this role. Present, not given"],
+  ["role under test", {group:"roles"},       "who this case wakes. A chain case wakes two, and the same violet means ‘this is acting’ in every lens"],
+  ["given",           {group:"given"},       "seeded by the fixture and reachable from the role. What it was handed before it acted"],
+  ["watched",         {group:"watched"},     "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
+  ["forbidden",       {group:"forbidden"},   "the case fails if this happens. Halo, not recolour — a forbidden read is still a read"],
+  ["scaffolding",     {group:"scaffolding"}, "seeded because the schema demands it — a ticket needs an item — and unreachable from this role. Present, not given"],
 ]];
+
+// Which nodes and edges a case-key row is about. One place, so the key and the
+// picture cannot disagree about what "given" means.
+function caseGroup(name) {
+  const sit = GV.caseSituation || {}, ce = GV.caseEdges || {};
+  const ends = k => new Set((ce[k]||[]).flatMap(e=>[e[0], e[1]]));
+  switch (name) {
+    case 'roles':       return {nodes:new Set(sit.roles||[]),        edges:null};
+    case 'given':       return {nodes:new Set(sit.given||[]),        edges:'reading'};
+    case 'watched':     return {nodes:new Set(sit.watched||[]),      edges:'writing'};
+    case 'scaffolding': return {nodes:new Set(sit.scaffolding||[]),  edges:null};
+    case 'forbidden':   return {nodes:ends('forbidden'),             edges:'forbidden'};
+    default:            return {nodes:new Set(),                     edges:null};
+  }
+}
 
 function gvLegend() {
   const swatch = (c,dash) => `<svg width="30" height="8">
@@ -778,8 +799,19 @@ function gvLegend() {
     ]],
     case: CASE_LEGEND,
   };
+  // "Right now" is live database state -- claims and firing predicates -- not
+  // a lens. It is drawn under every lens *except* case, where the ring is
+  // overridden by what the case says. So it belongs in the key when those
+  // rings can actually appear and something is actually wearing one; an idle
+  // database with three unexplained rows in the key is three rows of noise.
+  const overlay = GV.trace?.overlay || {};
+  const anythingLive = (overlay.ready||[]).length
+                       || Object.keys(overlay.claimed||{}).length || GV.blast;
+  const base = LEGEND.filter(([name]) =>
+    name !== 'right now' || (GV.source !== 'case' && anythingLive));
+
   const extra = LENS_KEY[GV.source];
-  const groups = extra ? [...LEGEND, extra] : LEGEND;
+  const groups = extra ? [...base, extra] : base;
 
   const el = document.getElementById('glegend');
   el.innerHTML =
