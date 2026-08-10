@@ -406,18 +406,23 @@ function drawTeam() {
     // changes what a failure there means -- a wrong read is a briefing problem,
     // a wrong write is a judgement problem.
     const sit = GV.source==='case' ? GV.caseSituation : null;
-    const roles    = new Set(sit?.roles||[]);
-    const fixtured = new Set(sit?.fixtured||[]);
-    const watched  = new Set(sit?.watched||[]);
-    const inCase = id => roles.has(id)||fixtured.has(id)||watched.has(id);
+    const roles   = new Set(sit?.roles||[]);
+    const given   = new Set(sit?.given||[]);
+    const scaff   = new Set(sit?.scaffolding||[]);
+    const watched = new Set(sit?.watched||[]);
+    const inCase = id => roles.has(id)||given.has(id)||scaff.has(id)||watched.has(id);
     if (sit) dim = !inCase(n.id);
+    // Scaffolding is present and unreachable, and should look it: a ticket
+    // needs an item to exist, and Developer cannot read `problem` at all.
+    if (sit && scaff.has(n.id) && !watched.has(n.id)) dim = true;
 
     const ring = sit && roles.has(n.id)    ? STATE.live
       : sit && watched.has(n.id)           ? STATE.now
-      : sit && fixtured.has(n.id)          ? STATE.blast
+      : sit && given.has(n.id)             ? STATE.blast
+      : sit && scaff.has(n.id)             ? STATE.gap
       : ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
       : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
-    const hot = (sit && inCase(n.id))
+    const hot = (sit && (roles.has(n.id)||given.has(n.id)||watched.has(n.id)))
       || ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
     // Key hover selects nodes the same way it selects edges — by kind, or by
@@ -643,6 +648,7 @@ const CASE_LEGEND = ["case", [
   ["under test", {ring:"live"},  "the role this case wakes. A chain case wakes two"],
   ["given",      {ring:"blast"}, "seeded by the fixture. What the role was handed before it acted"],
   ["watched",    {ring:"now"},   "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
+  ["scaffolding",{ring:"gap"},   "seeded because the schema demands it -- a ticket needs an item -- and unreachable from this role. Present, not given"],
 ]];
 
 function gvLegend() {
@@ -671,6 +677,7 @@ function gvLegend() {
     live:  `<i class="ring" style="border-color:${STATE.live}"></i>`,
     blast: `<i class="ring" style="border-color:${STATE.blast}"></i>`,
     now:   `<i class="ring" style="border-color:${STATE.now}"></i>`,
+    gap:   `<i class="ring" style="border-color:${STATE.gap}"></i>`,
   };
 
   const groups = GV.source === 'case' ? [...LEGEND, CASE_LEGEND] : LEGEND;

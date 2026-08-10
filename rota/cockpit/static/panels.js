@@ -562,20 +562,38 @@ function caseState(c){
 
 async function loadCases(){
   if(!CASES.length) CASES = await (await fetch('/cases.json')).json();
-  const byRole = {};
-  CASES.forEach(c => (byRole[c.role] ||= []).push(c));
+
+  // Level, then role. The tiers ask different questions of the same wiring —
+  // L1 whether a role can take an action, L2 whether it picks the right one
+  // from a situation, L3 whether one role's message makes another act — so a
+  // flat list by role puts three unrelated questions side by side.
+  const tiers = {};
+  CASES.forEach(c => {
+    const tier = c.tier || (c.second ? 'T3' : 'T1');
+    ((tiers[tier] ||= {})[c.role] ||= []).push(c);
+  });
+
+  const TIER = {T1:['L1', 'actions'], T2:['L2', 'situations'], T3:['L3', 'handoffs']};
   document.getElementById('clist').innerHTML =
-    Object.keys(byRole).sort().map(role =>
-      `<div class="grphead">${esc(role)}</div>` +
-      byRole[role].map(c=>{
-        const st = caseState(c);
-        const score = c.history.length
-          ? `${c.history.filter(h=>h.passed).length}/${c.history.length}` : '—';
-        return `<div class="crow ${c.id===CASE_ID?'on':''}" data-case="${esc(c.id)}">
-          <span class="dot ${st}"></span>
-          <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
-          <span class="sig">${esc(c.mode)}</span>
-          <span class="sig">${score}</span></div>`;}).join('')).join('');
+    Object.keys(tiers).sort().map(tier => {
+      const [name, what] = TIER[tier] || [tier, ''];
+      const all = Object.values(tiers[tier]).flat();
+      const green = all.filter(c => caseState(c)==='pass').length;
+      const roles = Object.keys(tiers[tier]).sort().map(role =>
+        `<div class="crole">${esc(role)}</div>` +
+        tiers[tier][role].map(c => {
+          const st = caseState(c);
+          const score = c.history.length
+            ? `${c.history.filter(h=>h.passed).length}/${c.history.length}` : '—';
+          return `<div class="crow ${c.id===CASE_ID?'on':''}" data-case="${esc(c.id)}">
+            <span class="dot ${st}"></span>
+            <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
+            <span class="sig">${esc(c.mode)}</span>
+            <span class="sig">${score}</span></div>`;}).join('')).join('');
+      return `<details class="ctier" open><summary>${name} · ${esc(what)}
+        <span class="sig">${green}/${all.length}</span></summary>${roles}</details>`;
+    }).join('');
+
   document.querySelectorAll('.crow').forEach(
     r => r.onclick = () => showCase(r.dataset.case));
 }
@@ -640,8 +658,11 @@ function showCase(id){
     ${fold(`tools — ${c.brief.tools.length}`,
        c.brief.tools.map(t=>`<div class="row">${esc(t)}</div>`).join(''))}
     ${fold('message text', `<pre id="msgtext" class="empty">loading…</pre>`)}
-    ${fold(`fixtured data — ${c.situation.seeded.length} artefact(s)`,
-       seededBlocks, true)}
+    ${fold(`fixtured data — ${c.situation.given.length} given, ${
+       c.situation.scaffolding.length} scaffolding`, seededBlocks, true)}
+    ${c.situation.scaffolding.length?`<p class="sig pad">scaffolding:
+       ${c.situation.scaffolding.map(esc).join(', ')} — seeded because the
+       schema demands it, and unreachable from this role</p>`:''}
     ${c.situation.links.length?`<p class="sig pad">linked by
        ${c.situation.links.map(l=>esc(l[2])).join(', ')}</p>`:''}
 

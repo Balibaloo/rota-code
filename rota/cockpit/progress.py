@@ -472,7 +472,26 @@ def cases(dev_db: Path | None = None) -> list[dict]:
                     or [case.get("expect") or {}])
                    for t in (branch.get("writes") or {})}
         situation["watched"] = sorted(watched)
-        situation["fixtured"] = sorted(e["artefact"] for e in situation["seeded"])
+
+        # Seeded is not the same as *visible*. A ticket has an `item_id`
+        # foreign key, so a fixture cannot create one without an item — and
+        # Developer has no read edge to `problem` at all, because scope is
+        # Gatekeeper's. Those rows are there to make the fixture valid and the
+        # scheduler able to find a batch, not because the role was handed them.
+        #
+        # Drawn as one colour they produced a disconnected subgraph and an
+        # implied claim that the role could see it. They are scaffolding.
+        reach = set()
+        for kind in ("reads", "writes"):
+            for e in g.of_type(kind):
+                if e.s in situation["roles"]:
+                    allowed = prompts.mode_tools(e.s, mode if e.s == role else "") 
+                    if allowed is None or f"{e.t}.{e.v}" in allowed:
+                        reach.add(e.t)
+        seeded_arts = {e["artefact"] for e in situation["seeded"]}
+        situation["given"] = sorted(seeded_arts & reach)
+        situation["scaffolding"] = sorted(seeded_arts - reach)
+        situation["fixtured"] = sorted(seeded_arts)
 
         edges = _edges_for(role, mode, case, g)
         if chain:
