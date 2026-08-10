@@ -284,6 +284,10 @@ def make_handler(db_path: Path):
                         "missing": [str(k) for k in sorted(rep.missing, key=str)],
                     }).encode("utf-8")
                     self._send(body, "application/json")
+                elif path == "/cases.json":
+                    body = json.dumps(progress.cases(),
+                                      default=str).encode("utf-8")
+                    self._send(body, "application/json")
                 elif path == "/progress.json":
                     conn = connect(db_path)
                     try:
@@ -390,11 +394,23 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
     had not released, and losing the browser state. Half a reload loop is worse
     than none: it teaches you to distrust what you are looking at.
     """
+    import os
+
     from watchfiles import run_process
+
+    # The restart is a fresh process, so `open_browser` was true again every
+    # time — a new tab per backend edit, which on a busy afternoon is most of a
+    # browser. The tab that is already open is the one to keep: the page reloads
+    # itself on the fingerprint change and now remembers which view it was on.
+    # An environment variable rather than an argument because `run_process`
+    # re-invokes the target directly and there is no first-call to distinguish.
+    first = not os.environ.get("ROTA_COCKPIT_OPENED")
+    os.environ["ROTA_COCKPIT_OPENED"] = "1"
 
     watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
-    run_process(*watch, target=serve, args=(project_root, port, open_browser),
+    run_process(*watch, target=serve,
+                args=(project_root, port, open_browser and first),
                 callback=lambda changes: print(
                     f"reload: {', '.join(sorted(Path(c[1]).name for c in changes))}"))
 

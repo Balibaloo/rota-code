@@ -41,8 +41,9 @@ pytestmark = pytest.mark.skipif(
 
 def _cases() -> list[dict]:
     out = []
-    for path in sorted(CASES.glob("l1_*.yaml")):
-        out.extend(fixtures.load_case(path) or [])
+    for path in sorted(CASES.glob("l*.yaml")):
+        out.extend(c for c in (fixtures.load_case(path) or [])
+                   if not c.get("first"))     # chains are L3's, in test_l3.py
     return out
 
 
@@ -81,7 +82,8 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # meaningless.
     stamp = PINS.with_prompt(instructions)
     for r in results:
-        record_case_run(dev_db, case["id"], stamp, r.run, r.passed, r.problems)
+        record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
+                        r.problems, r.transcript())
 
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"

@@ -43,6 +43,7 @@ from typing import Any
 from ..core.db import ARTEFACT_TABLES, init_db
 from ..llm.llm import Pins
 from ..core.runner import RunOutcome, run_session
+from ..roles import prompts as prompts_mod
 from ..core.scheduler import Wake
 
 
@@ -293,6 +294,22 @@ class CaseResult:
     delta: Delta | None = None
     outcome: RunOutcome | None = None
 
+    def transcript(self) -> list[dict]:
+        """What the model said and what came back, turn by turn.
+
+        A pass rate says a case is failing. Only this says whether the case was
+        unfair, the role under-briefed, or the model out of its depth — which is
+        all of the remaining work, so it is kept with the verdict rather than
+        printed once and lost."""
+        out = [{"say": t} for t in (self.outcome.completions if self.outcome else [])]
+        if self.delta:
+            out.append({"called": self.delta.tool_calls,
+                        "wrote": {k: len(v) for k, v in self.delta.writes.items()},
+                        "sent": [(m["to_role"], m["verb"]) for m in self.delta.messages]})
+        if self.outcome and self.outcome.errors:
+            out.append({"errors": self.outcome.errors})
+        return out
+
 
 def _with_repo(conn, case: dict, db_path: Path):
     """
@@ -403,6 +420,76 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                       delta=delta, outcome=outcome)
 
 
+def run_chain(case: dict, db_path: str | Path, backend_factory, *,
+              pins: Pins | None = None, run_no: int = 1) -> CaseResult:
+    """
+    Two sessions, joined by the message the first one actually sent.
+
+    This is the whole point of the tier and the reason it cannot be faked with
+    two independent cases. Every other test hands a role a message somebody
+    wrote by hand, which measures whether the role can act on a *well-formed*
+    message. L3 asks the question the design rests on: **does the message
+    vocabulary carry enough for a stranger to act on it?**
+
+    So the second session is woken by the first session's own outbound row —
+    same refs, same verb, nothing rewritten in between. If the first role never
+    messaged the second, the chain stops there and says so, because that is the
+    finding: the handoff the graph draws does not happen.
+
+    The roles share only the database. No context, no history, no prose channel
+    — which is the arrangement being tested, not an implementation detail.
+    """
+    from ..core.loop import _batch_of
+
+    conn = init_db(db_path)
+    seed(conn, case.get("fixture") or {})
+    repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None
+
+    first, then = case["first"], case["then"]
+    problems: list[str] = []
+
+    def _one(spec: dict, message_id: str | None) -> tuple[RunOutcome, Delta]:
+        mode = spec.get("prompt") or spec.get("verb") or spec.get("tick", "")
+        wake = Wake(role=spec["role"], kind="message", message_id=message_id,
+                    refs=tuple(spec.get("refs") or ()),
+                    detail=spec.get("verb") or spec.get("tick", ""))
+        seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
+        versions = snapshot_versions(conn)
+        out = run_session(
+            conn, wake, backend=backend_factory(), pins=pins,
+            instructions=prompts_mod.compose(spec["role"], mode),
+            batch_id=_batch_of(conn, wake),
+            area=wake.refs[0] if spec.get("tick") == "survey" else None)
+        return out, capture(conn, out.session_id, versions, messages_before=seen)
+
+    a_out, a_delta = _one(first, None)
+    if not a_out.committed:
+        problems.append(f"{first['role']} did not commit: {a_out.errors}")
+
+    handoff = next((m for m in a_delta.messages if m["to_role"] == then["role"]), None)
+    if handoff is None:
+        problems.append(
+            f"{first['role']} never messaged {then['role']}; sent "
+            f"{[(m['to_role'], m['verb']) for m in a_delta.messages] or 'nothing'}")
+        return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
+                          problems=problems, delta=a_delta, outcome=a_out)
+
+    b_spec = dict(then)
+    b_spec.setdefault("verb", handoff["verb"])
+    b_out, b_delta = _one(b_spec, handoff["id"])
+    if not b_out.committed:
+        problems.append(f"{then['role']} did not commit: {b_out.errors}")
+
+    problems += check(case, b_delta)
+    if repo is not None:
+        from . import gitfixture
+        gitfixture.cleanup(repo)
+
+    return CaseResult(case_id=case.get("id", "?"), run=run_no,
+                      passed=not problems, problems=problems,
+                      delta=b_delta, outcome=b_out)
+
+
 def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None = None,
                 instructions: str = "") -> tuple[int, int, list[CaseResult]]:
     """
@@ -417,8 +504,12 @@ def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None 
     threshold = int(case.get("pass", runs))
     results = []
     for i in range(1, runs + 1):
-        results.append(run_case(case, tmpdir / f"{case.get('id','case')}_{i}.db",
-                                backend_factory(), pins=pins,
-                                instructions=instructions, run_no=i))
+        path = tmpdir / f"{case.get('id','case')}_{i}.db"
+        if case.get("first"):
+            results.append(run_chain(case, path, backend_factory,
+                                     pins=pins, run_no=i))
+        else:
+            results.append(run_case(case, path, backend_factory(), pins=pins,
+                                    instructions=instructions, run_no=i))
     passed = sum(1 for r in results if r.passed)
     return passed, threshold, results

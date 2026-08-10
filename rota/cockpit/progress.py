@@ -14,6 +14,7 @@ it ran against and compared to the hash now on disk; a mismatch shows as stale.
 """
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import asdict, dataclass, field
@@ -70,7 +71,7 @@ def milestone() -> list[dict]:
 
 def _cases() -> list[dict]:
     out = []
-    for path in sorted(CASES.glob("l1_*.yaml")):
+    for path in sorted(CASES.glob("l*.yaml")):
         out.extend(fixtures.load_case(path) or [])
     return out
 
@@ -90,17 +91,24 @@ def coverage() -> dict:
     generous, and stated as such — it is the reason L1 climbs without anybody
     writing an L1-specific case.
 
-    L3 is genuinely zero. Nothing yet tests whether one role's message makes
-    another do the right thing, which is the tier the whole design rests on.
+    L3 is counted in *pairs*, not in obligations. The obligation set names the
+    verbs on both hops — 229 of them — but a chain case cannot declare the
+    second verb in advance, because the message under test is whichever one the
+    first role actually chose to send. Crediting all 229 obligations for a pair
+    that has one case turned five cases into "39 covered", which is the kind of
+    generous arithmetic this panel exists to avoid. A pair is what a chain case
+    honestly establishes, so a pair is what is counted.
     """
     cases = _cases()
-    cased_modes = {(c["role"], fixtures.mode_of(c)) for c in cases}
+    # A chain case names two roles and no single mode; it is credited to L3.
+    single = [c for c in cases if c.get("role")]
+    cased_modes = {(c["role"], fixtures.mode_of(c)) for c in single}
     all_modes = {(role, mode)
                  for role in graph_mod.load().roles
                  for mode in prompts.available(role)}
 
     covered_actions = set()
-    for case in cases:
+    for case in single:
         for table in ((case.get("expect") or {}).get("writes") or {}):
             covered_actions.add(f"{case['role']}:{table}")
         for fn in (case.get("expect") or {}).get("calls") or []:
@@ -117,6 +125,15 @@ def coverage() -> dict:
     l2 = obligations.l2()
     l2_done = sum(1 for o in l2 if (o.role, o.what) in cased_modes)
 
+    # A chain case is credited to the handoff it actually exercises: the first
+    # role, the verb it sends, the second role. Which verb that is comes from
+    # the case rather than from the graph, because the whole point of the tier
+    # is that the message is the one A really sent.
+    pairs = {(o.what.split(" -")[0].strip(), o.role) for o in obligations.l3()}
+    chains = {(c["first"]["role"], c["then"]["role"])
+              for c in cases if c.get("first")}
+    l3_done, l3_total = len(chains & pairs), len(pairs)
+
     return {
         "modes": {"done": len(cased_modes & all_modes), "total": len(all_modes),
                   "missing": sorted(f"{r}/{m}" for r, m in all_modes - cased_modes)},
@@ -124,8 +141,8 @@ def coverage() -> dict:
         "tiers": [
             {"tier": "L1", "label": "actions", "done": l1_done, "total": len(l1)},
             {"tier": "L2", "label": "situations", "done": l2_done, "total": len(l2)},
-            {"tier": "L3", "label": "handoffs", "done": 0,
-             "total": len(obligations.l3())},
+            {"tier": "L3", "label": "handoff pairs", "done": l3_done,
+             "total": l3_total},
         ],
     }
 
@@ -144,25 +161,11 @@ def _prompt_hash(case: dict, model: str) -> str:
 def l1(dev_db: Path | None = None) -> dict:
     """Latest recorded outcome per case, and whether it still means anything."""
     path = dev_db or paths.DEV_DB
-    cases = {c["id"]: c for c in _cases()}
+    cases = {c["id"]: c for c in _cases() if c.get("role")}
     rows: list[dict] = []
 
-    recorded: dict[str, list] = {}
-    model = ""
-    if path.exists():
-        conn = sqlite3.connect(path)
-        conn.row_factory = sqlite3.Row
-        try:
-            for r in conn.execute(
-                "SELECT case_id, model, prompt_hash, run_no, passed, problems, seq "
-                "FROM case_runs ORDER BY seq"
-            ):
-                recorded.setdefault(r["case_id"], []).append(dict(r))
-                model = r["model"]
-        except sqlite3.Error:                               # pragma: no cover
-            recorded = {}
-        finally:
-            conn.close()
+    recorded = _runs(path)
+    model = next((r["model"] for rows in recorded.values() for r in rows), "")
 
     for case_id, case in cases.items():
         runs = recorded.get(case_id, [])
@@ -177,7 +180,7 @@ def l1(dev_db: Path | None = None) -> dict:
             batch = [r for r in runs if r["prompt_hash"] == latest_hash][-entry["runs"]:]
             entry["passed"] = sum(r["passed"] for r in batch)
             entry["problems"] = sorted({
-                p for r in batch for p in __import__("json").loads(r["problems"])})
+                p for r in batch for p in json.loads(r["problems"])})
             fresh = latest_hash == _prompt_hash(case, model or "llama3.1:8b")
             if not fresh:
                 entry["state"] = "stale"
@@ -217,6 +220,191 @@ def onboarding(conn: sqlite3.Connection) -> dict:
     except sqlite3.Error:                                   # pragma: no cover
         return {"indexed": 0, "edges": 0, "areas": 0, "surveyed": 0,
                 "under_zero": 0}
+
+
+# ---------------------------------------------------------------------------
+# The cases themselves, with the wiring each one touches
+# ---------------------------------------------------------------------------
+
+def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
+    """
+    Which graph edges a case is *about*, split by what the case says of them.
+
+    `offered` is the mode's tool list — the role's whole world for this waking.
+    `required` and `forbidden` are what the case asserts on top. Rendering all
+    three is the point: a case is as much about the edges it forbids as the ones
+    it demands, and on the graph that distinction is the readable one.
+    """
+    def edge(s, t, verb, kind):
+        for e in g.of_type(kind):
+            if e.s == s and e.t == t and e.v == verb:
+                return [e.s, e.t, e.type, e.v]
+        return None
+
+    def artefact_edges(names, kinds=("reads", "writes")):
+        out = []
+        for name in names:
+            if "." not in name:
+                continue
+            art, verb = name.split(".", 1)
+            if art == "msg":
+                recipient = verb.split("_", 1)[-1]
+                hit = edge(role, recipient, verb.split("_", 1)[0], "messages")
+            else:
+                hit = next((e for k in kinds if (e := edge(role, art, verb, k))), None)
+            if hit:
+                out.append(hit)
+        return out
+
+    from ..core.db import ARTEFACT_OF_TABLE
+
+    expect, forbidden = case.get("expect") or {}, case.get("forbidden") or {}
+    branches = expect.get("any_of") or [expect]
+
+    required, denied = [], []
+    for branch in branches:
+        for table in (branch.get("writes") or {}):
+            art = ARTEFACT_OF_TABLE.get(table)
+            hit = next((e for e in g.of_type("writes")
+                        if e.s == role and e.t == art), None)
+            if hit:
+                required.append([hit.s, hit.t, hit.type, hit.v])
+        for spec in branch.get("messages") or []:
+            hit = edge(role, spec.get("to"), spec.get("verb"), "messages")
+            if hit:
+                required.append(hit)
+    required += artefact_edges(expect.get("calls") or [])
+
+    for table in forbidden.get("writes") or []:
+        art = ARTEFACT_OF_TABLE.get(table)
+        hit = next((e for e in g.of_type("writes")
+                    if e.s == role and e.t == art), None)
+        if hit:
+            denied.append([hit.s, hit.t, hit.type, hit.v])
+    for recipient in forbidden.get("recipients") or []:
+        denied += [[e.s, e.t, e.type, e.v] for e in g.of_type("messages")
+                   if e.s == role and e.t == recipient]
+    denied += artefact_edges(forbidden.get("calls") or [])
+
+    # A forbidden write the role has no edge for is not a risk the case is
+    # guarding against — it is a belt on braces, and the graph already made it
+    # impossible. Worth separating: the first kind is what the case is *for*,
+    # the second is a note that a law is enforced structurally.
+    offered = artefact_edges(prompts.mode_tools(role, mode) or [])
+    writable = {e.t for e in g.of_type("writes") if e.s == role}
+    contactable = {e.t for e in g.of_type("messages") if e.s == role}
+    impossible = sorted(
+        {f"write {t}" for t in (forbidden.get("writes") or [])
+         if ARTEFACT_OF_TABLE.get(t, t) not in writable}
+        | {f"message {r}" for r in (forbidden.get("recipients") or [])
+           if r not in contactable})
+    return {"offered": offered, "required": required, "forbidden": denied,
+            "impossible": impossible}
+
+
+def cases(dev_db: Path | None = None) -> list[dict]:
+    """
+    Every case, in a shape the viewer can render and light the graph from.
+
+    Cases were only ever visible by opening six YAML files, which made "what does
+    this system actually check" a question you had to be inside the repository to
+    ask. They are the most discussable artefact here and the least discoverable.
+    """
+    from ..core.db import ARTEFACT_OF_TABLE
+
+    g = graph_mod.load()
+    runs = _runs(dev_db)
+
+    out = []
+    for case in _cases():
+        chain = bool(case.get("first"))
+        role = case["first"]["role"] if chain else case["role"]
+        mode = (fixtures.mode_of(case["first"]) if chain
+                else fixtures.mode_of(case))
+        second = case["then"]["role"] if chain else None
+
+        fixtured = [{"table": t, "rows": len(rows or []),
+                     "artefact": ARTEFACT_OF_TABLE.get(t, t)}
+                    for t, rows in sorted((case.get("fixture") or {}).items())]
+
+        edges = _edges_for(role, mode, case, g)
+        if chain:
+            second_mode = fixtures.mode_of({**case["then"],
+                                            "tick": case["then"].get("tick", "")})
+            for key, val in _edges_for(second, second_mode, case, g).items():
+                edges[key] = edges[key] + val
+
+        latest = (runs.get(case["id"]) or [])[-5:]
+        out.append({
+            "id": case["id"], "tier": case.get("tier", ""), "role": role,
+            "second": second, "mode": mode,
+            "runs": int(case.get("runs", 1)),
+            "threshold": int(case.get("pass", case.get("runs", 1))),
+            "repo": bool(case.get("repo")),
+            "onboarded": bool((case.get("repo") or {}).get("onboard")),
+            "refs": case.get("refs") or [],
+            "inbound": case.get("inbound") or {},
+            "fixture": fixtured,
+            "expect": case.get("expect") or {},
+            "forbidden": case.get("forbidden") or {},
+            "edges": edges,
+            "source": _source_for(case["id"]),
+            "history": [{"run": r["run_no"], "passed": bool(r["passed"]),
+                         "problems": json.loads(r["problems"] or "[]"),
+                         "transcript": json.loads(r["transcript"] or "[]")}
+                        for r in latest],
+        })
+    return out
+
+
+_SOURCE: dict[str, str] | None = None
+
+
+def _source_for(case_id: str) -> str:
+    """
+    The case exactly as written, comments and all.
+
+    Every case here carries its reasoning inline — why this fixture, what
+    failure it watches for, why the threshold is 3 and not 4 — and a YAML parser
+    throws all of it away. Showing the parsed assertions without the argument for
+    them would leave the panel displaying the *what* and hiding the *why*, which
+    is the half worth discussing.
+    """
+    global _SOURCE
+    if _SOURCE is None:
+        _SOURCE = {}
+        for path in sorted(CASES.glob("l*.yaml")):
+            current, buffer = None, []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("- id: "):
+                    if current:
+                        _SOURCE[current] = chr(10).join(buffer).rstrip()
+                    current, buffer = line[6:].strip(), [line]
+                elif current is not None:
+                    buffer.append(line)
+            if current:
+                _SOURCE[current] = chr(10).join(buffer).rstrip()
+    return _SOURCE.get(case_id, "")
+
+
+def _runs(dev_db: Path | None = None) -> dict[str, list]:
+    path = dev_db or paths.DEV_DB
+    out: dict[str, list] = {}
+    if not path.exists():
+        return out
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    try:
+        for r in conn.execute(
+            "SELECT case_id, model, prompt_hash, run_no, passed, problems, "
+            "transcript, seq FROM case_runs ORDER BY seq"
+        ):
+            out.setdefault(r["case_id"], []).append(dict(r))
+    except sqlite3.Error:                                   # pragma: no cover
+        return {}
+    finally:
+        conn.close()
+    return out
 
 
 def report(conn: sqlite3.Connection) -> dict:

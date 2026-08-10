@@ -189,6 +189,15 @@ const gvSteps = () =>
 
 function gvLit() {
   const lit=new Map();
+  // A case lights three ways at once, because a case is as much about the
+  // edges it forbids as the ones it demands, and on a picture that distinction
+  // is the one worth being able to see without reading.
+  if (GV.source==='case' && GV.caseEdges) {
+    (GV.caseEdges.offered||[]).forEach(e=>lit.set(ek(e),'past'));
+    (GV.caseEdges.required||[]).forEach(e=>lit.set(ek(e),'now'));
+    (GV.caseEdges.forbidden||[]).forEach(e=>lit.set(ek(e),'forbidden'));
+    return lit;
+  }
   if (GV.source==='coverage') {
     (GV.trace.coverage.covered||[]).forEach(e=>lit.set(ek(e),'covered'));
     return lit;
@@ -294,6 +303,7 @@ function drawTeam() {
       if (state==='covered'){op=.8;w=2;}
       else if (uncovered.has(key)){op=.42;col=STATE.gap;w=1.5;}
     } else if (state==='now'){op=1;w=3.2;}
+    else if (state==='forbidden'){op=.95;w=2.4;col=STATE.gap;}
     else if (state==='past'){op=.42;w=1.8;}
     if (GV.focus) op = incident?Math.max(op,.95):.05;
     if (GV.inhabit) op = Math.max(op,.7);

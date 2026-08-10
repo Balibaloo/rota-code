@@ -1,0 +1,165 @@
+# L3 — handoffs. Does A's message make B do the right thing?
+#
+# The tier the whole design rests on, and the only one that cannot be faked with
+# two independent cases. Every other test hands a role a message somebody wrote
+# by hand, which measures whether it can act on a *well-formed* message. Here the
+# second session is woken by the first session's own outbound row — same verb,
+# same refs, nothing rewritten in between — so what is under test is whether the
+# vocabulary carries enough for a stranger to act on.
+#
+# The two roles share a database and nothing else. No context, no history, no
+# prose channel. That is the arrangement being tested, not an implementation
+# detail, and a chain that fails because A said too little is exactly the finding
+# the tier exists to produce.
+
+- id: L3-ratified-statement-becomes-scope
+  tier: T3
+  runs: 5
+  pass: 3
+  first: {role: liaison, prompt: verdict, verb: verdict, refs: [s1]}
+  then:  {role: gatekeeper}
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "people should be able to close their account, and the invoices
+                have to stay"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 70,
+         text: "people can close their account and the invoices are kept",
+         status: proposed}
+  expect:
+    # Liaison broadcasts the ratified statement; Gatekeeper turns it into scope.
+    # Nothing hand-written passes between them — if `deliver` with a statement
+    # ref is not enough to produce an item, the vocabulary is too thin.
+    writes:
+      items: {count: ">=1"}
+  forbidden:
+    # Gatekeeper decides what is in scope. It does not write the words the
+    # statement is made of, nor the criteria that would test it.
+    writes: [statements, glossary_terms, criteria, tickets]
+
+- id: L3-ratified-statement-becomes-a-term
+  tier: T3
+  runs: 5
+  pass: 3
+  first: {role: liaison, prompt: verdict, verb: verdict, refs: [s1]}
+  then:  {role: terminologist}
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "closing an account should not touch the billing account"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 58,
+         text: "closing an account does not touch the billing account",
+         status: proposed}
+  expect:
+    # The statement uses "account" twice meaning two things. That is a term
+    # collision arriving as ordinary English, and noticing it is the job.
+    writes:
+      glossary_terms: {count: ">=1"}
+  forbidden:
+    writes: [items, statements, tickets]
+
+- id: L3-scope-becomes-a-ticket-with-criteria
+  tier: T3
+  runs: 5
+  pass: 3
+  first: {role: gatekeeper, tick: slicing, refs: [i1]}
+  then:  {role: terminologist, tick: criteria}
+  fixture:
+    items:
+      - {id: i1, text: "people can close their account and the invoices are kept",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    glossary_terms:
+      - {id: g1, term: account, provenance: decided,
+         sense_short: "the login identity"}
+  expect:
+    # Gatekeeper slices; Terminologist writes what done means for what it sliced.
+    # The handoff here is not a message at all — it is a *state*, which is the
+    # other half of the frontier and the half nothing has tested.
+    writes:
+      criteria: {count: ">=1"}
+  forbidden:
+    # Criteria are written against the ticket that exists, not against a
+    # re-reading of what the item should have said.
+    writes: [items, tickets]
+
+- id: L3-a-challenge-reaches-the-role-that-can-answer-it
+  tier: T3
+  runs: 5
+  pass: 3
+  first: {role: terminologist, tick: criteria, refs: [i1]}
+  then:  {role: gatekeeper}
+  fixture:
+    items:
+      # Unbuildable as written, and Terminologist is the role that finds out —
+      # it is the one asked to say what "done" would mean.
+      - {id: i1, text: "make the reporting better", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: tk1, item_id: i1, text: "make the reporting better"}
+  expect:
+    # Whether the item changes is Gatekeeper's call; that it is *answered* is
+    # the law. Silence here strands the ticket forever with no criteria.
+    any_of:
+      - writes: {items: {count: ">=1"}}
+      - writes: {decisions: {count: ">=1"}}
+  forbidden:
+    writes: [glossary_terms, criteria]
+
+- id: L3-a-failed-verdict-turns-into-a-fix
+  tier: T3
+  runs: 5
+  pass: 3
+  first: {role: critic, tick: review, refs: [b1]}
+  then:  {role: developer, prompt: verdict_failed, refs: [b1]}
+  repo:
+    batch: b1
+    message: "close an account"
+    edit:
+      src/billing/accounts.py: |
+        from dataclasses import dataclass
+
+        from ..store import Record, load, save
+
+
+        @dataclass
+        class BillingAccount:
+            id: str
+            name: str
+            terms_days: int = 30
+
+
+        def close_account(account_id):
+            # Removes the invoices, which the criterion says must survive.
+            from ..store.records import delete
+            delete("invoices", account_id)
+            delete("billing_accounts", account_id)
+            return True
+  fixture:
+    items:
+      - {id: i1, text: "closing an account keeps its invoices", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: tk1, item_id: i1, text: "close an account"}
+    criteria:
+      - {id: c1, ticket_id: tk1,
+         text: "closing an account marks it closed and leaves its invoices in place",
+         term_refs: '[]'}
+    batches:
+      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: b1, ticket_id: tk1}
+    tests:
+      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_close.py,
+         body: "close_account(a); assert invoices_for(a) != []"}
+    test_runs:
+      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: pass}
+  expect:
+    # A verdict names a criterion and carries no argument. The whole question is
+    # whether one criterion id is enough for a cold Developer to find and fix
+    # what was wrong — which is the design's central bet, stated as a test.
+    calls: [code.write, code.commit]
+  forbidden:
+    writes: [criteria, verdicts, items]

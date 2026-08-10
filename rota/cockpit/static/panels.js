@@ -262,7 +262,7 @@ function showTab(t){
 function selectView(v){
   view = v;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
-  ['graph','live','coverage','progress'].forEach(n=>
+  ['graph','live','coverage','progress','cases'].forEach(n=>
     document.getElementById(n).classList.toggle('on', n===v));
   // Which tab you were on survives a reload. The progress view is the one
   // people leave open, and the fingerprint watcher reloads the page whenever
@@ -271,6 +271,7 @@ function selectView(v){
   try{ localStorage.setItem('rota.view', v); }catch{}
   if (v==='coverage') loadCoverage();
   if (v==='progress') loadProgress();
+  if (v==='cases') loadCases();
 }
 
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectView(b.dataset.view));
@@ -489,4 +490,99 @@ async function loadProgress(){
           why:(r.problems||[]).slice(0,2).join(' · ')
         })),['role','mode','case','result','needs','why']);
     }).join('');
+}
+
+
+// ---------------------------------------------------------------------------
+// Cases. They were only ever visible by opening six YAML files, which made
+// "what does this system actually check" a question you had to be inside the
+// repository to ask -- for the most discussable artefact here.
+// ---------------------------------------------------------------------------
+
+let CASES = [], CASE_ID = null;
+
+function caseState(c){
+  if(!c.history.length) return '';
+  const p = c.history.filter(h=>h.passed).length;
+  return p >= c.threshold ? 'pass' : 'fail';
+}
+
+async function loadCases(){
+  if(!CASES.length) CASES = await (await fetch('/cases.json')).json();
+  const byRole = {};
+  CASES.forEach(c => (byRole[c.role] ||= []).push(c));
+  document.getElementById('clist').innerHTML =
+    Object.keys(byRole).sort().map(role =>
+      `<div class="grphead">${esc(role)}</div>` +
+      byRole[role].map(c=>{
+        const st = caseState(c);
+        const score = c.history.length
+          ? `${c.history.filter(h=>h.passed).length}/${c.history.length}` : '—';
+        return `<div class="crow ${c.id===CASE_ID?'on':''}" data-case="${esc(c.id)}">
+          <span class="dot ${st}"></span>
+          <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
+          <span class="sig">${esc(c.mode)}</span>
+          <span class="sig">${score}</span></div>`;}).join('')).join('');
+  document.querySelectorAll('.crow').forEach(
+    r => r.onclick = () => showCase(r.dataset.case));
+  if(CASE_ID) showCase(CASE_ID);
+}
+
+function edgeList(edges, cls){
+  if(!edges.length) return '<p class="empty">none</p>';
+  return edges.map(e=>`<div class="row"><span class="tag ${cls||''}">${esc(e[2])}</span>
+    ${esc(e[0])} <span class="sig">-${esc(e[3])}-&gt;</span> ${esc(e[1])}</div>`).join('');
+}
+
+function showCase(id){
+  const c = CASES.find(x=>x.id===id); if(!c) return;
+  CASE_ID = id;
+  document.querySelectorAll('.crow').forEach(
+    r => r.classList.toggle('on', r.dataset.case===id));
+
+  // Light it on the graph. `offered` is the mode's whole world for this
+  // waking; `required` and `forbidden` are what the case asserts on top, and
+  // the distinction between those two is the readable one on a picture.
+  GV.caseEdges = c.edges;
+  GV.source = 'case';
+  const sel = document.getElementById('gsrc');
+  if(sel && !sel.querySelector('option[value=case]'))
+    sel.insertAdjacentHTML('beforeend','<option value="case">case</option>');
+  if(sel) sel.value='case';
+  if(window.gvDraw) gvDraw();
+
+  const hist = c.history.map((h,i)=>`
+    <details class="sec"><summary>run ${h.run||i+1} — ${h.passed?'<span class="pass">pass</span>':'<span class="fail">fail</span>'}
+      <span class="sig">${esc((h.problems[0]||'').slice(0,70))}</span></summary>
+    <div class="body">
+      ${h.problems.length?`<h4>problems</h4><pre>${esc(h.problems.join('\n'))}</pre>`:''}
+      ${h.transcript.map(t=>t.say!==undefined
+          ? `<h4>said</h4><pre>${esc(String(t.say).slice(0,4000))}</pre>`
+          : t.errors ? `<h4>errors</h4><pre>${esc(t.errors.join('\n'))}</pre>`
+          : `<h4>did</h4><pre>${esc(JSON.stringify(t,null,1))}</pre>`).join('')}
+    </div></details>`).join('') || '<p class="empty">never run</p>';
+
+  document.getElementById('cdetail').innerHTML = `
+    <h3>${esc(c.id)}</h3>
+    <p class="sig">${esc(c.tier)} · ${esc(c.role)}${c.second?' → '+esc(c.second):''}
+       · mode <b>${esc(c.mode)}</b> · needs ${c.threshold}/${c.runs}
+       ${c.repo?' · real checkout':''}${c.onboarded?' · onboarded':''}</p>
+
+    <h4>fixtured</h4>
+    ${c.fixture.length ? c.fixture.map(f=>
+        `<div class="row">${esc(f.table)} <span class="sig">${f.rows} row(s)
+         → ${esc(f.artefact)}</span></div>`).join('')
+      : '<p class="empty">nothing seeded</p>'}
+    ${c.refs.length?`<p class="sig">refs: ${c.refs.map(esc).join(', ')}</p>`:''}
+    ${c.inbound.verb?`<p class="sig">woken by ${esc(c.inbound.from)} —
+        ${esc(c.inbound.verb)}</p>`:''}
+    <h4>required</h4>${edgeList(c.edges.required,'req')}
+    <h4>forbidden</h4>${edgeList(c.edges.forbidden,'forb')}
+    ${c.edges.impossible.length?`<p class="sig">Already impossible — the graph
+      grants no such edge, so these are belt on braces:
+      ${c.edges.impossible.map(esc).join(', ')}</p>`:''}
+    <h4>offered by the mode</h4>${edgeList(c.edges.offered)}
+    <h4>the case as written</h4>
+    <pre>${esc(c.source)}</pre>
+    <h4>runs</h4>${hist}`;
 }

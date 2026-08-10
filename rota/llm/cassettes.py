@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS case_runs (
     run_no       INTEGER NOT NULL,
     passed       INTEGER NOT NULL,
     problems     TEXT NOT NULL DEFAULT '[]',
+    -- What the model actually said and did, kept with the verdict on it.
+    -- A pass rate tells you a case is failing; only the transcript tells you
+    -- whether the case was unfair, the role under-briefed, or the model out of
+    -- its depth -- which is the whole of the remaining work.
+    transcript   TEXT NOT NULL DEFAULT '[]',
     seq          INTEGER NOT NULL,
     PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
 );
@@ -66,6 +71,13 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path), isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.executescript(DEV_SCHEMA)
+    # `CREATE TABLE IF NOT EXISTS` will not add a column to a table that already
+    # exists, and this database is committed — so a schema that grows has to say
+    # how the recordings already in the repository catch up.
+    have = {r["name"] for r in conn.execute("PRAGMA table_info(case_runs)")}
+    if "transcript" not in have:
+        conn.execute("ALTER TABLE case_runs ADD COLUMN transcript TEXT "
+                     "NOT NULL DEFAULT '[]'")
     return conn
 
 
@@ -186,14 +198,15 @@ class ReplayOnlyBackend:
 
 
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
-                    run_no: int, passed: bool, problems: list[str]) -> None:
+                    run_no: int, passed: bool, problems: list[str],
+                    transcript: list | None = None) -> None:
     seq = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) + 1 n FROM case_runs").fetchone()["n"]
     conn.execute(
         "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, passed, "
-        "problems, seq) VALUES (?,?,?,?,?,?,?)",
+        "problems, transcript, seq) VALUES (?,?,?,?,?,?,?,?)",
         (case_id, pins.model, pins.prompt_hash, run_no, int(passed),
-         json.dumps(problems), seq),
+         json.dumps(problems), json.dumps(transcript or []), seq),
     )
 
 
