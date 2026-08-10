@@ -246,8 +246,13 @@ def run_session(
             (f"e_{wake.message_id}",)).fetchone()
         entry_id = row["id"] if row else None
 
+    # Law 11, decided by the wake rather than by the role: a survey is reading
+    # a codebase, so what it writes was found. Everything else was chosen.
+    provenance = "observed" if wake.kind == "tick:survey" else "decided"
+
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
-                           session_id=session_id, entry_id=entry_id, g=g,
+                           session_id=session_id, entry_id=entry_id,
+                           provenance=provenance, g=g,
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)))
     sb.ctx.trigger = wake.message_id
 

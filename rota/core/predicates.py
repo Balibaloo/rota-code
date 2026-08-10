@@ -684,6 +684,12 @@ def _parameterised_writes(root: Path) -> set[tuple[str, str]]:
                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))):
             body = ast.get_source_segment(source, fn) or ""
             args = {a.arg for a in fn.args.args + fn.args.kwonlyargs} - {"conn", "ctx"}
+            # A value taken from the session context is as parameterised as one
+            # taken from the call. `provenance` stopped being an argument when
+            # Architect filled it with the name of its own mode — it is a fact
+            # about the session now, and `ctx.provenance` is where it comes from.
+            args |= set(re.findall(r"ctx\.(\w+)", body)) - {"conn", "writes",
+                                                            "outbound", "role"}
 
             tables = set(re.findall(r"INSERT (?:OR \w+ )?INTO (\w+)", body))
             tables |= set(re.findall(r"UPDATE (\w+) SET", body))

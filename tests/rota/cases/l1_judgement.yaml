@@ -9,6 +9,29 @@
   runs: 5
   pass: 4
   tick: review
+  repo:
+    batch: b1
+    message: "prorate rounds to the nearest cent"
+    edit:
+      src/billing/charges.py: |
+        from dataclasses import dataclass
+
+
+        @dataclass
+        class Charge:
+            id: str
+            amount_cents: int
+            description: str
+
+
+        def total_of(charges):
+            return sum(c.amount_cents for c in charges)
+
+
+        def prorate(amount_cents, days_used, days_in_period):
+            if days_in_period <= 0:
+                raise ValueError("period must be positive")
+            return round(amount_cents * days_used / days_in_period)
   fixture:
     items:
       - {id: i1, text: "prorate charges on upgrade", kind: in_scope,
@@ -42,6 +65,32 @@
   runs: 5
   pass: 4
   tick: review
+  repo:
+    batch: b1
+    message: "delete an account"
+    edit:
+      src/billing/accounts.py: |
+        from dataclasses import dataclass
+
+        from ..store import Record, load, save
+
+
+        @dataclass
+        class BillingAccount:
+            id: str
+            name: str
+            terms_days: int = 30
+
+
+        def close_account(account_id):
+            # Deletes the invoices too, which the criterion says must survive.
+            rec = load("billing_accounts", account_id)
+            if rec is None:
+                return False
+            from ..store.records import delete
+            delete("invoices", account_id)
+            delete("billing_accounts", account_id)
+            return True
   fixture:
     items:
       - {id: i1, text: "deleting tombstones the account", kind: in_scope,

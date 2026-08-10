@@ -1,8 +1,11 @@
 brief.list
 model.consult
+model.load
 model.amend
 glossary.lookup
 code.probe
+decisions.search
 decisions.author
 msg.propose_gatekeeper
 msg.challenge_gatekeeper
+msg.question_terminologist

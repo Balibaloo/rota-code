@@ -33,6 +33,12 @@ class Ctx:
     conn: sqlite3.Connection
     role: str
     mode: str = "normal"
+    # Law 11 in one field. `observed` means extracted from an onboarded
+    # codebase — found, not chosen — and that is true of a survey session and
+    # of nothing else. It was an argument the model supplied, and Architect
+    # filled it with `deliver`: the name of the mode it was woken in. A field
+    # whose value is a fact about the session should be filled by the session.
+    provenance: str = "decided"
     session_id: str = ""
     batch_id: str | None = None
     entry_id: str | None = None
@@ -150,10 +156,10 @@ def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("problem", "assert")
-def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope",
-                   provenance: str = "decided") -> dict:
+def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict:
     ctx.writes.append(("items", id, {
-        "text": text, "kind": kind, "provenance": provenance, "approval": "draft"}))
+        "text": text, "kind": kind, "provenance": ctx.provenance,
+        "approval": "draft"}))
     return {"id": id}
 
 
@@ -197,10 +203,10 @@ def problem_consult(ctx: Ctx) -> list[dict]:
 
 @op("glossary", "amend")
 def glossary_amend(ctx: Ctx, id: str, term: str, sense_short: str,
-                   sense_body: str = "", provenance: str = "decided") -> dict:
+                   sense_body: str = "") -> dict:
     ctx.writes.append(("glossary_terms", id, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
-        "provenance": provenance}))
+        "provenance": ctx.provenance}))
     return {"id": id}
 
 
@@ -237,9 +243,9 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
 @op("model", "amend")
 def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
                 bindings: list[str] | None = None,
-                provenance: str = "decided") -> dict:
+                ) -> dict:
     ctx.writes.append(("constraints", id, {
-        "headline": headline, "text": text, "provenance": provenance,
+        "headline": headline, "text": text, "provenance": ctx.provenance,
         "is_global": 0 if bindings else 1}))
     for grain in bindings or []:
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
@@ -372,6 +378,7 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None) -> dict:
     """Criteria are written in glossary terms; term_refs is not decoration."""
+    _must_exist(ctx, "tickets", ticket_id)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,
         "term_refs": json.dumps(term_refs or [])}))
@@ -453,7 +460,16 @@ def batches_consult(ctx: Ctx) -> list[dict]:
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
                  path: str, body: str) -> dict:
-    """Criteria made executable, written before the diff exists."""
+    """
+    Criteria made executable, written before the diff exists.
+
+    Both references are checked here. A test naming a criterion that does not
+    exist fails a foreign key *inside the transaction* and takes the session
+    with it — the same shape as the invented item id, and recoverable for the
+    same reason: the model can be told and try again.
+    """
+    _must_exist(ctx, "batches", batch_id)
+    _must_exist(ctx, "criteria", criterion_id)
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))
@@ -558,6 +574,9 @@ def _head_commit(ctx: Ctx, batch_id: str) -> str | None:
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, id: str, batch_id: str, result: str,
                   failed_criterion: str | None = None, diff_ref: str = "") -> dict:
+    _must_exist(ctx, "batches", batch_id)
+    if failed_criterion:
+        _must_exist(ctx, "criteria", failed_criterion)
     ctx.writes.append(("verdicts", id, {
         "batch_id": batch_id, "result": result,
         "commit_sha": _head_commit(ctx, batch_id),

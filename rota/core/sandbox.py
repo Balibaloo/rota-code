@@ -223,7 +223,7 @@ def _attr_to_verb(attr: str) -> str:
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
-          entry_id: str | None = None,
+          entry_id: str | None = None, provenance: str = "decided",
           allow: list[str] | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
     """
@@ -238,7 +238,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         raise SandboxError(f"{role!r} is not a role in the graph")
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
-                  batch_id=batch_id, entry_id=entry_id)
+                  batch_id=batch_id, entry_id=entry_id, provenance=provenance)
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}

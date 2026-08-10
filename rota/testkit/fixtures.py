@@ -251,10 +251,43 @@ class CaseResult:
     outcome: RunOutcome | None = None
 
 
+def _with_repo(conn, case: dict, db_path: Path):
+    """
+    A real checkout, a worktree for the batch, and a diff to judge.
+
+    Critic reads a diff; Architect reads source; Developer writes files. A case
+    for any of them against a database with no repository is a case where the
+    role correctly declines to act, and reads as a failure. The first Critic
+    cases failed exactly that way — no worktree, so `code.read` returned an
+    empty diff, and refusing to judge what it cannot see is the right answer.
+    """
+    from . import gitfixture
+
+    spec = case["repo"]
+    root = Path(db_path).parent
+    repo = gitfixture.make(root, name=f"{case.get('id', 'case')}_repo")
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('project_root', ?)", (str(repo.root),))
+
+    batch_id = spec.get("batch") if isinstance(spec, dict) else None
+    if batch_id:
+        tree = repo.worktree(batch_id)
+        conn.execute("UPDATE batches SET worktree = ? WHERE id = ?",
+                     (str(tree), batch_id))
+        for rel, body in (spec.get("edit") or {}).items():
+            repo.edit(tree, rel, body)
+        if spec.get("edit"):
+            sha = repo.commit_in(tree, spec.get("message", "the batch's work"))
+            conn.execute("UPDATE batches SET head_commit = ? WHERE id = ?",
+                         (sha, batch_id))
+    return repo
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
+    repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None
 
     inbound = case.get("inbound") or {}
     msg_id = inbound.get("id", "m_in")
@@ -281,6 +314,10 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
         problems += check_same_session(conn, case["same_session"], outcome.session_id)
     if not outcome.committed and case.get("expect_commit", True):
         problems.append(f"session did not commit: {outcome.errors}")
+
+    if repo is not None:
+        from . import gitfixture
+        gitfixture.cleanup(repo)
 
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
