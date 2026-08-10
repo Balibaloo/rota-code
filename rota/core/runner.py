@@ -331,6 +331,10 @@ def run_session(
 
         transcript = [user]
         allowed = set(sb.functions())
+        # Which of them answer a question. The graph is the authority: a read
+        # edge is a read, whatever the verb happens to be called.
+        read_fns = {f"{e.t}.{e.v}" for e in (g or graph_mod.load()).of_type("reads")
+                    if e.s == wake.role}
 
         # Native function calling where the model supports it. This removes the
         # failure that cost the most with small models: dropping the TOOL:
@@ -357,7 +361,8 @@ def run_session(
                 break
 
             feedback = []
-            for call in calls:
+            held = []
+            for i, call in enumerate(calls):
                 if isinstance(call, toolproto.ToolError):
                     outcome.errors.append(call.reason)
                     feedback.append(f"ERROR {call.raw}: {call.reason}")
@@ -374,6 +379,28 @@ def run_session(
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
+
+                # A read ends the turn. Everything the model wrote after it was
+                # written without the answer, and running it would commit a
+                # decision to information the role does not have yet -- which was
+                # the single commonest fault in the suite: 309 of 598 multi-call
+                # completions acted after a read in the same breath. The Tester
+                # told a Developer its challenge was wrong having never seen the
+                # criterion it had just asked for.
+                #
+                # Only reads stop the turn. A run of writes is a role doing the
+                # thing it already decided to do -- Developer editing four files
+                # needs no round trip between them -- but a read followed by a
+                # commit must see its read first.
+                if call.name in read_fns and i + 1 < len(calls):
+                    held = [c.raw or getattr(c, "name", "?") for c in calls[i + 1:]]
+                    break
+
+            if held:
+                feedback.append(
+                    "NOT RUN, because the result above arrived after you wrote "
+                    f"them: {', '.join(held)}. Send them again if they are still "
+                    "what you want.")
 
             transcript.append(completion.text)
 
