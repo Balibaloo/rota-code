@@ -20,6 +20,7 @@ anything outside the codebase, and writing them up as constraints is how the
 review gate becomes noise that everybody learns to pass. If you cannot say who
 outside this repository would notice it being broken, it is not one.
 
-`surveys.attest` closes the area with citations naming the grains you read.
-`none_found` is a real answer and this is the mode where it is most often the
+`surveys.attest` closes the area with citations naming the grains you read. It
+is the last thing you do — one attestation per area, and the session ends with
+it. `none_found` is a real answer and this is the mode where it is most often the
 right one.

@@ -502,6 +502,15 @@ def run_session(
             if channels and channels <= used:
                 break
 
+            # A survey mode has no channels at all, so the rule above never fires
+            # and every survey ran to the iteration cap. Attesting is what closes
+            # an area -- the same shape as sending, in a mode that sends nothing
+            # -- and a session that kept going past it attested a second time
+            # under a second invented id. That was the top mechanism in the run:
+            # "expected writes to survey_records (1), got 2", three cases.
+            if any(w[0] == "survey_records" for w in sb.ctx.writes):
+                break
+
         result = SessionResult(
             session_id=session_id,
             role=wake.role,

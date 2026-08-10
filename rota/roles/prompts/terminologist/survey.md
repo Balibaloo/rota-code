@@ -17,8 +17,9 @@ becomes decided when the principal is shown it and does not object.
 identity in one module and the paying entity in another, write both. Collapsing
 them is a decision, and you are not in a mode where decisions are available.
 
-`surveys.attest` closes the area: the id, the area, `constraints_found` or
-`none_found`, and citations naming the grains you actually read. Citations are
+`surveys.attest` closes the area: the area, `constraints_found` or
+`none_found`, and citations naming the grains you actually read. It is the last
+thing you do — one attestation per area, and the session ends with it. Citations are
 checked against the index, so "surveyed, found nothing" is evidence rather than a
 claim — which matters, because "none found" everywhere is exactly how an area
 with real commitments in it gets skipped.

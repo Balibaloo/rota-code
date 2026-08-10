@@ -358,20 +358,24 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
 
 
 @op("surveys", "attest")
-def surveys_attest(ctx: Ctx, id: str, area: str, outcome: str,
+def surveys_attest(ctx: Ctx, area: str, outcome: str,
                    citations: list[str] | None = None) -> dict:
     """
     Record a survey. Citations are validated against the code index, so
     "surveyed, none found" is evidence rather than a claim — a lazy surveyor
     cannot starve constraint zero by asserting it everywhere.
 
-    The id is prefixed with the role, because `tick_survey` waits for a row per
-    role per area and finds it by that prefix. Derived rather than asked for: a
-    role has no way to know it is being counted, and one that guessed a
-    different prefix would be woken for the same area forever.
+    `outcome` is 'constraints_found' or 'none_found'.
+
+    The id is *derived*: one attestation per role per area, which is exactly what
+    `tick_survey` counts. It used to be asked for, prefixed with the role, and
+    that was enough rope to hang three cases with — a role that attested, kept
+    reading, and attested again under a second invented id left two rows for one
+    area and failed a case that asks for one. Re-attesting now replaces, which is
+    what "this is what I found in this area" means. A role has no way to know it
+    is being counted, so it should not be the one naming the count.
     """
-    if not id.startswith(f"{ctx.role}:"):
-        id = f"{ctx.role}:{id}"
+    id = f"{ctx.role}:{area}"
     ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
     unknown = []
     for grain in citations or []:
