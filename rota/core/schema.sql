@@ -274,6 +274,11 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
     test_id     TEXT NOT NULL REFERENCES tests(id),
     commit_sha  TEXT,                        -- the diff this run judged
     result      TEXT NOT NULL CHECK (result IN ('pass','fail','error')),
+    -- What the harness said. The word alone left Developer reading the test
+    -- body and guessing what red looked like -- the assertion that fired, the
+    -- value it got. From a criterion and a body there is nothing to tell "the
+    -- code is wrong" from "the test is wrong".
+    output      TEXT NOT NULL DEFAULT '',
     attempt     INTEGER NOT NULL DEFAULT 1
 );
 

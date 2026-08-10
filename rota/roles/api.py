@@ -485,16 +485,29 @@ def batches_consult(ctx: Ctx) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("tests", "encode")
-def tests_encode(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
-                 path: str, body: str) -> dict:
+def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
+                 batch_id: str | None = None) -> dict:
     """
     Criteria made executable, written before the diff exists.
+
+    `batch_id` defaults to the batch this session was woken for. Which batch a
+    test belongs to is the scheduler's, exactly as the worktree and the survey
+    area are: Tester is woken by `tests_missing` with the batch in the wake and
+    has no other batch it could mean. Asking for it produced `batch_id='12345'`
+    across five runs — the model reaching for a plausible-looking value because
+    a required argument had to be filled with something.
+
+    `criterion_id` stays required, because that one is a choice: which criterion
+    this test encodes is the whole judgement of the mode.
 
     Both references are checked here. A test naming a criterion that does not
     exist fails a foreign key *inside the transaction* and takes the session
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
+    batch_id = batch_id or ctx.batch_id
+    if not batch_id:
+        raise ValueError("no batch in this session and none given")
     _must_exist(ctx, "batches", batch_id)
     _must_exist(ctx, "criteria", criterion_id)
     ctx.writes.append(("tests", id, {
@@ -505,11 +518,31 @@ def tests_encode(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
 
 @op("tests", "load")
 def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    """
+    The batch's tests, each with what the harness last said about it.
+
+    The body alone was all a Developer got in `tests_failing`, so the role woken
+    to fix a red test could read what the test *asserts* and had to guess what
+    red looked like. Two L1 cases turn on exactly that — is the code wrong or is
+    the test wrong — and produced precisely swapped answers, which is the right
+    answer to a question nobody had given them the evidence for.
+
+    Only the latest run per test, and only when it is not passing. A green test
+    has nothing to say and its output is noise in a context that is already the
+    scarcest thing here.
+    """
     bid = batch_id or ctx.batch_id
     if not bid:
         return []
     return _rows(ctx.conn.execute(
-        "SELECT id, criterion_id, path, body FROM tests WHERE batch_id = ?", (bid,)))
+        "SELECT t.id AS id, t.criterion_id AS criterion_id, t.path AS path, "
+        "       t.body AS body, r.result AS last_result, "
+        "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said "
+        "FROM tests t "
+        "LEFT JOIN test_runs r ON r.id = ("
+        "    SELECT id FROM test_runs WHERE test_id = t.id "
+        "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
+        "WHERE t.batch_id = ?", (bid,)))
 
 
 @op("tests", "consult")

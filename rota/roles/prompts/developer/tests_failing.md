@@ -1,9 +1,11 @@
 MODE: tests_failing — the harness is red.
 
-**Read both before you touch anything.** `tests.load` for the failing tests and
-`criteria.load` for the criteria they are supposed to encode. A test is not the
-specification; it is somebody's attempt at writing one down, and the two-line
-check that follows is the only place a wrong attempt gets caught:
+**Read both before you touch anything.** `tests.load` gives you the failing
+tests *and what the harness said about each* — the assertion that fired and the
+value it got, not just the word "fail". `criteria.load` gives you what those
+tests are supposed to encode. A test is not the specification; it is somebody's
+attempt at writing one down, and the two-line check that follows is the only
+place a wrong attempt gets caught:
 
 > Does this test assert what its criterion asks for?
 

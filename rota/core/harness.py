@@ -76,19 +76,30 @@ def run(conn: sqlite3.Connection, batch_id: str,
     attempt = lifecycle.next_attempt(conn, batch_id)
 
     results: list[tuple[str, str]] = []
+    output: dict[str, str] = {}
     for t in tests:
-        results.append((t["id"], _run_one(root, t["path"], timeout)))
+        verdict, said = _run_one(root, t["path"], timeout)
+        results.append((t["id"], verdict))
+        output[t["id"]] = said
 
     head = lifecycle.head_of(conn, batch_id)
     for test_id, result in results:
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
-                                  result, attempt, commit_sha=head)
+                                  result, attempt, commit_sha=head,
+                                  output=output.get(test_id, ""))
     return results
 
 
-def _run_one(root: Path, path: str, timeout: int) -> str:
+def _run_one(root: Path, path: str, timeout: int) -> tuple[str, str]:
     """
-    One test file, one word.
+    One test file: one word, and what the harness actually said.
+
+    The word alone was all that was kept, and it left the Developer in
+    `tests_failing` reading the test *body* and guessing what red looked like —
+    the assertion that fired, the value it got, the traceback. Two L1 cases
+    turned on exactly that judgement and produced precisely swapped answers,
+    because from a criterion and a test body there is nothing to tell "the code
+    is wrong" from "the test is wrong".
 
     Every non-pass outcome that is not an ordinary failure — a timeout, a
     collection error, an interpreter that would not start — is `error` rather
@@ -104,11 +115,16 @@ def _run_one(root: Path, path: str, timeout: int) -> str:
         out = subprocess.run(
             [sys.executable, "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
             cwd=root, capture_output=True, text=True, timeout=timeout)
-    except (subprocess.TimeoutExpired, OSError):
-        return "error"
+    except subprocess.TimeoutExpired:
+        return "error", f"timed out after {timeout}s"
+    except OSError as exc:
+        return "error", str(exc)
 
+    # Tail rather than head: pytest puts the summary and the failing assertion
+    # at the end, and the beginning is collection chatter.
+    said = (out.stdout or out.stderr or "")[-2000:].strip()
     if out.returncode == EXIT_OK:
-        return "pass"
+        return "pass", said
     if out.returncode == EXIT_FAILED and "No module named pytest" not in out.stderr:
-        return "fail"
-    return "error"
+        return "fail", said
+    return "error", said

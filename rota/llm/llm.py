@@ -25,12 +25,21 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Protocol
 
-# Measured on the target box (RTX 3080) rather than assumed. At num_ctx=8192,
-# warm round-trip: llama3.1:8b 0.2s, qwen2.5:7b 0.3s, qwen3.5:9b >100s — the 9B
-# spills ~27% to CPU once its KV cache is allocated and stops being usable in a
-# test loop. Bigger is not better when it does not fit.
+# Measured on the target box (RTX 3080, 10 GB) rather than assumed. At
+# num_ctx=8192, warm round-trip: llama3.1:8b 0.2s, qwen2.5:7b 0.3s, qwen3.5:9b
+# >100s — the 9B spills ~27% to CPU once its KV cache is allocated and stops
+# being usable in a test loop. `gemma4:31b` needs about 20 GB and simply swaps.
+# Bigger is not better when it does not fit, and "does it fit" is a fact about
+# this machine, so it is measured here rather than argued about.
 DEFAULT_MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
-DEFAULT_NUM_CTX = int(os.environ.get("ROTA_NUM_CTX", "8192"))
+
+# 12k rather than 8k. The working set is pushed rather than fetched, and pushing
+# everything a role can read without being told anything — which is what makes
+# Critic able to review at all — put the largest prompts at ~9.2k tokens,
+# *above* the old window. They were being truncated from the front, silently,
+# and the front is the system prompt: the role losing its instructions is the
+# one failure that looks exactly like the role ignoring them.
+DEFAULT_NUM_CTX = int(os.environ.get("ROTA_NUM_CTX", "12288"))
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 
@@ -67,6 +76,12 @@ class Completion:
     backend: str = ""
     raw: dict = field(default_factory=dict)
     tool_calls: list = field(default_factory=list)   # list[NativeCall]
+    # The prompt did not fit and the provider dropped the overflow. Carried on
+    # the completion because there is nowhere else it could be noticed: a
+    # session briefed with half its instructions behaves exactly like a session
+    # ignoring them, and no assertion can tell those apart.
+    truncated: bool = False
+    prompt_tokens: int = 0
 
     @property
     def used_native_tools(self) -> bool:
@@ -140,6 +155,13 @@ class OllamaBackend:
         except urllib.error.URLError as exc:
             raise LLMUnavailable(f"ollama at {self.host}: {exc}") from exc
 
+        # Ollama reports how much of the prompt it actually evaluated. When that
+        # reaches the window the rest was dropped, and nothing else here would
+        # ever say so — the session just behaves as though it had been briefed
+        # differently, which is indistinguishable from a role misbehaving.
+        used = body.get("prompt_eval_count") or 0
+        truncated = used >= pins.num_ctx * 0.98
+
         message = body.get("message", {}) or {}
         native = []
         for call in message.get("tool_calls") or []:
@@ -155,6 +177,7 @@ class OllamaBackend:
         return Completion(
             text=message.get("content", ""),
             pins=pins, backend=self.name, raw=body, tool_calls=native,
+            truncated=truncated, prompt_tokens=used,
         )
 
 

@@ -334,6 +334,11 @@ def run_session(
             outcome.iterations = iteration
             completion = backend.complete(system, "\n\n".join(transcript), pins)
             outcome.completions.append(completion.text)
+            if getattr(completion, "truncated", False):
+                outcome.errors.append(
+                    f"prompt did not fit: {completion.prompt_tokens} tokens "
+                    f"evaluated against a {pins.num_ctx} window — the session "
+                    f"was briefed with less than it was given")
 
             calls = toolproto.extract_lenient(completion.text, allowed)
             if not calls:
@@ -370,6 +375,25 @@ def run_session(
                     "complete — emit no further tool calls."
                 )
             transcript.append("\n".join(feedback))
+
+            # And when saying so is not enough, stop.
+            #
+            # Asking nicely held for most modes and not for the ones that matter:
+            # Gatekeeper answering a scope inquiry sent `answer` three times with
+            # slightly different refs, which the duplicate guard cannot catch
+            # because they are three different messages. Every one after the
+            # first is the same answer restated, and the recipient has to
+            # reconcile three.
+            #
+            # The rule is structural rather than a count. A mode narrows to the
+            # channels its job needs, so a mode that has used all of them has
+            # said everything it was woken to say — one for `ask`, three for
+            # Liaison's broadcast, and no number written down anywhere.
+            channels = {f for f in allowed if f.startswith("msg.")}
+            used = {f"msg.{sandbox_mod._verb_to_attr(m['verb'])}_{m['to_role']}"
+                    for m in sb.ctx.outbound}
+            if channels and channels <= used:
+                break
 
         result = SessionResult(
             session_id=session_id,

@@ -126,7 +126,18 @@
       - {id: tst1, batch_id: b1, criterion_id: c1, path: test_bands.py,
          body: "assert line_total('SKU-1', 25) == round(price_for('SKU-1') * 25 * 0.9)"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: fail}
+      # What red actually looked like. Without it the role can read what the
+      # test asserts and not what happened, which is half the evidence for the
+      # one judgement this mode turns on.
+      - id: r1
+        batch_id: b1
+        test_id: tst1
+        commit_sha: abc123
+        result: fail
+        output: |
+          E       assert 25000 == 22500
+          E        +  where 25000 = line_total('SKU-1', 25)
+          1 failed in 0.04s
   expect:
     calls: [code.write, code.commit]
   forbidden:
@@ -186,7 +197,17 @@
       - {id: tst1, batch_id: b1, criterion_id: c1, path: test_close.py,
          body: "assert invoices_for(account_id) == []"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: fail}
+      # Red because the code keeps the invoices — which is what the criterion
+      # asked for. The output says so, and that is the tell.
+      - id: r1
+        batch_id: b1
+        test_id: tst1
+        commit_sha: abc123
+        result: fail
+        output: |
+          E       assert [Invoice(id='inv-1')] == []
+          E        +  where [Invoice(id='inv-1')] = invoices_for('acct-1')
+          1 failed in 0.03s
   expect:
     messages:
       - {to: tester, verb: challenge, count: ">=1"}

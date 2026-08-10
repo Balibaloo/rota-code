@@ -84,7 +84,7 @@ def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:
 
 def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
                     test_id: str, result: str, attempt: int = 1,
-                    commit_sha: str | None = None) -> None:
+                    commit_sha: str | None = None, output: str = "") -> None:
     """
     One test, one outcome.
 
@@ -94,11 +94,11 @@ def record_test_run(conn: sqlite3.Connection, run_id: str, batch_id: str,
     """
     conn.execute(
         "INSERT OR REPLACE INTO test_runs "
-        "(id, batch_id, test_id, commit_sha, result, attempt) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "(id, batch_id, test_id, commit_sha, result, attempt, output) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (run_id, batch_id, test_id,
          commit_sha if commit_sha is not None else head_of(conn, batch_id),
-         result, attempt))
+         result, attempt, output))
 
 
 def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:

@@ -277,3 +277,52 @@ def test_with_nothing_running_there_is_no_batch(project):
 
     db, _ = project
     assert _batch_of(db, Wake(role="developer", kind="message")) is None
+
+
+def test_a_test_run_keeps_what_the_harness_said(project):
+    """
+    The word `fail` was all that survived, so the role woken to fix a red test
+    could read what the test *asserts* and had to guess what red looked like.
+    Two L1 cases turn on exactly that judgement — is the code wrong or is the
+    test wrong — and answered it in precisely opposite directions, which is the
+    right outcome for a question nobody had given them the evidence for.
+    """
+    from rota.core import harness
+    from rota.core.sandbox import build
+
+    db, _ = project
+    lifecycle.start(db, "b1")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','test_prorate.py',?)",
+               ("from src.billing.charges import prorate\n\n"
+                "def test_rounds():\n    assert prorate(999, 1, 3) == 12345\n",))
+    build("developer", db, batch_id="b1").call("code.commit", message="baseline")
+
+    assert harness.run(db, "b1") == [("tst1", "fail")]
+
+    said = db.execute(
+        "SELECT output FROM test_runs WHERE test_id='tst1'").fetchone()["output"]
+    assert "333" in said and "12345" in said, said
+
+    # And it reaches the role, on the read the mode actually makes.
+    loaded = build("developer", db, batch_id="b1").call("tests.load")
+    assert loaded[0]["last_result"] == "fail"
+    assert "12345" in loaded[0]["said"]
+
+
+def test_a_passing_test_says_nothing(project):
+    """Green output is noise in the scarcest context there is."""
+    from rota.core import harness
+    from rota.core.sandbox import build
+
+    db, _ = project
+    lifecycle.start(db, "b1")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','test_prorate.py',?)",
+               ("from src.billing.charges import prorate\n\n"
+                "def test_rounds():\n    assert prorate(999, 1, 3) == 333\n",))
+    build("developer", db, batch_id="b1").call("code.commit", message="baseline")
+    harness.run(db, "b1")
+
+    loaded = build("developer", db, batch_id="b1").call("tests.load")
+    assert loaded[0]["last_result"] == "pass" and loaded[0]["said"] is None
