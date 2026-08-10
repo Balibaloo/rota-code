@@ -10,10 +10,15 @@ about to touch, and build it.
 3. `glossary.lookup` any term you are about to encode in a name, a schema or a
    message the user will read. A wrong sense costs more the further downstream it
    travels
-4. `code.probe` before you write. Cold sessions that guess the shape of the
+4. `code.probe` to find where the work lives, then `code.source` to read the
+   files you are about to change. Cold sessions that guess the shape of a
    codebase produce diffs that are correct in isolation and wrong in place
-5. `code.commit` — and commit as you go. An uncommitted change never existed, and
-   a preempted batch keeps exactly what it committed
+5. `code.write` puts a file back, whole. Read it, change it, write all of it —
+   there are no partial edits, because a patch that does not apply is a failure
+   you would have to re-derive from
+6. `code.commit` — and commit as you go. An uncommitted change never existed,
+   and a preempted batch keeps exactly what it committed. Committing nothing is
+   a legitimate outcome and says so; it is not an error to work around
 
 **Build the ticket, and nothing beside it.** If you notice something else that
 wants fixing, you have two honest options: leave it, or `msg.question_gatekeeper`

@@ -583,22 +583,21 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
 
     Structural review was asking Architect to judge whether a change satisfies a
     constraint while giving it only the code *index* — grain names and fan-in
-    counts. That is a collision detector wearing a reviewer's title: it can say a
-    diff touched a bound path, which is an intersection, not a judgement.
-    """
-    from pathlib import Path as _P
+    counts. That is a collision detector wearing a reviewer's title.
 
-    root = ctx.conn.execute(
-        "SELECT value FROM config WHERE key = 'project_root'").fetchone()
-    base = _P(root["value"].strip('"')) if root else _P(".")
-    target = (base / path).resolve()
-    if not str(target).startswith(str(base.resolve())):
-        raise ValueError(f"{path!r} escapes the project root")
+    It reads from the batch's worktree when there is one, and the project root
+    otherwise. Same act either way, so it is one verb: which tree you are
+    standing in is context, not a different operation. Developer reading its own
+    uncommitted work and Architect reading the mainline are the same question
+    asked from two places.
+    """
+    target = _within(_worktree_of(ctx), path)
     if not target.exists():
         return {"path": path, "error": "not found"}
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
-    return {"path": path, "start": start, "end": min(end, len(lines)),
-            "total_lines": len(lines), "text": chr(10).join(lines[start:end])}
+    end = min(end, len(lines))
+    return {"path": path, "start": start, "end": end,
+            "text": chr(10).join(lines[start:end]), "lines": len(lines)}
 
 
 @op("code", "diff")
@@ -625,18 +624,107 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         return {"batch": bid, "error": str(exc)}
 
 
+def _worktree_of(ctx, batch_id=None) -> "Path":
+    """
+    The batch's worktree, or the project root when there is no batch.
+
+    Developer always works inside one — one worktree per batch, one PR per batch
+    — and a write that landed in the project root instead would be a change
+    nobody reviewed on a branch nobody merged.
+    """
+    from pathlib import Path as _P
+
+    from ..core.worktrees import project_root
+
+    bid = batch_id or ctx.batch_id
+    if bid:
+        row = ctx.conn.execute(
+            "SELECT worktree FROM batches WHERE id = ?", (bid,)).fetchone()
+        if row and row["worktree"]:
+            return _P(row["worktree"])
+    return project_root(ctx.conn)
+
+
+def _within(base, path: str):
+    """Resolve `path` under `base`, refusing anything that escapes it."""
+    target = (base / path).resolve()
+    if not str(target).startswith(str(base.resolve())):
+        raise ValueError(f"{path!r} escapes the worktree")
+    return target
+
+
 @op("code", "read")
 def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
-    """The batch diff. Critic's entire view of the implementation."""
+    """
+    The batch diff. Critic's entire view of the implementation.
+
+    It used to return the batch row — id, worktree, head_commit — under this
+    same docstring, so the role whose whole job is judging a diff was being
+    handed three identifiers. The diff is computed from git, which is where
+    diffs come from.
+    """
+    from ..core import worktrees
+
     bid = batch_id or ctx.batch_id
     row = ctx.conn.execute(
         "SELECT id, worktree, head_commit FROM batches WHERE id = ?", (bid,)).fetchone()
-    return dict(row) if row else {}
+    if not row:
+        return {}
+    out = dict(row)
+    if row["worktree"]:
+        out["diff"] = worktrees.diff(row["worktree"])
+        out["touched"] = worktrees.touched(row["worktree"])
+    else:
+        out["diff"] = ""
+        out["note"] = "the batch has no worktree yet"
+    return out
+
+
+@op("code", "write")
+def code_write(ctx: Ctx, path: str, text: str) -> dict:
+    """
+    Write one file, whole, in this batch's worktree.
+
+    Whole-file rather than patch-shaped, deliberately. A patch that does not
+    apply is a failure the model must be told about and re-derive from, and
+    small models are far worse at producing a valid hunk than a correct file.
+    The diff is computed by git afterwards.
+
+    Not staged through `ctx.writes`: the filesystem is outside the transaction,
+    which is the carve-out law 4 already makes for the codebase. A session that
+    writes and then dies leaves the worktree ahead of the database, and boot
+    reconciles the two.
+    """
+    target = _within(_worktree_of(ctx), path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    existed = target.exists()
+    target.write_text(text, encoding="utf-8")
+    return {"path": path, "bytes": len(text.encode("utf-8")),
+            "created": not existed}
 
 
 @op("code", "commit")
-def code_commit(ctx: Ctx, batch_id: str, head_commit: str) -> dict:
-    """Record the commit the database now has a receipt for. Git itself is
-    outside the transaction; this is the marker boot reconciles against."""
-    ctx.writes.append(("batches", batch_id, {"head_commit": head_commit}, False))
-    return {"batch_id": batch_id, "head_commit": head_commit}
+def code_commit(ctx: Ctx, message: str) -> dict:
+    """
+    Commit the worktree, and record the sha the database now knows about.
+
+    Commit as you go. An uncommitted change never existed: preemption discards
+    the checkpoint and keeps the commits, so anything uncommitted is the only
+    work a reorder can actually destroy.
+
+    `committed: false` on an empty tree is not a failure. A session that read,
+    reasoned and concluded the code was already right has nothing to commit, and
+    an empty commit invented to have something to report would be worse.
+    """
+    from ..core import worktrees
+
+    if not ctx.batch_id:
+        raise ValueError("no batch: a commit belongs to one")
+    tree = _worktree_of(ctx)
+    sha = worktrees.commit(tree, message)
+    if sha is None:
+        return {"committed": False, "why": "nothing changed"}
+
+    ctx.writes.append(("batches", ctx.batch_id, {"head_commit": sha}, False))
+    return {"committed": True, "head_commit": sha,
+            "touched": worktrees.touched(tree)}

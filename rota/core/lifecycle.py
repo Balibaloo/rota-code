@@ -26,9 +26,25 @@ from . import config
 
 
 def start(conn: sqlite3.Connection, batch_id: str) -> None:
-    """Dispatch. Only reachable through `batch_start`, which already refused if
-    anything else was running."""
+    """
+    Dispatch. Only reachable through `batch_start`, which already refused if
+    anything else was running.
+
+    The worktree is made here, not by the Developer. Law 9 puts every decision
+    about a worktree's life outside the role — a role that could create its own
+    would be deciding where its work lives, which is a scheduling question
+    wearing a tool. A deferred batch keeps the one it had, which is what makes
+    resuming it a cold session in surviving work rather than a fresh start.
+    """
+    from . import worktrees
+
     conn.execute("UPDATE batches SET status = 'running' WHERE id = ?", (batch_id,))
+    try:
+        worktrees.create(conn, batch_id)
+    except worktrees.WorktreeError:
+        # No git, or no project root: the batch still runs. Boot reconciles a
+        # missing worktree the same way it reconciles a diverged one.
+        pass
 
 
 def defer(conn: sqlite3.Connection, batch_id: str) -> None:
@@ -44,9 +60,20 @@ def defer(conn: sqlite3.Connection, batch_id: str) -> None:
 
 
 def merge(conn: sqlite3.Connection, batch_id: str) -> None:
-    """Delivered. The end of the line for a batch, and the only terminal state
-    that means the work happened."""
+    """
+    Delivered. The end of the line for a batch, and the only terminal state that
+    means the work happened.
+
+    The worktree goes; the branch stays. Deleting the branch would make a merged
+    batch harder to inspect than an abandoned one.
+    """
+    from . import worktrees
+
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
+    try:
+        worktrees.destroy(conn, batch_id)
+    except worktrees.WorktreeError:
+        pass
 
 
 def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:

@@ -1297,6 +1297,25 @@
       "n": "term ambiguity",
       "rows": "single",
       "label": "it reads the glossary; it could not ask"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "writes",
+      "v": "write",
+      "n": "one file, whole",
+      "rows": "single",
+      "label": "whole-file: a hunk that does not apply is a failure to re-derive from"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "rows": "window",
+      "depth": "body",
+      "label": "its own worktree, including what it has not committed"
     }
   ],
   "contact_exceptions": [],
