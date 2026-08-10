@@ -493,7 +493,16 @@ def cases(dev_db: Path | None = None) -> list[dict]:
         situation["scaffolding"] = sorted(seeded_arts - reach)
         situation["fixtured"] = sorted(seeded_arts)
 
+        # How the role reaches what it was given, and what it writes to what
+        # is watched. Without these the role node sits unconnected: the picture
+        # showed the situation and the assertions and nothing joining them, so
+        # every case looked like a dimmed graph with a few islands lit.
+        roles_here = set(situation["roles"])
         edges = _edges_for(role, mode, case, g)
+        edges["reading"] = [[e.s, e.t, e.type, e.v] for e in g.of_type("reads")
+                            if e.s in roles_here and e.t in situation["given"]]
+        edges["writing"] = [[e.s, e.t, e.type, e.v] for e in g.of_type("writes")
+                            if e.s in roles_here and e.t in situation["watched"]]
         if chain:
             second_mode = fixtures.mode_of({**case["then"],
                                             "tick": case["then"].get("tick", "")})

@@ -214,15 +214,12 @@ function computeSpread() {
     list.sort((a, b) =>
       (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) ||
       (a.v || '').localeCompare(b.v || ''));
+    // Rank within the pair, not a signed offset. Which *side* a line bows to
+    // is decided at draw time by which way it runs, so direction is readable
+    // from position: everything left-to-right rides above the line between the
+    // boxes, everything right-to-left below it. Rank only says how far out.
     list.forEach((e, i) => {
-      const slot = list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 34;
-      // Canonical side: mirror when the edge runs against the sorted order, so
-      // both directions read off the same ruler.
-      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] = e.s === first ? slot : -slot;
-      // How many edges share this pair. A spread offset only separates lines
-      // if it straddles zero, and it was being *added* to a base bow of up to
-      // 46 -- so two parallel edges bowed 61 and 31, the same way, converging
-      // at both ends. With more than one edge the spread is the whole bow.
+      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] = i;
       GV.spreadN[`${e.s}|${e.t}|${e.type}|${e.v}`] = list.length;
     });
   }
@@ -267,7 +264,13 @@ function gvLit() {
   // the `refs` edges between two seeded artefacts are only drawn where the
   // seeded data really references seeded data.
   if (GV.source==='case' && GV.caseEdges) {
-    (GV.caseSituation?.links||[]).forEach(([a,b])=>lit.set(`${a}|${b}|refs`,'seeded'));
+    // How the situation hangs together, then how the role reaches into it,
+    // then what the case asserts. Without the middle layer the role node sat
+    // unconnected and the picture read as "everything dimmed" -- which it was,
+    // because the only lit things were islands.
+    (GV.caseSituation?.links||[]).forEach(([a,b])=>lit.set(`${a}|${b}|refs`,'past'));
+    (GV.caseEdges.reading||[]).forEach(e=>lit.set(ek(e),'seeded'));
+    (GV.caseEdges.writing||[]).forEach(e=>lit.set(ek(e),'now'));
     (GV.caseEdges.required||[]).forEach(e=>lit.set(ek(e),'now'));
     (GV.caseEdges.forbidden||[]).forEach(e=>lit.set(ek(e),'forbidden'));
     return lit;
@@ -402,10 +405,15 @@ function drawTeam() {
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
       const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
-      const off = GV.spread[key] || 0, n = GV.spreadN[key] || 1;
+      const rank = GV.spread[key] || 0, n = GV.spreadN[key] || 1;
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
       const len=Math.hypot(dx,dy)||1;
-      const bow = n > 1 ? off : Math.min(46, len*.13);
+      // The perpendicular (-dy, dx) points one way for a rightward edge and
+      // the other for a leftward one, so a single sign puts every L-to-R line
+      // above and every R-to-L line below without asking which is which.
+      const side = (Math.abs(dx) > Math.abs(dy) ? (dx >= 0 ? 1 : -1)
+                                                : (dy >= 0 ? 1 : -1));
+      const bow = side * (Math.min(34, len*.11) + rank * 30);
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
 
       // Start and end on the boxes, not in them. This drew centre to centre,
@@ -468,7 +476,11 @@ function drawTeam() {
     const given   = new Set(sit?.given||[]);
     const scaff   = new Set(sit?.scaffolding||[]);
     const watched = new Set(sit?.watched||[]);
-    const inCase = id => roles.has(id)||given.has(id)||scaff.has(id)||watched.has(id);
+    const touched = new Set();
+    if (sit) for (const k of ['reading','writing','required','forbidden'])
+      (GV.caseEdges?.[k]||[]).forEach(e=>{touched.add(e[0]); touched.add(e[1]);});
+    const inCase = id => roles.has(id)||given.has(id)||scaff.has(id)
+                      || watched.has(id)||touched.has(id);
     if (sit) dim = !inCase(n.id);
     // Scaffolding is present and unreachable, and should look it: a ticket
     // needs an item to exist, and Developer cannot read `problem` at all.
@@ -478,11 +490,13 @@ function drawTeam() {
       : sit && watched.has(n.id)           ? LENS.output
       : sit && given.has(n.id)             ? LENS.input
       : sit && scaff.has(n.id)             ? LENS.inert
+      : sit && touched.has(n.id)           ? LENS.output
       : claimed[n.id] ? LENS.actor
       : ready.has(n.id) ? LENS.output
       : blast&&blast.has(n.id) ? LENS.input
       : sh.stroke;
-    const hot = (sit && (roles.has(n.id)||given.has(n.id)||watched.has(n.id)))
+    const hot = (sit && (roles.has(n.id)||given.has(n.id)||watched.has(n.id)
+                         ||touched.has(n.id)))
       || ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
     // Key hover selects nodes the same way it selects edges — by kind, or by
