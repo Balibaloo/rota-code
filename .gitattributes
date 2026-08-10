@@ -1,4 +1,13 @@
-* text=auto
-*.py text eol=lf
-*.md text eol=lf
+# Normalise line endings on the way into git.
+#
+# Without this, every file written on Windows was staged CRLF and git warned
+# on each one — a wall of "CRLF will be replaced by LF" per commit, and enough
+# noise to bury anything worth reading in the same output.
+* text=auto eol=lf
+
+# Binary, and the one that matters: the cassette database is committed as
+# evidence and must never be touched by eol conversion.
+*.db binary
+*.zip binary
+*.png binary
 tests/rota/cassettes.db filter=lfs diff=lfs merge=lfs -text
