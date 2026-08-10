@@ -602,6 +602,7 @@ function showCase(id){
   if(sel && !sel.querySelector('option[value=case]'))
     sel.insertAdjacentHTML('beforeend','<option value="case">case</option>');
   if(sel) sel.value='case';
+  if(window.gvLegend) gvLegend();
   if(window.gvDraw) gvDraw();
 
   const hist = c.history.map((h,i)=>`
@@ -634,13 +635,12 @@ function showCase(id){
     ${c.repo?`<p class="sig pad">in a real checkout${
        c.onboarded?', indexed and partitioned':''}</p>`:''}
 
-    ${fold('what the role is told — standing brief',
-       `<pre>${esc(c.brief.base)}</pre>`)}
-    ${fold(`what the role is told — mode ${c.mode}`,
-       `<pre>${esc(c.brief.mode)}</pre>`)}
-    ${fold(`what the role may call — ${c.brief.tools.length} tools`,
+    ${fold('role prompt', `<pre>${esc(c.brief.base)}</pre>`)}
+    ${fold(`mode prompt — ${c.mode}`, `<pre>${esc(c.brief.mode)}</pre>`)}
+    ${fold(`tools — ${c.brief.tools.length}`,
        c.brief.tools.map(t=>`<div class="row">${esc(t)}</div>`).join(''))}
-    ${fold(`what the role is given — ${c.situation.seeded.length} artefact(s)`,
+    ${fold('message text', `<pre id="msgtext" class="empty">loading…</pre>`)}
+    ${fold(`fixtured data — ${c.situation.seeded.length} artefact(s)`,
        seededBlocks, true)}
     ${c.situation.links.length?`<p class="sig pad">linked by
        ${c.situation.links.map(l=>esc(l[2])).join(', ')}</p>`:''}
@@ -648,12 +648,24 @@ function showCase(id){
     <h4>expectations</h4>
     <div class="pad"><b>required</b></div>${edgeList(c.edges.required,'req')}
     <div class="pad"><b>forbidden</b></div>${edgeList(c.edges.forbidden,'forb')}
-    ${c.edges.impossible.length?`<p class="sig pad">Structurally impossible
-      anyway — the graph grants no such edge, so the case is guarding a door
-      with no doorway: ${c.edges.impossible.map(esc).join(', ')}</p>`:''}
+    ${c.edges.impossible.length?`<div class="pad"><b>impossible by construction</b>
+      </div><div class="sig pad">${c.edges.impossible.map(esc).join(', ')}</div>`:''}
     ${fold('the case as written', `<pre>${esc(c.source)}</pre>`)}
 
     <h4>runs</h4>${hist}`;
+
+  // The words actually placed in front of the model, assembled by the same
+  // functions a session uses. Fetched rather than served with every case: it
+  // costs a database and a sandbox each, and nobody wants fifty-nine at once.
+  fetch(`/message.json?id=${encodeURIComponent(c.id)}`)
+    .then(r => r.json()).then(m => {
+      const el = document.getElementById('msgtext');
+      if (!el) return;
+      el.className = '';
+      el.textContent = (m.user || '(none)') + `
+
+— ${m.tokens} tokens`;
+    }).catch(()=>{});
 }
 
 // Collapsed by default: the panel's job is the shape of the case at a glance,

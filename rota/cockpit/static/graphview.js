@@ -29,6 +29,19 @@ const ek = e => `${e[0]}|${e[1]}|${e[2]}`;
 
 // Entity kinds get different containers: a person is not a document is not a
 // journal, and the eye should not have to read the label to know which.
+// Where a ray leaves a node's box, in its own dimensions. Nodes are not one
+// size -- a role is 152x50 against a record's 172x42 -- so a shared constant
+// puts the point inside one of them.
+function onBox(id, dx, dy) {
+  const p = GV.layout[id];
+  const node = GV.graph.nodes.find(x => x.id === id);
+  const sh = SHAPE[node ? kindOf(node) : 'record'] || SHAPE.record;
+  const hw = sh.w / 2 + 2, hh = sh.h / 2 + 2;      // 2px so the head clears
+  const ax = Math.abs(dx) || 1e-6, ay = Math.abs(dy) || 1e-6;
+  const t = Math.min(hw / ax, hh / ay);
+  return { x: p.x + dx * t, y: p.y + dy * t };
+}
+
 function kindOf(n) {
   if (n.type === 'principal') return 'principal';
   if (n.type === 'role') return 'role';
@@ -338,8 +351,18 @@ function drawTeam() {
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
       const len=Math.hypot(dx,dy)||1, bow=Math.min(46,len*.13)+off;
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
-      d = `M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}`;
-      lx=(a.x+2*cx+b.x)/4; ly=(a.y+2*cy+b.y)/4;
+
+      // Start and end on the boxes, not in them. This drew centre to centre,
+      // so every arrowhead sat under the node's own fill -- an edge with no
+      // visible direction, for every read, write and message in the picture.
+      // (`refs` edges route through `refPath` and were always anchored; that
+      // is why fixing the anchor there changed nothing anybody could see.)
+      // A quadratic leaves A towards its control point and arrives at B from
+      // it, so those are the directions to clip along.
+      const A = onBox(e.s, cx-a.x, cy-a.y);
+      const B = onBox(e.t, cx-b.x, cy-b.y);
+      d = `M${A.x} ${A.y} Q${cx} ${cy} ${B.x} ${B.y}`;
+      lx=(A.x+2*cx+B.x)/4; ly=(A.y+2*cy+B.y)/4;
     }
 
     // Arrowheads are per type and match the edge colour. They were there all
@@ -550,7 +573,7 @@ function gvControls(){
     <button id="gfit">fit</button><button id="gsave">save layout</button>
     <span class="sig" id="gstatus"></span>`;
 
-  gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; gvMode('team');
+  gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; gvLegend(); gvMode('team');
     showTab('story'); syncStoryTab();};
   gfit.onclick=()=>{gvFit(); gvDraw();};
   gsave.onclick=saveLayout;
@@ -614,6 +637,14 @@ const LEGEND = [
   ]],
 ];
 
+// Shown only with a case open, because the three states mean nothing without
+// one — and with one open they are the whole picture.
+const CASE_LEGEND = ["case", [
+  ["under test", {ring:"live"},  "the role this case wakes. A chain case wakes two"],
+  ["given",      {ring:"blast"}, "seeded by the fixture. What the role was handed before it acted"],
+  ["watched",    {ring:"now"},   "the case asserts on writes here. A wrong read is a briefing problem; a wrong write is a judgement one"],
+]];
+
 function gvLegend() {
   const swatch = (c,dash) => `<svg width="30" height="8">
     <line x1="1" y1="4" x2="21" y2="4" stroke="${c}" stroke-width="2"
@@ -639,12 +670,15 @@ function gvLegend() {
     ready: `<i class="ring" style="border-color:${STATE.ready}"></i>`,
     live:  `<i class="ring" style="border-color:${STATE.live}"></i>`,
     blast: `<i class="ring" style="border-color:${STATE.blast}"></i>`,
+    now:   `<i class="ring" style="border-color:${STATE.now}"></i>`,
   };
+
+  const groups = GV.source === 'case' ? [...LEGEND, CASE_LEGEND] : LEGEND;
 
   const el = document.getElementById('glegend');
   el.innerHTML =
     `<div style="display:flex;gap:16px">` +
-    LEGEND.map(([group, items]) => `<div class="lgrp"><b>${group}</b>` +
+    groups.map(([group, items]) => `<div class="lgrp"><b>${group}</b>` +
       items.map(([label, sel, why], i) => {
         const glyph = mark[sel.edge || sel.kind || sel.ring];
         return `<span class="lkey" data-sel='${JSON.stringify(sel)}'

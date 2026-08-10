@@ -369,6 +369,63 @@ def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
             "impossible": impossible}
 
 
+def message_text(case_id: str) -> dict:
+    """
+    The prompt the session actually builds, for one case.
+
+    Everything else in the panel is *about* the session — who it is, what mode,
+    what it may call. This is the thing itself: the words placed in front of the
+    model, assembled by the same functions a real session uses, against a
+    database seeded from the case.
+
+    Built on request rather than served with every case, because it costs a
+    temporary database and a sandbox per case and almost nobody wants all
+    fifty-nine at once.
+    """
+    import tempfile
+
+    from ..core.db import init_db
+    from ..core.loop import _batch_of
+    from ..core.runner import build_prompt, push_working_set, resolve_inbound
+    from ..core.sandbox import build as build_sandbox
+    from ..core.scheduler import Wake
+
+    case = next((c for c in _cases() if c["id"] == case_id), None)
+    if case is None:
+        return {}
+
+    spec = case.get("first") or case
+    role = spec["role"]
+    mode = fixtures.mode_of(spec if case.get("first") else case)
+
+    conn = init_db(Path(tempfile.mkdtemp()) / "rota.db")
+    fixtures.seed(conn, case.get("fixture") or {})
+
+    inbound = case.get("inbound") or {}
+    msg_id = inbound.get("id", "m_in") if inbound else None
+    if inbound:
+        conn.execute(
+            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+            "body_refs, seq) VALUES (?,?,?,?,?,?,99)",
+            (msg_id, "t1", inbound["from"], inbound["to"], inbound["verb"],
+             json.dumps(inbound.get("body_refs", []))))
+
+    wake = Wake(role=role, kind="message", message_id=msg_id,
+                refs=tuple(case.get("refs") or ()),
+                detail=inbound.get("verb") or case.get("tick", ""))
+    sb = build_sandbox(role, conn, batch_id=_batch_of(conn, wake),
+                       area=wake.refs[0] if case.get("tick") == "survey" else None,
+                       allow=prompts.mode_tools(role, mode))
+    pushed = push_working_set(role, sb, wake)
+    system, user = build_prompt(role, sb, wake, pushed,
+                                prompts.compose(role, mode),
+                                resolve_inbound(conn, wake))
+    conn.close()
+    return {"system": system, "user": user,
+            "chars": len(system) + len(user),
+            "tokens": (len(system) + len(user)) // 4}
+
+
 def _woken(case: dict) -> str:
     """One sentence saying what put this role in this mode.
 

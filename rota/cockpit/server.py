@@ -284,6 +284,11 @@ def make_handler(db_path: Path):
                         "missing": [str(k) for k in sorted(rep.missing, key=str)],
                     }).encode("utf-8")
                     self._send(body, "application/json")
+                elif path == "/message.json":
+                    body = json.dumps(
+                        progress.message_text(q.get("id", [""])[0]),
+                        default=str).encode("utf-8")
+                    self._send(body, "application/json")
                 elif path == "/cases.json":
                     body = json.dumps(progress.cases(),
                                       default=str).encode("utf-8")
