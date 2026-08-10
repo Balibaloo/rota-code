@@ -178,3 +178,53 @@
     # is no route back down that is not exactly that.
     recipients: [developer, architect, critic, tester]
     writes: [constraints, criteria, tickets]
+
+# The rung above the last one. Gatekeeper has just sent the report the case
+# above expects, and there is nobody left below the principal.
+#
+# `report` is a *message* verb, and this is the only wake that produces it: a
+# report inside a broadcast round is harvested at round close and never tips.
+# The mode used to be cased as `tick: report`, which is not a predicate, so the
+# harness built a wake with no message and Liaison was graded on deduping
+# reports it was shown none of.
+- id: L2-LI-carry-the-block-to-the-principal
+  tier: T2
+  role: liaison
+  runs: 5
+  pass: 3
+  inbound: {id: <m_rep>, from: gatekeeper, to: liaison, verb: report,
+            thread: t1, body_refs: [<c1>, <k1>]}
+  fixture:
+    items:
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "export invoices"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "the export contains every invoice field",
+         term_refs: '[]'}
+    constraints:
+      - {id: <k1>, headline: "card numbers never leave the payments boundary",
+         text: "PCI: a full card number may not appear in any export.",
+         provenance: decided, is_global: 1}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    messages:
+      - {id: <m_esc>, thread_id: t1, from_role: developer, to_role: architect,
+         verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
+      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: gatekeeper,
+         verb: challenge, body_refs: '["<b1>","<k1>"]', seq: 2, status: answered}
+  expect:
+    # One question, carrying both halves of the collision. A question that names
+    # only the criterion or only the constraint is not answerable: the principal
+    # cannot choose between two things when they have been shown one.
+    messages:
+      - {to: principal, verb: clarify, count: 1, refs_include: [<c1>, <k1>]}
+  forbidden:
+    # There is no rung below and nothing here is Liaison's to settle. Choosing
+    # between the criterion and the commitment is the ruling being asked for,
+    # and taking it is the system answering its own question.
+    writes: [criteria, constraints, items, decisions]
+    recipients: [gatekeeper, architect, developer, terminologist]

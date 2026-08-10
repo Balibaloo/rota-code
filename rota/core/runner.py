@@ -130,9 +130,11 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         f"do not build it out of an id you were shown. An id for something that "
         f"already exists must be one you were given: an invented one names no "
         f"row and the call cannot land.\n"
-        f"Results come back on your next turn, never inside this one. So if what "
-        f"you do next depends on what a call returns, that call is the last "
-        f"thing you write — anything after it was decided without it.\n"
+        f"Results come back on your next turn, never inside this one. Ask for "
+        f"everything you need to know in one go — several questions cost one "
+        f"turn. But once you have asked anything, stop: what you do about the "
+        f"answers is next turn's work, and anything you write now was decided "
+        f"without them.\n"
         f"Emit no tool calls when you are done."
     )
 
@@ -422,6 +424,7 @@ def run_session(
 
             feedback = []
             held = []
+            seen_read = False
             for i, call in enumerate(calls):
                 if isinstance(call, toolproto.ToolError):
                     outcome.errors.append(call.reason)
@@ -432,6 +435,27 @@ def run_session(
                     outcome.errors.append(err.reason)
                     feedback.append(f"ERROR {call.raw}: {err.reason}")
                     continue
+
+                # Acting on a read you have not seen is the fault here, and it
+                # was the commonest one in the suite: 309 of 598 multi-call
+                # completions did it. The Tester told a Developer its challenge
+                # was wrong having never seen the criterion it had just asked for.
+                #
+                # So the *action* is held, not the turn. Reads all run: gathering
+                # four answers costs one round trip, and the role decides once it
+                # has them. Stopping at the first read instead cost a turn per
+                # read, and the model spent them re-sending a batch that led with
+                # another read every time -- four turns to reach a write it had
+                # already written correctly in the first one, by which point it
+                # believed the held calls had run.
+                #
+                # A run of writes still runs: a role editing four files has
+                # already decided, and needs no round trip between them.
+                if seen_read and call.name not in read_fns:
+                    held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
+                    break
+                seen_read = seen_read or call.name in read_fns
+
                 try:
                     result = sb.call(call.name, *call.pos, **call.args)
                     feedback.append(f"OK {call.name} -> "
@@ -440,27 +464,11 @@ def run_session(
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
 
-                # A read ends the turn. Everything the model wrote after it was
-                # written without the answer, and running it would commit a
-                # decision to information the role does not have yet -- which was
-                # the single commonest fault in the suite: 309 of 598 multi-call
-                # completions acted after a read in the same breath. The Tester
-                # told a Developer its challenge was wrong having never seen the
-                # criterion it had just asked for.
-                #
-                # Only reads stop the turn. A run of writes is a role doing the
-                # thing it already decided to do -- Developer editing four files
-                # needs no round trip between them -- but a read followed by a
-                # commit must see its read first.
-                if call.name in read_fns and i + 1 < len(calls):
-                    held = [c.raw or getattr(c, "name", "?") for c in calls[i + 1:]]
-                    break
-
             if held:
                 feedback.append(
-                    "NOT RUN, because the result above arrived after you wrote "
-                    f"them: {', '.join(held)}. Send them again if they are still "
-                    "what you want.")
+                    "NOT RUN, because you wrote them before the answers above "
+                    f"came back: {', '.join(held)}. You have the answers now. "
+                    "Send them again if they are still what you want.")
 
             transcript.append(completion.text)
 

@@ -70,6 +70,18 @@ def mechanism(text: str) -> tuple[str, str]:
     return "other", "unknown - read the transcript"
 
 
+def _live_case_ids() -> set[str]:
+    """Case ids the suite still has. Empty if the files cannot be read, which
+    leaves the old behaviour rather than silently reporting nothing."""
+    try:
+        from ..testkit import fixtures
+
+        return {c["id"] for p in sorted(paths.CASES.glob("*.yaml"))
+                for c in (fixtures.load_case(p) or [])}
+    except Exception:
+        return set()
+
+
 def last_runs(conn: sqlite3.Connection, prefix: str = "") -> list[sqlite3.Row]:
     """The most recent execution of each case, and nothing older.
 
@@ -80,15 +92,24 @@ def last_runs(conn: sqlite3.Connection, prefix: str = "") -> list[sqlite3.Row]:
 
     Older rows are also a different harness. Mixing them in makes a fixed bug
     look like a live one, which is exactly the mistake this exists to prevent.
+
+    A case that has been renamed or deleted keeps its rows forever, and they read
+    as a live 0/5 that no suite can ever turn green. One of those sat at the top
+    of the failing list and cost a debugging session before it turned out to be
+    the *old name* of a case sitting two lines below it, passing. The case files
+    are the authority for what a case is.
     """
     rows = conn.execute(
         "SELECT case_id, run_no, passed, problems, transcript, seq, "
         "       model, prompt_hash FROM case_runs ORDER BY seq DESC").fetchall()
+    live = _live_case_ids()
     seen: dict[str, set[int]] = collections.defaultdict(set)
     out = []
     for r in rows:                                   # newest first
         cid = r["case_id"]
         if prefix and not cid.startswith(prefix):
+            continue
+        if live and cid not in live:                 # renamed or deleted
             continue
         if r["run_no"] in seen[cid]:                 # the pass before this one
             continue

@@ -39,6 +39,10 @@ COVERAGE_FILE = REPO / ".rota-coverage.json"
 # a model did on a given prompt.
 DEV_DB = REPO / "tests" / "rota" / "cassettes.db"
 
+# The case files, for the same reason: they are the authority on what a case is,
+# so a tool reading recorded runs can tell a live case from a renamed one.
+CASES = REPO / "tests" / "rota" / "cases"
+
 # The design documents this was built from. Outside the package on purpose —
 # they are the source, not the product.
 DOCS = REPO / "rota_tui"
