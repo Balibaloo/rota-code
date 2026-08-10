@@ -147,6 +147,27 @@ and then record that a commit happened which never did.
 - [ ] **3Bd · environment.** Law 9's *"processes and ports die with it;
       half-dead environments are forbidden"* has no implementation. **Still
       open** — nothing spawns a process yet, so nothing can orphan one
+
+      Four things to define before any of it is written, because an environment
+      is the first thing in this system that outlives the session that made it,
+      and every other guarantee here rests on a session being a pure function:
+
+      - **separation** — what an environment belongs to. A batch has a worktree;
+        does it have one environment, or one per run? Two batches must never
+        reach each other's ports, and the answer decides whether port
+        allocation is owned by the batch or by the scheduler
+      - **boundary** — what is inside it and what is merely near it. A process
+        the session started is inside. A database the whole machine shares is
+        not, and must not be torn down with it. The line has to be stated
+        before teardown is written or teardown will cross it
+      - **toolkit** — the verbs a role gets: start, stop, status, logs, and
+        nothing that lets a role reach a *different* batch's environment. Same
+        rule as every other namespace — the capability does not exist rather
+        than being refused
+      - **hooks** — where lifecycle attaches. Spawn on `batch_start`, teardown
+        on the batch's terminal states *and* on crash, since a session that
+        dies mid-flight is exactly the case Law 9 names. Crash teardown cannot
+        be a session's own responsibility: it is not running
 - [x] **3Be** then the harness and fixtures from 3.4
 
 **Two consequences.** This is a bigger stage than 7 — it is the only place the
