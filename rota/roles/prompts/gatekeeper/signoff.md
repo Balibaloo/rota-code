@@ -7,7 +7,7 @@ Submit them together. The principal is approving an *interpretation*, and an
 interpretation is read whole — an in-scope item makes sense against the out-of-scope ones
 beside it, not on its own.
 
-Do not approve them yourself. `problem.set_approval` is for applying the principal's
-ruling once it comes back, not for granting your own work.
+Do not approve them yourself. Approval is the principal's, applied once their
+ruling comes back — never granted to your own work.
 
 One submit, then stop.

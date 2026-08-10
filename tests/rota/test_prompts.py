@@ -180,3 +180,33 @@ def test_every_operation_is_mentioned_in_some_prompt():
         if missing:
             unbriefed[role] = missing
     assert not unbriefed, unbriefed
+
+
+def test_a_mode_names_no_function_it_does_not_offer():
+    """
+    Narrowing is enforcement; prose is not.
+
+    A mode file that names `code.write` is either briefing the model to use it —
+    in which case the tool list must offer it — or warning the model off it, in
+    which case naming it is a mistake of a subtler kind: the narrowing already
+    made the call impossible, and all the sentence achieves is putting a
+    function the model cannot call into the model's head.
+
+    Both faults were live. Developer's `tests_failing` and `verdict_failed` said
+    "fix the code" with no `code.write` in reach. Gatekeeper's `signoff` and
+    Liaison's `verdict` spent a paragraph each forbidding a function the tool
+    list had already withheld.
+    """
+    import re
+
+    named_but_absent = {}
+    for role in sorted(graph_mod.load().roles):
+        for mode in prompts.available(role):
+            offered = prompts.mode_tools(role, mode)
+            if offered is None:
+                continue                  # un-narrowed: the role's whole namespace
+            named = set(re.findall(r"`([a-z_]+\.[a-z_]+)`", prompts.piece(role, mode)))
+            missing = sorted(named - set(offered))
+            if missing:
+                named_but_absent[f"{role}/{mode}"] = missing
+    assert not named_but_absent, named_but_absent

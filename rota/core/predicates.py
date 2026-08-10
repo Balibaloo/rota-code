@@ -379,6 +379,40 @@ def tests_failing(conn) -> list[Wake]:
             for r in rows if (r["att"] or 1) < cap]
 
 
+@predicate("reopen", wakes="developer", band="fix",
+           drains=[("batches", "status", "running"),
+                   ("batches", "status", "deferred")])
+def reopen(conn) -> list[Wake]:
+    """
+    A batch whose item stopped being approved under it.
+
+    Revocation had one half. `batch_start` refuses to *start* a batch whose item
+    is no longer approved, and nothing at all happened to one already running —
+    so the Developer kept building against a withdrawn specification, Critic
+    judged it against withdrawn criteria, and it merged. The half that was
+    missing is the expensive one, because it is the only case where work is
+    actively being done against something nobody wants any more.
+
+    `reopen` had a graph edge and a prompt file describing the election in
+    detail, and no producer. This is it.
+
+    It goes quiet once the election is in flight: the Developer answers with
+    `msg.elect_gatekeeper`, and re-asking while that message is unread would put
+    the same decision on the frontier every pass.
+    """
+    rows = conn.execute(
+        "SELECT b.id AS bid, b.item_id AS iid FROM batches b "
+        "JOIN items i ON i.id = b.item_id "
+        "WHERE b.status IN ('running','deferred') "
+        "  AND (i.approval != 'approved' OR i.approval_ver < i.version) "
+        "  AND NOT EXISTS (SELECT 1 FROM messages m "
+        "                  WHERE m.from_role = 'developer' AND m.verb = 'elect' "
+        "                    AND m.body_refs LIKE '%' || b.id || '%')"
+    ).fetchall()
+    return [Wake("developer", "tick:reopen", refs=(r["bid"], r["iid"]))
+            for r in rows]
+
+
 # Law 6's ladder, and the only place it is written down as a sequence. Each rung
 # is a role that can be *asked*, in the order a question climbs.
 LADDER = ("developer", "architect", "gatekeeper")

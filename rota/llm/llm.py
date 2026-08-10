@@ -92,6 +92,19 @@ class OllamaBackend:
 
     name = "ollama"
 
+    # A turn emits a handful of tool calls. Anything past this is a model that
+    # has started narrating and will keep going until the context is full —
+    # which presents as a 300-second hang rather than as a bad answer, and cost
+    # two L1 cases their whole run before it was capped. Deliberately generous:
+    # a cap that is never reached changes no output, and one that is reached has
+    # already told you something went wrong.
+    #
+    # Not a `Pins` field on purpose. Pins identify what was asked, and every
+    # cassette is keyed by them; a guard rail on runaway generation is a
+    # property of the transport, and putting it in the key would invalidate
+    # every recording in the repository to record the same completions again.
+    max_tokens = 2048
+
     def __init__(self, host: str = OLLAMA_HOST, timeout: float = 300.0):
         self.host = host.rstrip("/")
         self.timeout = timeout
@@ -101,7 +114,8 @@ class OllamaBackend:
         payload = {
             "model": pins.model,
             "stream": False,
-            "options": {"temperature": pins.temperature, "num_ctx": pins.num_ctx},
+            "options": {"temperature": pins.temperature, "num_ctx": pins.num_ctx,
+                        "num_predict": self.max_tokens},
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -117,6 +131,12 @@ class OllamaBackend:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError as exc:
+            # Raised bare by the socket layer rather than wrapped, so without
+            # this it surfaced as `session failed: TimeoutError` — a bug report
+            # against the system for something the model did.
+            raise LLMUnavailable(
+                f"ollama at {self.host}: no answer in {self.timeout:.0f}s") from exc
         except urllib.error.URLError as exc:
             raise LLMUnavailable(f"ollama at {self.host}: {exc}") from exc
 

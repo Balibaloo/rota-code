@@ -233,3 +233,47 @@ def test_starting_without_a_root_does_not_touch_any_repository(tmp_path):
     row = db.execute("SELECT status, worktree FROM batches WHERE id='b1'").fetchone()
     assert row["status"] == "running"
     assert row["worktree"] is None
+
+
+# ---------------------------------------------------------------------------
+# Which worktree the session works in
+# ---------------------------------------------------------------------------
+
+def test_a_fix_wake_resolves_its_batch(project):
+    """
+    `batch_id` was read as `refs[0] if kind == "tick:batch_start"`, so only the
+    mode that *creates* a worktree got one. Developer woken by `tests_failing`
+    or `verdict_failed` — both of which name the batch in `refs` — arrived with
+    nothing to work in, and Critic, whose entire job is reading a diff, arrived
+    the same way.
+    """
+    from rota.core.loop import _batch_of
+    from rota.core.scheduler import Wake
+
+    db, _ = project
+    lifecycle.start(db, "b1")
+
+    for kind in ("tick:tests_failing", "tick:verdict_failed", "tick:review"):
+        wake = Wake(role="developer", kind=kind, refs=("b1",))
+        assert _batch_of(db, wake) == "b1", kind
+
+
+def test_a_message_wake_lands_in_the_running_batch(project):
+    """A challenge from Critic names a finding, not a batch. There is only ever
+    one batch running — `batch_start` refuses while anything else is — so the
+    answer is unambiguous without the role choosing it."""
+    from rota.core.loop import _batch_of
+    from rota.core.scheduler import Wake
+
+    db, _ = project
+    lifecycle.start(db, "b1")
+
+    assert _batch_of(db, Wake(role="developer", kind="message", refs=("f1",))) == "b1"
+
+
+def test_with_nothing_running_there_is_no_batch(project):
+    from rota.core.loop import _batch_of
+    from rota.core.scheduler import Wake
+
+    db, _ = project
+    assert _batch_of(db, Wake(role="developer", kind="message")) is None

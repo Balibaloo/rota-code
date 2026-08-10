@@ -22,9 +22,9 @@ each carrying the ratified statement ids. Broadcast to **all three**, always. Yo
 do not decide which of them a statement concerns — that judgement is theirs, and a
 role with nothing to say simply says nothing.
 
-You are not presenting anything to the principal in this mode, and you are not asking
-them anything. `msg.present_principal` belongs to signoff and `msg.clarify_principal` to
-harvest; using either here means you have mistaken which mode you are in.
+You are not presenting anything to the principal in this mode, and you are not
+asking them anything. Presenting belongs to signoff and clarifying to harvest;
+reaching for either here means you have mistaken which mode you are in.
 
 A vague statement is not your problem. If nobody can build "make it better", Gatekeeper
 or Terminologist will report that after you broadcast. Broadcasting a vague statement is

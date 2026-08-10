@@ -69,8 +69,7 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     Sampled, with a threshold. The count is kept rather than a bare boolean so a
     drift from 5/5 to 3/5 is visible as the regression it is.
     """
-    instructions = prompts.compose(
-        case["role"], case.get("inbound", {}).get("verb") or case.get("tick", ""))
+    instructions = prompts.compose(case["role"], fixtures.mode_of(case))
 
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=PINS, instructions=instructions)
@@ -93,6 +92,26 @@ def test_the_obligation_set_comes_from_the_graph():
     because the design emits it."""
     counts = obligations.summary()
     assert counts["L1"] > 100 and counts["L2"] > 40 and counts["L3"] > 200
+
+
+def test_every_mode_has_a_case():
+    """
+    One case per prompt piece, which is the unit a pass-rate drop is
+    attributable to.
+
+    Stronger than it looks: a mode is a role plus what woke it, and the modes are
+    enumerable from the graph rather than from a list somebody maintains. Adding
+    a mode file with no case turns this red, which is the point — the modes that
+    went longest without one were Developer's, and both of them had tool lists
+    that could not do what the prose asked.
+    """
+    covered = {(c["role"], fixtures.mode_of(c)) for c in _cases()}
+    missing = sorted(
+        f"{role}/{mode}"
+        for role in prompts.check_coverage.__globals__["graph_mod"].load().roles
+        for mode in prompts.available(role)
+        if (role, mode) not in covered)
+    assert not missing, f"{len(missing)} mode(s) with no L1 case: {missing}"
 
 
 @pytest.mark.skipif(True, reason="the obligation set is not yet fully covered")

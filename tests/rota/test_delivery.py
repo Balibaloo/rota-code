@@ -444,3 +444,70 @@ def test_the_judgement_records_what_it_judged(db):
 
     values = sb.ctx.writes[-1][2]
     assert values["commit_sha"] == "abc123"
+
+
+# ---------------------------------------------------------------------------
+# Revocation, the half that was missing
+# ---------------------------------------------------------------------------
+
+def _revoked_wakes(db):
+    from rota.core.predicates import reopen
+    return reopen(db)
+
+
+def test_a_running_batch_whose_item_lost_approval_reopens(tmp_path):
+    """
+    `batch_start` refused to start a batch whose item was no longer approved,
+    and nothing touched one already running. The Developer went on building
+    against a withdrawn specification and Critic judged it against withdrawn
+    criteria — the one case where work is actively being done against something
+    nobody wants.
+    """
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) "
+               "VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    assert not _revoked_wakes(db), "an approved item is not a revocation"
+
+    db.execute("UPDATE items SET approval='draft', version=2 WHERE id='i1'")
+
+    wakes = _revoked_wakes(db)
+    assert [w.role for w in wakes] == ["developer"]
+    assert wakes[0].kind == "tick:reopen"
+    assert set(wakes[0].refs) == {"b1", "i1"}
+
+
+def test_an_approval_that_predates_the_amendment_also_reopens(tmp_path):
+    """Approved, then amended, then never re-approved: `approval` still reads
+    'approved' and means nothing, because it approved an older version."""
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) "
+               "VALUES ('i1','x','in_scope','decided','approved',1,3)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+
+    assert _revoked_wakes(db), "approval_ver behind version is a stale approval"
+
+
+def test_it_goes_quiet_once_the_election_is_in_flight(tmp_path):
+    """The Developer answers with `msg.elect_gatekeeper`. Asking again while
+    that message is unread would put the same decision on the frontier every
+    pass, which is how a fix band becomes a spin."""
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) "
+               "VALUES ('i1','x','in_scope','decided','draft',1,2)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    assert _revoked_wakes(db)
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m1','t1','developer','gatekeeper','elect','[\"b1\"]',1)")
+    assert not _revoked_wakes(db)

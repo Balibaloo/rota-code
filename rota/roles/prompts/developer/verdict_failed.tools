@@ -1,6 +1,9 @@
 verdicts.load
 criteria.load
 code.probe
+code.source
+code.write
 code.commit
+ledger.log
 msg.question_gatekeeper
 msg.question_terminologist

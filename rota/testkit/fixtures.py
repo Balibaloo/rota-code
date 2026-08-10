@@ -20,9 +20,11 @@ Case format (YAML, per TESTS.md §5):
       writes:
         items: [{kind: scope, count: ">=1"}]
       messages: []
+      calls: [transcript.quote]
     forbidden:
       writes: [glossary_terms, constraints]
       recipients: [principal, developer, critic]
+      calls: [code.write]
     same_session: [items, decisions]
 
 `forbidden:` is not optional garnish. Most laws here are prohibitions, and a case
@@ -174,6 +176,21 @@ def check(case: dict, delta: Delta) -> list[str]:
     expect = case.get("expect", {})
     forbidden = case.get("forbidden", {})
 
+    # Several modes have two right answers and no third. Gatekeeper handed a
+    # refactor proposal either asserts it as an item or authors a decision
+    # refusing it; what it must not do is nothing, because Architect is blocked
+    # and will not ask twice. Written as two separate cases that would be two
+    # fixtures pretending to be different situations, so the alternation lives
+    # here instead: at least one branch must hold, and "neither" is the failure
+    # the case exists to catch.
+    branches = expect.get("any_of") or []
+    if branches:
+        if all(check({"expect": b, "forbidden": {}}, delta) for b in branches):
+            problems.append(
+                "none of the permitted answers was given; "
+                f"wrote {sorted(delta.writes)}, sent "
+                f"{[(m['to_role'], m['verb']) for m in delta.messages]}")
+
     for table, specs in (expect.get("writes") or {}).items():
         rows = delta.writes.get(table, [])
         for spec in (specs if isinstance(specs, list) else [specs]):
@@ -194,6 +211,16 @@ def check(case: dict, delta: Delta) -> list[str]:
             need = set(spec.get("refs_include") or [])
             if need and not need <= set(json.loads(m["body_refs"])):
                 problems.append(f"message {m['id']} missing refs {need}")
+
+    # A judgement is only as good as what it was grounded in. Two thirds of the
+    # L1 obligation set are reads — `code.read`, `criteria.load`, `model.load` —
+    # and none of them deserves a case of its own, because reading is a means,
+    # never an end. They ride here instead: a verdict emitted without loading the
+    # criterion it judges against is a guess that happened to be checkable.
+    called = set(delta.tool_calls)
+    for fn in expect.get("calls") or []:
+        if fn not in called:
+            problems.append(f"expected a call to {fn}; called {sorted(called)}")
 
     # --- the negative half ---------------------------------------------------
     if "forbidden" not in case:
@@ -218,6 +245,10 @@ def check(case: dict, delta: Delta) -> list[str]:
                     and m["verb"] == spec.get("verb", m["verb"])):
                 problems.append(
                     f"forbidden message {m['verb']} to {m['to_role']}")
+
+    for fn in forbidden.get("calls") or []:
+        if fn in called:
+            problems.append(f"forbidden call to {fn}")
 
     for table in forbidden.get("versions") or []:
         if table in delta.versions_moved:
@@ -283,6 +314,22 @@ def _with_repo(conn, case: dict, db_path: Path):
     return repo
 
 
+def mode_of(case: dict) -> str:
+    """
+    Which prompt piece the case exercises.
+
+    Normally derivable — a message case is keyed by its verb, a tick case by the
+    tick — and `prompt:` exists for the one shape that is not. Liaison's
+    `verdict_signoff` is the principal's `verdict` verb keyed by what it answers,
+    so deriving it from the verb alone loads the ratification prompt and grades
+    the wrong mode. Writing that out is better than a case that silently tests
+    something other than what its id says.
+    """
+    if case.get("prompt"):
+        return case["prompt"]
+    return (case.get("inbound") or {}).get("verb") or case.get("tick", "")
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
@@ -293,19 +340,28 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     msg_id = inbound.get("id", "m_in")
     if inbound:
         conn.execute(
-            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, seq) "
-            "VALUES (?, ?, ?, ?, ?, ?, 1)",
+            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+            "body_refs, cause_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?, 99)",
             (msg_id, inbound.get("thread", "t1"), inbound["from"], inbound["to"],
-             inbound["verb"], json.dumps(inbound.get("body_refs", []))),
+             inbound["verb"], json.dumps(inbound.get("body_refs", [])),
+             inbound.get("cause")),
         )
 
     before = snapshot_versions(conn)
     wake = Wake(role=case["role"], kind="message",
                 message_id=msg_id if inbound else None,
+                refs=tuple(case.get("refs") or ()),
                 detail=inbound.get("verb", case.get("tick", "")))
+
+    # The same resolution the loop does, for the same reason: a role that works
+    # in a worktree needs to be told which one, and it is never the role's to
+    # choose. Without this a Developer case ran with no batch and could not
+    # write a line of the code it was woken for.
+    from ..core.loop import _batch_of
 
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
+                          batch_id=_batch_of(conn, wake),
                           mode=case.get("mode", "normal"))
     delta = capture(conn, outcome.session_id, before)
 

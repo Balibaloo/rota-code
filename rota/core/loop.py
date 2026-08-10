@@ -161,8 +161,13 @@ def step(
         result.note = "every ready role is busy"
         return result
 
-    batch_id = result.wake.refs[0] if result.wake.kind == "tick:batch_start" else None
-    if batch_id:
+    # Which batch a session works in is the scheduler's to say, and it says so
+    # from the wake. This read `refs[0] if kind == "tick:batch_start"`, so a
+    # Developer woken by `tests_failing` or `verdict_failed` — both of which
+    # carry the batch in `refs` — arrived with no worktree and could not reach
+    # the code it had been woken to fix.
+    batch_id = _batch_of(conn, result.wake)
+    if result.wake.kind == "tick:batch_start" and batch_id:
         # The batch is running from the moment it is dispatched, not from
         # whenever the session gets round to saying so. `batch_start` refuses
         # while anything is running, so leaving this to the session would let a
@@ -184,6 +189,25 @@ def step(
         release(conn, result.wake.role)
 
     return result
+
+
+def _batch_of(conn: sqlite3.Connection, wake: Wake) -> str | None:
+    """
+    The batch a session works in, decided by the scheduler rather than the role.
+
+    Named in the wake's refs where the predicate knows it — `batch_start`,
+    `tests_failing`, `verdict_failed`, `review` all carry it. Where it is not,
+    the wake is a message and the batch is the one that is running: `batch_start`
+    refuses while anything else is, so "the running batch" is unambiguous by
+    construction. Returning None is the honest answer when nothing is running,
+    and leaves the session with no worktree — which is correct, because there is
+    no work in flight for it to be in.
+    """
+    for ref in wake.refs:
+        if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
+            return ref
+    rows = conn.execute("SELECT id FROM batches WHERE status = 'running'").fetchall()
+    return rows[0]["id"] if len(rows) == 1 else None
 
 
 def _perform(conn: sqlite3.Connection, wake: Wake) -> str:

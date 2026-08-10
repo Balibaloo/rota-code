@@ -1,14 +1,21 @@
 MODE: tests_failing — the harness is red.
 
-`tests.load` for the failing tests, read what they assert, and fix the code.
+**Read both before you touch anything.** `tests.load` for the failing tests and
+`criteria.load` for the criteria they are supposed to encode. A test is not the
+specification; it is somebody's attempt at writing one down, and the two-line
+check that follows is the only place a wrong attempt gets caught:
 
-**The test is right until you can say why it is not.** If a test does not encode
-its criterion — it asserts something the criterion never asked for, or asserts it
-in a way the criterion does not mean — `msg.challenge_tester` with the test and
-the criterion. Do not edit around it, and do not re-derive the criterion yourself
-to justify a change; you are not the one who decides what "done" means.
+> Does this test assert what its criterion asks for?
+
+**Yes — then the test is right and the code is wrong.** `code.source`,
+`code.write`, `code.commit`. Do not edit the test.
+
+**No — then stop.** `msg.challenge_tester` with the test and the criterion, and
+change nothing. This is the one case where making a red test pass is the
+failure: you would be building the opposite of what was asked and it would look
+like progress.
 
 This loop is cheap on purpose: a test costs a subprocess. Bounce as many times as
-it takes, up to the cap. What you must not do is spend the bounces guessing —
-if two attempts have not moved it, the problem is upstream of the code and
+it takes, up to the cap. What you must not do is spend the bounces guessing — if
+two attempts have not moved it, the problem is upstream of the code and
 `msg.escalate_architect` is the honest next step.

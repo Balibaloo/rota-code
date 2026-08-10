@@ -1,0 +1,124 @@
+# L1 — Gatekeeper, the modes the first file left uncovered.
+#
+# Gatekeeper is the only role that can change what is in scope, which makes its
+# failures the quiet expensive kind: an item amended without dropping its
+# approval, or a contest answered by arguing rather than by deciding.
+
+- id: L1-GK-amend-a-contested-item
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  tick: contested
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "no, I meant closing the account, not deleting it"}
+    items:
+      - {id: i1, text: "users can delete their account", kind: in_scope,
+         provenance: decided, approval: contested, approval_ver: 1, version: 1}
+  expect:
+    writes:
+      items: {count: ">=1"}
+  forbidden:
+    # They said what they meant. Amending is the answer; defending an item the
+    # principal has just corrected is arguing with the only authority there is.
+    writes: [tickets, criteria, glossary_terms]
+    calls: [decisions.author]
+
+- id: L1-GK-submit-drafts-together
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  tick: signoff
+  fixture:
+    items:
+      - {id: i1, text: "users can close their account", kind: in_scope,
+         provenance: decided, approval: draft, version: 1}
+      - {id: i2, text: "bulk export is not part of this", kind: out_of_scope,
+         provenance: decided, approval: draft, version: 1}
+  expect:
+    messages:
+      # One submit carrying both. An interpretation is read whole: the in-scope
+      # item means something different with the out-of-scope one beside it.
+      - {to: liaison, verb: submit, count: 1, refs_include: [i1, i2]}
+  forbidden:
+    writes: [items, tickets, criteria]
+
+- id: L1-GK-answer-a-refactor-proposal
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  inbound: {from: architect, to: gatekeeper, verb: propose, body_refs: [i1]}
+  fixture:
+    items:
+      - {id: i1, text: "invoices can be exported as CSV", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    decisions:
+      # Refused eighteen months ago, for a reason that has not expired.
+      - {id: d1, author: gatekeeper,
+         text: "the store layer stays synchronous: the export path is the only
+                caller that would benefit and it is not hot"}
+  expect:
+    # Assert it as an item or refuse it with a reason. Both are answers.
+    any_of:
+      - writes: {items: {count: ">=1"}}
+      - writes: {decisions: {count: ">=1"}}
+  forbidden:
+    # Architect is blocked on this and will not ask twice. Silence is the one
+    # answer that is not an answer, and the case that catches it is the empty
+    # session — no write, no message.
+    writes: [tickets, criteria]
+    recipients: [developer, critic, tester]
+
+- id: L1-GK-reopen-after-an-election
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  inbound: {from: developer, to: gatekeeper, verb: elect, body_refs: [b1]}
+  fixture:
+    items:
+      - {id: i1, text: "accounts are never deleted, only closed", kind: in_scope,
+         provenance: decided, approval: draft, approval_ver: 1, version: 2}
+    tickets:
+      - {id: tk1, item_id: i1, text: "close the account row"}
+    batches:
+      - {id: b1, item_id: i1, status: running}
+    batch_tickets:
+      - {batch_id: b1, ticket_id: tk1}
+  expect:
+    messages:
+      - {to: developer, verb: reopen, count: 1}
+  forbidden:
+    # There is no judgement here. Whether the worktree survives is a fact about
+    # how much of the Developer's understanding survives, and they already said.
+    writes: [items, tickets, criteria]
+
+- id: L1-GK-decide-a-challenge-to-an-approved-item
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  inbound: {from: terminologist, to: gatekeeper, verb: challenge, body_refs: [i1]}
+  fixture:
+    items:
+      # "Account" has two senses in this codebase and the item does not say
+      # which, so it cannot be built as written.
+      - {id: i1, text: "deleting an account removes the account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    glossary_terms:
+      - {id: g1, term: account, sense_short: "the login identity",
+         provenance: decided}
+      - {id: g2, term: account, sense_short: "the billing entity that owes money",
+         provenance: decided}
+  expect:
+    # Either amend the item or author a decision saying why it stands. What is
+    # forbidden is amending it and leaving the approval where it was.
+    any_of:
+      - writes: {items: {count: ">=1"}}
+      - writes: {decisions: {count: ">=1"}}
+  forbidden:
+    writes: [glossary_terms, tickets, criteria]

@@ -1,0 +1,187 @@
+# L1 — Liaison, the modes the first file left uncovered.
+#
+# Liaison is the only role that touches the principal, which makes it the only
+# role whose failures cost the one budget that cannot be topped up: the
+# principal's attention. Most of these modes are one message, and the failure to
+# watch for is the session that decides something on the way past.
+
+- id: L1-LI-put-a-contradiction-back-unresolved
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: contradiction
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "deleting an account should remove everything we hold about them"}
+      - {id: e2, author: principal, ts_order: 2,
+         text: "we have to keep invoices for seven years"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 62,
+         text: "deleting an account removes everything we hold about them",
+         status: ratified}
+      - {id: s2, span_entry: e2, span_start: 0, span_end: 38,
+         text: "invoices are kept for seven years", status: ratified}
+  expect:
+    messages:
+      - {to: principal, verb: clarify, count: 1, refs_include: [s1, s2]}
+  forbidden:
+    # Only the principal can say which stands. Ranking them by recency is the
+    # tempting wrong answer and it looks like helpfulness.
+    writes: [statements, items, decisions]
+    recipients: [gatekeeper, terminologist, architect]
+
+- id: L1-LI-ask-for-the-confirmation-nobody-asked-for
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: awaiting_confirm
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "add a button so people can close their account"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 45,
+         text: "people can close their account from a button", status: proposed}
+  expect:
+    messages:
+      - {to: principal, verb: confirm, count: 1, refs_include: [s1]}
+  forbidden:
+    # It stalled because nothing put it in front of them. Re-reading the
+    # segmentation for quality while here is work that was already done and is
+    # not what unblocks it.
+    writes: [statements, items]
+
+- id: L1-LI-relay-a-ruling-without-interpreting-it
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  prompt: verdict_signoff
+  inbound: {id: m_rule, from: principal, to: liaison, verb: verdict,
+            body_refs: [i1, i2], cause: m_present}
+  fixture:
+    config:
+      - {key: "verdict:m_rule", value: '{"i1": "approve", "i2": "contest"}'}
+    items:
+      - {id: i1, text: "people can close their account", kind: in_scope,
+         provenance: decided, approval: draft, version: 1}
+      - {id: i2, text: "bulk export is not part of this", kind: out_of_scope,
+         provenance: decided, approval: draft, version: 1}
+    messages:
+      - {id: m_present, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["i1","i2"]', seq: 1}
+  expect:
+    messages:
+      - {to: gatekeeper, verb: relay, count: 1, refs_include: [i1, i2]}
+  forbidden:
+    # Approval state is Gatekeeper's artefact and the ruling travels as refs.
+    # A Liaison that applies it here is writing another role's artefact; one
+    # that relays only the approval has decided what a contest ought to mean.
+    writes: [items, decisions, statements]
+    recipients: [terminologist, architect, developer]
+
+- id: L1-LI-two-questions-at-most-from-three-reports
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 3
+  tick: report
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "let people delete their account"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 30,
+         text: "people can delete their account", status: ratified}
+    messages:
+      # Two roles, one question, two vocabularies — the normal case.
+      - {id: m1, thread_id: t1, from_role: terminologist, to_role: liaison,
+         verb: report, body_refs: '["s1"]', seq: 1}
+      - {id: m2, thread_id: t1, from_role: gatekeeper, to_role: liaison,
+         verb: report, body_refs: '["s1"]', seq: 2}
+  expect:
+    messages:
+      # At most two questions means exactly one message carrying them.
+      - {to: principal, verb: clarify, count: 1, refs_include: [s1]}
+  forbidden:
+    # Deduping is the work this mode exists for; forwarding each report as its
+    # own question spends the principal's attention on the system's bookkeeping.
+    writes: [statements, items, decisions]
+    recipients: [gatekeeper, terminologist, architect]
+
+- id: L1-LI-surface-a-quarantined-message
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: quarantined
+  fixture:
+    items:
+      - {id: i1, text: "search results are ranked by relevance", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: tk1, item_id: i1, text: "rank the search results"}
+    messages:
+      - {id: m_dead, thread_id: t1, from_role: liaison, to_role: terminologist,
+         verb: deliver, body_refs: '["i1"]', seq: 1, attempts: 6,
+         status: quarantined}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1}
+  forbidden:
+    # The one thing that must not happen is this staying invisible. Retrying it
+    # is not available and re-sending the work to another role would hide the
+    # gap rather than report it.
+    writes: [items, tickets, statements]
+    recipients: [terminologist, gatekeeper, architect]
+
+- id: L1-LI-present-what-onboarding-only-observed
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: observed_entries
+  fixture:
+    glossary_terms:
+      - {id: g1, term: account, sense_short: "the login identity",
+         provenance: observed}
+      - {id: g2, term: account, sense_short: "the billing entity that owes money",
+         provenance: observed}
+    constraints:
+      - {id: k1, headline: "the store layer is synchronous",
+         text: "every call into src/store blocks", provenance: observed}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1}
+  forbidden:
+    # Observed means found, not decided: true about the code and carrying no
+    # authority about what the project is for. Promoting one to `decided` here
+    # would be the system granting itself the principal's ruling.
+    writes: [glossary_terms, constraints, items, decisions]
+
+- id: L1-LI-nothing-came-back-so-nothing-is-presented
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: round_close
+  fixture:
+    entries:
+      - {id: e1, author: principal, ts_order: 1,
+         text: "add a button so people can close their account"}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 45,
+         text: "people can close their account from a button", status: ratified}
+    items:
+      - {id: i1, text: "people can close their account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+  expect:
+    # Silence is a legitimate outcome for this mode and it is the harder one to
+    # produce: every role reported cleanly, nothing needs a ruling, and the
+    # failure is manufacturing something to say.
+    messages: []
+  forbidden:
+    writes: [statements, items, decisions, ledger]
