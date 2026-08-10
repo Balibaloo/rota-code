@@ -335,7 +335,7 @@ def make_handler(db_path: Path):
     return Handler
 
 
-def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool = True):
+def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool = False):
     db_path = state_dir(project_root) / "rota.db"
     if not db_path.exists():
         raise SystemExit(f"no rota database at {db_path}; boot the project first")
@@ -394,23 +394,23 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
     had not released, and losing the browser state. Half a reload loop is worse
     than none: it teaches you to distrust what you are looking at.
     """
-    import os
-
     from watchfiles import run_process
 
-    # The restart is a fresh process, so `open_browser` was true again every
-    # time — a new tab per backend edit, which on a busy afternoon is most of a
-    # browser. The tab that is already open is the one to keep: the page reloads
-    # itself on the fingerprint change and now remembers which view it was on.
-    # An environment variable rather than an argument because `run_process`
-    # re-invokes the target directly and there is no first-call to distinguish.
-    first = not os.environ.get("ROTA_COCKPIT_OPENED")
-    os.environ["ROTA_COCKPIT_OPENED"] = "1"
+    # **A reload never opens a browser.** `run_process` re-invokes the target in
+    # a fresh process on every change, so any argument saying "open one" is true
+    # again each time — a new tab per backend edit, which across an afternoon is
+    # most of a browser. The first attempt at this computed the flag once in the
+    # parent and passed it down, which is the same bug with more steps: the
+    # value is fixed at startup and every restart reuses it.
+    #
+    # There is nothing to preserve by reopening. The page reloads itself on the
+    # fingerprint change and remembers which view and panel it was on.
+    if open_browser:
+        webbrowser.open(f"http://127.0.0.1:{port}/")
 
     watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
-    run_process(*watch, target=serve,
-                args=(project_root, port, open_browser and first),
+    run_process(*watch, target=serve, args=(project_root, port, False),
                 callback=lambda changes: print(
                     f"reload: {', '.join(sorted(Path(c[1]).name for c in changes))}"))
 
@@ -421,9 +421,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("project_root", nargs="?", default=".")
     ap.add_argument("--port", type=int, default=8899)
-    ap.add_argument("--no-browser", action="store_true")
+    # Opt in rather than out. A dev server that grabs focus every time somebody
+    # starts it is a dev server people stop restarting.
+    ap.add_argument("--open", action="store_true",
+                    help="open a browser tab (otherwise just print the URL)")
     ap.add_argument("--no-reload", action="store_true",
                     help="do not restart on source changes")
     args = ap.parse_args()
     runner = serve if args.no_reload else serve_reloading
-    runner(args.project_root, args.port, not args.no_browser)
+    runner(args.project_root, args.port, args.open)

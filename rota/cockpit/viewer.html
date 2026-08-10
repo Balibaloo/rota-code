@@ -134,12 +134,6 @@
   .bar i.part{background:var(--accent)}
   #progress h4{color:var(--dim);font-weight:500;font-size:12px;
     text-transform:uppercase;letter-spacing:.06em}
-  #cwrap{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px;
-    height:calc(100vh - 46px);box-sizing:border-box}
-  #clist{overflow:auto;background:var(--panel);border:1px solid var(--line);
-    border-radius:8px}
-  #cdetail{overflow:auto;background:var(--panel);border:1px solid var(--line);
-    border-radius:8px;padding:14px}
   .crow{padding:7px 10px;border-bottom:1px solid var(--line);cursor:pointer;
     display:flex;gap:8px;align-items:baseline}
   .crow:hover{background:#1b2029}
@@ -148,10 +142,10 @@
   .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dim)}
   .dot.pass{background:var(--ok)} .dot.fail{background:var(--stop)}
   .dot.stale{background:var(--accent)}
-  #cdetail h3{margin:0 0 2px} #cdetail h4{color:var(--dim);font-weight:500;
-    font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px}
-  #cdetail pre{white-space:pre-wrap;background:#12161d;padding:8px;
-    border-radius:5px;font-size:12px;margin:4px 0;overflow-x:auto}
+  #pbody h4{color:var(--dim);font-weight:500;font-size:10px;
+    text-transform:uppercase;letter-spacing:.1em;margin:14px 14px 4px}
+  #pbody>div.row,#pbody>p{padding-left:14px;padding-right:14px}
+  #pbody pre{margin:4px 14px}
   .tag{font-size:11px;padding:1px 6px;border-radius:9px;border:1px solid var(--line)}
   .tag.req{color:var(--ok);border-color:var(--ok)}
   .tag.forb{color:var(--stop);border-color:var(--stop)}
@@ -166,9 +160,7 @@
   <nav>
     <button class="tab on" data-view="graph">graph</button>
     <button class="tab" data-view="live">live</button>
-    <button class="tab" data-view="coverage">coverage</button>
     <button class="tab" data-view="progress">progress</button>
-    <button class="tab" data-view="cases">cases</button>
   </nav>
   <span class="muted" id="reload"></span>
 </header>
@@ -185,6 +177,8 @@
       <div id="ptabs">
         <button data-ptab="detail" class="on">detail</button>
         <button data-ptab="story">story</button>
+        <button data-ptab="cases">cases</button>
+        <button data-ptab="coverage">coverage</button>
       </div>
       <div id="pscroll">
         <div id="pdetail">
@@ -194,6 +188,9 @@
           <div id="pbody"></div>
         </div>
         <div id="pstory" style="display:none"><div class="body" id="storybody"></div></div>
+        <div id="pcases" style="display:none"><div id="clist"></div></div>
+        <div id="pcoverage" style="display:none"><div class="body"
+             id="coveragebody"></div></div>
       </div>
     </div>
   </div>
@@ -209,17 +206,6 @@
   <section><h2>Items &amp; approval</h2><div class="body" id="items"></div></section>
   <section><h2>Claims / checkpoints / ledger</h2><div class="body" id="runtime"></div></section>
   <section><h2>Artefact counts</h2><div class="body counts" id="counts"></div></section>
-</div></main>
-
-<main id="coverage"><div class="grid"><section style="grid-column:1/-1">
-  <h2>Edge coverage — the graph generates the obligation</h2>
-  <div class="body" id="coveragebody" style="max-height:none"></div></section></div></main>
-
-<main id="cases"><div id="cwrap">
-  <div id="clist"></div>
-  <div id="cdetail"><p class="muted">Pick a case. Its wiring lights on the
-    graph tab: what the mode offers, what the case requires, what it forbids.</p>
-  </div>
 </div></main>
 
 <main id="progress"><div class="grid">

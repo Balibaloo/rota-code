@@ -254,24 +254,25 @@ function showTab(t){
   ptab=t;
   document.querySelectorAll('[data-ptab]').forEach(b=>
     b.classList.toggle('on', b.dataset.ptab===t));
-  document.getElementById('pdetail').style.display = t==='detail'?'block':'none';
-  document.getElementById('pstory').style.display  = t==='story'?'block':'none';
-  if (t==='story') syncStoryTab();
+  ['detail','story','cases','coverage'].forEach(n=>
+    document.getElementById('p'+n).style.display = t===n?'block':'none');
+  try{ localStorage.setItem('rota.ptab', t); }catch{}
+  if (t==='story')    syncStoryTab();
+  if (t==='cases')    loadCases();
+  if (t==='coverage') loadCoverage();
 }
 
 function selectView(v){
   view = v;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
-  ['graph','live','coverage','progress','cases'].forEach(n=>
+  ['graph','live','progress'].forEach(n=>
     document.getElementById(n).classList.toggle('on', n===v));
   // Which tab you were on survives a reload. The progress view is the one
   // people leave open, and the fingerprint watcher reloads the page whenever
   // the source changes -- so without this, every edit to the tree bounced you
   // back to the graph.
   try{ localStorage.setItem('rota.view', v); }catch{}
-  if (v==='coverage') loadCoverage();
   if (v==='progress') loadProgress();
-  if (v==='cases') loadCases();
 }
 
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectView(b.dataset.view));
@@ -279,6 +280,8 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectView(b.dataset.
 try{
   const saved = localStorage.getItem('rota.view');
   if (saved && document.getElementById(saved)) selectView(saved);
+  const savedTab = localStorage.getItem('rota.ptab');
+  if (savedTab && document.getElementById('p'+savedTab)) showTab(savedTab);
 }catch{}
 
 async function refresh() {
@@ -562,17 +565,21 @@ function showCase(id){
           : `<h4>did</h4><pre>${esc(JSON.stringify(t,null,1))}</pre>`).join('')}
     </div></details>`).join('') || '<p class="empty">never run</p>';
 
-  document.getElementById('cdetail').innerHTML = `
-    <h3>${esc(c.id)}</h3>
-    <p class="sig">${esc(c.tier)} · ${esc(c.role)}${c.second?' → '+esc(c.second):''}
-       · mode <b>${esc(c.mode)}</b> · needs ${c.threshold}/${c.runs}
-       ${c.repo?' · real checkout':''}${c.onboarded?' · onboarded':''}</p>
+  showTab('detail');
+  document.getElementById('phead').innerHTML =
+    `<h2>${esc(c.id)}</h2><span class="sig">${esc(c.tier)} · ${esc(c.role)}` +
+    `${c.second?' → '+esc(c.second):''} · ${esc(c.mode)} · needs ` +
+    `${c.threshold}/${c.runs}${c.repo?' · real checkout':''}` +
+    `${c.onboarded?' · onboarded':''}</span>`;
+  document.getElementById('pbody').innerHTML = `
 
-    <h4>fixtured</h4>
-    ${c.fixture.length ? c.fixture.map(f=>
-        `<div class="row">${esc(f.table)} <span class="sig">${f.rows} row(s)
-         → ${esc(f.artefact)}</span></div>`).join('')
-      : '<p class="empty">nothing seeded</p>'}
+    <h4>the situation</h4>
+    ${c.situation.seeded.length ? c.situation.seeded.map(sd=>
+        `<div class="row link" data-art="${esc(sd.artefact)}">${esc(sd.artefact)}
+         <span class="sig">${sd.rows} row(s) · ${esc(sd.tables.join(', '))}</span></div>`
+      ).join('') : '<p class="empty">nothing seeded</p>'}
+    ${c.situation.links.length?`<p class="sig">linked by:
+       ${c.situation.links.map(l=>esc(l[2])).join(', ')}</p>`:''}
     ${c.refs.length?`<p class="sig">refs: ${c.refs.map(esc).join(', ')}</p>`:''}
     ${c.inbound.verb?`<p class="sig">woken by ${esc(c.inbound.from)} —
         ${esc(c.inbound.verb)}</p>`:''}

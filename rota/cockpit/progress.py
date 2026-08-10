@@ -226,6 +226,73 @@ def onboarding(conn: sqlite3.Connection) -> dict:
 # The cases themselves, with the wiring each one touches
 # ---------------------------------------------------------------------------
 
+_FKS: dict[str, list[tuple[str, str]]] | None = None
+
+
+def _foreign_keys() -> dict[str, list[tuple[str, str]]]:
+    """`table -> [(column, target table)]`, read off the DDL rather than listed."""
+    global _FKS
+    if _FKS is None:
+        from ..core.db import SCHEMA_PATH
+
+        _FKS = {}
+        ddl = SCHEMA_PATH.read_text(encoding="utf-8")
+        for block in re.finditer(
+                r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*?)\n\);", ddl, re.S):
+            table, body = block.group(1), block.group(2)
+            for line in body.splitlines():
+                hit = re.match(r"\s*(\w+)\s+\w+.*?REFERENCES\s+(\w+)\s*\(", line)
+                if hit:
+                    _FKS.setdefault(table, []).append((hit.group(1), hit.group(2)))
+    return _FKS
+
+
+def _situation(case: dict, g) -> dict:
+    """
+    What the fixture actually instantiates, and how it hangs together.
+
+    The first version of the case view lit the edges the *mode* offered, which
+    is a picture of what the role could do rather than of the situation it was
+    put in — the same picture for every case in that mode. What a case is
+    actually about is the rows it seeds and the links between them: a batch with
+    a ticket with a criterion with a failing test run is a shape you can read,
+    and it is different for every case.
+
+    Links are only drawn where the seeded data really references seeded data. A
+    foreign key column pointing at a row nobody created is not a relationship
+    the case established.
+    """
+    from ..core.db import ARTEFACT_OF_TABLE
+
+    fixture = case.get("fixture") or {}
+    ids: dict[str, set[str]] = {}
+    for table, rows in fixture.items():
+        ids[table] = {str(r.get("id")) for r in (rows or []) if r.get("id")}
+
+    seeded, links = {}, []
+    for table, rows in sorted(fixture.items()):
+        artefact = ARTEFACT_OF_TABLE.get(table, table)
+        entry = seeded.setdefault(artefact, {"artefact": artefact, "tables": [],
+                                             "rows": 0, "sample": []})
+        entry["tables"].append(table)
+        entry["rows"] += len(rows or [])
+        for row in (rows or [])[:6]:
+            entry["sample"].append({"table": table, **{
+                k: (str(v)[:110]) for k, v in row.items()}})
+
+        for column, target in _foreign_keys().get(table, []):
+            for row in rows or []:
+                value = row.get(column)
+                if value is not None and str(value) in ids.get(target, set()):
+                    pair = [artefact, ARTEFACT_OF_TABLE.get(target, target),
+                            f"{table}.{column}"]
+                    if pair[0] != pair[1] and pair not in links:
+                        links.append(pair)
+
+    return {"seeded": sorted(seeded.values(), key=lambda e: e["artefact"]),
+            "links": links}
+
+
 def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
     """
     Which graph edges a case is *about*, split by what the case says of them.
@@ -323,10 +390,6 @@ def cases(dev_db: Path | None = None) -> list[dict]:
                 else fixtures.mode_of(case))
         second = case["then"]["role"] if chain else None
 
-        fixtured = [{"table": t, "rows": len(rows or []),
-                     "artefact": ARTEFACT_OF_TABLE.get(t, t)}
-                    for t, rows in sorted((case.get("fixture") or {}).items())]
-
         edges = _edges_for(role, mode, case, g)
         if chain:
             second_mode = fixtures.mode_of({**case["then"],
@@ -344,7 +407,7 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             "onboarded": bool((case.get("repo") or {}).get("onboard")),
             "refs": case.get("refs") or [],
             "inbound": case.get("inbound") or {},
-            "fixture": fixtured,
+            "situation": _situation(case, g),
             "expect": case.get("expect") or {},
             "forbidden": case.get("forbidden") or {},
             "edges": edges,
