@@ -209,24 +209,92 @@ console.log('  overflow: 40 chips where 19 fit -> ' + spill
             + ' pushed off the canvas (they crowd instead)');
 if (spill) problems.push('ghost chips overflow the canvas');
 
-// ---- how much of the picture routes cleanly ---------------------------------
+// ---- the router -------------------------------------------------------------
 //
-// `refPath` draws a straight run only when the two centres agree within 6px,
-// and the layout was hand-dragged: things meant to share a column sat two to
-// eight pixels apart, so pairs that were aligned by intent got a dogleg. This
-// counts what comes out, which is the only way to tell whether aligning the
-// layout bought anything.
+// One router now draws every edge, so these are the invariants that used to be
+// three systems disagreeing. None is visible from reading the code and all of
+// them fail quietly on screen: a line that starts inside a box just looks like
+// a line, and a shared port looks like one edge where there are two.
 
-computeSpread();          // refPath reads the offsets it fills in
-let straight = 0, elbow = 0;
+computePorts(GV.graph.edges.filter(e => GV.layout[e.s] && GV.layout[e.t]));
+
+const bad = {offBox: [], diagonal: [], noRoute: [], sharedPort: []};
+const takenSlots = new Set();
+let straightRuns = 0;
+
 for (const e of GV.graph.edges) {
-  if (e.type !== 'refs') continue;
-  const r = refPath(e);
-  if (!r) continue;
-  ((r.d.match(/L/g) || []).length === 1 ? () => straight++ : () => elbow++)();
+  if (!GV.layout[e.s] || !GV.layout[e.t]) continue;
+  const r = route(e);
+  if (!r) { bad.noRoute.push(e.s + '->' + e.t); continue; }
+  if (r.pts.length === 2) straightRuns++;
+
+  // Every segment axis-aligned. A diagonal means a port and its stub disagreed.
+  for (let i = 1; i < r.pts.length; i++) {
+    const dx = Math.abs(r.pts[i].x - r.pts[i - 1].x);
+    const dy = Math.abs(r.pts[i].y - r.pts[i - 1].y);
+    if (dx > 0.6 && dy > 0.6) { bad.diagonal.push(e.s + '->' + e.t); break; }
+  }
+
+  // Both ends *on* their own node's face: not floating outside it, and not
+  // buried inside it where the arrowhead disappears under the fill.
+  for (const [end, node] of [[r.pts[0], e.s], [r.pts[r.pts.length - 1], e.t]]) {
+    const p = GV.layout[node];
+    const n = GV.graph.nodes.find(x => x.id === node);
+    const sh = SHAPE[kindOf(n)];
+    const onX = Math.abs(Math.abs(end.x - p.x) - sh.w / 2) < 0.6;
+    const onY = Math.abs(Math.abs(end.y - p.y) - sh.h / 2) < 0.6;
+    const inX = Math.abs(end.x - p.x) <= sh.w / 2 + 0.6;
+    const inY = Math.abs(end.y - p.y) <= sh.h / 2 + 0.6;
+    if (!((onX && inY) || (onY && inX))) bad.offBox.push(node + ' via ' + e.type);
+  }
+
+  // No two edges on one slot of one face. Separating parallel edges is the
+  // whole reason ports exist, and it is what rank-and-bow kept getting wrong.
+  const key = e.s + '|' + e.t + '|' + e.type + '|' + e.v;
+  for (const node of [e.s, e.t]) {
+    const port = GV.port[key + '|' + node];
+    if (!port) continue;
+    const slot = node + '|' + port.face + '|' + port.i;
+    if (takenSlots.has(slot)) bad.sharedPort.push(slot);
+    takenSlots.add(slot);
+  }
 }
-console.log('\nref routing: ' + straight + ' straight, ' + elbow + ' elbowed'
-            + ' (' + Math.round(100 * straight / (straight + elbow)) + '% clean)');
+
+// Parallel edges must not share their long middle run. Every edge between one
+// pair scores the lanes identically and picks the same channel, so without a
+// per-port offset their end segments separate at the boxes and then converge
+// onto exactly the same line -- the collision ports exist to prevent, moved to
+// the middle of the path where it is harder to notice.
+const pairPaths = {};
+for (const e of GV.graph.edges) {
+  if (!GV.layout[e.s] || !GV.layout[e.t]) continue;
+  const r = route(e);
+  if (!r || r.pts.length < 4) continue;
+  const k = e.s + '|' + e.t;
+  const seg = r.pts.slice(1, -1).map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  (pairPaths[k] = pairPaths[k] || []).push(seg);
+}
+let overlaid = 0, pairs = 0;
+for (const segs of Object.values(pairPaths)) {
+  if (segs.length < 2) continue;
+  pairs++;
+  if (new Set(segs).size < segs.length) overlaid++;
+}
+
+console.log('\nrouting: ' + GV.graph.edges.length + ' edges, ' + straightRuns
+            + ' straight, ' + (GV.graph.edges.length - straightRuns) + ' turned');
+console.log('  ' + pairs + ' pairs carry parallel edges, ' + overlaid
+            + ' with runs laid on top of each other');
+if (overlaid) problems.push('parallel edges share a channel');
+let clean = true;
+for (const [what, list] of Object.entries(bad)) {
+  if (!list.length) continue;
+  clean = false;
+  console.log('  ' + what + ': ' + list.length + '  ' + list.slice(0, 4).join(', '));
+  problems.push('router: ' + what);
+}
+if (clean)
+  console.log('  every segment axis-aligned, every end on its box, no shared slots');
 
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
