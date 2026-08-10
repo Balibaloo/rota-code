@@ -130,3 +130,53 @@ def test_a_mode_narrowing_cannot_widen_the_role():
                 if fn not in have:
                     problems.append(f"{role}/{mode}.tools names {fn}")
     assert not problems, "\n".join(problems)
+
+
+def test_every_operation_is_offered_by_some_mode():
+    """
+    A `.tools` narrowing can only remove. Today every role still has at least
+    one un-narrowed mode, so nothing is stranded — but the moment the last one
+    gets a `.tools` file, any operation missing from every list becomes present
+    in the namespace and offered by nothing.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    stranded = {}
+    for role in sorted(graph_mod.load().roles):
+        modes = prompts.available(role)
+        if any(prompts.mode_tools(role, m) is None for m in modes):
+            continue                      # an un-narrowed mode offers everything
+        offered = {fn for m in modes for fn in (prompts.mode_tools(role, m) or [])}
+        missing = sorted(set(build(role, conn).functions()) - offered)
+        if missing:
+            stranded[role] = missing
+    assert not stranded, stranded
+
+
+def test_every_operation_is_mentioned_in_some_prompt():
+    """
+    Not redundant — *unbriefed*. The role has the function and is never told
+    when to use it, which is the static half of the L1 question: before asking
+    whether a role chooses the right action, check it was told the action exists.
+
+    Three of the original nineteen were whole jobs nobody described: Liaison's
+    `msg.ask_*` are the entire readonly-inquiry route of law 10,
+    `problem.prioritize` is law 9's priority lever, and `ledger.log` appeared
+    only in Developer's brief though three other roles had it.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    unbriefed = {}
+    for role in sorted(graph_mod.load().roles):
+        text = prompts.base(role)
+        for mode in prompts.available(role):
+            text += "\n" + prompts.piece(role, mode)
+            text += "\n" + "\n".join(prompts.mode_tools(role, mode) or [])
+        missing = sorted(f for f in build(role, conn).functions() if f not in text)
+        if missing:
+            unbriefed[role] = missing
+    assert not unbriefed, unbriefed

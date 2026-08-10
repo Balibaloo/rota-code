@@ -221,6 +221,17 @@ def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
     return {"id": id, "bindings": bindings or []}
 
 
+@op("findings", "load")
+def findings_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
+    """What was found last time. Not anchoring, unlike Critic's verdicts: a
+    constraint violated on the previous commit is exactly what you want to know
+    is still violated."""
+    bid = batch_id or ctx.batch_id
+    return _rows(ctx.conn.execute(
+        "SELECT id, constraint_id, commit_sha, status, grain FROM findings "
+        "WHERE batch_id = ? ORDER BY id", (bid,)))
+
+
 @op("findings", "find")
 def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
                status: str, grain: str) -> dict:
@@ -273,8 +284,8 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
         f"SELECT id, headline, text, provenance FROM constraints WHERE id IN ({marks})", ids))
 
 
-@op("model", "survey")
-def model_survey(ctx: Ctx, id: str, area: str, outcome: str,
+@op("model", "attest")
+def model_attest(ctx: Ctx, id: str, area: str, outcome: str,
                  citations: list[str] | None = None) -> dict:
     """
     Record a survey. Citations are validated against the code index, so
@@ -413,8 +424,8 @@ def batches_consult(ctx: Ctx) -> list[dict]:
 # tests
 # ---------------------------------------------------------------------------
 
-@op("tests", "author")
-def tests_author(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
+@op("tests", "encode")
+def tests_encode(ctx: Ctx, id: str, batch_id: str, criterion_id: str,
                  path: str, body: str) -> dict:
     """Criteria made executable, written before the diff exists."""
     ctx.writes.append(("tests", id, {
@@ -443,10 +454,24 @@ def tests_consult(ctx: Ctx) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("ledger", "log")
-def ledger_log(ctx: Ctx, id: str, about_ref: str, about_table: str,
+def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                default_taken: str) -> dict:
-    """A choice made where the criteria were silent. Logged with the diff, in the
-    same session — the silent default is the failure this exists to prevent."""
+    """
+    A choice made where the criteria were silent. Logged with the diff, in the
+    same session — the silent default is the failure this exists to prevent.
+
+    The id is derived from the assumption, not supplied. No writer can read the
+    ledger, so a cold session that hits the same gap on a retry has no way to
+    know it already logged this — and a milestone is quiescence with an *empty*
+    ledger, so duplicates make the principal resolve one assumption three times.
+    Deriving the id makes a repeat an upsert instead. It also means the same
+    assumption reached by two roles is one entry, which is the truth.
+    """
+    import hashlib
+
+    digest = hashlib.sha256(
+        f"{about_table}|{about_ref}|{default_taken}".encode()).hexdigest()[:10]
+    id = f"l_{digest}"
     ctx.writes.append(("ledger", id, {
         "about_ref": about_ref, "about_table": about_table,
         "default_taken": default_taken, "status": "open", "author": ctx.role}))

@@ -153,7 +153,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
                "VALUES ('m_test','t1','liaison','tester','question',60)")
     drive(db, Wake("tester", "message", "m_test", detail="tick"), [
-        "TOOL: tests.author(id='t1', batch_id='b1', criterion_id='c1', "
+        "TOOL: tests.encode(id='t1', batch_id='b1', criterion_id='c1', "
         "path='test_delete.py', body='assert tombstoned(account)')",
     ], batch_id="b1")
 

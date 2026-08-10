@@ -4,7 +4,7 @@ The claim is that the test does not encode its criterion: it asserts more than
 the criterion asked for, less, or something else entirely.
 
 Read the criterion again, cold, and decide. If they are right, fix the test with
-`tests.author` — a wrong test is worse than a missing one, because it reports as
+`tests.encode` — a wrong test is worse than a missing one, because it reports as
 coverage. If they are wrong, `msg.answer_developer` with the criterion and what
 in it your assertion comes from.
 

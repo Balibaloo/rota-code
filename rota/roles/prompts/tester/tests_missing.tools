@@ -1,7 +1,7 @@
 tickets.load
 criteria.load
 glossary.lookup
-tests.author
+tests.encode
 tests.consult
 msg.question_gatekeeper
 msg.question_terminologist

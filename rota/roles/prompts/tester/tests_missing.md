@@ -1,6 +1,6 @@
 MODE: tests_missing — a batch has criteria and no tests.
 
-`tickets.load` and `criteria.load`, then `tests.author` — one test per criterion,
+`tickets.load` and `criteria.load`, then `tests.encode` — one test per criterion,
 each naming the criterion it encodes.
 
 **You test the criterion, not the implementation.** There may be no code yet, and

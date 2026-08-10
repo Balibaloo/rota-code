@@ -40,7 +40,7 @@ def test_parens_inside_a_string_do_not_truncate():
 
 def test_crlf_and_newlines_survive():
     """CRLF scars are inherited deliberately: Windows completions contain them."""
-    call = only("TOOL: tests.author(id='t1', body='line one\r\nline two')")
+    call = only("TOOL: tests.encode(id='t1', body='line one\r\nline two')")
     assert call.args["body"] == "line one\nline two"
 
 

@@ -174,3 +174,79 @@ def test_a_decision_without_a_ledger_ref_touches_no_ledger(db):
     sb = build("gatekeeper", db)
     sb.call("decisions.author", id="d1", text="just a decision")
     assert {w[0] for w in sb.ctx.writes} == {"decisions"}
+
+
+# ---------------------------------------------------------------------------
+# P3 — owners read what they own
+# ---------------------------------------------------------------------------
+
+def test_owners_can_read_what_they_own(g):
+    """
+    Four roles could write an artefact and not read it. Liaison could not quote
+    the transcript it owns — while three roles that never speak to the principal
+    could — nor read the brief it segments; Architect could not search the
+    decision record it writes to.
+
+    Critic not reading its own verdicts is the one deliberate case: a judge that
+    remembers its prior objection is anchored, and cold re-judgement is the
+    property worth having.
+    """
+    DELIBERATE = {("critic", "verdicts")}
+
+    blind = {(w, a) for a in g.artefacts for w in g.writer_of(a)
+             if a not in g.read_set(w)} - DELIBERATE
+    # Ledger writers read nothing; `ledger.log` derives its id instead, so a
+    # repeat is an upsert and there is nothing to check for first.
+    blind -= {(w, "ledger") for w in g.writer_of("ledger")}
+    assert not blind, sorted(blind)
+
+
+# ---------------------------------------------------------------------------
+# 1.7 — the rulings
+# ---------------------------------------------------------------------------
+
+def test_everyone_who_can_assume_can_log_it(g):
+    """
+    Terminologist picking one sense of a colliding term, and Tester deciding
+    what an untestable criterion must have meant, are assumptions in exactly law
+    11's sense. They were the only two makers of that choice who could not
+    record it.
+    """
+    assert {"terminologist", "tester"} <= g.writer_of("ledger")
+
+
+def test_everyone_who_writes_decided_can_author_the_reason(g):
+    """
+    Law 11: a `decided` entry has its reason on file, written by the decider in
+    the same session. Terminologist marks glossary rows `decided` and could not
+    write the reason that makes them so.
+    """
+    for role, artefact in (("terminologist", "glossary"),
+                           ("architect", "model"),
+                           ("gatekeeper", "problem")):
+        assert artefact in g.write_set(role)
+        assert "decisions" in g.write_set(role), \
+            f"{role} writes `decided` rows into {artefact} and cannot say why"
+
+
+def test_logging_the_same_assumption_twice_is_one_entry(db):
+    """
+    No writer can read the ledger, so a cold session retrying the same gap has
+    no way to know it already logged this. A milestone is quiescence with an
+    *empty* ledger, so duplicates make the principal resolve one assumption
+    three times.
+    """
+    first = build("developer", db).call(
+        "ledger.log", about_ref="i1", about_table="items",
+        default_taken="assumed soft delete")
+    again = build("terminologist", db).call(
+        "ledger.log", about_ref="i1", about_table="items",
+        default_taken="assumed soft delete")
+
+    assert first["id"] == again["id"], \
+        "the same assumption reached twice must be one entry"
+
+    different = build("developer", db).call(
+        "ledger.log", about_ref="i1", about_table="items",
+        default_taken="assumed hard delete")
+    assert different["id"] != first["id"]

@@ -184,7 +184,8 @@
       "t": "problem",
       "type": "writes",
       "v": "assert",
-      "n": "in-scope and out-of-scope items"
+      "n": "in-scope and out-of-scope items",
+      "rows": "single"
     },
     {
       "s": "terminologist",
@@ -225,7 +226,8 @@
       "type": "writes",
       "v": "slice",
       "n": "batches of tickets",
-      "label": "contested · approved items only"
+      "label": "contested · approved items only",
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -242,7 +244,8 @@
       "type": "writes",
       "v": "specify",
       "n": "criteria",
-      "label": "contested"
+      "label": "contested",
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -250,7 +253,8 @@
       "type": "writes",
       "v": "group",
       "n": "ticket groups + constraints",
-      "label": "contested"
+      "label": "contested",
+      "rows": "single"
     },
     {
       "s": "gatekeeper",
@@ -505,7 +509,8 @@
       "t": "liaison",
       "type": "messages",
       "v": "converse",
-      "n": "free text"
+      "n": "free text",
+      "rows": "none"
     },
     {
       "s": "liaison",
@@ -859,7 +864,7 @@
       "s": "tester",
       "t": "tests",
       "type": "writes",
-      "v": "author",
+      "v": "encode",
       "n": "executable tests",
       "rows": "batch"
     },
@@ -1038,7 +1043,7 @@
       "s": "architect",
       "t": "model",
       "type": "writes",
-      "v": "survey",
+      "v": "attest",
       "n": "survey record + citations",
       "label": "citations validated against the index",
       "rows": "single"
@@ -1206,7 +1211,130 @@
       "type": "refs",
       "v": "judge",
       "card": "n:1"
+    },
+    {
+      "s": "liaison",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "entry",
+      "rows": "window",
+      "depth": "body",
+      "label": "the role answerable for their words could not check them"
+    },
+    {
+      "s": "liaison",
+      "t": "brief",
+      "type": "reads",
+      "v": "list",
+      "n": "statements",
+      "rows": "all",
+      "depth": "index",
+      "label": "so a second segmentation can see the first"
+    },
+    {
+      "s": "architect",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "rows": "query",
+      "depth": "index",
+      "label": "check prior refusals before proposing a seam"
+    },
+    {
+      "s": "terminologist",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single",
+      "label": "a choice the criteria did not make"
+    },
+    {
+      "s": "tester",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single",
+      "label": "a choice the criteria did not make"
+    },
+    {
+      "s": "terminologist",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "rows": "single",
+      "label": "law 11: the decider writes the reason, in the same session"
+    },
+    {
+      "s": "architect",
+      "t": "findings",
+      "type": "reads",
+      "v": "load",
+      "n": "own findings for a batch",
+      "rows": "batch",
+      "depth": "index",
+      "label": "what it found on the previous commit"
+    },
+    {
+      "s": "terminologist",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "rows": "query",
+      "depth": "index",
+      "label": "check before deciding, like every other decider"
+    },
+    {
+      "s": "architect",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity",
+      "rows": "single",
+      "label": "it reads the glossary; it could not ask"
     }
   ],
-  "contact_exceptions": []
+  "contact_exceptions": [],
+  "silent_channels": [
+    {
+      "s": "developer",
+      "t": "critic",
+      "why": "A fail names its criterion and the Developer follows the ref. There is nothing to ask, and a judge that argues is not one."
+    },
+    {
+      "s": "gatekeeper",
+      "t": "terminologist",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "architect",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "terminologist",
+      "t": "architect",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "terminologist",
+      "t": "critic",
+      "why": "inform: Critic is woken by the review predicate, not told"
+    },
+    {
+      "s": "tester",
+      "t": "critic",
+      "why": "inform: Critic is woken by the review predicate, not told"
+    },
+    {
+      "s": "critic",
+      "t": "terminologist",
+      "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead — a completeness fix rather than a channel."
+    }
+  ]
 }

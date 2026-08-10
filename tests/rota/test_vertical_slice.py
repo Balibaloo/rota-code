@@ -140,7 +140,7 @@ def test_understanding_loop_scripted(db):
             "TOOL: batches.annotate(batch_id='b1', paths=['src/account.py'])",
         ],
         "tester:tests_missing": [
-            "TOOL: tests.author(id='tst1', batch_id='b1', criterion_id='c1', "
+            "TOOL: tests.encode(id='tst1', batch_id='b1', criterion_id='c1', "
             "path='test_delete.py', body='assert tombstoned(account)')",
         ],
         "gatekeeper": [""],
