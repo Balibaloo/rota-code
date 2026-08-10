@@ -430,6 +430,19 @@ function gvLit() {
   return lit;
 }
 
+
+async function gvLoad() {
+  const [g,l,st,tr,ms] = await Promise.all([
+    fetch('/graph.json').then(r=>r.json()),
+    fetch('/layout.json').then(r=>r.json()),
+    fetch('/stories.json').then(r=>r.json()),
+    fetch('/trace.json').then(r=>r.json()),
+    fetch('/messages.json').then(r=>r.json()),
+  ]);
+  GV.graph=g; GV.layout=l; GV.stories=st; GV.trace=tr; GV.msgs=ms;
+  gvControls(); gvFit(); gvDraw(); buildStoryTab();
+}
+
 const gvSteps = () =>
   GV.source==='story' ? (GV.stories[GV.storyIx]?.steps||[])
 : GV.source==='run'   ? (GV.trace.steps||[]) : [];

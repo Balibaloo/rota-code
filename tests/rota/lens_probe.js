@@ -296,6 +296,32 @@ for (const [what, list] of Object.entries(bad)) {
 if (clean)
   console.log('  every segment axis-aligned, every end on its box, no shared slots');
 
+// ---- the entry points still exist -------------------------------------------
+//
+// Twice in one session a function was deleted by accident, carried out inside a
+// block that was being removed for other reasons. `node --check` passes -- the
+// file is valid JavaScript with a hole in it -- and every headless check here
+// passed too, because they call the drawing functions directly and never the
+// ones the *page* calls. The canvas went white and the reason was a
+// ReferenceError no test was positioned to see.
+//
+// The second time, the check that was supposed to catch it grepped for
+// `^-function` and missed `async function gvLoad`.
+
+const ENTRY = ['gvLoad', 'gvDraw', 'gvControls', 'gvFit', 'gvFocus', 'gvGoto',
+               'gvInhabit', 'gvMode', 'gvSet', 'gvFar', 'gvLegend', 'gvNarrate',
+               'drawTeam', 'drawChat', 'route', 'computePorts', 'foldPlan',
+               'keySelects', 'gvLit', 'gvSteps', 'gvVisible', 'ghostChips'];
+
+const missing = ENTRY.filter(name => {
+  try { return typeof eval(name) !== 'function'; }
+  catch (err) { return true; }          // ReferenceError: it is not there at all
+});
+console.log('\nentry points: ' + (missing.length
+  ? 'MISSING ' + missing.join(', ')
+  : ENTRY.length + ' defined'));
+if (missing.length) problems.push('entry points missing: ' + missing.join(', '));
+
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
 
