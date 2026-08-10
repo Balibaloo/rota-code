@@ -13,7 +13,7 @@ const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             mode:'team', source:'design', storyIx:0, stepIx:0,
             focus:null, inhabit:null, blast:null, keyhl:null,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false,
-            settings:{collapse:'auto', labels:'auto'}};
+            settings:{collapse:'auto', labels:'auto', far:0.62}};
 
 try {
   Object.assign(GV.settings, JSON.parse(localStorage.getItem('rota.gv') || '{}'));
@@ -25,15 +25,43 @@ function gvSet(k, v) {
   gvControls(); gvDraw();
 }
 
+// The threshold slider. Deliberately *not* gvSet: rebuilding the popover on
+// every input event replaces the range element mid-drag, and the pointer is
+// then holding something that no longer exists. So this writes the readout in
+// place and redraws the canvas only.
+function gvFar(v) {
+  GV.settings.far = +v;
+  try { localStorage.setItem('rota.gv', JSON.stringify(GV.settings)); } catch {}
+  gvFarNote(); gvDraw();
+}
+
+// Where the fold sits, and where you are. Called on drag and on every draw, so
+// zooming moves the readout under a stationary slider — which is the thing that
+// makes the number legible.
+function gvFarNote() {
+  const now = document.getElementById('gfarnow');
+  const note = document.getElementById('gfarnote');
+  if (!now || !note) return;
+  const auto = GV.settings.collapse === 'auto';
+  now.textContent = `${far().toFixed(2)}×`;
+  note.innerHTML = auto
+    ? `Folds below <b>${far().toFixed(2)}×</b>. Now at
+       <b>${GV.view.k.toFixed(2)}×</b> — ${collapsing()
+         ? 'folded' : 'every verb drawn separately'}.`
+    : `Threshold applies to <em>when far out</em> only.`;
+}
+
 // Below this the labels are unreadable and the parallel edges are a smudge, so
-// both fold away. Measured by eye rather than derived: it is the zoom at which
-// a 10px label stops being a word and starts being texture.
-const FAR = 0.62;
+// both fold away. 0.62 was measured by eye — the zoom at which a 10px label
+// stops being a word and starts being texture — but "by eye" depends on whose
+// eye and what screen, so it is a setting with that number as its default.
+const FAR_DEFAULT = 0.62;
+const far = () => GV.settings.far ?? FAR_DEFAULT;
 
 const collapsing = () => GV.settings.collapse === 'always'
-  || (GV.settings.collapse === 'auto' && GV.view.k < FAR);
+  || (GV.settings.collapse === 'auto' && GV.view.k < far());
 const labelling = () => GV.settings.labels === 'always'
-  || (GV.settings.labels === 'auto' && GV.view.k >= FAR);
+  || (GV.settings.labels === 'auto' && GV.view.k >= far());
 
 // Light canvas, dark chrome. On a light ground the edge colours can be
 // saturated enough to tell four relationships apart without shouting, which
@@ -597,6 +625,7 @@ function drawTeam() {
 function gvDraw() {
   const {edges, nodes} = GV.mode==='chat' ? drawChat() : drawTeam();
   const v=GV.view;
+  gvFarNote();                    // the readout tracks zoom, not just the drag
   const R = ESTYLE.refs.c;
   document.getElementById('gsvg').innerHTML = `<defs>
       <!-- One head per edge type, in the edge's own colour, and sized in user
@@ -748,7 +777,15 @@ function gvControls(){
                'fold below the zoom where labels stop being readable')}
       ${choice('collapse','always','always','one line per relationship, always')}
       ${choice('collapse','never','never','every verb its own line')}
+    </span>
+    <span class="slide">
+      <input type="range" id="gfar" min="0.2" max="1.6" step="0.02"
+             value="${far()}" oninput="gvFar(this.value)"
+             ${GV.settings.collapse === 'auto' ? '' : 'disabled'}
+             title="the zoom below which parallel edges fold together">
+      <span class="now" id="gfarnow"></span>
     </span></div>
+    <p class="sig" id="gfarnote"></p>
     <p class="sig">Folded per source, target and *type* — never across types.
       Seventeen pairs here carry both a read and a write, and one line for two
       kinds of relationship is the one thing the colours must not say.</p>

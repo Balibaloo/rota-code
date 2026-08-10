@@ -129,6 +129,25 @@ if (mixed.length) {
   problems.push('fold groups mix types');
 }
 
+// ---- the fold threshold ----------------------------------------------------
+//
+// The zoom that triggers folding is a setting now, so exercise the real
+// predicate rather than trust that the slider is wired to anything. A slider
+// bound to a misspelled key looks perfectly fine on screen: it slides.
+
+const kWas = GV.view.k, setWas = Object.assign({}, GV.settings);
+GV.settings.collapse = 'auto';
+const at = (threshold, k) => {
+  GV.settings.far = threshold; GV.view.k = k; return collapsing();
+};
+const honoured = at(0.60, 0.40) && !at(0.60, 0.80)     // default-ish
+              && at(1.20, 0.80) && !at(0.30, 0.40)     // moving it moves the fold
+              && (GV.settings.collapse = 'never', !at(0.6, 0.1));  // and 'never' still wins
+GV.view.k = kWas; Object.assign(GV.settings, setWas);
+
+console.log('fold threshold: ' + (honoured ? 'follows the setting' : 'IGNORED'));
+if (!honoured) problems.push('fold threshold not honoured');
+
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
 

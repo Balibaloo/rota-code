@@ -50,6 +50,15 @@
   #gprefs button{margin-right:4px;font-size:11px}
   #gprefs button.on{color:var(--ink);border-color:var(--accent);background:#18202e}
   #gprefs .sig{display:block;margin:0 0 10px;font-size:11px;line-height:1.45}
+  /* The fold threshold. A live readout of the current zoom sits beside it,
+     because a number like 0.62x means nothing until you can see where you are
+     standing relative to it. */
+  #gprefs .slide{display:flex;align-items:center;gap:9px;width:100%;margin-top:7px}
+  #gprefs input[type=range]{flex:1;accent-color:var(--accent);height:16px;margin:0}
+  #gprefs input[type=range]:disabled{opacity:.35}
+  #gprefs .now{font-variant-numeric:tabular-nums;color:var(--dim);font-size:11px;
+        white-space:nowrap}
+  #gfarnote b{color:var(--ink);font-weight:600}
   #gctl button.on{background:#e0ecfb;border-color:#3b6ea5;color:#12325a}
   #gctl .sep{background:#cbd5e1}
   /* Top left, under the controls: the key is read before the picture, not
