@@ -579,9 +579,13 @@ async function loadCases(){
       const [name, what] = TIER[tier] || [tier, ''];
       const all = Object.values(tiers[tier]).flat();
       const green = all.filter(c => caseState(c)==='pass').length;
-      const roles = Object.keys(tiers[tier]).sort().map(role =>
-        `<div class="crole">${esc(role)}</div>` +
-        tiers[tier][role].map(c => {
+      const roles = Object.keys(tiers[tier]).sort().map(role => {
+        const mine = tiers[tier][role];
+        const ok = mine.filter(c => caseState(c)==='pass').length;
+        const holdsRole = mine.some(c => c.id === CASE_ID);
+        return `<details class="crole" ${holdsRole?'open':''}>
+          <summary>${esc(role)}<span class="sig">${ok}/${mine.length}</span></summary>` +
+        mine.map(c => {
           const st = caseState(c);
           const score = c.history.length
             ? `${c.history.filter(h=>h.passed).length}/${c.history.length}` : '—';
@@ -589,7 +593,8 @@ async function loadCases(){
             <span class="dot ${st}"></span>
             <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
             <span class="sig">${esc(c.mode)}</span>
-            <span class="sig">${score}</span></div>`;}).join('')).join('');
+            <span class="sig">${score}</span></div>`;}).join('') +
+          `</details>`;}).join('');
       // Collapsed by default, except the tier holding the open case — so
       // "← all cases" lands you where you left rather than at three shut
       // drawers.
