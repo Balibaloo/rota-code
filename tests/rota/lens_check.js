@@ -29,6 +29,7 @@ const ctx = vm.createContext({
     graph: get('/graph.json'),
     cases: get('/cases.json'),
     stories: get('/stories.json'),
+    layout: get('/layout.json'),
   },
 });
 

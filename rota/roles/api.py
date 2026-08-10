@@ -72,6 +72,32 @@ def _rows(cur) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
+def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
+    """
+    The batch a criterion's ticket belongs to, when the session was not woken
+    holding one.
+
+    `ctx.batch_id` covers the `tests_missing` tick, where the scheduler names
+    the batch. It is empty when Tester is woken by a *message* -- a term answer
+    arrives, and the answer settles what the criterion means, so a test follows
+    from it. The batch is still the same batch, and it is two joins away.
+
+    Asking the role for it instead produced `batch_id='g_1a4b8f'` nineteen times
+    in one session: the glossary term id from the message that woke it, because
+    a required argument has to be filled with something and that was the only id
+    in front of it. Making a role supply a fact the database can derive is
+    asking it to do a join, and it will guess rather than refuse.
+
+    Ambiguity is left alone. A ticket in two batches has no single answer here,
+    and inventing one would file a test against the wrong delivery.
+    """
+    rows = ctx.conn.execute(
+        "SELECT DISTINCT bt.batch_id AS id FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE c.id = ?", (criterion_id,)).fetchall()
+    return rows[0]["id"] if len(rows) == 1 else None
+
+
 def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
     """
     A state change needs something to change the state *of*.
@@ -90,9 +116,17 @@ def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
     hit = ctx.conn.execute(
         f"SELECT 1 FROM {table} WHERE id = ?", (id,)).fetchone()
     if hit is None:
+        # Name the ids that would have worked. "The id has to be one you were
+        # given" is true and unhelpful when the model is holding four ids and
+        # picked the wrong kind -- a glossary term where a batch was wanted.
+        # Saying which rows exist turns a scolding into a correction.
+        have = [r["id"] for r in ctx.conn.execute(
+            f"SELECT id FROM {table} ORDER BY id LIMIT 6")]
+        known = (f"; {table} rows are {have}" if have
+                 else f"; there are no {table} rows at all")
         raise ValueError(
             f"no {table} row with id={id!r}; this changes an existing row, so "
-            f"the id has to be one you were given")
+            f"the id has to be one you were given{known}")
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +539,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
-    batch_id = batch_id or ctx.batch_id
+    batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:
         raise ValueError("no batch in this session and none given")
     _must_exist(ctx, "batches", batch_id)

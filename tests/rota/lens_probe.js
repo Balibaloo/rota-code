@@ -10,6 +10,7 @@
 GV.trace = DATA.trace;
 GV.graph = DATA.graph;
 GV.stories = DATA.stories;
+GV.layout = DATA.layout;
 
 const problems = [];
 
@@ -207,6 +208,25 @@ const spill = crowded.filter(c => c.y < 19.99 || c.y > H - 19.99).length;
 console.log('  overflow: 40 chips where 19 fit -> ' + spill
             + ' pushed off the canvas (they crowd instead)');
 if (spill) problems.push('ghost chips overflow the canvas');
+
+// ---- how much of the picture routes cleanly ---------------------------------
+//
+// `refPath` draws a straight run only when the two centres agree within 6px,
+// and the layout was hand-dragged: things meant to share a column sat two to
+// eight pixels apart, so pairs that were aligned by intent got a dogleg. This
+// counts what comes out, which is the only way to tell whether aligning the
+// layout bought anything.
+
+computeSpread();          // refPath reads the offsets it fills in
+let straight = 0, elbow = 0;
+for (const e of GV.graph.edges) {
+  if (e.type !== 'refs') continue;
+  const r = refPath(e);
+  if (!r) continue;
+  ((r.d.match(/L/g) || []).length === 1 ? () => straight++ : () => elbow++)();
+}
+console.log('\nref routing: ' + straight + ' straight, ' + elbow + ' elbowed'
+            + ' (' + Math.round(100 * straight / (straight + elbow)) + '% clean)');
 
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
