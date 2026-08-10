@@ -316,14 +316,21 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
         f"SELECT id, headline, text, provenance FROM constraints WHERE id IN ({marks})", ids))
 
 
-@op("model", "attest")
-def model_attest(ctx: Ctx, id: str, area: str, outcome: str,
-                 citations: list[str] | None = None) -> dict:
+@op("surveys", "attest")
+def surveys_attest(ctx: Ctx, id: str, area: str, outcome: str,
+                   citations: list[str] | None = None) -> dict:
     """
     Record a survey. Citations are validated against the code index, so
     "surveyed, none found" is evidence rather than a claim — a lazy surveyor
     cannot starve constraint zero by asserting it everywhere.
+
+    The id is prefixed with the role, because `tick_survey` waits for a row per
+    role per area and finds it by that prefix. Derived rather than asked for: a
+    role has no way to know it is being counted, and one that guessed a
+    different prefix would be woken for the same area forever.
     """
+    if not id.startswith(f"{ctx.role}:"):
+        id = f"{ctx.role}:{id}"
     ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
     unknown = []
     for grain in citations or []:
@@ -334,6 +341,19 @@ def model_attest(ctx: Ctx, id: str, area: str, outcome: str,
         ctx.writes.append(("survey_citations", f"{id}:{grain}", {
             "survey_id": id, "grain": grain, "resolves": 1 if exists else 0}))
     return {"id": id, "unresolved_citations": unknown}
+
+
+@op("surveys", "consult")
+def surveys_consult(ctx: Ctx) -> list[dict]:
+    """
+    Which areas have been surveyed, by whom, and with what result.
+
+    Onboarding sessions compound through artefacts rather than context: area N's
+    session has no memory of areas 1..N-1 and would otherwise have no way to
+    know they happened, let alone that one of them came back `none_found`.
+    """
+    return _rows(ctx.conn.execute(
+        "SELECT id, area, outcome FROM survey_records ORDER BY area, id"))
 
 
 # ---------------------------------------------------------------------------

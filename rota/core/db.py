@@ -41,8 +41,13 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "brief":      ("statements",),
     "problem":    ("items", "item_statements"),
     "glossary":   ("glossary_terms", "business_rules"),
-    "model":      ("constraints", "constraint_bindings",
-                   "survey_records", "survey_citations"),
+    "model":      ("constraints", "constraint_bindings"),
+    # Also not part of `model`, and for a second reason beyond the cascade.
+    # Onboarding runs three roles over every area and each has to record its own
+    # pass, which under `model` meant three writers on Architect's artefact --
+    # so only Architect could attest, and `tick_survey`, which waits for a row
+    # per role, woke the other two for the same area forever.
+    "surveys":    ("survey_records", "survey_citations"),
     # Not part of `model`. A finding is a verdict on a batch, and binding it to
     # the model meant one *satisfied* finding -- a clean review saying nothing
     # is wrong -- cascaded as though the system model had changed, waking the

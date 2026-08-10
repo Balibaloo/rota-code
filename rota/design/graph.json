@@ -148,6 +148,14 @@
       "contact": false,
       "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role — so there is nobody to ask about one.",
       "note": "Constraint id, satisfied or violated, and the grain that brought the constraint into range. No reasoning: law 2. One row per constraint checked, per commit."
+    },
+    {
+      "id": "surveys",
+      "label": "Survey records",
+      "type": "artefact",
+      "contact": false,
+      "contact_why": "a receipt that an area was looked at, by whom, with what result -- read by the scheduler, which is not a role, so there is nobody to ask about one",
+      "note": "One row per role per area of an onboarded codebase: constraints_found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
     }
   ],
   "edges": [
@@ -421,12 +429,42 @@
       "depth": "index"
     },
     {
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
       "s": "gatekeeper",
       "t": "code",
       "type": "reads",
       "v": "survey",
       "n": "observed behaviour",
       "label": "onboarding",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "constraints in force",
+      "label": "onboarding: the third survey role, and the only one without it",
       "rows": "query",
       "depth": "index"
     },
@@ -1041,15 +1079,6 @@
     },
     {
       "s": "architect",
-      "t": "model",
-      "type": "writes",
-      "v": "attest",
-      "n": "survey record + citations",
-      "label": "citations validated against the index",
-      "rows": "single"
-    },
-    {
-      "s": "architect",
       "t": "criteria",
       "type": "reads",
       "v": "scan",
@@ -1278,6 +1307,70 @@
       "rows": "batch",
       "depth": "index",
       "label": "what it found on the previous commit"
+    },
+    {
+      "s": "terminologist",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "terminologist",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "architect",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "architect",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "surveys",
+      "t": "code",
+      "type": "refs",
+      "v": "cites",
+      "card": "n:1"
     },
     {
       "s": "terminologist",

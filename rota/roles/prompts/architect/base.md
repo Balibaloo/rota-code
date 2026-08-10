@@ -28,7 +28,7 @@ approved item, that is Gatekeeper's call, not yours.
 ## What you can reach, whatever woke you
 
 **`model.consult`** is the index of what you have committed to; **`model.load`**
-fetches one constraint in full. **`model.attest`** files a survey record — an
+fetches one constraint in full. **`surveys.attest`** files a survey record — an
 area looked at, with citations — and that is the only thing that shrinks
 constraint zero. "Surveyed, nothing found" is a result and counts.
 

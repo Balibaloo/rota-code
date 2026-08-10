@@ -210,3 +210,54 @@ def test_a_mode_names_no_function_it_does_not_offer():
             if missing:
                 named_but_absent[f"{role}/{mode}"] = missing
     assert not named_but_absent, named_but_absent
+
+
+def test_every_mode_narrows():
+    """
+    An un-narrowed mode is the role's whole namespace, which is what the
+    narrowing exists to prevent.
+
+    Fifteen modes had no tool list, and they were the small ones — `answer`,
+    `ask`, `elect`, `reopen` — the modes whose whole job is one message. Liaison
+    woken to relay an answer had seventeen functions and used nine of them,
+    including two messages to roles the mode has nothing to do with.
+
+    A mode may legitimately want everything the role has. It then says so by
+    listing it, because "I meant this" and "I never wrote the file" should not
+    look the same.
+    """
+    bare = sorted(f"{role}/{mode}"
+                  for role in sorted(graph_mod.load().roles)
+                  for mode in prompts.available(role)
+                  if prompts.mode_tools(role, mode) is None)
+    assert not bare, f"{len(bare)} mode(s) with no tool list: {bare}"
+
+
+def test_a_read_only_mode_offers_no_writes():
+    """
+    Three `ask` prompts told the model "you have no write functions in this
+    mode; they were not built into your namespace, so there is nothing to
+    resist." With no tool list that was simply untrue — Terminologist kept
+    `glossary.amend` and `decisions.author` throughout.
+
+    A prompt that claims a structural guarantee has to have one.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    leaks = {}
+    for role in sorted(graph_mod.load().roles):
+        for mode in ("ask",):
+            if mode not in prompts.available(role):
+                continue
+            offered = set(prompts.mode_tools(role, mode) or [])
+            writes = {f for f in offered
+                      if f in build(role, conn).functions()
+                      and not f.startswith("msg.")
+                      and f.split(".")[1] not in (
+                          "consult", "load", "list", "lookup", "search",
+                          "scan", "probe", "quote", "read", "diff", "source")}
+            if writes:
+                leaks[f"{role}/{mode}"] = sorted(writes)
+    assert not leaks, leaks

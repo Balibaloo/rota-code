@@ -1,6 +1,5 @@
 problem.consult
 problem.assert
 decisions.search
-msg.report_liaison
-brief.list
-ledger.log
+decisions.author
+msg.reopen_developer

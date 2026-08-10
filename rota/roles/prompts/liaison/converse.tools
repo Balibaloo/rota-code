@@ -1,2 +1,7 @@
 brief.segment
 msg.confirm_principal
+brief.list
+transcript.quote
+msg.ask_gatekeeper
+msg.ask_terminologist
+msg.ask_architect
