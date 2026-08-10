@@ -139,7 +139,7 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
         if answer is None:
             continue                       # deferral is always allowed
 
-        msg_id = new_id("m")
+        msg_id = new_id("m", conn)
         seq = conn.execute(
             "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
         thread = conn.execute(

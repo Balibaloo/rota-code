@@ -26,6 +26,7 @@
   runs: 5
   pass: 4
   tick: criteria
+  refs: [tk1]
   fixture:
     items:
       - {id: i1, text: "users can delete their account", kind: in_scope,

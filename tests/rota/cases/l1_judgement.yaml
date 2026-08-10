@@ -9,6 +9,7 @@
   runs: 5
   pass: 4
   tick: review
+  refs: [b1]
   repo:
     batch: b1
     message: "prorate refuses more days than the period holds"
@@ -72,6 +73,7 @@
   runs: 5
   pass: 4
   tick: review
+  refs: [b1]
   repo:
     batch: b1
     message: "delete an account"
@@ -131,6 +133,7 @@
   runs: 5
   pass: 4
   tick: tests_missing
+  refs: [b1]
   fixture:
     items:
       - {id: i1, text: "prorate charges on upgrade", kind: in_scope,
@@ -180,6 +183,7 @@
   runs: 5
   pass: 4
   tick: grouping
+  refs: [i1]
   fixture:
     items:
       - {id: i1, text: "delete an account", kind: in_scope, provenance: decided,

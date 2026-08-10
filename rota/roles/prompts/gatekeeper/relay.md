@@ -21,3 +21,9 @@ Approval is stamped against the item's current version, which is what makes "no
 batch schedules unless its approval postdates its last amendment" mechanical. You
 do not have to manage that — just do not amend an item's text in the same breath
 as approving it, or you will have revoked the approval you just granted.
+
+**If more than one item comes back approved, order them** with
+`problem.prioritize`. This is the only moment anybody can: priority is a property
+of what the principal wants, and it is the only moment you know what they want
+and that nothing is yet building against it. Leaving them all equal is a
+decision too, made by not making one.

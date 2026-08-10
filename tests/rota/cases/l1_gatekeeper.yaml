@@ -37,6 +37,7 @@
   runs: 5
   pass: 4
   tick: slicing
+  refs: [i1]
   fixture:
     items:
       - {id: i1, text: "users can delete their account", kind: in_scope,

@@ -10,6 +10,7 @@
   runs: 5
   pass: 4
   tick: contested
+  refs: [i1]
   fixture:
     entries:
       - {id: e1, author: principal, ts_order: 1,
@@ -32,6 +33,7 @@
   runs: 5
   pass: 4
   tick: signoff
+  refs: [i1, i2]
   fixture:
     items:
       - {id: i1, text: "users can close their account", kind: in_scope,

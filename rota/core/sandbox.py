@@ -223,6 +223,7 @@ def _attr_to_verb(attr: str) -> str:
 
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
+          area: str | None = None,
           entry_id: str | None = None, provenance: str = "decided",
           allow: list[str] | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
@@ -238,7 +239,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         raise SandboxError(f"{role!r} is not a role in the graph")
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
-                  batch_id=batch_id, entry_id=entry_id, provenance=provenance)
+                  batch_id=batch_id, area=area, entry_id=entry_id, provenance=provenance)
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}
@@ -304,7 +305,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str) -> Callable:
     """
     from .runner import new_id
 
-    def send(refs: list[str] | None = None, round_no: int = 0):
+    def send(refs: list[str], round_no: int = 0):
+        # Required, not defaulted. A message carries refs and nothing else —
+        # there is no prose field on purpose — so `refs=None` advertised a
+        # legal call that communicates the fact that something happened and
+        # not one thing about what. Liaison took the offer: five runs of
+        # `TOOL: msg.confirm_principal()`, a confirmation request naming no
+        # statement to confirm. Missing arguments are already a tool error the
+        # model can correct, so this costs a turn rather than a session.
         # One session may not send the same message twice.
         #
         # Not a cap on messages — Liaison delivering the same statements to
@@ -324,7 +332,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str) -> Callable:
                 f"you have already sent {verb} to {recipient} with these refs; "
                 f"your work for this session is done")
 
-        msg_id = new_id("m")
+        msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         ctx.outbound.append({
             "id": msg_id, "to_role": recipient, "verb": verb,
             "body_refs": list(refs or []), "round_no": round_no,

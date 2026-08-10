@@ -1,7 +1,8 @@
 MODE: review — judge a batch.
 
-`criteria.load`, `tests.load`, `code.read`. That is everything you get, and it is
-everything you need.
+The criteria, the tests and the diff are already in front of you. That is
+everything you get, and it is everything you need — there is nothing to fetch
+and nobody is going to send you more.
 
 Work through it in this order:
 

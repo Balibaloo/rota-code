@@ -108,7 +108,8 @@ class Delta:
 
 
 def capture(conn: sqlite3.Connection, session_id: str,
-            versions_before: dict[str, int]) -> Delta:
+            versions_before: dict[str, int],
+            messages_before: set[str] | None = None) -> Delta:
     writes: dict[str, list[str]] = {}
     for r in conn.execute(
         "SELECT table_name, row_id FROM receipts WHERE session_id = ? ORDER BY table_name",
@@ -116,11 +117,22 @@ def capture(conn: sqlite3.Connection, session_id: str,
     ):
         writes.setdefault(r["table_name"], []).append(r["row_id"])
 
+    # Everything this role sent *in this session*, and nothing else.
+    #
+    # This was "every message from this role", which quietly included the ones
+    # the fixture seeded. A case that seeds a quarantined Liaison->Terminologist
+    # message and then forbids messaging Terminologist failed 0/5 against a
+    # session whose entire trace was one call to `msg.present_principal`: the
+    # forbidden message was in the fixture, put there by the case itself.
+    #
+    # Messages carry no session id — they are addressed, not owned — so the
+    # boundary is drawn by what existed before the session started.
+    before = messages_before if messages_before is not None else set()
     messages = [dict(r) for r in conn.execute(
         "SELECT id, to_role, verb, body_refs, cause_id FROM messages "
-        "WHERE id IN (SELECT id FROM messages WHERE from_role = "
-        "  (SELECT role FROM sessions WHERE id = ?)) ORDER BY seq", (session_id,),
-    )]
+        "WHERE from_role = (SELECT role FROM sessions WHERE id = ?) "
+        "ORDER BY seq", (session_id,),
+    ) if r["id"] not in before]
 
     tool_calls = [r["fn"] for r in conn.execute(
         "SELECT fn FROM tool_calls WHERE session_id = ? ORDER BY seq", (session_id,))]
@@ -357,6 +369,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
         )
 
     before = snapshot_versions(conn)
+    seeded = {r["id"] for r in conn.execute("SELECT id FROM messages")}
     wake = Wake(role=case["role"], kind="message",
                 message_id=msg_id if inbound else None,
                 refs=tuple(case.get("refs") or ()),
@@ -371,8 +384,9 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
+                          area=wake.refs[0] if case.get("tick") == "survey" else None,
                           mode=case.get("mode", "normal"))
-    delta = capture(conn, outcome.session_id, before)
+    delta = capture(conn, outcome.session_id, before, messages_before=seeded)
 
     problems = check(case, delta)
     if case.get("same_session"):

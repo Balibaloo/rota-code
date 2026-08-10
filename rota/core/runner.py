@@ -42,7 +42,33 @@ class RunOutcome:
     result: SessionResult | None = None
 
 
-def new_id(prefix: str) -> str:
+_COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
+
+
+def new_id(prefix: str, conn: sqlite3.Connection | None = None,
+           offset: int = 0) -> str:
+    """
+    An id that is unique in the database and the same on a replay.
+
+    It was `uuid4`, and the randomness leaked somewhere expensive. A tool result
+    goes back to the model as feedback — `OK msg.confirm_principal -> {"id":
+    "m_a1b2c3d4ef"}` — so the *prompt for turn two* carried a random string.
+    Cassettes are keyed on the prompt, which meant turn one replayed and every
+    turn after it missed: 1140 of 1419 recordings had never been reused once,
+    and re-running an unchanged case still cost a full model run.
+
+    Counting from the table instead is deterministic where it matters and unique
+    where it has to be. A fixture database starts empty, so a case replays
+    byte-identically; a long-lived one keeps counting. `uuid4` remains the
+    fallback for anything not table-backed, where nobody is replaying anyway.
+    """
+    table = _COUNTED.get(prefix)
+    if conn is not None and table:
+        # `offset` is what a session has staged but not committed. Messages are
+        # held in the context until the commit lands atomically, so counting the
+        # table alone would hand the same id to every message in one session.
+        n = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
+        return f"{prefix}{n + offset + 1}"
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 
@@ -187,21 +213,40 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     return out
 
 
-def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake) -> dict[str, Any]:
+def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
+                     g: graph_mod.Graph | None = None) -> dict[str, Any]:
     """
     What arrives in the prompt without being asked for.
 
-    Deliberately small: the index of what this role owns, plus whatever its wake
-    points at. Everything else stays behind a tool call.
+    Everything the role can read *without being told anything it does not
+    already have*. Anything that needs an argument stays behind a tool call.
+
+    The rule used to be the verbs `consult` and `list`, and the roles it left
+    out were the ones that needed it most. Critic's whole working set is
+    `criteria.load`, `tests.load` and `code.read` — three batch-scoped reads
+    that take no arguments, none of them named `consult` — so it woke with an
+    empty prompt under a brief that says "that is everything you get, and it is
+    everything you need", and answered:
+
+        I'm ready to review a batch of code changes. Please provide the
+        criteria.load, tests.load and code.read data for me to work with.
+
+    Which is a fair reading. It was told what it would have, not told to fetch
+    it, and a cold session has no habit of fetching. Callable-with-no-arguments
+    is the honest rule: if the session already holds everything a read needs,
+    making the model ask for it is a turn spent on nothing.
     """
+    reads = {f"{e.t}.{e.v}" for e in (g or graph_mod.load()).of_type("reads")
+             if e.s == role}
+
     pushed: dict[str, Any] = {}
     for name in sb.functions():
-        artefact, verb = name.split(".", 1)
-        if verb in ("consult", "list"):          # own-artefact index, cheap by design
-            try:
-                pushed[name] = sb.call(name)
-            except TypeError:
-                continue                          # needs arguments; leave it to the model
+        if name not in reads:
+            continue          # a write is never speculative; the graph says which
+        try:
+            pushed[name] = sb.call(name)
+        except (TypeError, sandbox_mod.ArgumentError):
+            continue     # needs to be told something; leave it to the model
     return pushed
 
 
@@ -214,6 +259,7 @@ def run_session(
     instructions: str = "",
     mode: str = "normal",
     batch_id: str | None = None,
+    area: str | None = None,
     max_iterations: int = MAX_ITERATIONS,
     native_tools: bool | None = None,
     g: graph_mod.Graph | None = None,
@@ -238,7 +284,7 @@ def run_session(
         except prompts.MissingPrompt:
             instructions = ""
 
-    session_id = new_id("s")
+    session_id = new_id("s", conn)
     entry_id = None
     if wake.message_id:
         row = conn.execute(
@@ -253,6 +299,8 @@ def run_session(
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
                            session_id=session_id, entry_id=entry_id,
                            provenance=provenance, g=g,
+                           area=area or (wake.refs[0]
+                                 if wake.kind == "tick:survey" and wake.refs else None),
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)))
     sb.ctx.trigger = wake.message_id
 
@@ -264,7 +312,7 @@ def run_session(
     outcome = RunOutcome(session_id=session_id, committed=False, iterations=0)
 
     try:
-        pushed = push_working_set(wake.role, sb, wake)
+        pushed = push_working_set(wake.role, sb, wake, g)
         inbound = resolve_inbound(conn, wake)
         system, user = build_prompt(wake.role, sb, wake, pushed, instructions, inbound)
         pins = pins.with_prompt(system + user)

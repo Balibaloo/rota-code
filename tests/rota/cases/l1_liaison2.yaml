@@ -11,6 +11,7 @@
   runs: 5
   pass: 4
   tick: contradiction
+  refs: [s1, s2]
   fixture:
     entries:
       - {id: e1, author: principal, ts_order: 1,
@@ -38,6 +39,7 @@
   runs: 5
   pass: 4
   tick: awaiting_confirm
+  refs: [s1]
   fixture:
     entries:
       - {id: e1, author: principal, ts_order: 1,
@@ -118,6 +120,7 @@
   runs: 5
   pass: 4
   tick: quarantined
+  refs: [m_dead]
   fixture:
     items:
       - {id: i1, text: "search results are ranked by relevance", kind: in_scope,

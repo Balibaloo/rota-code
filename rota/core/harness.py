@@ -81,7 +81,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
 
     head = lifecycle.head_of(conn, batch_id)
     for test_id, result in results:
-        lifecycle.record_test_run(conn, new_id("tr"), batch_id, test_id,
+        lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head)
     return results
 

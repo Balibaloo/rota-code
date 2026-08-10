@@ -41,6 +41,13 @@ class Ctx:
     provenance: str = "decided"
     session_id: str = ""
     batch_id: str | None = None
+    # Which area a survey session is surveying. Decided by the scheduler, which
+    # runs one area at a time in role order, and never by the role -- the same
+    # reasoning as `batch_id`. Without it `code.survey(area=...)` was the one
+    # call a survey mode exists to make and the one the session had to guess an
+    # argument for, so nothing was pushed and all three survey roles opened by
+    # consulting their own artefact and stopping.
+    area: str | None = None
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
@@ -635,10 +642,12 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
 
 
 @op("code", "survey")
-def code_survey(ctx: Ctx, area: str) -> list[dict]:
+def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
+    """The area's grains, most depended-upon first. Defaults to the area this
+    session was woken for, which is the only one it has any business in."""
     return _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, fan_in FROM code_index WHERE area = ? "
-        "ORDER BY fan_in DESC", (area,)))
+        "ORDER BY fan_in DESC", (area or ctx.area,)))
 
 
 @op("code", "source")
