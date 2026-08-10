@@ -1,5 +1,10 @@
 glossary.amend
 glossary.consult
+# consult reads the index — the terms, not their bodies. Amending a term
+# without lookup means writing over a sense you were never allowed to read.
+# The role reached for this a hundred times across two cases before anyone
+# noticed the mode had taken it away.
+glossary.lookup
 msg.report_liaison
 transcript.quote
 decisions.search

@@ -12,7 +12,8 @@ from rota.design import graph as graph_mod
 from rota.roles.api import Ctx
 from rota.core.db import init_db
 from rota.core.sandbox import (
-    NotInWorkingSet, build, check_implementations, check_no_orphan_implementations,
+    ArgumentError, NotInWorkingSet, build, check_implementations,
+    check_no_orphan_implementations,
 )
 
 
@@ -134,3 +135,44 @@ def test_s9_writes_are_staged_not_applied(db):
     assert sb.ctx.writes == [("items", "i1", {
         "text": "delete account", "kind": "in_scope",
         "provenance": "decided", "approval": "draft"})]
+
+
+def test_s9_positional_arguments_are_bound_by_signature(db):
+    """
+    `problem.assert('i1', 'delete account')` is not informal, it is complete.
+
+    The parser used to reject positional calls, which was the parser enforcing a
+    rule it had no standing to enforce — whether the call is well formed depends
+    on the signature, and only this layer knows the signature.
+    """
+    sb = build("gatekeeper", db)
+    sb.call("problem.assert", "i1", "delete account")
+
+    assert sb.ctx.writes == [("items", "i1", {
+        "text": "delete account", "kind": "in_scope",
+        "provenance": "decided", "approval": "draft"})]
+
+
+def test_s9_positional_and_keyword_for_the_same_argument_is_an_error(db):
+    """Informality is tolerated; ambiguity is not."""
+    sb = build("gatekeeper", db)
+    with pytest.raises(ArgumentError, match="both by position and by name"):
+        sb.call("problem.assert", "i1", id="i2", text="delete account")
+
+
+def test_s9_too_many_positional_arguments_is_an_error(db):
+    sb = build("gatekeeper", db)
+    with pytest.raises(ArgumentError, match="positional arguments"):
+        sb.call("problem.assert", "i1", "text", "in_scope", "spare")
+
+
+def test_s9_the_ledger_says_what_to_write_instead_of_id(db):
+    """
+    `id` means "this row's own id" everywhere else, and the ledger derives its
+    own — so the model is not misreading the signature, it is reading a word
+    that means something different here. Rejected 170 times before the error
+    named the substitute.
+    """
+    sb = build("gatekeeper", db)
+    with pytest.raises(ArgumentError, match="about_ref"):
+        sb.call("ledger.log", id="i1", about_table="items", default_taken="yes")

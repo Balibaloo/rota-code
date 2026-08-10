@@ -65,6 +65,22 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
     ("findings", "find"): {"status": ("satisfied", "violated")},
 }
 
+# What to say when a *particular* wrong argument is offered, where listing the
+# signature demonstrably does not help.
+#
+# One entry, and it earned its place: `ledger.log(id=...)` was rejected 170
+# times across two cases, the same call re-sent turn after turn against an error
+# that already printed the correct signature. `id` means "this row's own id"
+# everywhere else in the namespace, and the ledger derives its own — so the
+# model is not misreading the signature, it is reading a word that means
+# something different here. Naming the substitute is what breaks the loop.
+ARG_HINTS_BY_OP: dict[tuple[str, str], dict[str, str]] = {
+    ("ledger", "log"): {
+        "id": "the ledger derives its own id from the assumption; if you mean "
+              "what the assumption is about, that is about_ref",
+    },
+}
+
 
 def _render_signature(fn: Callable) -> str:
     import inspect
@@ -78,6 +94,35 @@ def _render_signature(fn: Callable) -> str:
     return ", ".join(params)
 
 
+def _bind_positional(fn: Callable, pos: tuple, kwargs: dict,
+                     dotted: str) -> dict:
+    """
+    Name the positional arguments, in declaration order.
+
+    Small models write `tests.encode('t1', 'c1', 'test_close.py', '...')`
+    perfectly often, and the signature is right there in the prompt they were
+    given. Refusing it was a rule with nothing behind it — every rejection was
+    a call whose intent was completely determined.
+
+    Too many, or one that collides with a keyword already supplied, is still an
+    error: those are genuinely ambiguous rather than merely informal.
+    """
+    import inspect
+
+    names = list(inspect.signature(fn).parameters)
+    if len(pos) > len(names):
+        raise ArgumentError(
+            f"{dotted}: {len(pos)} positional arguments for "
+            f"({_render_signature(fn)})")
+
+    named = dict(zip(names, pos))
+    clash = sorted(set(named) & set(kwargs))
+    if clash:
+        raise ArgumentError(
+            f"{dotted}: {clash} given both by position and by name")
+    return {**named, **kwargs}
+
+
 def validate_args(fn: Callable, kwargs: dict,
                   op: tuple[str, str] | None = None) -> str | None:
     """Return a human-readable problem, or None if the call is well formed."""
@@ -88,8 +133,11 @@ def validate_args(fn: Callable, kwargs: dict,
 
     unknown = sorted(set(kwargs) - accepted)
     if unknown:
+        hints = ARG_HINTS_BY_OP.get(op or ("", "")) or {}
+        said = "; ".join(hints[u] for u in unknown if u in hints)
         return (f"unexpected argument(s) {unknown}; "
-                f"accepts ({_render_signature(fn)})")
+                f"accepts ({_render_signature(fn)})"
+                + (f" — {said}" if said else ""))
 
     # `is None` as well as absent. A native tool call can send an explicit null
     # for a required field, which passes a presence check and then dies at the
@@ -189,20 +237,26 @@ class Sandbox:
             out.append(f"{name}({_render_signature(impl)})")
         return out
 
-    def call(self, dotted: str, **kwargs) -> Any:
+    def call(self, dotted: str, *pos, **kwargs) -> Any:
         """
-        Dispatch `artefact.verb(**kwargs)`, validating arguments first.
+        Dispatch `artefact.verb(*pos, **kwargs)`, validating arguments first.
 
         Validation happens here rather than at the database, because an invalid
         value that reaches SQLite raises inside the transaction and takes the
         whole session down — one bad enum from the model and an otherwise good
         session never happened. Caught here it is an ordinary tool error the
         model can see and correct on its next turn.
+
+        Positional arguments are bound here for the same reason the parser does
+        not reject them: this is the only place that knows the signature.
         """
         if "." not in dotted:
             raise NotInWorkingSet(f"{dotted!r} is not a function name")
         artefact, fn = dotted.split(".", 1)
         target = getattr(self[artefact], fn)
+
+        if pos:
+            kwargs = _bind_positional(target, pos, kwargs, dotted)
 
         problem = validate_args(target, kwargs, op=(artefact, _attr_to_verb(fn)))
         if problem:

@@ -78,10 +78,15 @@ def test_garbage_arguments_are_an_error():
     assert isinstance(result, ToolError) and "could not parse" in result.reason
 
 
-def test_positional_arguments_rejected():
+def test_positional_arguments_are_carried_not_rejected():
+    """
+    This used to assert a rejection. The rule did not disappear, it moved to
+    the sandbox, which is the only layer that knows the signature the call has
+    to satisfy — see test_t0_sandbox for where it now lives.
+    """
     result = only("TOOL: glossary.lookup('account')")
-    assert isinstance(result, ToolError)
-    assert "positional" in result.reason
+    assert isinstance(result, ToolCall)
+    assert result.pos == ("account",) and result.args == {}
 
 
 def test_no_code_execution_via_arguments():
@@ -111,7 +116,43 @@ def test_validate_accepts_inside_working_set():
 
 
 def test_parse_args_empty():
-    assert parse_args("") == {}
+    assert parse_args("") == ({}, ())
+
+
+# ---------------------------------------------------------------------------
+# Tolerances. Each of these was a real rejection, counted in the cassette
+# database, and each cost whole cases: the role spends its remaining turns
+# apologising to an error message instead of doing the work.
+# ---------------------------------------------------------------------------
+
+def test_json_spelling_of_the_keywords():
+    """`true` is what half the tool-calling world writes, and it is not ambiguous."""
+    args, _ = parse_args("id='l1', default_taken=true, other=false, gone=null")
+    assert args == {"id": "l1", "default_taken": True,
+                    "other": False, "gone": None}
+
+
+def test_a_bare_word_is_a_string_that_lost_its_quotes():
+    args, _ = parse_args("refs=m_dead_75b4f6")
+    assert args == {"refs": "m_dead_75b4f6"}
+
+
+def test_positional_arguments_survive_to_the_binder():
+    """The parser does not know the signature, so it is not the parser's call."""
+    args, pos = parse_args("'t1', 'c1', path='test_close.py'")
+    assert args == {"path": "test_close.py"}
+    assert pos == ("t1", "c1")
+
+
+def test_nested_calls_are_still_refused():
+    """Tolerance is not evaluation. `body=criteria.load(id='b1')[0]['body']`."""
+    with pytest.raises(Exception):
+        parse_args("body=criteria.load(id='b1')[0]['body']")
+
+
+def test_keywords_inside_containers_too():
+    args, _ = parse_args("flags=[true, false], m={'a': true}")
+    assert args == {"flags": [True, False], "m": {"a": True}}
 
 
 # ---------------------------------------------------------------------------

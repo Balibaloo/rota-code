@@ -31,6 +31,10 @@ class ToolCall:
     name: str
     args: dict[str, Any]
     raw: str = ""
+    # Positional arguments, bound against the real signature at dispatch. The
+    # parser cannot bind them itself because it does not know what it is
+    # calling; rejecting them outright cost two cases every run.
+    pos: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -39,22 +43,59 @@ class ToolError:
     reason: str
 
 
-def parse_args(args_str: str) -> dict[str, Any]:
+# JSON's spelling of the three keywords, and Python's. Models blend the two
+# syntaxes constantly — Python keyword arguments carrying `true` rather than
+# `True` — because half the tool-calling world is JSON and nothing in the prompt
+# says which dialect this is. It is not ambiguous, and it is not worth a fatal
+# error: one `default_taken=true` poisoned an entire L3 chain. The Gatekeeper
+# spent every remaining turn apologising for it and never sent the message the
+# chain existed to test.
+_WORDS = {"true": True, "false": False, "null": None,
+          "True": True, "False": False, "None": None}
+
+
+def _literal(node: ast.AST) -> Any:
+    """
+    `ast.literal_eval`, plus two tolerances, and nothing else.
+
+    Still never `eval`: an LLM-authored argument list is untrusted input, so
+    this walks a fixed set of node types and refuses everything else. A model
+    writing `body=criteria.load(id='b1')[0]['body']` — which they do — gets a
+    tool error, not a nested dispatch.
+    """
+    if isinstance(node, ast.Name):
+        # A bare word. `true`/`false`/`null` mean what JSON means by them;
+        # anything else is a string that lost its quotes, which is by far the
+        # commonest way a small model malforms an id: `refs=m_dead_75b4f6`.
+        return _WORDS[node.id] if node.id in _WORDS else node.id
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_literal(e) for e in node.elts]
+    if isinstance(node, ast.Dict):
+        if any(k is None for k in node.keys):
+            raise ValueError("dict unpacking is not supported")
+        return {_literal(k): _literal(v) for k, v in zip(node.keys, node.values)}
+    return ast.literal_eval(node)
+
+
+def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
 
-    Keyword form goes through `ast.literal_eval`, never `eval`: the argument list
-    of an LLM-authored tool call is untrusted input.
+    Returns the keyword arguments and any positional ones. Positionals used to
+    be rejected here, which was the parser enforcing a rule it had no standing
+    to enforce: whether `tests.encode('t1', 'c1', ...)` is well formed depends
+    on the signature, and the parser does not know the signature. The sandbox
+    does, so it binds them there.
     """
     args_str = args_str.strip()
     if not args_str:
-        return {}
+        return {}, ()
 
     if args_str.startswith("{"):
         parsed = json.loads(args_str)
         if not isinstance(parsed, dict):
             raise ValueError("JSON tool arguments must be an object")
-        return parsed
+        return parsed, ()
 
     # Newlines inside an unquoted argument list would break the expression, so
     # they are escaped before parsing and restored by literal_eval.
@@ -63,15 +104,13 @@ def parse_args(args_str: str) -> dict[str, Any]:
     call = expr.body
     if not isinstance(call, ast.Call):
         raise ValueError("not a call expression")
-    if call.args:
-        raise ValueError("positional arguments are not supported; use key=value")
 
     out: dict[str, Any] = {}
     for kw in call.keywords:
         if kw.arg is None:
             raise ValueError("**kwargs is not supported")
-        out[kw.arg] = ast.literal_eval(kw.value)
-    return out
+        out[kw.arg] = _literal(kw.value)
+    return out, tuple(_literal(a) for a in call.args)
 
 
 def _scan_name(text: str, i: int) -> tuple[str, int]:
@@ -151,12 +190,13 @@ def extract(text: str) -> list[ToolCall | ToolError]:
 
         raw_args = text[args_start:args_end]
         try:
-            args = parse_args(raw_args)
+            args, pos = parse_args(raw_args)
         except Exception as exc:
             results.append(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                                      f"could not parse arguments: {exc}"))
         else:
-            results.append(ToolCall(name=name, args=args, raw=f"{name}({raw_args})"))
+            results.append(ToolCall(name=name, args=args, pos=pos,
+                                    raw=f"{name}({raw_args})"))
         cursor = args_end + 1
 
 

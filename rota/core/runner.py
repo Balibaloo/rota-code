@@ -121,6 +121,9 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         f"Your working set is exactly these functions. Nothing else exists:\n{fns}\n\n"
         f"Call one per line, in this form:\n"
         f"  TOOL: artefact.verb(key='value')\n"
+        f"Results come back on your next turn, never inside this one. So if what "
+        f"you do next depends on what a call returns, that call is the last "
+        f"thing you write — anything after it was decided without it.\n"
         f"Emit no tool calls when you are done."
     )
 
@@ -356,7 +359,7 @@ def run_session(
                     feedback.append(f"ERROR {call.raw}: {err.reason}")
                     continue
                 try:
-                    result = sb.call(call.name, **call.args)
+                    result = sb.call(call.name, *call.pos, **call.args)
                     feedback.append(f"OK {call.name} -> "
                                     f"{json.dumps(result, default=str)[:1200]}")
                 except Exception as exc:               # tool error, not session-fatal
