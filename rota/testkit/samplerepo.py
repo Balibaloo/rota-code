@@ -40,8 +40,11 @@ PLANTED = {
             "src/billing/accounts.py": "the billing entity that owes money",
         },
     },
-    "fan_in": {"module": "src/store", "imported_by":
-               ["src/auth", "src/billing", "src/catalog", "src/notify"]},
+    "fan_in": {"module": "src/store",
+               "imported_by": ["src/auth", "src/billing", "src/catalog"]},
+    # `notify` is deliberately *not* an importer of store. That is what makes it
+    # barren: nothing in it outlives a process or crosses a boundary, so there
+    # is nothing there to protect.
     "barren": {"module": "src/notify"},
     "bound_diff": {"path": "src/store/records.py"},
     "free_diff": {"path": "src/notify/templates.py"},
@@ -431,3 +434,349 @@ Invoices, charges, subscriptions. An `account` here is the **billing entity** �
 what an invoice is addressed to. One billing account may cover several login
 identities, and closing one never deletes its invoices.
 """)
+
+
+# ---------------------------------------------------------------------------
+# catalog — products and prices
+# ---------------------------------------------------------------------------
+
+_add("src/catalog/__init__.py", """
+from .products import Product, all_products, get
+from .pricing import price_for
+""")
+
+_add("src/catalog/products.py", """
+from dataclasses import dataclass
+
+from ..store import Record, load, save
+from ..store import connect
+
+
+@dataclass
+class Product:
+    sku: str
+    name: str
+    price_cents: int
+
+
+def get(sku):
+    rec = load("products", sku)
+    if rec is None:
+        return None
+    return Product(sku, rec.values["name"], rec.values["price_cents"])
+
+
+def all_products(conn=None):
+    conn = conn or connect()
+    return [Product(r["sku"], r["name"], r["price_cents"])
+            for r in conn.execute("SELECT * FROM products ORDER BY sku")]
+
+
+def add(sku, name, price_cents):
+    save(Record("products", sku, {"name": name, "price_cents": price_cents}))
+""")
+
+_add("src/catalog/pricing.py", """
+from .products import get
+
+# Volume bands, applied to the line total rather than the unit price.
+BANDS = [(100, 0.15), (25, 0.10), (10, 0.05)]
+
+
+def price_for(sku):
+    product = get(sku)
+    if product is None:
+        raise KeyError(sku)
+    return product.price_cents
+
+
+def line_total(sku, quantity):
+    gross = price_for(sku) * quantity
+    for threshold, discount in BANDS:
+        if quantity >= threshold:
+            return round(gross * (1 - discount))
+    return gross
+""")
+
+_add("src/catalog/search.py", """
+from .products import all_products
+
+
+def by_name(fragment, products=None):
+    needle = fragment.lower().strip()
+    return [p for p in (products or all_products()) if needle in p.name.lower()]
+
+
+def under(price_cents, products=None):
+    return [p for p in (products or all_products()) if p.price_cents <= price_cents]
+""")
+
+
+# ---------------------------------------------------------------------------
+# notify — the barren area. Templates and formatting; nothing persisted, nothing
+# promised outward. A survey here should find nothing, and that is a result.
+# ---------------------------------------------------------------------------
+
+_add("src/notify/__init__.py", """
+from .templates import render
+from .delivery import send
+""")
+
+_add("src/notify/templates.py", """
+TEMPLATES = {
+    "invoice_issued": "Invoice {id} for {total} is ready.",
+    "invoice_void": "Invoice {id} has been cancelled: {reason}.",
+    "welcome": "Welcome, {name}.",
+    "password_reset": "Use {token} to set a new password. It expires shortly.",
+}
+
+
+def render(template, **values):
+    # `template` rather than `name`: several templates take a {name} value, and
+    # the parameter shadowed it.
+    try:
+        return TEMPLATES[template].format(**values)
+    except KeyError as exc:
+        raise KeyError(f"template {template}: missing {exc}") from exc
+
+
+def money(cents):
+    return f"{cents // 100}.{cents % 100:02d}"
+""")
+
+_add("src/notify/delivery.py", """
+import smtplib
+from email.message import EmailMessage
+
+from .templates import render
+
+
+def build(to, subject, template, **values):
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(render(template, **values))
+    return msg
+
+
+def send(msg, host="localhost", port=25):
+    with smtplib.SMTP(host, port) as smtp:
+        smtp.send_message(msg)
+""")
+
+_add("src/notify/formatting.py", """
+ELLIPSIS = chr(8230)
+
+
+def truncate(text, limit=72):
+    return text if len(text) <= limit else text[: limit - 1] + ELLIPSIS
+
+
+def plural(count, singular, plural_form=None):
+    if count == 1:
+        return f"1 {singular}"
+    return f"{count} {plural_form or singular + 's'}"
+""")
+
+
+# ---------------------------------------------------------------------------
+# web — a second language, so the indexer cannot be Python-only
+# ---------------------------------------------------------------------------
+
+_add("web/api.js", """
+const BASE = process.env.API_BASE || "/api";
+
+export async function getJSON(path) {
+  const res = await fetch(`${BASE}${path}`, {credentials: "same-origin"});
+  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
+
+export async function postJSON(path, body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
+""")
+
+_add("web/invoices.js", """
+import {getJSON, postJSON} from "./api.js";
+import {money} from "./format.js";
+
+export async function listInvoices(accountId) {
+  const rows = await getJSON(`/accounts/${accountId}/invoices`);
+  return rows.map((r) => ({...r, total: money(r.total_cents)}));
+}
+
+export function voidInvoice(id, reason) {
+  return postJSON(`/invoices/${id}/void`, {reason});
+}
+""")
+
+_add("web/format.js", """
+export function money(cents) {
+  return (cents / 100).toFixed(2);
+}
+
+export function truncate(text, limit = 72) {
+  return text.length <= limit ? text : text.slice(0, limit - 1) + "...";
+}
+""")
+
+_add("web/session.js", """
+import {postJSON} from "./api.js";
+
+let token = null;
+
+export async function signIn(email, password) {
+  const res = await postJSON("/sessions", {email, password});
+  token = res.token;
+  return token;
+}
+
+export function current() {
+  return token;
+}
+""")
+
+
+# ---------------------------------------------------------------------------
+# tests and the top level
+# ---------------------------------------------------------------------------
+
+_add("tests/test_charges.py", """
+from src.billing.charges import Charge, prorate, total_of
+
+
+def test_total_sums_charges():
+    assert total_of([Charge("a", 100, "x"), Charge("b", 250, "y")]) == 350
+
+
+def test_prorate_rounds():
+    assert prorate(1000, 15, 30) == 500
+    assert prorate(999, 1, 3) == 333
+""")
+
+_add("tests/test_pricing.py", """
+from src.catalog.pricing import BANDS
+
+
+def test_bands_descend():
+    thresholds = [t for t, _ in BANDS]
+    assert thresholds == sorted(thresholds, reverse=True)
+""")
+
+_add("tests/test_templates.py", """
+import pytest
+
+from src.notify.templates import money, render
+
+
+def test_render_fills_values():
+    assert render("welcome", name="Ada") == "Welcome, Ada."
+
+
+def test_missing_value_names_the_template():
+    with pytest.raises(KeyError, match="welcome"):
+        render("welcome")
+
+
+def test_money_pads_cents():
+    assert money(305) == "3.05"
+""")
+
+_add("README.md", """
+# billing
+
+Invoicing for a small subscription product.
+
+    src/store      persistence and migrations
+    src/auth       sign-in and sessions
+    src/billing    invoices, charges, subscriptions
+    src/catalog    products and prices
+    src/notify     email templates
+    web            browser client
+
+Run the tests with `pytest`.
+
+Note that `account` means two different things depending on where you are:
+a login identity in `auth`, a billing entity in `billing`. They are not the same
+row, and one billing account can cover several logins.
+""")
+
+_add("pyproject.toml", """
+[project]
+name = "billing"
+version = "0.4.1"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+""")
+
+_add(".gitignore", """
+__pycache__/
+*.db
+node_modules/
+""")
+
+
+# ---------------------------------------------------------------------------
+# Materialising it
+# ---------------------------------------------------------------------------
+
+def write(root: Path) -> Path:
+    """Lay the files out under `root`. No git."""
+    for rel, body in FILES.items():
+        target = root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+    return root
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def create(root: Path, *, commits: bool = True) -> Path:
+    """
+    A repository with a short, plausible history.
+
+    Several commits rather than one, because a codebase that arrived in a single
+    commit is not one anybody worked on, and `git log` is a thing a cold role
+    reads when boot hands it a divergence.
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    if not commits:
+        return write(root)
+
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "config", "user.email", "dev@example.com")
+    _git(root, "config", "user.name", "A Developer")
+
+    stages = [
+        ("store, first cut",
+         lambda p: p.startswith("src/store") or p in ("README.md", "pyproject.toml", ".gitignore")),
+        ("sign-in", lambda p: p.startswith("src/auth")),
+        ("invoices and charges", lambda p: p.startswith("src/billing")),
+        ("catalog", lambda p: p.startswith("src/catalog")),
+        ("notification templates", lambda p: p.startswith("src/notify")),
+        ("web client", lambda p: p.startswith("web/")),
+        ("tests", lambda p: p.startswith("tests/")),
+    ]
+    written: set[str] = set()
+    for message, belongs in stages:
+        batch = {p: b for p, b in FILES.items() if p not in written and belongs(p)}
+        for rel, body in batch.items():
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body, encoding="utf-8")
+        written |= set(batch)
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", message)
+    return root
