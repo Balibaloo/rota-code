@@ -104,6 +104,31 @@ if (empty.length) {
               + empty.join(', ') + ')');
 }
 
+// ---- collapsing parallel edges ---------------------------------------------
+//
+// Folding is per source, target *and type*. Seventeen pairs here carry more
+// than one type -- liaison to brief is both a read and a write -- and one line
+// standing for two kinds of relationship is the single thing the colour system
+// must never say. This asserts no fold group ever mixes them.
+
+const groups = {};
+for (const e of GV.graph.edges) {
+  const gk = e.s + '|' + e.t + '|' + e.type;
+  (groups[gk] = groups[gk] || []).push(e);
+}
+const all = Object.values(groups);
+const folds = all.filter(g => g.length > 1);
+const mixed = all.filter(g => new Set(g.map(e => e.type)).size > 1);
+
+console.log('');
+console.log('collapsing: ' + GV.graph.edges.length + ' edges -> ' + all.length
+            + ' lines (' + folds.length + ' groups fold, biggest '
+            + Math.max.apply(null, all.map(g => g.length)) + ')');
+if (mixed.length) {
+  console.log('  FOLD GROUPS MIXING EDGE TYPES: ' + mixed.length);
+  problems.push('fold groups mix types');
+}
+
 if (problems.length) console.log('\nPROBLEMS: ' + problems.length);
 else console.log('every lens and every key row is live');
 

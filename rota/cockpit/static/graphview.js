@@ -12,7 +12,28 @@
 const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             mode:'team', source:'design', storyIx:0, stepIx:0,
             focus:null, inhabit:null, blast:null, keyhl:null,
-            view:{x:0,y:0,k:1}, dragNode:null, dirty:false};
+            view:{x:0,y:0,k:1}, dragNode:null, dirty:false,
+            settings:{collapse:'auto', labels:'auto'}};
+
+try {
+  Object.assign(GV.settings, JSON.parse(localStorage.getItem('rota.gv') || '{}'));
+} catch {}
+
+function gvSet(k, v) {
+  GV.settings[k] = v;
+  try { localStorage.setItem('rota.gv', JSON.stringify(GV.settings)); } catch {}
+  gvControls(); gvDraw();
+}
+
+// Below this the labels are unreadable and the parallel edges are a smudge, so
+// both fold away. Measured by eye rather than derived: it is the zoom at which
+// a 10px label stops being a word and starts being texture.
+const FAR = 0.62;
+
+const collapsing = () => GV.settings.collapse === 'always'
+  || (GV.settings.collapse === 'auto' && GV.view.k < FAR);
+const labelling = () => GV.settings.labels === 'always'
+  || (GV.settings.labels === 'auto' && GV.view.k >= FAR);
 
 // Light canvas, dark chrome. On a light ground the edge colours can be
 // saturated enough to tell four relationships apart without shouting, which
@@ -380,9 +401,27 @@ function drawTeam() {
   const blast=GV.blast?new Set(GV.blast.artefacts):null;
   let edges='', nodes='';
 
+  // Collapsed groups are per (source, target, *type*). Not per pair: seventeen
+  // pairs carry more than one type -- `liaison -> brief` is both a read and a
+  // write -- and fusing those would put one line where two different kinds of
+  // relationship are, which is the one thing the colour system must never do.
+  const fold = collapsing();
+  const groupOf = e => `${e.s}|${e.t}|${e.type}`;
+  const members = {};
+  if (fold) for (const e of GV.graph.edges)
+    (members[groupOf(e)] = members[groupOf(e)] || []).push(e);
+  const drawn = new Set();
+
   for (const e of GV.graph.edges) {
     const a=GV.layout[e.s], b=GV.layout[e.t];
     if(!a||!b||!gvVisible(e.s)||!gvVisible(e.t)) continue;
+    const group = groupOf(e);
+    if (fold) {
+      if (drawn.has(group)) continue;   // one line stands for the whole group
+      drawn.add(group);
+    }
+    const kin = fold ? (members[group] || [e]) : [e];
+
     const st=ESTYLE[e.type]||ESTYLE.refs, key=ek([e.s,e.t,e.type]), state=lit.get(key);
     const incident = GV.focus && (e.s===GV.focus||e.t===GV.focus);
 
@@ -421,7 +460,8 @@ function drawTeam() {
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
       const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
-      const rank = GV.spread[key] || 0, n = GV.spreadN[key] || 1;
+      const rank = fold ? 0 : (GV.spread[key] || 0);
+      const n = fold ? 1 : (GV.spreadN[key] || 1);
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
       const len=Math.hypot(dx,dy)||1;
       // Always bow to the left of the direction of travel.
@@ -465,8 +505,11 @@ function drawTeam() {
       ${markers || (st.head?headId:'')} class="gedge"
       data-e="${e.s}|${e.t}|${e.type}|${esc(e.v||'')}"/>`;
 
-    // Edge names always on — the grammar is the content, not a hover reward.
-    if (e.v && op > 0.12) {
+    // Edge names on while they are readable — the grammar is the content, not
+    // a hover reward, but at a distance a 10px label is texture rather than a
+    // word and a dozen of them is a smudge over the structure.
+    const label = kin.length > 1 ? `${kin.length} ${e.type}` : e.v;
+    if (label && op > 0.12 && labelling()) {
       const emph = state==='now'||incident;
       const lop = emph?1:Math.min(1,op+.35);
       // A second arrow under the label. The tip head says where the edge ends;
@@ -479,7 +522,7 @@ function drawTeam() {
         opacity="${lop}" transform="translate(${lx},${ly+5}) rotate(${ang})"/>`;
       edges += `<text x="${lx}" y="${ly-4}" class="elabel"
         fill="${emph?STATE.now:st.label}" opacity="${lop}"
-        font-size="${emph?11:9.5}">${esc(e.v)}</text>`;
+        font-size="${emph?11:9.5}">${esc(label)}</text>`;
     }
   }
 
@@ -678,12 +721,43 @@ function gvControls(){
       <option value="run">this run</option></select>
     <span class="sep"></span>
     <button id="gfit">fit</button><button id="gsave">save layout</button>
-    <span class="sig" id="gstatus"></span>`;
+    <span class="sep"></span>
+    <button id="gcog" title="display settings">&#9881;</button>
+    <span class="sig" id="gstatus"></span>
+    <div id="gprefs" class="pop"></div>`;
 
   gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; gvLegend(); gvMode('team');
     showTab('story'); syncStoryTab();};
   gfit.onclick=()=>{gvFit(); gvDraw();};
   gsave.onclick=saveLayout;
+
+  const prefs = document.getElementById('gprefs');
+  const choice = (key, value, label, why) =>
+    `<button class="${GV.settings[key]===value?'on':''}"
+       onclick="gvSet('${key}','${value}')" title="${why}">${label}</button>`;
+  prefs.innerHTML = `
+    <h4>parallel edges</h4>
+    <div class="prow"><span>
+      ${choice('collapse','auto','when far out',
+               'fold below the zoom where labels stop being readable')}
+      ${choice('collapse','always','always','one line per relationship, always')}
+      ${choice('collapse','never','never','every verb its own line')}
+    </span></div>
+    <p class="sig">Folded per source, target and *type* — never across types.
+      Seventeen pairs here carry both a read and a write, and one line for two
+      kinds of relationship is the one thing the colours must not say.</p>
+    <h4>edge labels</h4>
+    <div class="prow"><span>
+      ${choice('labels','auto','when readable','hide below the same zoom')}
+      ${choice('labels','always','always','keep them at every zoom')}
+      ${choice('labels','never','never','structure only')}
+    </span></div>`;
+  document.getElementById('gcog').onclick = (e) => {
+    e.stopPropagation();
+    prefs.classList.toggle('on');
+  };
+  prefs.onclick = (e) => e.stopPropagation();
+  document.addEventListener('click', () => prefs.classList.remove('on'));
 
   const svg=document.getElementById('gsvg');
   svg.onclick=()=>{if(!GV.dragged){GV.focus=null; gvDraw();}};
