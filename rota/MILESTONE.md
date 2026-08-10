@@ -74,19 +74,23 @@ best argument for writing the check before the fix.
 
 ## 2 · Tool calling
 
-- [ ] **2.1** probe every local model on one fixture — `gemma3:4b`,
+- [x] **2.1** probe every local model on one fixture — `gemma3:4b`,
       `qwen2.5:7b`, `llama3.1:8b`, `qwen3.5:9b` — honour-rate and warm latency.
       Spill is acceptable, incorrectness is not
-- [ ] **2.2** native primary if any small model honours tools; otherwise `TOOL:`
+- [x] **2.2** native primary if any small model honours tools; otherwise `TOOL:`
       stays and is fixed rather than replaced
-- [ ] **2.3** `TOOL:`'s known weaknesses go regardless — the dropped marker that
+- [x] **2.3** `TOOL:`'s known weaknesses go regardless — the dropped marker that
       forced `extract_lenient`, argument quoting, a bespoke parser competing
       with trained behaviour
-- [ ] **2.4** cassettes are keyed **per model and per protocol**; native and
+- [x] **2.4** cassettes are keyed **per model and per protocol**; native and
       text are different evidence about different things
 
-**Verify:** the benchmark table is committed, with the reasoning, not a
-preference.
+**Landed.** `TOOLCALLING.md` holds the table and the reasoning. It corrected a
+previous session's finding: `llama3.1:8b` honours native calls 3/3 at 0.4s, and
+so does `qwen2.5:7b` — only `gemma3` refuses, with a 400. The native path turned
+out to be *built and unwired*: `runner.py` computed the schemas into a variable
+and called `complete()` without passing them. Verified end to end with a real
+Gatekeeper session that committed a real item.
 
 ---
 
@@ -96,18 +100,18 @@ preference.
       unused since step 1
 - [ ] **3.2** obligation set **generated from the graph**, like edge coverage:
       an edge creates a red row at every tier
-- [ ] **3.3** synthetic repo, **30–40 files across 4–5 modules** with a real
+- [x] **3.3** synthetic repo, **30–40 files across 4–5 modules** with a real
       dependency shape. Realistic: no essay comments, no `# Step 1:`
       scaffolding, no LLM-repo tells. Properties planted and recorded:
       - one term with two genuine senses, in known files
       - one high fan-in module with a persisted schema
       - one area with nothing worth constraining
       - one diff touching a bound grain, one touching nothing bound
-- [ ] **3.4** git harness — pattern from `src/core/session.py`, safety rule from
+- [x] **3.4** git harness — pattern from `src/core/session.py`, safety rule from
       `tests/conftest.py`. **107 live worktrees here, none temp-rooted**, so:
       create under `tmp_path`, snapshot before, remove only what is new *and*
       temp-rooted
-- [ ] **3.5** shared, not Developer-only — Architect reads source and diffs,
+- [x] **3.5** shared, not Developer-only — Architect reads source and diffs,
       Terminologist and Gatekeeper survey code, Critic reads the batch diff
 
 **Note:** a found repo was considered. Synthesised wins — stage 7 asserts on
@@ -133,16 +137,17 @@ a world that does not exist.
 So Developer can read its tickets, criteria, model and verdicts, ask questions —
 and then record that a commit happened which never did.
 
-- [ ] **3Ba · worktree lifecycle.** Created on `batch_start`, torn down on
+- [x] **3Ba · worktree lifecycle.** Created on `batch_start`, torn down on
       merge, *surviving* deferral — law 9 says the commits persist and the
       checkpoint does not. Belongs in `lifecycle.py` beside `start`/`defer`/
       `merge`, because it is scheduler work, not a role's choice
-- [ ] **3Bb · file operations.** The missing verbs. Needs graph edges, which
+- [x] **3Bb · file operations.** The missing verbs. Needs graph edges, which
       makes it an edge-audit-shaped decision about reach, not just a function
-- [ ] **3Bc · `code.commit` actually commits**, and stamps `head_commit`
+- [x] **3Bc · `code.commit` actually commits**, and stamps `head_commit`
 - [ ] **3Bd · environment.** Law 9's *"processes and ports die with it;
-      half-dead environments are forbidden"* has no implementation
-- [ ] **3Be** then the harness and fixtures from 3.4
+      half-dead environments are forbidden"* has no implementation. **Still
+      open** — nothing spawns a process yet, so nothing can orphan one
+- [x] **3Be** then the harness and fixtures from 3.4
 
 **Two consequences.** This is a bigger stage than 7 — it is the only place the
 system touches the filesystem, spawns processes, and can damage something, in a
