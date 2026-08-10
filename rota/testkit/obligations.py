@@ -56,18 +56,48 @@ def l1(g: graph_mod.Graph | None = None) -> list[Obligation]:
 
 
 def l2(g: graph_mod.Graph | None = None) -> list[Obligation]:
-    """One per mode a role can be woken into: inbound verbs plus predicates."""
+    """
+    One per mode a role can be woken into: inbound verbs plus predicates.
+
+    Deduped by id, and it has to be. `set()` over the dataclass kept four
+    `developer:answer` rows because each carried a different `why` — Terminologist
+    answered, Gatekeeper answered, Tester answered — which are four ways into one
+    mode, not four modes. The count was 55 where the modes were 41, and every
+    coverage figure computed against it was wrong by that margin.
+    """
     from ..core import predicates as P
 
     g = g or graph_mod.load()
-    out = []
+    seen: dict[str, Obligation] = {}
+
+    def add(role: str, mode: str, why: str) -> None:
+        found = seen.get(f"L2:{role}:{mode}")
+        if found is None:
+            seen[f"L2:{role}:{mode}"] = Obligation("L2", role, mode, why)
+        elif why not in found.why:
+            seen[f"L2:{role}:{mode}"] = Obligation(
+                "L2", role, mode, f"{found.why}, {why}")
+
     for e in g.of_type("messages"):
         if e.t in g.roles:
-            out.append(Obligation("L2", e.t, e.v, f"woken by {e.s}"))
+            add(e.t, e.v, f"woken by {e.s}")
     for p in P.REGISTRY.values():
         if p.wakes in g.roles:
-            out.append(Obligation("L2", p.wakes, p.name, "woken by a predicate"))
-    return sorted(set(out), key=lambda o: o.id)
+            add(p.wakes, p.name, "woken by a predicate")
+        # A predicate that computes its role per row still knows which roles it
+        # can reach, and now says so. Without that the three survey modes were
+        # invisible here — and they were the three with no prompt written.
+        for role in p.derives:
+            add(role, p.name, "woken by a predicate")
+
+    # Modes the graph cannot name, because they are a refinement of a verb
+    # rather than a verb. A principal `verdict` means ratification after a
+    # confirm and a signoff ruling after a present: same edge, two jobs, and the
+    # runner keys the prompt by the cause for exactly that reason.
+    if "liaison" in g.roles:
+        add("liaison", "verdict_signoff", "a principal verdict answering a present")
+
+    return sorted(seen.values(), key=lambda o: o.id)
 
 
 def l3(g: graph_mod.Graph | None = None, *, interesting_only: bool = True

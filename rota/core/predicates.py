@@ -29,7 +29,7 @@ from pathlib import Path
 from .. import paths
 from typing import Callable
 
-from .scheduler import Wake
+from .scheduler import SURVEY_ORDER, Wake
 
 SCHEMA = paths.SCHEMA
 
@@ -39,6 +39,11 @@ SCHEMA = paths.SCHEMA
 # computed per row" and "no role at all, the scheduler acts". That flattening is
 # why the field drifted twice: a lint checking it could not tell a typo from a
 # deliberate blank.
+# Law 6's ladder, and the only place it is written down as a sequence. Each rung
+# is a role that can be *asked*, in the order a question climbs.
+LADDER = ("developer", "architect", "gatekeeper")
+
+
 DERIVED = "*"        # the wake's role comes from the rows, not the declaration
 SCHEDULER = "-"      # no role: the scheduler does this itself
 
@@ -65,6 +70,11 @@ class Predicate:
     why: str = ""
     band: str = "start"
     needs_principal: bool = False   # only meaningful while they are here
+    # Which roles a DERIVED predicate can actually wake. The role is computed
+    # per row at runtime, which left it knowable only by reading the function —
+    # so the obligation set, which asks "what modes exist", could not see the
+    # three survey modes at all, and they were the ones with no prompt.
+    derives: tuple[str, ...] = ()
 
     @property
     def order(self) -> int:
@@ -75,12 +85,14 @@ REGISTRY: dict[str, Predicate] = {}
 
 
 def predicate(name: str, wakes: str, drains: tuple = (), why: str = "",
-              band: str = "start", needs_principal: bool = False):
+              band: str = "start", needs_principal: bool = False,
+              derives: tuple = ()):
     def deco(fn):
         REGISTRY[name] = Predicate(
             name=name, wakes=wakes, drains=tuple(drains), fn=fn,
             why=why or (fn.__doc__ or "").strip(),
-            band=band, needs_principal=needs_principal)
+            band=band, needs_principal=needs_principal,
+            derives=tuple(derives))
         return fn
     return deco
 
@@ -413,12 +425,7 @@ def reopen(conn) -> list[Wake]:
             for r in rows]
 
 
-# Law 6's ladder, and the only place it is written down as a sequence. Each rung
-# is a role that can be *asked*, in the order a question climbs.
-LADDER = ("developer", "architect", "gatekeeper")
-
-
-@predicate("exhausted", wakes=DERIVED, band="fix",
+@predicate("exhausted", wakes=DERIVED, band="fix", derives=LADDER,
            drains=[("test_runs", "result", "fail")])
 def exhausted(conn) -> list[Wake]:
     """
@@ -621,7 +628,8 @@ def constraint_zero(conn) -> list[Wake]:
         Wake(SCHEDULER, "tick:constraint_zero", refs=tuple(sorted(bound - want)))]
 
 
-@predicate("survey", wakes=DERIVED, band="start")
+@predicate("survey", wakes=DERIVED, band="start",
+           derives=SURVEY_ORDER)
 def survey(conn) -> list[Wake]:
     """Onboarding: one elected area at a time, in role order."""
     from .scheduler import tick_survey

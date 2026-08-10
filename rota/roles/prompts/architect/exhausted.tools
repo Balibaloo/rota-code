@@ -1,0 +1,12 @@
+code.diff
+criteria.scan
+model.consult
+model.load
+model.amend
+findings.load
+decisions.search
+decisions.author
+ledger.log
+msg.answer_developer
+msg.propose_gatekeeper
+msg.challenge_gatekeeper

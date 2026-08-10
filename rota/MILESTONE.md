@@ -186,9 +186,9 @@ visible to any deterministic check:
 
 ## 5 · L2 — situation to action · 18 predicates + 38 inbound verbs
 
-- [ ] **5.1** given this wake, does the role choose the right action at all
-- [ ] **5.2** **3 of 5**
-- [ ] **5.3** includes un-narrowed modes, where the role has everything and must
+- [x] **5.1** given this wake, does the role choose the right action at all
+- [x] **5.2** **3 of 5**
+- [x] **5.3** includes un-narrowed modes, where the role has everything and must
       still pick
 
 ---

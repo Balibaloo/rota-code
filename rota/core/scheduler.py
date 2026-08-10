@@ -193,6 +193,14 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     return [Wake("gatekeeper", "tick:signoff", refs=tuple(drafts))]
 
 
+# Terms first, because constraints are written in glossary terms; observed
+# baseline last, because it describes behaviour in those terms. Named rather
+# than inlined so the obligation set can see which roles onboarding wakes —
+# buried in the loop below, the three survey modes were invisible to it, and
+# they were the three that turned out to have no prompt at all.
+SURVEY_ORDER = ("terminologist", "architect", "gatekeeper")
+
+
 def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     """
     Onboarding: one session per elected area, per role, in the order
@@ -210,7 +218,7 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
         return []
 
     wakes = []
-    for role in ("terminologist", "architect", "gatekeeper"):
+    for role in SURVEY_ORDER:
         for area in areas:
             done = conn.execute(
                 "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",

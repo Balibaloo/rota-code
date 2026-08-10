@@ -77,13 +77,21 @@ def _cases() -> list[dict]:
 
 def coverage() -> dict:
     """
-    Two different questions that are easy to confuse.
+    What has a case, per tier, credited from the cases themselves.
 
-    *Modes* is whether every prompt piece is exercised at all — one case per
-    piece, which is the unit a pass-rate drop is attributable to. *Obligations*
-    is the finer grid the graph generates: every action a role can take, every
-    situation, every handoff. The first is complete; the second is the long haul,
-    and showing them together is the only way the first does not read as done.
+    L2 read zero for as long as the panel existed, which was flatly wrong: an L2
+    obligation is *one per mode a role can be woken into*, and one case per mode
+    is exactly what the case files are. The tier had been written down as not
+    started while it was the only tier with any coverage at all — the numbers
+    were being read off the plan rather than off the work.
+
+    L1 is finer and is credited by side-effect: a case that asserts a write to
+    `criteria` exercises whatever L1 obligations touch that artefact. Honest but
+    generous, and stated as such — it is the reason L1 climbs without anybody
+    writing an L1-specific case.
+
+    L3 is genuinely zero. Nothing yet tests whether one role's message makes
+    another do the right thing, which is the tier the whole design rests on.
     """
     cases = _cases()
     cased_modes = {(c["role"], fixtures.mode_of(c)) for c in cases}
@@ -97,22 +105,27 @@ def coverage() -> dict:
             covered_actions.add(f"{case['role']}:{table}")
         for fn in (case.get("expect") or {}).get("calls") or []:
             covered_actions.add(f"{case['role']}:{fn.split('.')[0]}")
+        for spec in (case.get("expect") or {}).get("messages") or []:
+            if spec.get("to") and spec.get("verb"):
+                covered_actions.add(
+                    f"{case['role']}:msg.{spec['verb']}_{spec['to']}")
 
-    counts = obligations.summary()
-    l1_done = sum(1 for o in obligations.l1()
-                  if f"{o.role}:{o.what.split('.')[0]}" in covered_actions)
+    l1 = obligations.l1()
+    l1_done = sum(1 for o in l1
+                  if f"{o.role}:{o.what.split('.')[0]}" in covered_actions
+                  or f"{o.role}:{o.what}" in covered_actions)
+    l2 = obligations.l2()
+    l2_done = sum(1 for o in l2 if (o.role, o.what) in cased_modes)
 
     return {
         "modes": {"done": len(cased_modes & all_modes), "total": len(all_modes),
                   "missing": sorted(f"{r}/{m}" for r, m in all_modes - cased_modes)},
         "cases": len(cases),
         "tiers": [
-            {"tier": "L1", "label": "actions", "done": l1_done,
-             "total": counts.get("L1", 0)},
-            {"tier": "L2", "label": "situations", "done": 0,
-             "total": counts.get("L2", 0)},
+            {"tier": "L1", "label": "actions", "done": l1_done, "total": len(l1)},
+            {"tier": "L2", "label": "situations", "done": l2_done, "total": len(l2)},
             {"tier": "L3", "label": "handoffs", "done": 0,
-             "total": counts.get("L3", 0)},
+             "total": len(obligations.l3())},
         ],
     }
 
