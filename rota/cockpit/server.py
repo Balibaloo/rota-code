@@ -209,6 +209,15 @@ def make_handler(db_path: Path):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            # Never cache. This is a development cockpit whose whole job is to
+            # show the current state of a thing being changed, and everything it
+            # serves is either live data or a file that was edited a minute ago.
+            #
+            # Without this the browser kept a copy of `graphview.js` from a few
+            # minutes earlier, which happened to be a version that threw at load
+            # -- so the canvas went white and stayed white through reloads while
+            # the file on disk was fine. Fifteen minutes to find a stale cache.
+            self.send_header("Cache-Control", "no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(body)
 

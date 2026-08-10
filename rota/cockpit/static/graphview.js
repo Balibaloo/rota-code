@@ -704,7 +704,28 @@ function drawTeam() {
   return {edges, nodes};
 }
 
+// A canvas that fails should say so. Anything thrown between here and setting
+// `innerHTML` leaves the SVG exactly as it was -- empty on first draw -- and an
+// empty canvas is indistinguishable from a graph with nothing in it, from a
+// stale cached script, from a fetch that never resolved. It cost a quarter of
+// an hour once, and the information was sitting in a console nobody had open.
 function gvDraw() {
+  try {
+    gvDrawInner();
+  } catch (err) {
+    console.error('gvDraw', err);
+    const svg = document.getElementById('gsvg');
+    if (svg) svg.innerHTML = `<text x="24" y="40" fill="#b91c1c"
+      style="font:13px ui-monospace,monospace">the graph could not be drawn:
+      ${esc(err && err.message)}</text>
+      <text x="24" y="62" fill="#64748b" style="font:11px ui-monospace,monospace">
+      ${esc(String((err && err.stack || '').split('\n')[1] || '').trim())}</text>
+      <text x="24" y="84" fill="#64748b" style="font:11px ui-monospace,monospace">
+      a hard reload (ctrl-shift-r) rules out a stale script</text>`;
+  }
+}
+
+function gvDrawInner() {
   const {edges, nodes} = GV.mode==='chat' ? drawChat() : drawTeam();
   const v=GV.view;
   gvFarNote();                    // the readout tracks zoom, not just the drag
