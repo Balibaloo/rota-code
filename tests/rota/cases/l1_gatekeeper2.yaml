@@ -10,13 +10,13 @@
   runs: 5
   pass: 4
   tick: contested
-  refs: [i1]
+  refs: [<i1>]
   fixture:
     entries:
-      - {id: e1, author: principal, ts_order: 1,
+      - {id: <e1>, author: principal, ts_order: 1,
          text: "no, I meant closing the account, not deleting it"}
     items:
-      - {id: i1, text: "users can delete their account", kind: in_scope,
+      - {id: <i1>, text: "users can delete their account", kind: in_scope,
          provenance: decided, approval: contested, approval_ver: 1, version: 1}
   expect:
     writes:
@@ -33,18 +33,18 @@
   runs: 5
   pass: 4
   tick: signoff
-  refs: [i1, i2]
+  refs: [<i1>, <i2>]
   fixture:
     items:
-      - {id: i1, text: "users can close their account", kind: in_scope,
+      - {id: <i1>, text: "users can close their account", kind: in_scope,
          provenance: decided, approval: draft, version: 1}
-      - {id: i2, text: "bulk export is not part of this", kind: out_of_scope,
+      - {id: <i2>, text: "bulk export is not part of this", kind: out_of_scope,
          provenance: decided, approval: draft, version: 1}
   expect:
     messages:
       # One submit carrying both. An interpretation is read whole: the in-scope
       # item means something different with the out-of-scope one beside it.
-      - {to: liaison, verb: submit, count: 1, refs_include: [i1, i2]}
+      - {to: liaison, verb: submit, count: 1, refs_include: [<i1>, <i2>]}
   forbidden:
     writes: [items, tickets, criteria]
 
@@ -53,14 +53,14 @@
   role: gatekeeper
   runs: 5
   pass: 4
-  inbound: {from: architect, to: gatekeeper, verb: propose, body_refs: [i1]}
+  inbound: {from: architect, to: gatekeeper, verb: propose, body_refs: [<i1>]}
   fixture:
     items:
-      - {id: i1, text: "invoices can be exported as CSV", kind: in_scope,
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     decisions:
       # Refused eighteen months ago, for a reason that has not expired.
-      - {id: d1, author: gatekeeper,
+      - {id: <d1>, author: gatekeeper,
          text: "the store layer stays synchronous: the export path is the only
                 caller that would benefit and it is not hot"}
   expect:
@@ -80,17 +80,17 @@
   role: gatekeeper
   runs: 5
   pass: 4
-  inbound: {from: developer, to: gatekeeper, verb: elect, body_refs: [b1]}
+  inbound: {from: developer, to: gatekeeper, verb: elect, body_refs: [<b1>]}
   fixture:
     items:
-      - {id: i1, text: "accounts are never deleted, only closed", kind: in_scope,
+      - {id: <i1>, text: "accounts are never deleted, only closed", kind: in_scope,
          provenance: decided, approval: draft, approval_ver: 1, version: 2}
     tickets:
-      - {id: tk1, item_id: i1, text: "close the account row"}
+      - {id: <tk1>, item_id: <i1>, text: "close the account row"}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     messages:
       - {to: developer, verb: reopen, count: 1}
@@ -104,17 +104,17 @@
   role: gatekeeper
   runs: 5
   pass: 4
-  inbound: {from: terminologist, to: gatekeeper, verb: challenge, body_refs: [i1]}
+  inbound: {from: terminologist, to: gatekeeper, verb: challenge, body_refs: [<i1>]}
   fixture:
     items:
       # "Account" has two senses in this codebase and the item does not say
       # which, so it cannot be built as written.
-      - {id: i1, text: "deleting an account removes the account", kind: in_scope,
+      - {id: <i1>, text: "deleting an account removes the account", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     glossary_terms:
-      - {id: g1, term: account, sense_short: "the login identity",
+      - {id: <g1>, term: account, sense_short: "the login identity",
          provenance: decided}
-      - {id: g2, term: account, sense_short: "the billing entity that owes money",
+      - {id: <g2>, term: account, sense_short: "the billing entity that owes money",
          provenance: decided}
   expect:
     # Either amend the item or author a decision saying why it stands. What is

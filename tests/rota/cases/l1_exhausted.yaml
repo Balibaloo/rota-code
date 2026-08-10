@@ -16,33 +16,33 @@
   runs: 5
   pass: 3
   tick: exhausted
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
   fixture:
     items:
-      - {id: i1, text: "invoices can be exported as CSV", kind: in_scope,
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "export invoices"}
+      - {id: <tk1>, item_id: <i1>, text: "export invoices"}
     criteria:
       # "Every field" and "not that field" cannot both hold, which is why the
       # loop never closed. Nothing in the code can resolve it.
-      - {id: c1, ticket_id: tk1, text: "the export contains every invoice field",
+      - {id: <c1>, ticket_id: <tk1>, text: "the export contains every invoice field",
          term_refs: '[]'}
     constraints:
-      - {id: k1, headline: "card numbers never leave the payments boundary",
+      - {id: <k1>, headline: "card numbers never leave the payments boundary",
          text: "PCI: a full card number may not appear in any export.",
          provenance: decided, is_global: 1}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_export.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_export.py,
          body: "assert set(export_csv(a)[0]) == set(INVOICE_FIELDS)"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: fail,
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: fail,
          attempt: 10}
   expect:
     # Any of the four routes is defensible; naming one is the job. Which role
@@ -64,9 +64,9 @@
   runs: 5
   pass: 3
   tick: exhausted
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "export invoices as CSV"
     edit:
       src/billing/invoices.py: |
@@ -87,26 +87,26 @@
             return buf.getvalue()
   fixture:
     items:
-      - {id: i1, text: "invoices can be exported as CSV", kind: in_scope,
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "export invoices"}
+      - {id: <tk1>, item_id: <i1>, text: "export invoices"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "the export contains every invoice field",
+      - {id: <c1>, ticket_id: <tk1>, text: "the export contains every invoice field",
          term_refs: '[]'}
     constraints:
-      - {id: k1, headline: "card numbers never leave the payments boundary",
+      - {id: <k1>, headline: "card numbers never leave the payments boundary",
          text: "PCI: a full card number may not appear in any export.",
          provenance: decided, is_global: 1}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_export.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_export.py,
          body: "assert set(export_csv(a)[0]) == set(INVOICE_FIELDS)"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: fail,
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: fail,
          attempt: 10}
   expect:
     # The criterion asks for something a commitment forbids. That is scope, and
@@ -126,29 +126,29 @@
   runs: 5
   pass: 4
   tick: exhausted
-  refs: [b1]
+  refs: [<b1>]
   fixture:
     items:
-      - {id: i1, text: "invoices can be exported as CSV", kind: in_scope,
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "export invoices"}
+      - {id: <tk1>, item_id: <i1>, text: "export invoices"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "the export contains every invoice field",
+      - {id: <c1>, ticket_id: <tk1>, text: "the export contains every invoice field",
          term_refs: '[]'}
     constraints:
-      - {id: k1, headline: "card numbers never leave the payments boundary",
+      - {id: <k1>, headline: "card numbers never leave the payments boundary",
          text: "PCI: a full card number may not appear in any export.",
          provenance: decided, is_global: 1}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     messages:
-      - {id: m_esc, thread_id: t1, from_role: developer, to_role: architect,
-         verb: escalate, body_refs: '["b1"]', seq: 1, status: answered}
-      - {id: m_ch, thread_id: t1, from_role: architect, to_role: gatekeeper,
-         verb: challenge, body_refs: '["b1","k1"]', seq: 2, status: answered}
+      - {id: <m_esc>, thread_id: t1, from_role: developer, to_role: architect,
+         verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
+      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: gatekeeper,
+         verb: challenge, body_refs: '["<b1>","<k1>"]', seq: 2, status: answered}
   expect:
     # Amend the item so it says what was meant, or take it to the principal.
     # Both end it here; nothing else does.

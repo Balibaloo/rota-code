@@ -9,9 +9,9 @@
   runs: 5
   pass: 4
   tick: review
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "prorate refuses more days than the period holds"
     edit:
       # The baseline guards the period and not the usage, so this is a real
@@ -41,23 +41,23 @@
             return round(amount_cents * days_used / days_in_period)
   fixture:
     items:
-      - {id: i1, text: "prorate charges on upgrade", kind: in_scope,
+      - {id: <i1>, text: "prorate charges on upgrade", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "prorate on upgrade"}
+      - {id: <tk1>, item_id: <i1>, text: "prorate on upgrade"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "prorating more days than the period holds is refused",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_prorate.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_prorate.py,
          body: "assert prorate(999, 1, 3) == 333"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: pass}
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
   expect:
     writes:
       verdicts: {count: 1}
@@ -73,9 +73,9 @@
   runs: 5
   pass: 4
   tick: review
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "delete an account"
     edit:
       src/billing/accounts.py: |
@@ -102,23 +102,23 @@
             return True
   fixture:
     items:
-      - {id: i1, text: "deleting tombstones the account", kind: in_scope,
+      - {id: <i1>, text: "deleting tombstones the account", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "delete an account"}
+      - {id: <tk1>, item_id: <i1>, text: "delete an account"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "deleting an account tombstones it and keeps its invoices",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_delete.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_delete.py,
          body: "assert deleted(account).invoices == []"}
     test_runs:
-      - {id: r1, batch_id: b1, test_id: tst1, commit_sha: abc123, result: pass}
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
   expect:
     writes:
       verdicts: {count: 1}
@@ -133,20 +133,20 @@
   runs: 5
   pass: 4
   tick: tests_missing
-  refs: [b1]
+  refs: [<b1>]
   fixture:
     items:
-      - {id: i1, text: "prorate charges on upgrade", kind: in_scope,
+      - {id: <i1>, text: "prorate charges on upgrade", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "prorate on upgrade"}
+      - {id: <tk1>, item_id: <i1>, text: "prorate on upgrade"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "prorate(999, 1, 3) returns 333",
+      - {id: <c1>, ticket_id: <tk1>, text: "prorate(999, 1, 3) returns 333",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: pending}
+      - {id: <b1>, item_id: <i1>, status: pending}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     writes:
       tests: {count: ">=1"}
@@ -162,13 +162,13 @@
   pass: 4
   fixture:
     entries:
-      - {id: e1, author: principal, ts_order: 1,
+      - {id: <e1>, author: principal, ts_order: 1,
          text: "invoices have to survive account deletion for seven years"}
     statements:
-      - {id: s1, span_entry: e1, span_start: 0, span_end: 56,
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 56,
          text: "invoices have to survive account deletion for seven years",
          status: ratified}
-  inbound: {from: liaison, to: architect, verb: deliver, body_refs: [s1]}
+  inbound: {from: liaison, to: architect, verb: deliver, body_refs: [<s1>]}
   expect:
     writes:
       constraints: {count: ">=1"}
@@ -183,18 +183,18 @@
   runs: 5
   pass: 4
   tick: grouping
-  refs: [i1]
+  refs: [<i1>]
   fixture:
     items:
-      - {id: i1, text: "delete an account", kind: in_scope, provenance: decided,
+      - {id: <i1>, text: "delete an account", kind: in_scope, provenance: decided,
          approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "add the delete button"}
-      - {id: tk2, item_id: i1, text: "tombstone the account row"}
+      - {id: <tk1>, item_id: <i1>, text: "add the delete button"}
+      - {id: <tk2>, item_id: <i1>, text: "tombstone the account row"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "the button asks for confirmation",
+      - {id: <c1>, ticket_id: <tk1>, text: "the button asks for confirmation",
          term_refs: '[]'}
-      - {id: c2, ticket_id: tk2, text: "the row is tombstoned, not removed",
+      - {id: <c2>, ticket_id: <tk2>, text: "the row is tombstoned, not removed",
          term_refs: '[]'}
   expect:
     writes:

@@ -12,23 +12,23 @@
   runs: 5
   pass: 4
   tick: batch_start
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
   fixture:
     items:
-      - {id: i1, text: "show money amounts in the invoice email", kind: in_scope,
+      - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "format cent amounts for display"}
+      - {id: <tk1>, item_id: <i1>, text: "format cent amounts for display"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "money(1999) returns '$19.99' from src/notify/formatting.py",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     calls: [code.write, code.commit]
     writes:
@@ -47,29 +47,29 @@
   runs: 5
   pass: 3
   tick: batch_start
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
   fixture:
     items:
-      - {id: i1, text: "show money amounts in the invoice email", kind: in_scope,
+      - {id: <i1>, text: "show money amounts in the invoice email", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
       # The ticket names refunds; the criteria never say what one looks like.
       # There is no way to write the function without deciding, and the decision
       # is invisible in the diff — which is the ledger's entire purpose.
-      - {id: tk1, item_id: i1,
+      - {id: <tk1>, item_id: <i1>,
          text: "format cent amounts for display. Refunds appear in the same
                 column as charges."}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "money(1999) returns '$19.99' from src/notify/formatting.py",
          term_refs: '[]'}
-      - {id: c2, ticket_id: tk1, text: "money(0) returns '$0.00'", term_refs: '[]'}
+      - {id: <c2>, ticket_id: <tk1>, text: "money(0) returns '$0.00'", term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     calls: [code.write, code.commit, ledger.log]
     writes:
@@ -86,9 +86,9 @@
   runs: 5
   pass: 4
   tick: tests_failing
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "line totals apply the volume band"
     edit:
       src/catalog/pricing.py: |
@@ -110,28 +110,28 @@
             return gross
   fixture:
     items:
-      - {id: i1, text: "volume discounts on the line total", kind: in_scope,
+      - {id: <i1>, text: "volume discounts on the line total", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "apply the volume band"}
+      - {id: <tk1>, item_id: <i1>, text: "apply the volume band"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "line_total applies the highest band the quantity qualifies for",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_bands.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_bands.py,
          body: "assert line_total('SKU-1', 25) == round(price_for('SKU-1') * 25 * 0.9)"}
     test_runs:
       # What red actually looked like. Without it the role can read what the
       # test asserts and not what happened, which is half the evidence for the
       # one judgement this mode turns on.
-      - id: r1
-        batch_id: b1
-        test_id: tst1
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
         commit_sha: abc123
         result: fail
         output: |
@@ -153,9 +153,9 @@
   runs: 5
   pass: 4
   tick: tests_failing
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "close an account"
     edit:
       src/billing/accounts.py: |
@@ -180,28 +180,28 @@
             return True
   fixture:
     items:
-      - {id: i1, text: "closing an account keeps its invoices", kind: in_scope,
+      - {id: <i1>, text: "closing an account keeps its invoices", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "close an account"}
+      - {id: <tk1>, item_id: <i1>, text: "close an account"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "closing an account marks it closed and leaves its invoices in place",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
       # Asserts the opposite of the criterion it claims to encode.
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_close.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_close.py,
          body: "assert invoices_for(account_id) == []"}
     test_runs:
       # Red because the code keeps the invoices — which is what the criterion
       # asked for. The output says so, and that is the tell.
-      - id: r1
-        batch_id: b1
-        test_id: tst1
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
         commit_sha: abc123
         result: fail
         output: |
@@ -230,9 +230,9 @@
   runs: 5
   pass: 4
   tick: verdict_failed
-  refs: [b1]
+  refs: [<b1>]
   repo:
-    batch: b1
+    batch: <b1>
     message: "truncate long subject lines"
     edit:
       src/notify/formatting.py: |
@@ -249,21 +249,21 @@
             return f"{count} {plural_form or singular + 's'}"
   fixture:
     items:
-      - {id: i1, text: "long subject lines are truncated", kind: in_scope,
+      - {id: <i1>, text: "long subject lines are truncated", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "truncate the subject"}
+      - {id: <tk1>, item_id: <i1>, text: "truncate the subject"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "a truncated string ends in an ellipsis character",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running, head_commit: abc123}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     verdicts:
-      - {id: v1, batch_id: b1, commit_sha: abc123, result: fail,
-         failed_criterion: c1}
+      - {id: <v1>, batch_id: <b1>, commit_sha: abc123, result: fail,
+         failed_criterion: <c1>}
   expect:
     calls: [verdicts.load, code.write, code.commit]
   forbidden:
@@ -278,23 +278,23 @@
   runs: 5
   pass: 4
   tick: reopen
-  refs: [b1, i1]
+  refs: [<b1>, <i1>]
   repo:
-    batch: b1
+    batch: <b1>
   fixture:
     items:
       # The item now says the opposite of what the batch was built against, and
       # its approval went with the amendment.
-      - {id: i1, text: "accounts are never deleted, only closed", kind: in_scope,
+      - {id: <i1>, text: "accounts are never deleted, only closed", kind: in_scope,
          provenance: decided, approval: draft, approval_ver: 1, version: 2}
     tickets:
-      - {id: tk1, item_id: i1, text: "delete the account row"}
+      - {id: <tk1>, item_id: <i1>, text: "delete the account row"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "the account row is removed", term_refs: '[]'}
+      - {id: <c1>, ticket_id: <tk1>, text: "the account row is removed", term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     messages:
       - {to: gatekeeper, verb: elect, count: 1}

@@ -9,24 +9,24 @@
   role: tester
   runs: 5
   pass: 4
-  inbound: {from: developer, to: tester, verb: challenge, body_refs: [tst1, c1]}
+  inbound: {from: developer, to: tester, verb: challenge, body_refs: [<tst1>, <c1>]}
   fixture:
     items:
-      - {id: i1, text: "closing an account keeps its invoices", kind: in_scope,
+      - {id: <i1>, text: "closing an account keeps its invoices", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "close an account"}
+      - {id: <tk1>, item_id: <i1>, text: "close an account"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "closing an account marks it closed and leaves its invoices in place",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
       # Encodes the criterion exactly. The challenge is wrong.
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_close.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_close.py,
          body: "close_account(a); assert invoices_for(a) != []"}
   expect:
     messages:
@@ -41,26 +41,26 @@
   role: tester
   runs: 5
   pass: 4
-  inbound: {from: developer, to: tester, verb: challenge, body_refs: [tst1, c1]}
+  inbound: {from: developer, to: tester, verb: challenge, body_refs: [<tst1>, <c1>]}
   fixture:
     items:
-      - {id: i1, text: "long subject lines are truncated", kind: in_scope,
+      - {id: <i1>, text: "long subject lines are truncated", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     tickets:
-      - {id: tk1, item_id: i1, text: "truncate the subject"}
+      - {id: <tk1>, item_id: <i1>, text: "truncate the subject"}
     criteria:
-      - {id: c1, ticket_id: tk1,
+      - {id: <c1>, ticket_id: <tk1>,
          text: "a subject longer than 72 characters is truncated to 72",
          term_refs: '[]'}
     batches:
-      - {id: b1, item_id: i1, status: running}
+      - {id: <b1>, item_id: <i1>, status: running}
     batch_tickets:
-      - {batch_id: b1, ticket_id: tk1}
+      - {batch_id: <b1>, ticket_id: <tk1>}
     tests:
       # Asserts the length *and* a specific ellipsis character the criterion
       # never mentions. A test that asserts more than was asked for reports as
       # coverage while failing work that was correctly done.
-      - {id: tst1, batch_id: b1, criterion_id: c1, path: test_truncate.py,
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_truncate.py,
          body: "s = truncate('x' * 100); assert len(s) == 72 and s.endswith('...')"}
   expect:
     calls: [criteria.load]
@@ -76,12 +76,12 @@
   role: gatekeeper
   runs: 5
   pass: 4
-  inbound: {from: liaison, to: gatekeeper, verb: ask, body_refs: [i1, i2]}
+  inbound: {from: liaison, to: gatekeeper, verb: ask, body_refs: [<i1>, <i2>]}
   fixture:
     items:
-      - {id: i1, text: "people can close their account", kind: in_scope,
+      - {id: <i1>, text: "people can close their account", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
-      - {id: i2, text: "bulk export is not part of this", kind: out_of_scope,
+      - {id: <i2>, text: "bulk export is not part of this", kind: out_of_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
   expect:
     messages:

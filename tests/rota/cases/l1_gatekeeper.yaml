@@ -17,11 +17,11 @@
   pass: 4
   fixture:
     entries:
-      - {id: e1, author: principal, text: "users should be able to delete their account", ts_order: 1}
+      - {id: <e1>, author: principal, text: "users should be able to delete their account", ts_order: 1}
     statements:
-      - {id: s1, span_entry: e1, span_start: 0, span_end: 43,
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 43,
          text: "users should be able to delete their account", status: ratified}
-  inbound: {from: liaison, to: gatekeeper, verb: deliver, body_refs: [s1]}
+  inbound: {from: liaison, to: gatekeeper, verb: deliver, body_refs: [<s1>]}
   expect:
     writes:
       items: {count: ">=1"}
@@ -37,10 +37,10 @@
   runs: 5
   pass: 4
   tick: slicing
-  refs: [i1]
+  refs: [<i1>]
   fixture:
     items:
-      - {id: i1, text: "users can delete their account", kind: in_scope,
+      - {id: <i1>, text: "users can delete their account", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
   expect:
     writes:
@@ -58,9 +58,9 @@
   pass: 4
   fixture:
     items:
-      - {id: i1, text: "delete an account", kind: in_scope, provenance: decided,
+      - {id: <i1>, text: "delete an account", kind: in_scope, provenance: decided,
          approval: pending, version: 1}
-  inbound: {from: liaison, to: gatekeeper, verb: relay, body_refs: [i1]}
+  inbound: {from: liaison, to: gatekeeper, verb: relay, body_refs: [<i1>]}
   expect:
     writes:
       items: {count: ">=1"}
@@ -76,10 +76,10 @@
   pass: 4
   fixture:
     items:
-      - {id: i1, text: "deleting an account tombstones it, keeping invoices",
+      - {id: <i1>, text: "deleting an account tombstones it, keeping invoices",
          kind: in_scope, provenance: decided, approval: approved,
          approval_ver: 1, version: 1}
-  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [i1]}
+  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [<i1>]}
   expect:
     messages:
       - {to: developer, verb: answer, count: 1}

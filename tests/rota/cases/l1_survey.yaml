@@ -43,9 +43,9 @@
     onboard: true
   fixture:
     glossary_terms:
-      - {id: g1, term: account, provenance: observed,
+      - {id: <g1>, term: account, provenance: observed,
          sense_short: "the billing entity that owes money"}
-      - {id: g2, term: invoice, provenance: observed,
+      - {id: <g2>, term: invoice, provenance: observed,
          sense_short: "a charge issued against a billing account"}
   expect:
     calls: [code.survey]
@@ -69,10 +69,10 @@
     onboard: true
   fixture:
     glossary_terms:
-      - {id: g1, term: account, provenance: observed,
+      - {id: <g1>, term: account, provenance: observed,
          sense_short: "the billing entity that owes money"}
     constraints:
-      - {id: k1, headline: "invoices outlive the account they belong to",
+      - {id: <k1>, headline: "invoices outlive the account they belong to",
          text: "closing an account leaves its invoices readable",
          provenance: observed}
   expect:

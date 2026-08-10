@@ -75,16 +75,42 @@ def _encode(value: Any) -> Any:
     return json.dumps(value) if isinstance(value, (list, dict)) else value
 
 
-def load_case(path: str | Path) -> dict:
-    """Parse a case file. YAML if available, else JSON."""
+def load_case(path: str | Path, *, raw: bool = False) -> dict:
+    """
+    Parse a case file, filling its `{{holes}}` unless `raw`.
+
+    Filling happens per case rather than per file, so two cases in one file
+    cannot end up sharing an id and a model cannot learn one mapping and apply
+    it to the next case. That means parsing twice: once to find the boundaries,
+    once with each case's own substitution applied.
+    """
     text = Path(path).read_text(encoding="utf-8")
     if str(path).endswith((".yaml", ".yml")):
         try:
             import yaml
-            return yaml.safe_load(text)
         except ImportError as exc:                      # pragma: no cover
             raise RuntimeError("PyYAML needed for .yaml cases") from exc
-    return json.loads(text)
+        parse = yaml.safe_load
+    else:
+        parse = json.loads
+
+    if raw or "<" not in text:
+        return parse(text)
+
+    # Split on the top-level `- id:` boundaries so each case fills alone.
+    out, buffer, current = [], [], None
+    def flush():
+        if current is not None:
+            out.append(parse(fill(chr(10).join(buffer), current))[0])
+    for line in text.splitlines():
+        if line.startswith("- id: "):
+            flush()
+            current = fill(line[6:].strip(), "")   # the id itself holds no holes
+            buffer = [line]
+        elif current is not None:
+            buffer.append(line)
+    flush()
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -356,107 +382,56 @@ def _with_repo(conn, case: dict, db_path: Path):
 # Unguessable ids
 # ---------------------------------------------------------------------------
 
-_ID_FIELDS = ("refs", "body_refs", "term_refs", "source_refs", "ticket_ids")
+_HOLE = re.compile(r"<([A-Za-z0-9_]+)>")
 
 
-def _opaque(case_id: str, original: str) -> str:
+def fill(text: str, case_id: str) -> str:
     """
-    A stable, unguessable stand-in for a fixture id.
+    Replace every `<name>` with an id the model cannot guess.
 
-    Deterministic on purpose: the same case produces the same ids on every run,
-    so the prompt is byte-identical and a cassette recorded against it stays
-    valid. Randomising them would make every recording single-use, which is the
-    bug that had 1140 of 1419 cassettes never replayed.
+    Cases are written with `i1`, `tk1`, `b1` because they have to be readable
+    and diffable. The cost is that they are also *predictable*: in a fixture
+    with one item, `problem.set_approval(id='i1')` is right every time without
+    reading anything — so a case that ought to fail can pass, and running it
+    more times will never say which happened.
+
+    **Declared holes rather than inferred ids.** The first version worked out
+    which strings looked like ids and rewrote those, which cannot see a
+    convention: `e_m_in` is an entry id that *encodes* a message id, because the
+    runtime looks up `f"e_{message_id}"`. Inference renamed the entry and left
+    the message alone, `ctx.entry_id` came back None, and Liaison — which had
+    passed for weeks — silently stopped being able to segment anything. Written
+    as `e_{{m_in}}` the two move together, because the author said they were the
+    same thing and nothing had to guess.
+
+    Substitution is textual and happens before the YAML is parsed, so a hole
+    works anywhere: a row id, a foreign key, a ref list, a config key, half of a
+    derived id.
+
+    Angle brackets rather than `{{...}}`, and the reason is not taste. Fixture
+    rows are YAML *flow* mappings — `- {id: X, text: "..."}` — and in flow
+    context `{ } [ ] ,` are indicators, so a plain scalar cannot contain them.
+    `{{i1}}` makes the file invalid YAML that happens to parse once the holes
+    are filled, which costs editor validation, `--raw` loading, and every tool
+    that reads a case without going through this function. `<i1>` is an ordinary
+    plain scalar and the file stays a YAML file.
+
+    Deterministic on purpose — the same case yields the same ids every run, so
+    the prompt is byte-identical and a cassette recorded against it stays valid.
     """
     import hashlib
 
-    prefix = original.rstrip("0123456789") or "x"
-    digest = hashlib.sha1(f"{case_id}:{original}".encode()).hexdigest()[:6]
-    return f"{prefix}_{digest}"
+    def one(match: re.Match) -> str:
+        name = match.group(1)
+        prefix = name.rstrip("0123456789") or "x"
+        digest = hashlib.sha1(f"{case_id}:{name}".encode()).hexdigest()[:6]
+        return f"{prefix}_{digest}"
+
+    return _HOLE.sub(one, text)
 
 
-def obfuscate(case: dict) -> dict:
-    """
-    Rewrite every fixture id to something the model cannot guess.
-
-    Cases are written with `i1`, `tk1`, `b1` because they have to be readable and
-    diffable. The cost is that they are also *predictable*: in a fixture with one
-    item, `problem.set_approval(id='i1')` is right every time without reading
-    anything — so a case that ought to fail can pass, and no amount of running it
-    will say which happened.
-
-    Rewriting at seed time keeps both properties. The author writes `i1`, the
-    model sees `i_7f3a2b`, and the assertions are rewritten with the fixture so
-    they still line up. It is not a security measure; it is the difference
-    between a test that can only pass for the right reason and one that can also
-    pass for the wrong one.
-    """
-    ids: dict[str, str] = {}
-    for table, rows in (case.get("fixture") or {}).items():
-        for row in rows or []:
-            original = row.get("id")
-            if isinstance(original, str):
-                ids[original] = _opaque(case["id"], original)
-    inbound_id = (case.get("inbound") or {}).get("id")
-    if isinstance(inbound_id, str):
-        ids[inbound_id] = _opaque(case["id"], inbound_id)
-    if not ids:
-        return case
-
-    def swap(value):
-        if isinstance(value, str):
-            return ids.get(value, value)
-        if isinstance(value, list):
-            return [swap(v) for v in value]
-        if isinstance(value, dict):
-            return {swap(k): swap(v) for k, v in value.items()}
-        return value
-
-    def swap_json(text: str) -> str:
-        try:
-            return json.dumps(swap(json.loads(text)))
-        except (TypeError, ValueError):
-            return text
-
-    out = json.loads(json.dumps(case))          # deep copy, no shared structure
-
-    for table, rows in (out.get("fixture") or {}).items():
-        for row in rows or []:
-            for column, value in list(row.items()):
-                if isinstance(value, str) and value in ids:
-                    row[column] = ids[value]
-                elif column in _ID_FIELDS and isinstance(value, str):
-                    row[column] = swap_json(value)
-                elif column in _ID_FIELDS:
-                    row[column] = swap(value)
-                elif table == "config" and column in ("key", "value"):
-                    # `verdict:m_rule` carries an id in the key and a map of
-                    # item id to ruling in the value.
-                    if column == "key" and ":" in value:
-                        head, _, tail = value.partition(":")
-                        row[column] = f"{head}:{ids.get(tail, tail)}"
-                    elif column == "value":
-                        row[column] = swap_json(value)
-
-    for key in ("refs",):
-        if out.get(key):
-            out[key] = swap(out[key])
-    for block in ("inbound", "first", "then"):
-        spec = out.get(block)
-        if isinstance(spec, dict):
-            out[block] = swap(spec)
-    if isinstance(out.get("repo"), dict) and out["repo"].get("batch"):
-        out["repo"]["batch"] = swap(out["repo"]["batch"])
-    for spec in (out.get("expect") or {}).get("messages") or []:
-        if spec.get("refs_include"):
-            spec["refs_include"] = swap(spec["refs_include"])
-    for branch in (out.get("expect") or {}).get("any_of") or []:
-        for spec in branch.get("messages") or []:
-            if spec.get("refs_include"):
-                spec["refs_include"] = swap(spec["refs_include"])
-
-    out["_ids"] = ids
-    return out
+def holes(text: str) -> set[str]:
+    return set(_HOLE.findall(text))
 
 
 def mode_of(case: dict) -> str:
@@ -477,7 +452,6 @@ def mode_of(case: dict) -> str:
 
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
-    case = obfuscate(case)
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
     repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None
@@ -549,7 +523,6 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     """
     from ..core.loop import _batch_of
 
-    case = obfuscate(case)
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
     repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None

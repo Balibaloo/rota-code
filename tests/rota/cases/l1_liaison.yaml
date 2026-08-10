@@ -9,9 +9,10 @@
   pass: 4
   fixture:
     entries:
-      - {id: e_m_in, author: principal, ts_order: 1,
+      - {id: e_<m_in>, author: principal, ts_order: 1,
          text: "morning. we need SSO, but only if it works with our LDAP"}
-  inbound: {from: principal, to: liaison, verb: converse, body_refs: []}
+  inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
+            body_refs: []}
   expect:
     writes:
       statements: {count: ">=1"}
@@ -29,11 +30,11 @@
   pass: 4
   fixture:
     entries:
-      - {id: e1, author: principal, text: "let people export their invoices", ts_order: 1}
+      - {id: <e1>, author: principal, text: "let people export their invoices", ts_order: 1}
     statements:
-      - {id: s1, span_entry: e1, span_start: 0, span_end: 32,
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 32,
          text: "let people export their invoices", status: proposed}
-  inbound: {from: principal, to: liaison, verb: verdict, body_refs: [s1]}
+  inbound: {from: principal, to: liaison, verb: verdict, body_refs: [<s1>]}
   expect:
     writes:
       statements: {count: ">=1"}
@@ -48,11 +49,11 @@
   pass: 4
   fixture:
     items:
-      - {id: i1, text: "users can delete their account", kind: in_scope,
+      - {id: <i1>, text: "users can delete their account", kind: in_scope,
          provenance: decided, approval: draft, version: 1}
-      - {id: i2, text: "deleted accounts keep their invoices", kind: out_of_scope,
+      - {id: <i2>, text: "deleted accounts keep their invoices", kind: out_of_scope,
          provenance: decided, approval: draft, version: 1}
-  inbound: {from: gatekeeper, to: liaison, verb: submit, body_refs: [i1, i2]}
+  inbound: {from: gatekeeper, to: liaison, verb: submit, body_refs: [<i1>, <i2>]}
   expect:
     messages:
       - {to: principal, verb: present, count: 1}
@@ -68,9 +69,10 @@
   pass: 4
   fixture:
     entries:
-      - {id: e_m_in, author: principal, ts_order: 1,
+      - {id: e_<m_in>, author: principal, ts_order: 1,
          text: "make the dashboard better, you know what I mean"}
-  inbound: {from: principal, to: liaison, verb: converse, body_refs: []}
+  inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
+            body_refs: []}
   expect:
     writes:
       statements: {count: ">=1"}
