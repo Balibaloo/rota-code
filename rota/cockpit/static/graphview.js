@@ -407,20 +407,20 @@ function drawTeam() {
   // relationship are, which is the one thing the colour system must never do.
   const fold = collapsing();
   const groupOf = e => `${e.s}|${e.t}|${e.type}`;
-  const members = {};
-  if (fold) for (const e of GV.graph.edges)
-    (members[groupOf(e)] = members[groupOf(e)] || []).push(e);
+  const plan = fold ? foldPlan() : null;
   const drawn = new Set();
 
   for (const e of GV.graph.edges) {
     const a=GV.layout[e.s], b=GV.layout[e.t];
     if(!a||!b||!gvVisible(e.s)||!gvVisible(e.t)) continue;
     const group = groupOf(e);
+    const p = fold ? plan[group] : null;
     if (fold) {
+      if (p.skip) continue;             // its opposite carries both directions
       if (drawn.has(group)) continue;   // one line stands for the whole group
       drawn.add(group);
     }
-    const kin = fold ? (members[group] || [e]) : [e];
+    const kin = fold ? p.members : [e];
 
     const st=ESTYLE[e.type]||ESTYLE.refs, key=ek([e.s,e.t,e.type]), state=lit.get(key);
     const incident = GV.focus && (e.s===GV.focus||e.t===GV.focus);
@@ -460,8 +460,8 @@ function drawTeam() {
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
       const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
-      const rank = fold ? 0 : (GV.spread[key] || 0);
-      const n = fold ? 1 : (GV.spreadN[key] || 1);
+      const rank = fold ? p.rank : (GV.spread[key] || 0);
+      const n = fold ? (p.solo ? 1 : 2) : (GV.spreadN[key] || 1);
       const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
       const len=Math.hypot(dx,dy)||1;
       // Always bow to the left of the direction of travel.
@@ -472,7 +472,9 @@ function drawTeam() {
       // between its boxes and every right-to-left edge over it, which is the
       // opposite of what it should be. One negative sign fixes both directions
       // at once and gives a consistent rotation for vertical edges too.
-      const bow = -(Math.min(34, len*.11) + rank * 30);
+      // A pair reduced to a single line has nothing to avoid, so it runs
+      // straight. Bowing it would be decoration standing where a fact was.
+      const bow = (fold && p.solo) ? 0 : -(Math.min(34, len*.11) + rank * 30);
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
 
       // Start and end on the boxes, not in them. This drew centre to centre,
@@ -493,7 +495,10 @@ function drawTeam() {
     // applies to its markers too — so at the resting opacity of 0.16 the head
     // was a grey smudge on a coloured line. A direction you have to zoom in to
     // read is a direction the picture is not carrying.
-    const headId = markers ? '' : `marker-end="url(#head-${e.type})"`;
+    const headId = markers ? ''
+      : (fold && p.bidir
+          ? `marker-start="url(#head-${e.type})" marker-end="url(#head-${e.type})"`
+          : `marker-end="url(#head-${e.type})"`);
     // Wide and clearly tinted. The first version was five pixels at 22%
     // opacity, which on a near-white canvas is nothing at all -- the coverage
     // lens looked switched off because its whole signal was invisible.
@@ -508,7 +513,8 @@ function drawTeam() {
     // Edge names on while they are readable — the grammar is the content, not
     // a hover reward, but at a distance a 10px label is texture rather than a
     // word and a dozen of them is a smudge over the structure.
-    const label = kin.length > 1 ? `${kin.length} ${e.type}` : e.v;
+    const total = fold ? kin.length + (p.back || []).length : 1;
+    const label = total > 1 ? `${total} ${e.type}` : e.v;
     if (label && op > 0.12 && labelling()) {
       const emph = state==='now'||incident;
       const lop = emph?1:Math.min(1,op+.35);
@@ -849,6 +855,42 @@ const GROUP_RING = {
 //
 // Returns the nodes to keep lit and a predicate over edges. Either may be
 // null, meaning "this row says nothing about those".
+// How the folded view draws: one line per relationship, and as few of them as
+// the structure allows.
+//
+// Three reductions, in order. Parallel edges of one type between one pair
+// become a line. Two lines of the same type running opposite ways become one
+// line with a head at each end -- ten pairs here, all of them messages, and
+// "these two talk to each other" is what the picture was trying to say with
+// two arcs. What is left is a straight line whenever a pair has only one,
+// which is seventy-four of ninety-one: bowing those would be decoration
+// standing where a fact was.
+function foldPlan() {
+  const groups = {};
+  for (const e of GV.graph.edges) {
+    const k = `${e.s}|${e.t}|${e.type}`;
+    (groups[k] = groups[k] || []).push(e);
+  }
+
+  const plan = {}, byPair = {};
+  for (const k of Object.keys(groups)) {
+    const [src, dst, type] = k.split('|');
+    const rev = `${dst}|${src}|${type}`;
+    // Keep one of the two directions and let it carry both. Which one is
+    // arbitrary but must be stable, so it is the alphabetically first.
+    if (groups[rev] && dst < src) { plan[k] = {skip: true}; continue; }
+
+    const pair = [src, dst].sort().join('|');
+    (byPair[pair] = byPair[pair] || []).push(k);
+    plan[k] = {members: groups[k], back: groups[rev] || [],
+               bidir: !!groups[rev], skip: false};
+  }
+  for (const keys of Object.values(byPair))
+    keys.forEach((k, i) => { plan[k].rank = i; plan[k].solo = keys.length === 1; });
+  return plan;
+}
+
+
 function keySelects(sel) {
   const none = {nodes: null, edges: null};
   if (!sel) return none;
