@@ -96,9 +96,9 @@ Gatekeeper session that committed a real item.
 
 ## 3 · Fixtures — the layer everything stands on
 
-- [ ] **3.1** wire `rota/fixtures.py` — the seed→inject→run→assert case runner,
+- [x] **3.1** wire `rota/fixtures.py` — the seed→inject→run→assert case runner,
       unused since step 1
-- [ ] **3.2** obligation set **generated from the graph**, like edge coverage:
+- [x] **3.2** obligation set **generated from the graph**, like edge coverage:
       an edge creates a red row at every tier
 - [x] **3.3** synthetic repo, **30–40 files across 4–5 modules** with a real
       dependency shape. Realistic: no essay comments, no `# Step 1:`
@@ -159,13 +159,28 @@ produces a real commit today. That slice lands inside stage 1.
 
 ## 4 · L1 — every action a role can take · 63 operations
 
-- [ ] **4.1** one fixture per action, where that action is the only right move
-- [ ] **4.2** structural asserts on DB deltas and messages, never on prose
-- [ ] **4.3** **4 of 5** sampled runs
-- [ ] **4.4** negative half — the action must not fire when the fixture does not
+- [~] **4.1** one fixture per action, where that action is the only right move
+- [x] **4.2** structural asserts on DB deltas and messages, never on prose
+- [x] **4.3** **4 of 5** sampled runs
+- [x] **4.4** negative half — the action must not fire when the fixture does not
       call for it
-- [ ] **4.5** expect prompt churn; this is where the vocabulary rework gets its
+- [~] **4.5** expect prompt churn; this is where the vocabulary rework gets its
       verdict, so L1 is not a single pass
+
+**4 of 109 cases written, all Gatekeeper, all green at 4/5 or better against
+`llama3.1:8b`.** The machinery is proven end to end — case file, seeded fixture,
+real session, structural delta, sampled threshold, cassette. What remains is
+volume.
+
+The tier earned itself immediately. Three real bugs in four cases, none of them
+visible to any deterministic check:
+
+- `problem.set_approval` on an invented id took down a whole session inside the
+  transaction, where it should have been one recoverable tool error
+- the relay prompt said "approve, contest, or leave pending" — the *ruling*
+  words — where the enum is `approved`/`contested`. Two vocabularies in one
+  sentence, in a prompt, after the whole vocabulary pass
+- Gatekeeper answered the same question twice, and once eleven times
 
 ---
 
@@ -229,9 +244,9 @@ to calibrate against.
 ## 8 · Results surface — throughout
 
 - [ ] **8.1** cockpit tab beside coverage: per-role, per-tier, pass rate, model
-- [ ] **8.2** cassettes committed — passing runs only, keyed by prompt hash, at
+- [x] **8.2** cassettes committed — passing runs only, keyed by prompt hash, at
       case granularity so a diff shows which case's evidence moved
-- [ ] **8.3** GPU serialised — no `xdist` on model-touching tests
+- [x] **8.3** GPU serialised — no `xdist` on model-touching tests
 
 ---
 
