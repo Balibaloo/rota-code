@@ -215,17 +215,17 @@ question, and every check we have is about a thing.
 stdlib `ast`. The schema comment said so; I was about to take a Python-only
 shortcut.
 
-- [ ] **7a · code index.** Grains (path, symbol, table, route) and fan-in, via
+- [x] **7a · code index.** Grains (path, symbol, table, route) and fan-in, via
       tree-sitter. One function per language behind one interface
-- [ ] **7b · dependency graph.** `code_edges` populated from imports and calls
-- [ ] **7c · area partitioning.** Partition the dependency graph into areas;
+- [x] **7b · dependency graph.** `code_edges` populated from imports and calls
+- [x] **7c · area partitioning.** Partition the dependency graph into areas;
       pinned by decision, per the schema
-- [ ] **7d · constraint zero.** Created at onboarding, bound to repo-minus-
+- [x] **7d · constraint zero.** Created at onboarding, bound to repo-minus-
       surveyed, shrunk by survey records including `none_found`, never removed
       by judgement
-- [ ] **7e · trigger.** One entry point — CLI and test fixture share it; boot
+- [x] **7e · trigger.** One entry point — CLI and test fixture share it; boot
       already detects an absent state folder
-- [ ] **7f · the arc.** Onboard the synthetic repo end to end, scripted
+- [x] **7f · the arc.** Onboard the synthetic repo end to end, scripted
       principal
 
 **The bar, for now:** everything must have *at least something good*. Planted

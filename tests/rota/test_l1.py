@@ -74,8 +74,14 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=PINS, instructions=instructions)
 
+    # Recorded against the instructions rather than the bare pins, so the
+    # cockpit can tell a green result from a green result about a prompt that
+    # has since been edited. Instructions only — the full prompt includes the
+    # fixture, which would make every case's hash unique and staleness
+    # meaningless.
+    stamp = PINS.with_prompt(instructions)
     for r in results:
-        record_case_run(dev_db, case["id"], PINS, r.run, r.passed, r.problems)
+        record_case_run(dev_db, case["id"], stamp, r.run, r.passed, r.problems)
 
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"

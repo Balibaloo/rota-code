@@ -232,6 +232,11 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
             failed = sum(1 for _, r in results if r != "pass")
             done.append(f"{batch_id}: {len(results)} test(s), {failed} not passing")
         return "; ".join(done)
+    if action == "constraint_zero":
+        from ..onboarding import boot
+
+        remaining = boot.refresh_constraint_zero(conn)
+        return f"constraint zero now covers {remaining} unsurveyed area(s)"
     return f"unknown action {action!r}"
 
 

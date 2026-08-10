@@ -33,7 +33,7 @@ from ..roles import prompts as prompts_mod
 from ..core.boot import state_dir
 from ..testkit.coverage import render as render_coverage, report as coverage_report
 from ..core.db import connect, init_db
-from . import inspect_api
+from . import inspect_api, progress
 from ..core.sandbox import build as build_sandbox
 from .traceview import (
     coverage_edges, frontier_overlay, steps_from_db,
@@ -283,6 +283,14 @@ def make_handler(db_path: Path):
                         "by_role": {r: list(v) for r, v in rep.by_role().items()},
                         "missing": [str(k) for k in sorted(rep.missing, key=str)],
                     }).encode("utf-8")
+                    self._send(body, "application/json")
+                elif path == "/progress.json":
+                    conn = connect(db_path)
+                    try:
+                        body = json.dumps(progress.report(conn),
+                                          default=str).encode("utf-8")
+                    finally:
+                        conn.close()
                     self._send(body, "application/json")
                 elif path == "/fingerprint":
                     self._send(source_fingerprint().encode("utf-8"), "text/plain")

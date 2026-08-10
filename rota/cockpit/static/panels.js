@@ -262,9 +262,10 @@ function showTab(t){
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   view=b.dataset.view;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
-  ['graph','live','coverage'].forEach(v=>
+  ['graph','live','coverage','progress'].forEach(v=>
     document.getElementById(v).classList.toggle('on', v===view));
   if (view==='coverage') loadCoverage();
+  if (view==='progress') loadProgress();
 });
 
 async function refresh() {
@@ -379,3 +380,86 @@ document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>showTab(b.data
 refresh();
 setInterval(()=>{if(view==='live') refresh();},1500);
 setInterval(checkReload,1000);
+
+
+// ---------------------------------------------------------------------------
+// Progress. Every number is derived from something that exists for another
+// reason -- the milestone's own checkboxes, the graph, the case files, the
+// case-run log. Nothing here is a figure somebody types in and forgets.
+// ---------------------------------------------------------------------------
+
+function bar(done, total, cls){
+  const pct = total ? 100*done/total : 0;
+  return `<span class="bar"><i class="${cls||''}" style="width:${pct}%"></i></span>`;
+}
+
+async function loadProgress(){
+  const p = await (await fetch('/progress.json')).json();
+
+  const ms = p.milestone;
+  const shipped = ms.reduce((n,s)=>n+s.done,0), owed = ms.reduce((n,s)=>n+s.total,0);
+  document.getElementById('pg-milestone').innerHTML =
+    `<h3>${shipped}/${owed} across ${ms.length} stages</h3>` +
+    ms.map(s=>{
+      const done = s.done===s.total;
+      return `<div class="barwrap" title="${esc(s.open_items.join(' · '))}">
+        <span style="width:34px" class="sig">${esc(s.key)}</span>
+        <span style="width:280px;${done?'':'color:var(--ink)'}">${esc(s.title)}</span>
+        <span class="sig" style="width:44px">${s.done}/${s.total}</span>
+        ${bar(s.done,s.total, done?'':'part')}</div>` +
+        (s.open_items.length && !done
+          ? `<div class="sig" style="margin:2px 0 8px 320px">${
+              s.open_items.map(esc).join('<br>')}</div>` : '');
+    }).join('');
+
+  const c = p.coverage;
+  document.getElementById('pg-coverage').innerHTML =
+    `<h3>${c.cases} cases written</h3>
+     <div class="barwrap"><span style="width:110px">prompt modes</span>
+       <span class="sig" style="width:56px">${c.modes.done}/${c.modes.total}</span>
+       ${bar(c.modes.done,c.modes.total)}</div>` +
+    (c.modes.missing.length
+      ? `<div class="sig" style="margin:0 0 8px 118px">no case: ${
+          c.modes.missing.map(esc).join(', ')}</div>` : '') +
+    c.tiers.map(t=>`<div class="barwrap">
+       <span style="width:110px">${t.tier} ${esc(t.label)}</span>
+       <span class="sig" style="width:56px">${t.done}/${t.total}</span>
+       ${bar(t.done,t.total,'part')}</div>`).join('') +
+    `<p class="muted">Modes are one case per prompt piece -- the unit a
+      pass-rate drop is attributable to. Obligations are the finer grid the
+      graph generates, and the long haul.</p>`;
+
+  const o = p.onboarding;
+  document.getElementById('pg-onboarding').innerHTML = o.indexed
+    ? `<div class="counts">
+        <div><b>${o.indexed}</b> grains indexed</div>
+        <div><b>${o.edges}</b> dependency edges</div>
+        <div><b>${o.areas}</b> areas</div>
+        <div><b>${o.surveyed}</b> surveyed</div>
+        <div><b>${o.under_zero}</b> still under constraint zero</div></div>`
+    : `<p class="muted">Nothing onboarded in this database. Constraint zero
+        covers an area until somebody has looked at it -- including a survey
+        that finds nothing, which is a result.</p>`;
+
+  const rows = p.l1.cases, t = p.l1.tally||{};
+  const chip = s => `<span class="sig">${s}</span>`;
+  document.getElementById('pg-l1').innerHTML =
+    `<h3>${t.pass||0} passing · ${t.fail||0} failing · ${
+       t.stale||0} stale · ${t['never run']||0} never run
+       ${p.l1.model?chip(p.l1.model):''}</h3>
+     <p class="muted">A result recorded against a prompt that has since been
+       edited is not evidence about the prompt in the tree, so it shows as
+       stale rather than green. Green that means "green last week" is the
+       number you stop checking.</p>` +
+    ['pass','fail','stale','never run'].map(state=>{
+      const group = rows.filter(r=>r.state===state);
+      if(!group.length) return '';
+      return `<h4 style="margin:12px 0 4px">${state} (${group.length})</h4>` +
+        table(group.map(r=>({
+          role:r.role, mode:r.mode, case:r.id,
+          result:r.passed===null?'—':`${r.passed}/${r.runs}`,
+          needs:r.threshold,
+          why:(r.problems||[]).slice(0,2).join(' · ')
+        })),['role','mode','case','result','needs','why']);
+    }).join('');
+}

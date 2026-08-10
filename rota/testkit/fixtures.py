@@ -300,6 +300,15 @@ def _with_repo(conn, case: dict, db_path: Path):
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(repo.root),))
 
+    # A survey case needs the mechanical half of onboarding to have happened:
+    # an index to survey, areas to survey one of, and constraint zero over the
+    # rest. Requested rather than automatic — it costs a tree-sitter parse of
+    # the whole checkout, and only three modes need it.
+    if spec.get("onboard"):
+        from ..onboarding import boot
+
+        boot.onboard(conn, repo.root)
+
     batch_id = spec.get("batch") if isinstance(spec, dict) else None
     if batch_id:
         tree = repo.worktree(batch_id)

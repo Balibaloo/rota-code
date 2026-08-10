@@ -1,0 +1,88 @@
+# L1 — the survey modes. Onboarding, one area at a time.
+#
+# Each of these runs against a real checkout that has been indexed and
+# partitioned, because a survey of an area that does not exist is a session
+# correctly doing nothing. The failure they all share a shape with: writing
+# `decided` where the truth is `observed`. Onboarding's whole claim is that it
+# can tell "the code does this" from "we meant it to", and a role that quietly
+# promotes the first to the second has thrown away the distinction the rest of
+# the system is built on.
+#
+# `src/billing` is the area on purpose: it holds one half of the planted term
+# collision, and `account` there means the entity that owes money.
+
+- id: L1-TE-survey-an-area-for-its-terms
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  tick: survey
+  refs: [src/billing]
+  repo:
+    onboard: true
+  expect:
+    calls: [code.survey, code.source]
+    writes:
+      glossary_terms: {count: ">=1"}
+      survey_records: {count: 1}
+  forbidden:
+    # Terms first, and only terms. Constraints are Architect's pass over the
+    # same area and behaviours are Gatekeeper's; a Terminologist that writes
+    # either has done the next two roles' jobs from the first role's brief.
+    writes: [constraints, items, criteria]
+    recipients: [architect, gatekeeper, liaison]
+
+- id: L1-AR-survey-an-area-for-its-commitments
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: survey
+  refs: [src/billing]
+  repo:
+    onboard: true
+  fixture:
+    glossary_terms:
+      - {id: g1, term: account, provenance: observed,
+         sense_short: "the billing entity that owes money"}
+      - {id: g2, term: invoice, provenance: observed,
+         sense_short: "a charge issued against a billing account"}
+  expect:
+    calls: [code.survey]
+    writes:
+      survey_records: {count: 1}
+  forbidden:
+    # `none_found` is a legitimate outcome here and often the right one, so the
+    # assertion is on the attestation rather than on finding something. What is
+    # forbidden is closing the area without reading it, and writing the terms
+    # Terminologist already wrote.
+    writes: [glossary_terms, items, criteria]
+
+- id: L1-GK-survey-an-area-for-what-it-does
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 4
+  tick: survey
+  refs: [src/billing]
+  repo:
+    onboard: true
+  fixture:
+    glossary_terms:
+      - {id: g1, term: account, provenance: observed,
+         sense_short: "the billing entity that owes money"}
+    constraints:
+      - {id: k1, headline: "invoices outlive the account they belong to",
+         text: "closing an account leaves its invoices readable",
+         provenance: observed}
+  expect:
+    calls: [code.survey, code.source]
+    writes:
+      items: {count: ">=1"}
+      survey_records: {count: 1}
+  forbidden:
+    # Every item written here is observed and unapproved: "the system does
+    # this", never "we meant it to". Approving one would be the system granting
+    # itself the principal's ruling over a codebase they have not seen yet.
+    writes: [glossary_terms, constraints, criteria, tickets]
+    calls: [problem.set_approval]

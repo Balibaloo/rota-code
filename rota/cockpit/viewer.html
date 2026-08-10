@@ -131,6 +131,9 @@
   .barwrap{display:flex;align-items:center;gap:10px;margin:4px 0}
   .bar{flex:1;height:9px;background:#1d222b;border-radius:3px;overflow:hidden}
   .bar i{display:block;height:100%;background:var(--ok)}
+  .bar i.part{background:var(--accent)}
+  #progress h4{color:var(--dim);font-weight:500;font-size:12px;
+    text-transform:uppercase;letter-spacing:.06em}
 </style>
 
 <header>
@@ -143,6 +146,7 @@
     <button class="tab on" data-view="graph">graph</button>
     <button class="tab" data-view="live">live</button>
     <button class="tab" data-view="coverage">coverage</button>
+    <button class="tab" data-view="progress">progress</button>
   </nav>
   <span class="muted" id="reload"></span>
 </header>
@@ -188,6 +192,17 @@
 <main id="coverage"><div class="grid"><section style="grid-column:1/-1">
   <h2>Edge coverage — the graph generates the obligation</h2>
   <div class="body" id="coveragebody" style="max-height:none"></div></section></div></main>
+
+<main id="progress"><div class="grid">
+  <section style="grid-column:1/-1"><h2>Milestone</h2>
+    <div class="body" id="pg-milestone" style="max-height:none"></div></section>
+  <section><h2>Coverage — what has a case</h2>
+    <div class="body" id="pg-coverage" style="max-height:none"></div></section>
+  <section><h2>Onboarding</h2>
+    <div class="body" id="pg-onboarding" style="max-height:none"></div></section>
+  <section style="grid-column:1/-1"><h2>L1 — against a real model</h2>
+    <div class="body" id="pg-l1" style="max-height:none"></div></section>
+</div></main>
 
 <script src="/graphview.js"></script>
 <script src="/panels.js"></script>

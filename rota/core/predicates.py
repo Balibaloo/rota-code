@@ -587,6 +587,40 @@ def agenda(conn) -> list[Wake]:
     return tick_agenda(conn, principal_present=True)
 
 
+@predicate("constraint_zero", wakes=SCHEDULER, band="gate",
+           drains=[("survey_records", "outcome", "constraints_found"),
+                   ("survey_records", "outcome", "none_found")])
+def constraint_zero(conn) -> list[Wake]:
+    """
+    A survey has landed and constraint zero still covers the area it looked at.
+
+    Nobody's judgement: the area was read, so it is no longer unread, and there
+    is no version of that fact a session could weigh. Dispatching a role to
+    press the button would be inventing a decision to have.
+
+    It fires on a mismatch rather than on the survey, which is what keeps the
+    binding a function of the evidence — a survey rolled back with its session
+    takes its shrinkage with it, and a re-onboarding onto a later commit
+    re-derives the whole binding without remembering anything.
+    """
+    from ..onboarding import boot
+
+    bound = {r["grain"] for r in conn.execute(
+        "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
+        (boot.ZERO,))}
+    if not bound and not conn.execute(
+            "SELECT 1 FROM code_index LIMIT 1").fetchone():
+        return []                       # nothing onboarded; nothing to cover
+
+    surveyed = {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM survey_records")}
+    want = {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")} - surveyed
+
+    return [] if bound == want else [
+        Wake(SCHEDULER, "tick:constraint_zero", refs=tuple(sorted(bound - want)))]
+
+
 @predicate("survey", wakes=DERIVED, band="start")
 def survey(conn) -> list[Wake]:
     """Onboarding: one elected area at a time, in role order."""
