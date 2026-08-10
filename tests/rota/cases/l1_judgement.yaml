@@ -11,8 +11,12 @@
   tick: review
   repo:
     batch: b1
-    message: "prorate rounds to the nearest cent"
+    message: "prorate refuses more days than the period holds"
     edit:
+      # The baseline guards the period and not the usage, so this is a real
+      # diff. It has to be: an `edit:` identical to the file it replaces gives
+      # Critic an empty diff, and a role that declines to judge what it cannot
+      # see is behaving correctly while the case reads as a failure.
       src/billing/charges.py: |
         from dataclasses import dataclass
 
@@ -31,6 +35,8 @@
         def prorate(amount_cents, days_used, days_in_period):
             if days_in_period <= 0:
                 raise ValueError("period must be positive")
+            if days_used > days_in_period:
+                raise ValueError("used more days than the period holds")
             return round(amount_cents * days_used / days_in_period)
   fixture:
     items:
@@ -39,7 +45,8 @@
     tickets:
       - {id: tk1, item_id: i1, text: "prorate on upgrade"}
     criteria:
-      - {id: c1, ticket_id: tk1, text: "prorate(999, 1, 3) returns 333",
+      - {id: c1, ticket_id: tk1,
+         text: "prorating more days than the period holds is refused",
          term_refs: '[]'}
     batches:
       - {id: b1, item_id: i1, status: running, head_commit: abc123}

@@ -89,6 +89,15 @@ class SampleRepo:
 
     def commit_in(self, worktree: Path, message: str) -> str:
         git(worktree, "add", "-A")
+        if not git(worktree, "diff", "--cached", "--name-only").strip():
+            # `git commit` on an unchanged tree exits 1 with nothing on stderr,
+            # which surfaces as a bare `RuntimeError: git commit -q -m ...:` and
+            # says nothing about the cause. The cause is always the same: a
+            # case whose `edit:` is byte-identical to the file it replaces, so
+            # the role it is meant to test would be handed an empty diff.
+            raise RuntimeError(
+                f"nothing to commit in {worktree.name}: the edit matches what "
+                f"was already there, so there is no diff to judge")
         git(worktree, "commit", "-q", "-m", message)
         return self.head(worktree)
 

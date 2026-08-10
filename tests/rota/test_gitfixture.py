@@ -137,3 +137,27 @@ def test_the_barren_area_touches_nothing_persisted(repo):
     sources = "".join(p.read_text(encoding="utf-8") for p in barren.rglob("*.py"))
     assert "store" not in sources
     assert "sqlite" not in sources.lower()
+
+
+def test_an_edit_that_changes_nothing_is_refused_with_a_reason(tmp_path):
+    """
+    `git commit` on an unchanged tree exits 1 with nothing on stderr, so a case
+    whose `edit:` matched the file it replaced died as a bare `RuntimeError:
+    git commit -q -m ...:` half an hour into an L1 run.
+
+    The cause is always worth naming: the role under test would have been handed
+    an empty diff, and a Critic that declines to judge what it cannot see is
+    behaving correctly while the case reads as a failure.
+    """
+    from rota.testkit import samplerepo
+
+    repo = gitfixture.make(tmp_path)
+    try:
+        tree = repo.worktree("b1")
+        path = "src/billing/charges.py"
+        repo.edit(tree, path, samplerepo.FILES[path])
+
+        with pytest.raises(RuntimeError, match="nothing to commit"):
+            repo.commit_in(tree, "no change at all")
+    finally:
+        gitfixture.cleanup(repo)

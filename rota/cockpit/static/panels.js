@@ -259,14 +259,26 @@ function showTab(t){
   if (t==='story') syncStoryTab();
 }
 
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
-  view=b.dataset.view;
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
-  ['graph','live','coverage','progress'].forEach(v=>
-    document.getElementById(v).classList.toggle('on', v===view));
-  if (view==='coverage') loadCoverage();
-  if (view==='progress') loadProgress();
-});
+function selectView(v){
+  view = v;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
+  ['graph','live','coverage','progress'].forEach(n=>
+    document.getElementById(n).classList.toggle('on', n===v));
+  // Which tab you were on survives a reload. The progress view is the one
+  // people leave open, and the fingerprint watcher reloads the page whenever
+  // the source changes -- so without this, every edit to the tree bounced you
+  // back to the graph.
+  try{ localStorage.setItem('rota.view', v); }catch{}
+  if (v==='coverage') loadCoverage();
+  if (v==='progress') loadProgress();
+}
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectView(b.dataset.view));
+
+try{
+  const saved = localStorage.getItem('rota.view');
+  if (saved && document.getElementById(saved)) selectView(saved);
+}catch{}
 
 async function refresh() {
   let s; try{ s = await (await fetch('/state.json')).json(); }
@@ -379,6 +391,9 @@ async function checkReload(){
 document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>showTab(b.dataset.ptab));
 refresh();
 setInterval(()=>{if(view==='live') refresh();},1500);
+// Progress moves at the speed of a model run, not a session, so it polls
+// slowly. Left open during an L1 run it fills in as cases land.
+setInterval(()=>{if(view==='progress') loadProgress();},5000);
 setInterval(checkReload,1000);
 
 
@@ -393,8 +408,20 @@ function bar(done, total, cls){
   return `<span class="bar"><i class="${cls||''}" style="width:${pct}%"></i></span>`;
 }
 
+let _pgSig = null;
+
 async function loadProgress(){
   const p = await (await fetch('/progress.json')).json();
+
+  // Repainting on a timer would reset the scroll position every five seconds,
+  // which makes the one view people leave open the one view they cannot read.
+  // The payload is fully derived, so an identical payload means nothing has
+  // happened and there is nothing to repaint.
+  const sig = JSON.stringify(p);
+  if (sig === _pgSig) return;
+  _pgSig = sig;
+  const keep = document.getElementById('progress').scrollTop;
+  setTimeout(()=>{ document.getElementById('progress').scrollTop = keep; }, 0);
 
   const ms = p.milestone;
   const shipped = ms.reduce((n,s)=>n+s.done,0), owed = ms.reduce((n,s)=>n+s.total,0);
