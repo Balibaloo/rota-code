@@ -32,7 +32,12 @@ STATIC = PACKAGE / "cockpit" / "static"
 # Instrumentation, not artefacts: these live beside the repo, not inside the
 # package, because they are about a run rather than about the system.
 COVERAGE_FILE = REPO / ".rota-coverage.json"
-DEV_DB = REPO / ".rota" / "dev.db"
+
+# Cassettes are *evidence*, not runtime state, so they live with the tests and
+# are committed. `.rota/` is the state directory and is gitignored, which is
+# correct for a database about a running project and wrong for a record of what
+# a model did on a given prompt.
+DEV_DB = REPO / "tests" / "rota" / "cassettes.db"
 
 # The design documents this was built from. Outside the package on purpose —
 # they are the source, not the product.
