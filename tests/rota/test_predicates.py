@@ -209,3 +209,28 @@ def test_the_reachability_check_understands_parameterised_writes():
     for parameterised in ("items.approval = 'approved'", "verdicts.result = 'pass'",
                           "items.provenance = 'observed'"):
         assert parameterised not in found
+
+
+def test_round_close_does_not_fire_with_nothing_to_harvest(db):
+    """
+    A broadcast whose recipients all finished silently is not a round to close.
+
+    This was an L1 case for a while — Liaison woken at round_close with no
+    reports, expected to say nothing — and it failed five times out of five
+    because the model presented what it could see. The case was unfair: the
+    predicate cannot produce that wake, so the situation it tested does not
+    exist. The guarantee is structural, so it is asserted structurally.
+
+    Silence is still a legitimate outcome for the mode. It just means reports
+    came back that needed no ruling, not that no reports came back.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m1','t1','liaison','gatekeeper','deliver','[]',1,'answered')")
+    assert P.REGISTRY["round_close"].fn(db) == []
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m2','t1','gatekeeper','liaison','report','[]',2,'open')")
+    wakes = P.REGISTRY["round_close"].fn(db)
+    assert [w.role for w in wakes] == ["liaison"] and wakes[0].refs == ("t1",)

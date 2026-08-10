@@ -165,12 +165,23 @@
     # would be the system granting itself the principal's ruling.
     writes: [glossary_terms, constraints, items, decisions]
 
-- id: L1-LI-nothing-came-back-so-nothing-is-presented
+- id: L1-LI-the-reports-came-back-clean
   tier: T1
   role: liaison
   runs: 5
   pass: 4
   tick: round_close
+  refs: [t1]
+  # This case used to give round_close *no reports at all*, and it failed five
+  # times out of five. It deserved to: `tick_round_close` will not fire without
+  # reports, so the wake it tested cannot occur, and the role was being marked
+  # down for not recognising a situation the system cannot be in. That guarantee
+  # is structural and is now asserted in test_predicates, where it belongs.
+  #
+  # The real situation is this one. Reports came back — the round exists — and
+  # every one of them is a role saying it is done. Nothing needs the principal.
+  # Silence is a legitimate outcome for this mode and it is the harder one to
+  # produce, because the failure is manufacturing something to say.
   fixture:
     entries:
       - {id: <e1>, author: principal, ts_order: 1,
@@ -181,10 +192,18 @@
     items:
       - {id: <i1>, text: "people can close their account", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    messages:
+      - {id: <m0>, thread_id: t1, from_role: liaison, to_role: gatekeeper,
+         verb: deliver, body_refs: '["<s1>"]', seq: 1, status: answered}
+      # A report is refs and nothing else — conclusions travel, reasoning stays
+      # home. Both of these point at material already settled: the Gatekeeper
+      # recorded the item, the Terminologist found the glossary already covered
+      # it. Neither asks for anything, and that is visible from the refs alone.
+      - {id: <m1>, thread_id: t1, from_role: gatekeeper, to_role: liaison,
+         verb: report, body_refs: '["<i1>"]', seq: 2}
+      - {id: <m2>, thread_id: t1, from_role: terminologist, to_role: liaison,
+         verb: report, body_refs: '["<s1>"]', seq: 3}
   expect:
-    # Silence is a legitimate outcome for this mode and it is the harder one to
-    # produce: every role reported cleanly, nothing needs a ruling, and the
-    # failure is manufacturing something to say.
     messages: []
   forbidden:
     writes: [statements, items, decisions, ledger]

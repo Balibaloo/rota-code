@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,7 +75,15 @@ def _literal(node: ast.AST) -> Any:
         if any(k is None for k in node.keys):
             raise ValueError("dict unpacking is not supported")
         return {_literal(k): _literal(v) for k, v in zip(node.keys, node.values)}
-    return ast.literal_eval(node)
+
+    value = ast.literal_eval(node)
+    # `text=...` means "and so on", and `literal_eval` is delighted to hand back
+    # Python's Ellipsis for it. It survives the sandbox, survives the write, and
+    # dies at commit as `Object of type ellipsis is not JSON serializable` --
+    # taking a session that was otherwise sound. A placeholder is not a value.
+    if value is Ellipsis:
+        raise ValueError("`...` is a placeholder, not a value; write the value")
+    return value
 
 
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
@@ -200,9 +209,64 @@ def extract(text: str) -> list[ToolCall | ToolError]:
         cursor = args_end + 1
 
 
+def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall]]:
+    """
+    `GLOSSARY.AMEND: id = 1 term = "Charge"` — the marker used as a label.
+
+    A whole class of sessions committed empty like this, with no error logged
+    anywhere, because the model read
+
+        TOOL: artefact.verb(key='value')
+
+    and took `TOOL:` for a slot to fill with the tool's name. On a line where
+    every other token is a placeholder that is a fair reading, and the result is
+    the worst failure shape there is: three well-formed intentions, none of them
+    parsed, and a session that looks like a role deciding to do nothing.
+
+    Arguments arrive without brackets or commas, as loose `key = value` pairs
+    running to the next key or the end of the line. Values may be quoted or
+    bare; a bare one runs until the next `word =`, because prose values are
+    common here and `sense_short = billing entity` means both words.
+    """
+    out: list[tuple[int, ToolCall]] = []
+    names = "|".join(sorted((re.escape(a) for a in allowed), key=len, reverse=True))
+    if not names:
+        return out
+
+    # An argument list wraps across lines in real output, so a call runs from
+    # its label to the next label or the next blank line — not to end of line.
+    labels = [(m.start(), m.group(1).lower(), m.end())
+              for m in re.finditer(rf"(?im)^[ \t]*({names})[ \t]*:", text)]
+
+    for i, (start, name, from_) in enumerate(labels):
+        if name not in allowed:                      # matched in another case
+            continue
+        to = labels[i + 1][0] if i + 1 < len(labels) else len(text)
+        chunk = text[from_:to]
+        if gap := re.search(r"\n[ \t]*\n", chunk):
+            chunk = chunk[:gap.start()]
+
+        args: dict[str, Any] = {}
+        for a in re.finditer(
+                r"""(?s)(\w+)[ \t]*=[ \t]*("[^"]*"|'[^']*'|.+?(?=\s+\w+[ \t]*=|\Z))""",
+                chunk):
+            raw = a.group(2).strip()
+            if raw[:1] in "\"'" and raw[-1:] == raw[:1]:
+                args[a.group(1)] = raw[1:-1]
+            else:
+                args[a.group(1)] = _WORDS.get(raw, raw)
+
+        # A name followed by arguments is an intention; a name followed by a
+        # sentence is the model narrating. Only the first may dispatch.
+        if args:
+            out.append((start, ToolCall(name=name, args=args,
+                                        raw=f"{name}({' '.join(chunk.split())[:60]})")))
+    return out
+
+
 def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
     """
-    `extract`, plus a fallback for completions that drop the `TOOL:` marker.
+    `extract`, plus fallbacks for completions that mishandle the marker.
 
     Small local models omit the prefix constantly — they emit a bare
     `transcript.append(id='u1', ...)` on its own line. Strict parsing turns that
@@ -210,15 +274,18 @@ def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
     session commits empty, which is the worst possible failure because it looks
     like success.
 
-    The fallback is narrow enough to stay safe: a bare call is only recognised if
+    The fallbacks are narrow enough to stay safe: a call is only recognised if
     its name is **already in the role's working set**. Prose cannot accidentally
     match `criteria.load(...)`, and a hallucinated function still fails
-    validation rather than sneaking through. Marker-prefixed calls always win; the
-    fallback only runs when the completion has no markers at all.
+    validation rather than sneaking through. Marker-prefixed calls always win;
+    the fallbacks only run when the completion has no markers at all.
     """
     marked = extract(text)
     if marked:
         return marked
+
+    if labelled := _labelled(text, allowed):
+        return [call for _, call in sorted(labelled, key=lambda p: p[0])]
 
     # Collect with positions and sort by them: call order is semantic. An intake
     # session must append the entry before segmenting it, so returning calls

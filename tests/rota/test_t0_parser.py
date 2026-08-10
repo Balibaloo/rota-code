@@ -196,3 +196,68 @@ def test_lenient_ignores_prose():
 
 def test_lenient_does_not_match_a_longer_identifier():
     assert extract_lenient("my_transcript.append(id='x')", ALLOWED) == []
+
+
+# ---------------------------------------------------------------------------
+# The marker used as a label. Taken verbatim from a Terminologist survey that
+# committed empty five times out of five with no error logged anywhere.
+# ---------------------------------------------------------------------------
+
+LABELLED = """CODE.SURVEY: The top grains are the ones with the highest fan-in.
+I will start by looking at the terms used in this file and its imports.
+
+GLOSSARY.AMEND: id = 1 term = "Charge" sense_short = billing entity
+sense_body = "A Charge represents a billing entity."
+
+GLOSSARY.AMEND: id = 2 term = "Invoice" sense_short = "billing document"
+"""
+
+
+def test_the_marker_used_as_a_label_is_still_a_call():
+    calls = extract_lenient(LABELLED, {"glossary.amend", "code.survey",
+                                       "glossary.consult"})
+    assert [c.name for c in calls] == ["glossary.amend", "glossary.amend"]
+    assert calls[0].args == {
+        "id": "1",                          # unquoted, so it stays text
+        "term": "Charge",
+        "sense_short": "billing entity",    # a bare value can be two words
+        "sense_body": "A Charge represents a billing entity.",
+    }
+
+
+def test_a_label_on_prose_is_not_a_call():
+    """
+    `CODE.SURVEY: The top grains are the ones with the highest fan-in.`
+
+    From the same completion, and deliberately *not* recovered. A name followed
+    by arguments is an intention; a name followed by a sentence is the model
+    narrating. Recovering the second would let prose dispatch, which is the one
+    thing the lenient path must never do — and the price of declining it is a
+    read that goes uncalled, not a write that should not have happened.
+    """
+    assert extract_lenient("CODE.SURVEY: The top grains have the highest fan-in.",
+                           {"code.survey"}) == []
+
+
+def test_a_label_outside_the_working_set_is_not_a_call():
+    """`NOTE:` and `SUMMARY:` are prose, and prose must never dispatch."""
+    assert extract_lenient("NOTE: id = 1 term = 'Charge'",
+                           {"glossary.amend"}) == []
+
+
+def test_markers_win_over_labels():
+    text = "GLOSSARY.AMEND: id = 1\nTOOL: glossary.consult()"
+    calls = extract_lenient(text, {"glossary.amend", "glossary.consult"})
+    assert [c.name for c in calls] == ["glossary.consult"]
+
+
+def test_ellipsis_is_a_placeholder_not_a_value():
+    """
+    `literal_eval` is delighted to return Python's Ellipsis for `...`, which
+    then survives the sandbox and the write and dies at commit with `Object of
+    type ellipsis is not JSON serializable` -- one placeholder, one lost
+    session. Found in L1 after the parser was made more tolerant, which is
+    exactly when to look for it.
+    """
+    result = only("TOOL: criteria.specify(id='c1', text=...)")
+    assert isinstance(result, ToolError) and "placeholder" in result.reason
