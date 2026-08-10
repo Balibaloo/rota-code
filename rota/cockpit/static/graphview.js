@@ -171,234 +171,149 @@ const SHAPE = {
   derived: {w:152, h:42, rx:4,  fill:'#f1f5f2', stroke:'#94a3a0', dash:'2 4', ink:'#475569'},
 };
 
-// ---------------------------------------------------------------------------
-// One router, for every edge.
-//
-// There used to be two. `refs` went through an orthogonal router -- channels,
-// obstacle avoidance, anchors on box faces -- and reads, writes and messages
-// bowed: a bezier offset by `rank * 30`, clipped against the box using its own
-// control point. Every fix the arcs needed was a fix to make them behave like
-// the elbows: which side to bow to, where to clip, how to keep labels apart,
-// when to draw straight instead. Three geometries in one frame, none of them
-// agreeing about where an edge leaves a node.
-//
-// Orthogonal wins on the things this picture is for:
-//
-//   arrival angle   perpendicular to the face, so a head always reads as
-//                   arriving rather than passing
-//   separation      parallel edges leave from different *points on the box*,
-//                   which is what they are: different relationships, not one
-//                   relationship drawn unsteadily
-//   labels          sit on an axis-aligned run, horizontal, centred. The
-//                   collision problem disappears instead of being managed
-//   obstacles       a run can be routed around a node; an arc sails over it
-//
-// Ports are assigned once per draw, for the whole graph, because a slot is a
-// position among *all* the edges using that face -- a read and a write and a
-// message leaving one node's right side have to know about each other.
-// ---------------------------------------------------------------------------
+// Reference edges route as orthogonal segments, ported from the design viewer.
+// A bezier between two artefacts reads as "these are related somehow"; an elbow
+// that visibly avoids the boxes in between reads as a *structural* relation,
+// which is what a ref is. Channels are chosen so no segment crosses another
+// artefact — the same reason the original did it rather than using taxi routing,
+// which cannot avoid obstacles.
+function refPath(e) {
+  const W = SHAPE.record.w, H = SHAPE.record.h, M = 18;
+  const boxes = GV.graph.nodes
+    .filter(n => n.type === 'artefact' && GV.layout[n.id])
+    .map(n => ({id:n.id, x1:GV.layout[n.id].x-W/2-M, x2:GV.layout[n.id].x+W/2+M,
+                y1:GV.layout[n.id].y-H/2-M, y2:GV.layout[n.id].y+H/2+M}));
+  const hitV=(x,ya,yb,skip)=>boxes.some(b=>!skip.includes(b.id)&&
+    x>b.x1&&x<b.x2&&Math.max(ya,yb)>b.y1&&Math.min(ya,yb)<b.y2);
+  const hitH=(y,xa,xb,skip)=>boxes.some(b=>!skip.includes(b.id)&&
+    y>b.y1&&y<b.y2&&Math.max(xa,xb)>b.x1&&Math.min(xa,xb)<b.x2);
 
-const STUB = 15;          // how far a run leaves the face before it may turn
-const SLOT_MAX = 15;      // widest gap between neighbouring ports
-const CORNER = 7;         // corner rounding
+  const s0=GV.layout[e.s], t0=GV.layout[e.t];
+  if (!s0||!t0) return null;
+  const skip=[e.s,e.t], cand=[];
+  const mids=a=>a.slice(1).map((v,i)=>(v+a[i])/2);
+  const colCh=mids([...new Set(boxes.map(b=>(b.x1+b.x2)/2))].sort((a,b)=>a-b));
+  const rowCh=mids([...new Set(boxes.map(b=>(b.y1+b.y2)/2))].sort((a,b)=>a-b));
 
-function faceOf(a, b) {
-  // The face an edge leaves by: whichever axis separates the two nodes more.
-  // Ties go horizontal, because the layout is wider than it is tall and a
-  // sideways departure crosses fewer rows.
-  const dx = b.x - a.x, dy = b.y - a.y;
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
-  return dy >= 0 ? 'bottom' : 'top';
+  [...colCh,(s0.x+t0.x)/2].forEach(xm=>{
+    if (xm<=Math.min(s0.x,t0.x)+10||xm>=Math.max(s0.x,t0.x)-10) return;
+    cand.push({o:'h', ch:xm, pref:Math.abs(xm-(s0.x+t0.x)/2),
+      cost:(hitH(s0.y,s0.x,xm,skip)?1:0)+(hitV(xm,s0.y,t0.y,skip)?1:0)+(hitH(t0.y,xm,t0.x,skip)?1:0)});
+  });
+  [...rowCh,(s0.y+t0.y)/2].forEach(ym=>{
+    if (ym<=Math.min(s0.y,t0.y)+10||ym>=Math.max(s0.y,t0.y)-10) return;
+    cand.push({o:'v', ch:ym, pref:Math.abs(ym-(s0.y+t0.y)/2)+5,
+      cost:(hitV(s0.x,s0.y,ym,skip)?1:0)+(hitH(ym,s0.x,t0.x,skip)?1:0)+(hitV(t0.x,ym,t0.y,skip)?1:0)});
+  });
+  if (Math.abs(s0.y-t0.y)<6) cand.push({o:'s',ch:0,pref:-1,cost:hitH(s0.y,s0.x,t0.x,skip)?1:0});
+  if (Math.abs(s0.x-t0.x)<6) cand.push({o:'sv',ch:0,pref:-1,cost:hitV(s0.x,s0.y,t0.y,skip)?1:0});
+  cand.sort((a,b)=>a.cost-b.cost||a.pref-b.pref);
+  const best=cand[0]||{o:'h',ch:(s0.x+t0.x)/2};
+
+  const horiz = best.o==='h'||best.o==='s';
+  const sf = horiz ? (t0.x>s0.x?'right':'left') : (t0.y>s0.y?'bottom':'top');
+  const tf = horiz ? (t0.x>s0.x?'left':'right')  : (t0.y>s0.y?'top':'bottom');
+  const off = GV.refOffset[`${e.s}|${e.t}|${e.v}`] || 0;
+  // Each node's *own* box, not the widest one. `W`/`H` are the record shape,
+  // and a role is 152x50 against that 152x42 -- so every arrow into a role
+  // landed ten pixels inside it and every vertical one stopped four short.
+  // At full opacity the head is simply hidden by the fill, which reads as an
+  // edge with no direction.
+  const anchor=(n,face)=>{
+    const p=GV.layout[n];
+    const node=GV.graph.nodes.find(x=>x.id===n);
+    const sh=SHAPE[node?kindOf(node):'record']||SHAPE.record;
+    return face==='left' ?{x:p.x-sh.w/2, y:p.y+off}
+         : face==='right'?{x:p.x+sh.w/2, y:p.y+off}
+         : face==='top'  ?{x:p.x+off, y:p.y-sh.h/2}
+         :                {x:p.x+off, y:p.y+sh.h/2};
+  };
+  const A=anchor(e.s,sf), B=anchor(e.t,tf);
+  const pts = best.o==='h' ? [A,{x:best.ch,y:A.y},{x:best.ch,y:B.y},B]
+            : best.o==='v' ? [A,{x:A.x,y:best.ch},{x:B.x,y:best.ch},B]
+            : [A,B];
+  // Multiplicity, read off the cardinality: crow's foot for many, bar for one.
+  // A ref without it says two things are related; with it, it says how.
+  const [sc, tc] = (e.card || 'n:1').split(':');
+  return {d:'M'+pts.map(p=>`${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L'),
+          mid:pts[Math.floor(pts.length/2)],
+          startMarker: sc.trim()==='1' ? 'one-s' : 'many-s',
+          endMarker:   tc.trim()==='1' ? 'one-e' : 'many-e'};
 }
 
-const OPPOSITE = {right: 'left', left: 'right', top: 'bottom', bottom: 'top'};
-const OUTWARD  = {right: [1, 0], left: [-1, 0], top: [0, -1], bottom: [0, 1]};
-
-function shapeOf(id) {
-  const n = GV.graph.nodes.find(x => x.id === id);
-  return SHAPE[n ? kindOf(n) : 'record'] || SHAPE.record;
-}
-
-// Every (node, face) gets its edges in an order that does not cross: sorted by
-// where the other end sits along the face's free axis. Two edges leaving the
-// right side towards nodes above and below each other keep that relationship,
-// so the lines run parallel instead of swapping over.
-function computePorts(list) {
-  GV.port = {};
-  const byFace = {};
-  for (const e of list) {
-    const a = GV.layout[e.s], b = GV.layout[e.t];
-    if (!a || !b) continue;
-    const sf = faceOf(a, b), tf = OPPOSITE[sf];
-    for (const [node, face, other] of [[e.s, sf, b], [e.t, tf, a]]) {
-      const k = `${node}|${face}`;
-      (byFace[k] = byFace[k] || []).push({e, other, node, face});
+// A multigraph draws several edges between the same pair. Without spreading
+// them they land on one path and only the last is visible — the picture then
+// silently claims a single relationship where there are three.
+// One slotting pass over *every* edge between a pair, whatever its type and
+// whichever way it points. Slotting per type only moved the collision: a write
+// and a read between the same two nodes still landed on the same curve, and a
+// b->a edge mirrored onto its a->b twin.
+//
+// The fix is a canonical side. Every offset is measured against the sorted pair,
+// so direction no longer decides which side of the line an edge sits on — the
+// slot does.
+function computeSpread() {
+  const pairs = {}, refs = {};
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') {
+      const rk = [e.s, e.t].sort().join('|');
+      (refs[rk] = refs[rk] || []).push(e);
+      continue;
     }
+    // Ordered, not sorted: rank is a position within the edges running the
+    // *same way*, because the two directions bow to opposite sides and never
+    // need to avoid each other.
+    const k = `${e.s}|${e.t}`;
+    (pairs[k] = pairs[k] || []).push(e);
   }
-  for (const [k, entries] of Object.entries(byFace)) {
-    const [, face] = k.split('|');
-    const along = (face === 'left' || face === 'right') ? 'y' : 'x';
-    entries.sort((p, q) => p.other[along] - q.other[along]
-                        || String(p.e.v || '').localeCompare(String(q.e.v || '')));
-    entries.forEach((p, i) => {
-      GV.port[`${p.e.s}|${p.e.t}|${p.e.type}|${p.e.v}|${p.node}`] =
-        {i, n: entries.length, face};
+
+  GV.spread = {};
+  GV.spreadN = {};
+  const ORDER = {writes: 0, reads: 1, messages: 2};
+  for (const [k, list] of Object.entries(pairs)) {
+    list.sort((a, b) =>
+      (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) ||
+      (a.v || '').localeCompare(b.v || ''));
+    // Rank within the pair, not a signed offset. Which *side* a line bows to
+    // is decided at draw time by which way it runs, so direction is readable
+    // from position: everything left-to-right rides above the line between the
+    // boxes, everything right-to-left below it. Rank only says how far out.
+    list.forEach((e, i) => {
+      GV.spread[`${e.s}|${e.t}|${e.type}|${e.v}`] = i;
+      GV.spreadN[`${e.s}|${e.t}|${e.type}|${e.v}`] = list.length;
+    });
+  }
+
+  GV.refOffset = {};
+  for (const [k, list] of Object.entries(refs)) {
+    list.forEach((e, i) => {
+      GV.refOffset[`${e.s}|${e.t}|${e.v}`] =
+        list.length === 1 ? 0 : (i - (list.length - 1) / 2) * 14;
     });
   }
 }
 
-// The point on the box, and the direction the run leaves in.
-function portPoint(node, face, i, n) {
-  const p = GV.layout[node], sh = shapeOf(node);
-  const vertical = face === 'left' || face === 'right';
-  const extent = (vertical ? sh.h : sh.w) - 12;
-  const gap = n > 1 ? Math.min(SLOT_MAX, extent / (n - 1)) : 0;
-  const off = (i - (n - 1) / 2) * gap;
-  const [ox, oy] = OUTWARD[face];
-  return {
-    x: p.x + ox * sh.w / 2 + (vertical ? 0 : off),
-    y: p.y + oy * sh.h / 2 + (vertical ? off : 0),
-    ox, oy,
-  };
+async function gvLoad() {
+  const [g,l,st,tr,ms] = await Promise.all([
+    fetch('/graph.json').then(r=>r.json()),
+    fetch('/layout.json').then(r=>r.json()),
+    fetch('/stories.json').then(r=>r.json()),
+    fetch('/trace.json').then(r=>r.json()),
+    fetch('/messages.json').then(r=>r.json()),
+  ]);
+  GV.graph=g; GV.layout=l; GV.stories=st; GV.trace=tr; GV.msgs=ms;
+  computeSpread(); gvControls(); gvFit(); gvDraw(); buildStoryTab();
 }
 
-// Boxes to route around: every node except the two being joined. The old ref
-// router looked at artefacts only, so a run could pass straight through a role.
-function obstacles(skip) {
-  const M = 14;
-  return GV.graph.nodes
-    .filter(n => GV.layout[n.id] && !skip.includes(n.id) && gvVisible(n.id))
-    .map(n => {
-      const p = GV.layout[n.id], sh = SHAPE[kindOf(n)];
-      return {x1: p.x - sh.w / 2 - M, x2: p.x + sh.w / 2 + M,
-              y1: p.y - sh.h / 2 - M, y2: p.y + sh.h / 2 + M};
-    });
-}
-
-const crossesV = (boxes, x, ya, yb) => boxes.filter(b =>
-  x > b.x1 && x < b.x2 && Math.max(ya, yb) > b.y1 && Math.min(ya, yb) < b.y2).length;
-const crossesH = (boxes, y, xa, xb) => boxes.filter(b =>
-  y > b.y1 && y < b.y2 && Math.max(xa, xb) > b.x1 && Math.min(xa, xb) < b.x2).length;
-
-// A polyline with its corners rounded, and the segments collapsed first: a
-// zero-length jog leaves a stray quarter-circle where the line should be flat.
-function polyPath(pts, r) {
-  const p = [pts[0]];
-  for (const q of pts.slice(1))
-    if (Math.abs(q.x - p[p.length - 1].x) > 0.5 || Math.abs(q.y - p[p.length - 1].y) > 0.5)
-      p.push(q);
-  if (p.length < 2) return {d: '', pts: p};
-
-  let d = `M${p[0].x.toFixed(1)} ${p[0].y.toFixed(1)}`;
-  for (let i = 1; i < p.length - 1; i++) {
-    const a = p[i - 1], b = p[i], c = p[i + 1];
-    const inLen = Math.hypot(b.x - a.x, b.y - a.y);
-    const outLen = Math.hypot(c.x - b.x, c.y - b.y);
-    const rr = Math.min(r, inLen / 2, outLen / 2);
-    const i1 = {x: b.x + (a.x - b.x) / inLen * rr, y: b.y + (a.y - b.y) / inLen * rr};
-    const i2 = {x: b.x + (c.x - b.x) / outLen * rr, y: b.y + (c.y - b.y) / outLen * rr};
-    d += ` L${i1.x.toFixed(1)} ${i1.y.toFixed(1)}`
-       + ` Q${b.x.toFixed(1)} ${b.y.toFixed(1)} ${i2.x.toFixed(1)} ${i2.y.toFixed(1)}`;
-  }
-  const last = p[p.length - 1];
-  d += ` L${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
-  return {d, pts: p};
-}
-
-// The longest axis-aligned run, and its middle. A label wants the most room and
-// a direction it can be read along -- which for an orthogonal path is always
-// one of the segments, never a point on a curve chosen by parameter.
-function longestRun(pts) {
-  let best = null, bestLen = -1;
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i];
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len > bestLen) { bestLen = len; best = {a, b}; }
-  }
-  if (!best) return {x: pts[0].x, y: pts[0].y, len: 0, vertical: false};
-  return {
-    x: (best.a.x + best.b.x) / 2,
-    y: (best.a.y + best.b.y) / 2,
-    len: bestLen,
-    dx: best.b.x - best.a.x,
-    dy: best.b.y - best.a.y,
-    vertical: Math.abs(best.b.y - best.a.y) > Math.abs(best.b.x - best.a.x),
-  };
-}
-
-/**
- * Route one edge. Returns {d, pts, label} or null.
- *
- * Straight when the ports line up, one turn when they do not, and a channel
- * between them when the straight-through would cross a node.
- */
-function route(e) {
-  const a = GV.layout[e.s], b = GV.layout[e.t];
-  if (!a || !b) return null;
-  const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
-  const sp = GV.port[`${key}|${e.s}`], tp = GV.port[`${key}|${e.t}`];
-  if (!sp || !tp) return null;
-
-  const A = portPoint(e.s, sp.face, sp.i, sp.n);
-  const B = portPoint(e.t, tp.face, tp.i, tp.n);
-  const horiz = sp.face === 'left' || sp.face === 'right';
-
-  // Out of the face before turning, so a line never leaves along the box edge
-  // it is attached to.
-  const A2 = {x: A.x + A.ox * STUB, y: A.y + A.oy * STUB};
-  const B2 = {x: B.x + B.ox * STUB, y: B.y + B.oy * STUB};
-
-  let pts;
-  if (horiz ? Math.abs(A.y - B.y) < 1 : Math.abs(A.x - B.x) < 1) {
-    pts = [A, B];                                  // the ports agree: no turn
-  } else {
-    const boxes = obstacles([e.s, e.t]);
-    // Candidate channels: halfway, and the clear lanes between rows or columns
-    // of boxes. Scored by how many nodes the run would cross.
-    const lo = horiz ? Math.min(A2.x, B2.x) : Math.min(A2.y, B2.y);
-    const hi = horiz ? Math.max(A2.x, B2.x) : Math.max(A2.y, B2.y);
-    const mid = (lo + hi) / 2;
-    const lanes = [mid];
-    for (const box of boxes) {
-      const before = horiz ? box.x1 : box.y1, after = horiz ? box.x2 : box.y2;
-      for (const c of [before - 10, after + 10])
-        if (c > lo + 4 && c < hi - 4) lanes.push(c);
-    }
-    let best = mid, bestCost = Infinity;
-    for (const c of lanes) {
-      const cost = horiz
-        ? crossesH(boxes, A2.y, A2.x, c) + crossesV(boxes, c, A2.y, B2.y)
-          + crossesH(boxes, B2.y, c, B2.x)
-        : crossesV(boxes, A2.x, A2.y, c) + crossesH(boxes, c, A2.x, B2.x)
-          + crossesV(boxes, B2.x, c, B2.y);
-      // Ties go to the channel nearest halfway: a detour needs a reason.
-      const score = cost * 1000 + Math.abs(c - mid);
-      if (score < bestCost) { bestCost = score; best = c; }
-    }
-    // Parallel edges get parallel channels. Every edge between one pair scores
-    // the lanes identically and so picks the same one -- their end segments
-    // differ because the ports differ, but the long middle run would land on
-    // exactly the same line, which is the collision ports were meant to end,
-    // reappearing in the middle of the path instead of at the box.
-    const spread = (sp.i - (sp.n - 1) / 2) * 13;
-    const ch = Math.max(lo + 6, Math.min(hi - 6, best + spread));
-
-    pts = horiz
-      ? [A, A2, {x: ch, y: A2.y}, {x: ch, y: B2.y}, B2, B]
-      : [A, A2, {x: A2.x, y: ch}, {x: B2.x, y: ch}, B2, B];
-  }
-
-  const path = polyPath(pts, CORNER);
-  return {d: path.d, pts: path.pts, label: longestRun(path.pts),
-          startFace: sp.face, endFace: tp.face};
-}
-
+const gvSteps = () =>
+  GV.source==='story' ? (GV.stories[GV.storyIx]?.steps||[])
+: GV.source==='run'   ? (GV.trace.steps||[]) : [];
 
 function gvLit() {
   const lit=new Map();
   // The default lens makes no claim. Opening on coverage meant the first thing
   // anybody saw was a picture half-painted red about a question they had not
-  // asked yet â€” the structure, which is what the graph is *for*, was the one
+  // asked yet — the structure, which is what the graph is *for*, was the one
   // thing you had to switch to.
   if (GV.source==='design') return lit;
   // A case lights what it *instantiates*, plus what it asserts on top.
@@ -429,23 +344,6 @@ function gvLit() {
     (steps[i].edges||[]).forEach(e=>lit.set(ek(e), i===GV.stepIx?'now':'past'));
   return lit;
 }
-
-
-async function gvLoad() {
-  const [g,l,st,tr,ms] = await Promise.all([
-    fetch('/graph.json').then(r=>r.json()),
-    fetch('/layout.json').then(r=>r.json()),
-    fetch('/stories.json').then(r=>r.json()),
-    fetch('/trace.json').then(r=>r.json()),
-    fetch('/messages.json').then(r=>r.json()),
-  ]);
-  GV.graph=g; GV.layout=l; GV.stories=st; GV.trace=tr; GV.msgs=ms;
-  gvControls(); gvFit(); gvDraw(); buildStoryTab();
-}
-
-const gvSteps = () =>
-  GV.source==='story' ? (GV.stories[GV.storyIx]?.steps||[])
-: GV.source==='run'   ? (GV.trace.steps||[]) : [];
 
 // The graph collapses to exactly what one role can reach. Not "neighbours" --
 // its namespace. Double-click Critic and the system model is not dimmed, it is
@@ -540,13 +438,17 @@ function drawTeam() {
   const plan = fold ? foldPlan() : null;
   const drawn = new Set();
 
-  // Which lines exist is settled before any of them is placed, because a port
-  // is a position among *all* the edges using a face. Deciding that edge by
-  // edge would give the first one a slot chosen without knowing how many were
-  // coming -- and folding changes the count, so it cannot be cached either.
-  const lines = [];
+  // Which neighbours have left the screen. Their edges are not drawn at all --
+  // a line heading off the canvas tells you a relationship exists and then
+  // abandons you, and at the zoom where that happens there are a dozen of them
+  // fanning out to nowhere. Each becomes a short local edge to a stand-in at
+  // the border instead, drawn by `ghostChips`.
+  const away = offscreenNeighbours();
+
   for (const e of GV.graph.edges) {
-    if(!GV.layout[e.s]||!GV.layout[e.t]||!gvVisible(e.s)||!gvVisible(e.t)) continue;
+    const a=GV.layout[e.s], b=GV.layout[e.t];
+    if(!a||!b||!gvVisible(e.s)||!gvVisible(e.t)) continue;
+    if (away.has(e.s) || away.has(e.t)) continue;
     const group = groupOf(e);
     const p = fold ? plan[group] : null;
     if (fold) {
@@ -554,12 +456,7 @@ function drawTeam() {
       if (drawn.has(group)) continue;   // one line stands for the whole group
       drawn.add(group);
     }
-    lines.push({e, p, kin: fold ? p.members : [e]});
-  }
-  computePorts(lines.map(l => l.e));
-
-  for (const {e, p, kin} of lines) {
-    const a=GV.layout[e.s], b=GV.layout[e.t];
+    const kin = fold ? p.members : [e];
 
     const st=ESTYLE[e.type]||ESTYLE.refs, key=ek([e.s,e.t,e.type]), state=lit.get(key);
     const incident = GV.focus && (e.s===GV.focus||e.t===GV.focus);
@@ -589,17 +486,61 @@ function drawTeam() {
                              ? Math.max(op, .6) : 0.05;
     }
 
-    // One router for every edge type. Refs keep their crow's feet, because
-    // multiplicity is a claim only a ref makes; the geometry is now shared.
-    const r = route(e);
-    if (!r) continue;
-    const d = r.d;
-    const lx = r.label.x, ly = r.label.y;
+    let d, lx, ly;
     let markers = '';
     if (e.type === 'refs') {
-      const [sc, tc] = (e.card || 'n:1').split(':');
-      markers = `marker-start="url(#${sc.trim() === '1' ? 'one-s' : 'many-s'})"`
-              + ` marker-end="url(#${tc.trim() === '1' ? 'one-e' : 'many-e'})"`;
+      const r = refPath(e);
+      if (!r) continue;
+      d = r.d; lx = r.mid.x; ly = r.mid.y;
+      markers = `marker-start="url(#${r.startMarker})" marker-end="url(#${r.endMarker})"`;
+    } else {
+      // Spread parallel edges so a multigraph does not collapse onto one path.
+      const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
+      const rank = fold ? p.rank : (GV.spread[key] || 0);
+      const n = fold ? (p.solo ? 1 : 2) : (GV.spreadN[key] || 1);
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y;
+      const len=Math.hypot(dx,dy)||1;
+      // Always bow to the left of the direction of travel.
+      //
+      // The offset added below is `(-dy, dx) * bow / len`. For an edge running
+      // rightwards that is `(0, +1)` -- *downwards*, since y grows down the
+      // screen -- so a positive bow put every left-to-right edge under the line
+      // between its boxes and every right-to-left edge over it, which is the
+      // opposite of what it should be. One negative sign fixes both directions
+      // at once and gives a consistent rotation for vertical edges too.
+      // A pair reduced to a single line has nothing to avoid, so it runs
+      // straight. Bowing it would be decoration standing where a fact was.
+      const bow = (fold && p.solo) ? 0 : -(Math.min(34, len*.11) + rank * 30);
+      const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
+
+      // Start and end on the boxes, not in them. This drew centre to centre,
+      // so every arrowhead sat under the node's own fill -- an edge with no
+      // visible direction, for every read, write and message in the picture.
+      // (`refs` edges route through `refPath` and were always anchored; that
+      // is why fixing the anchor there changed nothing anybody could see.)
+      // A quadratic leaves A towards its control point and arrives at B from
+      // it, so those are the directions to clip along.
+      const A = onBox(e.s, cx-a.x, cy-a.y);
+      const B = onBox(e.t, cx-b.x, cy-b.y);
+      d = `M${A.x} ${A.y} Q${cx} ${cy} ${B.x} ${B.y}`;
+
+      // Slide each parallel edge's label to a different point *along* its
+      // curve, instead of putting every one at the midpoint.
+      //
+      // The bow already separates the lines, and for a horizontal run that
+      // separates the labels too. For a vertical one it does not: the offset is
+      // sideways, so three labels sit at the same height 30px apart, and
+      // `consult` is wider than 30px. They overlapped into a single unreadable
+      // stack -- on exactly the edges where knowing which line is which matters
+      // most, since a vertical pair is usually a role and the artefact it owns.
+      //
+      // Staggering along the curve works whichever way the edge runs, and the
+      // ends are left alone: past about a third from either box the label
+      // drifts under the node it is describing.
+      const t = n > 1 ? 0.34 + 0.32 * (rank % n) / (n - 1) : 0.5;
+      const u = 1 - t;
+      lx = u*u*A.x + 2*u*t*cx + t*t*B.x;
+      ly = u*u*A.y + 2*u*t*cy + t*t*B.y;
     }
 
     // Arrowheads are per type and match the edge colour. They were there all
@@ -630,26 +571,15 @@ function drawTeam() {
     if (label && op > 0.12 && labelling()) {
       const emph = state==='now'||incident;
       const lop = emph?1:Math.min(1,op+.35);
-      // A second arrow under the label, saying which way the line runs *where
-      // you are already looking*. It used to be angled from one node centre to
-      // the other, which an orthogonal path does not follow: on a route that
-      // leaves rightwards and turns down, the centre-to-centre angle points
-      // diagonally through empty space. It takes the direction of the run the
-      // label is actually sitting on.
-      //
-      // Only on edges carrying a verb — refs get ERD multiplicity markers, and
-      // a plain arrow on a crow's foot would be two claims about one line.
-      const run = r.label;
-      const ang = run.vertical ? (run.dy > 0 ? 90 : -90) : (run.dx > 0 ? 0 : 180);
-      // Text stays horizontal whichever way the line runs. A rotated label is a
-      // label you tilt your head for, and it is beside a vertical run rather
-      // than along it, so there is nothing to align with anyway.
-      const off = run.vertical ? {tx: 9, ty: 3, ax: 0, ay: 0}
-                               : {tx: 0, ty: -6, ax: 0, ay: 5};
+      // A second arrow under the label. The tip head says where the edge ends;
+      // this says which way it runs *where you are already looking*, which for
+      // a long bowed edge is not the same question. Only on edges that carry a
+      // verb — refs get ERD multiplicity markers instead, and a plain arrow on
+      // top of a crow's foot would be two different claims about one line.
+      const ang = Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI;
       edges += `<path d="M-5 -3 L4 0 L-5 3 z" fill="${emph?STATE.now:st.label}"
-        opacity="${lop}" transform="translate(${lx+off.ax},${ly+off.ay}) rotate(${ang})"/>`;
-      edges += `<text x="${lx+off.tx}" y="${ly+off.ty}" class="elabel"
-        text-anchor="${run.vertical ? 'start' : 'middle'}"
+        opacity="${lop}" transform="translate(${lx},${ly+5}) rotate(${ang})"/>`;
+      edges += `<text x="${lx}" y="${ly-4}" class="elabel"
         fill="${emph?STATE.now:st.label}" opacity="${lop}"
         font-size="${emph?11:9.5}">${esc(label)}</text>`;
     }
@@ -914,22 +844,51 @@ function ghostSpread(list, lo, hi, step, axis) {
   for (const c of list) c[axis] = Math.max(lo, c[axis]);
 }
 
-function ghostChips() {
-  if (GV.mode !== 'team' || !GV.focus || !GV.layout[GV.focus]) return '';
-  const svg = document.getElementById('gsvg');
-  const W = svg.clientWidth, H = svg.clientHeight;
-  const v = GV.view;
-  const screen = p => ({x: p.x * v.k + v.x, y: p.y * v.k + v.y});
-  const from = screen(GV.layout[GV.focus]);
-  const inside = (p, m) => p.x >= m && p.x <= W - m && p.y >= m && p.y <= H - m;
+// Everything in graph coordinates; the caller works in screen pixels.
+const gvScreen = p => ({x: p.x * GV.view.k + GV.view.x,
+                        y: p.y * GV.view.k + GV.view.y});
 
-  // Every distinct neighbour once, carrying the edges that reach it. A node
-  // reached three ways is one destination with three lines into it, not three
-  // destinations.
-  const out = new Map();
+/**
+ * The neighbours of the focused node that are no longer on the canvas.
+ *
+ * Their edges are suppressed in the main draw. A line that heads off the screen
+ * says a relationship exists and then abandons you halfway; at the zoom where
+ * that starts happening there are a dozen of them fanning out to nowhere, and
+ * they are the least useful marks on the picture. Replacing each with a short
+ * local edge to a stand-in says the same thing in the space available.
+ */
+function offscreenNeighbours() {
+  const gone = new Set();
+  const svg = document.getElementById('gsvg');
+  if (GV.mode !== 'team' || !GV.focus || !svg || !GV.layout || !GV.layout[GV.focus])
+    return gone;
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const here = gvScreen(GV.layout[GV.focus]);
+  if (here.x < 0 || here.x > W || here.y < 0 || here.y > H) return gone;
+
   for (const e of GV.graph.edges) {
     const other = e.s === GV.focus ? e.t : (e.t === GV.focus ? e.s : null);
     if (!other || other === GV.focus || !GV.layout[other] || !gvVisible(other)) continue;
+    const p = gvScreen(GV.layout[other]);
+    if (p.x < GHOST_INSET || p.x > W - GHOST_INSET ||
+        p.y < GHOST_INSET || p.y > H - GHOST_INSET) gone.add(other);
+  }
+  return gone;
+}
+
+function ghostChips() {
+  const away = offscreenNeighbours();
+  if (!away.size) return '';
+  const svg = document.getElementById('gsvg');
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const from = gvScreen(GV.layout[GV.focus]);
+
+  // Every distinct neighbour once, carrying the edges that reach it. A node
+  // reached three ways is one stand-in with three lines into it.
+  const out = new Map();
+  for (const e of GV.graph.edges) {
+    const other = e.s === GV.focus ? e.t : (e.t === GV.focus ? e.s : null);
+    if (!other || !away.has(other)) continue;
     if (!out.has(other)) out.set(other, []);
     out.get(other).push(e);
   }
@@ -937,9 +896,7 @@ function ghostChips() {
   // --- place ---------------------------------------------------------------
   const chips = [];
   for (const [id, edges] of out) {
-    const p = screen(GV.layout[id]);
-    if (inside(p, GHOST_INSET)) continue;              // visible: no stand-in
-    const at = ghostAnchor(from, p, W, H, GHOST_INSET);
+    const at = ghostAnchor(from, gvScreen(GV.layout[id]), W, H, GHOST_INSET);
     if (!at) continue;
     const node = GV.graph.nodes.find(n => n.id === id);
     if (!node) continue;
@@ -980,40 +937,39 @@ function ghostChips() {
 
   // --- draw ----------------------------------------------------------------
   //
-  // Lines first, boxes on top of them, exactly as the canvas proper does it. An
-  // arrowhead on its own read as pointing *past* the destination; a line
-  // arriving at a box reads as arriving.
+  // A real edge, shortened. It leaves the focused node's box the way any edge
+  // does, bows the way any edge does, and arrives at the stand-in -- because
+  // it *is* the edge, drawn to where the far end has been brought instead of to
+  // where the far end is.
+  const sh = shapeOfNode(GV.focus);
   let lines = '', boxes = '';
   for (const c of chips) {
-    // Inward, along the axis of the border it is pinned to. It used to aim at
-    // the focused node, which put a diagonal stub on a canvas where every other
-    // line is axis-aligned -- the chip then read as belonging to a different
-    // drawing. Where the destination is is already said by which border it sits
-    // on; the stub only has to say that the line continues.
-    const [nx, ny] = c.side === 'top'    ? [0, 1]
-                   : c.side === 'bottom' ? [0, -1]
-                   : c.side === 'left'   ? [1, 0]
-                   :                       [-1, 0];
-    const px = -ny, py = nx;                          // and its perpendicular
-
-    // One line per relationship, in its own colour and dash, spread across the
-    // chip's inward face: the same grammar as the canvas, at a smaller size.
     const kinds = [...new Map(c.edges.map(e =>
       [`${e.type}|${e.s === GV.focus}`, e])).values()];
+
     kinds.forEach((e, i) => {
       const st = ESTYLE[e.type];
-      const off = (i - (kinds.length - 1) / 2) * 6;
-      const edge = 0.5 * (Math.abs(nx) * c.w + Math.abs(ny) * c.h) + 1;
-      const ax = c.x + nx * edge + px * off, ay = c.y + ny * edge + py * off;
-      const bx = c.x + nx * (edge + 34) + px * off;
-      const by = c.y + ny * (edge + 34) + py * off;
-      // Outbound from the focus arrives *at* the chip, so the head goes on the
-      // chip end. Inbound points the other way, back to the node you are
-      // standing on. Direction is carried by the arrow, as it is everywhere.
+      const dx = c.x - from.x, dy = c.y - from.y;
+      const len = Math.hypot(dx, dy) || 1;
+      // Leave the focused node on its own box, in screen pixels: the box is
+      // drawn inside the zoom transform, so its half-width scales with it.
+      const hw = sh.w / 2 * GV.view.k + 2, hh = sh.h / 2 * GV.view.k + 2;
+      const t = Math.min(hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
+      const A = {x: from.x + dx * t, y: from.y + dy * t};
+      const edge = 0.5 * (Math.abs(dx) / len * c.w + Math.abs(dy) / len * c.h) + 2;
+      const B = {x: c.x - dx / len * edge, y: c.y - dy / len * edge};
+
+      // The same left-of-travel bow as the canvas, so several relationships to
+      // one stand-in separate the way they do everywhere else.
+      const bow = -(Math.min(20, len * .12) + (i - (kinds.length - 1) / 2) * 16);
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+      const cx = mx - (B.y - A.y) / len * bow, cy = my + (B.x - A.x) / len * bow;
       const head = e.s === GV.focus ? 'marker-end' : 'marker-start';
-      lines += `<path d="M${bx} ${by} L${ax} ${ay}" fill="none"
-        stroke="${st.c}" stroke-width="1.8" stroke-dasharray="${st.dash}"
-        ${st.head ? `${head}="url(#head-${e.type})"` : ''} opacity=".85"/>`;
+      lines += `<path d="M${A.x.toFixed(1)} ${A.y.toFixed(1)}
+        Q${cx.toFixed(1)} ${cy.toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}"
+        fill="none" stroke="${st.c}" stroke-width="1.8"
+        stroke-dasharray="${st.dash}" opacity=".9"
+        ${st.head ? `${head}="url(#head-${e.type})"` : ''}/>`;
     });
 
     boxes += `<g class="ghost" data-ghost="${esc(c.id)}"
@@ -1026,6 +982,11 @@ function ghostChips() {
     </g>`;
   }
   return lines + boxes;
+}
+
+function shapeOfNode(id) {
+  const n = GV.graph.nodes.find(x => x.id === id);
+  return SHAPE[n ? kindOf(n) : 'record'] || SHAPE.record;
 }
 
 // Focus, and put it where it can be seen. Focusing alone is what clicking the

@@ -209,92 +209,82 @@ console.log('  overflow: 40 chips where 19 fit -> ' + spill
             + ' pushed off the canvas (they crowd instead)');
 if (spill) problems.push('ghost chips overflow the canvas');
 
-// ---- the router -------------------------------------------------------------
+// ---- the arcs -----------------------------------------------------------
 //
-// One router now draws every edge, so these are the invariants that used to be
-// three systems disagreeing. None is visible from reading the code and all of
-// them fail quietly on screen: a line that starts inside a box just looks like
-// a line, and a shared port looks like one edge where there are two.
+// Parallel edges are separated by bowing each one further out, so the property
+// that matters is that no two edges between a pair get the same offset -- that
+// was the bug the whole spread pass exists to prevent, and it looks exactly
+// like a single relationship where there are three.
 
-computePorts(GV.graph.edges.filter(e => GV.layout[e.s] && GV.layout[e.t]));
-
-const bad = {offBox: [], diagonal: [], noRoute: [], sharedPort: []};
-const takenSlots = new Set();
-let straightRuns = 0;
-
+computeSpread();
+let sameSlot = 0, parallelPairs = 0;
+const byPair = {};
 for (const e of GV.graph.edges) {
-  if (!GV.layout[e.s] || !GV.layout[e.t]) continue;
-  const r = route(e);
-  if (!r) { bad.noRoute.push(e.s + '->' + e.t); continue; }
-  if (r.pts.length === 2) straightRuns++;
-
-  // Every segment axis-aligned. A diagonal means a port and its stub disagreed.
-  for (let i = 1; i < r.pts.length; i++) {
-    const dx = Math.abs(r.pts[i].x - r.pts[i - 1].x);
-    const dy = Math.abs(r.pts[i].y - r.pts[i - 1].y);
-    if (dx > 0.6 && dy > 0.6) { bad.diagonal.push(e.s + '->' + e.t); break; }
-  }
-
-  // Both ends *on* their own node's face: not floating outside it, and not
-  // buried inside it where the arrowhead disappears under the fill.
-  for (const [end, node] of [[r.pts[0], e.s], [r.pts[r.pts.length - 1], e.t]]) {
-    const p = GV.layout[node];
-    const n = GV.graph.nodes.find(x => x.id === node);
-    const sh = SHAPE[kindOf(n)];
-    const onX = Math.abs(Math.abs(end.x - p.x) - sh.w / 2) < 0.6;
-    const onY = Math.abs(Math.abs(end.y - p.y) - sh.h / 2) < 0.6;
-    const inX = Math.abs(end.x - p.x) <= sh.w / 2 + 0.6;
-    const inY = Math.abs(end.y - p.y) <= sh.h / 2 + 0.6;
-    if (!((onX && inY) || (onY && inX))) bad.offBox.push(node + ' via ' + e.type);
-  }
-
-  // No two edges on one slot of one face. Separating parallel edges is the
-  // whole reason ports exist, and it is what rank-and-bow kept getting wrong.
-  const key = e.s + '|' + e.t + '|' + e.type + '|' + e.v;
-  for (const node of [e.s, e.t]) {
-    const port = GV.port[key + '|' + node];
-    if (!port) continue;
-    const slot = node + '|' + port.face + '|' + port.i;
-    if (takenSlots.has(slot)) bad.sharedPort.push(slot);
-    takenSlots.add(slot);
-  }
-}
-
-// Parallel edges must not share their long middle run. Every edge between one
-// pair scores the lanes identically and picks the same channel, so without a
-// per-port offset their end segments separate at the boxes and then converge
-// onto exactly the same line -- the collision ports exist to prevent, moved to
-// the middle of the path where it is harder to notice.
-const pairPaths = {};
-for (const e of GV.graph.edges) {
-  if (!GV.layout[e.s] || !GV.layout[e.t]) continue;
-  const r = route(e);
-  if (!r || r.pts.length < 4) continue;
+  if (e.type === 'refs') continue;
   const k = e.s + '|' + e.t;
-  const seg = r.pts.slice(1, -1).map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
-  (pairPaths[k] = pairPaths[k] || []).push(seg);
+  (byPair[k] = byPair[k] || []).push(
+    GV.spread[e.s + '|' + e.t + '|' + e.type + '|' + e.v]);
 }
-let overlaid = 0, pairs = 0;
-for (const segs of Object.values(pairPaths)) {
-  if (segs.length < 2) continue;
-  pairs++;
-  if (new Set(segs).size < segs.length) overlaid++;
+for (const ranks of Object.values(byPair)) {
+  if (ranks.length < 2) continue;
+  parallelPairs++;
+  if (new Set(ranks).size < ranks.length) sameSlot++;
 }
+console.log('\narcs: ' + parallelPairs + ' pairs carry parallel edges, '
+            + sameSlot + ' with two on the same offset');
+if (sameSlot) problems.push('parallel edges share an offset');
 
-console.log('\nrouting: ' + GV.graph.edges.length + ' edges, ' + straightRuns
-            + ' straight, ' + (GV.graph.edges.length - straightRuns) + ' turned');
-console.log('  ' + pairs + ' pairs carry parallel edges, ' + overlaid
-            + ' with runs laid on top of each other');
-if (overlaid) problems.push('parallel edges share a channel');
-let clean = true;
-for (const [what, list] of Object.entries(bad)) {
-  if (!list.length) continue;
-  clean = false;
-  console.log('  ' + what + ': ' + list.length + '  ' + list.slice(0, 4).join(', '));
-  problems.push('router: ' + what);
+// ---- off-screen edges are replaced, not added to ----------------------------
+//
+// The point of the stand-ins: an edge whose far end has left the canvas is not
+// drawn at all. A line heading off the screen says a relationship exists and
+// then abandons you halfway, and at the zoom where that starts happening there
+// are a dozen of them fanning out to nowhere.
+//
+// Needs a viewport, so the probe supplies one: a small window, zoomed in on a
+// node with neighbours in every direction.
+
+const vp = {clientWidth: 500, clientHeight: 360, innerHTML: '',
+            getBoundingClientRect: () => ({left: 0, top: 0, width: 500, height: 360})};
+const realGet = document.getElementById;
+document.getElementById = (id) => id === 'gsvg' ? vp : null;
+
+GV.mode = 'team';
+GV.source = 'design';
+GV.focus = 'gatekeeper';
+GV.view = {k: 1.4, x: 250 - GV.layout.gatekeeper.x * 1.4,
+                   y: 180 - GV.layout.gatekeeper.y * 1.4};
+
+const gone = offscreenNeighbours();
+const incident = GV.graph.edges.filter(
+  e => e.s === 'gatekeeper' || e.t === 'gatekeeper');
+const suppressed = incident.filter(e => gone.has(e.s) || gone.has(e.t));
+const drawn = drawTeam().edges;
+const chips = ghostChips();
+const chipCount = (chips.match(/class="ghost"/g) || []).length;
+const localLines = (chips.match(/<path/g) || []).length;
+
+// Nothing incident to a vanished neighbour may appear in the canvas edges.
+let leaked = 0;
+for (const e of suppressed)
+  if (drawn.includes('data-e="' + e.s + '|' + e.t + '|' + e.type)) leaked++;
+
+console.log('');
+console.log('off-screen substitution, zoomed on gatekeeper at 1.4x in 500x360:');
+console.log('  ' + gone.size + ' neighbours off canvas, ' + suppressed.length
+            + ' of its ' + incident.length + ' edges suppressed');
+console.log('  ' + chipCount + ' stand-ins drawn, carrying ' + localLines
+            + ' local edges');
+if (leaked) { console.log('  ' + leaked + ' SUPPRESSED EDGES STILL DRAWN');
+              problems.push('off-screen edges still drawn'); }
+else if (gone.size && !chipCount) {
+  console.log('  NEIGHBOURS VANISHED WITH NOTHING PUT IN THEIR PLACE');
+  problems.push('off-screen neighbours have no stand-in');
+} else if (gone.size) {
+  console.log('  nothing runs off the canvas; every lost end has a stand-in');
 }
-if (clean)
-  console.log('  every segment axis-aligned, every end on its box, no shared slots');
+document.getElementById = realGet;
+GV.focus = null;
 
 // ---- the entry points still exist -------------------------------------------
 //
@@ -310,7 +300,8 @@ if (clean)
 
 const ENTRY = ['gvLoad', 'gvDraw', 'gvControls', 'gvFit', 'gvFocus', 'gvGoto',
                'gvInhabit', 'gvMode', 'gvSet', 'gvFar', 'gvLegend', 'gvNarrate',
-               'drawTeam', 'drawChat', 'route', 'computePorts', 'foldPlan',
+               'gvDrawInner', 'offscreenNeighbours',
+               'drawTeam', 'drawChat', 'refPath', 'computeSpread', 'foldPlan',
                'keySelects', 'gvLit', 'gvSteps', 'gvVisible', 'ghostChips'];
 
 const missing = ENTRY.filter(name => {
