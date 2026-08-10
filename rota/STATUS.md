@@ -12,13 +12,13 @@ tab, or `node tests/rota/lens_check.js` for the viewer.
 
 | | |
 |---|---|
-| deterministic suite | **258 passed**, 6 skipped, ~4½ min |
+| deterministic suite | **276 passed**, 6 skipped, ~4½ min |
 | cases | **59** across 13 files |
 | prompt modes with a case | **48 / 48** |
 | L1 actions covered | 44 / 117 *(credited by side-effect, generous)* |
 | L2 situations covered | **48 / 48** |
-| L3 handoff pairs | 4 / 24 |
-| last run | **37/54** L1-L2, **2/5** L3, 13 min |
+| L3 handoff pairs | 6 / 24 |
+| last run | **45/56** L1-L2, **4/6** L3, 27 min |
 
 Onboarding is built end to end: tree-sitter index over 7 languages, dependency
 edges, area partitioning, constraint zero, 15 tests.
@@ -46,69 +46,46 @@ documented at the top of `graphview.js`.
 
 ---
 
-## The 20 failures — the working list
+## The 13 failures — the working list
 
-Every one has a transcript in the cases panel. The job is to classify each as
-**unfair case** / **under-briefed role** / **model out of depth**, which is the
-first time that has been answerable from evidence rather than by inference.
+Down from 20, and the ones that went were almost all harness rather than model.
+Found with `python -m rota.tools.triage --failing`, which groups by *mechanism*
+so that one bug across five cases reads as one bug.
 
-### Tester writes nothing — 4 cases, one root cause?
+### Fixed, and what they turned out to be
 
-    L1-TS-encode-a-criterion              0/5   expected writes to tests, got 0
-    L1-TS-apply-a-term-and-write-the-test 0/5   expected writes to tests, got 0
-    L1-TS-fix-a-test-that-asserts-more…   0/5   expected writes to tests, got 0
-    L1-TS-hold-a-test-that-is-right       0/5   forbidden write to tests
+    parse: `true` rejected as a syntax error          150 rejections, 2 cases
+    parse: positional args refused by the parser       40, 2 cases
+    parse: `TOOL:` read as a slot to fill in           the whole silent cluster
+    parse: `text=...` became Python's Ellipsis         killed sessions at commit
+    signature: `ledger.log(id=)` rejected 170 times    error now names about_ref
+    working set: Terminologist could not read a term   `deliver` took lookup away
+    fixture: Tester asked for a batch it never saw     derived from the criterion
+    harness: a dict reaching SQLite killed a session   annotation now checked
+    harness: **both suites pinned num_ctx=8192**       prompts clipped at the front
+    unfair case: round_close with no reports           the predicate cannot fire it
 
-Four of Tester's five cases. The signature was cleared of suspicion once —
-`tests.encode(id, criterion_id, path, body, batch_id=None)` is correct — so
-this is the largest single cluster and the first to look at.
+### Still failing
 
-### The survey trio — 3 cases, never passed
+    L1-AR-group-into-batches           session dies, FOREIGN KEY
+    L1-AR-route-an-escalation          reported to liaison instead of escalating
+    L1-AR-survey-an-area               writes two attestations where one is asked
+    L1-DV-apply-the-answer-and-carry-on   asks again instead of building
+    L1-DV-challenge-a-test…            calls code.write when it must not
+    L1-DV-fix-the-code-not-the-test    challenges instead of fixing
+    L1-DV-fix-what-the-verdict-names   questions the gatekeeper first
+    L1-GK-amend-a-contested-item       writes nothing
+    L1-LI-the-reports-came-back-clean  presents when silence is right
+    L1-LI-two-questions…               a question sent without its ref
+    L1-TS-hold-a-test-that-is-right    rewrites a test that was correct
+    L3-scope-becomes-a-ticket-with-criteria     hop 1 sends nothing
+    L3-a-failed-verdict-turns-into-a-fix        hop 1 sends nothing
 
-    L1-TE-survey-an-area-for-its-terms     0/5   no code.source, no attestation
-    L1-AR-survey-an-area-for-its-commit…   0/5   no survey_records written
-    L1-GK-survey-an-area-for-what-it-does  0/5   no code.source
-
-All three open by consulting their own artefact and stopping. They now wake
-holding the area's 17 grains, so the fixture is not the problem.
-
-### The ladder — 3 cases, brand new, never tuned
-
-    L1-AR-route-an-escalation              0/5   reported to liaison instead
-    L2-AR-place-a-block-developer-could…   0/5   answered developer instead
-    L2-GK-end-it-rather-than-send-it-back   0/5   sent nothing at all
-
-### Liaison — 3 cases
-
-    L1-LI-put-a-contradiction-back-unres…  0/5   no clarify to principal
-    L1-LI-put-the-open-assumptions-to-a-…  0/5   message sent without its refs
-    L1-LI-nothing-came-back-so-nothing-…   0/5   presented when silence was right
-
-### Developer — 3 cases
-
-    L1-DV-apply-the-answer-and-carry-on    0/5   asked again instead of building
-    L1-DV-fix-the-code-not-the-test        0/5   challenged instead of fixing
-    L1-DV-log-the-choice-the-criteria-…    0/5   built it, logged nothing
-
-### Gatekeeper — 1 case
-
-    L1-GK-amend-a-contested-item           0/5   no amendment written
-
-### L3 — 3 of 5 chains
-
-    L3-scope-becomes-a-ticket-with-criteria
-    L3-a-challenge-reaches-the-role-that-can-answer-it
-    L3-a-failed-verdict-turns-into-a-fix        ← was hitting the repo leak;
-                                                  re-run before trusting it
-
-Passing: `ratified statement → scope` and `ratified statement → term`. Those two
-are the design's central bet holding — a message carrying only refs was enough
-for a cold stranger to act.
-
-**Every failure is 0/5.** Not one is stochastic. These are systematic, which is
-the most useful property the list has.
-
----
+Three of these are Developer refusing to write code and asking a question
+instead, which is one behaviour and probably one fix. Two are Liaison speaking
+when the right answer is silence. `blind:` counts in the triage output are
+completions that committed after a read in the same breath — still the largest
+single pattern.
 
 ## Next, in order
 
