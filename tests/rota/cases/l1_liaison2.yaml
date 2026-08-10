@@ -19,11 +19,15 @@
       - {id: <e2>, author: principal, ts_order: 2,
          text: "we have to keep invoices for seven years"}
     statements:
+      # `contradicted`, not `ratified`. The predicate reads the status and
+      # nothing else, so with two ratified statements it never fired and this
+      # case was grading Liaison on a wake it could not have been given -- the
+      # exact defect the reachability lint exists for, hidden behind its skip.
       - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 62,
          text: "deleting an account removes everything we hold about them",
-         status: ratified}
+         status: contradicted}
       - {id: <s2>, span_entry: <e2>, span_start: 0, span_end: 38,
-         text: "invoices are kept for seven years", status: ratified}
+         text: "invoices are kept for seven years", status: contradicted}
   expect:
     messages:
       - {to: principal, verb: clarify, count: 1, refs_include: [<s1>, <s2>]}
@@ -90,7 +94,20 @@
   role: liaison
   runs: 5
   pass: 3
-  tick: report
+  # This case used to say `tick: report`, which is not a predicate at all —
+  # `report` is a message verb. The harness built the wake with no message id,
+  # so the prompt showed Liaison *neither* report: the whole working set was one
+  # ratified statement. It was being graded on deduping reports it could not see.
+  #
+  # Underneath that was a live scheduler bug the case was quietly resting on.
+  # `tick_round_close` says dedupe "is impossible if Liaison wakes per report",
+  # and open tips are band `traffic` (0) while round_close is band `gate` (20) —
+  # so the first report always won, Liaison clarified from the one report in
+  # front of it, and the `harvested` check then suppressed the round for good.
+  # The round existed in the design, the docstring and the prompt, and never ran.
+  # `open_tips` now leaves in-round reports to the harvest.
+  tick: round_close
+  refs: [t1]
   fixture:
     entries:
       - {id: <e1>, author: principal, ts_order: 1,
@@ -98,20 +115,42 @@
     statements:
       - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 30,
          text: "people can delete their account", status: ratified}
+    glossary_terms:
+      # Two senses, one word. Deleting the row and revoking the login are
+      # different promises and the transcript does not say which was meant.
+      - {id: <g1>, term: "delete", sense_short: "erase the account record",
+         provenance: observed, source_refs: '["<s1>"]'}
+      - {id: <g2>, term: "delete", sense_short: "revoke access, keep the record",
+         provenance: observed, source_refs: '["<s1>"]'}
+    items:
+      # Recorded but never approved: Gatekeeper could not tell which promise it
+      # is being asked to admit, which is the same collision in its own words.
+      - {id: <i1>, text: "people can delete their account", kind: in_scope,
+         provenance: decided, version: 1}
     messages:
-      # Two roles, one question, two vocabularies — the normal case.
+      - {id: <m0>, thread_id: t1, from_role: liaison, to_role: gatekeeper,
+         verb: deliver, body_refs: '["<s1>"]', seq: 1, status: answered}
+      # Three reports, two questions at most. The first two are one question in
+      # two vocabularies — Terminologist calls it a term collision, Gatekeeper
+      # calls it a scope ambiguity, and both point back at the same statement.
+      # Architect's is a genuinely separate one.
       - {id: <m1>, thread_id: t1, from_role: terminologist, to_role: liaison,
-         verb: report, body_refs: '["<s1>"]', seq: 1}
+         verb: report, body_refs: '["<g1>","<g2>","<s1>"]', seq: 2}
       - {id: <m2>, thread_id: t1, from_role: gatekeeper, to_role: liaison,
-         verb: report, body_refs: '["<s1>"]', seq: 2}
+         verb: report, body_refs: '["<i1>","<s1>"]', seq: 3}
+      - {id: <m3>, thread_id: t1, from_role: architect, to_role: liaison,
+         verb: report, body_refs: '["<s1>"]', seq: 4}
   expect:
     messages:
-      # At most two questions means exactly one message carrying them.
+      # At most two questions means exactly one message carrying them, and it
+      # must point back at the material that raised them.
       - {to: principal, verb: clarify, count: 1, refs_include: [<s1>]}
   forbidden:
-    # Deduping is the work this mode exists for; forwarding each report as its
+    # Deduping is the work the round exists for; forwarding each report as its
     # own question spends the principal's attention on the system's bookkeeping.
-    writes: [statements, items, decisions]
+    # Choosing a sense is the principal's call — writing one here is the system
+    # answering its own question and calling it progress.
+    writes: [statements, items, decisions, glossary_terms]
     recipients: [gatekeeper, terminologist, architect]
 
 - id: L1-LI-surface-a-quarantined-message

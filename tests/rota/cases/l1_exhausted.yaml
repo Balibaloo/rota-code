@@ -102,6 +102,13 @@
       - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
+    messages:
+      # The rung is *derived* from who has already sent something about this
+      # batch, so a fixture with no messages is a fixture that wakes Developer.
+      # Without this the case said `architect` and the scheduler said
+      # `developer`: Architect was being graded on a wake it never receives.
+      - {id: <m_esc>, thread_id: t1, from_role: developer, to_role: architect,
+         verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
     tests:
       - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_export.py,
          body: "assert set(export_csv(a)[0]) == set(INVOICE_FIELDS)"}
@@ -149,6 +156,16 @@
          verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
       - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: gatekeeper,
          verb: challenge, body_refs: '["<b1>","<k1>"]', seq: 2, status: answered}
+    # `exhausted` reads failing test_runs at the cap; without them the ladder has
+    # nothing to climb and this case woke nobody at all. It skipped rather than
+    # failed, because "the predicate did not fire" was a skip -- so a fixture
+    # that fires nothing looked the same as a predicate the harness cannot seed.
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_export.py,
+         body: "assert set(export_csv(a)[0]) == set(INVOICE_FIELDS)"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: fail,
+         attempt: 10}
   expect:
     # Amend the item so it says what was meant, or take it to the principal.
     # Both end it here; nothing else does.

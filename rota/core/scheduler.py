@@ -53,10 +53,27 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
     Messages to the principal are open too, but the principal is not schedulable — it
     answers when it answers. They are excluded here and surfaced by the agenda
     tick instead.
+
+    Reports inside a broadcast round are excluded for the same kind of reason:
+    they are not addressed to a session, they are addressed to a *harvest*.
+    `tick_round_close` says why — dedupe "is impossible if Liaison wakes per
+    report" — and until this exclusion existed the scheduler did exactly that.
+    Tips are `traffic`, band 0; round_close is `gate`, band 20. The first report
+    won the race every time, Liaison clarified from the one report it could see,
+    and the `harvested` check then suppressed round_close permanently. The round
+    was in the design, in the docstring, and in the prompt, and it never ran.
+
+    A report *outside* a broadcast thread still tips, and that is the whole of
+    what `report` mode is for: the top of the escalation ladder, where Gatekeeper
+    has run out of rungs and the next step is a person.
     """
     rows = conn.execute(
-        "SELECT id, to_role, verb FROM messages "
-        "WHERE status = 'open' AND to_role != 'principal' ORDER BY seq"
+        "SELECT id, to_role, verb FROM messages m "
+        "WHERE status = 'open' AND to_role != 'principal' "
+        "  AND NOT (verb = 'report' AND to_role = 'liaison' AND EXISTS ("
+        "    SELECT 1 FROM messages d WHERE d.thread_id = m.thread_id "
+        "      AND d.verb = 'deliver' AND d.from_role = 'liaison')) "
+        "ORDER BY seq"
     ).fetchall()
     return [
         Wake(role=r["to_role"], kind="message", message_id=r["id"], detail=r["verb"])

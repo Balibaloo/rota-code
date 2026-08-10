@@ -142,7 +142,8 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
     if inbound:
-        body.append("\nThe message that woke you:")
+        body.append("\nThe reports that came back:" if "reports" in inbound
+                    else "\nThe message that woke you:")
         body.append(json.dumps(inbound, indent=2, default=str))
     if pushed:
         body.append("\nYour working set:")
@@ -163,7 +164,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     Principal entries are the exception that needs handling: the principal's actual
     words are not yet an artefact when Liaison is woken to record them, so they
     are carried on the message itself.
+
+    A round-close wake has no single triggering message — it has a thread full of
+    them — and that used to mean it was handed nothing at all. Liaison has no
+    reader for messages (rightly: reading your own wake is not a capability), so
+    `round_close` was told to compose what came back while being shown none of
+    it. The whole round is resolved here for exactly the same reason one message
+    is: it is the wake, not a fetch.
     """
+    if wake.kind == "tick:round_close":
+        return _resolve_round(conn, wake)
     if not wake.message_id:
         return {}
 
@@ -195,8 +205,34 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if ruling:
         out["principal_verdict"] = ruling
 
-    resolved = {}
-    for ref in out["refs"]:
+    resolved = _resolve_refs(conn, out["refs"])
+    if resolved:
+        out["resolved_refs"] = resolved
+
+    # Sibling reports in the same thread: harvest cannot dedupe what it cannot
+    # see. This is the ladder's single report now -- in-round reports are
+    # harvested by `round_close` and never tip -- but a second one arriving out
+    # of band is still worth showing, and `thread_id` is what keeps it to the
+    # same conversation. Without that filter it pulled in every report the
+    # system had ever sent.
+    if row["verb"] == "report":
+        siblings = [dict(r) for r in conn.execute(
+            "SELECT id, from_role, body_refs FROM messages "
+            "WHERE verb = 'report' AND thread_id = ("
+            "  SELECT thread_id FROM messages WHERE id = ?) "
+            "  AND id != ? ORDER BY seq", (wake.message_id, wake.message_id))]
+        if siblings:
+            out["other_reports"] = siblings
+
+    return out
+
+
+def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
+    """Refs to rows, one hop deep. Nothing those rows point at in turn."""
+    resolved: dict[str, Any] = {}
+    for ref in refs:
+        if ref in resolved:
+            continue
         for table, cols in (
             ("statements", "id, text, status"),
             ("items", "id, text, kind, approval"),
@@ -211,17 +247,41 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             if hit:
                 resolved[ref] = dict(hit)
                 break
+    return resolved
+
+
+def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
+    """
+    Every report in the round, each one's refs resolved one hop.
+
+    Kept as one block on purpose. Dedupe is the only reason the round waits, and
+    it is a judgement about the reports *together* -- two roles describing one
+    blocker in two vocabularies is visible in the pair and invisible in either
+    half. Handing them over one at a time is what the scheduler already refuses
+    to do; handing them over unresolved would be the same mistake in the prompt.
+    """
+    thread = wake.refs[0] if wake.refs else None
+    if not thread:
+        return {}
+
+    rows = conn.execute(
+        "SELECT id, from_role, body_refs FROM messages "
+        "WHERE thread_id = ? AND verb = 'report' ORDER BY seq", (thread,)
+    ).fetchall()
+    if not rows:
+        return {}
+
+    reports = []
+    every_ref: list[str] = []
+    for r in rows:
+        refs = json.loads(r["body_refs"] or "[]")
+        every_ref.extend(refs)
+        reports.append({"id": r["id"], "from": r["from_role"], "refs": refs})
+
+    out: dict[str, Any] = {"thread": thread, "reports": reports}
+    resolved = _resolve_refs(conn, every_ref)
     if resolved:
         out["resolved_refs"] = resolved
-
-    # Sibling reports in the same thread: harvest cannot dedupe what it cannot see.
-    if row["verb"] == "report":
-        siblings = [dict(r) for r in conn.execute(
-            "SELECT id, from_role, body_refs FROM messages "
-            "WHERE verb = 'report' AND id != ? ORDER BY seq", (wake.message_id,))]
-        if siblings:
-            out["other_reports"] = siblings
-
     return out
 
 

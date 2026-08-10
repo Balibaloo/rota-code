@@ -17,6 +17,9 @@
   runs: 5
   pass: 4
   tick: survey
+  # Areas come from onboarding a real checkout, not from the fixture tables,
+  # so the lint's DB-only seeding cannot produce the state this fires on.
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/billing]
   repo:
     onboard: true
@@ -38,6 +41,9 @@
   runs: 5
   pass: 3
   tick: survey
+  # Areas come from onboarding a real checkout, not from the fixture tables,
+  # so the lint's DB-only seeding cannot produce the state this fires on.
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/billing]
   repo:
     onboard: true
@@ -64,6 +70,9 @@
   runs: 5
   pass: 4
   tick: survey
+  # Areas come from onboarding a real checkout, not from the fixture tables,
+  # so the lint's DB-only seeding cannot produce the state this fires on.
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/billing]
   repo:
     onboard: true

@@ -12,6 +12,11 @@
   runs: 5
   pass: 4
   tick: batch_start
+  # `batch_start` reads a *pending* batch and refuses if anything is running.
+  # This fixture seeds it `running` because that is the state at session time:
+  # `lifecycle.start` flips it between the wake and the dispatch, so the state
+  # the predicate reads no longer exists by the time the role is awake.
+  tick_unseedable: the wake state is pre-dispatch; the fixture is post-dispatch
   refs: [<b1>]
   repo:
     batch: <b1>
@@ -47,6 +52,11 @@
   runs: 5
   pass: 3
   tick: batch_start
+  # `batch_start` reads a *pending* batch and refuses if anything is running.
+  # This fixture seeds it `running` because that is the state at session time:
+  # `lifecycle.start` flips it between the wake and the dispatch, so the state
+  # the predicate reads no longer exists by the time the role is awake.
+  tick_unseedable: the wake state is pre-dispatch; the fixture is post-dispatch
   refs: [<b1>]
   repo:
     batch: <b1>

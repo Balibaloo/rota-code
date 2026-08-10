@@ -75,20 +75,36 @@ def test_a_tick_cases_fixture_would_actually_fire_that_predicate(case, tmp_path)
     grading a model on it measures nothing -- `round_close` with no reports
     failed five times out of five for exactly that reason.
 
-    Predicates that fire on state this harness does not seed are skipped rather
-    than failed: the claim here is "if it fires at all, it fires for this role",
-    not "every fixture is complete enough to trip its own predicate".
+    A fixture that fires nothing must say why. This used to be a blanket skip --
+    "the seeded state may be outside what the predicate reads" -- and it was
+    true of three cases and an alibi for two others. `L2-GK-end-it-rather-than-
+    send-it-back` seeded no `test_runs`, so the ladder it was climbing did not
+    exist; `L1-LI-put-a-contradiction-back-unresolved` seeded both statements
+    `ratified` when the predicate reads `contradicted`. Both were exactly the
+    defect this file exists to catch, and both wore the skip that was written
+    for the honest cases.
+
+    `tick_unseedable:` is that skip, named. It carries a reason, it is per case,
+    and a fixture that quietly stops firing cannot inherit it.
     """
     from rota.core import predicates as P
 
+    if case["tick"] not in P.REGISTRY:
+        pytest.skip("not a predicate; the check above owns that failure")
+
     conn = init_db(tmp_path / "rota.db")
-    fixtures.seed(conn, case["fixture"])
+    fixtures.seed(conn, case.get("fixture") or {})
     conn.commit()
 
     wakes = P.REGISTRY[case["tick"]].fn(conn)
     if not wakes:
-        pytest.skip(f"tick:{case['tick']} does not fire on this fixture "
-                    f"(seeded state may be outside what the predicate reads)")
+        why = case.get("tick_unseedable")
+        assert why, (
+            f"{case['id']} seeds a fixture that fires nothing: tick:{case['tick']} "
+            f"produces no wake at all, so the situation it grades cannot arise. "
+            f"Fix the fixture, or say why it cannot be seeded with "
+            f"`tick_unseedable: <reason>`")
+        pytest.skip(f"tick:{case['tick']} unseedable: {why}")
     assert any(w.role == case["role"] for w in wakes), (
         f"{case['id']} says it wakes {case['role']} on tick:{case['tick']}, but "
         f"that predicate wakes {sorted({w.role for w in wakes})} here")

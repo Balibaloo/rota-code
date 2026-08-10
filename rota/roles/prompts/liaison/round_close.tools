@@ -1,4 +1,6 @@
 ledger.list
 msg.present_principal
+msg.clarify_principal
 brief.list
 schedule.consult
+transcript.quote
