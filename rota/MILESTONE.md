@@ -39,28 +39,36 @@ moving 40 modules plus 160 fixtures is not.
 
 ## 1 · Edge fixes — detail in `EDGE_PLAN.md`
 
-- [ ] **1.1 P1 · the loop closes.** `commit_sha` on `test_runs` / `verdicts` /
+- [x] **1.1 P1 · the loop closes.** `commit_sha` on `test_runs` / `verdicts` /
       `findings`; `harness`, `review`, `structural_review` fire when the current
       `head_commit` has no row of that kind
-- [ ] **1.2 P2 · the cascade is honest.** `findings` out of `model`; six refs
+- [x] **1.2 P2 · the cascade is honest.** `findings` out of `model`; six refs
       edges added; `model → code` marked non-cascading to break the cycle;
       `cascade_order` raises instead of falling back
-- [ ] **1.3 P3 · owners read what they own.** liaison→transcript,
+- [x] **1.3 P3 · owners read what they own.** liaison→transcript,
       liaison→brief, architect→decisions
-- [ ] **1.4 P4 · vocabulary residue.** `tests.encode`, `model.attest`, reach on
+- [x] **1.4 P4 · vocabulary residue.** `tests.encode`, `model.attest`, reach on
       the five creates, `verdicts → code` becomes `n:1`
-- [ ] **1.5 P5 · four checks.** refs acyclic · every artefact-crossing FK has a
+- [x] **1.5 P5 · four checks.** refs acyclic · every artefact-crossing FK has a
       refs edge · every operation offered by some mode · every operation
       mentioned in some prompt
-- [ ] **1.6 P6 · briefing.** the 19 unmentioned capabilities; add
+- [x] **1.6 P6 · briefing.** the 19 unmentioned capabilities; add
       `architect → terminologist: question`; record the six deliberate channels
-- [ ] **1.7 rulings.** Terminologist and Tester may `ledger.log`; Terminologist
+- [x] **1.7 rulings.** Terminologist and Tester may `ledger.log`; Terminologist
       may `decisions.author`; `ledger.log` id is deterministic so a repeat
       upserts rather than duplicating
 
-**Verify:** fail → fix → pass on one batch. `cascade_order()` is not
-alphabetical. `amend tickets` wakes its criteria, batch and tests. A clean
-finding wakes nobody.
+**Landed. 200 green.** Fail → fix → pass works; `cascade_order()` is
+`transcript, brief, problem, glossary, ledger, tickets, model, decisions,
+criteria, batches, schedule, code, tests, findings, verdicts` — law 9's model
+before backlog before schedule, at last; `amend tickets` reaches its criteria,
+batch and tests; a clean finding wakes nobody.
+
+Two things found while landing it. `findings` had to become its own artefact —
+binding it to `model` was mine, from the previous session, and made a clean
+review cascade as though the model had changed. And the new "owners read what
+they own" check immediately caught two gaps *this stage created*, which is the
+best argument for writing the check before the fix.
 
 ---
 
