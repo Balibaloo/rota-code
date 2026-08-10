@@ -152,6 +152,23 @@ def validate_args(fn: Callable, kwargs: dict,
     if missing:
         return f"missing required argument(s) {missing}; accepts ({_render_signature(fn)})"
 
+    # A container where a scalar was declared. It passes every check above,
+    # stages cleanly, and dies at the database as `type 'dict' is not
+    # supported` -- inside the transaction, taking a session that was otherwise
+    # sound. Three cases lost every run to this.
+    #
+    # The annotation is the authority: `path: str` means a string, and a model
+    # that sends `{"file": "x.py"}` has made a recoverable mistake, not a fatal
+    # one. Parameters annotated for lists are left alone.
+    for name, p in sig.parameters.items():
+        if name not in kwargs or not isinstance(kwargs[name], (dict, list)):
+            continue
+        ann = str(p.annotation)
+        if "list" not in ann and "dict" not in ann and "Any" not in ann:
+            kind = type(kwargs[name]).__name__
+            return (f"{name} was given a {kind}; it takes a single value "
+                    f"({_render_signature(fn)})")
+
     checks = {**ENUMS, **(ENUMS_BY_OP.get(op or ("", "")) or {})}
     for key, allowed in checks.items():
         if key in kwargs and isinstance(kwargs[key], str) and kwargs[key] not in allowed:

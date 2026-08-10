@@ -31,7 +31,14 @@ from rota.testkit import fixtures, obligations
 
 CASES = Path(__file__).parent / "cases"
 MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
-PINS = Pins(model=MODEL, temperature=0.0, num_ctx=8192)
+# num_ctx comes from `DEFAULT_NUM_CTX` and is deliberately not pinned here.
+# It was pinned, at 8192, and stayed there when the default was raised to
+# 12288 to stop the largest prompts being clipped -- so the fix reached
+# everything except the suites that measure whether anything works. Two
+# cases were still reporting `8192 tokens evaluated against a 8192 window`
+# long after that was supposed to be impossible, and a prompt is truncated
+# from the front, where the role is told who it is.
+PINS = Pins(model=MODEL, temperature=0.0)
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("ROTA_L1"),

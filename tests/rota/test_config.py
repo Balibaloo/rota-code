@@ -140,3 +140,25 @@ def test_intake_still_lands_while_halted(db):
 
     assert s.principal_messages, "a halted system stopped listening"
     assert db.execute("SELECT COUNT(*) n FROM entries").fetchone()["n"] == 1
+
+
+def test_the_sampled_suites_do_not_pin_a_smaller_window():
+    """
+    The window was raised to 12288 because the largest prompts were ~9.2k and
+    were being clipped -- from the front, where the role is told who it is. The
+    suites kept their own `num_ctx=8192`, so every measurement of whether the
+    system works was taken through the fault it had just fixed.
+
+    A pin is not wrong in itself. A pin *below* the default is, because that is
+    the shape the drift took and nothing noticed for weeks.
+    """
+    import re
+    from rota.llm.llm import DEFAULT_NUM_CTX
+    from rota import paths
+
+    for name in ("test_l1.py", "test_l3.py"):
+        src = (paths.REPO / "tests" / "rota" / name).read_text(encoding="utf-8")
+        for pinned in re.findall(r"Pins\([^)]*num_ctx\s*=\s*(\d+)", src):
+            assert int(pinned) >= DEFAULT_NUM_CTX, (
+                f"{name} pins num_ctx={pinned} below the default "
+                f"{DEFAULT_NUM_CTX}; prompts will be clipped at the front")

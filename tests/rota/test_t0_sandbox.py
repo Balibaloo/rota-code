@@ -176,3 +176,28 @@ def test_s9_the_ledger_says_what_to_write_instead_of_id(db):
     sb = build("gatekeeper", db)
     with pytest.raises(ArgumentError, match="about_ref"):
         sb.call("ledger.log", id="i1", about_table="items", default_taken="yes")
+
+
+def test_s9_a_container_where_a_scalar_was_declared_is_a_tool_error(db):
+    """
+    `type 'dict' is not supported`, raised by SQLite inside the transaction,
+    took three cases' sessions down on every run. It passes the name check and
+    the enum check and stages perfectly; only the database objects, and by then
+    the session is lost rather than corrected.
+
+    The annotation is the authority. `text: str` means a single value.
+    """
+    sb = build("gatekeeper", db)
+    with pytest.raises(ArgumentError, match="takes a single value"):
+        sb.call("problem.assert", id="i1", text={"was": "a dict"}, kind="in_scope")
+
+
+def test_s9_a_list_argument_still_takes_a_list(db):
+    """The check reads the annotation, so it does not break the ones that mean it."""
+    sb = build("terminologist", db)
+    db.execute("INSERT INTO items (id, text, kind, provenance) "
+               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    sb.call("criteria.specify", id="c1", ticket_id="tk1", text="it works",
+            term_refs=["g1", "g2"])
+    assert sb.ctx.writes[0][2]["term_refs"] == '["g1", "g2"]'
