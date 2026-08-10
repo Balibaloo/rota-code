@@ -739,7 +739,21 @@ def write(root: Path) -> Path:
 
 
 def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    """
+    Run git, and say what it said when it fails.
+
+    `check=True` raises `CalledProcessError`, whose message is the command and
+    the exit code and nothing else. One of these failed forty minutes into an
+    L1 run and reported `git commit -q -m 'store, first cut' returned non-zero
+    exit status 1` — true, and no help at all about why, which is the whole
+    question when a fixture that builds fine on its own stops building.
+    """
+    out = subprocess.run(["git", "-C", str(root), *args],
+                         capture_output=True, text=True)
+    if out.returncode != 0:
+        said = (out.stderr.strip() or out.stdout.strip()
+                or f"exit {out.returncode}, and it said nothing")
+        raise RuntimeError(f"git {' '.join(args)} in {root}: {said}")
 
 
 def create(root: Path, *, commits: bool = True) -> Path:

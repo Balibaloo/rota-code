@@ -113,10 +113,12 @@ def test_every_mode_has_a_case():
     went longest without one were Developer's, and both of them had tool lists
     that could not do what the prose asked.
     """
+    from rota.design import graph as graph_mod
+
     covered = {(c["role"], fixtures.mode_of(c)) for c in _cases()}
     missing = sorted(
         f"{role}/{mode}"
-        for role in prompts.check_coverage.__globals__["graph_mod"].load().roles
+        for role in graph_mod.load().roles
         for mode in prompts.available(role)
         if (role, mode) not in covered)
     assert not missing, f"{len(missing)} mode(s) with no L1 case: {missing}"
