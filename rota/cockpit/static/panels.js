@@ -41,7 +41,57 @@ async function showNode(id) {
   const n = GV.graph.nodes.find(x=>x.id===id);
   if (!n) return;
   showTab('detail');
+  // With a case open, clicking a node asks about *this case*, not about the
+  // design in general. The design view is one click away and always was; what
+  // was missing is the answer to "what did this case put here".
+  if (GV.source==='case' && CASE_ID) return showCaseNode(id, n);
   return n.type==='role' ? showRole(id) : showArtefact(id);
+}
+
+function showCaseNode(id, n){
+  const c = CASES.find(x=>x.id===CASE_ID);
+  const back = `<div class="link" onclick="showCase('${CASE_ID}')">&larr; ${esc(c.id)}</div>`;
+
+  if (n.type === 'role') {
+    const mine = e => e[0]===id;
+    document.getElementById('phead').innerHTML =
+      back + `<h2>${esc(n.label)}</h2><span class="sig">in ${esc(c.id)},
+        mode <b>${esc(c.mode)}</b></span>`;
+    document.getElementById('pbody').innerHTML = `
+      <h4>required of it</h4>${edgeList(c.edges.required.filter(mine),'req')}
+      <h4>forbidden to it</h4>${edgeList(c.edges.forbidden.filter(mine),'forb')}
+      <h4>everything the mode offers</h4>${edgeList(c.edges.offered.filter(mine))}
+      <p class="sig link" onclick="showRole('${id}')">read its composed prompt &rarr;</p>`;
+    return;
+  }
+
+  const seeded = (c.situation.seeded||[]).find(sd=>sd.artefact===id);
+  const expected = Object.entries((c.expect||{}).writes||{});
+  const denied = ((c.forbidden||{}).writes||[]);
+  const rows = seeded ? seeded.sample.map(r=>
+    `<pre>${esc(JSON.stringify(r,null,1))}</pre>`).join('') : '';
+
+  document.getElementById('phead').innerHTML =
+    back + `<h2>${esc(n.label)}</h2><span class="sig">${
+      seeded ? `${seeded.rows} row(s) seeded across ${esc(seeded.tables.join(', '))}`
+             : 'nothing seeded here'}</span>`;
+  document.getElementById('pbody').innerHTML = `
+    <h4>seeded by the case</h4>
+    ${rows || '<p class="empty">no rows — this artefact is scenery for this case</p>'}
+    <h4>expected of it</h4>
+    ${expected.length ? expected.map(([t,spec])=>
+        `<div class="row"><span class="tag req">write</span> ${esc(t)}
+         <span class="sig">${esc(JSON.stringify(spec))}</span></div>`).join('')
+      : '<p class="empty">nothing</p>'}
+    <h4>forbidden</h4>
+    ${denied.length ? denied.map(t=>
+        `<div class="row"><span class="tag forb">write</span> ${esc(t)}</div>`).join('')
+      : '<p class="empty">nothing</p>'}
+    ${(c.situation.links||[]).some(l=>l[0]===id||l[1]===id)
+      ? `<h4>linked</h4>` + (c.situation.links||[]).filter(l=>l[0]===id||l[1]===id)
+          .map(l=>`<div class="row">${esc(l[0])} <span class="sig">&rarr;</span>
+             ${esc(l[1])} <span class="sig">${esc(l[2])}</span></div>`).join('')
+      : ''}`;
 }
 
 // ---------------------------------------------------------------- roles
@@ -528,7 +578,6 @@ async function loadCases(){
           <span class="sig">${score}</span></div>`;}).join('')).join('');
   document.querySelectorAll('.crow').forEach(
     r => r.onclick = () => showCase(r.dataset.case));
-  if(CASE_ID) showCase(CASE_ID);
 }
 
 function edgeList(edges, cls){
@@ -547,6 +596,7 @@ function showCase(id){
   // waking; `required` and `forbidden` are what the case asserts on top, and
   // the distinction between those two is the readable one on a picture.
   GV.caseEdges = c.edges;
+  GV.caseSituation = c.situation;
   GV.source = 'case';
   const sel = document.getElementById('gsrc');
   if(sel && !sel.querySelector('option[value=case]'))
@@ -567,6 +617,7 @@ function showCase(id){
 
   showTab('detail');
   document.getElementById('phead').innerHTML =
+    `<div class="link" onclick="showTab('cases')">&larr; all cases</div>` +
     `<h2>${esc(c.id)}</h2><span class="sig">${esc(c.tier)} · ${esc(c.role)}` +
     `${c.second?' → '+esc(c.second):''} · ${esc(c.mode)} · needs ` +
     `${c.threshold}/${c.runs}${c.repo?' · real checkout':''}` +

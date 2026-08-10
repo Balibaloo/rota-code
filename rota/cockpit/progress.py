@@ -290,7 +290,7 @@ def _situation(case: dict, g) -> dict:
                         links.append(pair)
 
     return {"seeded": sorted(seeded.values(), key=lambda e: e["artefact"]),
-            "links": links}
+            "links": links, "roles": []}
 
 
 def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
@@ -390,6 +390,9 @@ def cases(dev_db: Path | None = None) -> list[dict]:
                 else fixtures.mode_of(case))
         second = case["then"]["role"] if chain else None
 
+        situation = _situation(case, g)
+        situation["roles"] = [r for r in (role, second) if r]
+
         edges = _edges_for(role, mode, case, g)
         if chain:
             second_mode = fixtures.mode_of({**case["then"],
@@ -407,7 +410,7 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             "onboarded": bool((case.get("repo") or {}).get("onboard")),
             "refs": case.get("refs") or [],
             "inbound": case.get("inbound") or {},
-            "situation": _situation(case, g),
+            "situation": situation,
             "expect": case.get("expect") or {},
             "forbidden": case.get("forbidden") or {},
             "edges": edges,

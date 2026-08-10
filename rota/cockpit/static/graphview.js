@@ -189,11 +189,15 @@ const gvSteps = () =>
 
 function gvLit() {
   const lit=new Map();
-  // A case lights three ways at once, because a case is as much about the
-  // edges it forbids as the ones it demands, and on a picture that distinction
-  // is the one worth being able to see without reading.
+  // A case lights what it *instantiates*, plus what it asserts on top.
+  //
+  // The first version lit the edges the mode offered, which is a picture of
+  // what the role could do -- identical for every case in that mode. What a
+  // case is actually about is the rows it seeds and how they hang together, and
+  // the `refs` edges between two seeded artefacts are only drawn where the
+  // seeded data really references seeded data.
   if (GV.source==='case' && GV.caseEdges) {
-    (GV.caseEdges.offered||[]).forEach(e=>lit.set(ek(e),'past'));
+    (GV.caseSituation?.links||[]).forEach(([a,b])=>lit.set(`${a}|${b}|refs`,'seeded'));
     (GV.caseEdges.required||[]).forEach(e=>lit.set(ek(e),'now'));
     (GV.caseEdges.forbidden||[]).forEach(e=>lit.set(ek(e),'forbidden'));
     return lit;
@@ -303,6 +307,7 @@ function drawTeam() {
       if (state==='covered'){op=.8;w=2;}
       else if (uncovered.has(key)){op=.42;col=STATE.gap;w=1.5;}
     } else if (state==='now'){op=1;w=3.2;}
+    else if (state==='seeded'){op=.85;w=2.2;col=STATE.blast;}
     else if (state==='forbidden'){op=.95;w=2.4;col=STATE.gap;}
     else if (state==='past'){op=.42;w=1.8;}
     if (GV.focus) op = incident?Math.max(op,.95):.05;
@@ -365,9 +370,20 @@ function drawTeam() {
     const k=kindOf(n), sh=SHAPE[k];
     let dim = GV.focus && n.id!==GV.focus &&
       !GV.graph.edges.some(e=>(e.s===GV.focus&&e.t===n.id)||(e.t===GV.focus&&e.s===n.id));
-    const ring = ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
+    // In case mode the situation *is* the picture: an artefact with rows is
+    // part of what the case set up, and one without is scenery. Everything not
+    // in the situation dims, so the shape of the case reads without a caption.
+    const seeded = GV.source==='case' && GV.caseSituation
+      ? new Set([...(GV.caseSituation.seeded||[]).map(x=>x.artefact),
+                 ...(GV.caseSituation.roles||[])])
+      : null;
+    if (seeded) dim = !seeded.has(n.id);
+
+    const ring = seeded && seeded.has(n.id) ? STATE.blast
+      : ready.has(n.id)?STATE.ready : claimed[n.id]?STATE.live
       : blast&&blast.has(n.id)?STATE.blast : sh.stroke;
-    const hot = ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
+    const hot = (seeded && seeded.has(n.id))
+      || ready.has(n.id)||claimed[n.id]||(blast&&blast.has(n.id));
 
     // Key hover selects nodes the same way it selects edges — by kind, or by
     // the state ring they are currently wearing.
