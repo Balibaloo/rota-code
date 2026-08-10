@@ -337,7 +337,7 @@ class CaseResult:
         return out
 
 
-def _with_repo(conn, case: dict, db_path: Path):
+def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
     """
     A real checkout, a worktree for the batch, and a diff to judge.
 
@@ -351,7 +351,12 @@ def _with_repo(conn, case: dict, db_path: Path):
 
     spec = case["repo"]
     root = Path(db_path).parent
-    repo = gitfixture.make(root, name=f"{case.get('id', 'case')}_repo")
+    # Per *run*, not per case. Five runs of a chain share one temporary
+    # directory, so a repo named for the case alone is the same path each
+    # time -- and a second `create` over an existing checkout commits nothing,
+    # which git calls an error. The failure surfaced as "nothing to commit,
+    # working tree clean" from a fixture that builds perfectly on its own.
+    repo = gitfixture.make(root, name=f"{case.get('id', 'case')}_{run_no}_repo")
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(repo.root),))
 
@@ -454,7 +459,8 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
-    repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None
+    repo = (_with_repo(conn, case, Path(db_path), run_no)
+            if case.get("repo") else None)
 
     inbound = case.get("inbound") or {}
     msg_id = inbound.get("id", "m_in")
@@ -525,7 +531,8 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
 
     conn = init_db(db_path)
     seed(conn, case.get("fixture") or {})
-    repo = _with_repo(conn, case, Path(db_path)) if case.get("repo") else None
+    repo = (_with_repo(conn, case, Path(db_path), run_no)
+            if case.get("repo") else None)
 
     first, then = case["first"], case["then"]
     problems: list[str] = []
@@ -553,6 +560,9 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         problems.append(
             f"{first['role']} never messaged {then['role']}; sent "
             f"{[(m['to_role'], m['verb']) for m in a_delta.messages] or 'nothing'}")
+        if repo is not None:
+            from . import gitfixture as _gf
+            _gf.cleanup(repo)
         return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
                           problems=problems, delta=a_delta, outcome=a_out)
 
