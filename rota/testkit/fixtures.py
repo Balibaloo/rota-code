@@ -207,6 +207,18 @@ def check(case: dict, delta: Delta) -> list[str]:
         if role in delta.recipients():
             problems.append(f"forbidden message to {role}")
 
+    # Verb-granular, because role-granular could not say what several cases
+    # need. Liaison confirming a segmentation to the principal is required;
+    # Liaison *clarifying* to them unprompted is the failure. Forbidding the
+    # recipient forbids both, and a case that cannot separate them either
+    # passes a real fault or fails correct behaviour.
+    for spec in forbidden.get("messages") or []:
+        for m in delta.messages:
+            if (m["to_role"] == spec.get("to", m["to_role"])
+                    and m["verb"] == spec.get("verb", m["verb"])):
+                problems.append(
+                    f"forbidden message {m['verb']} to {m['to_role']}")
+
     for table in forbidden.get("versions") or []:
         if table in delta.versions_moved:
             problems.append(f"forbidden version bump on {table}")

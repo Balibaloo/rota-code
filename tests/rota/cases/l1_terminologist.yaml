@@ -1,0 +1,87 @@
+# L1 — Terminologist. One meaning per word, and the discipline of finding a
+# collision by looking rather than by being told.
+
+- id: L1-TE-amend-glossary
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  fixture:
+    entries:
+      - {id: e1, author: principal, text: "let users delete their account", ts_order: 1}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 30,
+         text: "let users delete their account", status: ratified}
+  inbound: {from: liaison, to: terminologist, verb: deliver, body_refs: [s1]}
+  expect:
+    writes:
+      glossary_terms: {count: ">=1"}
+  forbidden:
+    # Terms, not scope. What the software should do is Gatekeeper's.
+    writes: [items, tickets, statements]
+
+- id: L1-TE-specify-criteria
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  tick: criteria
+  fixture:
+    items:
+      - {id: i1, text: "users can delete their account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: tk1, item_id: i1, text: "add a delete button to the account page"}
+    glossary_terms:
+      - {id: g1, term: account, sense_short: "the login identity",
+         provenance: decided}
+  expect:
+    writes:
+      criteria: {count: ">=1"}
+  forbidden:
+    # Criteria are written *in* glossary terms; writing the term at the same
+    # time would be defining the word to suit the criterion.
+    writes: [tickets, items]
+
+- id: L1-TE-answer-a-term-question
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  fixture:
+    glossary_terms:
+      - {id: g1, term: account, sense_short: "the login identity",
+         provenance: decided}
+      - {id: g2, term: account, sense_short: "the billing entity that owes money",
+         provenance: decided}
+  inbound: {from: developer, to: terminologist, verb: question, body_refs: [g1]}
+  expect:
+    messages:
+      - {to: developer, verb: answer, count: 1}
+  forbidden:
+    # Two senses is the answer. Resolving the collision by deleting one would be
+    # a decision, and a decision needs a reason on file and somebody asking for
+    # it — neither of which is in this session.
+    writes: [glossary_terms]
+
+- id: L1-TE-challenge-an-unusable-item
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  fixture:
+    items:
+      - {id: i1, text: "make the thing work properly", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: tk1, item_id: i1, text: "make the thing work properly"}
+  inbound: {from: liaison, to: terminologist, verb: ask, body_refs: [i1]}
+  mode: readonly
+  expect:
+    messages:
+      - {to: liaison, verb: answer, count: 1}
+  forbidden:
+    # Readonly. The sandbox builds no write functions at all in this mode, so
+    # this is belt and braces on a guarantee that already holds structurally.
+    writes: [glossary_terms, criteria]
+    versions: [glossary_terms]

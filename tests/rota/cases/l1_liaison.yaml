@@ -1,0 +1,87 @@
+# L1 — Liaison. The only role that sees the principal, and the one most likely
+# to fail by being helpful: interpreting, summarising, or inventing a question.
+# The `forbidden:` blocks here carry most of the weight.
+
+- id: L1-LI-segment
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  fixture:
+    entries:
+      - {id: e_m_in, author: principal, ts_order: 1,
+         text: "morning. we need SSO, but only if it works with our LDAP"}
+  inbound: {from: principal, to: liaison, verb: converse, body_refs: []}
+  expect:
+    writes:
+      statements: {count: ">=1"}
+  forbidden:
+    # Recording is mechanical and already done — a second entry is the
+    # fabrication this cost a session to learn about. And segmenting is not
+    # interpreting: no items, no glossary.
+    writes: [entries, items, glossary_terms]
+    recipients: [gatekeeper, terminologist, architect]
+
+- id: L1-LI-ratify
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  fixture:
+    entries:
+      - {id: e1, author: principal, text: "let people export their invoices", ts_order: 1}
+    statements:
+      - {id: s1, span_entry: e1, span_start: 0, span_end: 32,
+         text: "let people export their invoices", status: proposed}
+  inbound: {from: principal, to: liaison, verb: verdict, body_refs: [s1]}
+  expect:
+    writes:
+      statements: {count: ">=1"}
+  forbidden:
+    # Ratifying is a status flag, not new material.
+    writes: [entries, items]
+
+- id: L1-LI-present-for-signoff
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  fixture:
+    items:
+      - {id: i1, text: "users can delete their account", kind: in_scope,
+         provenance: decided, approval: draft, version: 1}
+      - {id: i2, text: "deleted accounts keep their invoices", kind: out_of_scope,
+         provenance: decided, approval: draft, version: 1}
+  inbound: {from: gatekeeper, to: liaison, verb: submit, body_refs: [i1, i2]}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1}
+  forbidden:
+    # Presenting is not deciding. Liaison never sets approval — that is
+    # Gatekeeper applying the principal's ruling, one hop later.
+    writes: [items, statements]
+
+- id: L1-LI-no-report-no-question
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  fixture:
+    entries:
+      - {id: e_m_in, author: principal, ts_order: 1,
+         text: "make the dashboard better, you know what I mean"}
+  inbound: {from: principal, to: liaison, verb: converse, body_refs: []}
+  expect:
+    writes:
+      statements: {count: ">=1"}
+  forbidden:
+    # Vague, and no role has reported a blocker. Segment it and confirm the
+    # segmentation — that is the L1 gate and it is required. What must not
+    # happen is *clarify*: a vague statement is not Liaison's problem to solve,
+    # and asking about it is inventing a question nobody raised.
+    #
+    # The first version of this case forbade every message to the principal,
+    # which also forbade the confirm. It failed 0/5 on correct behaviour.
+    messages:
+      - {to: principal, verb: clarify}
+    writes: [entries, items]

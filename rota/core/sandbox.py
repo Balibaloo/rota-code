@@ -91,9 +91,15 @@ def validate_args(fn: Callable, kwargs: dict,
         return (f"unexpected argument(s) {unknown}; "
                 f"accepts ({_render_signature(fn)})")
 
+    # `is None` as well as absent. A native tool call can send an explicit null
+    # for a required field, which passes a presence check and then dies at the
+    # database — `criteria.ticket_id` NOT NULL, inside the transaction, taking
+    # the session with it. A required argument that arrived null is a missing
+    # argument, and it should come back as the tool error it is.
     missing = sorted(
         name for name, p in sig.parameters.items()
-        if p.default is inspect.Parameter.empty and name not in kwargs
+        if p.default is inspect.Parameter.empty
+        and (name not in kwargs or kwargs[name] is None)
     )
     if missing:
         return f"missing required argument(s) {missing}; accepts ({_render_signature(fn)})"
