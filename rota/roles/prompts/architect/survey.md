@@ -29,11 +29,17 @@ name what breaks for them. "A future maintainer" and "the test suite" are inside
 not outside — if that is the best answer available, you have not found one, and
 `none_found` is what you should be writing instead.
 
+**Being woken for an area is not evidence that the area contains one.** The
+scheduler offers every area to every surveyor because it cannot know in advance
+which hold commitments; deciding that is the job. On a well-known protocol
+library, three or four areas out of twelve had one. The rest were `none_found`,
+and that was the correct survey of them.
+
 `surveys.attest` closes the area with citations naming the grains you read. You
-do not name the area; you were woken for it. It
-is the last thing you do — one attestation per area, and the session ends with
-it. `none_found` is a real answer and this is the mode where it is most often the
-right one.
+do not name the area; you were woken for it. It is the last thing you do — one
+attestation per area, and the session ends with it. `none_found` is a real answer
+and this is the mode where it is most often the right one; it costs you nothing
+and closes the area exactly as firmly.
 
 **You must attest before the session ends, and the session ends when you stop
 emitting calls.** An area you read and did not attest is an area nobody surveyed:

@@ -474,6 +474,38 @@ def surveys_attest(ctx: Ctx, outcome: str,
         raise ValueError(
             "no area: attesting closes the area you were woken for, and this "
             "session was not woken for one")
+
+    # The outcome has to match what the session actually did.
+    #
+    # The brief says most code is not a constraint and that `none_found` is most
+    # often the right answer here. Architect returned `constraints_found` for ten
+    # of eleven areas of a repository holding three or four real external
+    # commitments -- and eight of those eleven constraints were a headline with
+    # no body. Not dishonesty: being woken *for an area* is a demand, and the two
+    # outcomes cost exactly the same, so one of them looks more like work.
+    #
+    # So they stop costing the same. Finding something means having written
+    # something, with a body on it; finding nothing stays free. The asymmetry is
+    # the point, because the honest answer is the one we need to be cheap.
+    findings = [(t, v) for t, _id, v in ctx.writes
+                if t in ("constraints", "glossary_terms", "items")]
+    if outcome == "constraints_found":
+        if not findings:
+            raise ValueError(
+                "you attested `constraints_found` and wrote nothing this "
+                "session. Write what you found, or attest `none_found` -- which "
+                "is a real answer and the commonest right one in this mode.")
+        thin = [v.get("headline") or v.get("term")
+                for t, v in findings
+                if t == "constraints" and not (v.get("text") or "").strip()]
+        if thin and len(thin) == len([1 for t, _ in findings if t == "constraints"]):
+            raise ValueError(
+                f"every constraint you wrote this session is a headline with "
+                f"nothing under it ({', '.join(map(str, thin))}). A title cannot "
+                f"be checked, argued with or satisfied -- say what the "
+                f"commitment is and who outside would notice, or attest "
+                f"`none_found`.")
+
     id = f"{ctx.role}:{area}"
     ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
     unknown = []
@@ -499,15 +531,25 @@ def surveys_consult(ctx: Ctx) -> list[dict]:
     One row per area, not per record. Three roles survey every area, so this
     returned 3N rows of bookkeeping — 3,900 characters of "role X did area Y" in
     every survey prompt on oauthlib, crowding out the material the session was
-    woken to read. What a surveyor needs from it is which areas are done and
-    which came back empty, and that is one row each.
+    woken to read.
+
+    **The verdicts are gone from it, and that is the point.** It used to carry
+    each area's outcome, so by area nine a session was looking at eight siblings
+    that all said `constraints_found` — on a repository with three or four real
+    external commitments in it. That is not context, it is a norm, and the
+    artefact built to let sessions compound was teaching each one what the
+    answer around here is. Ten of eleven areas duly found something.
+
+    What compounds legitimately is what was *found*: the constraints themselves
+    through `model.consult`, the terms through `glossary.consult`. Those are the
+    findings. "Nine other people concluded something" is not a finding, and a
+    session that has read the source does not need to be told the mood.
     """
     rows = _rows(ctx.conn.execute(
-        "SELECT area, GROUP_CONCAT(SUBSTR(id, 1, INSTR(id, ':') - 1)) AS by_role, "
-        "       GROUP_CONCAT(DISTINCT outcome) AS outcomes "
+        "SELECT area, GROUP_CONCAT(SUBSTR(id, 1, INSTR(id, ':') - 1)) AS by_role "
         "FROM survey_records GROUP BY area ORDER BY area"))
     return [{"area": r["area"], "surveyed_by": sorted((r["by_role"] or "").split(",")),
-             "outcome": r["outcomes"]} for r in rows]
+             } for r in rows]
 
 
 # ---------------------------------------------------------------------------

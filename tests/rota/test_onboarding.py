@@ -741,3 +741,82 @@ def test_a_genuinely_finished_onboarding_is_still_quiescent(project):
                        (f"{role}:{area}", area, "none_found"))
 
     assert [w for w in frontier(db) if w.kind == "tick:survey"] == []
+
+
+def test_finding_something_costs_more_than_finding_nothing(project):
+    """
+    The two outcomes used to cost exactly the same, and one of them looks more
+    like work.
+
+    Architect returned `constraints_found` for ten of eleven areas of a
+    repository holding three or four real external commitments, and eight of
+    those eleven constraints were a headline with no body. Not dishonesty: being
+    woken *for an area* is a demand, the brief's "most code is not a constraint"
+    is prose, and prose loses to structure every time.
+
+    So the asymmetry becomes real. Claiming a finding means having written one,
+    with a body on it. `none_found` stays free, because the honest answer is the
+    one that has to be cheap.
+    """
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+
+    with pytest.raises(ValueError, match="wrote nothing"):
+        sb.call("surveys.attest", outcome="constraints_found")
+
+    sb.call("surveys.attest", outcome="none_found")
+    assert any(t == "survey_records" for t, _, _ in sb.ctx.writes), \
+        "finding nothing must still close the area"
+
+
+def test_a_constraint_with_no_body_cannot_be_attested_as_a_finding(project):
+    """A title is not a finding. Eight of eleven were titles."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+    sb.call("code.source", path="src/billing/charges.py")
+
+    sb.call("model.amend", headline="Billing Commitment",
+            bindings=["src/billing/charges.py"])
+    with pytest.raises(ValueError, match="nothing under it"):
+        sb.call("surveys.attest", outcome="constraints_found")
+
+    sb.call("model.amend", headline="Billing Commitment",
+            text="Charges are idempotent per request id; a payment processor "
+                 "retrying a timeout must not be charged twice.",
+            bindings=["src/billing/charges.py"])
+    sb.call("surveys.attest", outcome="constraints_found")
+
+
+def test_a_surveyor_is_not_shown_what_its_peers_concluded(project):
+    """
+    By area nine a session was looking at eight siblings that all said
+    `constraints_found`. That is not context, it is a norm, and the artefact
+    built to let sessions compound was teaching each one the answer.
+
+    What compounds legitimately is what was *found* — the constraints through
+    `model.consult`, the terms through `glossary.consult`. "Nine other people
+    concluded something" is not a finding.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    for i, area in enumerate(("src/auth", "src/catalog")):
+        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
+                   (f"architect:{area}", area, "constraints_found"))
+
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+    rows = sb.call("surveys.consult")
+    assert rows, "the surveyor should still see which areas are done"
+    assert all("outcome" not in r for r in rows), \
+        f"peer verdicts are still being shown: {rows[0]}"
