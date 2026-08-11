@@ -456,3 +456,49 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     second = backend.calls[2][1]
     assert "unchanged since you asked" in second, "the repeat was re-rendered in full"
     assert len(second) - len(first) < 400, "the repeat cost nearly as much as the first"
+
+
+def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):
+    """
+    The push was raw while every requested result was capped.
+
+    `code.survey` on icalendar's `src/icalendar` — 1,357 of that repository's
+    1,731 grains in a single area — arrived in the opening prompt as 198,366
+    characters, about 49,000 tokens against a 12,288 window. The prompt was four
+    times the context before the session took a turn; Ollama cut it from the
+    front, the brief went with it, and twenty-five sessions read three things
+    and stopped without ever attempting to attest.
+
+    The identical call costs 6,086 characters when the model asks for it. One
+    rule for how much of anything a session sees, and this is the path where it
+    matters more, because nobody chose to fetch it.
+    """
+    from rota.core.runner import RESULT_CHARS, build_prompt
+    from rota.core.sandbox import build as build_sandbox
+
+    huge = {"grains": [f"src/pkg/module_{i:04d}.py" for i in range(4000)]}
+    sb = build_sandbox("gatekeeper", db)
+    _, user = build_prompt("gatekeeper", sb, wake_gatekeeper(),
+                           {"code.survey": huge}, "brief")
+
+    assert len(user) < RESULT_CHARS * 3, \
+        f"the pushed working set is uncapped: {len(user):,} characters"
+    assert "TRUNCATED" in user, "it was cut without saying so"
+
+
+def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
+    """
+    `_fit` kept `transcript[0]` whole unconditionally — and the wake is where
+    the pushed working set lives, so the one block that could overflow the
+    window on its own was the one block never trimmed. Protecting it is right
+    until it is the problem.
+    """
+    from rota.core.runner import _fit
+
+    fitted = _fit(["WAKE " + "x" * 50_000, "turn 1", "turn 2", "turn 3"],
+                  budget=12_000)
+
+    assert sum(len(b) + 2 for b in fitted) <= 12_000 * 1.5, "still overflowing"
+    assert fitted[0].startswith("WAKE "), "the wake lost its head, not its tail"
+    assert "did not fit" in fitted[0], "the wake was cut silently"
+    assert fitted[-1] == "turn 3", "the latest exchange was dropped instead"

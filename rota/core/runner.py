@@ -157,7 +157,19 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             "\nAlready run for you, with the results below. Calling any of these "
             "again returns the same thing and costs you a turn:")
         for key, value in pushed.items():
-            body.append(f"\n[{key}]\n{json.dumps(value, indent=2, default=str)}")
+            # Through the same cap a *requested* result goes through. The push
+            # was raw, so `code.survey` on icalendar's `src/icalendar` -- 1,357
+            # of the repository's 1,731 grains in one area -- arrived as 198,366
+            # characters, roughly 49,000 tokens against a 12,288 window. The
+            # prompt was four times the context before the session took a turn,
+            # Ollama cut it from the front, the brief went with it, and
+            # twenty-five sessions read three things and stopped.
+            #
+            # The same call costs 6,086 characters when the model asks for it.
+            # One rule for how much of anything a session sees, whether it asked
+            # or not -- and this is the path where it matters more, because
+            # nobody chose to fetch it.
+            body.append(f"\n[{key}]\n{_render(value)}")
     return system, "\n".join(body)
 
 
@@ -207,6 +219,14 @@ FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)"
                                re.MULTILINE)
 
 
+def _render_cut(text: str, limit: int) -> str:
+    """Cut, saying so. The same contract `_render` keeps for a tool result."""
+    if len(text) <= limit:
+        return text
+    return (text[:limit] + f"\n... the rest of your wake ({len(text) - limit:,} "
+            f"characters) did not fit the window. Ask for what you need.")
+
+
 def _fit(transcript: list[str], budget: int) -> list[str]:
     """
     Keep the session inside its window, evicting the middle rather than the front.
@@ -226,6 +246,13 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     """
     if sum(len(t) + 2 for t in transcript) <= budget or len(transcript) < 4:
         return transcript
+
+    # The wake is kept whole *unless it alone will not fit*, which it can be:
+    # the pushed working set lives in it, and on a 1,357-grain area that was
+    # 198,366 characters. Protecting it unconditionally meant the one block that
+    # could overflow the window on its own was the one block never trimmed.
+    if len(transcript[0]) > budget // 2:
+        transcript = [_render_cut(transcript[0], budget // 2)] + transcript[1:]
 
     head, tail = transcript[:1], transcript[-2:]
     room = budget - sum(len(t) + 2 for t in head + tail)
