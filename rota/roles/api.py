@@ -285,6 +285,28 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
 def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
                 bindings: list[str] | None = None,
                 ) -> dict:
+    """
+    Write a constraint, and the grains it governs.
+
+    Constraint zero is not one of them. Its bindings are *derived* — exactly the
+    areas nobody has surveyed — and the scheduler recomputes them from the survey
+    records every time one lands, so that the binding cannot drift from the
+    evidence. A role writing them is writing scheduler-owned state.
+
+    Refused rather than ignored, because ignoring it produced a livelock nobody
+    could see from inside a session: an Architect survey bound a grain onto
+    constraint zero, `tick_constraint_zero` noticed the bindings no longer
+    matched the unsurveyed set and recomputed them away, the next Architect
+    session bound it again, and the two alternated forever. Both were committing.
+    Both were productive. Nothing was progressing.
+    """
+    from ..onboarding import boot
+
+    if id == boot.ZERO:
+        raise ValueError(
+            f"{boot.ZERO} is derived: its bindings are the areas nobody has "
+            f"surveyed, and a survey record is what shrinks it. Write your own "
+            f"constraint for what you found.")
     ctx.writes.append(("constraints", id, {
         "headline": headline, "text": text, "provenance": ctx.provenance,
         "is_global": 0 if bindings else 1}))

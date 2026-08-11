@@ -159,6 +159,14 @@ def step(
     # `_perform` directly.
     for wake in ready:
         if wake.role in ("", SCHEDULER) or wake.kind.startswith("do:"):
+            # Counted like any other dispatch. Returning early here meant
+            # scheduler actions were exempt from the attempt bound, and one of
+            # them promptly needed it: an Architect kept binding a grain onto
+            # constraint zero, this kept recomputing it away, and the two
+            # alternated sixty times. Bounded, it would have stopped at three.
+            from .scheduler import note_dispatch
+
+            note_dispatch(conn, wake)
             result.wake = wake
             result.note = _perform(conn, wake)
             result.productive = True

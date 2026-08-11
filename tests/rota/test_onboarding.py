@@ -481,3 +481,48 @@ def test_one_role_finishes_every_area_before_the_next_begins(project):
     boot.onboard(db, repo.root)
 
     assert {w.role for w in tick_survey(db)} == {SURVEY_ORDER[0]}
+
+
+def test_no_role_can_bind_a_grain_onto_constraint_zero(project):
+    """
+    Its bindings are derived — exactly the areas nobody has surveyed — and the
+    scheduler recomputes them whenever a survey lands, so the binding cannot
+    drift from the evidence.
+
+    Ignoring a role's write here produced a livelock nothing could see from
+    inside a session: an Architect survey bound a grain onto constraint zero,
+    `tick_constraint_zero` recomputed it away, the next Architect session bound
+    it again, and the two alternated sixty times. Both committed. Both were
+    productive. Nothing progressed.
+    """
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+
+    with pytest.raises(ValueError, match="derived"):
+        sb.call("model.amend", id=boot.ZERO, headline="x", bindings=["src/billing"])
+
+
+def test_a_scheduler_action_is_bounded_like_any_other(project):
+    """Returning early from the dispatch loop exempted scheduler actions from the
+    attempt bound, and one of them promptly needed it."""
+    from rota.core.loop import step
+    from rota.core.scheduler import tick_key
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    area = db.execute(
+        "SELECT area FROM code_index WHERE area IS NOT NULL LIMIT 1").fetchone()["area"]
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "(?, ?, 'none_found')", (f"terminologist:{area}", area))
+
+    result = step(db, principal_present=False)
+
+    assert result.wake.kind == "tick:constraint_zero"
+    assert db.execute(
+        "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+        (tick_key(result.wake),)).fetchone()["attempts"] == 1
