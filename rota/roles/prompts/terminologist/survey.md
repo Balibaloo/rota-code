@@ -23,3 +23,10 @@ thing you do — one attestation per area, and the session ends with it. Citatio
 checked against the index, so "surveyed, found nothing" is evidence rather than a
 claim — which matters, because "none found" everywhere is exactly how an area
 with real commitments in it gets skipped.
+
+**You must attest before the session ends, and the session ends when you stop
+emitting calls.** An area you read and did not attest is an area nobody surveyed:
+the scheduler waits on the record, not on the reading, so it will wake somebody
+for this same area again and again with nothing to show for it. If your budget is
+running short, attest with what you have — a thin survey that closes is worth
+more than a thorough one that does not.

@@ -102,7 +102,7 @@ def step(
     pins: llm.Pins | None = None,
     principal: PrincipalBackend | None = None,
     principal_present: bool = True,
-    max_iterations: int = 8,
+    max_iterations: int | None = None,
 ) -> Step:
     """
     One iteration: offer pending asks to the principal, then wake one role.
@@ -111,6 +111,15 @@ def step(
     the frontier is computed — otherwise the system would look quiescent while
     holding a reply it had not read yet.
     """
+    # One number, in one place. The loop defaulted to 8 while the runner's own
+    # cap was 12, so a session dispatched by the scheduler got a third less
+    # budget than the same session run by a case -- and survey sessions, which
+    # are the longest, were the ones that ran out.
+    if max_iterations is None:
+        from .runner import MAX_ITERATIONS
+
+        max_iterations = MAX_ITERATIONS
+
     result = Step()
 
     # Intake lands whether or not the system is dispatching. Recording what the

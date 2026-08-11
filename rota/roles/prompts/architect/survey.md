@@ -24,3 +24,10 @@ outside this repository would notice it being broken, it is not one.
 is the last thing you do — one attestation per area, and the session ends with
 it. `none_found` is a real answer and this is the mode where it is most often the
 right one.
+
+**You must attest before the session ends, and the session ends when you stop
+emitting calls.** An area you read and did not attest is an area nobody surveyed:
+the scheduler waits on the record, not on the reading, so it will wake somebody
+for this same area again and again with nothing to show for it. If your budget is
+running short, attest with what you have — a thin survey that closes is worth
+more than a thorough one that does not.

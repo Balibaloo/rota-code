@@ -148,7 +148,13 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                     else "\nThe message that woke you:")
         body.append(json.dumps(inbound, indent=2, default=str))
     if pushed:
-        body.append("\nYour working set:")
+        # Say that these have *already run*. Without it a survey session spent
+        # four of its eight turns calling `code.survey` again -- the results were
+        # in front of it and it re-fetched them, then ran out of budget before
+        # attesting, which is what left `tick_survey` undrained on a real repo.
+        body.append(
+            "\nAlready run for you, with the results below. Calling any of these "
+            "again returns the same thing and costs you a turn:")
         for key, value in pushed.items():
             body.append(f"\n[{key}]\n{json.dumps(value, indent=2, default=str)}")
     return system, "\n".join(body)
