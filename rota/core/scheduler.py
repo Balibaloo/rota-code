@@ -498,8 +498,21 @@ def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake
     live = {tick_key(w) for w in ready}
     for row in conn.execute("SELECT tick_key FROM tick_attempts").fetchall():
         if row["tick_key"] not in live:
-            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
-                         (row["tick_key"],))
+            # Except an abandoned one, which is absent *because* it was
+            # abandoned. `tick_survey` reads this table and stops producing what
+            # it finds quarantined, so deleting the row put the wake straight
+            # back on the frontier at one attempt -- quarantine erasing its own
+            # evidence, three correct rules composing into a cycle.
+            #
+            # icalendar ran 131 sessions inside it and stopped at the session
+            # limit rather than at quiescence, its counter reading `attempts=1`
+            # after some hundred and twenty dispatches of that one key.
+            #
+            # "No longer produced" and "no longer *allowed* to be produced" are
+            # indistinguishable from the ready list, and only the first is a
+            # reason to drop the debt.
+            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ? "
+                         "AND quarantined = 0", (row["tick_key"],))
 
     stalled = {r["tick_key"] for r in conn.execute(
         "SELECT tick_key FROM tick_attempts WHERE attempts >= ?", (cap,))}

@@ -778,6 +778,61 @@ def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
         f"the next role was never offered its areas: {sorted({w.role for w in ready})}"
 
 
+def test_quarantine_does_not_erase_its_own_evidence(project):
+    """
+    Three rules, each correct alone, forming a cycle that reset the counter to 1
+    forever.
+
+    Quarantining stops `tick_survey` producing the wake — it reads the table and
+    skips what it finds there. `quarantine_stalled` then forgets counts for keys
+    that are no longer in the ready list. And forgetting the count is what
+    un-quarantines the wake, so the next call produces it again at one.
+
+    icalendar spent 131 sessions in that cycle and stopped at the session limit
+    rather than at quiescence. Its `tick_attempts` held a single row reading
+    `attempts = 1` after roughly a hundred and twenty dispatches of that exact
+    key: the counter was not stuck, it was being deleted and recreated. The
+    bound built to stop this loop was the thing feeding it.
+
+    The distinction the delete could not make: "no longer produced" and "no
+    longer *allowed* to be produced" look identical from the ready list, and
+    only the first is a reason to drop the debt.
+
+    Asking once cannot see this, which is why the two tests above it did not.
+    """
+    from rota.core import config
+    from rota.core.scheduler import (SURVEY_ORDER, frontier, note_dispatch,
+                                     tick_key)
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    first = SURVEY_ORDER[0]
+    areas = [r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area")]
+    for area in areas[1:]:
+        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
+                   (f"{first}:{area}", area, "none_found"))
+
+    stuck = next(w for w in frontier(db) if w.kind == "tick:survey")
+    for _ in range(config.get(db, "tick_attempt_cap")):
+        note_dispatch(db, stuck)
+
+    for _ in range(4):
+        frontier(db)
+
+    row = db.execute(
+        "SELECT attempts, quarantined FROM tick_attempts WHERE tick_key = ?",
+        (tick_key(stuck),)).fetchone()
+    assert row, \
+        "the debt was deleted, so the next frontier call re-offers the same " \
+        "wake at attempts=1 and the bound can never be reached"
+    assert row["quarantined"] == 1, "abandonment has to survive being looked at"
+
+    assert not any(w == stuck for w in frontier(db)), \
+        "an abandoned survey came back"
+
+
 def test_a_genuinely_finished_onboarding_is_still_quiescent(project):
     """The recompute must not invent work. Two empty passes mean empty."""
     from rota.core.scheduler import SURVEY_ORDER, frontier

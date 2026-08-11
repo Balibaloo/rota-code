@@ -178,6 +178,19 @@ def test_a_tick_that_cannot_drain_is_eventually_quarantined(tmp_path):
     assert not any(w == wake for w in frontier(db)), \
         "past the cap it should stop being dispatched"
 
+    # And on every later call, which is the half that was missing. Asking once
+    # cannot tell a wake that is gone from a wake that is about to come back.
+    for _ in range(3):
+        assert not any(w == wake for w in frontier(db)), \
+            "an abandoned tick came back: quarantine is not terminal"
+
+
+    # A contradiction tick keeps being *produced* while the statement stands, so
+    # it stays in the ready list and its count is never forgotten. A survey tick
+    # does not — `tick_survey` reads the quarantine table and stops producing
+    # what it finds there, which is the case that breaks. See
+    # `test_quarantine_does_not_erase_its_own_evidence` in test_onboarding.
+
 
 def test_abandoning_a_tick_is_never_silent(tmp_path):
     """Quiescence means "no predicate fires". A tick quietly dropped would make
@@ -198,12 +211,20 @@ def test_a_tick_that_keeps_making_progress_is_never_bounded(tmp_path):
     """The bound is on dispatch *without* progress. A Developer bouncing on a red
     harness is the loop working, and the counter resets the moment the wake stops
     being produced — which is what draining looks like from out here."""
+    from rota.core import config
     from rota.core.db import init_db
     from rota.core.scheduler import Wake, frontier, note_dispatch
 
     db = init_db(tmp_path / "rota.db")
     wake = Wake("developer", "tick:tests_failing", refs=("b1",))
-    for _ in range(9):
+
+    # Under the bound, which is the state this test is about. It used to dispatch
+    # nine times against a cap of three -- a state the scheduler cannot reach,
+    # since `quarantine_overrun` fires at the cap on the next frontier call. It
+    # passed only because the count was then deleted regardless of quarantine,
+    # which was the bug: a wake abandoned at three and one that drained at two
+    # both left an empty table, so the table could not tell them apart.
+    for _ in range(config.get(db, "tick_attempt_cap") - 1):
         note_dispatch(db, wake)
 
     frontier(db)          # the wake is no longer produced, so the count clears
