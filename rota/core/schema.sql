@@ -430,7 +430,14 @@ CREATE TABLE IF NOT EXISTS claims (
 CREATE TABLE IF NOT EXISTS tick_attempts (
     tick_key    TEXT PRIMARY KEY,      -- role + kind + refs
     attempts    INTEGER NOT NULL DEFAULT 0,
-    quarantined INTEGER NOT NULL DEFAULT 0
+    quarantined INTEGER NOT NULL DEFAULT 0,
+    -- Whether the principal has been told. Without it the quarantine report is
+    -- itself a dead end: `tick_quarantined` counts abandoned things, nothing
+    -- clears the count, so it fires every pass forever -- and on the first
+    -- foreign repository it was bounded by the very mechanism it exists to
+    -- report, three sessions in. A report that cannot be discharged is not a
+    -- report, it is an alarm nobody can switch off.
+    reported    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS receipts (

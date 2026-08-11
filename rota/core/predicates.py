@@ -602,7 +602,8 @@ def quarantined(conn) -> list[Wake]:
         "SELECT COUNT(*) n FROM messages WHERE status = 'quarantined'").fetchone()["n"]
     try:
         n += conn.execute(
-            "SELECT COUNT(*) n FROM tick_attempts WHERE quarantined = 1"
+            "SELECT COUNT(*) n FROM tick_attempts "
+            "WHERE quarantined = 1 AND reported = 0"
         ).fetchone()["n"]
     except Exception:                 # a database older than the table
         pass

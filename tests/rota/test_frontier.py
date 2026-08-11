@@ -210,3 +210,54 @@ def test_a_tick_that_keeps_making_progress_is_never_bounded(tmp_path):
 
     assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
         "a wake that stopped being produced should leave no debt behind"
+
+
+def test_an_abandoned_area_lets_the_role_move_on(tmp_path):
+    """
+    Eleven of twelve areas surveyed and the frontier went empty. The twelfth was
+    quarantined by the attempt bound, which left it permanently *outstanding* --
+    so the Terminologist never finished, and the Architect never started.
+
+    Abandonment has to be terminal, not an invisible hole. It is recorded, it is
+    reported to the principal, and the work behind it carries on.
+    """
+    from rota.core.db import init_db
+    from rota.core.scheduler import SURVEY_ORDER, tick_survey
+
+    db = init_db(tmp_path / "rota.db")
+    for area in ("a", "b"):
+        db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                   "VALUES (?, 'path', ?)", (f"{area}/x.py", area))
+    first = SURVEY_ORDER[0]
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?, 'b', "
+               "'none_found')", (f"{first}:b",))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 9, 1)", (f"{first}|tick:survey|a",))
+
+    roles = {w.role for w in tick_survey(db)}
+    assert first not in roles, "an abandoned area must not hold its role open"
+    assert roles == {SURVEY_ORDER[1]}, "the next role should have started"
+
+
+def test_telling_the_principal_discharges_the_telling(tmp_path):
+    """
+    `tick_quarantined` counted abandoned things and nothing cleared the count, so
+    it fired every pass forever -- and on the first foreign repository it was
+    bounded by the very mechanism it exists to report, three sessions in.
+
+    A report that cannot be discharged is not a report, it is an alarm nobody can
+    switch off.
+    """
+    from rota.core import predicates as P
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('terminologist|tick:survey|a', 9, 1)")
+
+    assert P.REGISTRY["quarantined"].fn(db), "it should fire while undischarged"
+
+    db.execute("UPDATE tick_attempts SET reported = 1")
+
+    assert not P.REGISTRY["quarantined"].fn(db), \
+        "once the principal has been told, it must stop firing"

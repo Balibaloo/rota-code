@@ -248,10 +248,26 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     if not areas:
         return []
 
+    # An abandoned area is settled, not outstanding. Without this the role never
+    # advances: one area quarantined by the attempt bound stays outstanding
+    # forever, so Terminologist never "finishes" and Architect never starts.
+    # Eleven of twelve areas surveyed and the frontier went empty.
+    #
+    # Abandonment being a *terminal* state rather than an invisible hole is the
+    # point. It is recorded, it is reported to the principal, and the work behind
+    # it carries on — which is what distinguishes a bound from a stall.
+    abandoned = {
+        r["tick_key"].split("|", 2)[2]: r["tick_key"].split("|", 2)[0]
+        for r in conn.execute(
+            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+            "AND tick_key LIKE '%|tick:survey|%'")
+    }
+
     for role in SURVEY_ORDER:
         outstanding = [
             area for area in areas
-            if not conn.execute(
+            if abandoned.get(area) != role
+            and not conn.execute(
                 "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",
                 (area, f"{role}:%"),
             ).fetchone()["n"]

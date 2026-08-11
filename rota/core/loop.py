@@ -208,6 +208,12 @@ def step(
     if result.outcome.committed:
         res = result.outcome.result
         result.productive = bool(res and (res.writes or res.messages))
+        if result.wake.kind == "tick:quarantined":
+            # Said out loud, so stop saying it. The alternative is an alarm that
+            # cannot be switched off, which is how this predicate ended up
+            # bounded by the mechanism it exists to report.
+            conn.execute("UPDATE tick_attempts SET reported = 1 "
+                         "WHERE quarantined = 1")
         result.cascaded = [str(w) for w in cascade_wakes(conn, result.outcome.session_id)]
     else:
         release(conn, result.wake.role)
