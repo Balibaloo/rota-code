@@ -165,6 +165,8 @@ def test_audit_runs_every_check_and_a_clean_run_is_silent(db, tmp_path):
     (tmp_path / "signature.py").write_text(
         "# RFC 5849 section 3.4.1.1\ndef base_string(): ...\n", encoding="utf-8")
     _constraint(db, "c1", "The signature base string follows RFC 5849 3.4.1",
+                text="Normalisation order is byte-exact; peers reject a "
+                     "signature built any other way.",
                 bindings=["signature.py"])
     _term(db, "nonce", "nonce",
           "a value the server stores and rejects on repeat, guarding replay")
@@ -194,3 +196,61 @@ def test_constraint_zero_is_not_judged_as_if_a_role_wrote_it(db):
     brief = "You are looking for a commitment. Name the area you surveyed."
     assert artefacts.echoes_the_brief(db, brief) == []
     assert artefacts.audit(db, ".", brief=brief) == []
+
+
+def test_a_file_path_is_not_a_glossary_term(db):
+    """
+    Fourteen of twenty-six terms in the second oauthlib run were paths. That is
+    the index copied into the glossary with the columns relabelled.
+
+    `restates_the_index` should have caught them and did not, which is the more
+    useful half: it compares a definition against its term, and when the term
+    *is* the path, the definition's prose reads as novel content. A check aimed
+    at the definition cannot see a fault in the subject.
+    """
+    _term(db, "p1", "oauth1/rfc5849/errors.py",
+          "OAuth 1.0 protocol implementation error handling")
+    _term(db, "p2", "oauth1/rfc5849/endpoints/access_token.py::AccessTokenEndpoint",
+          "OAuth 1.0 access token endpoint class")
+    _term(db, "ok", "nonce",
+          "a value the server stores and rejects on repeat, guarding replay")
+
+    assert artefacts.restates_the_index(db) == [], \
+        "if this now fires, the new check is redundant rather than complementary"
+    caught = {f.row_id for f in artefacts.a_term_is_a_word(db)}
+    assert caught == {"p1", "p2"}
+
+
+def test_a_constraint_with_no_body_is_a_title(db):
+    """
+    Eight of eleven in the second run, including the one bound to
+    `signature.py::sign_hmac_sha256_with_client` — it read the right file, under
+    a rule that made it read, and wrote a title. Reading was made compulsory;
+    saying something was not.
+    """
+    _constraint(db, "c1", "OAuth1 RFC5849 Signature Methods Commitment", text="")
+    _constraint(db, "c2", "Base string is byte-exact",
+                text="Normalisation order per RFC 5849 3.4.1.3.2; peers reject "
+                     "a signature built any other way.")
+
+    caught = {f.row_id for f in artefacts.a_constraint_needs_a_body(db)}
+    assert caught == {"c1"}
+
+
+def test_a_number_living_in_the_path_is_not_invented(db, tmp_path):
+    """
+    The audit's own false positive: "6749 absent from
+    oauth2/rfc6749/endpoints/base.py". It is the RFC number and it is right
+    there in the directory name. A check that accuses has to be right.
+    """
+    d = tmp_path / "oauth2" / "rfc6749" / "endpoints"
+    d.mkdir(parents=True)
+    (d / "base.py").write_text("class BaseEndpoint: pass\n", encoding="utf-8")
+
+    _constraint(db, "c1", "Endpoints follow RFC 6749",
+                bindings=["oauth2/rfc6749/endpoints/base.py"])
+    _constraint(db, "c2", "Tokens are retained 30 days",
+                bindings=["oauth2/rfc6749/endpoints/base.py"])
+
+    found = {f.row_id for f in artefacts.numbers_not_in_source(db, tmp_path)}
+    assert found == {"c2"}, "the RFC number in the path was read as an invention"

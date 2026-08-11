@@ -180,13 +180,22 @@ def numbers_not_in_source(conn: sqlite3.Connection, root: Path) -> list[Finding]
         bound = [b["grain"] for b in conn.execute(
             "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
             (r["id"],))]
-        corpus = ""
+        # The path counts as source. "6749" was reported invented against
+        # `oauth2/rfc6749/endpoints/base.py`, where it is the RFC number and it
+        # is right there in the directory name -- a false positive on the one
+        # check that most needs to be trusted, since it accuses.
+        corpus = " ".join(bound)
         for grain in bound:
             f = root / grain.split("::", 1)[0]
             if f.is_file():
                 corpus += f.read_text(encoding="utf-8", errors="replace")
+        # A maximal run of digits, not a word boundary. `\b6749\b` does not match
+        # inside `rfc6749` -- `c` to `6` is not a boundary -- which is why an RFC
+        # number sitting in its own directory name was reported as an invention.
+        # Digits either side still disqualify, so a file containing 300 does not
+        # vouch for a claim about 30.
         missing = sorted(n for n in claimed
-                         if not re.search(rf"\b{re.escape(n)}\b", corpus))
+                         if not re.search(rf"(?<!\d){re.escape(n)}(?!\d)", corpus))
         if missing and bound:
             out.append(Finding("number-not-in-source", "constraints", r["id"],
                                f"{r['headline']!r} claims {', '.join(missing)}, "
@@ -240,10 +249,60 @@ def unbacked_citations(conn: sqlite3.Connection) -> list[Finding]:
     return out
 
 
+def a_term_is_a_word(conn: sqlite3.Connection) -> list[Finding]:
+    """
+    A glossary term is a word. A file path has no sense to define.
+
+    Fourteen of twenty-six terms in the second oauthlib run were paths:
+    `oauth1/rfc5849/errors.py` defined as "OAuth 1.0 protocol implementation
+    error handling", `oauth1/rfc5849/endpoints/base.py` as "OAuth 1.0 protocol
+    implementation base endpoint class". That is the index copied into the
+    glossary with the columns relabelled.
+
+    `restates_the_index` should have caught them and did not, which is the more
+    useful half of this. It compares a definition against its term, and when the
+    term *is* the path, the definition's prose reads as novel content. A check
+    aimed at the definition cannot see a fault in the subject.
+    """
+    out = []
+    for r in conn.execute("SELECT id, term FROM glossary_terms"):
+        term = (r["term"] or "").strip()
+        looks_like_a_path = (
+            "/" in term or "\\" in term or "::" in term
+            or re.search(r"\.[a-z]{1,4}$", term))
+        if looks_like_a_path:
+            out.append(Finding("term-is-a-path", "glossary_terms", r["id"],
+                               f"{term!r} is a location, not a word with a sense"))
+    return out
+
+
+def a_constraint_needs_a_body(conn: sqlite3.Connection) -> list[Finding]:
+    """
+    A headline alone cannot be checked, argued with, or satisfied.
+
+    Eight of eleven constraints in the second run had no text at all, including
+    the one bound to `signature.py::sign_hmac_sha256_with_client` — the session
+    read the right file, under a rule that made it read, and then wrote a title.
+    Reading was made compulsory; saying something was not.
+
+    Cheap to check and impossible to satisfy by accident, which is the property
+    wanted: a role can pad a headline from the names in front of it, and cannot
+    pad a body from them without the emptiness being obvious.
+    """
+    out = []
+    for r in _authored(conn, "SELECT id, headline, text FROM constraints "
+                             "WHERE id != ? AND (text IS NULL OR TRIM(text) = '')"):
+        out.append(Finding("constraint-has-no-body", "constraints", r["id"],
+                           f"{r['headline']!r} is a title with nothing under it"))
+    return out
+
+
 def audit(conn: sqlite3.Connection, root: Path, brief: str = "") -> list[Finding]:
     """Every check, in the order a reader should meet them."""
     out = list(duplicated(conn))
+    out += a_constraint_needs_a_body(conn)
     out += numbers_not_in_source(conn, Path(root))
+    out += a_term_is_a_word(conn)
     out += restates_the_index(conn)
     out += unbacked_citations(conn)
     if brief:
