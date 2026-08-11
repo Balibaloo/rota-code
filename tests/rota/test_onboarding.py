@@ -681,3 +681,63 @@ def test_the_survey_ledger_is_one_row_per_area(project):
 
     assert len(rows) == 1, "one row per area, not per record"
     assert sorted(rows[0]["surveyed_by"]) == ["architect", "gatekeeper", "terminologist"]
+
+
+def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
+    """
+    Quiescence that meant abandonment, which is the one failure this design is
+    arranged against.
+
+    Quarantining is a write, and the wake list is computed before it. On the pass
+    where an area is abandoned, `all_wakes` still holds its wake — `tick_survey`
+    could not know it was about to be quarantined — and `quarantine_stalled`
+    then removes it and returns empty. Empty is exactly what quiescence looks
+    like, so the run stopped: eleven of twelve areas surveyed by Architect, one
+    abandoned, and Gatekeeper's entire pass of twelve never offered. The system
+    reported itself finished having done two thirds of the work.
+
+    Calling `frontier` a second time returned thirteen wakes, which is both how
+    it was found and what the fix does.
+    """
+    from rota.core import config
+    from rota.core.scheduler import (SURVEY_ORDER, frontier, note_dispatch,
+                                     tick_key)
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    first, second = SURVEY_ORDER[0], SURVEY_ORDER[1]
+    areas = [r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area")]
+    assert len(areas) >= 2, "needs two areas to show one starving the next"
+
+    # Close every area for the first role but one, then stall that one past the
+    # bound so it is quarantined on the very next frontier call.
+    for area in areas[1:]:
+        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
+                   (f"{first}:{area}", area, "none_found"))
+    stuck = next(w for w in frontier(db) if w.kind == "tick:survey")
+    assert stuck.role == first
+    for _ in range(config.get(db, "tick_attempt_cap")):
+        note_dispatch(db, stuck)
+
+    ready = frontier(db)
+    assert ready, "the frontier reported quiescence with a whole role's work undone"
+    assert any(w.role == second for w in ready), \
+        f"the next role was never offered its areas: {sorted({w.role for w in ready})}"
+
+
+def test_a_genuinely_finished_onboarding_is_still_quiescent(project):
+    """The recompute must not invent work. Two empty passes mean empty."""
+    from rota.core.scheduler import SURVEY_ORDER, frontier
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    areas = [r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")]
+    for role in SURVEY_ORDER:
+        for area in areas:
+            db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
+                       (f"{role}:{area}", area, "none_found"))
+
+    assert [w for w in frontier(db) if w.kind == "tick:survey"] == []

@@ -346,6 +346,24 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     """
     from .predicates import all_wakes
 
+    # Abandonment settles *before* the question is asked, not after it.
+    #
+    # Quarantining is a write, and the wake list used to be computed first. On
+    # the pass where an area was abandoned, `all_wakes` still held its wake —
+    # `tick_survey` had no way to know it was about to be quarantined — and
+    # `quarantine_stalled` then removed it and returned empty. Empty is what
+    # quiescence looks like, so onboarding stopped with eleven of twelve areas
+    # done by Architect, one abandoned, and Gatekeeper's entire pass of twelve
+    # never offered. Calling `frontier` a second time returned thirteen wakes,
+    # which is how it was found.
+    #
+    # Recomputing only when the first pass came back empty was not enough: the
+    # frontier is rarely empty, so the same staleness hid behind any other wake
+    # that happened to be ready. Marking the overrun up front means `tick_survey`
+    # sees the abandonment it is supposed to skip past, in the pass where it
+    # happens. The bound was always doing its job; the answer to "what is ready"
+    # was computed against the state before it did.
+    quarantine_overrun(conn)
     return quarantine_stalled(
         conn, all_wakes(conn, principal_present=principal_present))
 
@@ -442,6 +460,26 @@ def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
 def clear_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
     """The wake is gone, so whatever it was owed got paid. Forget the count."""
     conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?", (tick_key(wake),))
+
+
+def quarantine_overrun(conn: sqlite3.Connection) -> int:
+    """
+    Mark everything past the attempt bound as abandoned. Returns how many.
+
+    Separated from `quarantine_stalled` because it needs no wake list — "has
+    this been dispatched more than the cap allows" is answered by the counter
+    alone — and because the *order* turned out to matter. Deciding abandonment
+    after computing what is ready means the answer was computed against a world
+    where the area was still outstanding, and `tick_survey` sequences roles by
+    exactly that. One area stuck at the bound made the whole next role invisible.
+    """
+    from . import config
+
+    cur = conn.execute(
+        "UPDATE tick_attempts SET quarantined = 1 "
+        "WHERE attempts >= ? AND quarantined = 0",
+        (config.get(conn, "tick_attempt_cap"),))
+    return cur.rowcount or 0
 
 
 def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake]:
