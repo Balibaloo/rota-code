@@ -207,6 +207,43 @@ FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)"
                                re.MULTILINE)
 
 
+def _fit(transcript: list[str], budget: int) -> list[str]:
+    """
+    Keep the session inside its window, evicting the middle rather than the front.
+
+    Raising the result cap to 6000 fixed what the model was shown in one turn and
+    broke what it was shown across several. One round of an Architect's four
+    survey reads is 12,947 characters; the opening prompt is another 13,500. By
+    the third round the transcript passed 12,288 tokens, and an overflowing
+    prompt is cut *from the front* -- which is where the brief lives. The
+    instruction "you must attest before the session ends" was the first thing
+    evicted, and ten of twelve areas closed while two spun for sixty sessions
+    reading and never attesting.
+
+    So the wake survives, the latest exchange survives, and what goes is the
+    middle -- older tool results the session has already acted on. Announced
+    rather than silently dropped, for the same reason a cut result says so.
+    """
+    if sum(len(t) + 2 for t in transcript) <= budget or len(transcript) < 4:
+        return transcript
+
+    head, tail = transcript[:1], transcript[-2:]
+    room = budget - sum(len(t) + 2 for t in head + tail)
+    middle: list[str] = []
+    for block in reversed(transcript[1:-2]):
+        if room - len(block) - 2 < 0:
+            break
+        middle.insert(0, block)
+        room -= len(block) + 2
+
+    dropped = len(transcript) - len(head) - len(middle) - len(tail)
+    if not dropped:
+        return transcript
+    return head + [f"[{dropped} earlier exchange(s) dropped to fit the window. "
+                   f"Your instructions and your latest results are intact; "
+                   f"re-read anything you still need.]"] + middle + tail
+
+
 def _render(result: Any) -> str:
     """A tool result as the model sees it, saying plainly when it was cut."""
     text = json.dumps(result, default=str)
@@ -480,8 +517,14 @@ def run_session(
         # is not mistaken for asking a fresh question. See the hold logic below.
         already_run: set[str] = set()
 
+        # Four characters to the token is the same rough measure the cockpit
+        # uses. Two thirds of the window, because the system prompt is charged
+        # against the same budget and the reply needs room to land.
+        budget = max(2000, (pins.num_ctx * 4 * 2) // 3 - len(system))
+
         for iteration in range(1, max_iterations + 1):
             outcome.iterations = iteration
+            transcript = _fit(transcript, budget)
             completion = backend.complete(system, "\n\n".join(transcript), pins)
             outcome.completions.append(completion.text)
             if getattr(completion, "truncated", False):
@@ -550,9 +593,21 @@ def run_session(
                 seen_read = seen_read or fresh_read
 
                 try:
+                    repeat = key in already_run
                     already_run.add(key)
                     result = sb.call(call.name, *call.pos, **call.args)
-                    feedback.append(f"OK {call.name} -> {_render(result)}")
+                    if repeat:
+                        # The stalled sessions asked `surveys.consult` three
+                        # times and `glossary.consult` twice, and each copy paid
+                        # full freight into a transcript that was already
+                        # overflowing. The answer has not changed -- nothing the
+                        # session did could have changed it -- so say so in a
+                        # line rather than in four thousand characters.
+                        feedback.append(
+                            f"OK {call.name} -> unchanged since you asked "
+                            f"earlier this session; the answer is above.")
+                    else:
+                        feedback.append(f"OK {call.name} -> {_render(result)}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")

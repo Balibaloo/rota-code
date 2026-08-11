@@ -398,3 +398,61 @@ def test_a_genuinely_new_read_still_holds_the_action(db):
         "a write ran on the strength of a read the session had not seen"
     _, user = backend.calls[1]
     assert "NOT RUN" in user
+
+
+def test_the_transcript_is_trimmed_from_the_middle_not_the_front(db):
+    """
+    Raising the result cap fixed one turn and broke several.
+
+    One round of an Architect's four survey reads is 12,947 characters and the
+    opening prompt is another 13,500, so by the third round the transcript
+    passed a 12,288-token window. An overflowing prompt is cut *from the front*,
+    which is where the brief lives: "you must attest before the session ends"
+    was the first thing evicted. Ten of twelve areas closed and two spun for
+    sixty sessions, reading and never attesting.
+
+    The wake and the latest exchange are what a session needs; the middle is
+    what it has already acted on.
+    """
+    from rota.core.runner import _fit
+
+    wake = "WAKE: you are surveying src/billing"
+    blocks = [wake] + [f"turn {i} " + "x" * 4000 for i in range(1, 7)]
+    fitted = _fit(blocks, budget=12000)
+
+    assert fitted[0] == wake, "the wake was evicted; the role no longer knows its job"
+    assert fitted[-2:] == blocks[-2:], "the latest exchange was dropped"
+    assert any("dropped to fit" in b for b in fitted), "the loss is silent"
+    assert sum(len(b) + 2 for b in fitted) <= 12000 + len(fitted[1])
+
+
+def test_a_transcript_that_fits_is_left_exactly_alone(db):
+    from rota.core.runner import _fit
+
+    blocks = ["wake", "a", "b", "c"]
+    assert _fit(blocks, budget=100_000) == blocks
+
+
+def test_asking_the_same_read_twice_does_not_pay_twice(db):
+    """
+    The stalled sessions called `surveys.consult` three times and
+    `glossary.consult` twice, each copy paying full freight into a transcript
+    that was already overflowing. Nothing the session did could have changed the
+    answer, so the second telling is a line, not four thousand characters.
+    """
+    for i in range(20):
+        db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
+                   (f"i{i:02d}", "scope " + "detail " * 8, "in_scope", "decided"))
+
+    backend = ScriptedBackend([
+        "TOOL: problem.consult()",
+        "TOOL: problem.consult()",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+
+    first = backend.calls[1][1]
+    second = backend.calls[2][1]
+    assert "unchanged since you asked" in second, "the repeat was re-rendered in full"
+    assert len(second) - len(first) < 400, "the repeat cost nearly as much as the first"
