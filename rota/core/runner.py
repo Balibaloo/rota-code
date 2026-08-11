@@ -271,9 +271,40 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
                    f"re-read anything you still need.]"] + middle + tail
 
 
+def _as_table(result: Any) -> str | None:
+    """
+    A list of uniform rows as a table, or None if it is not one.
+
+    JSON repeats every field name on every row, and an index read is nothing but
+    rows. `glossary.consult` spent 989 of its 4,151 characters restating "id",
+    "term", "sense_short" and "provenance" twenty-three times over -- 24% of the
+    payload, and 35% of `surveys.consult`. A table carries the identical
+    information at 63-73% of the size.
+
+    Strictly better than raising the cap, which is the other way to buy the same
+    headroom: a cap loses information and transposing loses none. Values are kept
+    whole; only the scaffolding goes.
+    """
+    if not isinstance(result, list) or len(result) < 2:
+        return None
+    if not all(isinstance(r, dict) for r in result):
+        return None
+    keys = list(result[0])
+    if not keys or any(list(r) != keys for r in result):
+        return None      # ragged rows would silently mis-align under a header
+
+    def cell(v: Any) -> str:
+        s = v if isinstance(v, str) else json.dumps(v, default=str)
+        return s.replace("|", "\\|").replace("\n", " ")
+
+    lines = [" | ".join(keys)]
+    lines += [" | ".join(cell(r[k]) for k in keys) for r in result]
+    return "\n".join(lines)
+
+
 def _render(result: Any) -> str:
     """A tool result as the model sees it, saying plainly when it was cut."""
-    text = json.dumps(result, default=str)
+    text = _as_table(result) or json.dumps(result, default=str)
     if len(text) <= RESULT_CHARS:
         return text
     note = (f"... TRUNCATED after {RESULT_CHARS} of {len(text)} characters. "

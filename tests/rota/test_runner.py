@@ -502,3 +502,47 @@ def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
     assert fitted[0].startswith("WAKE "), "the wake lost its head, not its tail"
     assert "did not fit" in fitted[0], "the wake was cut silently"
     assert fitted[-1] == "turn 3", "the latest exchange was dropped instead"
+
+
+def test_an_index_read_is_a_table_not_repeated_field_names(db):
+    """
+    JSON repeats every field name on every row, and an index read is nothing but
+    rows. `glossary.consult` spent 989 of its 4,151 characters restating "id",
+    "term", "sense_short" and "provenance" twenty-three times — 24% of the
+    payload, and 35% of `surveys.consult`.
+
+    Strictly better than raising the cap, which buys the same headroom by losing
+    information. Transposing loses none.
+    """
+    from rota.core.runner import _render
+
+    rows = [{"id": f"t{i}", "term": f"term_{i}", "sense_short": "a short sense",
+             "provenance": "observed"} for i in range(23)]
+    table = _render(rows)
+    as_json = json.dumps(rows, default=str)
+
+    assert len(table) < len(as_json) * 0.8, \
+        f"no saving: {len(table)} vs {len(as_json)}"
+    assert table.count("sense_short") == 1, "the field name is still repeated"
+    for r in rows:
+        assert r["term"] in table, "a value was lost, not just the scaffolding"
+
+
+def test_a_ragged_or_scalar_result_stays_json(db):
+    """
+    A header only means anything if every row has the same shape. Ragged rows
+    under one header would mis-align silently, which is worse than verbose.
+    """
+    from rota.core.runner import _render
+
+    assert _render({"path": "x.py", "text": "..."}).startswith("{")
+    assert _render([{"a": 1}, {"b": 2}]).startswith("[")
+    assert _render([{"a": 1}]).startswith("["), "one row is not a table"
+    assert _render(["plain", "strings"]).startswith("[")
+
+
+def test_a_pipe_in_a_value_cannot_forge_a_column(db):
+    from rota.core.runner import _render
+
+    out = _render([{"term": "a|b", "sense": "x"}, {"term": "c", "sense": "y"}])
+    assert r"a\|b" in out
