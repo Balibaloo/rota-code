@@ -100,19 +100,19 @@ def l2(g: graph_mod.Graph | None = None) -> list[Obligation]:
     return sorted(seen.values(), key=lambda o: o.id)
 
 
-def l3(g: graph_mod.Graph | None = None, *, interesting_only: bool = True
-       ) -> list[Obligation]:
+def l3(g: graph_mod.Graph | None = None) -> list[Obligation]:
     """
     One per two-edge chain: A sends to B, B then sends onward.
 
-    `interesting_only` keeps the chains where B's own action *changes an
-    artefact*. A chain that only relays tests the bus, which L1 already did;
-    the tier exists to ask whether the message vocabulary carries enough meaning
-    to coordinate strangers, and a relay carries none of it.
+    There used to be an `interesting_only` flag here, meant to drop chains where
+    B only relays — a relay tests the bus, which L1 already does, and the tier
+    exists to ask whether the message vocabulary carries enough to coordinate
+    strangers. It filtered nothing: it kept chains where B writes *some*
+    artefact, and every role writes some artefact. 311 either way, for as long as
+    it existed, while looking like a guard.
     """
     g = g or graph_mod.load()
     msgs = [e for e in g.of_type("messages") if e.s in g.roles or e.s == "principal"]
-    writes_of = {r: {e.t for e in g.of_type("writes") if e.s == r} for r in g.roles}
 
     out = []
     for first in msgs:
@@ -120,8 +120,6 @@ def l3(g: graph_mod.Graph | None = None, *, interesting_only: bool = True
             continue
         for second in msgs:
             if second.s != first.t:
-                continue
-            if interesting_only and not writes_of.get(second.s):
                 continue
             out.append(Obligation(
                 "L3", first.t,

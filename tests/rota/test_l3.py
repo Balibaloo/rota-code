@@ -22,7 +22,8 @@ from pathlib import Path
 import pytest
 
 from rota import paths
-from rota.llm.cassettes import RecordingBackend, open_dev_db, record_case_run
+from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
+                               open_dev_db, record_case_run)
 from rota.llm.llm import OllamaBackend, Pins
 from rota.testkit import fixtures
 
@@ -38,8 +39,8 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 PINS = Pins(model=MODEL, temperature=0.0)
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("ROTA_L1"),
-    reason="L3 hits a real model or its cassettes; set ROTA_L1=1 to run",
+    not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),
+    reason="no cassettes recorded; set ROTA_L1=1 to run against a model",
 )
 
 
@@ -58,6 +59,9 @@ def dev_db():
 
 @pytest.fixture
 def backend_factory(dev_db):
+    """Replay unless told otherwise — see the note in `test_l1.py`."""
+    if not os.environ.get("ROTA_L1"):
+        return lambda: ReplayOnlyBackend(dev_db)
     refresh = bool(os.environ.get("ROTA_REFRESH"))
     return lambda: RecordingBackend(
         OllamaBackend(timeout=300), dev_db, refresh=refresh)
@@ -78,6 +82,13 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     for r in results:
         record_case_run(dev_db, case["id"], PINS, r.run, r.passed,
                         r.problems, r.transcript())
+
+    # Unknown is not wrong — see the note in `test_l1.py`.
+    if any("no cassette" in p for r in results for p in r.problems):
+        pytest.fail(
+            f"STALE {case['id']}: no recording for the current prompt — this "
+            f"result is unknown, not bad. Re-earn it with\n"
+            f"    ROTA_L1=1 python -m pytest tests/rota/test_l3.py -q")
 
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"

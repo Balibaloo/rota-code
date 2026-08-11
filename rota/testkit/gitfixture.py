@@ -128,12 +128,39 @@ class SampleRepo:
         return removed
 
 
+_TEMPLATE: Path | None = None
+
+
+def _template() -> Path:
+    """
+    The sample project, built once per process and copied thereafter.
+
+    `create` spends its time in seventeen `git` subprocess spawns — init, two
+    configs, and seven staged commits — which is 1.9s on Windows, where process
+    creation costs far more than the work inside it. Function-scoped, that was
+    55 seconds of `test_onboarding.py` alone, for twenty-nine tests of which
+    exactly zero read a commit. The suite was not compute-bound and never looked
+    it: the CPU sat idle waiting on `CreateProcess`.
+
+    Copied rather than shared, because the tests write to their checkout. A copy
+    of a small repository is ~50ms and preserves the history the few tests that
+    do want it depend on, which `create(commits=False)` would have thrown away.
+    """
+    global _TEMPLATE
+    if _TEMPLATE is None or not _TEMPLATE.exists():
+        base = Path(tempfile.mkdtemp(prefix="rota_sample_template_"))
+        create(base / "sample")
+        _TEMPLATE = base / "sample"
+    return _TEMPLATE
+
+
 def make(tmp_path: Path, *, name: str = "sample") -> SampleRepo:
     """Build the sample project under `tmp_path` and hand back a handle."""
     if not is_temp_rooted(tmp_path):
         raise RuntimeError(
             f"the git fixture only builds under a temp directory, not {tmp_path}")
-    root = create(tmp_path / name)
+    root = tmp_path / name
+    shutil.copytree(_template(), root)
     repo = SampleRepo(root=root)
     repo._before = registered_worktrees(root)
     return repo
