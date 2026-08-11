@@ -483,17 +483,55 @@ def test_one_role_finishes_every_area_before_the_next_begins(project):
     assert {w.role for w in tick_survey(db)} == {SURVEY_ORDER[0]}
 
 
-def test_no_role_can_bind_a_grain_onto_constraint_zero(project):
+def test_the_same_constraint_written_twice_is_one_gate(project):
     """
-    Its bindings are derived — exactly the areas nobody has surveyed — and the
-    scheduler recomputes them whenever a survey lands, so the binding cannot
-    drift from the evidence.
+    24 constraints, 6 distinct headlines. "Retention period for client tokens"
+    eight times, each from a different area's session, each a separate row.
+
+    A duplicated glossary entry is clutter. A duplicated constraint is a
+    duplicated *gate*: every one of them enters range at review, every one has to
+    be satisfied or argued with, and satisfying the first does nothing for the
+    other seven. This is the same fault as the glossary's and it lands somewhere
+    that costs more.
+
+    The id was the role's to invent, so twelve sessions invented one apiece.
+    """
+    from rota.core import sandbox as sandbox_mod
+    from rota.core.db import _apply_write
+    from rota.core.runner import _as_write
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    headline = "Tokens expire after the issued lifetime"
+    for i, area in enumerate(("src/billing", "src/api")):
+        sb = sandbox_mod.build("architect", db, session_id=f"s{i}", area=area)
+        sb.call("model.amend", headline=headline, text=f"seen from {area}")
+        for staged in sb.ctx.writes:
+            _apply_write(db, _as_write(staged))
+
+    rows = db.execute("SELECT id, text FROM constraints WHERE headline=?",
+                      (headline,)).fetchall()
+    assert len(rows) == 1, f"one commitment, {len(rows)} gates: {[r['id'] for r in rows]}"
+    assert rows[0]["text"] == "seen from src/api", "the second session did not amend"
+
+
+def test_constraint_zero_is_unreachable_not_merely_refused(project):
+    """
+    Constraint zero's bindings are derived — exactly the areas nobody has
+    surveyed — and the scheduler recomputes them whenever a survey lands, so the
+    binding cannot drift from the evidence.
 
     Ignoring a role's write here produced a livelock nothing could see from
     inside a session: an Architect survey bound a grain onto constraint zero,
     `tick_constraint_zero` recomputed it away, the next Architect session bound
     it again, and the two alternated sixty times. Both committed. Both were
     productive. Nothing progressed.
+
+    That was guarded by checking an id the model supplied. With the id derived
+    there is no argument left to check, and the guard gets stronger for it:
+    reaching `k0` would take a headline that slugs to it, and the seeded headline
+    is refused by name. A check you cannot reach beats a check that says no.
     """
     import pytest
 
@@ -503,8 +541,12 @@ def test_no_role_can_bind_a_grain_onto_constraint_zero(project):
     boot.onboard(db, repo.root)
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
 
+    advertised = next(s for s in sb.signatures() if s.startswith("model.amend("))
+    assert "id" not in advertised, \
+        f"the id is the model's again, which is how twelve sessions invented twelve: {advertised}"
+
     with pytest.raises(ValueError, match="derived"):
-        sb.call("model.amend", id=boot.ZERO, headline="x", bindings=["src/billing"])
+        sb.call("model.amend", headline=boot.ZERO_HEADLINE, bindings=["src/billing"])
 
 
 def test_a_scheduler_action_is_bounded_like_any_other(project):

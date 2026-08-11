@@ -304,16 +304,30 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("model", "amend")
-def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
+def model_amend(ctx: Ctx, headline: str, text: str = "",
                 bindings: list[str] | None = None,
                 ) -> dict:
     """
     Write a constraint, and the grains it governs.
 
-    Constraint zero is not one of them. Its bindings are *derived* — exactly the
-    areas nobody has surveyed — and the scheduler recomputes them from the survey
-    records every time one lands, so that the binding cannot drift from the
-    evidence. A role writing them is writing scheduler-owned state.
+    The id derives from the headline, so writing the same commitment twice amends
+    it. It used to be the role's to invent, and on the first foreign repository
+    twelve sessions invented one apiece: 24 constraints carrying 6 distinct
+    headlines, "Retention period for client tokens" eight times over. A duplicate
+    glossary entry is clutter; a duplicate constraint is a duplicate *gate* —
+    each one enters range at review, each has to be satisfied or argued with, and
+    satisfying the first does nothing for the other seven.
+
+    A headline is authored prose, not a word, so there is no `sense=` escape here
+    and none is wanted: two commitments that genuinely differ have headlines that
+    differ. The cost is that correcting a headline writes a new row rather than
+    renaming the old one, which is the same trade the glossary makes.
+
+    Constraint zero cannot be reached at all now. Its bindings are *derived* —
+    exactly the areas nobody has surveyed — and the scheduler recomputes them
+    from the survey records every time one lands, so the binding cannot drift
+    from the evidence. That used to be a check on a supplied id; with no id to
+    supply, only its seeded headline could collide, and that is refused by name.
 
     Refused rather than ignored, because ignoring it produced a livelock nobody
     could see from inside a session: an Architect survey bound a grain onto
@@ -322,13 +336,19 @@ def model_amend(ctx: Ctx, id: str, headline: str, text: str = "",
     session bound it again, and the two alternated forever. Both were committing.
     Both were productive. Nothing was progressing.
     """
+    import re
+
     from ..onboarding import boot
 
-    if id == boot.ZERO:
+    slug = re.sub(r"[^a-z0-9]+", "_", headline.strip().lower()).strip("_")
+    if not slug:
+        raise ValueError("a constraint needs a headline with a word in it")
+    if slug == boot.ZERO or headline.strip().lower() == boot.ZERO_HEADLINE.lower():
         raise ValueError(
             f"{boot.ZERO} is derived: its bindings are the areas nobody has "
             f"surveyed, and a survey record is what shrinks it. Write your own "
             f"constraint for what you found.")
+    id = slug[:120]
     ctx.writes.append(("constraints", id, {
         "headline": headline, "text": text, "provenance": ctx.provenance,
         "is_global": 0 if bindings else 1}))
