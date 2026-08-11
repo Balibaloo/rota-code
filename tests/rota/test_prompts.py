@@ -233,6 +233,50 @@ def test_every_mode_narrows():
     assert not bare, f"{len(bare)} mode(s) with no tool list: {bare}"
 
 
+def test_no_brief_offers_a_menu_of_fillable_examples():
+    """
+    Illustrations are pedagogy for a capable reader and a template for a small
+    model with nothing else to work from.
+
+    Architect's survey brief said what a constraint looks like: "A retention
+    period. A boundary a piece of data may not cross. An interface something else
+    depends on. An ordering that another system relies on." Four illustrations,
+    well meant. Three of them came back as constraint headlines:
+
+        Retention period for client tokens   x8
+        Interface for client tokens          x3
+        Ordering for client tokens           x3
+
+    That is not a hallucination about OAuth. It is `<brief example>` + `<nearest
+    grain name>`, and it happened because the session had nothing else -- results
+    were being cut to 1200 characters, so the source never arrived and the only
+    material in the prompt was the grain list and these four phrases.
+
+    Both halves are fixed, and this pins the half that lives in the prose: a run
+    of three or more short bare noun phrases reads as a list to be completed. Say
+    what makes something a constraint, or give one worked example with its
+    reasoning attached -- but do not hand over a form.
+    """
+    import re
+
+    sentence = re.compile(r"[^.!?]+[.!?]")
+    menus = {}
+    for role in sorted(graph_mod.load().roles):
+        for mode in prompts.available(role):
+            flat = " ".join(prompts.piece(role, mode).replace("*", " ").split())
+            run, longest = [], []
+            for raw in sentence.findall(flat):
+                s = raw.strip()
+                if re.match(r"^(A|An)\s", s) and len(s) <= 70:
+                    run.append(s)
+                    longest = max(longest, run, key=len)
+                else:
+                    run = []
+            if len(longest) >= 3:
+                menus[f"{role}/{mode}"] = longest
+    assert not menus, "\n".join(f"{k}: {v}" for k, v in menus.items())
+
+
 def test_a_read_only_mode_offers_no_writes():
     """
     Three `ask` prompts told the model "you have no write functions in this

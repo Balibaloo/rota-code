@@ -5,10 +5,14 @@ them; a constraint expressed in vocabulary the glossary does not carry is one
 nobody downstream can check they are satisfying.
 
 `code.survey` for the area's grains and `code.source` for the ones that carry
-weight. What you are looking for is narrow and specific: **a commitment the code
-is keeping to something outside itself.** A retention period. A boundary a piece
-of data may not cross. An interface something else depends on. An ordering that
-another system relies on.
+weight. Read before you write. A constraint you could have composed from the
+grain list without opening anything is one you have not found yet — it will read
+like a category with a filename in it, and it will be wrong in a way nobody can
+check.
+
+What you are looking for is narrow and specific: **a commitment the code is
+keeping to something outside itself.** Not a category of commitment — the actual
+one, in the words the source uses, at the place it is kept.
 
 `model.amend` for each, `observed`, and `constraint_bindings` naming the grains
 it binds — because a constraint with no bindings never enters range at review
@@ -17,8 +21,13 @@ time and is a sentence nobody will ever read again.
 **Most code is not a constraint.** A pattern you would not have chosen, a layer
 that could be thinner, a name you dislike — none of those is a commitment to
 anything outside the codebase, and writing them up as constraints is how the
-review gate becomes noise that everybody learns to pass. If you cannot say who
-outside this repository would notice it being broken, it is not one.
+review gate becomes noise that everybody learns to pass.
+
+Before each `model.amend`, answer this to yourself: **who, outside this
+repository, would notice if this stopped being true, and how?** Name them and
+name what breaks for them. "A future maintainer" and "the test suite" are inside,
+not outside — if that is the best answer available, you have not found one, and
+`none_found` is what you should be writing instead.
 
 `surveys.attest` closes the area with citations naming the grains you read. You
 do not name the area; you were woken for it. It
