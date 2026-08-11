@@ -227,6 +227,20 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
 
     Sessions compound through artefacts, not context: area N's session consults
     its own artefact and sees everything areas 1..N-1 found.
+
+    **Every remaining area is offered, in order, not just the first.** It used to
+    return exactly one wake and `break`, which enforced the sequencing by having
+    nothing else to pick — and meant one area that could not close stopped
+    onboarding entirely. On the first foreign repository `oauth2/rfc6749/endpoints`
+    failed to attest three times, was quarantined by the attempt bound, and took
+    the seven areas behind it with it: five of twelve surveyed, frontier empty,
+    system reporting itself quiescent.
+
+    Ordering is preserved because the list is ordered and the loop takes the
+    first it can dispatch. The difference is that a stuck area is now *skipped*
+    rather than blocking, which is what the attempt bound was for — a bound that
+    withdraws one wake and thereby withdraws six others is not a bound, it is a
+    stall with a counter on it.
     """
     areas = [r["area"] for r in conn.execute(
         "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area"
@@ -234,19 +248,19 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     if not areas:
         return []
 
-    wakes = []
     for role in SURVEY_ORDER:
-        for area in areas:
-            done = conn.execute(
+        outstanding = [
+            area for area in areas
+            if not conn.execute(
                 "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",
                 (area, f"{role}:%"),
             ).fetchone()["n"]
-            if not done:
-                wakes.append(Wake(role, "tick:survey", refs=(area,)))
-                break            # one area at a time: they must see each other's output
-        if wakes:
-            break                # and one role at a time, in order
-    return wakes
+        ]
+        if outstanding:
+            # One role at a time, still: Terminologist finishes every area before
+            # Architect starts, because constraints are written in glossary terms.
+            return [Wake(role, "tick:survey", refs=(area,)) for area in outstanding]
+    return []
 
 
 def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:

@@ -439,3 +439,45 @@ def test_the_scheduler_action_is_reached_by_the_loop_not_just_callable(project):
     assert not db.execute(
         "SELECT 1 FROM constraint_bindings WHERE constraint_id = ? AND grain = ?",
         (boot.ZERO, area)).fetchone(), "the surveyed area should have been released"
+
+
+def test_one_stuck_area_does_not_block_the_rest(project):
+    """
+    `tick_survey` used to return exactly one wake and `break`, which enforced
+    sequencing by leaving nothing else to pick — and meant an area that could not
+    close stopped onboarding entirely. On oauthlib, `oauth2/rfc6749/endpoints`
+    failed to attest three times, was quarantined by the attempt bound, and took
+    the seven areas behind it with it: five of twelve surveyed, frontier empty,
+    system reporting itself quiescent.
+
+    A bound that withdraws one wake and thereby withdraws six others is not a
+    bound, it is a stall with a counter on it.
+    """
+    from rota.core.scheduler import frontier, note_dispatch, tick_survey
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    offered = tick_survey(db)
+    assert len(offered) > 1, "every outstanding area should be offered, in order"
+    assert [w.refs[0] for w in offered] == sorted(w.refs[0] for w in offered)
+
+    stuck = offered[0]
+    for _ in range(9):
+        note_dispatch(db, stuck)
+
+    live = [w for w in frontier(db) if w.kind == "tick:survey"]
+    assert live, "the areas behind a quarantined one must still be reachable"
+    assert stuck.refs[0] not in {w.refs[0] for w in live}
+
+
+def test_one_role_finishes_every_area_before_the_next_begins(project):
+    """Terms first: constraints are written in glossary terms, and a baseline
+    describes behaviour in those terms. Skipping a stuck area must not skip a
+    stuck *role*."""
+    from rota.core.scheduler import SURVEY_ORDER, tick_survey
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    assert {w.role for w in tick_survey(db)} == {SURVEY_ORDER[0]}
