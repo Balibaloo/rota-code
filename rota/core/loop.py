@@ -166,6 +166,12 @@ def step(
     # Developer woken by `tests_failing` or `verdict_failed` — both of which
     # carry the batch in `refs` — arrived with no worktree and could not reach
     # the code it had been woken to fix.
+    # Count this dispatch before it runs, so a session that crashes still
+    # spends an attempt. A tick that keeps being produced unchanged is the one
+    # shape law 4 had no bound for.
+    from .scheduler import note_dispatch
+
+    note_dispatch(conn, result.wake)
     batch_id = _batch_of(conn, result.wake)
     if result.wake.kind == "tick:batch_start" and batch_id:
         # The batch is running from the moment it is dispatched, not from

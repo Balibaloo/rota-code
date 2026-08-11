@@ -102,6 +102,16 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "pressure. An unlisted domain is not an error — the Researcher "
             "reports what it could not reach, like any other dead end."),
 
+    Setting("tick_attempt_cap", 3,
+            "Dispatches of the same tick, unchanged, before it is quarantined. "
+            "Law 4 bounds failure and bounded only messages until a real "
+            "repository found the hole: a survey session that never attested "
+            "left its predicate undrained, so the identical wake was produced "
+            "forever -- busy, committing, writing artefacts, and never reaching "
+            "area two of twelve. Worse than a dead end, which at least reports "
+            "quiescence. The counter resets the moment the wake stops being "
+            "produced, so a loop that is making progress is never touched."),
+
     Setting("run_state", "running",
             "running dispatches; stopping finishes what is running and "
             "dispatches nothing more; halted stops now. Resume is explicit.",

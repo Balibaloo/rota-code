@@ -316,7 +316,8 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     """
     from .predicates import all_wakes
 
-    return all_wakes(conn, principal_present=principal_present)
+    return quarantine_stalled(
+        conn, all_wakes(conn, principal_present=principal_present))
 
 
 def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:
@@ -378,6 +379,66 @@ def claim(conn: sqlite3.Connection, role: str, session_id: str,
 
 def release(conn: sqlite3.Connection, role: str) -> None:
     conn.execute("DELETE FROM claims WHERE role = ?", (role,))
+
+
+# ---------------------------------------------------------------------------
+# Bounded ticks. Law 4 bounds failure, and bounded only messages until a real
+# repository found the hole: a survey session that never attested left its
+# predicate undrained, so the identical wake was produced again, forever.
+#
+# The bound is on *dispatch without progress*, not on dispatch. A tick that fires
+# repeatedly while work lands is the loop working — Developer bouncing on a red
+# harness is exactly that — so the counter resets whenever the wake stops being
+# produced, which is what draining looks like from here.
+# ---------------------------------------------------------------------------
+
+def tick_key(wake: "Wake") -> str:
+    return f"{wake.role}|{wake.kind}|{','.join(wake.refs)}"
+
+
+def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
+    """Count one dispatch of this exact wake. Returns the new count."""
+    if not wake.kind.startswith("tick:"):
+        return 0                      # messages have their own bound already
+    key = tick_key(wake)
+    conn.execute(
+        "INSERT INTO tick_attempts (tick_key, attempts) VALUES (?, 1) "
+        "ON CONFLICT(tick_key) DO UPDATE SET attempts = attempts + 1", (key,))
+    return int(conn.execute(
+        "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+        (key,)).fetchone()["attempts"])
+
+
+def clear_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
+    """The wake is gone, so whatever it was owed got paid. Forget the count."""
+    conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?", (tick_key(wake),))
+
+
+def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake]:
+    """
+    Drop wakes that have been dispatched past the cap without draining, and
+    forget counts for wakes that are no longer being produced.
+
+    Abandonment is visible, not silent: `tick_quarantined` reports it, for the
+    same reason a quarantined message does. A system that quietly stopped trying
+    would report itself finished with the work undone, which is the one failure
+    this whole design is arranged against.
+    """
+    from . import config
+
+    cap = config.get(conn, "tick_attempt_cap")
+    live = {tick_key(w) for w in ready}
+    for row in conn.execute("SELECT tick_key FROM tick_attempts").fetchall():
+        if row["tick_key"] not in live:
+            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
+                         (row["tick_key"],))
+
+    stalled = {r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE attempts >= ?", (cap,))}
+    if stalled:
+        conn.execute(
+            "UPDATE tick_attempts SET quarantined = 1 WHERE attempts >= ?", (cap,))
+    return [w for w in ready if tick_key(w) not in stalled]
 
 
 # ---------------------------------------------------------------------------

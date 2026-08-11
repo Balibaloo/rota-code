@@ -413,6 +413,26 @@ CREATE TABLE IF NOT EXISTS claims (
     message_id  TEXT REFERENCES messages(id)
 );
 
+-- Law 4 bounds failure, and it used to bound it only for messages: a crashed
+-- session raises its trigger's attempt count and past `message_attempt_cap` the
+-- message is quarantined. A *tick* had no equivalent, and the first foreign
+-- repository found the hole in six sessions.
+--
+-- A survey session read the area, wrote three glossary terms, and never called
+-- `surveys.attest`. `tick_survey` drains on `survey_records`, so nothing
+-- drained, so the identical wake was produced again — same role, same area,
+-- forever. It never looked broken: the system was busy, committing, and writing
+-- artefacts. It would simply never have reached area two of twelve.
+--
+-- Worse than a dead end, which at least reports quiescence. This is a livelock,
+-- and the only reason it was caught is that somebody was watching the counters
+-- rather than the exit code.
+CREATE TABLE IF NOT EXISTS tick_attempts (
+    tick_key    TEXT PRIMARY KEY,      -- role + kind + refs
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    quarantined INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS receipts (
     session_id   TEXT NOT NULL REFERENCES sessions(id),
     table_name   TEXT NOT NULL,

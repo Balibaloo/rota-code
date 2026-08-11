@@ -589,10 +589,23 @@ def checkpoint_invalid(conn) -> list[Wake]:
 @predicate("quarantined", wakes="liaison", band="fix",
            drains=[("messages", "status", "quarantined")])
 def quarantined(conn) -> list[Wake]:
-    """The system gave up on a message. That is something the principal should be
-    told, not something to bury — it was invisible before."""
+    """The system gave up on a message, or on a tick. That is something the
+    principal should be told, not something to bury — it was invisible before.
+
+    Ticks joined messages here because a stalled one is *worse*: an abandoned
+    message at least stops. A tick that cannot drain is produced again every
+    pass, so the system stays busy, keeps committing, and never arrives —
+    quiescence never comes and nothing reports that anything is wrong. The first
+    foreign repository spun six sessions on area one of twelve before anybody
+    looked at a counter."""
     n = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status = 'quarantined'").fetchone()["n"]
+    try:
+        n += conn.execute(
+            "SELECT COUNT(*) n FROM tick_attempts WHERE quarantined = 1"
+        ).fetchone()["n"]
+    except Exception:                 # a database older than the table
+        pass
     return [Wake("liaison", "tick:quarantined", detail=f"{n} abandoned")] if n else []
 
 

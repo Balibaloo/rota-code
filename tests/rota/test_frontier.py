@@ -137,3 +137,76 @@ def test_a_broken_predicate_is_not_swallowed(db, monkeypatch):
 
     with pytest.raises(sqlite3.OperationalError):
         P.all_wakes(db)
+
+
+# ---------------------------------------------------------------------------
+# Bounded ticks — found by a real repository, not by inspection
+# ---------------------------------------------------------------------------
+
+def test_a_tick_that_cannot_drain_is_eventually_quarantined(tmp_path):
+    """
+    Law 4 bounds failure and bounded only messages. The first foreign repository
+    found the hole in six sessions: a survey session read its area, wrote three
+    glossary terms, and never called `surveys.attest`. `tick_survey` drains on
+    `survey_records`, so nothing drained, so the identical wake was produced
+    again — same role, same area, forever.
+
+    It never looked broken. The system was busy, committing, and writing
+    artefacts, and it would never have reached area two of twelve. That is worse
+    than a dead end: a dead end at least reports quiescence.
+    """
+    from rota.core import config
+    from rota.core.db import init_db
+    from rota.core.scheduler import Wake, frontier, note_dispatch
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, ts_order, text) "
+               "VALUES ('e1','principal',1,'x')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status) VALUES ('s1','e1',0,1,'x','contradicted')")
+
+    stuck = [w for w in frontier(db) if w.kind == "tick:contradiction"]
+    assert stuck, "the fixture should produce a tick that nothing here will drain"
+    wake = stuck[0]
+
+    cap = config.get(db, "tick_attempt_cap")
+    for _ in range(cap):
+        assert any(w == wake for w in frontier(db)), \
+            "a tick under the cap must keep being offered"
+        note_dispatch(db, wake)
+
+    assert not any(w == wake for w in frontier(db)), \
+        "past the cap it should stop being dispatched"
+
+
+def test_abandoning_a_tick_is_never_silent(tmp_path):
+    """Quiescence means "no predicate fires". A tick quietly dropped would make
+    the system report itself finished with the work undone, which is the one
+    failure this whole design is arranged against."""
+    from rota.core import predicates as P
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('terminologist|tick:survey|.', 9, 1)")
+
+    assert P.REGISTRY["quarantined"].fn(db), \
+        "an abandoned tick must reach the principal, like an abandoned message"
+
+
+def test_a_tick_that_keeps_making_progress_is_never_bounded(tmp_path):
+    """The bound is on dispatch *without* progress. A Developer bouncing on a red
+    harness is the loop working, and the counter resets the moment the wake stops
+    being produced — which is what draining looks like from out here."""
+    from rota.core.db import init_db
+    from rota.core.scheduler import Wake, frontier, note_dispatch
+
+    db = init_db(tmp_path / "rota.db")
+    wake = Wake("developer", "tick:tests_failing", refs=("b1",))
+    for _ in range(9):
+        note_dispatch(db, wake)
+
+    frontier(db)          # the wake is no longer produced, so the count clears
+
+    assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
+        "a wake that stopped being produced should leave no debt behind"
