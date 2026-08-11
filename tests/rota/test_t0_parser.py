@@ -68,8 +68,31 @@ def test_unterminated_args_is_an_error_not_a_misparse():
     assert isinstance(result, ToolError) and "unterminated" in result.reason
 
 
-def test_missing_arglist_is_an_error():
+def test_a_call_without_parentheses_is_a_call():
+    """
+    This asserted the opposite, and the opposite cost a session.
+
+    An Architect woken to write a constraint spent every one of its twelve turns
+    on `TOOL: model.consult` — seven rejections reading "missing argument list",
+    for a function whose arguments are all optional — and never reached the
+    write it was woken for. A format complaint that cannot name the thing it
+    wants teaches nothing, and the model duly did not learn.
+
+    Parsed as `name()`, so a call genuinely missing a required argument fails at
+    `validate`, which knows the signature and can say which one.
+    """
     result = only("TOOL: glossary.lookup")
+    assert isinstance(result, ToolCall)
+    assert result.name == "glossary.lookup" and result.args == {}
+
+
+def test_the_marker_is_not_a_function_name():
+    """
+    The dot is what keeps the above honest. Every function is `artefact.verb`,
+    and without that check `TOOL: TOOL: TOOL:` parsed its own marker as a
+    zero-argument call to `TOOL`.
+    """
+    result = only("TOOL: notdotted")
     assert isinstance(result, ToolError) and "missing argument list" in result.reason
 
 

@@ -17,6 +17,7 @@ iteration cap trips. Then commit everything at once, or nothing.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
@@ -181,6 +182,29 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
 # silent cut is indistinguishable from a short answer, and the model has no
 # reason to ask for the rest of something it does not know was cut.
 RESULT_CHARS = 6000
+
+# The model writing the harness's half of the conversation.
+#
+# An Architect woken to constrain an external commitment produced this, and then
+# reasoned from it:
+#
+#     TOOL: model.load(ids=['s_4976a0'])
+#     OK model.load -> [{'id': 's_4976a0', 'text': 'invoices have to survive ...
+#     TOOL: model.consult(grains=None)
+#     OK model.consult -> []
+#
+# Nothing ran. It predicted what the feedback would say, believed itself, and
+# carried on -- and the invented results were plausible, because it had seen the
+# real ones earlier in the transcript. This is the transcript format teaching the
+# model to continue it, which is a harness fault and not a judgement one: the
+# reply and the results are the same kind of text in the same stream.
+#
+# Caught and said out loud rather than silently ignored. The parser already only
+# takes `TOOL:` lines, so the fabrications never became calls -- but the session
+# went on believing them, which is worse than a refused call and looked like
+# nothing at all.
+FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)",
+                               re.MULTILINE)
 
 
 def _render(result: Any) -> str:
@@ -469,6 +493,14 @@ def run_session(
             feedback = []
             held = []
             seen_read = False
+
+            if FABRICATED_RESULT.search(completion.text):
+                outcome.errors.append("wrote its own tool results")
+                feedback.append(
+                    "You wrote tool results into your own reply -- the lines "
+                    "beginning `OK ...` or `ERROR ...`. Those did not come from "
+                    "me and nothing behind them ran. Only results I send back "
+                    "are real. Send the calls alone and stop; I will answer.")
             for i, call in enumerate(calls):
                 if isinstance(call, toolproto.ToolError):
                     outcome.errors.append(call.reason)

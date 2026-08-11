@@ -158,7 +158,24 @@ def extract(text: str) -> list[ToolCall | ToolError]:
         while i < len(text) and text[i].isspace():
             i += 1
         if i >= len(text) or text[i] != "(":
-            results.append(ToolError(f"{MARKER} {name}", "missing argument list"))
+            # `TOOL: model.consult` with no parentheses is a call to a function
+            # whose arguments are all optional, and it was a parse error. One
+            # Architect session spent every one of its twelve turns on it: seven
+            # rejections reading "missing argument list", for a call that needed
+            # no arguments, and it never reached the write it was woken for.
+            #
+            # Parsed as `name()` now, so a genuinely incomplete call fails at
+            # `validate` instead, which knows the signature and can say *which*
+            # argument is missing. A format complaint that cannot name the thing
+            # it wants teaches nothing, and the model duly did not learn.
+            #
+            # The dot is what keeps this honest. Every function here is
+            # `artefact.verb`, and without the check `TOOL: TOOL: TOOL:` parsed
+            # its own marker as a zero-argument call to `TOOL`.
+            if "." in name:
+                results.append(ToolCall(name=name, args={}, raw=f"{MARKER} {name}"))
+            else:
+                results.append(ToolError(f"{MARKER} {name}", "missing argument list"))
             cursor = i if i > cursor else cursor + len(MARKER)
             continue
 

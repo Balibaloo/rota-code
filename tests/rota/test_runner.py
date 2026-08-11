@@ -298,3 +298,53 @@ def test_a_run_that_touched_no_model_writes_no_timing(tmp_path, monkeypatch):
     monkeypatch.setattr("rota.paths.TIMINGS_FILE", path)
     Tally().save(model="llama3.1:8b")
     assert not path.exists()
+
+
+def test_a_session_that_writes_its_own_tool_results_is_told(db):
+    """
+    The model writing the harness's half of the conversation.
+
+    An Architect woken to constrain an external commitment produced this and
+    then reasoned from it:
+
+        TOOL: model.load(ids=['s_4976a0'])
+        OK model.load -> [{'id': 's_4976a0', 'text': 'invoices have to ...'}]
+        TOOL: model.consult(grains=None)
+        OK model.consult -> []
+
+    Nothing ran. It predicted the feedback, believed itself and carried on, and
+    the inventions were plausible because it had seen real ones earlier in the
+    same transcript. A harness fault rather than a judgement one: the reply and
+    the results are the same kind of text in the same stream.
+
+    The parser only ever took the `TOOL:` lines, so this never became a call —
+    which is exactly why it was invisible. The session went on believing them.
+    """
+    backend = ScriptedBackend([
+        "TOOL: problem.consult()\n"
+        "OK problem.consult -> [{'id': 'i_invented', 'text': 'made up'}]\n"
+        "TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+
+    assert "wrote its own tool results" in outcome.errors
+    _, user = backend.calls[1]
+    assert "did not come from me" in user, "the session was never told"
+
+
+def test_a_real_result_in_the_transcript_is_not_mistaken_for_a_fabrication(db):
+    """
+    The harness's own feedback is echoed back in the next prompt, so a check
+    looking for `OK x.y ->` anywhere would fire on every turn after the first.
+    Only what the *model* said is examined.
+    """
+    backend = ScriptedBackend([
+        "TOOL: problem.consult()",
+        "Nothing there. TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+
+    assert "wrote its own tool results" not in outcome.errors
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
