@@ -220,3 +220,81 @@ def test_working_set_is_pushed_not_only_offered(db):
     system, user = backend.calls[0]
     assert "i_existing" in user, "existing items were not pushed into the prompt"
     assert "problem.assert" in system, "working set functions not advertised"
+
+
+# ---------------------------------------------------------------------------
+# What the model tiers cost
+# ---------------------------------------------------------------------------
+
+def test_a_replay_and_a_recording_are_counted_separately(tmp_path, monkeypatch):
+    """
+    "How long do the cassettes take" had no answer: neither cassette table
+    carries a duration, so the number that decides whether a prompt edit is
+    affordable was repeated from memory. It was being quoted as 27 minutes, from
+    a file that had also drifted 129 tests.
+
+    Counted apart because they are different currencies. A replay costs
+    microseconds and can be spent freely; a recording costs GPU seconds and is
+    what a prompt edit actually bills you.
+    """
+    from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend, Tally,
+                                    open_dev_db)
+    from rota.llm.llm import Completion
+
+    class Slow:
+        name = "slow"
+
+        def complete(self, system, user, pins, tools=None):
+            return Completion(text="hello", pins=pins, backend="slow")
+
+    tally = Tally()
+    monkeypatch.setattr("rota.llm.cassettes.TALLY", tally)
+    conn = open_dev_db(tmp_path / "dev.db")
+    pins = Pins(model="scripted", temperature=0.0)
+
+    RecordingBackend(Slow(), conn).complete("sys", "usr", pins)
+    assert (tally.records, tally.replays) == (1, 0), "a live call read as a replay"
+
+    ReplayOnlyBackend(conn).complete("sys", "usr", pins)
+    assert (tally.records, tally.replays) == (1, 1), "a cassette hit was not counted"
+    assert tally.record_seconds >= 0 and tally.replay_seconds >= 0
+
+    assert "1 recorded" in tally.line() and "1 replayed" in tally.line()
+
+
+def test_timings_persist_per_machine_and_never_reach_the_cassettes(tmp_path,
+                                                                   monkeypatch):
+    """
+    A duration is a fact about this GPU on this day at this thermal state.
+    Filing it beside the recordings would make it look like evidence about the
+    prompts, so it goes to a gitignored file instead — and the series is the
+    point, because one number says how long this takes and a series says whether
+    it is getting slower.
+    """
+    from rota.llm.cassettes import Tally, open_dev_db
+
+    monkeypatch.setattr("rota.paths.TIMINGS_FILE", tmp_path / ".rota-timings.json")
+
+    Tally(records=10, record_seconds=90.0).save(model="llama3.1:8b")
+    Tally(records=10, record_seconds=140.0).save(model="llama3.1:8b")
+
+    last = Tally.previous()
+    assert last["record_seconds"] == 140.0, "the newest run is not the one returned"
+    assert last["model"] == "llama3.1:8b"
+
+    conn = open_dev_db(tmp_path / "dev.db")
+    tables = {r["name"] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    assert not any("timing" in t for t in tables), \
+        "timings leaked into the committed cassette database"
+
+
+def test_a_run_that_touched_no_model_writes_no_timing(tmp_path, monkeypatch):
+    """Otherwise every deterministic run appends a row of zeroes and the series
+    stops being readable."""
+    from rota.llm.cassettes import Tally
+
+    path = tmp_path / ".rota-timings.json"
+    monkeypatch.setattr("rota.paths.TIMINGS_FILE", path)
+    Tally().save(model="llama3.1:8b")
+    assert not path.exists()

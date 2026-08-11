@@ -33,6 +33,13 @@ STATIC = PACKAGE / "cockpit" / "static"
 # package, because they are about a run rather than about the system.
 COVERAGE_FILE = REPO / ".rota-coverage.json"
 
+# How long the model tiers took, per machine, never committed. A duration is a
+# fact about this GPU on this day at this thermal state, and putting it beside
+# the cassettes would make it look like evidence about the prompts. Kept because
+# one run's number answers "how long will this take" and a series answers the
+# better question: whether it is getting slower.
+TIMINGS_FILE = REPO / ".rota-timings.json"
+
 # Cassettes are *evidence*, not runtime state, so they live with the tests and
 # are committed. `.rota/` is the state directory and is gitignored, which is
 # correct for a database about a running project and wrong for a record of what

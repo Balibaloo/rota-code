@@ -27,6 +27,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from .llm import Backend, Completion, LLMUnavailable, Pins
@@ -113,6 +115,90 @@ def _calls_from(blob: str):
             for c in json.loads(blob or "[]")]
 
 
+@dataclass
+class Tally:
+    """
+    What the model tiers cost, measured rather than remembered.
+
+    "How long do the cassettes take" had no answer anywhere: neither table
+    carries a duration, so the one number you need in order to decide whether a
+    prompt edit is affordable was a thing people repeated from memory. It was
+    being quoted as 27 minutes, from a file that had also drifted 129 tests.
+
+    Kept per machine and never committed, in `.rota-timings.json` beside
+    `.rota-coverage.json`, which is where instrumentation already lives. A
+    duration is a fact about this GPU on this day at this thermal state, and
+    writing it into the same database as the recordings would make it look like
+    evidence about the prompts. One run's number answers "how long will this
+    take"; the series answers the better question, which is whether it is
+    getting slower.
+    """
+
+    replays: int = 0
+    records: int = 0
+    replay_seconds: float = 0.0
+    record_seconds: float = 0.0
+
+    def merge(self, other: dict) -> None:
+        self.replays += other.get("replays", 0)
+        self.records += other.get("records", 0)
+        self.replay_seconds += other.get("replay_seconds", 0.0)
+        self.record_seconds += other.get("record_seconds", 0.0)
+
+    def as_dict(self) -> dict:
+        return {"replays": self.replays, "records": self.records,
+                "replay_seconds": round(self.replay_seconds, 2),
+                "record_seconds": round(self.record_seconds, 2)}
+
+    def save(self, model: str = "", keep: int = 40) -> None:
+        """Append this run, keeping the recent tail. Never fails a test run."""
+        from .. import paths
+
+        if not (self.records or self.replays):
+            return
+        try:
+            path = paths.TIMINGS_FILE
+            runs = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+            if not isinstance(runs, list):
+                runs = []
+            runs.append({"model": model, "when": time.strftime("%Y-%m-%d %H:%M"),
+                         **self.as_dict()})
+            path.write_text(json.dumps(runs[-keep:], indent=1), encoding="utf-8")
+        except (OSError, ValueError):                       # pragma: no cover
+            pass
+
+    @staticmethod
+    def previous() -> dict | None:
+        """The last recorded run, for an estimate before this one starts."""
+        from .. import paths
+
+        try:
+            runs = json.loads(paths.TIMINGS_FILE.read_text(encoding="utf-8"))
+            return next((r for r in reversed(runs) if r.get("records")), None)
+        except (OSError, ValueError):
+            return None
+
+    def line(self) -> str:
+        parts = []
+        if self.records:
+            each = self.record_seconds / self.records
+            parts.append(f"{self.records} recorded in "
+                         f"{_clock(self.record_seconds)} ({each:.1f}s each)")
+        if self.replays:
+            rate = self.replays / self.replay_seconds if self.replay_seconds else 0
+            parts.append(f"{self.replays} replayed in "
+                         f"{_clock(self.replay_seconds)} ({rate:,.0f}/s)")
+        return "cassettes: " + ", ".join(parts) if parts else ""
+
+
+def _clock(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.1f}s"
+    m, s = divmod(int(seconds), 60)
+    return f"{m}m{s:02d}s" if m < 60 else f"{m // 60}h{m % 60:02d}m"
+
+
+TALLY = Tally()
 
 
 class RecordingBackend:
@@ -139,12 +225,15 @@ class RecordingBackend:
         protocol = "native" if tools else "text"
         key = key_for(system, user, pins, protocol)
 
+        started = time.perf_counter()
         if self.replay and not self.refresh:
             row = self.conn.execute(
                 "SELECT completion, backend, tool_calls FROM cassettes "
                 "WHERE key = ?", (key,)).fetchone()
             if row:
                 self.hits += 1
+                TALLY.replays += 1
+                TALLY.replay_seconds += time.perf_counter() - started
                 self.conn.execute(
                     "UPDATE cassettes SET hits = hits + 1 WHERE key = ?", (key,))
                 return Completion(
@@ -153,7 +242,10 @@ class RecordingBackend:
                     tool_calls=_calls_from(row["tool_calls"]))
 
         self.misses += 1
+        started = time.perf_counter()
         result = self.inner.complete(system, user, pins, tools=tools)
+        TALLY.records += 1
+        TALLY.record_seconds += time.perf_counter() - started
         self.conn.execute(
             "INSERT OR REPLACE INTO cassettes "
             "(key, model, temperature, num_ctx, prompt_hash, system, user, "
@@ -182,11 +274,15 @@ class ReplayOnlyBackend:
 
     def complete(self, system: str, user: str, pins: Pins,
                  tools: list | None = None) -> Completion:
+        started = time.perf_counter()
         key = key_for(system, user, pins, "native" if tools else "text")
         row = self.conn.execute(
             "SELECT completion, backend, tool_calls FROM cassettes WHERE key = ?",
             (key,)
         ).fetchone()
+        if row:
+            TALLY.replays += 1
+            TALLY.replay_seconds += time.perf_counter() - started
         if not row:
             raise LLMUnavailable(
                 f"no cassette for {pins.model} key={key[:12]}… — record one with "
