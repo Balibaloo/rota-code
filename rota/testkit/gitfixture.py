@@ -15,6 +15,7 @@ deliberately rather than reinvented.
 """
 from __future__ import annotations
 
+import atexit
 import shutil
 import subprocess
 import tempfile
@@ -151,6 +152,10 @@ def _template() -> Path:
         base = Path(tempfile.mkdtemp(prefix="rota_sample_template_"))
         create(base / "sample")
         _TEMPLATE = base / "sample"
+        # One per process, and under xdist that is one per worker. Left behind
+        # they accumulate in the temp directory a run at a time, which is how a
+        # test suite quietly becomes something that fills a disk.
+        atexit.register(shutil.rmtree, base, ignore_errors=True)
     return _TEMPLATE
 
 
