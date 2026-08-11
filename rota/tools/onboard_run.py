@@ -91,6 +91,40 @@ def _counts(conn: sqlite3.Connection) -> dict[str, int]:
     return out
 
 
+def audit(db_path: str, root: str | None = None) -> int:
+    """
+    The mechanical half of scoring a run.
+
+    The answer key measures recall — did it find what is actually there — and
+    that needs a person who knows the repository. This measures precision, and
+    every check in it comes from a fabrication that got past a reader on the
+    first foreign repository. Returns the number of findings so a run can be
+    judged without anybody reading it.
+    """
+    from ..roles import prompts
+    from ..testkit import artefacts
+
+    conn = connect(db_path)
+    root = root or _root_of(conn)
+    brief = prompts.piece("architect", "survey")
+    findings = artefacts.audit(conn, Path(root), brief=brief)
+
+    print("=" * 72)
+    print(f"AUDIT — {len(findings)} finding(s)")
+    if not findings:
+        print("  nothing mechanical to object to. Recall is still the answer "
+              "key's question, and this says nothing about it.")
+    for f in findings:
+        print(f"  {f}")
+    return len(findings)
+
+
+def _root_of(conn) -> str:
+    from ..core.worktrees import project_root
+
+    return str(project_root(conn))
+
+
 def report(db_path: str) -> None:
     """Everything a person needs to score the run against the answer key."""
     conn = connect(db_path)
@@ -120,6 +154,8 @@ def report(db_path: str) -> None:
         print(f"                 {r['claim'][:100]}")
 
     print("\nCOUNTS", json.dumps(_counts(conn)))
+    print()
+    audit(db_path)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -130,10 +166,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--limit", type=int, default=40)
     ap.add_argument("--all", action="store_true", help="do not stop at survey wakes")
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--audit", action="store_true",
+                    help="the mechanical checks alone, no dump")
     args = ap.parse_args(argv)
 
     if args.root:
         onboard(args.db, args.root)
+    if args.audit:
+        return 1 if audit(args.db) else 0
     if args.report:
         report(args.db)
     elif not args.root or args.root:
