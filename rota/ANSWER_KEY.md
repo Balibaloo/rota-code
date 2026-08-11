@@ -120,4 +120,83 @@ key made only of things I expect to be found measures nothing.
 
 ## Scored after the run
 
-*(left empty on purpose until there is something to write here)*
+**Researcher off. 79 sessions, quiescent, 873s. 36 survey records — twelve areas
+times three roles, complete.** 18 glossary entries, 23 constraints, 16 items.
+
+The machine finished. The output is not worth having yet, and those are two
+different results that need saying separately.
+
+### The predictions
+
+| | |
+|---|---|
+| 1. `nonce`, three senses | **missed entirely** — not one entry mentions it |
+| 2. `client`, two senses | **missed, wearing the right shape** (below) |
+| 3. Specs cited in source | as predicted: RFC numbers named, no clause behind any |
+| 4. Signature base string | **missed** — nothing about normalisation order |
+| 5. `estimate_type` priority | missed, as predicted |
+
+I was wrong in the optimistic direction on 1. I expected one or two senses of
+`nonce` and it found none, in a repository where the word appears in three
+modules with three incompatible meanings.
+
+Prediction 2 is the interesting failure. There *are* three `client` entries — so
+a count would call it a hit. All three say "an instance of «file»::Client". That
+is the same sense written down three times, once per area, not the collision
+between a local object you instantiate and a remote application you authenticate.
+The artefact has the shape of the finding and none of its content.
+
+### What it actually produced
+
+**10 distinct terms across 18 entries.** `endpoint` five times, `client` three,
+`token` three. `glossary.consult` is in the survey toolkit, so every session
+could see what the previous ones wrote, and none of them looked. "Two senses is a
+finding" was read as "always write a new row".
+
+**Definitions that restate the index.** "DeviceApplicationServer: a class in
+oauth2/rfc8628/endpoints/pre_configured.py". "endpoint: an instance or path in
+OAuth protocols". The grain name goes in, a paraphrase of the grain name comes
+out, and nothing that required opening the file appears anywhere.
+
+**Gatekeeper's items are docstrings.** "This module contains client classes for
+OAuth 2.0." That is not scope — it is the first line of the module, relabelled
+`in_scope`.
+
+### The inventions, which are the serious part
+
+> "Retention period for access tokens is 30 days" — **five times.**
+
+oauthlib has no retention policy. There is no thirty in it. This is the exact
+failure the key was written to catch: a fabricated external commitment, recorded
+as `observed`, citing nothing, that would gate every future change to token
+handling and be argued with by everyone who met it.
+
+"Commitment to HMAC-SHA1 signature method in OAuth 2.0", four times — HMAC-SHA1
+is OAuth **1** (RFC 5849). The mechanism is real and the attribution is wrong,
+which is worse than vague, because it is checkable and false.
+
+15 distinct headlines across 23 constraints. Same no-dedup failure as the
+glossary, in the artefact where a duplicate is a duplicated gate.
+
+### What this says
+
+The plumbing is fixed and the judgement is not. Seven scheduling faults had to go
+before any of this was reachable, and none of them were about a role's reasoning
+— but now that a complete run exists, everything above is about exactly that.
+
+Three faults, in the order I would fix them:
+
+1. **Nothing dedupes across areas.** Sessions compound through artefacts, and
+   this is the first evidence that the compounding does not happen: the tool is
+   there, in the toolkit, and unused.
+2. **Surveys read the index and paraphrase it.** Every definition is derivable
+   from the grain name alone. The instruction to open the source exists and is
+   not followed, or is followed and not used.
+3. **A constraint with no evidence is being written as `observed`.** Law 12's
+   test — "who outside this repository would notice it being broken" — has an
+   answer for the real ones and no answer for the invented ones, and nothing
+   asks the question at the point of writing.
+
+The second onboarding run, with the Researcher, is the one that bears on 3: a
+constraint that must carry a clause is a constraint that cannot be invented. It
+does not touch 1 or 2.
