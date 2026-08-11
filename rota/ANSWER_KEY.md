@@ -256,3 +256,68 @@ Architect's. So the L1 and L3 re-record should move some results that have
 nothing to do with surveying. **If nothing moves, this fix is smaller than I have
 been claiming** and the artefact improvement, if any, came from the brief rewrite
 and the dedup instead.
+
+---
+
+## Scored: second run, after the harness fixes
+
+**62 sessions, 446s, and it stopped two thirds through** — Gatekeeper's entire
+pass never ran, because abandoning one area settled *after* the frontier had
+already answered. That is a scheduling fault, fixed separately, and it means the
+artefacts below are 23 of 36 surveys rather than a complete run.
+
+### The predictions
+
+| | |
+|---|---|
+| 1. No "Retention period / Interface / Ordering" headlines | **hit** — none |
+| 2. No invented numbers | **hit** — "30 days" and "90" are gone |
+| 3. Rows fall, distinct headlines rise | **hit** — 24/6 became 11/11 |
+| 4. Definitions stop restating the index | **miss** — half the glossary is paths |
+| 5. A constraint about signature construction | **miss in substance** (below) |
+| 6. `nonce` still collapses or is missed | missed, as predicted |
+| 7. `estimate_type` missed | missed, as predicted |
+
+The audit went from **29 findings to 4**, and the Architect now reads before it
+binds — 10 of 11 constraints bind files the session actually opened, which is
+enforced rather than asked for.
+
+### What it is still doing
+
+**Eight of eleven constraints have no text at all.** A headline and nothing else.
+The three with text restate the path: "This code implements the endpoints
+specified in Section 7 of the OAuth 2 RFC 6749" — and §7 is *Accessing Protected
+Resources*, so the one citable claim in the set is wrong.
+
+Prediction 5 is the sharpest result of the run. It produced `OAuth1 RFC5849
+Signature Methods Commitment`, bound to
+`signature.py::sign_hmac_sha256_with_client`. It **read the right file and wrote
+nothing about it.** The refusal made it read; nothing made it say anything.
+
+**The template moved rather than went.** Every headline is now `<area name>
+Commitment`, taken from the brief's own phrase "a commitment the code is keeping
+to something outside itself". Removing four illustrations removed those four
+illustrations. The behaviour underneath — compose a headline from the names in
+front of you — is unchanged, and it will find whatever noun the brief leaves
+lying around.
+
+### Two faults in the audit, found by reading it
+
+The tool built to replace reading was caught by reading, which is worth
+recording rather than quietly fixing.
+
+* **False positive.** "6749 absent from `oauth2/rfc6749/endpoints/base.py`" — it
+  is the RFC number and it is in the *path*. The check looks only at contents.
+* **False negative, and the costlier one.** Zero `restates-the-index` findings
+  against a glossary half made of `oauth1/rfc5849/errors.py → "OAuth 1.0
+  protocol implementation error handling"`. The check compares a definition
+  against its term, and when the term *is* a path the prose reads as novel.
+
+### The two rules this run says to write
+
+Both trivial, both would have caught it:
+
+1. **A glossary term is a word, not a file path.** Fourteen of twenty-six terms
+   are paths. A path has no sense to define.
+2. **A constraint with no text is not a constraint.** Eight of eleven. A headline
+   alone cannot be checked, argued with, or satisfied.
