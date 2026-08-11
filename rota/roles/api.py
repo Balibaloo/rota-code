@@ -243,8 +243,30 @@ def problem_consult(ctx: Ctx) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @op("glossary", "amend")
-def glossary_amend(ctx: Ctx, id: str, term: str, sense_short: str,
-                   sense_body: str = "") -> dict:
+def glossary_amend(ctx: Ctx, term: str, sense_short: str,
+                   sense_body: str = "", sense: str = "") -> dict:
+    """
+    One meaning per word — so writing the same word twice amends it, and a second
+    *sense* has to be asked for.
+
+    The id is derived from the term. It used to be the role's to invent, and on
+    the first foreign repository twelve sessions invented one apiece: `endpoint`
+    five times, `client` three, `token` three, every one of them the same meaning
+    written down again because the session that wrote it could not see itself in
+    the glossary it had just been shown. Ten distinct terms, eighteen rows.
+
+    `sense` is how a genuine collision is recorded — `nonce` meaning a replay
+    guard in one module and a session binding in another is two rows, and it
+    should take a deliberate act to make them. Accidental duplication is now
+    impossible; deliberate duplication costs one argument.
+    """
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "_", term.strip().lower()).strip("_")
+    if not slug:
+        raise ValueError("a term needs a word in it")
+    id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
+
     ctx.writes.append(("glossary_terms", id, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
         "provenance": ctx.provenance}))
@@ -428,9 +450,19 @@ def surveys_consult(ctx: Ctx) -> list[dict]:
     Onboarding sessions compound through artefacts rather than context: area N's
     session has no memory of areas 1..N-1 and would otherwise have no way to
     know they happened, let alone that one of them came back `none_found`.
+
+    One row per area, not per record. Three roles survey every area, so this
+    returned 3N rows of bookkeeping — 3,900 characters of "role X did area Y" in
+    every survey prompt on oauthlib, crowding out the material the session was
+    woken to read. What a surveyor needs from it is which areas are done and
+    which came back empty, and that is one row each.
     """
-    return _rows(ctx.conn.execute(
-        "SELECT id, area, outcome FROM survey_records ORDER BY area, id"))
+    rows = _rows(ctx.conn.execute(
+        "SELECT area, GROUP_CONCAT(SUBSTR(id, 1, INSTR(id, ':') - 1)) AS by_role, "
+        "       GROUP_CONCAT(DISTINCT outcome) AS outcomes "
+        "FROM survey_records GROUP BY area ORDER BY area"))
+    return [{"area": r["area"], "surveyed_by": sorted((r["by_role"] or "").split(",")),
+             "outcome": r["outcomes"]} for r in rows]
 
 
 # ---------------------------------------------------------------------------

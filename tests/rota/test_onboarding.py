@@ -526,3 +526,65 @@ def test_a_scheduler_action_is_bounded_like_any_other(project):
     assert db.execute(
         "SELECT attempts FROM tick_attempts WHERE tick_key = ?",
         (tick_key(result.wake),)).fetchone()["attempts"] == 1
+
+
+# ---------------------------------------------------------------------------
+# One meaning per word — enforced, not requested
+# ---------------------------------------------------------------------------
+
+def test_the_same_word_twice_amends_rather_than_duplicates(project):
+    """
+    Twelve survey sessions on a real repository recorded `endpoint` five times,
+    `client` three and `token` three — every one the same meaning written down
+    again, by a session that had the whole glossary in front of it.
+
+    The id was the role's to invent, so each session invented one. It derives
+    from the term now: accidental duplication is impossible.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    for area in ("src/billing", "src/auth"):
+        sb = sandbox_mod.build("terminologist", db, session_id=f"s-{area}", area=area)
+        sb.call("glossary.amend", term="endpoint", sense_short=f"a path in {area}")
+        for w in sb.ctx.writes:
+            db.execute("INSERT OR REPLACE INTO glossary_terms "
+                       "(id, term, sense_short, provenance) VALUES (?, ?, ?, 'observed')",
+                       (w[1], w[2]["term"], w[2]["sense_short"]))
+
+    rows = db.execute("SELECT id FROM glossary_terms WHERE term = 'endpoint'").fetchall()
+    assert len(rows) == 1, f"one word, one row unless a sense is named: {[r[0] for r in rows]}"
+
+
+def test_a_genuine_collision_is_still_two_rows(project):
+    """`nonce` is a replay guard in one module and a session binding in another.
+    That is two rows, and it takes a deliberate act to make them."""
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
+    a = sb.call("glossary.amend", term="nonce", sense_short="replay guard",
+                sense="server")
+    b = sb.call("glossary.amend", term="nonce", sense_short="session binding",
+                sense="client")
+
+    assert a["id"] != b["id"], "two named senses are two rows"
+    assert a["id"].startswith("nonce") and b["id"].startswith("nonce")
+
+
+def test_the_survey_ledger_is_one_row_per_area(project):
+    """Three roles survey every area, so this returned 3N rows — 3,900 characters
+    of "role X did area Y" in every survey prompt on oauthlib, crowding out the
+    material the session was woken to read."""
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    for role in ("terminologist", "architect", "gatekeeper"):
+        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+                   "(?, 'src/billing', 'none_found')", (f"{role}:src/billing",))
+
+    sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
+    rows = sb.call("surveys.consult")
+
+    assert len(rows) == 1, "one row per area, not per record"
+    assert sorted(rows[0]["surveyed_by"]) == ["architect", "gatekeeper", "terminologist"]
