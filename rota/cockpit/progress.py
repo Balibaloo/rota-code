@@ -191,9 +191,23 @@ def coverage() -> dict:
 # ---------------------------------------------------------------------------
 
 def _prompt_hash(case: dict, model: str) -> str:
-    """The hash the case *would* record against if it ran now."""
+    """
+    The hash the case *would* record against if it ran now.
+
+    `num_ctx` is not pinned here and must not be. It used to say 8192 while runs
+    used 12288, which was harmless only by accident: `with_prompt` digests the
+    prompt text alone, so the wrong window never reached the hash. The moment it
+    did, every row on this panel would read stale for ever — and stale is the
+    safe-looking direction, so nobody would notice the panel had stopped
+    reporting.
+
+    The suites that record these hashes stopped pinning `num_ctx` for the same
+    reason: it was pinned at 8192, stayed there when the default rose to 12288
+    to stop the largest prompts being clipped, and so the fix reached everything
+    except the measurements of whether anything worked.
+    """
     instructions = prompts.compose(case["role"], fixtures.mode_of(case))
-    return Pins(model=model, temperature=0.0, num_ctx=8192).with_prompt(
+    return Pins(model=model, temperature=0.0).with_prompt(
         instructions).prompt_hash
 
 
