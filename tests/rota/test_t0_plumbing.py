@@ -125,11 +125,21 @@ conn.execute("INSERT INTO items (id, text, kind, provenance) "
 print("READY", flush=True)
 time.sleep(30)
 '''
+    # stderr was discarded here, and the one time this failed under load — eight
+    # xdist workers and a GPU job on the same machine — there was nothing to
+    # read. A test that can only fail silently cannot be diagnosed, and this one
+    # spawns an interpreter that imports the whole package before it says a word.
     proc = subprocess.Popen([sys.executable, "-c", script],
-                            stdout=subprocess.PIPE, text=True)
-    assert proc.stdout.readline().strip() == "READY"
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True)
+    hello = proc.stdout.readline().strip()
+    if hello != "READY":
+        proc.kill()
+        raise AssertionError(
+            f"the child never reached its transaction (said {hello!r}). "
+            f"stderr:\n{proc.stderr.read()}")
     proc.kill()
-    proc.wait(timeout=10)
+    proc.wait(timeout=60)          # was 10; killing is instant, the machine is not
 
     conn = init_db(dbpath)
     assert conn.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"] == 0
