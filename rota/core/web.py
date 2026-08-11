@@ -120,11 +120,23 @@ def extract(body: str, terms: str = "", fragment: str = "") -> str:
     that anchor is the best available guess at which four.
     """
     text = _strip(body).strip()
-    needles = [n for n in ([fragment] if fragment else []) + terms.split() if len(n) > 2]
+
+    # A fragment is written for a reader, not for a matcher: `#section-4.1.3`
+    # names a heading that appears in the document as `4.1.3.` and nowhere as
+    # "section-4.1.3". So try the anchor as given, as spaced words, and as the
+    # bare number it is really pointing at.
+    anchors: list[str] = []
+    if fragment:
+        anchors = [fragment, fragment.replace("-", " "), fragment.replace("_", " ")]
+        tail = fragment.replace("_", "-").split("-")[-1]
+        if tail and tail[0].isdigit():
+            anchors.append(tail)
+
+    needles = [n for n in anchors + terms.split() if len(n) > 2]
     for needle in needles:
-        at = text.lower().find(needle.lower().replace("-", " "))
+        at = text.lower().find(needle.lower())
         if at < 0:
-            at = text.lower().find(needle.lower())
+            at = text.lower().find(needle.lower().replace("-", " "))
         if at >= 0:
             start = max(0, at - PASSAGE // 4)
             return text[start:start + PASSAGE]
@@ -143,14 +155,19 @@ def fetch(conn: sqlite3.Connection, url: str, allowlist: list[str],
     hit = cached(conn, url)
     if hit:
         return hit
-    if offline:
-        raise NotAllowed(
-            f"{url} is not in the fetch cache and this session is offline; "
-            f"record it before the case can run")
+
+    # Allowlist before offline, because they are refusals of different weight.
+    # "Not granted" is a fact about this engagement that the asker needs to hear;
+    # "not cached" is an artefact of how the suite runs and means nothing to a
+    # role. Checking offline first said the second when the first was true.
     if not allowed(url, allowlist):
         raise NotAllowed(
             f"{domain_of(url)} is not on research_allowlist — the principal "
             f"grants domains, and nothing outside them is reachable")
+    if offline:
+        raise NotAllowed(
+            f"{url} is not in the fetch cache and this session is offline; "
+            f"record it before the case can run")
 
     import urllib.request
 

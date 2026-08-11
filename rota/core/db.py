@@ -125,6 +125,10 @@ class OutboundMessage:
     to_role: str
     verb: str
     body_refs: list[str] = field(default_factory=list)
+    # Empty on every channel but the one the graph declares `prose` on. See the
+    # column comment in schema.sql: the Researcher shares no artefact with
+    # anyone, so an id means nothing at its end.
+    body_text: str | None = None
     cause_id: str | None = None
     cause_kind: str = "message"
     thread_id: str | None = None
@@ -264,13 +268,14 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         for m in result.messages:
             conn.execute(
                 "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
-                "to_role, verb, body_refs, round_no, seq) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "to_role, verb, body_refs, body_text, round_no, seq) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     m.id, m.cause_id, m.cause_kind,
                     m.thread_id or m.cause_id or m.id,
                     result.role, m.to_role, m.verb,
-                    json.dumps(m.body_refs), m.round_no, _next_seq(conn, "messages"),
+                    json.dumps(m.body_refs), m.body_text,
+                    m.round_no, _next_seq(conn, "messages"),
                 ),
             )
 

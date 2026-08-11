@@ -55,6 +55,14 @@ class Edge:
     card: str = ""
     cascade: bool = True         # refs only: does a change here wake the source
     actor: str = "role"          # 'role' (the model calls it) | 'system'
+    # Messages only, and empty on all but one channel. Law 2 keeps prose off
+    # messages because sender and recipient share a database, so an id means
+    # something at both ends. The Researcher shares nothing — that ignorance is
+    # the containment — so refs carry no meaning to it and a question with no
+    # words is no question. Naming the argument here rather than special-casing
+    # a role in the sandbox keeps it one fact in one place, and makes any second
+    # exception something somebody has to declare.
+    prose: str = ""
 
     @property
     def model_callable(self) -> bool:
@@ -200,6 +208,7 @@ def _load(path: Path) -> Graph:
             label=e.get("label", ""), card=e.get("card", ""),
             cascade=e.get("cascade", True),
             actor=e.get("actor", "role"),
+            prose=e.get("prose", ""),
         )
         for e in raw["edges"]
     ]

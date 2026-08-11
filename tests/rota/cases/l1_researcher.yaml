@@ -1,0 +1,171 @@
+# L1 — the Researcher, and the roles it answers.
+#
+# The failure this role exists to prevent is not "cannot find things". It is a
+# confident sentence with a URL after it, which is indistinguishable from an
+# invention and becomes a constraint that blocks real work forever. So every
+# case here grades the *evidence*, not the answer: a claim without the passage
+# it rests on has failed even when the claim is true.
+#
+# Pages are seeded into `web_cache`, never fetched. A role whose tests needed the
+# network would be the one role whose results differ by machine, and the whole
+# suite rests on that not being so.
+
+- id: L1-RS-answer-from-the-clause-not-from-memory
+  tier: T1
+  role: researcher
+  runs: 5
+  pass: 4
+  inbound: {id: <m_q>, from: architect, to: researcher, verb: question,
+            thread: t1, body_refs: []}
+  fixture:
+    web_cache:
+      - url: "https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3"
+        status: 200
+        content_hash: "abc123def456"
+        fetched_at: 0
+        body: |
+          4.1.3.  Access Token Request
+
+             The client makes a request to the token endpoint by sending the
+             following parameters using the "application/x-www-form-urlencoded"
+             format with a character encoding of UTF-8 in the HTTP request
+             entity-body:
+
+             grant_type
+                   REQUIRED.  Value MUST be set to "authorization_code".
+
+             code
+                   REQUIRED.  The authorization code received from the
+                   authorization server.
+
+             redirect_uri
+                   REQUIRED, if the "redirect_uri" parameter was included in the
+                   authorization request as described in Section 4.1.1, and their
+                   values MUST be identical.
+  expect:
+    calls: [web.fetch, references.record]
+    writes:
+      references_: {count: ">=1"}
+    messages:
+      - {to: architect, verb: answer, count: 1}
+  forbidden:
+    # It owns one artefact and it is not the model. A Researcher that wrote a
+    # constraint would have decided what binds this project, which is the one
+    # judgement it is structurally forbidden and has no way to make: it has
+    # never seen the codebase.
+    writes: [constraints, glossary_terms, items, criteria, decisions]
+    recipients: [liaison]
+
+- id: L1-RS-say-what-you-tried-when-you-find-nothing
+  tier: T1
+  role: researcher
+  runs: 5
+  pass: 3
+  inbound: {id: <m_q>, from: developer, to: researcher, verb: question,
+            thread: t1, body_refs: []}
+  fixture:
+    # Nothing cached and no allowlist, so every fetch is refused. The refusal is
+    # a result, not a failure to retry out of — and the answer must still be
+    # sent, because a question that gets no reply looks exactly like a system
+    # that lost it.
+    web_cache: []
+  expect:
+    messages:
+      - {to: developer, verb: answer, count: 1}
+  forbidden:
+    # A row recorded from a page it could not read is the invention this whole
+    # role is built to make impossible.
+    writes: [references_, constraints, glossary_terms, items]
+
+- id: L1-AR-cite-the-clause-into-a-constraint
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  inbound: {id: <m_a>, from: researcher, to: architect, verb: answer,
+            thread: t1, body_refs: [<r1>]}
+  fixture:
+    references_:
+      - {id: <r1>, url: "https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3",
+         claim: "RFC 6749 4.1.3 requires redirect_uri on the token request to be identical to the one in the authorization request",
+         quote: "redirect_uri REQUIRED, if the redirect_uri parameter was included in the authorization request as described in Section 4.1.1, and their values MUST be identical.",
+         asked_by: architect}
+  expect:
+    # The obligation is to every client and server that speaks OAuth 2.0, which
+    # is exactly what a constraint is for — and now it can point at the clause.
+    writes:
+      constraints: {count: ">=1"}
+  forbidden:
+    # The source says what conforming implementations must do. Whether this
+    # project is one is a fact about this project, and the Researcher has never
+    # seen it — so nothing here is Terminologist's or Gatekeeper's to be told yet.
+    writes: [glossary_terms, items, criteria]
+    recipients: [liaison, developer]
+
+- id: L1-TE-a-standard-definition-is-not-automatically-ours
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  inbound: {id: <m_a>, from: researcher, to: terminologist, verb: answer,
+            thread: t1, body_refs: [<r1>]}
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "the client should keep its nonce for the session"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 44,
+         text: "the client keeps its nonce for the session", status: ratified}
+    glossary_terms:
+      # Already carries the OAuth 1.0 sense, found in the code during a survey.
+      - {id: <g1>, term: "nonce", sense_short: "server-side replay guard: a value seen once per client and rejected thereafter",
+         provenance: observed, source_refs: '[]'}
+    references_:
+      - {id: <r1>, url: "https://openid.net/specs/openid-connect-core-1_0.html#IDToken",
+         claim: "In OpenID Connect a nonce is generated by the client and copied unmodified into the ID Token, binding the token to the client session",
+         quote: "String value used to associate a Client session with an ID Token, and to mitigate replay attacks. The value is passed through unmodified from the Authentication Request to the ID Token.",
+         asked_by: terminologist}
+  expect:
+    # Two senses is a finding. The same word points opposite ways across the
+    # trust boundary, and writing one over the other loses the collision that
+    # every later reader needs to know about.
+    writes:
+      glossary_terms: {count: ">=1"}
+  forbidden:
+    # Collapsing them is a decision, and this is not a mode where decisions are
+    # available. Nor is a term of art a commitment or a scope item.
+    writes: [constraints, items, criteria, decisions]
+    recipients: [architect, gatekeeper, developer]
+
+- id: L1-GK-a-source-does-not-settle-scope
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 3
+  inbound: {id: <m_a>, from: researcher, to: gatekeeper, verb: answer,
+            thread: t1, body_refs: [<r1>]}
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "let people sign in with their existing account"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 45,
+         text: "people can sign in with an existing account", status: ratified}
+    references_:
+      - {id: <r1>, url: "https://www.rfc-editor.org/rfc/rfc8252#section-8.1",
+         claim: "RFC 8252 requires native apps to use PKCE with the authorization code flow, and forbids the implicit flow",
+         quote: "Native apps MUST use PKCE... The implicit grant... SHOULD NOT be used.",
+         asked_by: gatekeeper}
+  expect:
+    # Learning that conformance requires something nobody mentioned is a gate,
+    # not an edit. Either it goes to the principal or it is recorded as scope
+    # that came from outside — both say where it came from.
+    any_of:
+      - messages: [{to: liaison, verb: submit, count: ">=1"}]
+      - writes: {items: {count: ">=1"}}
+  forbidden:
+    # A source that appears to settle a scope question has been read too
+    # generously: what a standard requires is a fact, whether this project takes
+    # it on is the principal's ruling.
+    writes: [constraints, glossary_terms, criteria]
+    recipients: [developer, tester, critic]

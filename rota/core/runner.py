@@ -180,8 +180,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         return {}
 
     row = conn.execute(
-        "SELECT id, from_role, verb, body_refs, round_no FROM messages WHERE id = ?",
-        (wake.message_id,)).fetchone()
+        "SELECT id, from_role, verb, body_refs, body_text, round_no "
+        "FROM messages WHERE id = ?", (wake.message_id,)).fetchone()
     if not row:
         return {}
 
@@ -189,6 +189,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         "from": row["from_role"], "verb": row["verb"],
         "refs": json.loads(row["body_refs"] or "[]"),
     }
+    # Present on one channel only, and on that one it is the whole message: the
+    # Researcher shares no artefact with its asker, so the refs beside this are
+    # usually empty and always insufficient.
+    if row["body_text"]:
+        out["asks"] = row["body_text"]
 
     from ..roles.principal import entry_for, verdict_for
 
@@ -545,7 +550,8 @@ def _messages_from(sb: sandbox_mod.Sandbox, wake: Wake, session_id: str) -> list
     for m in sb.ctx.outbound:
         out.append(OutboundMessage(
             id=m["id"], to_role=m["to_role"], verb=m["verb"],
-            body_refs=m["body_refs"], round_no=m["round_no"],
+            body_refs=m["body_refs"], body_text=m.get("body_text"),
+            round_no=m["round_no"],
             cause_id=m.get("cause_id") or wake.message_id,
             thread_id=None,
         ))

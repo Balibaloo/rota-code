@@ -363,6 +363,18 @@ CREATE TABLE IF NOT EXISTS messages (
     to_role     TEXT NOT NULL,
     verb        TEXT NOT NULL,
     body_refs   TEXT NOT NULL DEFAULT '[]',
+    -- Empty on every channel but one. Law 2 keeps prose off messages because a
+    -- role that wants to explain itself writes a decision and refs it -- which
+    -- works because sender and recipient share a database, so an id means
+    -- something at both ends.
+    --
+    -- The Researcher shares nothing. It has never seen an artefact, a batch or
+    -- a line of this codebase, and that ignorance is the containment: it cannot
+    -- leak what it does not have. So refs are meaningless to it, and a question
+    -- with no words is no question. The exception is declared on the graph edge
+    -- (`prose: question`) rather than special-cased on a role name, so it is
+    -- one fact in one place and any second one has to be declared too.
+    body_text   TEXT,
     round_no    INTEGER NOT NULL DEFAULT 0,
     seq         INTEGER NOT NULL,
     -- A crashed session leaves its trigger on the frontier. Without a bound,

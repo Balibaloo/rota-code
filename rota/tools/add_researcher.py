@@ -128,9 +128,15 @@ def main() -> None:
         edges.extend([
             {"s": role, "t": "references", "type": "reads", "v": "load",
              "n": "sources cited or offered", "rows": "delta", "depth": "body"},
+            # `prose` is the one declared exception to law 2's no-words rule,
+            # and it is structural rather than a convenience: every other
+            # message travels between roles sharing a database, where an id
+            # means something at both ends. The Researcher shares nothing, so
+            # refs carry no meaning to it and a question with no words is no
+            # question. Declared on the edge so it is one fact in one place.
             {"s": role, "t": "researcher", "type": "messages", "v": "question",
              "n": "a question of fact about something outside this repository",
-             "rows": "single"},
+             "prose": "question", "rows": "single"},
             {"s": "researcher", "t": role, "type": "messages", "v": "answer",
              "n": "the answer, with sources — or what was tried and failed",
              "rows": "single"},

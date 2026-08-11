@@ -911,6 +911,8 @@ def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
     not-forbidden. A refusal is not a failure to recover from, it is a fact to
     report back to whoever asked.
     """
+    import os
+
     from ..core import config, web
 
     fetched = len([c for c in getattr(ctx, "fetches", [])])
@@ -919,9 +921,13 @@ def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
         return {"url": url, "refused": f"research_cap of {cap} fetches is spent; "
                                        f"answer with what you have"}
     try:
+        # Cache-only unless the network is asked for explicitly. The default is
+        # the safe direction: a test suite that could reach out would eventually
+        # reach out by accident, and then one machine's results stop matching
+        # another's for a reason nobody can see in the diff.
         page = web.fetch(ctx.conn, url,
                          config.get(ctx.conn, "research_allowlist"),
-                         offline=bool(getattr(ctx, "offline", False)))
+                         offline=not os.environ.get("ROTA_NET"))
     except web.NotAllowed as exc:
         return {"url": url, "refused": str(exc)}
     except Exception as exc:                       # unreachable, timed out, 404
@@ -949,11 +955,24 @@ def references_record(ctx: Ctx, id: str, url: str, claim: str,
     """
     from ..core import web
 
-    page = web.cached(ctx.conn, url.split("#", 1)[0]) or web.cached(ctx.conn, url)
+    page = web.cached(ctx.conn, url) or web.cached(ctx.conn, url.split("#", 1)[0])
+
+    # Who wanted to know, not who looked it up. Derived from the message that
+    # woke this session rather than asked for: the Researcher has no reason to
+    # know it is being attributed, and one that guessed would file the row under
+    # itself every time — which is what this did before, making `asked_by`
+    # constant and therefore useless.
+    asker = ctx.role
+    if ctx.trigger:
+        row = ctx.conn.execute(
+            "SELECT from_role FROM messages WHERE id = ?", (ctx.trigger,)).fetchone()
+        if row:
+            asker = row["from_role"]
+
     ctx.writes.append(("references_", id, {
         "url": url, "claim": claim, "quote": quote or None,
         "content_hash": (page or {}).get("content_hash", ""),
-        "asked_by": ctx.role}))
+        "asked_by": asker}))
     return {"id": id, "url": url}
 
 

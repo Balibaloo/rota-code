@@ -337,13 +337,13 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     # The bus. One `send` per declared (recipient, verb) pair — a role literally
     # cannot address anyone the graph does not connect it to, so T0-S12's
     # rejection happens by absence rather than by a check at the wire.
-    outgoing = [(e.t, e.v) for e in g.of_type("messages") if e.s == role]
+    outgoing = [(e.t, e.v, e.prose) for e in g.of_type("messages") if e.s == role]
     if outgoing:
         fns: dict[str, Callable] = {}
         names: list[str] = []
-        for recipient, verb in sorted(set(outgoing)):
+        for recipient, verb, prose in sorted(set(outgoing)):
             attr = f"{_verb_to_attr(verb)}_{recipient}"
-            fns[attr] = _bind_send(ctx, recipient, verb, f"msg.{attr}")
+            fns[attr] = _bind_send(ctx, recipient, verb, f"msg.{attr}", prose)
             names.append(attr)
         grouped["msg"] = fns
         available["msg"] = names
@@ -366,17 +366,24 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     return Sandbox(role, ctx, artefacts)
 
 
-def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str) -> Callable:
+def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
+               prose: str = "") -> Callable:
     """
     Stage an outbound message.
 
     Conclusions travel; reasoning stays home. `refs` carries ids — the recipient
     follows them to whatever it is permitted to read. There is no prose field on
     purpose: a role that wants to explain itself writes a decision and refs it.
+
+    `prose` names the one channel where that does not hold, and the graph edge
+    declares it rather than this function knowing a role name. A message to the
+    Researcher crosses to something that shares no database, no artefact and no
+    knowledge of this project — that ignorance is the containment — so an id
+    means nothing at the far end and a question with no words is no question.
     """
     from .runner import new_id
 
-    def send(refs: list[str], round_no: int = 0):
+    def stage(refs: list[str], round_no: int = 0, text: str | None = None):
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -406,14 +413,34 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str) -> Callable:
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         ctx.outbound.append({
             "id": msg_id, "to_role": recipient, "verb": verb,
-            "body_refs": list(refs or []), "round_no": round_no,
-            "cause_id": ctx.trigger,
+            "body_refs": list(refs or []), "body_text": text,
+            "round_no": round_no, "cause_id": ctx.trigger,
         })
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
         return {"id": msg_id, "to": recipient, "verb": verb}
 
+    # Two signatures, because the model is shown exactly what it may pass and an
+    # advertised `**kwargs` is an invitation to invent one. The prose channel
+    # names its argument outright; every other channel cannot take words at all.
+    if prose:
+        def send(refs: list[str], question: str, round_no: int = 0):
+            if not question:
+                raise ValueError(
+                    f"{label} needs {prose}=: the recipient shares no artefact "
+                    f"with you, so refs alone say nothing it can act on")
+            return stage(refs, round_no, text=question)
+
+        doc = (f"Ask {recipient} a question of fact about something outside this "
+               f"repository. It has never seen this project, so say what you "
+               f"need to know in words. refs: list of ids, may be empty.")
+    else:
+        def send(refs: list[str], round_no: int = 0):
+            return stage(refs, round_no)
+
+        doc = f"Send a {verb!r} message to {recipient}. refs: list of ids."
+
     send.__name__ = label.replace(".", "_")
-    send.__doc__ = f"Send a {verb!r} message to {recipient}. refs: list of ids."
+    send.__doc__ = doc
     return send
 
 

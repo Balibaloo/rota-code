@@ -60,6 +60,15 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
     assertion, but it will drown in twenty statements with three plausible
     readings, and then the pass rate measures the fixture rather than the role.
     """
+    if "web_cache" in fixture:
+        # Not in `schema.sql`, and deliberately: law 13 forbids a timestamp
+        # column there, and a fetch record wants one for whoever reads it later.
+        # It is evidence like the cassettes rather than an artefact, so it is
+        # created on demand — which means a fixture that seeds pages has to ask
+        # for the table first.
+        from ..core import web
+        web.ensure_cache(conn)
+
     for table, rows in fixture.items():
         for row in rows:
             payload = {k: _encode(v) for k, v in row.items()}
