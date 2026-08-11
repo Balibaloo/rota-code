@@ -410,3 +410,32 @@ def test_attesting_outside_a_survey_is_refused(project):
     sb = sandbox_mod.build("terminologist", db, session_id="s1")
     with pytest.raises(ValueError, match="no area"):
         sb.call("surveys.attest", outcome="none_found")
+
+
+def test_the_scheduler_action_is_reached_by_the_loop_not_just_callable(project):
+    """
+    The action had a test and the routing to it did not, because the test called
+    `_perform` directly. A real onboarding produced a wake addressed to `-` that
+    fell through to dispatch and died on `'-' is not a role in the graph`.
+
+    Three ways to say "not a role" existed — `""`, `SCHEDULER`, and a `do:`
+    prefix on the kind — and `step` checked only the prefix. `constraint_zero`
+    uses the other two.
+    """
+    from rota.core.loop import step
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    area = db.execute(
+        "SELECT area FROM code_index WHERE area IS NOT NULL LIMIT 1").fetchone()["area"]
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "(?, ?, 'none_found')", (f"terminologist:{area}", area))
+
+    result = step(db, principal_present=False)
+
+    assert result.wake is not None and result.wake.role in ("", "-"), \
+        f"expected a scheduler action, got {result.wake}"
+    assert result.productive
+    assert not db.execute(
+        "SELECT 1 FROM constraint_bindings WHERE constraint_id = ? AND grain = ?",
+        (boot.ZERO, area)).fetchone(), "the surveyed area should have been released"

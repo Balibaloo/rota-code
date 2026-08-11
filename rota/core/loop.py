@@ -26,6 +26,7 @@ from . import config
 from . import lifecycle
 from ..llm import llm
 from ..roles.principal import PrincipalBackend, pump
+from .predicates import SCHEDULER
 from .runner import RunOutcome, run_session
 from .scheduler import (
     RoleBusy, Wake, cascade_wakes, frontier, is_quiescent, release,
@@ -148,8 +149,16 @@ def step(
     # Actions the scheduler performs itself. They wake nobody, cost no model
     # call, and unblock role work — so they go before dispatch rather than
     # queueing behind it.
+    #
+    # Routed on *who it is addressed to*, not on how the kind is spelled. There
+    # were three ways to say "not a role" — `""`, `SCHEDULER`, and a `do:`
+    # prefix — and this checked only the prefix. `constraint_zero` uses the other
+    # two, so a real onboarding produced a wake addressed to `-` that fell
+    # through to dispatch and died on `'-' is not a role in the graph`. The
+    # action had a test; the routing to it did not, because the test called
+    # `_perform` directly.
     for wake in ready:
-        if wake.kind.startswith("do:"):
+        if wake.role in ("", SCHEDULER) or wake.kind.startswith("do:"):
             result.wake = wake
             result.note = _perform(conn, wake)
             result.productive = True
