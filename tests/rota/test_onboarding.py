@@ -123,20 +123,104 @@ def test_the_partition_follows_the_modules_somebody_already_chose(project):
             "src/store"} <= set(proposal.sizes)
 
 
-def test_a_directory_that_only_points_outward_is_reported_as_leaky(project):
+def test_a_facade_directory_is_reported_as_leaky(tmp_path):
     """
-    `tests/` imports three areas and nothing imports it. That is a true and
-    useful thing to notice before pinning: it is a directory, not a domain.
+    A package root that re-exports its submodules imports three areas and is
+    imported by none. That is a true and useful thing to notice before pinning:
+    it is a directory, not a domain.
 
     Reported rather than repaired. An area coupled harder to its neighbour than
     to itself is the shape of two directories that are one thing wearing two
     names, and which of those it is, is not the partitioner's call.
+
+    Built from a synthetic index rather than the sample repo. This used to assert
+    on `tests/`, which was the only leaky thing in the fixture -- and tests are
+    no longer areas at all, so the mechanism lost its only case. The shape here
+    is the one actually observed on oauthlib: `.` with four crossing edges into
+    `oauth2/rfc6749` and zero internal.
+    """
+    db = init_db(tmp_path / "rota.db")
+    for grain in ("__init__.py", "api.py",
+                  "core/engine.py", "core/rules.py", "core/types.py"):
+        db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'path')",
+                   (grain,))
+    for src, dst in (("__init__.py", "core/engine.py"),
+                     ("__init__.py", "core/rules.py"),
+                     ("api.py", "core/engine.py"),
+                     ("core/engine.py", "core/rules.py"),
+                     ("core/rules.py", "core/types.py")):
+        db.execute("INSERT INTO code_edges (src, dst) VALUES (?, ?)", (src, dst))
+
+    leaky = areas.propose(db).leaky()
+
+    assert leaky, "a root that only points outward should be reported"
+    src, dst, crossing, internal = leaky[0]
+    assert (src, dst) == (".", "core")
+    assert crossing == 3 and internal == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests are evidence, not a subsystem
+# ---------------------------------------------------------------------------
+
+def test_a_test_directory_never_becomes_an_area(project):
+    """
+    Measured on icalendar before this existed: six of fourteen proposed areas
+    were `tests/*`, and `tests` alone was the largest area in the repository.
+    Three roles would have surveyed the suite as though it were a subsystem.
+
+    The sample repo only ever escaped by luck -- its `tests/` is small enough to
+    look unremarkable -- and oauthlib escaped by putting its suite outside the
+    package. Neither is a rule.
     """
     db, repo = project
     indexer.build(db, repo.root)
 
-    leaky = {row[0] for row in areas.propose(db).leaky()}
-    assert "tests" in leaky
+    proposal = areas.propose(db)
+
+    assert not [a for a in proposal.sizes if areas.is_test(a + "/x.py")], \
+        f"a test directory became an area: {sorted(proposal.sizes)}"
+
+
+def test_a_test_is_still_indexed_and_still_reachable(project):
+    """
+    Excluded from the *partition*, not from the index. A role asked to say what
+    the code does should not be blind to the suite that pins it -- and for a
+    repository whose spec conformance lives in its tests, that is most of the
+    evidence there is.
+    """
+    db, repo = project
+    indexer.build(db, repo.root)
+    areas.pin(db, areas.propose(db))
+
+    tests = [r["grain"] for r in db.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")
+        if areas.is_test(r["grain"])]
+    assert tests, "the sample repo has tests; they should be indexed"
+
+    assert not db.execute(
+        "SELECT 1 FROM code_index WHERE area IS NULL").fetchone(), \
+        "an unattached test is a test no area-scoped read can reach"
+
+
+def test_a_test_attaches_to_the_area_it_exercises():
+    """
+    `tests/prop/test_recur.py` belongs with `prop`. Measured on icalendar: 22
+    tests under `tests/prop` land on `prop`, and the 149 with no matching source
+    directory fall back to the root rather than inventing areas for themselves.
+    """
+    assert areas._untest("tests/prop") == "prop"
+    assert areas._untest("src/tests/prop/dt") == "src/prop/dt"
+    assert areas._untest("tests") == ""
+
+    # Not `"test" in path`: that catches source files and hides them from the
+    # partition that decides what gets surveyed at all.
+    assert not areas.is_test("src/latest.py")
+    assert not areas.is_test("contest/manifest.go")
+    assert areas.is_test("tests/prop/test_recur.py")
+    assert areas.is_test("src/billing/charges_test.go")
+    assert areas.is_test("web/app.spec.ts")
+    assert areas.is_test("conftest.py")
 
 
 def test_pinning_gives_every_symbol_its_file_s_area(project):
