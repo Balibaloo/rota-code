@@ -51,6 +51,15 @@ GENERIC = {
     "class", "function", "module", "instance", "method", "path", "value",
     "object", "file", "attribute", "variable", "parameter", "argument",
     "constant", "field", "property", "package", "directory", "type",
+    # Qualifiers, which carry no content but survive the subtraction below and
+    # rescue a pure restatement single-handed. icalendar produced twelve terms
+    # of the form "specific <term>" -- `date_class`: "specific date class",
+    # `datetime_object`: "specific datetime object" -- and every one passed,
+    # because `specific` is not in the term and so read as novel. The words
+    # above are the kinds a name already implies; these are the adjectives that
+    # cannot have come from reading anything.
+    "specific", "particular", "certain", "given", "relevant", "appropriate",
+    "various", "general", "single", "individual",
 }
 
 
@@ -83,6 +92,29 @@ def _authored(conn: sqlite3.Connection, sql: str) -> list:
 def _words(text: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9_]+", (text or "").lower())
             if w not in NOISE and len(w) > 2]
+
+
+def _name_words(text: str) -> set[str]:
+    """
+    A name broken into the words it is made of, for weighing a definition
+    against its own subject.
+
+    `_words` tokenises on `[a-z0-9_]+`, so `date_class` stays one token and the
+    term's own words never get subtracted from its definition. "specific date
+    class" then reads as three novel words about a term made of none of them.
+    Twelve of icalendar's twenty-four terms had exactly that shape.
+
+    camelCase splits for the same reason: `AccessTokenEndpoint` is three words
+    written closed up, and a definition that says "the access token endpoint" is
+    restating them however the name was punctuated.
+    """
+    parts = re.split(r"[^a-zA-Z0-9]+", text or "")
+    out: set[str] = set()
+    for part in parts:
+        for w in re.findall(r"[A-Z]+(?![a-z])|[A-Z][a-z]*|[a-z]+|[0-9]+", part):
+            if len(w) > 2:
+                out.add(w.lower())
+    return out
 
 
 def _shingles(words: list[str], n: int = 2) -> set[tuple]:
@@ -150,7 +182,7 @@ def restates_the_index(conn: sqlite3.Connection) -> list[Finding]:
     out = []
     for r in conn.execute(
             "SELECT id, term, sense_short, sense_body FROM glossary_terms"):
-        given = set(_words(r["term"])) | set(_words(r["id"]))
+        given = _name_words(r["term"]) | _name_words(r["id"])
         prose = f"{r['sense_short']} {r['sense_body'] or ''}"
         prose = re.sub(r"\S*[/\\]\S*|\S+\.[a-z]{1,4}\b", " ", prose)
         said = set(_words(prose))
@@ -297,10 +329,80 @@ def a_constraint_needs_a_body(conn: sqlite3.Connection) -> list[Finding]:
     return out
 
 
+def one_sense_under_many_terms(conn: sqlite3.Connection) -> list[Finding]:
+    """
+    Different words, the same meaning written under each.
+
+    Sixteen of icalendar's twenty-four terms were two concepts: `date_class`,
+    `date_instance`, `date_object`, `date_representation`, `date_type` and
+    `date_value`, four of them defined in one sentence to the character — then
+    the same six again with `datetime`.
+
+    This is where the pressure went when duplicate *words* became impossible.
+    Deriving the id from the term stopped `endpoint` being written five times,
+    and `duplicated` groups by `term`, so it now confirms an invariant the
+    schema already guarantees and can never see this. Nothing was looking at
+    what the rows said, only at what they were called.
+
+    Content words, so the fault is judged on meaning and not on phrasing: "a
+    class representing a single date" and "a value representing a single date"
+    differ by a kind-noun that says nothing about which single date is meant.
+    Set equality rather than a similarity threshold — these rows do not need
+    fuzziness to be caught, and a threshold is a knob that would have to be
+    defended against every legitimately-related pair in a real glossary.
+    """
+    groups: dict[frozenset, list] = {}
+    for r in conn.execute(
+            "SELECT id, term, sense_short, sense_body FROM glossary_terms"):
+        content = frozenset(
+            _words(f"{r['sense_short']} {r['sense_body'] or ''}")) - GENERIC
+        if content:
+            groups.setdefault(content, []).append((r["id"], r["term"]))
+
+    out = []
+    for rows in groups.values():
+        if len(rows) < 2:
+            continue
+        for id, term in rows:
+            others = ", ".join(t for i, t in rows if i != id)
+            out.append(Finding("one-sense-many-terms", "glossary_terms", id,
+                               f"{term!r} says exactly what {others} say -- "
+                               f"{len(rows)} words, one meaning"))
+    return out
+
+
+def a_term_needs_a_body(conn: sqlite3.Connection) -> list[Finding]:
+    """
+    The counterpart `a_constraint_needs_a_body` did not have.
+
+    Unlike its sibling this one is a guard rather than a scar: no run has
+    produced a senseless term, because `sense_short` is a required argument.
+    Required means positionally present though, not filled, and `glossary.amend`
+    now refuses an empty one — so this exists to catch rows written before that
+    refusal did, and to keep the two artefacts under the same rule.
+
+    It is worth having cheaply because an absent definition is the fault that
+    hides every other check here: `restates_the_index` and `echoes_the_brief`
+    both weigh the definition, and neither can find anything wrong with one that
+    does not exist.
+    """
+    # Not `_authored`: that exists to spare constraint zero, and the glossary is
+    # entirely role-written -- nothing seeds a term.
+    out = []
+    for r in conn.execute("SELECT id, term FROM glossary_terms WHERE "
+                          "(sense_short IS NULL OR TRIM(sense_short) = '') "
+                          "AND (sense_body IS NULL OR TRIM(sense_body) = '')"):
+        out.append(Finding("term-has-no-sense", "glossary_terms", r["id"],
+                           f"{r['term']!r} is a word with no meaning under it"))
+    return out
+
+
 def audit(conn: sqlite3.Connection, root: Path, brief: str = "") -> list[Finding]:
     """Every check, in the order a reader should meet them."""
     out = list(duplicated(conn))
     out += a_constraint_needs_a_body(conn)
+    out += a_term_needs_a_body(conn)
+    out += one_sense_under_many_terms(conn)
     out += numbers_not_in_source(conn, Path(root))
     out += a_term_is_a_word(conn)
     out += restates_the_index(conn)

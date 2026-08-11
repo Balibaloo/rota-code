@@ -567,6 +567,57 @@ def test_reading_a_file_covers_the_symbols_inside_it(project):
     assert any(t == "constraint_bindings" for t, _, _ in sb.ctx.writes)
 
 
+def test_sourcing_an_area_names_its_files_instead_of_dead_ending(project):
+    """
+    A survey session is woken *for an area*, and the area is a directory. So the
+    one path it holds without reading anything is the one path `code.source`
+    could not read.
+
+    On the second foreign repository this closed a loop that ran thirteen
+    sessions. `read_text` on a directory raises `PermissionError`, and the
+    directory passes the `exists()` guard ahead of it, so the model got back an
+    errno and an absolute host path. `ctx.opened` stayed empty, `model.amend`
+    refused the binding as unread and told it to `code.source` the file first,
+    and the model did exactly that -- with the only path it had. Every attest
+    then refused because nothing had been written. Forty rejected calls in one
+    session, and each of the three refusals was individually correct.
+
+    The dead end is the point: the instruction was followable and following it
+    changed nothing. So a directory read answers the question the session is
+    actually asking -- *what is in here* -- and hands back the names that make
+    the next call possible.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+
+    result = sb.call("code.source", path="src/billing")
+
+    assert "charges.py" in str(result), \
+        "sourcing an area must name the files in it, or the session has no " \
+        "way to reach a readable path from the one path it was given"
+
+    blob = str(result)
+    assert "Errno" not in blob and str(repo.root) not in blob, \
+        "a directory read leaked an errno and the absolute host root instead " \
+        "of answering"
+
+    # Reading the directory is still not reading the file: the binding check
+    # holds. What has changed is that the refusal is now escapable.
+    import pytest
+
+    with pytest.raises(ValueError, match="not read"):
+        sb.call("model.amend", headline="Charges are idempotent per request id",
+                bindings=["src/billing/charges.py"])
+
+    sb.call("code.source", path="src/billing/charges.py")
+    sb.call("model.amend", headline="Charges are idempotent per request id",
+            bindings=["src/billing/charges.py"])
+    assert any(t == "constraints" for t, _, _ in sb.ctx.writes)
+
+
 def test_constraint_zero_is_unreachable_not_merely_refused(project):
     """
     Constraint zero's bindings are derived — exactly the areas nobody has

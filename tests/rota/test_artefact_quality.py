@@ -37,11 +37,11 @@ def _constraint(conn, id, headline, text="", provenance="observed",
                      "grain_kind) VALUES (?,?,'path')", (id, g))
 
 
-def _term(conn, id, term, short, provenance="observed", source_refs=()):
+def _term(conn, id, term, short, provenance="observed", source_refs=(), body=""):
     conn.execute(
-        "INSERT INTO glossary_terms (id, term, sense_short, provenance, "
-        "source_refs) VALUES (?,?,?,?,?)",
-        (id, term, short, provenance, json.dumps(list(source_refs))))
+        "INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
+        "provenance, source_refs) VALUES (?,?,?,?,?,?)",
+        (id, term, short, body, provenance, json.dumps(list(source_refs))))
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +207,14 @@ def test_a_file_path_is_not_a_glossary_term(db):
     useful half: it compares a definition against its term, and when the term
     *is* the path, the definition's prose reads as novel content. A check aimed
     at the definition cannot see a fault in the subject.
+
+    Half of that blind spot has since closed. `_name_words` splits a name into
+    the words it is made of, so `AccessTokenEndpoint` now subtracts *access*,
+    *token* and *endpoint* from its own definition and `p2` is caught twice
+    over. `p1` still is not, and that is the case that keeps the two checks
+    apart: *protocol*, *implementation* and *handling* are real words that a
+    reader could have written, and nothing about the definition gives the fault
+    away. Only looking at the subject does.
     """
     _term(db, "p1", "oauth1/rfc5849/errors.py",
           "OAuth 1.0 protocol implementation error handling")
@@ -215,8 +223,9 @@ def test_a_file_path_is_not_a_glossary_term(db):
     _term(db, "ok", "nonce",
           "a value the server stores and rejects on repeat, guarding replay")
 
-    assert artefacts.restates_the_index(db) == [], \
-        "if this now fires, the new check is redundant rather than complementary"
+    assert {f.row_id for f in artefacts.restates_the_index(db)} == {"p2"}, \
+        "p1 must stay invisible to this check, or the path check has no reason " \
+        "to exist separately"
     caught = {f.row_id for f in artefacts.a_term_is_a_word(db)}
     assert caught == {"p1", "p2"}
 
@@ -235,6 +244,114 @@ def test_a_constraint_with_no_body_is_a_title(db):
 
     caught = {f.row_id for f in artefacts.a_constraint_needs_a_body(db)}
     assert caught == {"c1"}
+
+
+def test_a_qualifier_does_not_rescue_a_restatement(db):
+    """
+    Twelve of icalendar's twenty-four terms carried a `sense_short` of exactly
+    this shape — `date_class`: "specific date class", `datetime_object`:
+    "specific datetime object" — the name said back with an adjective in front.
+
+    Two faults let that through, and the strings here isolate the first. The
+    check subtracts the term's own words and a set of generic kind-nouns, then
+    asks what remains. `class`, `object` and `type` were all in that set;
+    `specific` was not, so it survived as the one "novel" word and carried the
+    definition past on its own. `_words` also tokenises on `[a-z0-9_]+`, so
+    `date_class` stayed a single token and the term's own words were never
+    subtracted at all.
+
+    In the run itself those rows also had bodies, which is what actually kept
+    them clean — so fixing this check does not catch them, and the fault that
+    does is [test_one_meaning_written_under_many_names].
+    """
+    _term(db, "date_class", "date_class", "specific date class")
+    _term(db, "datetime_object", "datetime_object", "specific datetime object")
+    _term(db, "date_representation", "date_representation",
+          "specific date representation")
+    _term(db, "ok", "nonce",
+          "a value the server stores and rejects on repeat, guarding replay")
+
+    caught = {f.row_id for f in artefacts.restates_the_index(db)}
+    assert caught == {"date_class", "datetime_object", "date_representation"}
+
+
+def test_one_meaning_written_under_many_names(db):
+    """
+    Sixteen of icalendar's twenty-four terms were two concepts.
+
+    This is this morning's fix showing where the pressure went. Deriving the id
+    from the term made *"the same word written twice"* impossible, and the run
+    duplicated meanings under different names instead: `date_class`,
+    `date_instance`, `date_object`, `date_representation`, `date_type` and
+    `date_value`, four of them defined in the same sentence to the character.
+    Then the same six again with `datetime`.
+
+    `duplicated` cannot see it. It groups by `term`, and the ids derive from the
+    term, so distinct names are distinct rows by construction — the check
+    confirms an invariant that the schema already guarantees, which is why its
+    docstring says it should always be empty. Nothing was looking at the senses.
+
+    Set equality rather than a similarity threshold: these rows do not need
+    fuzziness to be caught, and a threshold is a knob that would have to be
+    defended against every legitimately-related pair in a real glossary.
+    """
+    _term(db, "date_class", "date_class", "specific date class",
+          body="a class representing a single date")
+    _term(db, "date_object", "date_object", "specific date object",
+          body="a class or value representing a single date")
+    _term(db, "date_value", "date_value", "specific date value",
+          body="a value representing a single date")
+    _term(db, "date_time", "date_time", "value combining date and time information",
+          body="a value that represents both a date and a time")
+    _term(db, "nonce", "nonce",
+          "a value the server stores and rejects on repeat, guarding replay")
+
+    caught = {f.row_id for f in artefacts.one_sense_under_many_terms(db)}
+    assert caught == {"date_class", "date_object", "date_value"}, \
+        "date_time says something the other three do not, and must survive"
+
+
+def test_a_term_with_no_sense_is_a_word(db):
+    """
+    The counterpart `a_constraint_needs_a_body` did not have. A guard rather
+    than a scar — no run has produced a senseless term, because `sense_short` is
+    a required argument — but required means positionally present, not filled,
+    and the glossary was the one artefact where writing nothing cost nothing.
+    """
+    _term(db, "empty", "timezone", "")
+    _term(db, "blank", "parameter", "   ")
+    _term(db, "ok", "nonce",
+          "a value the server stores and rejects on repeat, guarding replay")
+
+    caught = {f.row_id for f in artefacts.a_term_needs_a_body(db)}
+    assert caught == {"empty", "blank"}
+
+
+def test_a_term_cannot_be_written_without_a_sense(db, tmp_path):
+    """
+    The audit catching it afterwards is the second line; refusing the write is
+    the first. `sense_short` being a required argument only guarantees it was
+    passed, and `""` passes.
+    """
+    from rota.core import sandbox as sandbox_mod
+    from rota.onboarding import boot
+    from rota.testkit import gitfixture
+
+    repo = gitfixture.make(tmp_path)
+    try:
+        conn = init_db(tmp_path / "g.db")
+        boot.onboard(conn, repo.root)
+        sb = sandbox_mod.build("terminologist", conn, session_id="s1",
+                               area="src/billing")
+
+        with pytest.raises(ValueError, match="sense"):
+            sb.call("glossary.amend", term="charge", sense_short="")
+
+        sb.call("glossary.amend", term="charge",
+                sense_short="an authorisation the gateway has already accepted")
+        assert any(t == "glossary_terms" for t, _, _ in sb.ctx.writes)
+    finally:
+        gitfixture.cleanup(repo)
 
 
 def test_a_number_living_in_the_path_is_not_invented(db, tmp_path):

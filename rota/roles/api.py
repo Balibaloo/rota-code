@@ -273,6 +273,21 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
     slug = re.sub(r"[^a-z0-9]+", "_", term.strip().lower()).strip("_")
     if not slug:
         raise ValueError("a term needs a word in it")
+
+    # `sense_short` is a required argument, which means positionally present
+    # rather than filled -- nothing stopped an empty string, and the audit had
+    # no counterpart to `a_constraint_needs_a_body` to catch one afterwards.
+    #
+    # A guard, not a scar: no run has produced a senseless term. It is here
+    # because the constraint side needed exactly this rule and the glossary was
+    # the one artefact where writing nothing cost nothing. Declining to define a
+    # term stays free -- not writing the row at all is always allowed.
+    if not (sense_short or "").strip() and not (sense_body or "").strip():
+        raise ValueError(
+            f"{term!r} has no sense under it. A glossary of words is the index "
+            f"with the columns relabelled -- say what the word means here, in "
+            f"the sense this area uses it, or leave it out.")
+
     id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
 
     ctx.writes.append(("glossary_terms", id, {
@@ -888,7 +903,9 @@ def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
 @op("code", "source")
 def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     """
-    Read source, by path and line range.
+    Read source, by path and line range. Given a directory it returns the
+    listing instead — which is how you find a file worth reading when all you
+    have is the area you were woken for.
 
     Structural review was asking Architect to judge whether a change satisfies a
     constraint while giving it only the code *index* — grain names and fan-in
@@ -903,6 +920,39 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     target = _within(_worktree_of(ctx), path)
     if not target.exists():
         return {"path": path, "error": "not found"}
+
+    # A survey session is woken *for an area*, and an area is a directory -- so
+    # the one path it holds before reading anything is the one path this could
+    # not read. A directory clears the `exists()` guard above and then raises
+    # `PermissionError` out of `read_text`, which reached the model as an errno
+    # and an absolute host path.
+    #
+    # That closed a loop over thirteen sessions on the second foreign
+    # repository. `ctx.opened` stayed empty, so `model.amend` refused the
+    # binding as unread and told the session to `code.source` the file first;
+    # the session complied with the only path it had, which was this one. Every
+    # `surveys.attest` then refused because nothing had been written. Each of
+    # the three refusals was correct on its own, and together they were a dead
+    # end: the instruction was followable and following it changed nothing.
+    #
+    # So answer what the session is really asking -- *what is in here* -- and
+    # hand back the names that make the next call possible. Listing is not
+    # reading, and `ctx.opened` stays untouched: whoever binds a grain still has
+    # to open the file it lives in.
+    if target.is_dir():
+        stem = path.rstrip("/\\")
+        stem = "" if stem in (".", "") else stem + "/"
+        entries = sorted(target.iterdir(), key=lambda e: e.name)
+        return {
+            "path": path,
+            "kind": "directory",
+            "files": [stem + e.name for e in entries if e.is_file()],
+            "directories": [stem + e.name for e in entries if e.is_dir()],
+            "note": "A directory is a listing, not source. Read one of the "
+                    "files above to see inside it -- and note that this "
+                    "listing does not count as having read any of them.",
+        }
+
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
     end = min(end, len(lines))
     ctx.opened.add(_grain_path(path))
