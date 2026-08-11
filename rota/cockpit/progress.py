@@ -86,10 +86,19 @@ def coverage() -> dict:
     started while it was the only tier with any coverage at all — the numbers
     were being read off the plan rather than off the work.
 
-    L1 is finer and is credited by side-effect: a case that asserts a write to
-    `criteria` exercises whatever L1 obligations touch that artefact. Honest but
-    generous, and stated as such — it is the reason L1 climbs without anybody
-    writing an L1-specific case.
+    L1 counts operations a case names *exactly*, because the goal is that every
+    tool call a role can make has been tested making it. Credit by side-effect —
+    a case asserting a write to `criteria` crediting every obligation on that
+    artefact — answers a different question, and is kept as `touched` rather
+    than deleted only because the gap between the two says how much of L1 is
+    covered by implication.
+
+    The figure was 49, and was wrong in both directions at once. It over-credited
+    reads and writes at artefact granularity, while *under*-crediting them by
+    recording a table name against an obligation keyed by artefact, so
+    `constraints` never matched `model` and the four artefacts the onboarding
+    loop writes to all scored zero however many cases exercised them. 32 of 135
+    is the honest number, on the panel used to decide what to test next.
 
     L3 is counted in *pairs*, not in obligations. The obligation set names the
     verbs on both hops — 229 of them — but a chain case cannot declare the
@@ -107,21 +116,35 @@ def coverage() -> dict:
                  for role in graph_mod.load().roles
                  for mode in prompts.available(role)}
 
-    covered_actions = set()
+    from ..core.db import ARTEFACT_OF_TABLE
+
+    # `named` is the operation a case actually asserts. `touched` is the artefact
+    # it went anywhere near. The two are reported separately because they differ
+    # by a factor of two, and a single figure hides which one you are reading.
+    named, touched = set(), set()
     for case in single:
         for table in ((case.get("expect") or {}).get("writes") or {}):
-            covered_actions.add(f"{case['role']}:{table}")
+            # Obligations are keyed by *artefact*; a write is asserted by
+            # *table*. Recording the table name meant `constraints` never
+            # matched `model`, and seven of the fourteen tables any case
+            # asserts -- `items`, `glossary_terms`, `survey_records` and
+            # `constraints` among them, which is most of the onboarding loop --
+            # scored zero however many cases exercised them.
+            touched.add(f"{case['role']}:{ARTEFACT_OF_TABLE.get(table, table)}")
         for fn in (case.get("expect") or {}).get("calls") or []:
-            covered_actions.add(f"{case['role']}:{fn.split('.')[0]}")
+            touched.add(f"{case['role']}:{fn.split('.')[0]}")
+            named.add(f"{case['role']}:{fn}")
         for spec in (case.get("expect") or {}).get("messages") or []:
             if spec.get("to") and spec.get("verb"):
-                covered_actions.add(
-                    f"{case['role']}:msg.{spec['verb']}_{spec['to']}")
+                one = f"{case['role']}:msg.{spec['verb']}_{spec['to']}"
+                named.add(one)
+                touched.add(one)
 
     l1 = obligations.l1()
-    l1_done = sum(1 for o in l1
-                  if f"{o.role}:{o.what.split('.')[0]}" in covered_actions
-                  or f"{o.role}:{o.what}" in covered_actions)
+    l1_done = sum(1 for o in l1 if f"{o.role}:{o.what}" in named)
+    l1_touched = sum(1 for o in l1
+                     if f"{o.role}:{o.what.split('.')[0]}" in touched
+                     or f"{o.role}:{o.what}" in named)
     l2 = obligations.l2()
     l2_done = sum(1 for o in l2 if (o.role, o.what) in cased_modes)
 
@@ -139,7 +162,8 @@ def coverage() -> dict:
                   "missing": sorted(f"{r}/{m}" for r, m in all_modes - cased_modes)},
         "cases": len(cases),
         "tiers": [
-            {"tier": "L1", "label": "actions", "done": l1_done, "total": len(l1)},
+            {"tier": "L1", "label": "actions", "done": l1_done, "total": len(l1),
+             "touched": l1_touched},
             {"tier": "L2", "label": "situations", "done": l2_done, "total": len(l2)},
             {"tier": "L3", "label": "handoff pairs", "done": l3_done,
              "total": l3_total},

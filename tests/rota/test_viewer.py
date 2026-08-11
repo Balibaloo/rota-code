@@ -146,3 +146,33 @@ def test_no_module_computes_its_own_location():
         if re.search(r"__file__", py.read_text(encoding="utf-8")):
             offenders.append(str(py.relative_to(root)))
     assert not offenders, f"computing their own location: {offenders}"
+
+
+def test_coverage_credits_a_write_against_the_artefact_it_belongs_to():
+    """
+    The panel is what decides what gets tested next, so a wrong number here
+    costs more than a wrong number anywhere else.
+
+    L1 obligations are keyed by artefact — `architect:model.amend`. Write credit
+    was recorded by *table* — `architect:constraints`. Those match only where a
+    table happens to share its artefact's name, and seven of the fourteen tables
+    the cases assert do not: `items`, `glossary_terms`, `survey_records` and
+    `constraints` among them, which is most of the onboarding loop. Every case
+    exercising them scored zero.
+
+    The same figure was simultaneously *over*-credited by matching reads and
+    writes at artefact granularity, so one case touching `glossary.amend`
+    credited every glossary operation the role had. 49 was neither of the two
+    honest numbers it sat between, which is why both are reported now.
+    """
+    from rota.cockpit.progress import coverage
+    from rota.core.db import ARTEFACT_OF_TABLE
+
+    renamed = [t for t, a in ARTEFACT_OF_TABLE.items() if t != a]
+    assert renamed, "no table is named differently from its artefact; case is moot"
+
+    tier = next(t for t in coverage()["tiers"] if t["tier"] == "L1")
+    assert tier["done"] <= tier["touched"] <= tier["total"], tier
+    assert tier["done"] > 0, "no case names an operation exactly"
+    assert tier["touched"] > tier["done"], \
+        "nothing is credited by implication, which means writes stopped counting"

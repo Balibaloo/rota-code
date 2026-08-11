@@ -505,10 +505,16 @@ async function loadProgress(){
     c.tiers.map(t=>`<div class="barwrap">
        <span style="width:110px">${t.tier} ${esc(t.label)}</span>
        <span class="sig" style="width:56px">${t.done}/${t.total}</span>
-       ${bar(t.done,t.total,'part')}</div>`).join('') +
+       ${bar(t.done,t.total,'part')}
+       ${t.touched===undefined?'':`<span class="sig muted" style="margin-left:8px"
+         title="also credited if a case merely touched the artefact -- a softer question"
+         >${t.touched} by implication</span>`}</div>`).join('') +
     `<p class="muted">Modes are one case per prompt piece -- the unit a
       pass-rate drop is attributable to. Obligations are the finer grid the
-      graph generates, and the long haul.</p>`;
+      graph generates, and the long haul. L1 counts only operations a case
+      names outright, because the goal is every tool call tested making the call.
+      The greyed figure adds those merely implied by an artefact a case
+      touched; the gap is how much of L1 is covered by accident.</p>`;
 
   const o = p.onboarding;
   document.getElementById('pg-onboarding').innerHTML = o.indexed
