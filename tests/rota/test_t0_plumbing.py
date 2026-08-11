@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -141,7 +143,25 @@ time.sleep(30)
     proc.kill()
     proc.wait(timeout=60)          # was 10; killing is instant, the machine is not
 
-    conn = init_db(dbpath)
+    # `wait` returns when the process is reaped, which on Windows is not when
+    # the file handle is released. Reopening straight away raised
+    # `sqlite3.OperationalError: disk I/O error` under load, and only under
+    # load — the kernel had not finished with the journal of a killed writer.
+    #
+    # Retried rather than slept through, because the wait is for the operating
+    # system and not for the system under test: what this case asserts is that
+    # an ungraceful death commits nothing, and that is true from the first
+    # instant. A fixed sleep would be slower and still a guess.
+    conn = None
+    for attempt in range(20):
+        try:
+            conn = init_db(dbpath)
+            break
+        except sqlite3.OperationalError as exc:      # pragma: no cover - timing
+            if "disk I/O" not in str(exc) and "locked" not in str(exc):
+                raise
+            time.sleep(0.25)
+    assert conn is not None, "the killed writer never released the database"
     assert conn.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"] == 0
     assert conn.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
     tips = open_tips(conn)

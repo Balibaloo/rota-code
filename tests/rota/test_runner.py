@@ -348,3 +348,53 @@ def test_a_real_result_in_the_transcript_is_not_mistaken_for_a_fabrication(db):
 
     assert "wrote its own tool results" not in outcome.errors
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
+
+
+def test_a_read_already_answered_does_not_hold_the_action_again(db):
+    """
+    The livelock the read boundary caused, which cost a case 3/5 -> 0/5.
+
+    A Terminologist asked five `glossary.lookup`s and then sent its answer. The
+    answer was held behind the reads, correctly, and the session was told to
+    send it again. It re-sent the batch intact — the five lookups *and* the
+    answer — so the hold fired on the same five reads, and again, and again.
+    Twelve turns and no message, from a model that had chosen the right action
+    in the first completion.
+
+    A repeated read is not an outstanding question. The boundary exists so that
+    nobody acts on something unseen, and by the second time round it has been
+    seen.
+    """
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('t1','account','a customer record','observed')")
+    batch = ("TOOL: problem.consult()\n"
+             "TOOL: msg.report_liaison(refs=['u1'])")
+    backend = ScriptedBackend([batch, batch, "Done."])
+
+    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    sent = db.execute("SELECT COUNT(*) n FROM messages WHERE from_role='gatekeeper'"
+                      ).fetchone()["n"]
+    assert sent == 1, "the action was held behind a read the session had already seen"
+
+
+def test_a_genuinely_new_read_still_holds_the_action(db):
+    """
+    The boundary itself is not weakened. Acting on a read you have not seen was
+    the commonest fault in the suite — 309 of 598 multi-call completions — and a
+    first-time read must still stop the write behind it.
+    """
+    backend = ScriptedBackend([
+        "TOOL: problem.consult()\n"
+        "TOOL: problem.assert(id='i1', text='premature', kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0, \
+        "a write ran on the strength of a read the session had not seen"
+    _, user = backend.calls[1]
+    assert "NOT RUN" in user

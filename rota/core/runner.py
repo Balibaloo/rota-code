@@ -476,6 +476,10 @@ def run_session(
             use_native = getattr(backend, "name", "") == "ollama" and                 llm.supports_tools(pins.model)
         schemas = toolschema.schemas_for_sandbox(sb) if use_native else None
 
+        # Every read this session has already performed, so that re-sending one
+        # is not mistaken for asking a fresh question. See the hold logic below.
+        already_run: set[str] = set()
+
         for iteration in range(1, max_iterations + 1):
             outcome.iterations = iteration
             completion = backend.complete(system, "\n\n".join(transcript), pins)
@@ -527,12 +531,26 @@ def run_session(
                 #
                 # A run of writes still runs: a role editing four files has
                 # already decided, and needs no round trip between them.
+                # ...and only a read it has not already had answered. A
+                # Terminologist asked five `glossary.lookup`s and then sent its
+                # answer, every turn, and every turn the answer was held behind
+                # reads it had already been shown. It re-sent the batch intact --
+                # correctly, having been told to -- and the hold fired again on
+                # the same five lookups. Twelve turns, no message, 3/5 to 0/5.
+                #
+                # A repeated read is not a question whose answer is outstanding.
+                # The boundary exists so nobody acts on something unseen, and by
+                # the second time round it has been seen.
+                key = f"{call.name}({sorted(call.args.items())}{call.pos})"
+                fresh_read = call.name in read_fns and key not in already_run
+
                 if seen_read and call.name not in read_fns:
                     held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
                     break
-                seen_read = seen_read or call.name in read_fns
+                seen_read = seen_read or fresh_read
 
                 try:
+                    already_run.add(key)
                     result = sb.call(call.name, *call.pos, **call.args)
                     feedback.append(f"OK {call.name} -> {_render(result)}")
                 except Exception as exc:               # tool error, not session-fatal
