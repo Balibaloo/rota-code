@@ -358,23 +358,33 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
 
 
 @op("surveys", "attest")
-def surveys_attest(ctx: Ctx, area: str, outcome: str,
+def surveys_attest(ctx: Ctx, outcome: str,
                    citations: list[str] | None = None) -> dict:
     """
-    Record a survey. Citations are validated against the code index, so
-    "surveyed, none found" is evidence rather than a claim — a lazy surveyor
-    cannot starve constraint zero by asserting it everywhere.
+    Close the area you were woken for. Citations are validated against the code
+    index, so "surveyed, none found" is evidence rather than a claim — a lazy
+    surveyor cannot starve constraint zero by asserting it everywhere.
 
     `outcome` is 'constraints_found' or 'none_found'.
 
-    The id is *derived*: one attestation per role per area, which is exactly what
-    `tick_survey` counts. It used to be asked for, prefixed with the role, and
-    that was enough rope to hang three cases with — a role that attested, kept
-    reading, and attested again under a second invented id left two rows for one
-    area and failed a case that asks for one. Re-attesting now replaces, which is
-    what "this is what I found in this area" means. A role has no way to know it
-    is being counted, so it should not be the one naming the count.
+    **Both the area and the id are derived, and neither is the role's to choose.**
+    The scheduler runs one area at a time in role order and the wake says which;
+    a role that names its own would be deciding what it had been asked to do.
+
+    On the first foreign repository this was a parameter, and a Terminologist
+    woken for area `.` attested `area='common.py'` — a file inside it. The record
+    filed against an area that does not exist, `tick_survey` never saw its area
+    close, and the same wake was produced until the attempt bound withdrew it.
+    Twelve areas, one survey, and the system reported itself quiescent.
+
+    The id follows from the area for the same reason: `tick_survey` counts one
+    row per role per area, so re-attesting replaces rather than accumulating.
     """
+    area = ctx.area
+    if not area:
+        raise ValueError(
+            "no area: attesting closes the area you were woken for, and this "
+            "session was not woken for one")
     id = f"{ctx.role}:{area}"
     ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
     unknown = []

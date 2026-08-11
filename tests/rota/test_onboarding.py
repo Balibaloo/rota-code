@@ -370,3 +370,43 @@ def test_onboarding_makes_the_survey_predicate_fire(project):
     assert wakes, "an onboarded repository has surveys owing"
     assert wakes[0].role == "terminologist", "terms first: everything the other" \
         " two write is written in them"
+
+
+def test_a_survey_closes_the_area_it_was_woken_for(project):
+    """
+    Not the one it names. On the first foreign repository a Terminologist woken
+    for area `.` attested `area='common.py'` — a file inside it. The record filed
+    against an area that does not exist, `tick_survey` never saw its area close,
+    and the same wake was produced until the attempt bound withdrew it. Twelve
+    areas, one survey record, and the system reported itself quiescent.
+
+    The scheduler runs one area at a time in role order and the wake says which.
+    A role that named its own would be deciding what it had been asked to do.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    indexer.build(db, repo.root)
+    areas.pin(db, areas.propose(db))
+
+    sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
+    sb.call("surveys.attest", outcome="none_found")
+
+    row = db.execute("SELECT id, area FROM survey_records").fetchone() or {}
+    staged = [w for w in sb.ctx.writes if w[0] == "survey_records"]
+    assert staged, "attesting should stage a survey record"
+    assert staged[0][2]["area"] == "src/billing"
+    assert staged[0][1] == "terminologist:src/billing"
+
+
+def test_attesting_outside_a_survey_is_refused(project):
+    """A session with no area was not woken to close one, and a record filed
+    against nothing is worse than no record: it looks like evidence."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    sb = sandbox_mod.build("terminologist", db, session_id="s1")
+    with pytest.raises(ValueError, match="no area"):
+        sb.call("surveys.attest", outcome="none_found")
