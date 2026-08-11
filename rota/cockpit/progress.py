@@ -157,6 +157,19 @@ def coverage() -> dict:
               for c in cases if c.get("first")}
     l3_done, l3_total = len(chains & pairs), len(pairs)
 
+    # L3a: A writes, a predicate fires, B wakes. Credited by what the chain case
+    # names outright — the writer, the predicate that woke the second role, and
+    # that role. The one chain case testing an artefact handoff used to score
+    # against the message pairs and match nothing, because Gatekeeper never
+    # messages Terminologist: it writes a ticket and `criteria` does the rest.
+    l3a = obligations.l3a()
+    tripped = {(c["first"]["role"], (c["then"].get("tick") or ""), c["then"]["role"])
+               for c in cases if c.get("first") and c.get("then")}
+    l3a_done = sum(1 for o in l3a if (
+        o.what.split(" writes ")[0],
+        o.what.split(" -")[1].rsplit("->", 1)[0],
+        o.role) in tripped)
+
     return {
         "modes": {"done": len(cased_modes & all_modes), "total": len(all_modes),
                   "missing": sorted(f"{r}/{m}" for r, m in all_modes - cased_modes)},
@@ -165,8 +178,10 @@ def coverage() -> dict:
             {"tier": "L1", "label": "actions", "done": l1_done, "total": len(l1),
              "touched": l1_touched},
             {"tier": "L2", "label": "situations", "done": l2_done, "total": len(l2)},
-            {"tier": "L3", "label": "handoff pairs", "done": l3_done,
+            {"tier": "L3", "label": "message handoffs", "done": l3_done,
              "total": l3_total},
+            {"tier": "L3a", "label": "artefact handoffs", "done": l3a_done,
+             "total": len(l3a)},
         ],
     }
 

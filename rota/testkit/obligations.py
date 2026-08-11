@@ -20,6 +20,7 @@ model to do it was the thing that produced fabricated entries.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from ..design import graph as graph_mod
@@ -128,14 +129,107 @@ def l3(g: graph_mod.Graph | None = None) -> list[Obligation]:
     return sorted(set(out), key=lambda o: o.id)
 
 
+_SQL_TABLE = re.compile(r"\b(?:FROM|JOIN)\s+([a-z_]+)", re.I)
+_CALLS = re.compile(r"\b(tick_[a-z_]+|_[a-z_]+)\s*\(")
+
+
+def reads_of(p, _depth: int = 2) -> set[str]:
+    """
+    Which tables a predicate looks at, derived rather than declared.
+
+    `Predicate.drains` was the obvious candidate and answers a different
+    question: which *stuck state* does this unstick. Ten of the twenty-six
+    declare nothing, and they are the forward ones — `survey`, `criteria`,
+    `slicing`, `grouping`, `review` — because they fire on a row being absent
+    rather than on a value being wrong. The whole onboarding pipeline is in that
+    ten.
+
+    So: read the SQL. Nine predicates are thin wrappers around `tick_*` helpers
+    in the scheduler, which is why one pass over the predicate's own source also
+    misses a third of them — but a different third, and following calls one or
+    two levels resolves all twenty-six.
+
+    Derivation over declaration, deliberately: twenty-six hand-written lists are
+    twenty-six things to forget when a query changes. The cost is that a refactor
+    could silently empty this, so `test_every_predicate_reads_something` asserts
+    it never does.
+    """
+    import inspect
+
+    from ..core import predicates as P
+    from ..core import scheduler as S
+
+    def walk(fn, depth, seen):
+        try:
+            src = inspect.getsource(fn)
+        except (OSError, TypeError):
+            return ""
+        out = src
+        if depth > 0:
+            for name in set(_CALLS.findall(src)) - seen:
+                seen.add(name)
+                target = getattr(S, name, None) or getattr(P, name, None)
+                if callable(target):
+                    out += "\n" + walk(target, depth - 1, seen)
+        return out
+
+    from ..core.db import SCHEMA_PATH
+
+    known = set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)",
+                           SCHEMA_PATH.read_text(encoding="utf-8")))
+    found = {t for t in _SQL_TABLE.findall(walk(p.fn, _depth, set())) if t in known}
+    return found | {t for (t, _c, _v) in p.drains}
+
+
+def l3a(g: graph_mod.Graph | None = None) -> list[Obligation]:
+    """
+    One per artefact-mediated handoff: A writes X, a predicate fires, B wakes.
+
+    `l3` enumerates message chains only, and most of this system does not
+    coordinate by message. Gatekeeper never messages Terminologist — it writes a
+    ticket and the `criteria` predicate wakes them. There is a chain case for
+    exactly that, and it scored as covering nothing, because the pair it names
+    does not exist among the message edges and nothing else was counting.
+
+    Twenty-six predicates are twenty-six wakes that no message caused. They are
+    enumerable because a predicate declares the state it drains, so the artefact
+    is known, and the graph says who writes it.
+
+    This is the tier the onboarding loop lives in entirely, and it had no
+    denominator at all.
+    """
+    from ..core import predicates as P
+    from ..core.db import ARTEFACT_OF_TABLE
+
+    g = g or graph_mod.load()
+    writers: dict[str, set[str]] = {}
+    for e in g.of_type("writes"):
+        if e.s in g.roles:
+            writers.setdefault(e.t, set()).add(e.s)
+
+    out = []
+    for p in P.REGISTRY.values():
+        woken = [p.wakes] if p.wakes in g.roles else list(p.derives)
+        artefacts = {ARTEFACT_OF_TABLE.get(t, t) for t in reads_of(p)}
+        for artefact in sorted(artefacts):
+            for writer in sorted(writers.get(artefact, ())):
+                for role in woken:
+                    out.append(Obligation(
+                        "L3a", role,
+                        f"{writer} writes {artefact} -{p.name}-> {role}",
+                        f"does {writer}'s write make {role} act on {p.name}"))
+    return sorted(set(out), key=lambda o: o.id)
+
+
 def all_obligations(g: graph_mod.Graph | None = None) -> list[Obligation]:
     g = g or graph_mod.load()
-    return l1(g) + l2(g) + l3(g)
+    return l1(g) + l2(g) + l3(g) + l3a(g)
 
 
 def summary(g: graph_mod.Graph | None = None) -> dict[str, int]:
     g = g or graph_mod.load()
-    return {"L1": len(l1(g)), "L2": len(l2(g)), "L3": len(l3(g))}
+    return {"L1": len(l1(g)), "L2": len(l2(g)),
+            "L3": len(l3(g)), "L3a": len(l3a(g))}
 
 
 if __name__ == "__main__":

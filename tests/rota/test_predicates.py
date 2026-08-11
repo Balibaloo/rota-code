@@ -234,3 +234,51 @@ def test_round_close_does_not_fire_with_nothing_to_harvest(db):
                "VALUES ('m2','t1','gatekeeper','liaison','report','[]',2,'open')")
     wakes = P.REGISTRY["round_close"].fn(db)
     assert [w.role for w in wakes] == ["liaison"] and wakes[0].refs == ("t1",)
+
+
+def test_every_predicate_reads_something():
+    """
+    L3a is derived from what each predicate looks at, and derivation is the
+    right trade — twenty-six hand-written table lists are twenty-six things to
+    forget when a query changes — but it can be silently emptied by a refactor
+    that moves a query somewhere the walk does not follow. An empty read set
+    does not fail anything; it quietly removes handoffs from the denominator,
+    which is the failure mode a coverage number must not have.
+
+    `Predicate.drains` cannot serve here: it answers which stuck state a
+    predicate unsticks, and ten of the twenty-six declare nothing because they
+    fire on a row being *absent*. Those ten are `survey`, `criteria`, `slicing`,
+    `grouping`, `review` and friends — the entire forward pipeline.
+    """
+    from rota.core import predicates as P
+    from rota.testkit.obligations import reads_of
+
+    blind = sorted(p.name for p in P.REGISTRY.values() if not reads_of(p))
+    assert not blind, (
+        f"{len(blind)} predicate(s) read no table the walk can find: {blind}. "
+        f"Every artefact handoff through them has left the L3a denominator.")
+
+
+def test_the_artefact_handoffs_are_enumerated_at_all():
+    """
+    Twenty-six predicates are twenty-six wakes that no message caused, and the
+    obligation set could not see one of them.
+
+    `l3` enumerates message chains. Gatekeeper never messages Terminologist — it
+    writes a ticket and `criteria` wakes them — so the one chain case testing an
+    artefact handoff scored against the message pairs, matched nothing, and read
+    as covering zero. The tier the whole onboarding loop runs in had no
+    denominator.
+    """
+    from rota.testkit.obligations import l3, l3a
+
+    handoffs = l3a()
+    assert len(handoffs) > 20, f"only {len(handoffs)} artefact handoffs found"
+
+    by_message = {o.what for o in l3()}
+    assert not (by_message & {o.what for o in handoffs}), \
+        "an artefact handoff is being counted twice, once as a message chain"
+
+    assert any("-slicing->" in o.what or "-criteria->" in o.what
+               for o in handoffs), \
+        "the ticket-to-criteria handoff, which exposed this, is still invisible"
