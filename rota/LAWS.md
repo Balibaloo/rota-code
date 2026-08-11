@@ -24,13 +24,13 @@ sense of seniority. They are not a customer being served and not a manager being
 reported to. They are the one who knows what they want and is the only one who
 can say whether they got it.
 
-**The team** is eight roles that never share context and communicate only by
+**The team** is nine roles that never share context and communicate only by
 artefact and message. Each is answerable for one thing. Each is woken, acts, and
 ends, with no memory of having been woken before. That is not a limitation being
 worked around: it is what makes a role's output attributable to its brief rather
 than to the accumulated drift of a long conversation.
 
-The eight, and what each is answerable for:
+The nine, and what each is answerable for:
 
 | role | answerable for |
 |---|---|
@@ -42,6 +42,7 @@ The eight, and what each is answerable for:
 | **Tester** | what "done" means, written so a machine can check it |
 | **Developer** | making it exist |
 | **Critic** | whether it was done, and done well |
+| **Researcher** | what is true outside this repository, and where that is written |
 
 **The understanding loop** — *hear, shape, agree* — turns what was said into what
 is meant. The principal speaks; Liaison records it verbatim and cuts it into
@@ -56,6 +57,15 @@ for intent and then for structure, and merged.
 
 **Reconciling** is running the first loop's discipline again when the second finds
 the world has changed. There is no third loop and no special path for it.
+
+**Everything outside the engagement arrives through one role.** The Researcher
+answers questions of fact about things this repository is obliged to — a
+specification, a licence, an advisory — and owns nothing but its own record of
+what it read. Nothing it writes reaches the model on its own: the role that asked
+decides whether to cite it, so a wrong answer stays a wrong row instead of
+becoming a constraint that blocks real work forever. It is contained rather than
+distributed for one reason, and it is the same reason the roles are separated at
+all: a boundary you can see is a boundary you can check.
 
 **A milestone** is quiescence with an empty ledger: no predicate fires and no
 assumption is open. There is nothing to "close" — a milestone is a state the
@@ -249,6 +259,16 @@ file, written by the decider *in the same session as the decision*, with no
 recording step and no scribe role — or `observed`, extracted from an onboarded
 codebase: found, not chosen. Challenging an observed entry forces its first
 decision. The decision record accretes lazily.
+
+> **Amended.** A third value, `cited`: found outside the repository, attributable
+> to a source. It is neither of the other two — nobody chose it and it was not
+> extracted from the code — and it is the only provenance that can become false
+> without anyone touching the project, because the page it rests on can change.
+> A `cited` entry carries `source_refs` to the reference rows that support it,
+> and a reference carries the passage as well as the URL: elsewhere conclusions
+> travel and reasoning stays home, but for an outside source the passage *is* the
+> evidence, and a confident sentence with a link after it is indistinguishable
+> from an invention.
 
 > A ledger entry is resolved by a decision that names it, in the same commit, and
 > by nothing else. There is no `ledger.resolve`: an assumption that could close

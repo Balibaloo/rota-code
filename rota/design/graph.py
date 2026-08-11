@@ -321,6 +321,15 @@ def check_refs_cover_the_schema(g: Graph) -> list[str]:
     return problems
 
 
+# An artefact nothing writes is usually a table with no author, which is the
+# shape of a law-1 violation waiting to happen. Two owners are legitimately
+# outside the roles: `scheduler`, which derives rather than decides, and `world`,
+# which is the open web — nothing in this system writes it, nothing in this
+# system can, and that unwritability is the whole reason it is read through one
+# contained role rather than a tool on five.
+UNWRITTEN_OWNERS = {"scheduler", "world"}
+
+
 def check_writers(g: Graph) -> list[str]:
     """Every artefact has a writer; roles do not write what they cannot own."""
     problems = []
@@ -328,7 +337,7 @@ def check_writers(g: Graph) -> list[str]:
         writers = g.writer_of(artefact)
         if not writers:
             node = g.nodes[artefact]
-            if node.owner != "scheduler":
+            if node.owner not in UNWRITTEN_OWNERS:
                 problems.append(f"artefact with no writer: {artefact}")
     return problems
 

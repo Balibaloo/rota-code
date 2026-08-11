@@ -60,8 +60,14 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "ledger":     ("ledger",),
     "decisions":  ("decisions",),
     "verdicts":   ("verdicts",),
+    # The Researcher's whole artefact, and the only one it may write. A row here
+    # is inert until a role that owns something cites it, which is what makes
+    # "the internet cannot widen the model" structural rather than a rule.
+    "references": ("references_",),
     # "code" is git, not a table: the DB lags it and boot reconciles the two.
     # "schedule" is derived by the scheduler, so it carries no receipts.
+    # "web" is the world: unwritable by anything in this system, which is why it
+    # is read through one contained role rather than a tool on five.
 }
 
 ARTEFACT_OF_TABLE: dict[str, str] = {

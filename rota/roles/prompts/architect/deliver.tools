@@ -12,3 +12,5 @@ msg.question_terminologist
 transcript.quote
 ledger.log
 msg.report_liaison
+references.load
+msg.question_researcher

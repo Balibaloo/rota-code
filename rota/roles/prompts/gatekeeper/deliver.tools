@@ -4,3 +4,5 @@ decisions.search
 msg.report_liaison
 brief.list
 ledger.log
+references.load
+msg.question_researcher

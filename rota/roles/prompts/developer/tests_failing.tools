@@ -7,3 +7,5 @@ code.commit
 ledger.log
 msg.challenge_tester
 msg.escalate_architect
+references.load
+msg.question_researcher

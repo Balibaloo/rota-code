@@ -85,6 +85,23 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "dead streams, and without a bound the same message is retried "
             "across restarts forever."),
 
+    Setting("research_cap", 6,
+            "Fetches in one Researcher session before it must answer with what "
+            "it has. A third scarcity, and deliberately not `loop_cap`: that one "
+            "spends compute and this one spends the outside world — rate limits, "
+            "and the trust surface of every page read. Sharing a name with either "
+            "existing cap would let someone tune the cheap thing and change how "
+            "hard this system leans on somebody else's server."),
+
+    Setting("research_allowlist", [],
+            "Domains the Researcher may fetch. Empty means it may fetch nothing, "
+            "which is the right default for a capability that reaches outside the "
+            "engagement: it has to be granted, never merely not-forbidden. "
+            "Configuration rather than an artefact, so the principal sets it "
+            "directly and 'humans do not edit artefacts' never comes under "
+            "pressure. An unlisted domain is not an error — the Researcher "
+            "reports what it could not reach, like any other dead end."),
+
     Setting("run_state", "running",
             "running dispatches; stopping finishes what is running and "
             "dispatches nothing more; halted stops now. Resume is explicit.",

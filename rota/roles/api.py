@@ -886,3 +886,85 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     ctx.writes.append(("batches", ctx.batch_id, {"head_commit": sha}, False))
     return {"committed": True, "head_commit": sha,
             "touched": worktrees.touched(tree)}
+
+
+# ---------------------------------------------------------------------------
+# references + web (Researcher) — the one reach outside the engagement
+#
+# The Researcher owns `references` and writes nothing else. A row here is inert:
+# it enters the model only when a role that owns an artefact cites it, which is
+# what makes "the internet cannot widen the model" structural rather than a rule
+# somebody has to keep.
+# ---------------------------------------------------------------------------
+
+@op("web", "fetch")
+def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
+    """
+    One passage from one page. `looking_for` picks which passage.
+
+    Never the whole page. An RFC is longer than the working set and four
+    paragraphs of it answer the question — the same index/body split that keeps
+    a working set viable over a large codebase keeps one over a large document.
+
+    Reachable domains are `research_allowlist`, which is empty by default: a
+    capability that reaches outside the engagement is granted, never merely
+    not-forbidden. A refusal is not a failure to recover from, it is a fact to
+    report back to whoever asked.
+    """
+    from ..core import config, web
+
+    fetched = len([c for c in getattr(ctx, "fetches", [])])
+    cap = config.get(ctx.conn, "research_cap")
+    if fetched >= cap:
+        return {"url": url, "refused": f"research_cap of {cap} fetches is spent; "
+                                       f"answer with what you have"}
+    try:
+        page = web.fetch(ctx.conn, url,
+                         config.get(ctx.conn, "research_allowlist"),
+                         offline=bool(getattr(ctx, "offline", False)))
+    except web.NotAllowed as exc:
+        return {"url": url, "refused": str(exc)}
+    except Exception as exc:                       # unreachable, timed out, 404
+        return {"url": url, "refused": f"could not read it: {exc}"}
+
+    if not hasattr(ctx, "fetches"):
+        ctx.fetches = []
+    ctx.fetches.append(url)
+    fragment = url.split("#", 1)[1] if "#" in url else ""
+    return {"url": url, "content_hash": page["content_hash"],
+            "passage": web.extract(page["body"], looking_for, fragment)}
+
+
+@op("references", "record")
+def references_record(ctx: Ctx, id: str, url: str, claim: str,
+                      quote: str = "") -> dict:
+    """
+    What a source says, and where — one row, so two roles citing the same clause
+    point at the same thing and one page changing is one drift event.
+
+    `quote` is the passage the claim rests on. Everywhere else in this system
+    conclusions travel and reasoning stays home; for an outside source the
+    passage *is* the evidence, and without it nobody can check whether this was
+    read correctly.
+    """
+    from ..core import web
+
+    page = web.cached(ctx.conn, url.split("#", 1)[0]) or web.cached(ctx.conn, url)
+    ctx.writes.append(("references_", id, {
+        "url": url, "claim": claim, "quote": quote or None,
+        "content_hash": (page or {}).get("content_hash", ""),
+        "asked_by": ctx.role}))
+    return {"id": id, "url": url}
+
+
+@op("references", "load")
+def references_load(ctx: Ctx, ids: list[str] | None = None) -> list[dict]:
+    """Sources on offer, or the ones a question came back with. Index depth:
+    the claim and its URL, never every quote at once."""
+    if ids:
+        marks = ", ".join("?" for _ in ids)
+        return _rows(ctx.conn.execute(
+            f"SELECT id, url, claim, quote, asked_by FROM references_ "
+            f"WHERE id IN ({marks}) ORDER BY id", ids))
+    return _rows(ctx.conn.execute(
+        "SELECT id, url, claim, asked_by FROM references_ ORDER BY id"))

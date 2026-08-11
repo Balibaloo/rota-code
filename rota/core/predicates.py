@@ -135,6 +135,16 @@ TERMINAL: dict[tuple[str, str, str], str] = {
         "someone chose it and the reason is on file",
     ("glossary_terms", "provenance", "decided"): "reason on file",
     ("constraints", "provenance", "decided"): "reason on file",
+    # `cited` is law 11's third value: found outside the repository, attributable
+    # to a source. Terminal for the same reason the other two are — provenance
+    # records where a row came from and is not a stage anything moves through.
+    #
+    # It is the only provenance that can become false without anyone touching
+    # the project, but that is *drift*, and drift is drained by waking the owner
+    # of whatever cited a changed source. It is not a state this row is stuck in.
+    ("items", "provenance", "cited"): "found outside; the source is on file",
+    ("glossary_terms", "provenance", "cited"): "found outside; the source is on file",
+    ("constraints", "provenance", "cited"): "found outside; the source is on file",
     ("batches", "status", "merged"): "delivered",
     ("batches", "status", "running"): "a live session holds it",
     ("test_runs", "result", "pass"): "nothing is owed by a passing test",

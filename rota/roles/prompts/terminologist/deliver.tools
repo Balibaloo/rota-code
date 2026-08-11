@@ -9,3 +9,5 @@ msg.report_liaison
 transcript.quote
 decisions.search
 decisions.author
+references.load
+msg.question_researcher

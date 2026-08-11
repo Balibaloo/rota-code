@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS items (
     id            TEXT PRIMARY KEY,
     text          TEXT NOT NULL,
     kind          TEXT NOT NULL CHECK (kind IN ('in_scope','out_of_scope')),
-    provenance    TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
+    provenance    TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
     approval      TEXT NOT NULL DEFAULT 'draft'
                   CHECK (approval IN ('draft','pending','approved','contested')),
     approval_ver  INTEGER,                  -- version the approval was granted at
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     term         TEXT NOT NULL,
     sense_short  TEXT NOT NULL,             -- the index row: one line, always loaded
     sense_body   TEXT,                      -- fetched singly, never in bulk
-    provenance   TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
+    provenance   TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
     source_refs  TEXT NOT NULL DEFAULT '[]',
     version      INTEGER NOT NULL DEFAULT 1
 );
@@ -102,7 +102,11 @@ CREATE TABLE IF NOT EXISTS constraints (
     id                   TEXT PRIMARY KEY,
     headline             TEXT NOT NULL,     -- the index row
     text                 TEXT,              -- fetched singly
-    provenance           TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
+    provenance           TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
+    -- Where a `cited` constraint came from. Glossary terms already carried this;
+    -- constraints are where external obligations actually land, so a constraint
+    -- that cannot point at the clause it encodes is the one that most needed to.
+    source_refs          TEXT NOT NULL DEFAULT '[]',
     rationale_decision   TEXT REFERENCES decisions(id),
     is_global            INTEGER NOT NULL DEFAULT 0,
     version              INTEGER NOT NULL DEFAULT 1
@@ -136,6 +140,33 @@ CREATE TABLE IF NOT EXISTS survey_citations (
     resolves    INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (survey_id, grain)
 );
+
+-- ---------------------------------------------------------------------------
+-- References (Researcher). What an outside source says, and where.
+--
+-- The Researcher owns this and nothing else, which is what makes over-indexing
+-- structurally impossible: it writes rows here, and a claim only enters the
+-- model if a role that owns an artefact chooses to cite one.
+--
+-- `quote` is not decoration. Everywhere else conclusions travel and reasoning
+-- stays home -- but for an external source the passage IS the evidence, and
+-- without it nobody can check whether the Researcher read it correctly.
+--
+-- No retrieval date, per law 13: nothing the system does with staleness needs
+-- one. "The page changed" is a `content_hash` comparison; "it has been a year"
+-- is a time judgement law 13 says the system does not get to make. The wall
+-- clock lives in the fetch cache, which is evidence like the cassettes rather
+-- than an artefact.
+CREATE TABLE IF NOT EXISTS references_ (
+    id            TEXT PRIMARY KEY,
+    url           TEXT NOT NULL,
+    claim         TEXT NOT NULL,            -- the index row: one line, always loaded
+    quote         TEXT,                     -- the passage it rests on, fetched singly
+    content_hash  TEXT NOT NULL DEFAULT '', -- drift: the page changed under a citation
+    asked_by      TEXT NOT NULL,            -- the role whose question produced it
+    version       INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS ix_references_url ON references_(url);
 
 -- What Architect expects a batch to touch. A *prediction*, never a permission:
 -- nothing rejects a diff for straying outside it. Its job is to make "was this
