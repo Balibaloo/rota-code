@@ -157,6 +157,59 @@ def test_readonly_mode_cannot_write(db):
     assert version_of(db, "items") == 0
 
 
+def test_a_result_under_the_cap_arrives_whole(db):
+    """No notice, no loss — the commonest case must be the boring one."""
+    from rota.core.runner import RESULT_CHARS, _render
+
+    text = _render({"path": "signature.py", "body": "x" * 100})
+    assert "TRUNCATED" not in text
+    assert "x" * 100 in text
+    assert len(text) <= RESULT_CHARS
+
+
+def test_a_cut_result_says_it_was_cut_and_by_how_much(db):
+    """
+    A silent cut is indistinguishable from a short answer. The model has no
+    reason to ask for the rest of something it does not know was withheld —
+    which is how an Architect came to survey a file it had read four hundred
+    lines of and seen twenty of.
+    """
+    from rota.core.runner import RESULT_CHARS, _render
+
+    full = "y" * (RESULT_CHARS * 2)
+    text = _render({"body": full})
+
+    assert "TRUNCATED" in text, "the cut is invisible to the model"
+    assert str(RESULT_CHARS) in text and str(len(json.dumps({"body": full}))) in text, \
+        "the notice must say how much was withheld, not merely that some was"
+    assert "Ask for the next range" in text, "no way offered to get the rest"
+
+
+def test_a_long_read_reaches_the_model_past_the_old_cap(db):
+    """
+    The regression this pins: results were cut to 1200 characters before the
+    model saw them, so `code.source(start=0, end=400)` did its job and delivered
+    a docstring. Nothing in the suite noticed, because every fixture's tool
+    results were short.
+    """
+    for i in range(20):
+        db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
+                   (f"i{i:02d}", f"scope item {i:02d} " + "detail " * 8,
+                    "in_scope", "decided"))
+    db.execute("UPDATE items SET text = text || ' CANARY_PAST_THE_OLD_CAP' "
+               "WHERE id='i19'")
+
+    backend = ScriptedBackend(["TOOL: problem.consult()", "Seen."])
+    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+
+    _, user = backend.calls[1]
+    served = user[user.rindex("OK problem.consult ->"):]
+    assert len(served) > 1200, "the old cap is still in force"
+    assert "CANARY_PAST_THE_OLD_CAP" in served, \
+        "the tail of the result never reached the model"
+
+
 def test_working_set_is_pushed_not_only_offered(db):
     """A cold session should not have to fetch what it obviously needs."""
     db.execute("INSERT INTO items (id, text, kind, provenance) "

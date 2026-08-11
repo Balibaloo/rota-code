@@ -160,6 +160,39 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     return system, "\n".join(body)
 
 
+# How much of a tool result the model is shown. This was 1200 characters, and it
+# was silently the most expensive number in the system.
+#
+# `code.source(path, start=0, end=400)` returns four hundred *lines* and did its
+# job. The result was then cut to 1200 characters before the model saw it, which
+# for a Python file is the module docstring and the imports -- so an Architect
+# surveying `signature.py` received a paragraph about signing requests and wrote
+# a constraint paraphrasing it. It was not skimming. That paragraph was the whole
+# of what arrived.
+#
+# Handed the actual source in a probe, the same model at the same temperature
+# named the signature base string, the base string URI, RFC 2616's lowercase
+# scheme and host, RFC 3986, RFC 2818's port-443 rule and RFC 2616 s5.1.2 --
+# every one real, attributed and checkable, with no inventions. The ceiling was
+# never the model.
+#
+# A cap is still needed: 12k of context does not hold an 852-line file. But it
+# has to be big enough to carry an answer, and truncation has to *say so* -- a
+# silent cut is indistinguishable from a short answer, and the model has no
+# reason to ask for the rest of something it does not know was cut.
+RESULT_CHARS = 6000
+
+
+def _render(result: Any) -> str:
+    """A tool result as the model sees it, saying plainly when it was cut."""
+    text = json.dumps(result, default=str)
+    if len(text) <= RESULT_CHARS:
+        return text
+    note = (f"... TRUNCATED after {RESULT_CHARS} of {len(text)} characters. "
+            f"Ask for the next range if you need it.")
+    return text[:RESULT_CHARS] + "\n" + note
+
+
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     The content of the triggering message, resolved one hop.
@@ -469,8 +502,7 @@ def run_session(
 
                 try:
                     result = sb.call(call.name, *call.pos, **call.args)
-                    feedback.append(f"OK {call.name} -> "
-                                    f"{json.dumps(result, default=str)[:1200]}")
+                    feedback.append(f"OK {call.name} -> {_render(result)}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
