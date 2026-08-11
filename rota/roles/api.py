@@ -52,12 +52,20 @@ class Ctx:
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
     trigger: str | None = None
+    # Files this session actually opened, by `code.source`. Law 12 says a
+    # constraint is a commitment to something outside the codebase; you cannot
+    # have found one in a file you did not read, and the first foreign repo
+    # produced twenty-four constraints from sessions that had opened almost
+    # nothing. The session already knew what it had read — nobody asked it.
+    opened: set = None
 
     def __post_init__(self):
         if self.writes is None:
             self.writes = []
         if self.outbound is None:
             self.outbound = []
+        if self.opened is None:
+            self.opened = set()
 
 
 def op(artefact: str, verb: str):
@@ -348,6 +356,23 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"{boot.ZERO} is derived: its bindings are the areas nobody has "
             f"surveyed, and a survey record is what shrinks it. Write your own "
             f"constraint for what you found.")
+
+    # You cannot have found a commitment in a file you did not open. The first
+    # foreign repository produced constraints naming grains no session had read
+    # -- the brief said to open them, the harness was cutting the result to a
+    # docstring, so opening them achieved nothing and nothing checked either way.
+    # `code.survey` is not reading: it returns the index, and the index is
+    # exactly the material a fabricated constraint is made of.
+    #
+    # Checked after constraint zero, whose refusal is the more specific one and
+    # was briefly being swallowed by this.
+    unread = sorted(g for g in (bindings or []) if _grain_path(g) not in ctx.opened)
+    if unread:
+        raise ValueError(
+            f"you have not read {', '.join(unread)} this session. A constraint "
+            f"binds the grains it governs, and it cannot govern what nobody "
+            f"opened -- `code.source` them first, or bind only what you read.")
+
     id = slug[:120]
     ctx.writes.append(("constraints", id, {
         "headline": headline, "text": text, "provenance": ctx.provenance,
@@ -838,6 +863,7 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
         return {"path": path, "error": "not found"}
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
     end = min(end, len(lines))
+    ctx.opened.add(_grain_path(path))
     return {"path": path, "start": start, "end": end,
             "text": chr(10).join(lines[start:end]), "lines": len(lines)}
 
@@ -885,6 +911,18 @@ def _worktree_of(ctx, batch_id=None) -> "Path":
         if row and row["worktree"]:
             return _P(row["worktree"])
     return project_root(ctx.conn)
+
+
+def _grain_path(grain: str) -> str:
+    """
+    The file a grain lives in, normalised for comparison.
+
+    Grains come in two shapes — `oauth1/rfc5849/signature.py` and
+    `oauth1/rfc5849/signature.py::sign_hmac` — and a session that read the file
+    has read the symbol. Backslashes fold to forward, because the index is built
+    on one platform and read on another.
+    """
+    return grain.split("::", 1)[0].replace("\\", "/").strip().lstrip("./")
 
 
 def _within(base, path: str):

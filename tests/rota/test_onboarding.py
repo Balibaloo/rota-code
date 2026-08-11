@@ -516,6 +516,57 @@ def test_the_same_constraint_written_twice_is_one_gate(project):
     assert rows[0]["text"] == "seen from src/api", "the second session did not amend"
 
 
+def test_a_constraint_cannot_bind_a_file_the_session_never_opened(project):
+    """
+    The fabrication check that does not depend on a prompt asking nicely.
+
+    oauthlib produced "Retention period for access tokens is 30 days" five
+    times, against a repository containing no retention policy and no thirty.
+    The sessions had called `code.survey` — which returns the *index*, the grain
+    names and fan-in counts — and that index is exactly the material a
+    fabricated constraint is made from. The brief said to open the files. The
+    harness was cutting the result to a docstring, so opening them achieved
+    nothing, and nothing checked either way.
+
+    The truncation is fixed and the brief is rewritten, and both of those are
+    prose that a future edit can undo. This is the part that stays: you cannot
+    say a commitment lives in a file you did not read.
+    """
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+
+    with pytest.raises(ValueError, match="not read"):
+        sb.call("model.amend", headline="Charges are idempotent per request id",
+                bindings=["src/billing/charges.py"])
+
+    sb.call("code.source", path="src/billing/charges.py")
+    sb.call("model.amend", headline="Charges are idempotent per request id",
+            bindings=["src/billing/charges.py"])
+    assert any(t == "constraints" for t, _, _ in sb.ctx.writes), \
+        "reading the file did not make the constraint writable"
+
+
+def test_reading_a_file_covers_the_symbols_inside_it(project):
+    """A grain is `file.py` or `file.py::symbol`, and whoever read the file read
+    the symbol. Otherwise the check would push roles into binding whole files
+    when they mean one function."""
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
+
+    sb.call("code.source", path="src/billing/charges.py")
+    sb.call("model.amend", headline="The refund path is ordered",
+            bindings=["src/billing/charges.py::refund"])
+    assert any(t == "constraint_bindings" for t, _, _ in sb.ctx.writes)
+
+
 def test_constraint_zero_is_unreachable_not_merely_refused(project):
     """
     Constraint zero's bindings are derived — exactly the areas nobody has
