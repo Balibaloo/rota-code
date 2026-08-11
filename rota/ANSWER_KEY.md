@@ -200,3 +200,59 @@ Three faults, in the order I would fix them:
 The second onboarding run, with the Researcher, is the one that bears on 3: a
 constraint that must carry a clause is a constraint that cannot be invented. It
 does not touch 1 or 2.
+
+---
+
+## Second run — predictions, written before it started
+
+Three harness faults were fixed after the first run. Written down now so the
+scoring cannot be arranged afterwards to suit whatever comes out.
+
+**What changed.** Tool results were cut to 1200 characters before the model saw
+them, so `code.source(start=0, end=400)` delivered a docstring; the cap is 6000
+and a cut now says so. The survey brief's four example constraint shapes — "a
+retention period", "an interface something else depends on" — are gone, replaced
+by the who-outside-would-notice test. Constraint ids derive from the headline.
+
+**The claim being tested is narrow and falsifiable:** the fabrications were
+caused by the session having nothing to work from, not by the model being unable
+to do the work. If that is right, giving it the file changes the output. If the
+constraints come back template-shaped anyway, the truncation was incidental and I
+spent a day on the wrong thing.
+
+### Predicted, in descending confidence
+
+1. **Zero constraints headlined "Retention period …", "Interface …" or
+   "Ordering …".** The menu is gone. If any survive, they are being generated
+   from somewhere I have not found.
+2. **No invented numbers.** "Retention period for access tokens is 30 days"
+   appeared five times; oauthlib contains no thirty. Any numeral in a constraint
+   must appear in the file it binds.
+3. **Distinct headlines rise, total rows fall.** 24 rows / 6 headlines becomes
+   fewer rows and *more* distinct ones — dedup removes the copies, real reading
+   supplies variety. Fewer than 8 distinct would mean reading changed nothing.
+4. **Glossary definitions stop restating the index.** "DeviceApplicationServer:
+   a class in oauth2/rfc8628/endpoints/pre_configured.py" says nothing the path
+   does not. At least half the definitions should contain a content word that
+   appears nowhere in the grain name or its path.
+5. **At least one constraint in `oauth1/rfc5849` about signature construction** —
+   key prediction 4, missed in both prior runs, and the strongest real external
+   commitment in the repository. This is the one I would most like to be right
+   about and am least sure of.
+
+### Predicted to still fail
+
+6. **`nonce` still collapses to one sense, or is missed.** Three senses across
+   three areas that cannot see each other's context. Reading more of each file
+   does not by itself make a session notice the other two, and nothing in the
+   loop asks it to compare. If this *does* come out right, the compounding claim
+   is in better shape than I think it is.
+7. **`estimate_type` still missed.** Local convention, no reason to open it.
+
+### The other half of the prediction
+
+The 1200-character cut applied to *every* read in the system, not only the
+Architect's. So the L1 and L3 re-record should move some results that have
+nothing to do with surveying. **If nothing moves, this fix is smaller than I have
+been claiming** and the artefact improvement, if any, came from the brief rewrite
+and the dedup instead.
