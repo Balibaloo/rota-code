@@ -400,6 +400,20 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # eleven times: the model finishes, does not notice it has finished, and
         # says it again. Telling it afterwards is weaker than making it
         # impossible.
+        # A ref is an id, and only an id. Models offer `refs=[{"id": "g_1b9009"}]`
+        # and `refs=[{"term": "report", "refs": []}]` -- reasonable-looking, and
+        # fatal: the row is stored as-is and the *recipient* dies resolving it
+        # ("cannot use 'dict' as a dict key"), a session killed by a message
+        # somebody else composed, with the traceback pointing at the innocent
+        # role. Refused here it costs the sender one turn and it can see why.
+        bad = [r for r in (refs or []) if not isinstance(r, str)]
+        if bad:
+            raise ValueError(
+                f"refs are ids and nothing else; you sent {bad[0]!r}. Send the "
+                f"id on its own -- whatever you wrapped it in cannot travel, "
+                f"because the far end resolves ids against the tables and has "
+                f"nowhere to put the rest.")
+
         duplicate = any(
             m["to_role"] == recipient and m["verb"] == verb
             and m["body_refs"] == list(refs or [])

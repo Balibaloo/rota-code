@@ -498,10 +498,18 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
 
     before = snapshot_versions(conn)
     seeded = {r["id"] for r in conn.execute("SELECT id FROM messages")}
-    wake = Wake(role=case["role"], kind="message",
+    # A tick case must wake as a tick. `kind` was hardcoded to "message" and the
+    # declared tick reached `detail` only, which picks the right brief and then
+    # takes a different path through everything keyed on the kind itself:
+    # `round_close` resolves the whole round in `resolve_inbound` and got `{}`,
+    # so Liaison was told to compose what came back while being shown none of
+    # it -- 0/220, and correctly so, because `t1` was the only id it held.
+    # `tick:survey` writes with `observed` provenance and was writing `decided`.
+    tick = case.get("tick")
+    wake = Wake(role=case["role"], kind=f"tick:{tick}" if tick else "message",
                 message_id=msg_id if inbound else None,
                 refs=tuple(case.get("refs") or ()),
-                detail=inbound.get("verb", case.get("tick", "")))
+                detail=inbound.get("verb", tick or ""))
 
     # The same resolution the loop does, for the same reason: a role that works
     # in a worktree needs to be told which one, and it is never the role's to
@@ -562,9 +570,14 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
 
     def _one(spec: dict, message_id: str | None) -> tuple[RunOutcome, Delta]:
         mode = spec.get("prompt") or spec.get("verb") or spec.get("tick", "")
-        wake = Wake(role=spec["role"], kind="message", message_id=message_id,
+        # Same as the L1 path: a leg declaring a tick has to wake as one, or the
+        # handoff under test starts from a wake shape production never produces.
+        tick = spec.get("tick")
+        wake = Wake(role=spec["role"],
+                    kind=f"tick:{tick}" if tick and not message_id else "message",
+                    message_id=message_id,
                     refs=tuple(spec.get("refs") or ()),
-                    detail=spec.get("verb") or spec.get("tick", ""))
+                    detail=spec.get("verb") or tick or "")
         seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
         versions = snapshot_versions(conn)
         out = run_session(

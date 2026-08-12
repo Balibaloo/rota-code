@@ -396,7 +396,11 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
     """Refs to rows, one hop deep. Nothing those rows point at in turn."""
     resolved: dict[str, Any] = {}
     for ref in refs:
-        if ref in resolved:
+        # Rows written before `_bind_send` refused non-string refs can still
+        # carry a dict here, and resolving one killed the receiving session
+        # rather than the sending one. Skipping is right even so: an id that is
+        # not an id resolves to nothing, which is what the role should be told.
+        if not isinstance(ref, str) or ref in resolved:
             continue
         for table, cols in (
             ("statements", "id, text, status"),
