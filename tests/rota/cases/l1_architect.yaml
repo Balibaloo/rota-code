@@ -14,6 +14,10 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    # This case expects a `code.probe`, and a probe against an index nobody
+    # built returns the same empty list as a probe that matched nothing. The
+    # Developer case next door lost 70 of 80 runs to exactly that ambiguity.
+    onboard: true
   fixture:
     items:
       - {id: <i1>, text: "volume discounts on the line total", kind: in_scope,
