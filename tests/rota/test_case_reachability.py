@@ -108,3 +108,86 @@ def test_a_tick_cases_fixture_would_actually_fire_that_predicate(case, tmp_path)
     assert any(w.role == case["role"] for w in wakes), (
         f"{case['id']} says it wakes {case['role']} on tick:{case['tick']}, but "
         f"that predicate wakes {sorted({w.role for w in wakes})} here")
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+def test_an_expected_call_has_something_to_read(case):
+    """
+    Three of this suite's long-standing failures were a case expecting a call
+    whose data source its fixture never filled, and the same shape every time:
+    the role does something reasonable and scores as wrong.
+
+    `code.probe` reads `code_index`, which `_with_repo` only builds when a case
+    asks for `onboard`. Two cases expected a probe without asking.
+    `L1-AR-annotate-a-batch` ran 0/5 and `L1-DV-fix-the-code-not-the-test` ran
+    10/80 — the brief tells the Developer to find the implementation by probing
+    and then read it, and the probe came back empty, so the role concluded the
+    symbol did not exist and challenged the Tester. A sound inference from a
+    result that was not evidence.
+
+    `web.fetch` reads `web_cache`, which is seeded and never fetched, because a
+    role whose tests needed the network would be the one role whose results
+    differ by machine.
+
+    This is the same rule as the wake checks above, one step further in: not
+    *can the scheduler put the role here*, but *can the role find what it is
+    being asked to find once it arrives*. It needs no artefact-to-table map —
+    each of these is one call reading one table, named in the op itself.
+    """
+    needs = {"code.probe": "an index (set `repo.onboard: true`)",
+             "code.survey": "an index (set `repo.onboard: true`)",
+             "web.fetch": "`fixture.web_cache` pages"}
+    wanted = set((case.get("expect") or {}).get("calls") or [])
+    repo = case.get("repo") or {}
+    fixture = case.get("fixture") or {}
+
+    for call, what in sorted(needs.items()):
+        if call not in wanted:
+            continue
+        if call == "web.fetch":
+            assert fixture.get("web_cache"), (
+                f"{case['id']} expects {call} and seeds no pages: it wants {what}, "
+                f"and without them the call cannot return anything the case "
+                f"grades")
+        else:
+            assert repo.get("onboard"), (
+                f"{case['id']} expects {call} and never onboards: it wants "
+                f"{what}, and an empty index answers exactly like a search that "
+                f"matched nothing")
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+def test_a_prose_channel_is_woken_with_words(case):
+    """
+    One channel carries prose and the graph says which. Law 2 keeps words off
+    messages because sender and recipient share a database, so an id means
+    something at both ends — except for the Researcher, which has never seen an
+    artefact. Refs are meaningless to it, and the schema puts it plainly at the
+    column: a question with no words is no question.
+
+    `L1-RS-answer-from-the-clause-not-from-memory` seeded that message with
+    neither, and the session said so in its own reply: "the architect's question
+    was empty and there were no references to load". It answered from memory,
+    which is the one failure the case exists to catch, and nothing else was
+    available to it.
+
+    Read off the edge rather than from a role name, for the same reason the
+    exception is declared there: one fact in one place.
+    """
+    from rota.design import graph as graph_mod
+
+    inbound = case.get("inbound") or {}
+    if not inbound:
+        return
+
+    prose_verbs = {e.prose for e in graph_mod.load().edges if getattr(e, "prose", "")}
+    if inbound.get("verb") not in prose_verbs:
+        return
+    if inbound.get("to") not in {e.t for e in graph_mod.load().edges
+                                 if getattr(e, "prose", "")} | {"researcher"}:
+        return
+
+    assert (inbound.get("body_text") or "").strip(), (
+        f"{case['id']} wakes {inbound.get('to')} with a `{inbound.get('verb')}` "
+        f"carrying no words. That channel declares `prose` on the graph because "
+        f"refs mean nothing to the recipient, so this is an empty question")
