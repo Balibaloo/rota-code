@@ -268,7 +268,7 @@ def test_a_survey_shrinks_it_by_exactly_one_area(project):
         (boot.ZERO,)).fetchone()["n"]
 
     db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
-               "('terminologist:s1', 'src/store', 'constraints_found')")
+               "('terminologist:s1', 'src/store', 'found')")
     boot.refresh_constraint_zero(db)
 
     bound = {r["grain"] for r in db.execute(
@@ -327,7 +327,7 @@ def test_a_landed_survey_puts_the_shrink_on_the_frontier(project):
     assert not constraint_zero(db), "nothing surveyed, nothing to reconcile"
 
     db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
-               "('terminologist:s1', 'src/store', 'constraints_found')")
+               "('terminologist:s1', 'src/store', 'found')")
 
     wakes = constraint_zero(db)
     assert wakes and wakes[0].kind == "tick:constraint_zero"
@@ -849,6 +849,47 @@ def test_a_genuinely_finished_onboarding_is_still_quiescent(project):
     assert [w for w in frontier(db) if w.kind == "tick:survey"] == []
 
 
+def test_the_outcome_names_what_this_role_was_looking_for(project):
+    """
+    `constraints_found` was the only way to say "found something", and two of the
+    three surveying roles do not write constraints. Terminologist writes terms,
+    Architect writes constraints, Gatekeeper writes items — so the evidence check
+    had to accept any of the three, and accepting any of the three is what let a
+    Terminologist attest `constraints_found` eleven times having written none.
+
+    icalendar showed the cost once the fabrication cleared: eight of eleven areas
+    came back `constraints_found` against a repository where the run wrote *zero*
+    constraints. The word was not a lie the model told, it was the only word we
+    gave it.
+
+    So the outcome says `found`, which is true for whoever is speaking, and the
+    evidence must be the artefact this role's mode exists to write. A
+    Terminologist's terms cannot stand in for an Architect's constraints.
+    """
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    te = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
+    te.call("glossary.amend", term="charge",
+            sense_short="an authorisation the gateway has already accepted")
+    te.call("surveys.attest", outcome="found")
+    assert any(t == "survey_records" for t, _, _ in te.ctx.writes), \
+        "a Terminologist that defined a term has found something, and used to " \
+        "have to call it a constraint to say so"
+
+    # The graph already stops an Architect writing a glossary term, so the leak
+    # only ran one way: any of the three tables satisfied the claim, and a
+    # Terminologist's terms were accepted as constraints found. The refusal has
+    # to name the artefact this role owes, not merely say something is missing.
+    ar = sandbox_mod.build("architect", db, session_id="s2", area="src/billing")
+    with pytest.raises(ValueError, match="constraints"):
+        ar.call("surveys.attest", outcome="found")
+
+
 def test_finding_something_costs_more_than_finding_nothing(project):
     """
     The two outcomes used to cost exactly the same, and one of them looks more
@@ -872,8 +913,8 @@ def test_finding_something_costs_more_than_finding_nothing(project):
     boot.onboard(db, repo.root)
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
 
-    with pytest.raises(ValueError, match="wrote nothing"):
-        sb.call("surveys.attest", outcome="constraints_found")
+    with pytest.raises(ValueError, match="wrote no constraints"):
+        sb.call("surveys.attest", outcome="found")
 
     sb.call("surveys.attest", outcome="none_found")
     assert any(t == "survey_records" for t, _, _ in sb.ctx.writes), \
@@ -894,13 +935,13 @@ def test_a_constraint_with_no_body_cannot_be_attested_as_a_finding(project):
     sb.call("model.amend", headline="Billing Commitment",
             bindings=["src/billing/charges.py"])
     with pytest.raises(ValueError, match="nothing under it"):
-        sb.call("surveys.attest", outcome="constraints_found")
+        sb.call("surveys.attest", outcome="found")
 
     sb.call("model.amend", headline="Billing Commitment",
             text="Charges are idempotent per request id; a payment processor "
                  "retrying a timeout must not be charged twice.",
             bindings=["src/billing/charges.py"])
-    sb.call("surveys.attest", outcome="constraints_found")
+    sb.call("surveys.attest", outcome="found")
 
 
 def test_a_surveyor_is_not_shown_what_its_peers_concluded(project):
@@ -919,7 +960,7 @@ def test_a_surveyor_is_not_shown_what_its_peers_concluded(project):
     boot.onboard(db, repo.root)
     for i, area in enumerate(("src/auth", "src/catalog")):
         db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
-                   (f"architect:{area}", area, "constraints_found"))
+                   (f"architect:{area}", area, "found"))
 
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
     rows = sb.call("surveys.consult")

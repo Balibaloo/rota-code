@@ -35,7 +35,10 @@ which hold commitments; deciding that is the job. On a well-known protocol
 library, three or four areas out of twelve had one. The rest were `none_found`,
 and that was the correct survey of them.
 
-`surveys.attest` closes the area with citations naming the grains you read. You
+`surveys.attest` closes the area with citations naming the grains you read: it
+takes `found` or `none_found`, and `found` means you wrote a constraint with a
+body on it. A term you defined is not your finding — the glossary is
+Terminologist's artefact, and this mode's is the constraint. You
 do not name the area; you were woken for it. It is the last thing you do — one
 attestation per area, and the session ends with it. `none_found` is a real answer
 and this is the mode where it is most often the right one; it costs you nothing

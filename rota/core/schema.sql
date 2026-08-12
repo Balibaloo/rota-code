@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS constraint_bindings (
 CREATE TABLE IF NOT EXISTS survey_records (
     id          TEXT PRIMARY KEY,
     area        TEXT NOT NULL,
-    outcome     TEXT NOT NULL CHECK (outcome IN ('constraints_found','none_found')),
+    outcome     TEXT NOT NULL CHECK (outcome IN ('found','none_found')),
     refs        TEXT NOT NULL DEFAULT '[]',
     version     INTEGER NOT NULL DEFAULT 1
 );

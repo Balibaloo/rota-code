@@ -469,7 +469,8 @@ def surveys_attest(ctx: Ctx, outcome: str,
     index, so "surveyed, none found" is evidence rather than a claim — a lazy
     surveyor cannot starve constraint zero by asserting it everywhere.
 
-    `outcome` is 'constraints_found' or 'none_found'.
+    `outcome` is 'found' or 'none_found' -- 'found' meaning you wrote down
+    what this mode exists to find, which is not the same artefact for every role.
 
     **Both the area and the id are derived, and neither is the role's to choose.**
     The scheduler runs one area at a time in role order and the wake says which;
@@ -493,33 +494,45 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # The outcome has to match what the session actually did.
     #
     # The brief says most code is not a constraint and that `none_found` is most
-    # often the right answer here. Architect returned `constraints_found` for ten
-    # of eleven areas of a repository holding three or four real external
-    # commitments -- and eight of those eleven constraints were a headline with
-    # no body. Not dishonesty: being woken *for an area* is a demand, and the two
-    # outcomes cost exactly the same, so one of them looks more like work.
+    # often the right answer here. Architect returned a finding for ten of eleven
+    # areas of a repository holding three or four real external commitments --
+    # and eight of those eleven constraints were a headline with no body. Not
+    # dishonesty: being woken *for an area* is a demand, and the two outcomes
+    # cost exactly the same, so one of them looks more like work.
     #
     # So they stop costing the same. Finding something means having written
     # something, with a body on it; finding nothing stays free. The asymmetry is
     # the point, because the honest answer is the one we need to be cheap.
-    findings = [(t, v) for t, _id, v in ctx.writes
-                if t in ("constraints", "glossary_terms", "items")]
-    if outcome == "constraints_found":
-        if not findings:
+    #
+    # And it must be *this role's* artefact. The outcome used to be spelled
+    # `constraints_found` for all three surveying roles, two of which do not
+    # write constraints -- so the evidence check accepted any of the three
+    # tables, and a Terminologist could attest constraints it had never written.
+    # On icalendar eight of eleven areas came back claiming constraints against a
+    # run that wrote none. That was not a lie the model told; it was the only
+    # word we gave it.
+    owed = {"terminologist": "glossary_terms",
+            "architect": "constraints",
+            "gatekeeper": "items"}.get(ctx.role)
+    if outcome == "found":
+        mine = [v for t, _id, v in ctx.writes if t == owed]
+        if not mine:
             raise ValueError(
-                "you attested `constraints_found` and wrote nothing this "
-                "session. Write what you found, or attest `none_found` -- which "
-                "is a real answer and the commonest right one in this mode.")
-        thin = [v.get("headline") or v.get("term")
-                for t, v in findings
-                if t == "constraints" and not (v.get("text") or "").strip()]
-        if thin and len(thin) == len([1 for t, _ in findings if t == "constraints"]):
+                f"you attested `found` and wrote no {owed} this session. That "
+                f"is the artefact this mode exists to produce -- write what you "
+                f"found, or attest `none_found`, which is a real answer and the "
+                f"commonest right one here.")
+        bodied = [v for v in mine
+                  if (v.get("text") or v.get("sense_short") or
+                      v.get("sense_body") or v.get("statement") or "").strip()]
+        if not bodied:
+            titles = ", ".join(str(v.get("headline") or v.get("term") or "?")
+                               for v in mine)
             raise ValueError(
-                f"every constraint you wrote this session is a headline with "
-                f"nothing under it ({', '.join(map(str, thin))}). A title cannot "
-                f"be checked, argued with or satisfied -- say what the "
-                f"commitment is and who outside would notice, or attest "
-                f"`none_found`.")
+                f"everything you wrote this session is a title with nothing "
+                f"under it ({titles}). A title cannot be checked, argued with or "
+                f"satisfied -- say what it is and who outside would notice, or "
+                f"attest `none_found`.")
 
     id = f"{ctx.role}:{area}"
     ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))

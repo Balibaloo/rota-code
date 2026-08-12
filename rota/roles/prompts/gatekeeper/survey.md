@@ -20,7 +20,10 @@ removes its invoices" is a correct observation about code that should probably
 not do that; correcting it here would quietly convert a defect into a
 requirement, and the correction is a ruling nobody has made yet.
 
-`surveys.attest` closes the area with citations naming the grains you read. You
+`surveys.attest` closes the area with citations naming the grains you read: it
+takes `found` or `none_found`, and `found` means you asserted items. The terms
+and the constraints belong to the two roles before you; this mode's artefact is
+the item. You
 do not name the area; you were woken for it. It
 is the last thing you do — one attestation per area, and the session ends with
 it.

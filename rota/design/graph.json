@@ -155,7 +155,7 @@
    "type": "artefact",
    "contact": false,
    "contact_why": "a receipt that an area was looked at, by whom, with what result -- read by the scheduler, which is not a role, so there is nobody to ask about one",
-   "note": "One row per role per area of an onboarded codebase: constraints_found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
+   "note": "One row per role per area of an onboarded codebase: found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
   },
   {
    "id": "researcher",

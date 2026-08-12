@@ -33,8 +33,9 @@ does not exist. Look first. The last twelve sessions on a real repository
 recorded `endpoint` five times, all meaning the same thing, each one written by a
 session that had the other four in front of it.
 
-`surveys.attest` closes the area: `constraints_found` or `none_found`, and
-citations naming the grains you actually read. You do not name the area — the
+`surveys.attest` closes the area: `found` or `none_found`, and citations naming
+the grains you actually read. `found` here means you wrote down terms — this
+mode's artefact is the glossary, and nothing else counts as your finding. You do not name the area — the
 scheduler woke you for one and passing a different one files the record where
 nobody is waiting for it. It is the last
 thing you do — one attestation per area, and the session ends with it. Citations are

@@ -336,7 +336,7 @@ def test_s6_none_found_counts_as_surveyed(db):
     assert surveyed == {"auth"} and residue == {"billing"}
 
     db.execute("INSERT INTO survey_records (id, area, outcome) "
-               "VALUES ('s2','billing','constraints_found')")
+               "VALUES ('s2','billing','found')")
     _, residue = constraint_zero_area_coverage(db)
     assert residue == set(), "full coverage should empty constraint zero"
 

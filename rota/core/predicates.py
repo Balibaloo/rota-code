@@ -151,7 +151,7 @@ TERMINAL: dict[tuple[str, str, str], str] = {
     ("ledger", "status", "resolved"): "a decision closed it",
     ("verdicts", "result", "pass"): "drained by the merge action",
     ("messages", "status", "answered"): "a session committed against it",
-    ("survey_records", "outcome", "constraints_found"): "the survey produced its record",
+    ("survey_records", "outcome", "found"): "the survey produced its record",
     ("survey_records", "outcome", "none_found"):
         "also a result — it is what starves constraint zero",
 }
@@ -619,7 +619,7 @@ def agenda(conn) -> list[Wake]:
 
 
 @predicate("constraint_zero", wakes=SCHEDULER, band="gate",
-           drains=[("survey_records", "outcome", "constraints_found"),
+           drains=[("survey_records", "outcome", "found"),
                    ("survey_records", "outcome", "none_found")])
 def constraint_zero(conn) -> list[Wake]:
     """
