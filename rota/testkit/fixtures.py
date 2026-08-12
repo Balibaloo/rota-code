@@ -474,12 +474,26 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     inbound = case.get("inbound") or {}
     msg_id = inbound.get("id", "m_in")
     if inbound:
+        # `body_text` too, or a case cannot seed the one message that carries
+        # words. Law 2 keeps prose off messages because sender and recipient
+        # share a database and an id means something at both ends -- except for
+        # the Researcher, which has never seen an artefact, so refs are
+        # meaningless to it and the schema says outright that a question with no
+        # words is no question.
+        #
+        # The loader dropped the field silently, so
+        # `L1-RS-answer-from-the-clause-not-from-memory` woke its Researcher with
+        # an empty question and the session said so: "the architect's question
+        # was empty and there were no references to load". It then answered from
+        # memory, which is the exact failure the case exists to catch, and it had
+        # no way to do anything else.
         conn.execute(
             "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-            "body_refs, cause_id, seq) VALUES (?, ?, ?, ?, ?, ?, ?, 99)",
+            "body_refs, body_text, cause_id, seq) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99)",
             (msg_id, inbound.get("thread", "t1"), inbound["from"], inbound["to"],
              inbound["verb"], json.dumps(inbound.get("body_refs", [])),
-             inbound.get("cause")),
+             inbound.get("body_text"), inbound.get("cause")),
         )
 
     before = snapshot_versions(conn)
