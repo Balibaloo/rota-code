@@ -99,6 +99,12 @@
   refs: [<b1>]
   repo:
     batch: <b1>
+    # The brief tells this mode to find the implementation with `code.probe` and
+    # then read it, and without an index `code.probe` returns nothing — so the
+    # instruction was unfollowable and the role could not locate the code it is
+    # being asked to judge. Challenging the Tester is what is left, which is
+    # what it did, 10 times in 80 across every prompt this case has ever had.
+    onboard: true
     message: "line totals apply the volume band"
     edit:
       src/catalog/pricing.py: |
