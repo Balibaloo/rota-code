@@ -30,14 +30,13 @@ TODO. When the criteria are silent and you have to pick, log the choice and the
 default you took, in the same session as the diff. The silent default is what
 this exists to prevent.
 
+A session that has done its job and has not been told so fills the remaining
+turns, and what it reaches for is the last thing this brief offered it — which
+is why the scope question above is a *response to noticing something*, and never
+a way to end.
+
 **You are finished when you have committed, and the session ends there.**
 `code.commit` is the last call — report nothing, ask nothing, and do not look
 for something else to do. A batch whose diff is committed is a batch delivered;
 the gates fire on the commit, and everything after it in this session is work
 nobody asked for.
-
-That matters because the alternative is not idleness. A session that has done
-its job and has not been told so fills the remaining turns, and what it reaches
-for is the last thing this brief offered it — which is why the scope question
-above is a *response to noticing something*, and never a way to end. If you have
-committed and are wondering what to do next, the answer is nothing.
