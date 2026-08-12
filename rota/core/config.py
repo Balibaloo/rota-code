@@ -93,6 +93,18 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "existing cap would let someone tune the cheap thing and change how "
             "hard this system leans on somebody else's server."),
 
+    Setting("research_search", "none",
+            "Which engine the Researcher may discover urls with, or `none`. It "
+            "has `fetch`, which takes an address, and is asked questions, which "
+            "are not addresses -- and with no way between the two it generated "
+            "one, fetching an invented url for a real RFC and then trying to "
+            "cite the page it had just been refused. Discovery is a capability "
+            "like reach is, with the same default: granted, never merely "
+            "not-forbidden. `cache` searches only what has already been fetched, "
+            "which is what the suite uses, because a role whose tests reached "
+            "the network would be the one role whose results differ by machine.",
+            values=("none", "cache", "brave", "tavily")),
+
     Setting("research_allowlist", [],
             "Domains the Researcher may fetch. Empty means it may fetch nothing, "
             "which is the right default for a capability that reaches outside the "

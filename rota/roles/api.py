@@ -1183,6 +1183,57 @@ def _refuse(ctx: "Ctx", url: str, why: str) -> dict:
     return {"url": url, "refused": why}
 
 
+@op("web", "search")
+def web_search(ctx: Ctx, query: str) -> dict:
+    """
+    Candidate urls for a question. Names and one line each, never pages —
+    `web.fetch` reads what this finds.
+
+    The Researcher takes questions and `web.fetch` takes addresses, and nothing
+    joined them. Asked what RFC 6749 section 4.1.3 requires, a session generated
+    `datatracker.ietf.org/doc/html/rfc6749#section-4.1.3` -- a plausible url for
+    a real document, and not the one it had been given -- was refused, and then
+    tried to record a reference for the page it never read. With a dereference
+    capability, no discovery capability and a question, guessing is the only move
+    that is not refusal.
+
+    Which engine is `research_search`, and it is `none` until somebody grants it,
+    for the same reason `research_allowlist` is empty: a capability that reaches
+    outside the engagement is granted rather than merely not-forbidden. The
+    refusal names the setting, because a role that cannot tell "nothing matches"
+    from "I was given no way to look" will invent the difference.
+
+    `cache` searches only pages already fetched. That is what the suite runs on:
+    a role whose tests reached the network would be the one role whose results
+    differ by machine, and every other tier here rests on that not being so.
+    """
+    from ..core import config, web
+
+    engine = config.get(ctx.conn, "research_search")
+    if engine == "none":
+        return {"query": query, "refused":
+                "no search engine is granted: `research_search` is `none`, so "
+                "there is no way to look a url up from here. This is not 'found "
+                "nothing' -- do not guess an address. Answer with what you were "
+                "given, or say you need a url."}
+
+    if engine != "cache":
+        return {"query": query, "refused":
+                f"`research_search` is {engine!r}, which is not wired up yet. "
+                f"Only `cache` can answer from here."}
+
+    terms = [w.lower() for w in query.split() if len(w) > 2]
+    hits = []
+    for row in ctx.conn.execute("SELECT url, body FROM web_cache"):
+        body = (row["body"] or "").lower()
+        score = sum(1 for w in terms if w in body or w in row["url"].lower())
+        if score:
+            hits.append((score, row["url"], (row["body"] or "")[:160]))
+    hits.sort(reverse=True)
+    return {"query": query, "engine": engine,
+            "results": [{"url": u, "opening": o} for _, u, o in hits[:8]]}
+
+
 @op("web", "fetch")
 def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
     """

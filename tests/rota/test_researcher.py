@@ -263,3 +263,42 @@ def test_a_refused_fetch_cannot_become_a_reference(db):
                 url="https://stripe.com/docs/api/idempotency",
                 claim="conflicts come back as 409",
                 quote="Idempotency-Key conflicts return 409.")
+
+
+def test_search_is_granted_not_assumed(db):
+    """
+    The Researcher has `web.fetch`, which takes an address, and is asked
+    questions, which are not addresses. Nothing mapped one to the other, so it
+    generated the address: given "what does RFC 6749 section 4.1.3 require", a
+    session fetched `datatracker.ietf.org/doc/html/rfc6749#section-4.1.3` — a
+    plausible, invented url — and then tried to cite the page it had just been
+    refused.
+
+    That is not carelessness. With a dereference capability, no discovery
+    capability, and a question, guessing is the only move that is not refusal.
+
+    So discovery becomes a capability like reach is, with the same default. An
+    empty allowlist means fetch nothing; `research_search: none` means discover
+    nothing, and both have to be granted rather than merely not-forbidden. The
+    refusal names the setting, because a role that cannot tell "there is nothing
+    to find" from "I was not given a way to look" will do what this one did.
+    """
+    from rota.core import config
+
+    sb = sandbox_mod.build("researcher", db, session_id="s1")
+
+    out = sb.call("web.search", query="RFC 6749 access token request")
+    assert out.get("refused"), "search must be off until it is granted"
+    assert "research_search" in out["refused"], (
+        "the refusal has to name the setting, or the session cannot tell being "
+        "ungranted from finding nothing")
+
+    config.set(db, "research_search", "cache")
+    web.ensure_cache(db)
+    web.store(db, "https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3",
+              "4.1.3. Access Token Request. The client makes a request to the "
+              "token endpoint by sending the following parameters.", 200)
+
+    hits = sb.call("web.search", query="access token request")
+    assert hits.get("results"), "a seeded page matching the query should be found"
+    assert any("rfc6749" in r["url"] for r in hits["results"])
