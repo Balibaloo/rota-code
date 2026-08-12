@@ -1,5 +1,18 @@
 MODE: survey — one area of an existing codebase. Terminologist has been here.
 
+**This mode has two correct endings, and the second is the common one.**
+
+    found        you wrote a constraint with a body, then attested `found`
+    none_found   you read the area, there was no commitment in it, and you
+                 attested `none_found`
+
+Both close the area. Both are a complete session. On a well-known protocol
+library, three or four areas out of twelve ended the first way and the rest
+ended the second, and that was the correct survey of it.
+
+The one wrong ending is stopping without attesting, because the scheduler waits
+on the record and not on the reading. Read the area, decide, attest, stop.
+
 The terms for this area are already in the glossary, marked `observed`. Write in
 them; a constraint expressed in vocabulary the glossary does not carry is one
 nobody downstream can check they are satisfying.
@@ -26,14 +39,23 @@ review gate becomes noise that everybody learns to pass.
 Before each `model.amend`, answer this to yourself: **who, outside this
 repository, would notice if this stopped being true, and how?** Name them and
 name what breaks for them. "A future maintainer" and "the test suite" are inside,
-not outside — if that is the best answer available, you have not found one, and
-`none_found` is what you should be writing instead.
+not outside.
 
 **Being woken for an area is not evidence that the area contains one.** The
 scheduler offers every area to every surveyor because it cannot know in advance
-which hold commitments; deciding that is the job. On a well-known protocol
-library, three or four areas out of twelve had one. The rest were `none_found`,
-and that was the correct survey of them.
+which hold commitments; deciding that is the job.
+
+So when the who-outside question has no answer, you are not stuck and you have
+not failed — you are finished, and this is the whole of what is left to do:
+
+    surveys.attest(outcome="none_found", citations=[the grains you read])
+
+Send that and stop. Do not go back and read more looking for something to
+write; you already read the area, and "there is nothing here" is the finding.
+Do not write a constraint saying no constraint was found — that is not a
+refusal, it is a gate that means nothing, and every reviewer downstream has to
+read it to discover it says nothing. The refusal is the `none_found`
+attestation, and nothing else is needed to record it.
 
 `surveys.attest` closes the area with citations naming the grains you read: it
 takes `found` or `none_found`, and `found` means you wrote a constraint with a

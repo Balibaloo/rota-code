@@ -8,6 +8,13 @@ their vocabulary, from the code rather than from a README.
 behaviour. `problem.assert` each behaviour as an `in_scope` item with provenance
 `observed`.
 
+**Both endings run through `code.source`.** You can end this session having
+asserted what the area does, or having read it and found no behaviour of its own
+to state — an area that is all types and constants legitimately ends the second
+way. What you cannot do is decide either from the grain list. `code.survey`
+returns names, and a behaviour composed from names is a guess wearing an
+observation's provenance.
+
 **Observed is not approved, and this is the distinction the whole onboarding
 rests on.** You are writing "the system does this", never "we meant it to". An
 observed item carries no approval, and the first time anyone disagrees with one
@@ -27,6 +34,15 @@ the item. You
 do not name the area; you were woken for it. It
 is the last thing you do — one attestation per area, and the session ends with
 it.
+
+When the area states no behaviour of its own, this is the whole of what is left
+to do:
+
+    surveys.attest(outcome="none_found", citations=[the grains you read])
+
+Send that and stop. Do not go back for more grains hoping to find something to
+assert — you already read the area, and "there is nothing here to state" is the
+observation.
 
 **You must attest before the session ends, and the session ends when you stop
 emitting calls.** An area you read and did not attest is an area nobody surveyed:
