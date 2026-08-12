@@ -229,3 +229,37 @@ def test_the_cap_stops_it_reading_forever(db):
     sb.call("web.fetch", url="https://rfc-editor.org/1")
     refused = sb.call("web.fetch", url="https://rfc-editor.org/2")
     assert "refused" in refused and "research_cap" in refused["refused"]
+
+
+def test_a_refused_fetch_cannot_become_a_reference(db):
+    """
+    The invention this role exists to prevent, in the one form it actually took.
+
+    Asked about a domain outside the allowlist, a session fetched, was refused —
+    correctly, and its answer said so — and then called `references.record`
+    anyway: one row claiming what a page it never read says. `content_hash` went
+    in empty, so the row recorded that it rested on nothing, in a column nobody
+    reads.
+
+    Narrow on purpose. Refusing every url without a cache hit was the obvious
+    rule and it took a legitimate case down with it — the url a session records
+    is not always the url `web.cached` resolves, and that is a separate question
+    from this one. What is not ambiguous is a url this session was *told it
+    could not have*, which is the case observed and the only one refused here.
+
+    A refusal remains a result. The honest move is to answer with what was tried,
+    which the brief says and the session already did; it just filed a citation
+    beside it.
+    """
+    web.ensure_cache(db)
+    sb = sandbox_mod.build("researcher", db, session_id="s1")
+
+    out = sb.call("web.fetch", url="https://stripe.com/docs/api/idempotency",
+                  looking_for="conflict status codes")
+    assert out.get("refused"), "an empty allowlist should refuse this"
+
+    with pytest.raises(ValueError, match="refused"):
+        sb.call("references.record", id="r1",
+                url="https://stripe.com/docs/api/idempotency",
+                claim="conflicts come back as 409",
+                quote="Idempotency-Key conflicts return 409.")

@@ -1161,6 +1161,28 @@ def code_commit(ctx: Ctx, message: str) -> dict:
 # somebody has to keep.
 # ---------------------------------------------------------------------------
 
+def _refuse(ctx: "Ctx", url: str, why: str) -> dict:
+    """
+    A refused fetch, remembered so it cannot be cited later.
+
+    The refusal itself is a result and not a failure -- the brief says to answer
+    with what was tried, and sessions do. What one also did was call
+    `references.record` for the page it had just been told it could not have:
+    one row claiming what an unread page says, with `content_hash` empty, which
+    records that the claim rests on nothing in a column no reader looks at.
+
+    Only urls this session was refused. Refusing every url without a cache hit
+    was the broader rule and it took a legitimate case down with it, because the
+    url a session records is not always the url `web.cached` resolves. That is a
+    real question and a different one; being told no is not ambiguous.
+    """
+    if not hasattr(ctx, "refused"):
+        ctx.refused = set()
+    ctx.refused.add(url)
+    ctx.refused.add(url.split("#", 1)[0])
+    return {"url": url, "refused": why}
+
+
 @op("web", "fetch")
 def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
     """
@@ -1182,8 +1204,8 @@ def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
     fetched = len([c for c in getattr(ctx, "fetches", [])])
     cap = config.get(ctx.conn, "research_cap")
     if fetched >= cap:
-        return {"url": url, "refused": f"research_cap of {cap} fetches is spent; "
-                                       f"answer with what you have"}
+        return _refuse(ctx, url, f"research_cap of {cap} fetches is spent; "
+                                 f"answer with what you have")
     try:
         # Cache-only unless the network is asked for explicitly. The default is
         # the safe direction: a test suite that could reach out would eventually
@@ -1193,9 +1215,9 @@ def web_fetch(ctx: Ctx, url: str, looking_for: str = "") -> dict:
                          config.get(ctx.conn, "research_allowlist"),
                          offline=not os.environ.get("ROTA_NET"))
     except web.NotAllowed as exc:
-        return {"url": url, "refused": str(exc)}
+        return _refuse(ctx, url, str(exc))
     except Exception as exc:                       # unreachable, timed out, 404
-        return {"url": url, "refused": f"could not read it: {exc}"}
+        return _refuse(ctx, url, f"could not read it: {exc}")
 
     if not hasattr(ctx, "fetches"):
         ctx.fetches = []
@@ -1218,6 +1240,13 @@ def references_record(ctx: Ctx, id: str, url: str, claim: str,
     read correctly.
     """
     from ..core import web
+
+    if url in getattr(ctx, "refused", set()):
+        raise ValueError(
+            f"your fetch of {url} was refused this session, so there is no "
+            f"passage behind this claim. A reference is the evidence and not "
+            f"the conclusion -- say in your answer what you tried and what it "
+            f"said, and record nothing.")
 
     page = web.cached(ctx.conn, url) or web.cached(ctx.conn, url.split("#", 1)[0])
 
