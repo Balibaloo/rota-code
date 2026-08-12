@@ -22,7 +22,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .samplerepo import PLANTED, create
+from .samplerepo import GIT_ENV, PLANTED, create
 
 
 def _temp_roots() -> list[Path]:
@@ -39,8 +39,14 @@ def is_temp_rooted(path: Path) -> bool:
 
 
 def git(root: Path, *args: str, check: bool = True) -> str:
+    # Under the same pinned identity and clock the sample repo is built with --
+    # see `samplerepo.GIT_ENV`. A commit made here with the ambient clock would
+    # be as unreplayable as one made there, and worse for being the exception.
+    import os
+
     out = subprocess.run(["git", "-C", str(root), *args],
-                         capture_output=True, text=True)
+                         capture_output=True, text=True,
+                         env={**os.environ, **GIT_ENV})
     if check and out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {out.stderr.strip()}")
     return out.stdout

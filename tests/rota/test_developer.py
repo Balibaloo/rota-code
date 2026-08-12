@@ -11,6 +11,7 @@ the system touches the filesystem.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 
@@ -182,6 +183,49 @@ def test_critic_sees_an_actual_diff(project):
     seen = build("critic", db, batch_id="b1").call("code.read")
     assert "src/notify/formatting.py" in seen["diff"]
     assert seen["touched"] == ["src/notify/formatting.py"]
+
+
+def test_what_critic_sees_is_the_same_twice(project):
+    """
+    A prompt containing a path can never be replayed.
+
+    `code.read` is pushed into Critic's working set without being asked for, and
+    it was returning the batch row alongside the diff — including `worktree`, an
+    absolute path, and `head_commit`, a fresh SHA. Both change every run. The
+    prompt hash is a sha256 of the whole prompt, so every Critic and Developer
+    session hashed differently from the last one, and their recordings could
+    never be replayed: eight cases went STALE on every suite run, three of them
+    recorded green half an hour earlier.
+
+    That read as "a re-recording owed" for as long as anybody looked at it,
+    which is the expensive part — a case that cannot replay is not slow to
+    verify, it is unverified, and it says so in the same words as work in
+    progress.
+
+    The docstring already claimed this: the batch row "used to" be returned and
+    the diff replaced it. The row never left.
+    """
+    db, _ = project
+    lifecycle.start(db, "b1")
+    dev = build("developer", db, batch_id="b1")
+    dev.call("code.write", path="src/notify/formatting.py", text="# emptied\n")
+    out = dev.call("code.commit", message="empty formatting")
+
+    seen = build("critic", db, batch_id="b1").call("code.read")
+
+    tree = db.execute(
+        "SELECT worktree FROM batches WHERE id = 'b1'").fetchone()["worktree"]
+
+    # Compared against the values, not a serialisation of them: the first
+    # version of this test rendered the result with `json.dumps` and passed,
+    # because a Windows path comes back with its separators escaped and the
+    # raw string is not a substring of that.
+    unstable = {k: v for k, v in seen.items()
+                if isinstance(v, str) and (v == tree or v == out["head_commit"])}
+    assert not unstable, (
+        f"per-run values reach the prompt through code.read: {unstable}. "
+        f"The prompt hash is a sha256 of the whole prompt, so this session can "
+        f"never replay a recording made by any other.")
 
 
 def test_the_harness_runs_in_the_batch_worktree(project):

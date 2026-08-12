@@ -32,6 +32,31 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+# A commit sha hashes the tree, the parents, the message *and* the author and
+# committer with their timestamps. Left to the ambient environment the last two
+# change every run, so a byte-identical sample repo grew a different history
+# each time it was built.
+#
+# That reached the model. `verdicts.emit` returns `critic:<batch>:<sha>` --
+# correctly, since a verdict is about one commit -- and the id comes back as a
+# tool result, joins the transcript, and makes the *next* turn's prompt unique.
+# Eight L1 cases were permanently STALE from it: ten calls would replay and the
+# eleventh would miss, so every suite run reported them unmeasured and every
+# re-recording was obsolete before it finished. Nothing was wrong with the
+# cases, the cassettes, or the verdict id.
+#
+# These stamps are git plumbing rather than an artefact field: law 13 governs
+# what roles write down, and no role ever sees one.
+_STAMP = "2001-01-01T00:00:00+00:00"
+GIT_ENV = {
+    "GIT_AUTHOR_NAME": "rota fixture",
+    "GIT_AUTHOR_EMAIL": "fixture@rota.test",
+    "GIT_COMMITTER_NAME": "rota fixture",
+    "GIT_COMMITTER_EMAIL": "fixture@rota.test",
+    "GIT_AUTHOR_DATE": _STAMP,
+    "GIT_COMMITTER_DATE": _STAMP,
+}
+
 PLANTED = {
     "collision": {
         "term": "account",
@@ -748,8 +773,11 @@ def _git(root: Path, *args: str) -> None:
     exit status 1` — true, and no help at all about why, which is the whole
     question when a fixture that builds fine on its own stops building.
     """
+    import os
+
     out = subprocess.run(["git", "-C", str(root), *args],
-                         capture_output=True, text=True)
+                         capture_output=True, text=True,
+                         env={**os.environ, **GIT_ENV})
     if out.returncode != 0:
         said = (out.stderr.strip() or out.stdout.strip()
                 or f"exit {out.returncode}, and it said nothing")

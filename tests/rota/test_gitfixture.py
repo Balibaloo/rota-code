@@ -161,3 +161,37 @@ def test_an_edit_that_changes_nothing_is_refused_with_a_reason(tmp_path):
             repo.commit_in(tree, "no change at all")
     finally:
         gitfixture.cleanup(repo)
+
+
+def test_the_same_repo_built_twice_has_the_same_commit(tmp_path):
+    """
+    A fixture whose commit sha changes per run cannot be replayed from.
+
+    `verdicts.emit` returns `critic:<batch>:<sha>` — correctly, since a verdict
+    is about one commit — and that id comes back as a tool result, lands in the
+    transcript, and makes the *next* turn's prompt unique. Eight L1 cases were
+    permanently STALE from it: ten calls would replay and the eleventh would
+    miss, so every suite run reported them as unmeasured and every re-recording
+    was obsolete before it finished.
+
+    The verdict id is right. The fixture was the thing being non-deterministic,
+    because `git` inherited the ambient clock and identity, so two builds of a
+    byte-identical tree produced two different histories.
+
+    (The pinned dates here are git plumbing, not an artefact field — law 13 is
+    about what roles write down, and nothing in this reaches one.)
+    """
+    # In separate processes on purpose. `_template` builds the repo once per
+    # process and copies it, so two builds inside one process share a history
+    # and agree trivially — which is the comparison that cannot fail, and the
+    # first version of this test made it.
+    code = ("import tempfile, pathlib;"
+            "from rota.testkit import gitfixture;"
+            "print(gitfixture.make(pathlib.Path(tempfile.mkdtemp())).head())")
+    heads = [subprocess.run([sys.executable, "-c", code], capture_output=True,
+                            text=True, check=True).stdout.strip()
+             for _ in range(2)]
+
+    assert heads[0] == heads[1], (
+        f"two processes built the same tree into different histories: {heads}. "
+        f"No recording made by one can replay against the other.")

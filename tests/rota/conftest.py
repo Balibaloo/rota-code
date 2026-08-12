@@ -21,6 +21,31 @@ from rota.llm.cassettes import TALLY
 from rota.llm.llm import DEFAULT_MODEL
 
 
+def pytest_configure(config):
+    """
+    Pin git's identity and clock for the whole test process.
+
+    `samplerepo.GIT_ENV` covers commits the *fixture* makes. It cannot cover the
+    ones the system under test makes: `code.commit` runs `worktrees.commit`,
+    production code that rightly uses the ambient environment, and its return
+    value carries `head_commit` straight back to the model as a tool result.
+
+    That put a fresh sha in the transcript mid-session, so the next turn's
+    prompt was unique and its cassette could never be found. Five Developer
+    cases and one L3 chain stayed STALE through every re-recording, each one
+    replaying ten calls and missing the eleventh.
+
+    Set here rather than in `worktrees` because determinism is a property this
+    harness needs, not one the product should pretend to have. Only this
+    process is affected, and every repository it touches is under a temp root.
+    """
+    import os
+
+    from rota.testkit.samplerepo import GIT_ENV
+
+    os.environ.update(GIT_ENV)
+
+
 def pytest_report_header(config):
     """An estimate before the run, from the last one on this machine."""
     from rota.llm.cassettes import Tally, _clock

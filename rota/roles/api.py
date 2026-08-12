@@ -1047,15 +1047,28 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
     same docstring, so the role whose whole job is judging a diff was being
     handed three identifiers. The diff is computed from git, which is where
     diffs come from.
+
+    The row is now actually gone, rather than joined by the diff. `code.read` is
+    pushed into Critic's working set unasked, so `worktree` put an absolute path
+    into every Critic and Developer prompt and `head_commit` put a fresh SHA
+    beside it. The prompt hash is a sha256 of the whole prompt, and both of those
+    change per run, so no such session could ever replay a recording — eight L1
+    cases reported STALE on every suite run, three of them recorded green half an
+    hour earlier. A case that cannot replay is not slow to verify, it is
+    unverified, and it says so in the same words as work in progress.
+
+    Neither was any use to the reader. A path is where the diff came from and a
+    SHA is which diff it is; the question in front of Critic is what the diff
+    says.
     """
     from ..core import worktrees
 
     bid = batch_id or ctx.batch_id
     row = ctx.conn.execute(
-        "SELECT id, worktree, head_commit FROM batches WHERE id = ?", (bid,)).fetchone()
+        "SELECT id, worktree FROM batches WHERE id = ?", (bid,)).fetchone()
     if not row:
         return {}
-    out = dict(row)
+    out = {"batch": row["id"]}
     if row["worktree"]:
         out["diff"] = worktrees.diff(row["worktree"])
         out["touched"] = worktrees.touched(row["worktree"])
