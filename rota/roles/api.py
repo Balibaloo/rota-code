@@ -818,6 +818,30 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     the ledger more than a list of regrets. Both writes land in one commit, so a
     resolved entry always has the decision that resolved it.
     """
+    # A decision is a thing *you* decided, and adopting what you were told is
+    # not one. A Gatekeeper handed "no, I meant closing the account, not
+    # deleting it" amended the item correctly and then filed a decision reading
+    # "the principal rejected the original wording, and I have amended it to
+    # reflect their intention" -- a tidy note that signs the role's name to the
+    # principal's choice, in the one log that exists to keep that straight.
+    #
+    # Two rewrites of the brief did not move it, at 10/115 across every prompt
+    # this case has ever had. The amended item is already the record; the note
+    # only looks like diligence, and diligence is the hardest thing to argue a
+    # model out of in prose.
+    #
+    # Narrow on purpose: it is the *same item, same session* pair that is a
+    # minute. Deciding about something you did not just amend is untouched, and
+    # so is defending an item -- because defending means you did not amend it.
+    amended = {i for t, i, *_ in ctx.writes if t == "items"}
+    minuted = sorted(amended.intersection([id, *(refs or [])]))
+    if minuted:
+        raise ValueError(
+            f"you amended {', '.join(minuted)} this session, so a decision "
+            f"about it would be minuting your own edit. The amended item is the "
+            f"record -- a decision is something you decided, and taking the "
+            f"correction you were given is not. Report it and stop.")
+
     ctx.writes.append(("decisions", id, {
         "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
         "supersedes": supersedes, "resolves_ledger": resolves_ledger}))
