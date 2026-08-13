@@ -308,6 +308,40 @@ def test_a_read_only_mode_offers_no_writes():
     assert not leaks, leaks
 
 
+def test_no_brief_narrates_its_own_edit_history():
+    """
+    A `.md` under `prompts/` is read by the role. Notes to the next maintainer
+    are not.
+
+    `developer/answer.md` carried one: "This brief used to say 'carry on' and
+    name no call at all, which leaves the tool list to say what the work is --
+    and the two tools that stand out in a list you were given for writing code
+    are the two for asking another question." Provenance for me, addressed to
+    nobody in the session -- and it spent two sentences naming the two calls the
+    case forbids and describing them as the ones that stand out. The case failed
+    5/5 on `forbidden call to msg.question_gatekeeper`.
+
+    The test is deliberately narrow. Self-reference is not the fault: the
+    paragraph in `developer/batch_start.md` beginning "A session that has done
+    its job" says "this brief" and is load-bearing, because it is addressed to
+    the reader about the reader. Past-tense *edit history* has no reader in the
+    session at all, which makes it the one signal that separates the two voices
+    without judgement. Reasoning about a change belongs in the commit message,
+    where the next maintainer is actually looking.
+    """
+    import re
+
+    history = re.compile(
+        r"(?i)\b(used to (say|read|name)|previously (said|read)|"
+        r"an earlier (version|draft)|this brief (used|said))\b")
+    narrated = {}
+    for path in sorted(paths.PROMPTS.glob("*/*.md")):
+        hits = history.findall(path.read_text(encoding="utf-8"))
+        if hits:
+            narrated[f"{path.parent.name}/{path.name}"] = [h[0] for h in hits]
+    assert not narrated, narrated
+
+
 def test_a_brief_names_at_least_one_of_its_own_calls():
     """
     A brief that names no call leaves the tool list to say what the work is.
