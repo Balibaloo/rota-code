@@ -92,3 +92,122 @@
     # going back to the role that asked rather than out to the roles it is about.
     writes: [items, decisions, tickets]
     recipients: [terminologist, architect, developer, tester]
+
+# ---------------------------------------------------------------------------
+# The three questions Tester can ask, one case each.
+#
+# All three edges were uncovered: `tester => gatekeeper`, `tester => researcher`
+# and `tester => terminologist` had no case at all, and until `question` carried
+# words they could not have had a meaningful one -- a question of refs alone
+# names its subject and never what is being asked, so the assertion could only
+# have been "a message went out".
+#
+# `tests_missing` is the mode in all three, and the discriminator is what kind
+# of thing is missing: a sense, a machine-checkable statement, or a fact about
+# the world. Each fixture has exactly one of those wrong and everything else
+# clean, so writing the test is the wrong move for a nameable reason.
+# ---------------------------------------------------------------------------
+
+- id: L1-TS-a-word-with-two-senses-is-terminologists
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  refs: [<b1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "stale carts are cleared", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "clear stale carts"}
+    criteria:
+      # "Cleared" is the whole criterion and the glossary carries both senses of
+      # it. A test can encode either and they are different promises: one leaves
+      # a row behind and one does not.
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "a cart with no activity for 30 days is cleared",
+         term_refs: '["<g1>","<g2>"]'}
+    glossary_terms:
+      - {id: <g1>, term: cleared, sense_short: "emptied of items, cart kept",
+         provenance: decided}
+      - {id: <g2>, term: cleared, sense_short: "the cart row is deleted",
+         provenance: decided}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    messages:
+      - {to: terminologist, verb: question, count: 1, refs_include: [<c1>]}
+  forbidden:
+    # Encoding either sense picks one, and the pick is invisible: the test
+    # passes, the criterion looks met, and half the promise was never made.
+    writes: [tests, glossary_terms, criteria]
+    recipients: [gatekeeper, researcher]
+
+- id: L1-TS-a-criterion-no-machine-could-check-is-gatekeepers
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  refs: [<b1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "the export is usable by finance", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "export for finance"}
+    criteria:
+      # Every word here is unambiguous and the sentence is still untestable.
+      # There is nothing to look up -- the fault is scope, not vocabulary.
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "the exported file is easy for the finance team to work with",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    messages:
+      - {to: gatekeeper, verb: question, count: 1, refs_include: [<c1>]}
+  forbidden:
+    # A test that asserts the file is non-empty would pass forever and report as
+    # coverage of a criterion nobody has actually pinned down. That is worse
+    # than no test, which is what the brief says and what this measures.
+    writes: [tests, criteria, items]
+    recipients: [terminologist, researcher]
+
+- id: L1-TS-an-outside-fact-is-the-researchers
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  refs: [<b1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "webhooks are signed", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "sign outgoing webhooks"}
+    criteria:
+      # Unambiguous, testable, and unencodable without a fact this project does
+      # not hold: the header's name and format belong to somebody else's spec.
+      # Guessing produces a test that passes against the guess.
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "each webhook carries a signature header in the format the
+           receiving spec requires", term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    messages:
+      - {to: researcher, verb: question, count: 1}
+  forbidden:
+    # Encoding a remembered header name is the failure: the test passes, and it
+    # pins the wrong thing against a spec nobody read.
+    writes: [tests, criteria]
+    recipients: [gatekeeper, terminologist]
