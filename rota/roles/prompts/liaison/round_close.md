@@ -26,8 +26,11 @@ one `msg.clarify_principal`. Order them so the answer that unblocks the most
 comes first. Translate — the principal is technical but does not know your roles'
 vocabulary. "The glossary carries two senses for 'order'" is your problem; "when
 you say order, do you mean a purchase or a sequence?" is the question. Every
-question carries refs to the report(s) that raised it; if you cannot point at a
-report, you invented the question, so delete it.
+question carries the statement or item it is about — their own words, which is
+the only thing on the far end they can recognise; a report id names a role they
+do not know reported anything. Checking you can point at the report that raised
+it is how you know the question is real, not what you send: if no report raised
+it, you invented it, so delete it.
 
 **If nothing needs a ruling but something is worth knowing:** `msg.present_principal`.
 Organise it; do not summarise it. Group by what it is about rather than by who
