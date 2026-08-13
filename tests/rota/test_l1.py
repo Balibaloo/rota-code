@@ -28,7 +28,7 @@ from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
 from rota.llm.llm import OllamaBackend, Pins
 from rota.roles import prompts
-from rota.testkit import fixtures, obligations
+from rota.testkit import fixtures, interview, obligations
 
 CASES = Path(__file__).parent / "cases"
 MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
@@ -109,6 +109,21 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     for r in results:
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript())
+
+    # Opt-in, and only on a failure. It costs a model call per failed run and
+    # answers a question no assertion does: what did the session think it had?
+    # Off by default because a replay-only pass must stay a replay-only pass --
+    # this is the one call in the suite with no cassette behind it.
+    if os.environ.get("ROTA_INTERVIEW") and os.environ.get("ROTA_L1"):
+        for r in results:
+            if r.passed or not r.outcome.user:
+                continue
+            called = list(r.delta.tool_calls)
+            interview.record(
+                dev_db, case["id"], r.run, stamp, r.problems,
+                interview.conduct(r.outcome, called,
+                                  OllamaBackend(timeout=300), PINS),
+                interview.ids_in(r.outcome.user), called)
 
     # Unknown is not the same as wrong, and reporting one as the other is how a
     # suite loses its meaning. A missing cassette says the prompt was edited and

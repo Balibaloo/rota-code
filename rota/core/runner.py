@@ -41,6 +41,12 @@ class RunOutcome:
     completions: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     result: SessionResult | None = None
+    # What the session was actually shown. Kept so a failure can be interviewed
+    # about its inputs afterwards rather than about its reasoning -- "name the
+    # ids you were given" is checkable against this; "why did you do that" is
+    # a story. Never fed back into a prompt, so it does not touch replay.
+    system: str = ""
+    user: str = ""
 
 
 _COUNTED = {"s": "sessions", "m": "messages", "tr": "test_runs"}
@@ -556,6 +562,7 @@ def run_session(
         pushed = push_working_set(wake.role, sb, wake, g)
         inbound = resolve_inbound(conn, wake)
         system, user = build_prompt(wake.role, sb, wake, pushed, instructions, inbound)
+        outcome.system, outcome.user = system, user
         pins = pins.with_prompt(system + user)
 
         transcript = [user]
