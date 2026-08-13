@@ -466,37 +466,38 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     assert len(second) - len(first) < 400, "the repeat cost nearly as much as the first"
 
 
-def test_a_session_with_nothing_left_to_do_stops_instead_of_inventing_work(db):
+def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
     """
-    Doing nothing is a legitimate outcome and had no way to be performed.
+    Asking for what you were already handed is not asking a question.
 
-    Every terminal act in this loop is positive -- a message sent, an area
-    attested -- so the mode whose right answer is silence could only express it
-    by falling quiet, and a model with eleven turns in hand does not fall quiet.
-    Liaison's `round_close`, handed two reports that had both already settled,
-    re-read the same three things six times and then sent two messages to the
-    principal. Its brief tells it to send nothing; the exit interview says it
-    needed nothing. It simply had turns left.
+    The hold exists so nobody acts on a read they have not seen, and a pushed
+    read has been seen -- it is in the opening prompt, above the sentence saying
+    so. But the detector started empty, so re-requesting one counted as a fresh
+    question and held the write behind it for a turn. Spelling a default out
+    loud is the normal thing for a small model to do, which is why the key is
+    canonical: `problem.consult()` and `problem.consult(...)` with a default are
+    one call.
 
-    One wasted turn is tolerated on purpose -- see the note at the break -- so a
-    session that repeats a read once can still be told "unchanged" and act.
+    The result is still served. Withholding it as well was measured and cost two
+    cases -- see the note at `fresh_read` -- because "you already have this"
+    reads to an 8B model as "there is nothing here for you".
     """
     db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
                ("i01", "people can close their account", "in_scope", "decided"))
 
-    backend = ScriptedBackend(["TOOL: problem.consult()"] * 12)
+    backend = ScriptedBackend([
+        "TOOL: problem.consult()\n"
+        "TOOL: problem.assert(id='i2', text='and export them', kind='in_scope')",
+        "Done.",
+    ])
     outcome = run_session(db, wake_gatekeeper(), backend=backend,
                           pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
-    # Two, not three: `problem.consult` is pushed, so the very first turn is
-    # already asking for something it was handed, and the second confirms the
-    # session has nothing else in it.
-    assert outcome.iterations == 2, (
-        f"ran {outcome.iterations} turns of the same read; the cap is not the "
-        f"stopping condition")
-    assert not outcome.result.messages, "invented something to say"
-    assert not outcome.result.writes
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 2, \
+        "the write was held behind a read the session had already been given"
+    _, second = backend.calls[1]
+    assert "NOT RUN" not in second
 
 
 def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):

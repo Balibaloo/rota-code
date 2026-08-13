@@ -617,14 +617,13 @@ def run_session(
         # following turn. Liaison's round_close spent two of its turns that way
         # before sending the message it had composed on the first one.
         pushed_keys: set[str] = {sb.call_key(name) for name in pushed}
-        already_run: set[str] = set(pushed_keys)
+        already_run: set[str] = set()
 
         # Four characters to the token is the same rough measure the cockpit
         # uses. Two thirds of the window, because the system prompt is charged
         # against the same budget and the reply needs room to land.
         budget = max(2000, (pins.num_ctx * 4 * 2) // 3 - len(system))
 
-        stalled = 0
         for iteration in range(1, max_iterations + 1):
             outcome.iterations = iteration
             transcript = _fit(transcript, budget)
@@ -643,7 +642,6 @@ def run_session(
             feedback = []
             held = []
             seen_read = False
-            progressed = False
 
             if FABRICATED_RESULT.search(completion.text):
                 outcome.errors.append("wrote its own tool results")
@@ -654,13 +652,11 @@ def run_session(
                     "are real. Send the calls alone and stop; I will answer.")
             for i, call in enumerate(calls):
                 if isinstance(call, toolproto.ToolError):
-                    progressed = True      # being told why is new information
                     outcome.errors.append(call.reason)
                     feedback.append(f"ERROR {call.raw}: {call.reason}")
                     continue
                 err = toolproto.validate(call, allowed)
                 if err:
-                    progressed = True
                     outcome.errors.append(err.reason)
                     feedback.append(f"ERROR {call.raw}: {err.reason}")
                     continue
@@ -690,8 +686,22 @@ def run_session(
                 # A repeated read is not a question whose answer is outstanding.
                 # The boundary exists so nobody acts on something unseen, and by
                 # the second time round it has been seen.
+                # Seeding does two things and only one of them was wanted.
+                #
+                # Not holding an action behind a read the session was already
+                # handed: right, and the whole point. Not *rendering* it: it
+                # cost two green cases. Told "was run for you before you
+                # started", `AR-constrain-an-external-commitment` emitted no
+                # further calls and ended, having never written the constraint
+                # it writes perfectly well when served the rows. A true sentence
+                # that reads as "there is nothing here for you".
+                #
+                # So a pushed read is not fresh -- it cannot hold anything --
+                # but it is not a repeat either, because the session has not
+                # asked before. It is served.
                 key = sb.call_key(call.name, call.pos, call.args)
-                fresh_read = call.name in read_fns and key not in already_run
+                fresh_read = (call.name in read_fns and key not in already_run
+                              and key not in pushed_keys)
 
                 if seen_read and call.name not in read_fns:
                     held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
@@ -731,10 +741,8 @@ def run_session(
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session; the answer is above.")
                     else:
-                        progressed = True
                         feedback.append(f"OK {call.name} -> {_render(result)}")
                 except Exception as exc:               # tool error, not session-fatal
-                    progressed = True          # a refusal is something to act on
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
 
@@ -785,41 +793,31 @@ def run_session(
             if any(w[0] == "survey_records" for w in sb.ctx.writes):
                 break
 
-            # And the mode whose right answer is *nothing at all*.
+            # No stopping rule for "this session had nothing to do", and it is
+            # not for want of trying. Tried and reverted: end the session when a
+            # turn repeated only reads it already held, wrote nothing and sent
+            # nothing. The reasoning was sound and the measurement was not.
             #
-            # Liaison's round_close, handed two reports that had both settled,
-            # is supposed to end without sending: "a round where every role
-            # reported itself done is the round that is supposed to cost them
-            # nothing." Its brief says so outright. It failed 5/5 anyway, and
-            # the trace says why -- `brief.list, ledger.list, transcript.quote`
-            # six times over, then `msg.present_principal`, then
-            # `msg.clarify_principal`. Asked afterwards what it had needed and
-            # not found, it said "nothing". It knew. It had turns left.
+            # It fixed nothing. Liaison's round_close -- the case it was built
+            # for -- stages its message on turn one, held behind a fresh read,
+            # so `outbound` is non-empty from turn two and the rule could never
+            # have fired there. And it cost two cases that were green:
+            # `AR-constrain-an-external-commitment` opened with `model.consult`
+            # twice, which is a pushed read and therefore two dead turns, and
+            # died at turn two having never reached the constraint it went on to
+            # write perfectly well when given twelve.
             #
-            # Every other terminal act is positive: a message sent, an area
-            # attested. Doing nothing is the one outcome with no act to perform,
-            # so the only way to express it was silence -- and a model with
-            # eleven turns in hand does not go silent, it re-reads until it
-            # invents something to say. Manufacturing work is the exact failure
-            # this mode is most prone to, and the loop was holding the door.
+            # The distinction it needed does not exist in the signal: "nothing
+            # to do" and "slow to start" produce identical turns. A session that
+            # opens by re-requesting what it was handed is the normal opening,
+            # not a symptom.
             #
-            # A turn that repeated reads it had already been given, wrote
-            # nothing and sent nothing, did nothing whatsoever -- and the next
-            # turn is handed the identical state, so it cannot do better. This
-            # ends the session rather than the tier's patience. Note it does not
-            # end a *stuck* session that is still trying: an error or a refusal
-            # is progress, because being told why is new information.
-            #
-            # The tolerance is one, not zero, and both halves were found by
-            # tests rather than reasoning. Zero denied the model the recovery
-            # the loop already offers it: the "unchanged since you asked" line
-            # exists precisely so a session that repeats a read can be told and
-            # move on, and breaking on the first repeat meant that sentence was
-            # never read by anyone. The observed churn ran to six.
-            stalled = 0 if (progressed or sb.ctx.writes or sb.ctx.outbound) \
-                else stalled + 1
-            if stalled > 1:
-                break
+            # The underlying gap is real and stays open: every terminal act in
+            # this loop is positive -- a message, an attestation -- so the mode
+            # whose right answer is silence can only express it by falling
+            # quiet, and a model with eleven turns in hand does not fall quiet.
+            # Whatever closes it has to be an act the role can perform, not an
+            # absence the loop infers.
 
         result = SessionResult(
             session_id=session_id,

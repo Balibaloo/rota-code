@@ -657,8 +657,44 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     if not a_out.committed:
         problems.append(f"{first['role']} did not commit: {a_out.errors}")
 
+    # Two kinds of handoff, and only one of them was ever runnable here.
+    #
+    # `l3a` has said so since it was written: "most of this system does not
+    # coordinate by message. Gatekeeper never messages Terminologist -- it
+    # writes a ticket and the `criteria` predicate wakes them. There is a chain
+    # case for exactly that, and it scored as covering nothing." The denominator
+    # was built; the harness was not, so that case demanded a message the design
+    # does not send and had never passed in 235 recorded runs.
+    #
+    # A `tick` on the second leg is the declaration: the handoff is the artefact
+    # and the frontier, not a message. Leg one writes; the predicates are
+    # re-derived from the committed state exactly as the loop derives them; the
+    # wake either appears or it does not. When it does not, *that* is the
+    # finding, and it is a sharper one than a missing message -- it means a role
+    # did its job and left the next one asleep.
+    wants_tick = then.get("tick")
     handoff = next((m for m in a_delta.messages if m["to_role"] == then["role"]), None)
-    if handoff is None:
+
+    if wants_tick and handoff is None:
+        from ..core.scheduler import predicate_wakes
+
+        woken = [w for w in predicate_wakes(conn)
+                 if w.role == then["role"] and w.kind == f"tick:{wants_tick}"]
+        if not woken:
+            others = sorted({w.kind for w in predicate_wakes(conn)})
+            problems.append(
+                f"{first['role']} committed, but nothing woke {then['role']} "
+                f"for {wants_tick}; the frontier offers {others or 'nothing'}")
+            if repo is not None:
+                from . import gitfixture as _gf
+                _gf.cleanup(repo)
+            return CaseResult(case_id=case.get("id", "?"), run=run_no,
+                              passed=False, problems=problems,
+                              delta=a_delta, outcome=a_out)
+        b_spec = dict(then)
+        b_spec["refs"] = list(woken[0].refs)
+        b_out, b_delta = _one(b_spec, None)
+    elif handoff is None:
         problems.append(
             f"{first['role']} never messaged {then['role']}; sent "
             f"{[(m['to_role'], m['verb']) for m in a_delta.messages] or 'nothing'}")
@@ -667,10 +703,10 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             _gf.cleanup(repo)
         return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
                           problems=problems, delta=a_delta, outcome=a_out)
-
-    b_spec = dict(then)
-    b_spec.setdefault("verb", handoff["verb"])
-    b_out, b_delta = _one(b_spec, handoff["id"])
+    else:
+        b_spec = dict(then)
+        b_spec.setdefault("verb", handoff["verb"])
+        b_out, b_delta = _one(b_spec, handoff["id"])
     if not b_out.committed:
         problems.append(f"{then['role']} did not commit: {b_out.errors}")
 

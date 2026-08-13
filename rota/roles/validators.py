@@ -110,14 +110,32 @@ def check_statement_count(conn: sqlite3.Connection, entry_id: str,
 
 
 def check_bindings_resolve(conn: sqlite3.Connection) -> list[str]:
-    """Every binding must name a grain that exists in the code index."""
+    """
+    Every binding must name a place the index knows: a grain, or an area.
+
+    Grains only, until this was pointed at a real onboarded repository and
+    rejected constraint zero -- the one constraint the system creates itself.
+    Zero binds *areas* (`.`, `src/auth`, `src/billing`) because it is the
+    statement "nobody has looked here yet", and looking is per area; it shrinks
+    an area at a time as surveys land. Every one of its bindings failed a check
+    whose docstring says every binding must pass.
+
+    It had never run against data. That is the whole reason a validator needs a
+    home: an assertion nothing evaluates is a sentence, and this one was wrong.
+    """
+    known = {r["grain"] for r in conn.execute("SELECT grain FROM code_index")}
+    known |= {r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")}
+
     problems = []
     for r in conn.execute(
-        "SELECT b.constraint_id AS cid, b.grain AS grain FROM constraint_bindings b "
-        "LEFT JOIN code_index i ON i.grain = b.grain "
-        "WHERE i.grain IS NULL AND b.resolves = 1"
+        "SELECT constraint_id AS cid, grain FROM constraint_bindings "
+        "WHERE resolves = 1"
     ):
-        problems.append(f"{r['cid']} binds {r['grain']!r}, which is not in the index")
+        if r["grain"] not in known:
+            problems.append(
+                f"{r['cid']} binds {r['grain']!r}, which is neither a grain nor "
+                f"an area in the index")
     return problems
 
 

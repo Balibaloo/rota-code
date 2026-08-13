@@ -967,3 +967,69 @@ def test_a_surveyor_is_not_shown_what_its_peers_concluded(project):
     assert rows, "the surveyor should still see which areas are done"
     assert all("outcome" not in r for r in rows), \
         f"peer verdicts are still being shown: {rows[0]}"
+
+
+# ---------------------------------------------------------------------------
+# Two whole-database invariants that had no home
+#
+# `check_bindings_resolve` and `check_survey_citations` live in
+# `rota/roles/validators.py` and were asserted nowhere. The arc test says why it
+# declined them: it produces no constraint bindings and no survey records, so
+# asserting them there would be two green checks over empty tables, which reads
+# as covered and is worse than nothing. This is the database that has the rows.
+#
+# Homing the first one immediately found it was wrong -- see its docstring.
+# ---------------------------------------------------------------------------
+
+def test_every_binding_onboarding_creates_resolves(project):
+    """
+    Constraint zero is the only constraint the system writes for itself, and it
+    binds every area in the repository. So the cheapest possible test of "a
+    binding names something real" is to onboard and ask.
+
+    That is exactly what had never been done. The validator looked for grains
+    only, and constraint zero binds areas -- `.`, `src/auth`, `src/billing` --
+    so all seven of its bindings failed a check whose docstring claims every
+    binding passes it.
+    """
+    from rota.roles import validators
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+
+    assert db.execute(
+        "SELECT COUNT(*) n FROM constraint_bindings WHERE resolves = 1"
+    ).fetchone()["n"] > 0, "no bindings to check; this test has gone vacuous"
+    assert validators.check_bindings_resolve(db) == []
+
+
+def test_a_survey_that_cites_nothing_is_not_evidence(project):
+    """
+    "Surveyed, none found" shrinks constraint zero, which makes it a claim with
+    consequences: the area stops being marked as unexamined. What stops that
+    from being free is the citations -- a surveyor that never read the area
+    cannot produce grains that exist in it.
+
+    Both directions are asserted, because a validator that only ever sees
+    passing data is not being tested either.
+    """
+    from rota.roles import validators
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    grain = db.execute(
+        "SELECT grain FROM code_index WHERE area = 'src/auth' LIMIT 1").fetchone()
+
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "('architect:s1', 'src/auth', 'none_found')")
+    assert validators.check_survey_citations(db), \
+        "a survey citing nothing was accepted as evidence"
+
+    db.execute("INSERT INTO survey_citations (survey_id, grain, resolves) "
+               "VALUES ('architect:s1', ?, 1)", (grain["grain"],))
+    assert validators.check_survey_citations(db) == []
+
+    db.execute("INSERT INTO survey_citations (survey_id, grain, resolves) "
+               "VALUES ('architect:s1', 'src/auth/nothing_here.py', 0)")
+    assert validators.check_survey_citations(db), \
+        "a citation that does not resolve was accepted"

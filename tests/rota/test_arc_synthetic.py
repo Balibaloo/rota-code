@@ -305,4 +305,7 @@ def test_arc_global_invariants_hold_over_the_finished_database(db):
 # above. This arc produces no constraint bindings and no survey records, so
 # asserting them here would be two green checks over empty tables -- worse than
 # no check, because it would read as covered. They belong wherever a survey has
-# actually run; `test_onboarding` is the database that has those rows.
+# actually run; `test_onboarding` is the database that has those rows, and they
+# now live there. `check_bindings_resolve` was wrong the whole time it had no
+# home: it rejected every binding of constraint zero, which is the one
+# constraint the system writes for itself.
