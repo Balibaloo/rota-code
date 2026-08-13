@@ -357,6 +357,7 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
 @op("model", "amend")
 def model_amend(ctx: Ctx, headline: str, text: str = "",
                 bindings: list[str] | None = None,
+                source_refs: list[str] | None = None,
                 ) -> dict:
     """
     Write a constraint, and the grains it governs.
@@ -409,6 +410,20 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     #
     # Checked after constraint zero, whose refusal is the more specific one and
     # was briefly being swallowed by this.
+    # A reference id in `bindings` is the commonest way in, and "you have not
+    # read it" is true and useless for one: no amount of `code.source` turns a
+    # reference into a grain, so the session re-amends against the same wall.
+    # Six times, in one recorded run. Name the other parameter instead.
+    refs_here = sorted(g for g in (bindings or [])
+                       if ctx.conn.execute(
+                           "SELECT 1 FROM references_ WHERE id = ?", (g,)).fetchone())
+    if refs_here:
+        raise ValueError(
+            f"{', '.join(refs_here)} is a reference, not a grain -- bindings are "
+            f"the code a constraint governs, and reading it would not make it "
+            f"one. The clause a constraint rests on goes in `source_refs=`, "
+            f"which also makes the entry `cited`.")
+
     unread = sorted(g for g in (bindings or []) if _grain_path(g) not in ctx.opened)
     if unread:
         raise ValueError(
@@ -416,14 +431,44 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"binds the grains it governs, and it cannot govern what nobody "
             f"opened -- `code.source` them first, or bind only what you read.")
 
+    # `source_refs` is the clause this constraint encodes, and the column has
+    # existed all along: "constraints are where external obligations actually
+    # land, so a constraint that cannot point at the clause it encodes is the
+    # one that most needed to." The brief says to cite the reference here and
+    # the parameter was never on the function, so the Architect put reference
+    # ids in `bindings` -- the only list it had -- and the read-check refused
+    # them, correctly and forever: a reference is not a grain and no amount of
+    # `code.source` would make it one. Six identical refused amends in one
+    # session.
+    #
+    # `cited` is law 11's third provenance and the only one that can go stale on
+    # its own, so it is set by the presence of a source rather than supplied: a
+    # session that names the clause has cited it, whatever it would have claimed.
+    # Unknown refs are dropped and reported, never refused. Refusing loses the
+    # constraint -- the actual work -- over its footnote, and a session told
+    # "no such reference" answers by trying another id rather than by writing
+    # the commitment down. The citation is worth having and is not worth the row.
+    known = {r["id"] for r in ctx.conn.execute("SELECT id FROM references_")}
+    wanted = [r for r in (source_refs or []) if isinstance(r, str)]
+    cited = [r for r in wanted if r in known]
+    dropped = [r for r in wanted if r not in known]
+
     id = slug[:120]
     ctx.writes.append(("constraints", id, {
-        "headline": headline, "text": text, "provenance": ctx.provenance,
+        "headline": headline, "text": text,
+        "provenance": "cited" if cited else ctx.provenance,
+        "source_refs": json.dumps(cited),
         "is_global": 0 if bindings else 1}))
     for grain in bindings or []:
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
             "constraint_id": id, "grain": grain, "grain_kind": "path"}))
-    return {"id": id, "bindings": bindings or []}
+    out = {"id": id, "bindings": bindings or [], "source_refs": cited}
+    if dropped:
+        out["not_cited"] = (
+            f"{', '.join(dropped)} is not a reference on file, so the constraint "
+            f"is written without it. Only a row from `references.load` can be "
+            f"cited; a citation nobody can follow is worse than none.")
+    return out
 
 
 @op("findings", "load")

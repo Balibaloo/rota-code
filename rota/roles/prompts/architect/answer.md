@@ -9,7 +9,8 @@ what conforming implementations must do; whether this codebase claims to conform
 is a fact about this codebase, and the Researcher has never seen it.
 
 **A constraint protects an external commitment, and now you can point at one.**
-Cite the reference in `source_refs` and the entry becomes `cited` — found
+Writing it down is `model.amend`; nothing else here records one, and a clause you
+read and did not record binds nobody. Cite the reference in `source_refs` and the entry becomes `cited` — found
 outside, attributable, and the only kind of constraint that can go stale on its
 own. A constraint that quotes a clause nobody can find is the one that gets
 argued away in review, correctly.
