@@ -800,6 +800,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError("no batch in this session and none given")
     _must_exist(ctx, "batches", batch_id)
     _must_exist(ctx, "criteria", criterion_id)
+
+    # Re-encoding a test byte for byte is not a write, and staging it as one
+    # bumps a version to record that nothing happened. A Tester defending a
+    # test it had decided was correct did exactly this: answered the challenge
+    # properly, explaining what in the criterion its assertion came from, and
+    # saved the identical body back on the way past.
+    #
+    # Reported rather than refused. The session did nothing wrong and there is
+    # nothing for it to correct, so an error would only invite it to try
+    # something else -- which is how a guard turns one wasted call into a lost
+    # session.
+    prior = ctx.conn.execute(
+        "SELECT path, body FROM tests WHERE id = ?", (id,)).fetchone()
+    if prior and prior["path"] == path and prior["body"] == body:
+        return {"id": id, "unchanged": True,
+                "note": "identical to what is already on file, so nothing was "
+                        "written and no version moved."}
+
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))

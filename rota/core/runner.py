@@ -426,6 +426,16 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             ("statements", "id, text, status"),
             ("items", "id, text, kind, approval"),
             ("criteria", "id, ticket_id, text"),
+            # A challenge names the test and the criterion, and only the
+            # criterion resolved -- so Tester was woken to defend a test it was
+            # never shown, and said so when asked: "I needed to see the test
+            # itself in order to decide whether it encodes its criterion, but it
+            # was not provided." It owns the artefact and its own read is
+            # index-depth, which is right for a listing and useless for the one
+            # row somebody is disputing. The body travels because the ref is a
+            # pointer to the thing, and resolving a pointer to everything except
+            # the thing is what this function is for.
+            ("tests", "id, criterion_id, path, body"),
             ("tickets", "id, item_id, text"),
             ("constraints", "id, headline"),
             ("glossary_terms", "id, term, sense_short"),

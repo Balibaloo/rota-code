@@ -9,6 +9,10 @@ source is describing the term the way this project uses it — a standard body's
 definition of a word is authoritative about the standard and says nothing about
 which sense your codebase means.
 
+**Applying it is `glossary.amend`.** That is the call that records a sense;
+nothing else here does, and an answer you read and did not write down leaves the
+term meaning exactly what it meant before you asked.
+
 **Citing it makes the entry `cited`.** Pass the reference id in `source_refs` and
 the provenance follows: this sense was found outside, and it is the only kind of
 entry that can become false without anyone touching the project. An entry that

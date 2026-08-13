@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from rota import paths
 from rota.design import graph as graph_mod
 from rota.roles import prompts
 from rota.core.db import init_db
@@ -305,3 +306,35 @@ def test_a_read_only_mode_offers_no_writes():
             if writes:
                 leaks[f"{role}/{mode}"] = sorted(writes)
     assert not leaks, leaks
+
+
+def test_a_brief_names_at_least_one_of_its_own_calls():
+    """
+    A brief that names no call leaves the tool list to say what the work is.
+
+    Five separate defects came out of comparing briefs against their `.tools`
+    files, and this is the shape that bit twice. `developer/answer` said "apply
+    it, carry on with the batch" and mentioned none of its nine tools; the
+    session picked from the list, and the two that stand out among code tools
+    are the two for asking another question. `tester/answer` was two sentences
+    and named none of six, so an answer arrived, was understood, and was never
+    encoded -- leaving the criterion as untested as before the question.
+
+    Not "every tool must be mentioned": most reads arrive pushed and a brief
+    that recited its whole toolbox would be a worse brief. One is the floor. A
+    mode whose brief cannot name a single call it exists to make is a mode whose
+    work is defined by a list the model has to guess the point of.
+    """
+    silent = []
+    for tools_path in sorted(paths.PROMPTS.glob("*/*.tools")):
+        brief_path = tools_path.with_suffix(".md")
+        if not brief_path.exists():
+            continue
+        tools = [line.strip() for line in
+                 tools_path.read_text(encoding="utf-8").splitlines()
+                 if line.strip() and not line.strip().startswith("#")]
+        brief = brief_path.read_text(encoding="utf-8")
+        if tools and not any(fn in brief for fn in tools):
+            silent.append(f"{brief_path.parent.name}/{brief_path.name} "
+                          f"names none of its {len(tools)} tools")
+    assert not silent, "\n  " + "\n  ".join(silent)
