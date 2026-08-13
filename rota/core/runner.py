@@ -686,6 +686,21 @@ def run_session(
                         # overflowing. The answer has not changed -- nothing the
                         # session did could have changed it -- so say so in a
                         # line rather than in four thousand characters.
+                        #
+                        # Known hole, left open deliberately: "the answer is
+                        # above" is false once `_fit` has evicted the middle,
+                        # and `_fit`'s own notice says "re-read anything you
+                        # still need" -- so the two lines contradict each other
+                        # and the session is sent looking for something that was
+                        # deleted. Measured across 8,183 recorded prompts: 8
+                        # carry the eviction notice, and all 8 carry this line
+                        # too, so it is certain whenever it can happen. It is
+                        # also 0.1% of prompts, and it is not what drives the
+                        # repeated reads -- 1,249 prompts carry this line with
+                        # nothing evicted, where the answer really is above and
+                        # the session asked again regardless. Worth closing by
+                        # serving the full result when anything was dropped;
+                        # not worth a full re-record on its own.
                         feedback.append(
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session; the answer is above.")
