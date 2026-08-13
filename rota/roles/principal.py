@@ -141,6 +141,15 @@ def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
     is the rows the refs already point at, read out at the edge where ids stop
     working. Law 2 governs what travels between roles, and the principal is not
     one.
+
+    A tempting corollary is false, and was tried: that a question to the
+    principal must carry something they themselves said, because the glossary is
+    our filing and not theirs. `_bind_send` refused a clarify whose refs were all
+    glossary terms for about an hour. `L1-LI-relay-an-answer-without-improving-it`
+    expects exactly that message -- two senses of one word, no statement -- and
+    had passed 335 of 340 recorded runs. "Which of these two meanings did you
+    intend" is a complete question, and this function is why: the senses arrive
+    as words. The rule refuted the case, so the rule went.
     """
     from ..core.runner import _resolve_refs
 

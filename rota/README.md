@@ -49,6 +49,10 @@ python -m rota.cockpit.server [root] [--open]     # http://127.0.0.1:8899
 `--open` opens a browser tab; without it the URL is printed. Reloads never open
 one. The server restarts itself when `rota/` changes, so leave it running.
 
+For local-model hardware profiles, context budgeting, cache distinctions, and
+the evidence required before adopting a new model, see
+[HARDWARE_GUIDE.md](HARDWARE_GUIDE.md).
+
 Against a real model — these cost model time, and replay from committed
 cassettes when the prompts have not changed:
 

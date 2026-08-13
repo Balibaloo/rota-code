@@ -17,6 +17,7 @@ Consequences worth stating:
 """
 from __future__ import annotations
 
+import inspect
 import sqlite3
 from types import SimpleNamespace
 from typing import Any, Callable
@@ -280,6 +281,45 @@ class Sandbox:
             raise ArgumentError(f"{dotted}: {problem}")
 
         return target(**kwargs)
+
+    def call_key(self, dotted: str, pos=(), kwargs=None) -> str:
+        """
+        A canonical name for "this call, asked again".
+
+        The repeat detector compared raw argument lists, so `brief.list()` and
+        `brief.list(since_version=0)` were two different calls -- though zero is
+        the default and the rows are identical. That mattered far more than it
+        looks, because the pushed working set is run with *no arguments at all*:
+        the prompt tells every session "already run for you ... calling any of
+        these again returns the same thing and costs you a turn", and any
+        session that spelled a default out loud was charged full freight for
+        rows it had already been given, and had its real action held behind a
+        read it already held.
+
+        Spelling out a default is the normal thing for a small model to do. So
+        the sentence in the prompt was false for the commonest way of being
+        wrong about it.
+        """
+        kwargs = dict(kwargs or {})
+        try:
+            artefact, fn = dotted.split(".", 1)
+            target = getattr(self[artefact], fn)
+            if pos:
+                kwargs = _bind_positional(target, pos, kwargs, dotted)
+                pos = ()
+            params = inspect.signature(target).parameters
+            kwargs = {
+                k: v for k, v in kwargs.items()
+                if not (k in params
+                        and params[k].default is not inspect.Parameter.empty
+                        and v == params[k].default)
+            }
+        except Exception:
+            # An unresolvable name or an unbindable argument list is the
+            # parser's problem, not this function's. Fall through to a key made
+            # of what was actually said: it still matches an identical repeat.
+            pass
+        return f"{dotted}({sorted(kwargs.items(), key=repr)}{tuple(pos)})"
 
 
 def _verb_to_attr(verb: str) -> str:

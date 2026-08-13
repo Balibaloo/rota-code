@@ -192,19 +192,22 @@ def test_a_long_read_reaches_the_model_past_the_old_cap(db):
     a docstring. Nothing in the suite noticed, because every fixture's tool
     results were short.
     """
+    # A read the session has to ask for. `problem.consult` takes no arguments,
+    # so it arrives pushed, and a pushed read is already-run by the time the
+    # model speaks -- which is the right answer to a different question than
+    # this one. The cap on a *fetched* result needs a fetch.
     for i in range(20):
-        db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
-                   (f"i{i:02d}", f"scope item {i:02d} " + "detail " * 8,
-                    "in_scope", "decided"))
-    db.execute("UPDATE items SET text = text || ' CANARY_PAST_THE_OLD_CAP' "
-               "WHERE id='i19'")
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "gatekeeper", f"scope ruling {i:02d} " + "detail " * 20))
+    db.execute("UPDATE decisions SET text = 'CANARY_PAST_THE_OLD_CAP ' || text "
+               "WHERE id='d19'")
 
-    backend = ScriptedBackend(["TOOL: problem.consult()", "Seen."])
+    backend = ScriptedBackend(["TOOL: decisions.search(query='scope')", "Seen."])
     outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
 
     _, user = backend.calls[1]
-    served = user[user.rindex("OK problem.consult ->"):]
+    served = user[user.rindex("OK decisions.search ->"):]
     assert len(served) > 1200, "the old cap is still in force"
     assert "CANARY_PAST_THE_OLD_CAP" in served, \
         "the tail of the result never reached the model"
@@ -386,8 +389,13 @@ def test_a_genuinely_new_read_still_holds_the_action(db):
     the commonest fault in the suite — 309 of 598 multi-call completions — and a
     first-time read must still stop the write behind it.
     """
+    # Genuinely new means genuinely not held already: a pushed read is in front
+    # of the model before it speaks, so re-asking for one holds nothing.
+    db.execute("INSERT INTO decisions (id, author, text) "
+               "VALUES ('d1','gatekeeper','scope ruling on closing an account')")
+
     backend = ScriptedBackend([
-        "TOOL: problem.consult()\n"
+        "TOOL: decisions.search(query='scope')\n"
         "TOOL: problem.assert(id='i1', text='premature', kind='in_scope')",
         "Done.",
     ])
@@ -441,12 +449,12 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     answer, so the second telling is a line, not four thousand characters.
     """
     for i in range(20):
-        db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
-                   (f"i{i:02d}", "scope " + "detail " * 8, "in_scope", "decided"))
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "gatekeeper", "scope " + "detail " * 20))
 
     backend = ScriptedBackend([
-        "TOOL: problem.consult()",
-        "TOOL: problem.consult()",
+        "TOOL: decisions.search(query='scope')",
+        "TOOL: decisions.search(query='scope')",
         "Done.",
     ])
     outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
@@ -456,6 +464,39 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     second = backend.calls[2][1]
     assert "unchanged since you asked" in second, "the repeat was re-rendered in full"
     assert len(second) - len(first) < 400, "the repeat cost nearly as much as the first"
+
+
+def test_a_session_with_nothing_left_to_do_stops_instead_of_inventing_work(db):
+    """
+    Doing nothing is a legitimate outcome and had no way to be performed.
+
+    Every terminal act in this loop is positive -- a message sent, an area
+    attested -- so the mode whose right answer is silence could only express it
+    by falling quiet, and a model with eleven turns in hand does not fall quiet.
+    Liaison's `round_close`, handed two reports that had both already settled,
+    re-read the same three things six times and then sent two messages to the
+    principal. Its brief tells it to send nothing; the exit interview says it
+    needed nothing. It simply had turns left.
+
+    One wasted turn is tolerated on purpose -- see the note at the break -- so a
+    session that repeats a read once can still be told "unchanged" and act.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
+               ("i01", "people can close their account", "in_scope", "decided"))
+
+    backend = ScriptedBackend(["TOOL: problem.consult()"] * 12)
+    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    # Two, not three: `problem.consult` is pushed, so the very first turn is
+    # already asking for something it was handed, and the second confirms the
+    # session has nothing else in it.
+    assert outcome.iterations == 2, (
+        f"ran {outcome.iterations} turns of the same read; the cap is not the "
+        f"stopping condition")
+    assert not outcome.result.messages, "invented something to say"
+    assert not outcome.result.writes
 
 
 def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):

@@ -1,0 +1,145 @@
+Agreed on weird domains. One caveat and one fork.
+
+**The caveat:** weird domain and your hard requirements pull against each other. Obscure specs tend to mean small communities, which means thin issue trackers and few real dependents — exactly requirements 6 and 7. The last batch had four survivors out of ten screened; on a weird-skewed list I'd expect worse, maybe three out of fifteen. So this is a longer search, and I'd rather tell you that up front than quietly return two candidates.
+
+**The fork:** "challenging" reads two ways, and they're different experiments.
+
+Weird *domain* — obscure spec, alien vocabulary, bit-level formats — is free upside for you. It stresses the glossary and constraint extraction, which is the thing you're actually testing, and it doesn't fight anything in your ranking.
+
+Weird *code shape* — heavy metaprogramming, dynamic dispatch, codegen — is the opposite. Your criterion 5 penalises it and your exclusions ban it outright. If I put a metaprogramming-heavy repo in the batch and the system does badly, you won't be able to tell whether the domain model failed or the symbol extractor did. That's a confound, and it's the kind that makes a whole run uninterpretable.
+
+My read is you mean the first. If you actually want the second, I'd run it as a separate batch with the explicit question "does extraction degrade gracefully or catastrophically" — not mixed in with the first-target search.
+
+**Directions I'd go**, all unverified, listed so you can veto before I spend the budget:
+
+- **pyais** — AIS maritime messages. Bit-packed payloads inside six-bit ASCII armour, ITU-R M.1371. Likely vocabulary collision on "message" (the NMEA sentence vs the decoded AIS message vs the message *type* number).
+- **segno** — QR codes, ISO/IEC 18004. Dense with terms of art: mask pattern, version, mode, error correction level. "Version" here means symbol size, not release number — that alone is a good answer-key fact.
+- **mido** — MIDI. Two specs at once: the live wire protocol and the Standard MIDI File format. "Message" almost certainly means different things across those two modules.
+- **python-metar** — aviation weather, terse WMO-coded observations. Genuinely alien vocabulary, tiny community. High risk on the dependents requirement.
+- **uniseg** or similar — Unicode text segmentation, UAX #29. "Grapheme cluster" vs "character" vs "code point" is a three-way collision that's already documented in the spec.
+- **packaging** (PyPA) — PEP 440/508/517. Not weird, but obligation-dense in the extreme and with more real dependents than anything in the last batch. Worth one slot as a control.
+
+I'll screen these plus whatever the search turns up, hold the 2,000–8,000 line floor and ceiling, and keep the Python preference unless you tell me language diversity is part of what you meant by weird — that's the one thing that would change my search terms rather than just my shortlist.
+
+
+# Edge-case repos — verified findings
+
+Method note: since the hard requirements are scratched, I verified **evidence traces** (file:line, commit content, issue text, repo metadata) rather than running test suites. LOC via `cloc 1.98`. Everything below I read directly. I did **not** run any of these suites, so treat test-cleanliness as unknown.
+
+---
+
+## 1. Bug-compatibility — **croniter**
+
+https://github.com/kiorky/croniter · MIT · 558 stars, 6 open issues · **1,182 LOC** source
+
+The find of the batch. `src/croniter/croniter.py:483-487` carries a constructor flag literally named `implement_cron_bug`, default `False`:
+
+> If requested, handle a bug in vixie cron/ISC cron where day_of_month and day_of_week form an intersection (AND) instead of a union (OR) if either field is an asterisk or starts with an asterisk — with a link to `crontab.guru/cron-bug.html`.
+
+So the repo contains, behind an opt-in flag, a deliberate reproduction of a defect in a C program from the 1980s, because users need schedules identical to their system cron. This is your constraint-extractor's hardest possible input: the correct model is "this code is obliged to a buggy peer implementation, not to a specification," and the naive read — *this is wrong, remove it* — is the failure you want to catch.
+
+Additional richness: the surrounding comment block (lines 488-505) explains OR-semantics with unsatisfiable operands (the 31st in a 30-day month contributes no dates rather than invalidating the expression), then explains why `#` and `W` break that model because they're carried by `nth_weekday_of_month` and `nearest_weekday` rather than the DAY/DOW fields.
+
+---
+
+## 2. Tests that pin a decision — **croniter**, same repo
+
+The comment at line 500 names its own test: *"each side stays an intersection (the semantics `test_issue_k33` pins down)."* I confirmed `test_issue_k33` exists at `tests/test_croniter.py:2363` — a ten-year sweep over `30 23 1-7 JAN MON-FRI#1` with hardcoded expected datetimes.
+
+That's a rare and valuable shape: **source code citing a test as the authority for a semantic choice.** The test doesn't just check behaviour, it *is* the specification for this corner. And there's a live matching change request — **[#249](https://github.com/kiorky/croniter/issues/249), "Proposal: keep the intersection semantics of `#`/`W` when the other day field is restricted"** — which proposes changing exactly the thing the comment says is deliberate. Whether the right answer is "do it" or "no, read line 500" is genuinely open. That is the best single task in this batch.
+
+Second instance, elsewhere: `croniter.py:1058-1062` distinguishes `"Jan-Jan"` (an explicit equal range that croniter *deliberately* expands to the whole cycle) from `"DEC/3"` (a start-with-step meaning just December) — with open issue [#252](https://github.com/kiorky/croniter/issues/252) sitting right on it.
+
+---
+
+## 3. Archaeological layers — **pyparsing**
+
+https://github.com/pyparsing/pyparsing · MIT · 2,482 stars, 35 open · **6,804 LOC**
+
+**69 call sites** of `replaced_by_pep8()`. The library renamed its entire API from camelCase to snake_case and kept every old name alive as a warning-emitting wrapper (`util.py:450`, which even inspects the signature to re-add `self` because `explain_exception()` depends on it being there). `parseString`/`parse_string`, `replaceWith`/`replace_with`, and so on — plus a *parameter* preserved for the same reason: `core.py:1295`, `:param parseAll: retained for pre-PEP8 compatibility, will be removed in a future release.`
+
+Every symbol exists twice. A glossary builder will either produce 69 duplicate entries or silently collapse pairs that a user might reasonably think are different functions. And open issue **[#637](https://github.com/pyparsing/pyparsing/issues/637), "Use `@deprecated` for deprecated functions aliases"** is a change request against the shim itself — touching all 69 sites, with a real risk of breaking the `self`-detection hack.
+
+---
+
+## 4. Deprecated but load-bearing — **bleach** *(strongest in the batch)*
+
+https://github.com/mozilla/bleach · Apache-2.0 · 2,769 stars · **ARCHIVED** · 1,247 LOC own + **11,266 LOC vendored**
+
+README, first line:
+
+> **NOTE: 2026-06-05: Bleach is no longer maintained. There will be no future releases including for security issues.**
+
+A widely-depended-upon HTML *sanitizer* — a security boundary — publicly abandoned. It stacks four of your categories at once:
+
+- **Deprecated but load-bearing**: dead upstream, alive in production everywhere.
+- **Vendored fork**: `bleach/_vendor/html5lib-1.1` is 11,266 lines, ~9× bleach's own code.
+- **Archaeological layers**: `six_shim.py` is a hand-written stub reimplementing what vendored html5lib used `six` for (`PY3 = True`, `text_type = str`, `unichr = chr`) — a Python 2 compatibility shim's fossil, preserved so the vendored copy still imports.
+- **Obligations that leave the repo**: `html5lib_shim.py` opens by suppressing a `DeprecationWarning` emitted *by its own vendored dependency* — `"ignore html5lib's sanitizer is deprecated"` — with the comment `we are bleach`. The vendored library is telling you not to use the thing bleach is built on.
+
+Caveat: archived means **zero open issues**, so you'd have to author change requests yourself. Fine for forking, useless if you want a real tracker.
+
+---
+
+## 5. Obligations that leave the repo — **pluggy**
+
+https://github.com/pytest-dev/pluggy · MIT · 1,679 stars, 56 open · **1,050 LOC**
+
+The plugin host under pytest. Almost nothing that matters about pluggy is in pluggy — the obligations are to hook implementations in third-party packages it will never see. Two verified constraints:
+
+- `_hooks.py:148` — `raise ValueError("cannot have a historic firstresult hook")`, an incompatibility enforced at spec-declaration time.
+- `_hooks.py:613` — a bare `# XXX: remember firstresult isn't compat with historic` in `_maybe_apply_history`, the *second* place the same invariant has to hold, guarded only by a comment.
+
+Same rule, one enforced and one remembered. Excellent test of whether constraint extraction finds both or just the raising one. Also small enough (1,050 lines) that there's nowhere to hide.
+
+Open [#705](https://github.com/pytest-dev/pluggy/issues/705) — declarative hook ordering relative to other plugins — is a good "obligation is invisible" task: any answer has to reason about plugins that don't exist yet.
+
+---
+
+## 6. Docs that diverge from spec — **dateutil**
+
+https://github.com/dateutil/dateutil · Apache-2.0/BSD dual (GitHub reports NOASSERTION) · 2,631 stars, **472 open issues** · 4,340 LOC
+
+Three verified divergence shapes in one file (`src/dateutil/rrule.py`):
+
+- **Documented deviation**: line 703, `__str__` docstring — *"This is mostly compatible with RFC5545, except for the dateutil-specific extension BYEASTER."* The serializer knowingly emits non-conforming output.
+- **Spec quoted then enforced**: line 463 quotes RFC 5545 §3.3.10 verbatim in a comment before raising.
+- **Spec violated with only a warning**: line 476 — using both `count` and `until` is "inconsistent with RFC 5545" and merely `DeprecationWarning`s. Three different postures toward one document, in one file.
+
+Its 472 open issues also make it the best source of **refusable / duplicate change requests**: [#1545](https://github.com/dateutil/dateutil/issues/1545) and [#1546](https://github.com/dateutil/dateutil/issues/1546) were filed the same day and are the *same bug* (silent truncation of sub-microsecond fractional seconds) reached through two entry points — `isoparse()` and `parser.parse()`. Handing both over separately tests whether the system notices.
+
+---
+
+## 7. Spec moved, code didn't — **html5lib**
+
+https://github.com/html5lib/html5lib-python · MIT · 1,224 stars, 104 open · 10,395 LOC
+
+README: *"designed to conform to the WHATWG HTML specification."* WHATWG HTML is a **living standard** that changes continuously. Last commit to html5lib: **2024-02-21**. The obligation target has been moving for two years and the code has not.
+
+So "what is this obliged to?" has an answer that is correct, checkable, and *out of date* — and nothing in the repo says which parts drifted. That's a different failure than a wrong doc: the doc is accurate about intent and stale about fact.
+
+---
+
+## Summary
+
+| Repo | LOC | Primary category | Tracker | Notes |
+|---|---:|---|---|---|
+| **croniter** | 1,182 | Bug-compatibility + tests-pin-decisions | 6 open | Best single pick |
+| **bleach** | 1,247 (+11,266 vendored) | Deprecated/load-bearing + vendored fork | **0 — archived** | Fork-only |
+| **pyparsing** | 6,804 | Archaeological layers | 35 open | 69 compat shims |
+| **pluggy** | 1,050 | Obligations outside the repo | 56 open | Smallest, cleanest |
+| **dateutil** | 4,340 | Docs-vs-spec divergence + refusable CRs | **472 open** | Richest tracker |
+| **html5lib** | 10,395 | Spec drift under a frozen impl | 104 open | Dormant since 2024 |
+| **pytz** | codegen-dominated | Deprecated/load-bearing | 38 open | See below |
+
+**pytz** earns a mention I couldn't fit above: `src/README.rst:27` states outright that *"This library differs from the documented Python API for tzinfo implementations"* and that the divergence **cannot be resolved without modifying Python itself (PEP 431)** — the `localize()`/`normalize()` requirement. Superseded by stdlib `zoneinfo`, still depended on everywhere. Docked because `gen_tzinfo.py` generates the bulk of the package from the IANA database, so most of the tree is machine-written.
+
+---
+
+## One reject worth flagging
+
+**chardet** — I cloned it and it is now a **ground-up AI-assisted rewrite**: `CLAUDE.md` and `CONTEXT.md` at the repo root, `CLAUDE.md` opening *"This file provides guidance to Claude Code…"*, and a restructured `src/chardet/pipeline/` layout. Same contamination concern I raised about oauthlib's Copilot commits, but total rather than partial. If your system reads this repo it is substantially reading another model's output. Excluded.
+
+---
+
+If I were picking two to start: **croniter** for the bug-compatibility-plus-live-issue-#249 combination, and **dateutil** for the tracker depth. Between them you cover five of the six categories, and croniter is small enough that you can read the entire codebase yourself to grade the output — which, for a first edge-case run, matters more than domain exotica.
