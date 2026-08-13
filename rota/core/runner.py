@@ -463,10 +463,14 @@ def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if not thread:
         return {}
 
-    rows = conn.execute(
-        "SELECT id, from_role, body_refs FROM messages "
-        "WHERE thread_id = ? AND verb = 'report' ORDER BY seq", (thread,)
-    ).fetchall()
+    # The reports still asking for something, by the same definition the
+    # predicate woke on. A settled report is a role saying it has finished, and
+    # showing it here would put Liaison back in the position of deciding which
+    # ones those are -- which is not its job, and was the whole of this case's
+    # failure.
+    from .scheduler import open_reports
+
+    rows = open_reports(conn, thread)
     if not rows:
         return {}
 
@@ -775,13 +779,25 @@ def run_session(
             # reconcile three.
             #
             # The rule is structural rather than a count. A mode narrows to the
-            # channels its job needs, so a mode that has used all of them has
-            # said everything it was woken to say — one for `ask`, three for
-            # Liaison's broadcast, and no number written down anywhere.
-            channels = {f for f in allowed if f.startswith("msg.")}
-            used = {f"msg.{sandbox_mod._verb_to_attr(m['verb'])}_{m['to_role']}"
-                    for m in sb.ctx.outbound}
-            if channels and channels <= used:
+            # channels its job needs, so a mode that has reached everyone those
+            # channels can reach has said everything it was woken to say — one
+            # recipient for `ask`, three for Liaison's broadcast, and no number
+            # written down anywhere.
+            #
+            # Recipients rather than channels, because two channels to the same
+            # role are usually *alternatives* and a tool list cannot say so.
+            # `round_close` offers `msg.clarify_principal` and
+            # `msg.present_principal`: one asks for a ruling, the other reports
+            # something worth knowing, and the brief says send one. Requiring
+            # both meant the session that got it right on turn one -- a single
+            # correct clarify -- was handed eleven more turns, and spent them
+            # sending the same question again split in half. The broadcast still
+            # needs all three of its recipients, and still gets them, because
+            # they are three different roles.
+            reachable = {f.rsplit("_", 1)[1]
+                         for f in allowed if f.startswith("msg.")}
+            messaged = {m["to_role"] for m in sb.ctx.outbound}
+            if reachable and reachable <= messaged:
                 break
 
             # A survey mode has no channels at all, so the rule above never fires

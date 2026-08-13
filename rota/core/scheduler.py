@@ -85,6 +85,62 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
 # Tick predicates. Each is a pure query over current state.
 # ---------------------------------------------------------------------------
 
+def report_is_settled(conn: sqlite3.Connection, refs: list[str]) -> bool:
+    """
+    Whether a report is a role saying it has finished rather than asking.
+
+    Every ref names a row in a terminal state -- an item at `approval:
+    approved`, a statement at `status: ratified` -- and there is nothing in it
+    for anyone to relay.
+
+    This was Liaison's to work out, in prose: "cross off the reports that are
+    already settled ... the row says which it is". Two things were wrong with
+    that. Liaison does not make decisions; its responsibility is lossless
+    communication, and deciding a role has finished is a decision. And the
+    lookup is mechanical -- an item at `approved` is approved -- so putting it
+    in a model's head buys the risk of it being got wrong and nothing else.
+
+    Underneath sat a livelock that the *correct* behaviour caused. `harvested`
+    counts Liaison's own clarify and present messages, so a round it rightly
+    ended in silence was never marked harvested and this predicate fired
+    forever. The only way to make the system progress was to message the
+    principal about a settled round -- the system rewarded the failure and
+    punished the right answer, and the L1 case for it could not have passed
+    without hanging the scheduler.
+
+    Empty refs are not settled. A report carrying nothing has said nothing that
+    can be checked, and it is the one that most needs a person.
+    """
+    if not refs:
+        return False
+    for ref in refs:
+        row = conn.execute(
+            "SELECT approval FROM items WHERE id = ?", (ref,)).fetchone()
+        if row is not None:
+            if row["approval"] != "approved":
+                return False
+            continue
+        row = conn.execute(
+            "SELECT status FROM statements WHERE id = ?", (ref,)).fetchone()
+        if row is not None:
+            if row["status"] != "ratified":
+                return False
+            continue
+        # A glossary sense, a constraint, a criterion: real rows with no
+        # terminal marker of this kind. Unsettled, which is the safe way round
+        # -- two senses of one word is exactly the round's business.
+        return False
+    return True
+
+
+def open_reports(conn: sqlite3.Connection, thread: str) -> list[sqlite3.Row]:
+    """The reports in a thread that are still asking for something."""
+    return [r for r in conn.execute(
+        "SELECT id, from_role, body_refs FROM messages "
+        "WHERE thread_id = ? AND verb = 'report' ORDER BY seq", (thread,))
+        if not report_is_settled(conn, json.loads(r["body_refs"] or "[]"))]
+
+
 def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
     """
     Liaison harvests once a broadcast's whole subtree has terminated.
@@ -118,13 +174,14 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
             "WHERE thread_id = ? AND from_role = 'liaison' AND verb IN ('clarify','present')",
             (thread,),
         ).fetchone()["n"]
-        reports = conn.execute(
-            "SELECT COUNT(*) AS n FROM messages WHERE thread_id = ? AND verb = 'report'",
-            (thread,),
-        ).fetchone()["n"]
-        if reports and not harvested:
+        # Only the reports still asking for something. A round where every role
+        # reported itself done is a round with nothing to communicate, and
+        # Liaison is not woken for it at all -- which is also what stops this
+        # predicate firing forever over a round that was rightly met in silence.
+        open_ = open_reports(conn, thread)
+        if open_ and not harvested:
             wakes.append(Wake("liaison", "tick:round_close", refs=(thread,),
-                              detail=f"{reports} report(s)"))
+                              detail=f"{len(open_)} report(s)"))
     return wakes
 
 

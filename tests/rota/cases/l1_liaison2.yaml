@@ -143,8 +143,26 @@
   expect:
     messages:
       # At most two questions means exactly one message carrying them, and it
-      # must point back at the material that raised them.
-      - {to: principal, verb: clarify, count: 1, refs_include: [<s1>]}
+      # points at whatever the problem being raised actually is.
+      #
+      # This required <s1>, the statement, on the reasoning that the principal
+      # can only recognise their own words. Liaison sent the two senses instead
+      # and was failed 5/5 for it -- and it was right. The problem being raised
+      # *is* the collision: "delete" means erase the record, or revoke access
+      # and keep it, and which did you mean. The statement is where the word
+      # appears, not what is in question about it.
+      #
+      # A guard enforcing the old reading got as far as being written before
+      # `LI-relay-an-answer-without-improving-it` refuted it -- that case
+      # expects a clarify carrying two glossary senses and nothing else, and had
+      # passed 335 of 340 runs. Two cases in one file, contradicting each other,
+      # and the role was failing the one that was wrong.
+      #
+      # So the refs are the collision. Nothing is mandatory beyond naming the
+      # thing being asked about; `render_refs` is what makes any of it legible
+      # to a person, and it resolves a glossary term to "delete: erase the
+      # account record" without needing the sentence it came from.
+      - {to: principal, verb: clarify, count: 1, refs_include: [<g1>, <g2>]}
   forbidden:
     # Deduping is the work the round exists for; forwarding each report as its
     # own question spends the principal's attention on the system's bookkeeping.
@@ -204,45 +222,18 @@
     # would be the system granting itself the principal's ruling.
     writes: [glossary_terms, constraints, items, decisions]
 
-- id: L1-LI-the-reports-came-back-clean
-  tier: T1
-  role: liaison
-  runs: 5
-  pass: 4
-  tick: round_close
-  refs: [t1]
-  # This case used to give round_close *no reports at all*, and it failed five
-  # times out of five. It deserved to: `tick_round_close` will not fire without
-  # reports, so the wake it tested cannot occur, and the role was being marked
-  # down for not recognising a situation the system cannot be in. That guarantee
-  # is structural and is now asserted in test_predicates, where it belongs.
-  #
-  # The real situation is this one. Reports came back — the round exists — and
-  # every one of them is a role saying it is done. Nothing needs the principal.
-  # Silence is a legitimate outcome for this mode and it is the harder one to
-  # produce, because the failure is manufacturing something to say.
-  fixture:
-    entries:
-      - {id: <e1>, author: principal, ts_order: 1,
-         text: "add a button so people can close their account"}
-    statements:
-      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 45,
-         text: "people can close their account from a button", status: ratified}
-    items:
-      - {id: <i1>, text: "people can close their account", kind: in_scope,
-         provenance: decided, approval: approved, approval_ver: 1, version: 1}
-    messages:
-      - {id: <m0>, thread_id: t1, from_role: liaison, to_role: gatekeeper,
-         verb: deliver, body_refs: '["<s1>"]', seq: 1, status: answered}
-      # A report is refs and nothing else — conclusions travel, reasoning stays
-      # home. Both of these point at material already settled: the Gatekeeper
-      # recorded the item, the Terminologist found the glossary already covered
-      # it. Neither asks for anything, and that is visible from the refs alone.
-      - {id: <m1>, thread_id: t1, from_role: gatekeeper, to_role: liaison,
-         verb: report, body_refs: '["<i1>"]', seq: 2}
-      - {id: <m2>, thread_id: t1, from_role: terminologist, to_role: liaison,
-         verb: report, body_refs: '["<s1>"]', seq: 3}
-  expect:
-    messages: []
-  forbidden:
-    writes: [statements, items, decisions, ledger]
+# `L1-LI-the-reports-came-back-clean` stood here, and it is gone twice over.
+#
+# It began as round_close with no reports at all, which `tick_round_close`
+# cannot produce, and moved to test_predicates. It was rewritten as a round
+# whose reports had all settled -- the harder and realer case -- and failed
+# 5/5 through five prose attempts, because it asked Liaison to decide that a
+# role had finished. Liaison does not make decisions; its responsibility is
+# lossless communication. The crossing-off is a lookup and now happens in
+# `report_is_settled`, so the wake does not occur at all and this case tests a
+# situation the system can no longer be in. Its guarantee is in
+# `test_a_round_whose_reports_all_settled_never_wakes_liaison`.
+#
+# Both removals are the same mistake found twice: grading a role on a
+# situation the frontier cannot hand it.
+

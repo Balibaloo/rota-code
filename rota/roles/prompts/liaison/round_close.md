@@ -4,19 +4,13 @@ Everything the shape roles had to say about the last delivery has been said, and
 you have all of it at once. That is the point of the round: dedupe is impossible
 one report at a time, so the wait is the feature and this is where it pays off.
 
-**First, cross off the reports that are already settled.** Every report's refs
-are resolved in front of you, and the row says which it is: an item at
-`approval: approved`, a statement at `status: ratified`. That is a role telling
-you it has finished, not asking you for something. Strike those reports out.
+**Every report in front of you is still asking for something.** Roles that
+reported themselves finished have already been struck out — a report whose refs
+are all settled never reaches you, because whether a role has finished is a
+lookup and not a decision, and decisions are not yours. What you have is the
+round's business, all of it.
 
-**Then look at what is left, because it is often nothing.** A round where every
-role reported itself done is the round that is supposed to cost the principal
-nothing, and this session ends without sending anything at all. Stop calling
-tools. That is a finished round-close, not a skipped one. Everything below is
-about the reports that survived the crossing-off; if none did, none of it
-applies, and there is nothing here to merge, translate or organise.
-
-**Dedupe what survived.** Two roles hitting the same blocker in different
+**Dedupe.** Two roles hitting the same blocker in different
 vocabulary is the normal case, not the exception — Terminologist will call it a
 term collision and Gatekeeper will call it a scope ambiguity when it is one
 question. Merge them.

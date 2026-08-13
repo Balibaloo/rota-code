@@ -223,6 +223,9 @@ def test_round_close_does_not_fire_with_nothing_to_harvest(db):
 
     Silence is still a legitimate outcome for the mode. It just means reports
     came back that needed no ruling, not that no reports came back.
+
+    See below: that half stopped being the mode's outcome too, for the same
+    reason and one worse one.
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
@@ -234,6 +237,59 @@ def test_round_close_does_not_fire_with_nothing_to_harvest(db):
                "VALUES ('m2','t1','gatekeeper','liaison','report','[]',2,'open')")
     wakes = P.REGISTRY["round_close"].fn(db)
     assert [w.role for w in wakes] == ["liaison"] and wakes[0].refs == ("t1",)
+
+
+def test_a_round_whose_reports_all_settled_never_wakes_liaison(db):
+    """
+    A role reporting an approved item has finished, and finishing is not news.
+
+    The reports were shown to Liaison with a paragraph telling it to strike out
+    the settled ones: "the row says which it is, an item at `approval:
+    approved`, a statement at `status: ratified`." It failed 5/5 -- it read two
+    settled reports and sent two messages to the principal -- and five prose
+    attempts did not move it, because it was the wrong role to ask. Liaison
+    does not make decisions; its responsibility is lossless communication, and
+    "this role has finished" is a decision. It is also a lookup, which makes
+    putting it in a model's head all cost and no benefit.
+
+    The worse half: `harvested` counts Liaison's own clarify and present
+    messages, so a round rightly ended in silence was never marked harvested
+    and `round_close` fired on it forever. The only way to progress was to
+    message the principal about a settled round. The system rewarded the
+    failure, and the L1 case could not have passed without hanging the
+    scheduler.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m1','t1','liaison','gatekeeper','deliver','[]',1,'answered')")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
+               "VALUES ('i1','people can close their account','in_scope',"
+               "'decided','approved')")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) "
+               "VALUES ('e1','principal','let people close their account',1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES "
+               "('s1','e1',0,30,'people can close their account','ratified')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m2','t1','gatekeeper','liaison','report','[\"i1\"]',2,'open')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m3','t1','terminologist','liaison','report','[\"s1\"]',3,'open')")
+
+    assert P.REGISTRY["round_close"].fn(db) == [], \
+        "woke Liaison for a round in which every role reported itself finished"
+
+    # One unsettled ref is the whole round's business, and it wakes.
+    db.execute("INSERT INTO items (id, text, kind, provenance) "
+               "VALUES ('i2','people can export invoices','in_scope','decided')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) "
+               "VALUES ('m4','t1','architect','liaison','report','[\"i2\"]',4,'open')")
+    wakes = P.REGISTRY["round_close"].fn(db)
+    assert [w.role for w in wakes] == ["liaison"]
+    assert wakes[0].detail == "1 report(s)", \
+        f"the settled reports are still being counted in: {wakes[0].detail}"
 
 
 def test_every_predicate_reads_something():
