@@ -18,6 +18,7 @@ import json
 import pytest
 
 from rota.design import graph as graph_mod
+from rota.roles import validators as validators_mod
 from rota.roles.principal import record_entry
 from rota.core.db import init_db
 from rota.llm.llm import Pins, ScriptedBackend
@@ -258,3 +259,50 @@ def test_arc_quiescence_means_no_predicate_fires(db):
     pending_batch = {"tick:batch_start", "tick:annotate"}
     unexpected = [w for w in remaining if w.kind not in pending_batch]
     assert not unexpected, f"work left undone at quiescence: {unexpected}"
+
+
+def test_arc_global_invariants_hold_over_the_finished_database(db):
+    """
+    The whole-database checks in `validators`, asserted where a whole database
+    exists.
+
+    Five of these were never called from anywhere, and the question that looked
+    obvious -- "what write causes this to run?" -- is the wrong shape for them.
+    They take a connection and scan every row, so they are not per-write guards
+    and could not be: at `surveys.attest` time the only survey that matters is
+    the one being attested, and a global scan would fail on somebody else's bad
+    row. The three that *are* live (`check_segmentation`,
+    `check_statement_count`, `check_messages_carry_refs`) are called from a
+    test, after a session, which is the idiom. These were simply never given
+    one.
+
+    So this is the enforcement point, and the arc is the right database for it:
+    a full lifecycle through the real scheduler, sandbox, bus and commit path,
+    with only the completions canned.
+    """
+    test_arc_delivery_loop_slices_batches_and_tests(db)
+
+    # An invariant over an empty table passes and means nothing, which is the
+    # failure this suite keeps finding elsewhere. So the rows are asserted
+    # first: if the arc stops producing criteria, this test says so instead of
+    # quietly going vacuous.
+    populated = {t: db.execute(f"SELECT COUNT(*) n FROM {t}").fetchone()["n"]
+                 for t in ("items", "tickets", "criteria", "glossary_terms")}
+    assert all(populated.values()), f"nothing to check: {populated}"
+
+    problems: list[str] = []
+    problems += validators_mod.check_criteria_terms(db)
+    # Law 13 has no other enforcement anywhere. Named tables rather than every
+    # table, because the runtime bookkeeping is full of legitimate durations.
+    problems += validators_mod.check_no_time_content(
+        db, ["statements", "items", "tickets", "criteria", "glossary_terms",
+             "constraints", "decisions"])
+
+    assert not problems, "global invariants violated:\n  " + "\n  ".join(problems)
+
+
+# `check_bindings_resolve` and `check_survey_citations` are deliberately absent
+# above. This arc produces no constraint bindings and no survey records, so
+# asserting them here would be two green checks over empty tables -- worse than
+# no check, because it would read as covered. They belong wherever a survey has
+# actually run; `test_onboarding` is the database that has those rows.

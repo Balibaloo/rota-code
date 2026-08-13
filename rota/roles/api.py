@@ -861,14 +861,42 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # Narrow on purpose: it is the *same item, same session* pair that is a
     # minute. Deciding about something you did not just amend is untouched, and
     # so is defending an item -- because defending means you did not amend it.
-    amended = {i for t, i, *_ in ctx.writes if t == "items"}
-    minuted = sorted(amended.intersection([id, *(refs or [])]))
+    # The subject only, never the refs. `refs` is how a decision points at its
+    # context, so refusing on them refused decisions that merely *mentioned*
+    # something amended -- and the Gatekeeper ending an exhausted batch does
+    # exactly that. Refused, it invented a fresh id and tried again, six times,
+    # superseding itself down a spiral it never came out of: twelve turns, no
+    # commit, every write discarded. A guard the model can walk into repeatedly
+    # is worse than no guard, because the session dies instead of the call.
+    #
+    # The subject is still caught, which is what the rule was for: the contested
+    # session passed the *item's own id* as the decision id.
+    minuted = id if id in {i for t, i, *_ in ctx.writes if t == "items"} else None
     if minuted:
         raise ValueError(
-            f"you amended {', '.join(minuted)} this session, so a decision "
+            f"you amended {minuted} this session, so a decision "
             f"about it would be minuting your own edit. The amended item is the "
             f"record -- a decision is something you decided, and taking the "
             f"correction you were given is not. Report it and stop.")
+
+    # Both of these are foreign keys, and a dangling one does not fail the call
+    # -- it fails `session_commit`, which takes the whole session down with an
+    # `IntegrityError` naming no column. Fourteen turns of a Gatekeeper's work
+    # were discarded that way, and the model was never told why.
+    #
+    # `resolves_ledger` reads like a flag and got `True`, which is a boolean in
+    # a column that references `ledger(id)`. Saying so costs a turn; the commit
+    # cost the session.
+    staged = {i for t, i, *_ in ctx.writes if t == "decisions"}
+    if resolves_ledger is not None and not isinstance(resolves_ledger, str):
+        raise ValueError(
+            f"resolves_ledger is the id of the ledger entry this decision "
+            f"closes, not whether it closes one; you sent "
+            f"{resolves_ledger!r}. Leave it out if no assumption is resolved.")
+    if resolves_ledger:
+        _must_exist(ctx, "ledger", resolves_ledger)
+    if supersedes and supersedes not in staged:
+        _must_exist(ctx, "decisions", supersedes)
 
     ctx.writes.append(("decisions", id, {
         "author": ctx.role, "text": text, "refs": json.dumps(refs or []),
