@@ -16,6 +16,68 @@ from rota.core.db import init_db
 from rota.core.sandbox import build
 
 
+# Capabilities a role has and no brief describes. Listed rather than hidden,
+# because the check that was supposed to catch them searched each mode's own
+# `.tools` file and therefore passed for everything.
+#
+# I briefed all thirteen. It cost four cases and I reverted the lot, so this is
+# a measurement rather than a backlog:
+#
+#   AR-constrain-an-external-commitment   5/5 -> 0/5, wrote no constraint
+#   DV-challenge-a-test                   5/5 -> 0/5, sent no challenge
+#   DV-fix-the-code-not-the-test          5/5 -> 0/5, wrote no code
+#   RS-say-what-you-tried                 3/5 -> 0/5, answered twice
+#
+# Every one is the same mechanism, and it is the week's most reliable finding:
+# a briefed alternative inside a mode whose job is decisive becomes the exit.
+# `architect/deliver` exists to write a constraint; told it may ask the
+# Researcher instead, it asks. `developer/tests_failing` exists to answer one
+# two-line question; given a third thing to do, it does the third thing.
+#
+# The usual repair is to move the capability to a mode where it does not
+# compete -- which is how `developer/answer` was fixed. It does not work here:
+# there is no mode whose job is asking outward. The `ask` modes are for
+# answering Liaison's inquiries. So `msg.question_researcher` competes with the
+# deciding action wherever it is offered, and that is a design question about
+# where outward questions belong, not a wording problem. Ten of the thirteen are
+# the Researcher, at both ends: five roles that may ask it and are never told,
+# and the Researcher never told which channel answers. Both its edges read as
+# uncovered in the matrix, which is what this looks like from the other side.
+KNOWN_UNBRIEFED = {
+    "architect": ("glossary.lookup", "msg.question_researcher"),
+    "critic": ("msg.challenge_developer",),
+    "developer": ("msg.question_researcher",),
+    "gatekeeper": ("msg.question_researcher",),
+    "liaison": ("decisions.search",),
+    "researcher": ("msg.answer_architect", "msg.answer_developer",
+                   "msg.answer_gatekeeper", "msg.answer_terminologist",
+                   "msg.answer_tester"),
+    "terminologist": ("msg.question_researcher",),
+    "tester": ("msg.question_researcher",),
+}
+
+
+def test_the_unbriefed_list_does_not_grow_stale():
+    """
+    An exemption list is only honest while every entry is still exempt. One that
+    outlives its reason silences the check for a capability somebody has since
+    described perfectly well.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    stale = {}
+    for role, fns in KNOWN_UNBRIEFED.items():
+        text = prompts.base(role)
+        for mode in prompts.available(role):
+            text += "\n" + prompts.piece(role, mode)
+        described = sorted(f for f in fns if f in text)
+        if described:
+            stale[role] = described
+    assert not stale, f"briefed now; remove from KNOWN_UNBRIEFED: {stale}"
+
+
 def test_every_role_has_a_base_prompt():
     assert prompts.check_coverage() == []
 
@@ -166,18 +228,39 @@ def test_every_operation_is_mentioned_in_some_prompt():
     `msg.ask_*` are the entire readonly-inquiry route of law 10,
     `problem.prioritize` is law 9's priority lever, and `ledger.log` appeared
     only in Developer's brief though three other roles had it.
+
+    Then it stopped working, and read as though it never had. The text being
+    searched included each mode's `.tools` file, so every offered function was
+    "mentioned" -- by the list that offers it. The check could only fail for a
+    function no mode offered at all, which is a different property, already
+    covered, and not the one in the name.
+
+    Thirteen capabilities were hiding behind that, and `KNOWN_UNBRIEFED` below
+    is what happened when I tried to brief them.
     """
     import pathlib
     import tempfile
 
+    from rota.core.runner import push_working_set
+
+    g = graph_mod.load()
     conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
     unbriefed = {}
-    for role in sorted(graph_mod.load().roles):
+    for role in sorted(g.roles):
+        sb = build(role, conn)
+        # A pushed read arrives whether or not anyone mentions it -- the opening
+        # prompt carries the rows and says so -- and a brief reciting its whole
+        # toolbox is a worse brief. Everything else has to be named by somebody:
+        # a message channel nobody describes is a route that exists and is never
+        # taken, and that is precisely what happened to the Researcher, wired at
+        # both ends and briefed at neither.
+        pushed = set(push_working_set(role, sb, None, g))
         text = prompts.base(role)
         for mode in prompts.available(role):
             text += "\n" + prompts.piece(role, mode)
-            text += "\n" + "\n".join(prompts.mode_tools(role, mode) or [])
-        missing = sorted(f for f in build(role, conn).functions() if f not in text)
+        missing = sorted(f for f in sb.functions()
+                         if f not in text and f not in pushed
+                         and f not in KNOWN_UNBRIEFED.get(role, ()))
         if missing:
             unbriefed[role] = missing
     assert not unbriefed, unbriefed
