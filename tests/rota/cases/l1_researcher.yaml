@@ -32,6 +32,14 @@
     # way to pass was to record a reference for a page never read.
     config:
       - {key: research_allowlist, value: '["rfc-editor.org"]'}
+      # Fetch was granted and discovery was not, so the address had to come
+      # from somewhere and the only somewhere left was memory. The question
+      # carries no url; `web.fetch` takes one; `web.search` refused because
+      # `research_search` defaulted to `none`. The case then failed the session
+      # for inventing, which was the one move available to it. `cache` searches
+      # what has already been fetched, so the seeded page below is findable and
+      # the test still never touches the network.
+      - {key: research_search, value: '"cache"'}
     web_cache:
       - url: "https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3"
         status: 200
@@ -87,6 +95,13 @@
     # a result, not a failure to retry out of — and the answer must still be
     # sent, because a question that gets no reply looks exactly like a system
     # that lost it.
+    #
+    # Discovery is granted and the cache is empty, which is the distinction this
+    # role exists to hold: "I searched and there is nothing" is a finding, and
+    # "I was given no way to look" is not. Left at `none`, the session could
+    # only ever report the second while the case graded it as the first.
+    config:
+      - {key: research_search, value: '"cache"'}
     web_cache: []
   expect:
     messages:

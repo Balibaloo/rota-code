@@ -5,6 +5,14 @@ up. A question about a source that is already on file needs no fetch at all, and
 re-fetching it would produce a second row for one page — two ids for one thing,
 which is how a citation stops being traceable.
 
+**A question is not an address, so `web.search` first.** You are asked things
+like "what does RFC 6749 section 4.1.3 require"; `web.fetch` takes a url. The
+step between the two is a search, and it is the only honest one — an address you
+did not read somewhere is a guess, and a guess that happens to name a real
+document is the most expensive kind, because the answer built on it looks
+sourced. If search is refused, that refusal is your result: say you have no way
+to look, and do not supply an address from memory to get past it.
+
 **Fetch the passage, not the page.** `web.fetch` takes what you are `looking_for`
 and returns the part of the document that matches. A specification is longer than
 anything you can hold; the four paragraphs that answer the question are what you
