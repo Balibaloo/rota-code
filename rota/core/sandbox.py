@@ -454,15 +454,25 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"because the far end resolves ids against the tables and has "
                 f"nowhere to put the rest.")
 
-        duplicate = any(
-            m["to_role"] == recipient and m["verb"] == verb
-            and m["body_refs"] == list(refs or [])
-            for m in ctx.outbound
-        )
+        # Recipient and verb, not refs. Matching on refs too caught the exact
+        # repeat and missed the expensive one: Terminologist answered a
+        # Developer's question correctly, then sent the same answer again with
+        # one ref added, then again with it removed. Three answers to one
+        # question, which the recipient has to reconcile, and the guard let two
+        # of them through because the lists differed.
+        #
+        # Safe by inspection as well as by argument: no case in the suite
+        # expects two messages of one verb to one role, and the broadcast is
+        # three recipients rather than three messages. A role with two genuinely
+        # separate things to say to the same role says them in one message's
+        # refs, which is what refs are.
+        duplicate = any(m["to_role"] == recipient and m["verb"] == verb
+                        for m in ctx.outbound)
         if duplicate:
             raise ValueError(
-                f"you have already sent {verb} to {recipient} with these refs; "
-                f"your work for this session is done")
+                f"you have already sent {verb} to {recipient}; saying it again "
+                f"with different refs is a second answer to one question, and "
+                f"the recipient has to reconcile them. Your work here is done")
 
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         ctx.outbound.append({
@@ -480,13 +490,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         def send(refs: list[str], question: str, round_no: int = 0):
             if not question:
                 raise ValueError(
-                    f"{label} needs {prose}=: the recipient shares no artefact "
-                    f"with you, so refs alone say nothing it can act on")
+                    f"{label} needs {prose}=: refs say what you are asking "
+                    f"about, and nothing says what you are asking")
             return stage(refs, round_no, text=question)
 
+        # Two reasons a channel carries words, and they used to be conflated.
+        # The Researcher shares no database, so an id means nothing at the far
+        # end. Every other question channel shares the whole database and still
+        # needs words, because a question is about something no artefact holds
+        # -- that is what makes it a question. The doc says whichever applies.
         doc = (f"Ask {recipient} a question of fact about something outside this "
                f"repository. It has never seen this project, so say what you "
-               f"need to know in words. refs: list of ids, may be empty.")
+               f"need to know in words. refs: list of ids, may be empty."
+               if recipient == "researcher" else
+               f"Ask {recipient} a question. The refs say what it is about; "
+               f"`question=` says what you need to know about them, which no "
+               f"row holds. refs: list of ids.")
     else:
         def send(refs: list[str], round_no: int = 0):
             return stage(refs, round_no)

@@ -159,11 +159,17 @@ def test_an_expected_call_has_something_to_read(case):
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
 def test_a_prose_channel_is_woken_with_words(case):
     """
-    One channel carries prose and the graph says which. Law 2 keeps words off
-    messages because sender and recipient share a database, so an id means
-    something at both ends — except for the Researcher, which has never seen an
-    artefact. Refs are meaningless to it, and the schema puts it plainly at the
-    column: a question with no words is no question.
+    Asking channels carry prose and the graph says which. Law 2 keeps words off
+    messages so a recipient reads the row rather than the sender's summary of
+    it — which is right for every channel that *tells* somebody something, and
+    silent about the ones that ask.
+
+    A question is about something no artefact holds; that is what makes it a
+    question. So refs can name its subject and never its content, whether or
+    not the two ends share a database. The Researcher made this obvious first
+    because it shares none, and for a while that was taken as the whole reason:
+    five question channels carried words and five did not, and which half a
+    channel fell in depended on its recipient.
 
     `L1-RS-answer-from-the-clause-not-from-memory` seeded that message with
     neither, and the session said so in its own reply: "the architect's question

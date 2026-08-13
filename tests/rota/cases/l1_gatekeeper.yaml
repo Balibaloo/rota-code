@@ -79,7 +79,13 @@
       - {id: <i1>, text: "deleting an account tombstones it, keeping invoices",
          kind: in_scope, provenance: decided, approval: approved,
          approval_ver: 1, version: 1}
-  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [<i1>]}
+  # Refs alone named the item and not the question. Gatekeeper was woken with
+  # "deleting an account tombstones it, keeping invoices" and asked to answer
+  # an unstated question about it, which it could only do by guessing which
+  # part was in doubt.
+  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [<i1>],
+            body_text: "The item says invoices are kept. Does that include the
+              line items, or only the invoice header and totals?"}
   expect:
     messages:
       - {to: developer, verb: answer, count: 1}

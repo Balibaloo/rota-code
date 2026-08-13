@@ -123,6 +123,39 @@ def test_each_role_lists_the_predicates_that_wake_it():
     assert not problems, "\n".join(problems)
 
 
+def test_a_verb_carries_words_or_does_not_regardless_of_recipient():
+    """
+    One meaning per word, applied to the message vocabulary.
+
+    Ten channels use `question` and five of them could not carry one. Which
+    half a channel fell in depended on the recipient: to the Researcher it had
+    a `question=` field, to anyone inside the project it had refs and nothing
+    else. A Terminologist woken by `developer -> terminologist: question` was
+    shown the term and its sense and no question, so it invented one, answered
+    it, and the Developer got an answer to something it never asked.
+
+    Law 2 is not in tension with this. Conclusions travel and reasoning stays
+    home governs *telling*, and every pointing verb -- deliver, relay, reopen,
+    elect, submit, verdict -- still carries refs and nothing else, which is
+    where prose would let a wrong conclusion outrun the row it came from.
+    Asking is not telling: a question is about something no artefact holds,
+    which is what makes it a question.
+
+    The rule asserted is only consistency. A verb that carries words on one
+    channel carries them on all of its channels, so the next `question` edge
+    somebody draws cannot quietly be a mute one -- and if `challenge` is ever
+    given words, it gets them everywhere or the check fails.
+    """
+    g = graph_mod.load()
+    by_verb = collections.defaultdict(set)
+    for e in g.of_type("messages"):
+        by_verb[e.v].add(bool(getattr(e, "prose", "")))
+
+    split = {v: "some channels carry words and some do not"
+             for v, kinds in by_verb.items() if len(kinds) > 1}
+    assert not split, split
+
+
 def test_no_section_names_a_function_its_role_lacks():
     """Same rule as the prompts: naming an unreachable call is a lie in prose."""
     import tempfile

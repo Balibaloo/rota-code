@@ -166,20 +166,48 @@ def test_a_question_to_the_researcher_carries_words(db):
     assert sig == ["msg.question_researcher(refs, question, round_no=0)"]
 
 
-def test_every_other_channel_still_refuses_words(db):
-    sb = sandbox_mod.build("architect", db, session_id="s1")
-    for sig in sb.signatures():
-        # The *parameters*, not the name — `msg.question_terminologist` has the
-        # word in its verb and takes no words at all, which is the point.
-        params = sig.split("(", 1)[1]
-        if sig.startswith("msg.") and "researcher" not in sig:
-            assert "question" not in params, f"prose leaked onto {sig}"
+def test_only_asking_carries_words(db):
+    """
+    Law 2 governs telling, and every telling channel still refuses prose.
+
+    This asserted that only the Researcher's channel took words, on the reading
+    that words are for a recipient sharing no database. That is one reason and
+    not the only one: `developer -> terminologist` shares the whole database and
+    could not ask a question either -- it sent refs, and the Terminologist was
+    shown a term and its sense with nothing saying what was being asked about
+    them. `question` meant two things depending on who received it.
+
+    The line that matters is not who receives it but what the message is *for*.
+    A conclusion travels as refs so the recipient reads the row rather than the
+    sender's summary of it, which is the whole of Law 2 and is untouched. A
+    question is about something no artefact holds -- that is what makes it a
+    question -- so refs can name its subject and never its content.
+
+    `challenge`, `propose` and `escalate` sit on the asking side of that line
+    and are deliberately still mute; they are an open decision, not an
+    inconsistency, and they are listed as open in ROLES.md.
+    """
+    g = graph_mod.load()
+    for role in sorted(g.roles):
+        sb = sandbox_mod.build(role, db, session_id="s1")
+        for sig in sb.signatures():
+            if not sig.startswith("msg."):
+                continue
+            names = {p.split("=")[0].split(":")[0].strip()
+                     for p in sig.split("(", 1)[1].rstrip(")").split(",")}
+            if sig.startswith("msg.question_"):
+                assert "question" in names, f"{role}: {sig} cannot ask"
+            else:
+                assert not (names & {"question", "text"}), \
+                    f"{role}: prose leaked onto a telling channel, {sig}"
 
 
 def test_a_question_with_no_words_is_refused(db):
     sb = sandbox_mod.build("architect", db, session_id="s1")
-    with pytest.raises(ValueError, match="shares no artefact"):
+    with pytest.raises(ValueError, match="nothing says what you are asking"):
         sb.call("msg.question_researcher", refs=[], question="")
+    with pytest.raises(ValueError, match="nothing says what you are asking"):
+        sb.call("msg.question_terminologist", refs=["g1"], question="")
 
 
 # ---------------------------------------------------------------------------

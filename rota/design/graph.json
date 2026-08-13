@@ -1,1640 +1,1645 @@
 {
- "nodes": [
-  {
-   "id": "principal",
-   "label": "Principal",
-   "type": "principal",
-   "note": "Technical. Synchronous. Holds final authority. Optional PR gate."
-  },
-  {
-   "id": "liaison",
-   "label": "Liaison",
-   "type": "role",
-   "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
-  },
-  {
-   "id": "gatekeeper",
-   "label": "Gatekeeper",
-   "type": "role",
-   "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
-  },
-  {
-   "id": "terminologist",
-   "label": "Terminologist",
-   "type": "role",
-   "note": "Terms and business rules. Catches contradictions in the dump."
-  },
-  {
-   "id": "architect",
-   "label": "Architect",
-   "type": "role",
-   "note": "Feasibility and constraints. Groups tickets into batches — a dependency-and-collision judgement that lives in the system model."
-  },
-  {
-   "id": "schedule",
-   "label": "Batch schedule",
-   "type": "artefact",
-   "note": "Order between batches, derived by the scheduler as a topological sort of Architect's declared dependency facts. No dates. Not owned by any role: ordering carries no judgement beyond the deps, so there is nothing for a role to decide. Unsatisfiable deps (a cycle) wake Architect with the conflicting facts.",
-   "owner": "scheduler"
-  },
-  {
-   "id": "developer",
-   "label": "Developer",
-   "type": "role",
-   "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Terminologist, criterion and scope gaps to Gatekeeper, constraint conflicts to Architect. Liaison is reached only through an owner reporting blocked."
-  },
-  {
-   "id": "critic",
-   "label": "Critic",
-   "type": "role",
-   "note": "Judges diff against intent. Never sees the developer reasoning."
-  },
-  {
-   "id": "transcript",
-   "label": "Transcript",
-   "type": "artefact",
-   "note": "Append-only, verbatim entries with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.",
-   "contact": false,
-   "contact_why": "verbatim record; read to recover emphasis, never to ask its recorder"
-  },
-  {
-   "id": "brief",
-   "label": "Brief (statements)",
-   "type": "artefact",
-   "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the principal, so segmentation can be aggressive."
-  },
-  {
-   "id": "problem",
-   "label": "Problem statement",
-   "type": "artefact",
-   "note": "In-scope and out-of-scope items, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
-  },
-  {
-   "id": "glossary",
-   "label": "Glossary + rules",
-   "type": "artefact",
-   "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed — extracted from an onboarded codebase and awaiting confirmation."
-  },
-  {
-   "id": "model",
-   "label": "System model",
-   "type": "artefact",
-   "note": "Constraints, and what is buildable here. Each constraint declares bindings — the modules it governs — so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase — found, not chosen). Challenging an observed entry forces its first decision."
-  },
-  {
-   "id": "decisions",
-   "label": "Decision record",
-   "type": "artefact",
-   "note": "Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state — which is why multi-writer is safe here and not on the backlog.",
-   "contact": false,
-   "contact_why": "append-only journal; entries carry authors but are read as evidence"
-  },
-  {
-   "id": "ledger",
-   "label": "Assumption ledger",
-   "type": "artefact",
-   "note": "Any role writes. Becomes the agenda for the next principal turn.",
-   "contact": false,
-   "contact_why": "append-only journal; open assumptions are facts to present, not questions"
-  },
-  {
-   "id": "code",
-   "label": "Codebase + diffs",
-   "type": "artefact",
-   "note": "One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch’s runtime whole — processes and ports die with it, half-dead environments forbidden — while the worktree and its commits persist as deferred work (commit-first bounds the loss).",
-   "contact": false,
-   "contact_why": "self-describing; a question about the codebase is answered by probing it"
-  },
-  {
-   "id": "verdicts",
-   "label": "Review verdicts",
-   "type": "artefact",
-   "note": "Pass, or the criterion that failed."
-  },
-  {
-   "id": "tester",
-   "label": "Tester",
-   "type": "role",
-   "note": "Writes executable tests from criteria, before the Developer's diff exists and without ever seeing it. Its isolation is temporal, not informational: Critic can read everything Tester reads, so the only thing that makes these tests intent rather than description is that they were written first. Do not merge this role into Critic."
-  },
-  {
-   "id": "tests",
-   "label": "Test suite",
-   "type": "artefact",
-   "note": "Criteria made executable. Machine-ratified intent: outranks all prose in the repo as evidence. One suite per batch, refs the criteria it encodes."
-  },
-  {
-   "id": "tickets",
-   "label": "Tickets",
-   "type": "artefact",
-   "note": "Sliced by Gatekeeper from approved items. One writer. Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
-  },
-  {
-   "id": "criteria",
-   "label": "Criteria",
-   "type": "artefact",
-   "note": "Written by Terminologist in glossary terms, one set per ticket. One writer."
-  },
-  {
-   "id": "batches",
-   "label": "Batches",
-   "type": "artefact",
-   "note": "Ticket groups formed by Architect on collision judgement. Complete feature sets, immutable once formed: priority moves them whole, and only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
-  },
-  {
-   "id": "findings",
-   "label": "Findings",
-   "type": "artefact",
-   "contact": false,
-   "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role — so there is nobody to ask about one.",
-   "note": "Constraint id, satisfied or violated, and the grain that brought the constraint into range. No reasoning: law 2. One row per constraint checked, per commit."
-  },
-  {
-   "id": "surveys",
-   "label": "Survey records",
-   "type": "artefact",
-   "contact": false,
-   "contact_why": "a receipt that an area was looked at, by whom, with what result -- read by the scheduler, which is not a role, so there is nobody to ask about one",
-   "note": "One row per role per area of an onboarded codebase: found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
-  },
-  {
-   "id": "researcher",
-   "label": "Researcher",
-   "type": "role",
-   "note": "Answers questions of fact about things outside this repository, with sources. Does not judge, implement, or set scope. Owns no shared artefact: it writes references and the asking role decides whether to cite them, so nothing enters the model unless a role with ownership put it there. Never woken by a predicate -- it drains nothing, so a predicate waking it would fire forever; external push arrives through the owner of whatever cited the stale reference. Knows nothing of batches, criteria or constraints: questions from roles, answers with sources."
-  },
-  {
-   "id": "references",
-   "label": "References",
-   "type": "artefact",
-   "note": "What an outside source says, and where. One row per source: the URL, the passage, the claim it supports, and a content hash that makes the page changing a drift event rather than a silent lie. The quote is not decoration -- everywhere else conclusions travel and reasoning stays home, but for an external source the passage IS the evidence, and without it nobody can check whether the Researcher read it correctly."
-  },
-  {
-   "id": "web",
-   "label": "The open web",
-   "type": "artefact",
-   "owner": "world",
-   "contact": false,
-   "contact_why": "a fact artefact, and the only one outside the engagement: reading it yields evidence, not judgement, and there is nobody in this system to ask about it",
-   "note": "Reachable only from the Researcher, and only within the domain allowlist the principal configures. Queries are constructed from the question, never forwarded: the asker may put whatever context it likes into a question, and that context must not reach the wire."
-  }
- ],
- "edges": [
-  {
-   "s": "liaison",
-   "t": "transcript",
-   "type": "writes",
-   "v": "append",
-   "n": "entry",
-   "actor": "system",
-   "label": "recorded mechanically; Liaison owns it, does not type it",
-   "rows": "single"
-  },
-  {
-   "s": "liaison",
-   "t": "brief",
-   "type": "writes",
-   "v": "segment",
-   "n": "statements",
-   "label": "atomise",
-   "rows": "delta"
-  },
-  {
-   "s": "liaison",
-   "t": "brief",
-   "type": "writes",
-   "v": "ratify",
-   "n": "status flags",
-   "label": "principal-confirmed",
-   "rows": "delta"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "problem",
-   "type": "writes",
-   "v": "assert",
-   "n": "in-scope and out-of-scope items",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "glossary",
-   "type": "writes",
-   "v": "amend",
-   "n": "terms, rules",
-   "rows": "delta"
-  },
-  {
-   "s": "architect",
-   "t": "model",
-   "type": "writes",
-   "v": "amend",
-   "n": "constraints",
-   "rows": "delta"
-  },
-  {
-   "s": "developer",
-   "t": "code",
-   "type": "writes",
-   "v": "commit",
-   "n": "branch + diff",
-   "label": "one worktree per batch",
-   "rows": "batch"
-  },
-  {
-   "s": "critic",
-   "t": "verdicts",
-   "type": "writes",
-   "v": "emit",
-   "n": "verdict per batch",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "tickets",
-   "type": "writes",
-   "v": "slice",
-   "n": "batches of tickets",
-   "label": "contested · approved items only",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "problem",
-   "type": "writes",
-   "v": "prioritize",
-   "n": "item priority",
-   "label": "moves the item; batches follow whole",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "criteria",
-   "type": "writes",
-   "v": "specify",
-   "n": "criteria",
-   "label": "contested",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "batches",
-   "type": "writes",
-   "v": "group",
-   "n": "ticket groups + constraints",
-   "label": "contested",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "ledger",
-   "type": "writes",
-   "v": "log",
-   "n": "assumption",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "decisions",
-   "type": "writes",
-   "v": "author",
-   "n": "own decision + reason",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "decisions",
-   "type": "writes",
-   "v": "author",
-   "n": "own decision + reason",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "ledger",
-   "type": "writes",
-   "v": "log",
-   "n": "assumption",
-   "rows": "single"
-  },
-  {
-   "s": "developer",
-   "t": "ledger",
-   "type": "writes",
-   "v": "log",
-   "n": "assumption",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "brief",
-   "type": "reads",
-   "v": "list",
-   "n": "statements",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "brief",
-   "type": "reads",
-   "v": "list",
-   "n": "statements",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "brief",
-   "type": "reads",
-   "v": "list",
-   "n": "statements",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "transcript",
-   "type": "reads",
-   "v": "quote",
-   "n": "entry",
-   "label": "recover emphasis",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "terminologist",
-   "t": "transcript",
-   "type": "reads",
-   "v": "quote",
-   "n": "entry",
-   "label": "recover emphasis",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "transcript",
-   "type": "reads",
-   "v": "quote",
-   "n": "entry",
-   "label": "recover emphasis",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "problem",
-   "type": "reads",
-   "v": "consult",
-   "n": "own statement",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "glossary",
-   "type": "reads",
-   "v": "consult",
-   "n": "own terms",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "model",
-   "type": "reads",
-   "v": "consult",
-   "n": "own model",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "decisions",
-   "type": "reads",
-   "v": "search",
-   "n": "rejections",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "glossary",
-   "type": "reads",
-   "v": "lookup",
-   "n": "term",
-   "rows": "single",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "code",
-   "type": "reads",
-   "v": "probe",
-   "n": "modules",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "code",
-   "type": "reads",
-   "v": "survey",
-   "n": "terms in use",
-   "label": "onboarding",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "code",
-   "type": "reads",
-   "v": "source",
-   "n": "source by path",
-   "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "code",
-   "type": "reads",
-   "v": "survey",
-   "n": "observed behaviour",
-   "label": "onboarding",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "code",
-   "type": "reads",
-   "v": "source",
-   "n": "source by path",
-   "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "code",
-   "type": "reads",
-   "v": "survey",
-   "n": "constraints in force",
-   "label": "onboarding: the third survey role, and the only one without it",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "developer",
-   "t": "criteria",
-   "type": "reads",
-   "v": "load",
-   "n": "batch of tickets + criteria",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "glossary",
-   "type": "reads",
-   "v": "lookup",
-   "n": "term",
-   "rows": "single",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "model",
-   "type": "reads",
-   "v": "load",
-   "n": "constraints",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "code",
-   "type": "reads",
-   "v": "probe",
-   "n": "modules",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "critic",
-   "t": "criteria",
-   "type": "reads",
-   "v": "load",
-   "n": "criteria for batch",
-   "label": "criteria only",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "critic",
-   "t": "code",
-   "type": "reads",
-   "v": "read",
-   "n": "batch diff",
-   "label": "diff only",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "liaison",
-   "t": "ledger",
-   "type": "reads",
-   "v": "list",
-   "n": "open assumptions",
-   "rows": "delta",
-   "depth": "index"
-  },
-  {
-   "s": "liaison",
-   "t": "decisions",
-   "type": "reads",
-   "v": "search",
-   "n": "prior art",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "principal",
-   "t": "liaison",
-   "type": "messages",
-   "v": "converse",
-   "n": "free text",
-   "rows": "none"
-  },
-  {
-   "s": "liaison",
-   "t": "principal",
-   "type": "messages",
-   "v": "confirm",
-   "n": "statement list",
-   "label": "ratification",
-   "rows": "all"
-  },
-  {
-   "s": "liaison",
-   "t": "principal",
-   "type": "messages",
-   "v": "clarify",
-   "n": "ordered questions",
-   "rows": "all"
-  },
-  {
-   "s": "liaison",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "deliver",
-   "n": "changed statements",
-   "rows": "delta"
-  },
-  {
-   "s": "liaison",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "deliver",
-   "n": "changed statements",
-   "rows": "delta"
-  },
-  {
-   "s": "liaison",
-   "t": "architect",
-   "type": "messages",
-   "v": "deliver",
-   "n": "changed statements",
-   "rows": "delta"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "liaison",
-   "type": "messages",
-   "v": "report",
-   "n": "blocker",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "liaison",
-   "type": "messages",
-   "v": "report",
-   "n": "blocker",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "liaison",
-   "type": "messages",
-   "v": "report",
-   "n": "blocker",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "challenge",
-   "n": "contradiction",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "challenge",
-   "n": "infeasibility",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "propose",
-   "n": "seam / refactor plan",
-   "rows": "all"
-  },
-  {
-   "s": "developer",
-   "t": "architect",
-   "type": "messages",
-   "v": "escalate",
-   "n": "constraint conflict",
-   "rows": "single"
-  },
-  {
-   "s": "developer",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "question",
-   "n": "criterion or scope gap",
-   "rows": "single"
-  },
-  {
-   "s": "developer",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "question",
-   "n": "term ambiguity",
-   "rows": "single"
-  },
-  {
-   "s": "critic",
-   "t": "developer",
-   "type": "messages",
-   "v": "challenge",
-   "n": "failed criterion",
-   "rows": "single"
-  },
-  {
-   "s": "liaison",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "ask",
-   "n": "principal question",
-   "label": "read-only session",
-   "rows": "single"
-  },
-  {
-   "s": "liaison",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "ask",
-   "n": "principal question",
-   "label": "read-only session",
-   "rows": "single"
-  },
-  {
-   "s": "liaison",
-   "t": "architect",
-   "type": "messages",
-   "v": "ask",
-   "n": "principal question",
-   "label": "read-only session",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "liaison",
-   "type": "messages",
-   "v": "answer",
-   "n": "from own artefact",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "liaison",
-   "type": "messages",
-   "v": "answer",
-   "n": "from own artefact",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "liaison",
-   "type": "messages",
-   "v": "answer",
-   "n": "from own artefact",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "liaison",
-   "type": "messages",
-   "v": "submit",
-   "n": "in-scope and out-of-scope items",
-   "label": "for sign-off",
-   "rows": "all"
-  },
-  {
-   "s": "liaison",
-   "t": "principal",
-   "type": "messages",
-   "v": "present",
-   "n": "draft statement",
-   "label": "signoff · reads as one document",
-   "rows": "all"
-  },
-  {
-   "s": "principal",
-   "t": "liaison",
-   "type": "messages",
-   "v": "verdict",
-   "n": "per-item approve / contest / revise",
-   "rows": "all"
-  },
-  {
-   "s": "liaison",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "relay",
-   "n": "verdicts",
-   "rows": "all"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "problem",
-   "type": "writes",
-   "v": "set approval",
-   "n": "item status",
-   "label": "approved / pending / contested",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "developer",
-   "type": "messages",
-   "v": "reopen",
-   "n": "revoked item + prior batch",
-   "rows": "batch"
-  },
-  {
-   "s": "developer",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "elect",
-   "n": "revise or restart",
-   "rows": "none"
-  },
-  {
-   "s": "brief",
-   "t": "transcript",
-   "type": "refs",
-   "v": "cites span",
-   "card": "n:1"
-  },
-  {
-   "s": "problem",
-   "t": "brief",
-   "type": "refs",
-   "v": "derives from",
-   "card": "n:n"
-  },
-  {
-   "s": "glossary",
-   "t": "brief",
-   "type": "refs",
-   "v": "defined by",
-   "card": "n:n"
-  },
-  {
-   "s": "model",
-   "t": "glossary",
-   "type": "refs",
-   "v": "constrains term",
-   "card": "n:n"
-  },
-  {
-   "s": "model",
-   "t": "code",
-   "type": "refs",
-   "v": "binds",
-   "card": "n:n",
-   "cascade": false,
-   "label": "a binding, not a wake path: it triggers review by intersection"
-  },
-  {
-   "s": "tickets",
-   "t": "problem",
-   "type": "refs",
-   "v": "satisfies",
-   "card": "n:1"
-  },
-  {
-   "s": "criteria",
-   "t": "glossary",
-   "type": "refs",
-   "v": "criteria use",
-   "card": "n:n"
-  },
-  {
-   "s": "batches",
-   "t": "model",
-   "type": "refs",
-   "v": "bounded by",
-   "card": "n:n"
-  },
-  {
-   "s": "ledger",
-   "t": "brief",
-   "type": "refs",
-   "v": "assumes about",
-   "card": "n:1"
-  },
-  {
-   "s": "code",
-   "t": "batches",
-   "type": "refs",
-   "v": "implements",
-   "card": "n:1"
-  },
-  {
-   "s": "verdicts",
-   "t": "code",
-   "type": "refs",
-   "v": "judges",
-   "card": "n:1"
-  },
-  {
-   "s": "verdicts",
-   "t": "criteria",
-   "type": "refs",
-   "v": "against criterion",
-   "card": "n:1"
-  },
-  {
-   "s": "decisions",
-   "t": "ledger",
-   "type": "refs",
-   "v": "resolves",
-   "card": "n:1"
-  },
-  {
-   "s": "schedule",
-   "t": "batches",
-   "type": "refs",
-   "v": "orders",
-   "card": "n:n"
-  },
-  {
-   "s": "decisions",
-   "t": "problem",
-   "type": "refs",
-   "v": "explains",
-   "card": "n:1"
-  },
-  {
-   "s": "liaison",
-   "t": "schedule",
-   "type": "reads",
-   "v": "consult",
-   "n": "batch order",
-   "label": "principal ordering questions",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "tester",
-   "t": "tests",
-   "type": "writes",
-   "v": "encode",
-   "n": "executable tests",
-   "rows": "batch"
-  },
-  {
-   "s": "tester",
-   "t": "criteria",
-   "type": "reads",
-   "v": "load",
-   "n": "criteria for batch",
-   "label": "criteria only — no diff",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "tester",
-   "t": "glossary",
-   "type": "reads",
-   "v": "lookup",
-   "n": "term",
-   "rows": "single",
-   "depth": "body"
-  },
-  {
-   "s": "tester",
-   "t": "tests",
-   "type": "reads",
-   "v": "consult",
-   "n": "own suite",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "developer",
-   "t": "tests",
-   "type": "reads",
-   "v": "load",
-   "n": "tests for batch",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "critic",
-   "t": "tests",
-   "type": "reads",
-   "v": "load",
-   "n": "tests for batch",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "tester",
-   "type": "messages",
-   "v": "challenge",
-   "n": "test disputes criterion",
-   "rows": "single"
-  },
-  {
-   "s": "critic",
-   "t": "tester",
-   "type": "messages",
-   "v": "challenge",
-   "n": "test does not encode criterion",
-   "rows": "single"
-  },
-  {
-   "s": "tester",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "question",
-   "n": "criterion or scope gap",
-   "rows": "single"
-  },
-  {
-   "s": "tester",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "question",
-   "n": "term ambiguity",
-   "rows": "single"
-  },
-  {
-   "s": "tests",
-   "t": "criteria",
-   "type": "refs",
-   "v": "encodes criterion",
-   "card": "n:1"
-  },
-  {
-   "s": "verdicts",
-   "t": "tests",
-   "type": "refs",
-   "v": "cites result",
-   "card": "n:n"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "tickets",
-   "type": "reads",
-   "v": "consult",
-   "n": "own tickets",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "criteria",
-   "type": "reads",
-   "v": "consult",
-   "n": "own criteria",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "terminologist",
-   "t": "tickets",
-   "type": "reads",
-   "v": "scan",
-   "n": "tickets",
-   "label": "cannot specify for unseen tickets",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "batches",
-   "type": "reads",
-   "v": "consult",
-   "n": "own batches",
-   "label": "before amending",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "tickets",
-   "type": "reads",
-   "v": "scan",
-   "n": "tickets + criteria",
-   "label": "collision judgement needs touch sets",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "developer",
-   "t": "tickets",
-   "type": "reads",
-   "v": "load",
-   "n": "tickets for batch",
-   "label": "criteria are meaningless without the ticket they serve",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "tester",
-   "t": "tickets",
-   "type": "reads",
-   "v": "load",
-   "n": "tickets for batch",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "verdicts",
-   "type": "reads",
-   "v": "load",
-   "n": "verdict for own batch",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "criteria",
-   "type": "reads",
-   "v": "scan",
-   "n": "criteria",
-   "rows": "all",
-   "depth": "index"
-  },
-  {
-   "s": "architect",
-   "t": "code",
-   "type": "reads",
-   "v": "source",
-   "n": "source by path",
-   "rows": "window",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "code",
-   "type": "reads",
-   "v": "diff",
-   "n": "batch diff",
-   "label": "structural review needs the change",
-   "rows": "batch",
-   "depth": "body"
-  },
-  {
-   "s": "terminologist",
-   "t": "developer",
-   "type": "messages",
-   "v": "answer",
-   "n": "term sense",
-   "label": "answering is not amending",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "developer",
-   "type": "messages",
-   "v": "answer",
-   "n": "criterion or scope clarification",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "developer",
-   "type": "messages",
-   "v": "answer",
-   "n": "constraint clarification",
-   "rows": "single"
-  },
-  {
-   "s": "terminologist",
-   "t": "tester",
-   "type": "messages",
-   "v": "answer",
-   "n": "term sense",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "tester",
-   "type": "messages",
-   "v": "answer",
-   "n": "criterion clarification",
-   "rows": "single"
-  },
-  {
-   "s": "tester",
-   "t": "developer",
-   "type": "messages",
-   "v": "answer",
-   "n": "test intent",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "findings",
-   "type": "writes",
-   "v": "find",
-   "n": "constraint id + status + grain",
-   "rows": "single",
-   "label": "structural verdict, after Critic's"
-  },
-  {
-   "s": "architect",
-   "t": "batches",
-   "type": "writes",
-   "v": "annotate",
-   "n": "expected touch set",
-   "rows": "batch",
-   "label": "a prediction, not a permission"
-  },
-  {
-   "s": "terminologist",
-   "t": "glossary",
-   "type": "reads",
-   "v": "lookup",
-   "n": "term",
-   "rows": "single",
-   "depth": "body",
-   "label": "its own bodies, singly"
-  },
-  {
-   "s": "architect",
-   "t": "model",
-   "type": "reads",
-   "v": "load",
-   "n": "constraints",
-   "rows": "single",
-   "depth": "body",
-   "label": "its own bodies, singly"
-  },
-  {
-   "s": "findings",
-   "t": "model",
-   "type": "refs",
-   "v": "about constraint",
-   "card": "n:1"
-  },
-  {
-   "s": "findings",
-   "t": "batches",
-   "type": "refs",
-   "v": "judges",
-   "card": "n:1"
-  },
-  {
-   "s": "criteria",
-   "t": "tickets",
-   "type": "refs",
-   "v": "specified for",
-   "card": "n:1"
-  },
-  {
-   "s": "batches",
-   "t": "tickets",
-   "type": "refs",
-   "v": "groups",
-   "card": "n:n"
-  },
-  {
-   "s": "batches",
-   "t": "problem",
-   "type": "refs",
-   "v": "satisfies",
-   "card": "n:1"
-  },
-  {
-   "s": "tests",
-   "t": "batches",
-   "type": "refs",
-   "v": "cover",
-   "card": "n:1"
-  },
-  {
-   "s": "verdicts",
-   "t": "batches",
-   "type": "refs",
-   "v": "judge",
-   "card": "n:1"
-  },
-  {
-   "s": "liaison",
-   "t": "transcript",
-   "type": "reads",
-   "v": "quote",
-   "n": "entry",
-   "rows": "window",
-   "depth": "body",
-   "label": "the role answerable for their words could not check them"
-  },
-  {
-   "s": "liaison",
-   "t": "brief",
-   "type": "reads",
-   "v": "list",
-   "n": "statements",
-   "rows": "all",
-   "depth": "index",
-   "label": "so a second segmentation can see the first"
-  },
-  {
-   "s": "architect",
-   "t": "decisions",
-   "type": "reads",
-   "v": "search",
-   "n": "prior art",
-   "rows": "query",
-   "depth": "index",
-   "label": "check prior refusals before proposing a seam"
-  },
-  {
-   "s": "terminologist",
-   "t": "ledger",
-   "type": "writes",
-   "v": "log",
-   "n": "assumption",
-   "rows": "single",
-   "label": "a choice the criteria did not make"
-  },
-  {
-   "s": "tester",
-   "t": "ledger",
-   "type": "writes",
-   "v": "log",
-   "n": "assumption",
-   "rows": "single",
-   "label": "a choice the criteria did not make"
-  },
-  {
-   "s": "terminologist",
-   "t": "decisions",
-   "type": "writes",
-   "v": "author",
-   "n": "own decision + reason",
-   "rows": "single",
-   "label": "law 11: the decider writes the reason, in the same session"
-  },
-  {
-   "s": "architect",
-   "t": "findings",
-   "type": "reads",
-   "v": "load",
-   "n": "own findings for a batch",
-   "rows": "batch",
-   "depth": "index",
-   "label": "what it found on the previous commit"
-  },
-  {
-   "s": "terminologist",
-   "t": "surveys",
-   "type": "writes",
-   "v": "attest",
-   "n": "area + outcome + citations",
-   "rows": "single",
-   "label": "closes this role's pass over one area"
-  },
-  {
-   "s": "terminologist",
-   "t": "surveys",
-   "type": "reads",
-   "v": "consult",
-   "n": "areas already surveyed",
-   "rows": "all",
-   "depth": "index",
-   "label": "sessions compound through artefacts, not context"
-  },
-  {
-   "s": "architect",
-   "t": "surveys",
-   "type": "writes",
-   "v": "attest",
-   "n": "area + outcome + citations",
-   "rows": "single",
-   "label": "closes this role's pass over one area"
-  },
-  {
-   "s": "architect",
-   "t": "surveys",
-   "type": "reads",
-   "v": "consult",
-   "n": "areas already surveyed",
-   "rows": "all",
-   "depth": "index",
-   "label": "sessions compound through artefacts, not context"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "surveys",
-   "type": "writes",
-   "v": "attest",
-   "n": "area + outcome + citations",
-   "rows": "single",
-   "label": "closes this role's pass over one area"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "surveys",
-   "type": "reads",
-   "v": "consult",
-   "n": "areas already surveyed",
-   "rows": "all",
-   "depth": "index",
-   "label": "sessions compound through artefacts, not context"
-  },
-  {
-   "s": "surveys",
-   "t": "code",
-   "type": "refs",
-   "v": "cites",
-   "card": "n:1"
-  },
-  {
-   "s": "terminologist",
-   "t": "decisions",
-   "type": "reads",
-   "v": "search",
-   "n": "prior art",
-   "rows": "query",
-   "depth": "index",
-   "label": "check before deciding, like every other decider"
-  },
-  {
-   "s": "architect",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "question",
-   "n": "term ambiguity",
-   "rows": "single",
-   "label": "it reads the glossary; it could not ask"
-  },
-  {
-   "s": "developer",
-   "t": "code",
-   "type": "writes",
-   "v": "write",
-   "n": "one file, whole",
-   "rows": "single",
-   "label": "whole-file: a hunk that does not apply is a failure to re-derive from"
-  },
-  {
-   "s": "developer",
-   "t": "code",
-   "type": "reads",
-   "v": "source",
-   "n": "source by path",
-   "rows": "window",
-   "depth": "body",
-   "label": "its own worktree, including what it has not committed"
-  },
-  {
-   "s": "researcher",
-   "t": "references",
-   "type": "writes",
-   "v": "record",
-   "n": "source, passage, claim",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "what has already been looked up",
-   "rows": "delta",
-   "depth": "index"
-  },
-  {
-   "s": "researcher",
-   "t": "web",
-   "type": "reads",
-   "v": "search",
-   "n": "candidate urls",
-   "label": "which engine is configuration; ungranted by default",
-   "rows": "query",
-   "depth": "index"
-  },
-  {
-   "s": "researcher",
-   "t": "web",
-   "type": "reads",
-   "v": "fetch",
-   "n": "one passage",
-   "label": "bounded extract, allowlisted domains only",
-   "rows": "single",
-   "depth": "body"
-  },
-  {
-   "s": "terminologist",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "sources cited or offered",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "terminologist",
-   "t": "researcher",
-   "type": "messages",
-   "v": "question",
-   "n": "a question of fact about something outside this repository",
-   "prose": "question",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "terminologist",
-   "type": "messages",
-   "v": "answer",
-   "n": "the answer, with sources — or what was tried and failed",
-   "rows": "single"
-  },
-  {
-   "s": "architect",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "sources cited or offered",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "architect",
-   "t": "researcher",
-   "type": "messages",
-   "v": "question",
-   "n": "a question of fact about something outside this repository",
-   "prose": "question",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "architect",
-   "type": "messages",
-   "v": "answer",
-   "n": "the answer, with sources — or what was tried and failed",
-   "rows": "single"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "sources cited or offered",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "researcher",
-   "type": "messages",
-   "v": "question",
-   "n": "a question of fact about something outside this repository",
-   "prose": "question",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "gatekeeper",
-   "type": "messages",
-   "v": "answer",
-   "n": "the answer, with sources — or what was tried and failed",
-   "rows": "single"
-  },
-  {
-   "s": "developer",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "sources cited or offered",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "developer",
-   "t": "researcher",
-   "type": "messages",
-   "v": "question",
-   "n": "a question of fact about something outside this repository",
-   "prose": "question",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "developer",
-   "type": "messages",
-   "v": "answer",
-   "n": "the answer, with sources — or what was tried and failed",
-   "rows": "single"
-  },
-  {
-   "s": "tester",
-   "t": "references",
-   "type": "reads",
-   "v": "load",
-   "n": "sources cited or offered",
-   "rows": "delta",
-   "depth": "body"
-  },
-  {
-   "s": "tester",
-   "t": "researcher",
-   "type": "messages",
-   "v": "question",
-   "n": "a question of fact about something outside this repository",
-   "prose": "question",
-   "rows": "single"
-  },
-  {
-   "s": "researcher",
-   "t": "tester",
-   "type": "messages",
-   "v": "answer",
-   "n": "the answer, with sources — or what was tried and failed",
-   "rows": "single"
-  }
- ],
- "contact_exceptions": [],
- "silent_channels": [
-  {
-   "s": "developer",
-   "t": "critic",
-   "why": "A fail names its criterion and the Developer follows the ref. There is nothing to ask, and a judge that argues is not one."
-  },
-  {
-   "s": "gatekeeper",
-   "t": "terminologist",
-   "why": "inform: the receipt cascade wakes it"
-  },
-  {
-   "s": "gatekeeper",
-   "t": "architect",
-   "why": "inform: the receipt cascade wakes it"
-  },
-  {
-   "s": "terminologist",
-   "t": "architect",
-   "why": "inform: the receipt cascade wakes it"
-  },
-  {
-   "s": "terminologist",
-   "t": "critic",
-   "why": "inform: Critic is woken by the review predicate, not told"
-  },
-  {
-   "s": "tester",
-   "t": "critic",
-   "why": "inform: Critic is woken by the review predicate, not told"
-  },
-  {
-   "s": "critic",
-   "t": "terminologist",
-   "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead — a completeness fix rather than a channel."
-  }
- ]
+  "nodes": [
+    {
+      "id": "principal",
+      "label": "Principal",
+      "type": "principal",
+      "note": "Technical. Synchronous. Holds final authority. Optional PR gate."
+    },
+    {
+      "id": "liaison",
+      "label": "Liaison",
+      "type": "role",
+      "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
+    },
+    {
+      "id": "gatekeeper",
+      "label": "Gatekeeper",
+      "type": "role",
+      "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
+    },
+    {
+      "id": "terminologist",
+      "label": "Terminologist",
+      "type": "role",
+      "note": "Terms and business rules. Catches contradictions in the dump."
+    },
+    {
+      "id": "architect",
+      "label": "Architect",
+      "type": "role",
+      "note": "Feasibility and constraints. Groups tickets into batches — a dependency-and-collision judgement that lives in the system model."
+    },
+    {
+      "id": "schedule",
+      "label": "Batch schedule",
+      "type": "artefact",
+      "note": "Order between batches, derived by the scheduler as a topological sort of Architect's declared dependency facts. No dates. Not owned by any role: ordering carries no judgement beyond the deps, so there is nothing for a role to decide. Unsatisfiable deps (a cycle) wake Architect with the conflicting facts.",
+      "owner": "scheduler"
+    },
+    {
+      "id": "developer",
+      "label": "Developer",
+      "type": "role",
+      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Terminologist, criterion and scope gaps to Gatekeeper, constraint conflicts to Architect. Liaison is reached only through an owner reporting blocked."
+    },
+    {
+      "id": "critic",
+      "label": "Critic",
+      "type": "role",
+      "note": "Judges diff against intent. Never sees the developer reasoning."
+    },
+    {
+      "id": "transcript",
+      "label": "Transcript",
+      "type": "artefact",
+      "note": "Append-only, verbatim entries with IDs. Nobody reads it in bulk. It exists so interpretations can be adjudicated against something un-interpreted.",
+      "contact": false,
+      "contact_why": "verbatim record; read to recover emphasis, never to ask its recorder"
+    },
+    {
+      "id": "brief",
+      "label": "Brief (statements)",
+      "type": "artefact",
+      "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the principal, so segmentation can be aggressive."
+    },
+    {
+      "id": "problem",
+      "label": "Problem statement",
+      "type": "artefact",
+      "note": "In-scope and out-of-scope items, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
+    },
+    {
+      "id": "glossary",
+      "label": "Glossary + rules",
+      "type": "artefact",
+      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed — extracted from an onboarded codebase and awaiting confirmation."
+    },
+    {
+      "id": "model",
+      "label": "System model",
+      "type": "artefact",
+      "note": "Constraints, and what is buildable here. Each constraint declares bindings — the modules it governs — so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase — found, not chosen). Challenging an observed entry forces its first decision."
+    },
+    {
+      "id": "decisions",
+      "label": "Decision record",
+      "type": "artefact",
+      "note": "Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state — which is why multi-writer is safe here and not on the backlog.",
+      "contact": false,
+      "contact_why": "append-only journal; entries carry authors but are read as evidence"
+    },
+    {
+      "id": "ledger",
+      "label": "Assumption ledger",
+      "type": "artefact",
+      "note": "Any role writes. Becomes the agenda for the next principal turn.",
+      "contact": false,
+      "contact_why": "append-only journal; open assumptions are facts to present, not questions"
+    },
+    {
+      "id": "code",
+      "label": "Codebase + diffs",
+      "type": "artefact",
+      "note": "One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch’s runtime whole — processes and ports die with it, half-dead environments forbidden — while the worktree and its commits persist as deferred work (commit-first bounds the loss).",
+      "contact": false,
+      "contact_why": "self-describing; a question about the codebase is answered by probing it"
+    },
+    {
+      "id": "verdicts",
+      "label": "Review verdicts",
+      "type": "artefact",
+      "note": "Pass, or the criterion that failed."
+    },
+    {
+      "id": "tester",
+      "label": "Tester",
+      "type": "role",
+      "note": "Writes executable tests from criteria, before the Developer's diff exists and without ever seeing it. Its isolation is temporal, not informational: Critic can read everything Tester reads, so the only thing that makes these tests intent rather than description is that they were written first. Do not merge this role into Critic."
+    },
+    {
+      "id": "tests",
+      "label": "Test suite",
+      "type": "artefact",
+      "note": "Criteria made executable. Machine-ratified intent: outranks all prose in the repo as evidence. One suite per batch, refs the criteria it encodes."
+    },
+    {
+      "id": "tickets",
+      "label": "Tickets",
+      "type": "artefact",
+      "note": "Sliced by Gatekeeper from approved items. One writer. Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+    },
+    {
+      "id": "criteria",
+      "label": "Criteria",
+      "type": "artefact",
+      "note": "Written by Terminologist in glossary terms, one set per ticket. One writer."
+    },
+    {
+      "id": "batches",
+      "label": "Batches",
+      "type": "artefact",
+      "note": "Ticket groups formed by Architect on collision judgement. Complete feature sets, immutable once formed: priority moves them whole, and only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+    },
+    {
+      "id": "findings",
+      "label": "Findings",
+      "type": "artefact",
+      "contact": false,
+      "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role — so there is nobody to ask about one.",
+      "note": "Constraint id, satisfied or violated, and the grain that brought the constraint into range. No reasoning: law 2. One row per constraint checked, per commit."
+    },
+    {
+      "id": "surveys",
+      "label": "Survey records",
+      "type": "artefact",
+      "contact": false,
+      "contact_why": "a receipt that an area was looked at, by whom, with what result -- read by the scheduler, which is not a role, so there is nobody to ask about one",
+      "note": "One row per role per area of an onboarded codebase: found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
+    },
+    {
+      "id": "researcher",
+      "label": "Researcher",
+      "type": "role",
+      "note": "Answers questions of fact about things outside this repository, with sources. Does not judge, implement, or set scope. Owns no shared artefact: it writes references and the asking role decides whether to cite them, so nothing enters the model unless a role with ownership put it there. Never woken by a predicate -- it drains nothing, so a predicate waking it would fire forever; external push arrives through the owner of whatever cited the stale reference. Knows nothing of batches, criteria or constraints: questions from roles, answers with sources."
+    },
+    {
+      "id": "references",
+      "label": "References",
+      "type": "artefact",
+      "note": "What an outside source says, and where. One row per source: the URL, the passage, the claim it supports, and a content hash that makes the page changing a drift event rather than a silent lie. The quote is not decoration -- everywhere else conclusions travel and reasoning stays home, but for an external source the passage IS the evidence, and without it nobody can check whether the Researcher read it correctly."
+    },
+    {
+      "id": "web",
+      "label": "The open web",
+      "type": "artefact",
+      "owner": "world",
+      "contact": false,
+      "contact_why": "a fact artefact, and the only one outside the engagement: reading it yields evidence, not judgement, and there is nobody in this system to ask about it",
+      "note": "Reachable only from the Researcher, and only within the domain allowlist the principal configures. Queries are constructed from the question, never forwarded: the asker may put whatever context it likes into a question, and that context must not reach the wire."
+    }
+  ],
+  "edges": [
+    {
+      "s": "liaison",
+      "t": "transcript",
+      "type": "writes",
+      "v": "append",
+      "n": "entry",
+      "actor": "system",
+      "label": "recorded mechanically; Liaison owns it, does not type it",
+      "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "brief",
+      "type": "writes",
+      "v": "segment",
+      "n": "statements",
+      "label": "atomise",
+      "rows": "delta"
+    },
+    {
+      "s": "liaison",
+      "t": "brief",
+      "type": "writes",
+      "v": "ratify",
+      "n": "status flags",
+      "label": "principal-confirmed",
+      "rows": "delta"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "problem",
+      "type": "writes",
+      "v": "assert",
+      "n": "in-scope and out-of-scope items",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "writes",
+      "v": "amend",
+      "n": "terms, rules",
+      "rows": "delta"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "writes",
+      "v": "amend",
+      "n": "constraints",
+      "rows": "delta"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "writes",
+      "v": "commit",
+      "n": "branch + diff",
+      "label": "one worktree per batch",
+      "rows": "batch"
+    },
+    {
+      "s": "critic",
+      "t": "verdicts",
+      "type": "writes",
+      "v": "emit",
+      "n": "verdict per batch",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "tickets",
+      "type": "writes",
+      "v": "slice",
+      "n": "batches of tickets",
+      "label": "contested · approved items only",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "problem",
+      "type": "writes",
+      "v": "prioritize",
+      "n": "item priority",
+      "label": "moves the item; batches follow whole",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "criteria",
+      "type": "writes",
+      "v": "specify",
+      "n": "criteria",
+      "label": "contested",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
+      "v": "group",
+      "n": "ticket groups + constraints",
+      "label": "contested",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single"
+    },
+    {
+      "s": "developer",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "brief",
+      "type": "reads",
+      "v": "list",
+      "n": "statements",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "brief",
+      "type": "reads",
+      "v": "list",
+      "n": "statements",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "brief",
+      "type": "reads",
+      "v": "list",
+      "n": "statements",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "entry",
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "terminologist",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "entry",
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "entry",
+      "label": "recover emphasis",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "problem",
+      "type": "reads",
+      "v": "consult",
+      "n": "own statement",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "reads",
+      "v": "consult",
+      "n": "own terms",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "reads",
+      "v": "consult",
+      "n": "own model",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "rejections",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "rows": "single",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "terms in use",
+      "label": "onboarding",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "observed behaviour",
+      "label": "onboarding",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "label": "a survey of the index is a survey of file names; the terms and behaviours are in the bodies",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "survey",
+      "n": "constraints in force",
+      "label": "onboarding: the third survey role, and the only one without it",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "developer",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "batch of tickets + criteria",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "rows": "single",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "model",
+      "type": "reads",
+      "v": "load",
+      "n": "constraints",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "critic",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "criteria for batch",
+      "label": "criteria only",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "critic",
+      "t": "code",
+      "type": "reads",
+      "v": "read",
+      "n": "batch diff",
+      "label": "diff only",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "liaison",
+      "t": "ledger",
+      "type": "reads",
+      "v": "list",
+      "n": "open assumptions",
+      "rows": "delta",
+      "depth": "index"
+    },
+    {
+      "s": "liaison",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "principal",
+      "t": "liaison",
+      "type": "messages",
+      "v": "converse",
+      "n": "free text",
+      "rows": "none"
+    },
+    {
+      "s": "liaison",
+      "t": "principal",
+      "type": "messages",
+      "v": "confirm",
+      "n": "statement list",
+      "label": "ratification",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "principal",
+      "type": "messages",
+      "v": "clarify",
+      "n": "ordered questions",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "deliver",
+      "n": "changed statements",
+      "rows": "delta"
+    },
+    {
+      "s": "liaison",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "deliver",
+      "n": "changed statements",
+      "rows": "delta"
+    },
+    {
+      "s": "liaison",
+      "t": "architect",
+      "type": "messages",
+      "v": "deliver",
+      "n": "changed statements",
+      "rows": "delta"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "liaison",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "liaison",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "liaison",
+      "type": "messages",
+      "v": "report",
+      "n": "blocker",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "challenge",
+      "n": "contradiction",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "challenge",
+      "n": "infeasibility",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "propose",
+      "n": "seam / refactor plan",
+      "rows": "all"
+    },
+    {
+      "s": "developer",
+      "t": "architect",
+      "type": "messages",
+      "v": "escalate",
+      "n": "constraint conflict",
+      "rows": "single"
+    },
+    {
+      "s": "developer",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "question",
+      "n": "criterion or scope gap, in words; the refs say what it is about",
+      "rows": "single",
+      "prose": "question"
+    },
+    {
+      "s": "developer",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity, in words; the refs say what it is about",
+      "rows": "single",
+      "prose": "question"
+    },
+    {
+      "s": "critic",
+      "t": "developer",
+      "type": "messages",
+      "v": "challenge",
+      "n": "failed criterion",
+      "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "ask",
+      "n": "principal question",
+      "label": "read-only session",
+      "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "ask",
+      "n": "principal question",
+      "label": "read-only session",
+      "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "architect",
+      "type": "messages",
+      "v": "ask",
+      "n": "principal question",
+      "label": "read-only session",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "liaison",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "liaison",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "liaison",
+      "type": "messages",
+      "v": "answer",
+      "n": "from own artefact",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "liaison",
+      "type": "messages",
+      "v": "submit",
+      "n": "in-scope and out-of-scope items",
+      "label": "for sign-off",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "principal",
+      "type": "messages",
+      "v": "present",
+      "n": "draft statement",
+      "label": "signoff · reads as one document",
+      "rows": "all"
+    },
+    {
+      "s": "principal",
+      "t": "liaison",
+      "type": "messages",
+      "v": "verdict",
+      "n": "per-item approve / contest / revise",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "relay",
+      "n": "verdicts",
+      "rows": "all"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "problem",
+      "type": "writes",
+      "v": "set approval",
+      "n": "item status",
+      "label": "approved / pending / contested",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "developer",
+      "type": "messages",
+      "v": "reopen",
+      "n": "revoked item + prior batch",
+      "rows": "batch"
+    },
+    {
+      "s": "developer",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "elect",
+      "n": "revise or restart",
+      "rows": "none"
+    },
+    {
+      "s": "brief",
+      "t": "transcript",
+      "type": "refs",
+      "v": "cites span",
+      "card": "n:1"
+    },
+    {
+      "s": "problem",
+      "t": "brief",
+      "type": "refs",
+      "v": "derives from",
+      "card": "n:n"
+    },
+    {
+      "s": "glossary",
+      "t": "brief",
+      "type": "refs",
+      "v": "defined by",
+      "card": "n:n"
+    },
+    {
+      "s": "model",
+      "t": "glossary",
+      "type": "refs",
+      "v": "constrains term",
+      "card": "n:n"
+    },
+    {
+      "s": "model",
+      "t": "code",
+      "type": "refs",
+      "v": "binds",
+      "card": "n:n",
+      "cascade": false,
+      "label": "a binding, not a wake path: it triggers review by intersection"
+    },
+    {
+      "s": "tickets",
+      "t": "problem",
+      "type": "refs",
+      "v": "satisfies",
+      "card": "n:1"
+    },
+    {
+      "s": "criteria",
+      "t": "glossary",
+      "type": "refs",
+      "v": "criteria use",
+      "card": "n:n"
+    },
+    {
+      "s": "batches",
+      "t": "model",
+      "type": "refs",
+      "v": "bounded by",
+      "card": "n:n"
+    },
+    {
+      "s": "ledger",
+      "t": "brief",
+      "type": "refs",
+      "v": "assumes about",
+      "card": "n:1"
+    },
+    {
+      "s": "code",
+      "t": "batches",
+      "type": "refs",
+      "v": "implements",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "code",
+      "type": "refs",
+      "v": "judges",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "criteria",
+      "type": "refs",
+      "v": "against criterion",
+      "card": "n:1"
+    },
+    {
+      "s": "decisions",
+      "t": "ledger",
+      "type": "refs",
+      "v": "resolves",
+      "card": "n:1"
+    },
+    {
+      "s": "schedule",
+      "t": "batches",
+      "type": "refs",
+      "v": "orders",
+      "card": "n:n"
+    },
+    {
+      "s": "decisions",
+      "t": "problem",
+      "type": "refs",
+      "v": "explains",
+      "card": "n:1"
+    },
+    {
+      "s": "liaison",
+      "t": "schedule",
+      "type": "reads",
+      "v": "consult",
+      "n": "batch order",
+      "label": "principal ordering questions",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "tester",
+      "t": "tests",
+      "type": "writes",
+      "v": "encode",
+      "n": "executable tests",
+      "rows": "batch"
+    },
+    {
+      "s": "tester",
+      "t": "criteria",
+      "type": "reads",
+      "v": "load",
+      "n": "criteria for batch",
+      "label": "criteria only — no diff",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "tester",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "rows": "single",
+      "depth": "body"
+    },
+    {
+      "s": "tester",
+      "t": "tests",
+      "type": "reads",
+      "v": "consult",
+      "n": "own suite",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "developer",
+      "t": "tests",
+      "type": "reads",
+      "v": "load",
+      "n": "tests for batch",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "critic",
+      "t": "tests",
+      "type": "reads",
+      "v": "load",
+      "n": "tests for batch",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "tester",
+      "type": "messages",
+      "v": "challenge",
+      "n": "test disputes criterion",
+      "rows": "single"
+    },
+    {
+      "s": "critic",
+      "t": "tester",
+      "type": "messages",
+      "v": "challenge",
+      "n": "test does not encode criterion",
+      "rows": "single"
+    },
+    {
+      "s": "tester",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "question",
+      "n": "criterion or scope gap, in words; the refs say what it is about",
+      "rows": "single",
+      "prose": "question"
+    },
+    {
+      "s": "tester",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity, in words; the refs say what it is about",
+      "rows": "single",
+      "prose": "question"
+    },
+    {
+      "s": "tests",
+      "t": "criteria",
+      "type": "refs",
+      "v": "encodes criterion",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "tests",
+      "type": "refs",
+      "v": "cites result",
+      "card": "n:n"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "tickets",
+      "type": "reads",
+      "v": "consult",
+      "n": "own tickets",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "criteria",
+      "type": "reads",
+      "v": "consult",
+      "n": "own criteria",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "terminologist",
+      "t": "tickets",
+      "type": "reads",
+      "v": "scan",
+      "n": "tickets",
+      "label": "cannot specify for unseen tickets",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "reads",
+      "v": "consult",
+      "n": "own batches",
+      "label": "before amending",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "tickets",
+      "type": "reads",
+      "v": "scan",
+      "n": "tickets + criteria",
+      "label": "collision judgement needs touch sets",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "developer",
+      "t": "tickets",
+      "type": "reads",
+      "v": "load",
+      "n": "tickets for batch",
+      "label": "criteria are meaningless without the ticket they serve",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "tester",
+      "t": "tickets",
+      "type": "reads",
+      "v": "load",
+      "n": "tickets for batch",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "verdicts",
+      "type": "reads",
+      "v": "load",
+      "n": "verdict for own batch",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "criteria",
+      "type": "reads",
+      "v": "scan",
+      "n": "criteria",
+      "rows": "all",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "rows": "window",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "diff",
+      "n": "batch diff",
+      "label": "structural review needs the change",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
+      "s": "terminologist",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "term sense",
+      "label": "answering is not amending",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "criterion or scope clarification",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "constraint clarification",
+      "rows": "single"
+    },
+    {
+      "s": "terminologist",
+      "t": "tester",
+      "type": "messages",
+      "v": "answer",
+      "n": "term sense",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "tester",
+      "type": "messages",
+      "v": "answer",
+      "n": "criterion clarification",
+      "rows": "single"
+    },
+    {
+      "s": "tester",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "test intent",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "findings",
+      "type": "writes",
+      "v": "find",
+      "n": "constraint id + status + grain",
+      "rows": "single",
+      "label": "structural verdict, after Critic's"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
+      "v": "annotate",
+      "n": "expected touch set",
+      "rows": "batch",
+      "label": "a prediction, not a permission"
+    },
+    {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "reads",
+      "v": "lookup",
+      "n": "term",
+      "rows": "single",
+      "depth": "body",
+      "label": "its own bodies, singly"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "reads",
+      "v": "load",
+      "n": "constraints",
+      "rows": "single",
+      "depth": "body",
+      "label": "its own bodies, singly"
+    },
+    {
+      "s": "findings",
+      "t": "model",
+      "type": "refs",
+      "v": "about constraint",
+      "card": "n:1"
+    },
+    {
+      "s": "findings",
+      "t": "batches",
+      "type": "refs",
+      "v": "judges",
+      "card": "n:1"
+    },
+    {
+      "s": "criteria",
+      "t": "tickets",
+      "type": "refs",
+      "v": "specified for",
+      "card": "n:1"
+    },
+    {
+      "s": "batches",
+      "t": "tickets",
+      "type": "refs",
+      "v": "groups",
+      "card": "n:n"
+    },
+    {
+      "s": "batches",
+      "t": "problem",
+      "type": "refs",
+      "v": "satisfies",
+      "card": "n:1"
+    },
+    {
+      "s": "tests",
+      "t": "batches",
+      "type": "refs",
+      "v": "cover",
+      "card": "n:1"
+    },
+    {
+      "s": "verdicts",
+      "t": "batches",
+      "type": "refs",
+      "v": "judge",
+      "card": "n:1"
+    },
+    {
+      "s": "liaison",
+      "t": "transcript",
+      "type": "reads",
+      "v": "quote",
+      "n": "entry",
+      "rows": "window",
+      "depth": "body",
+      "label": "the role answerable for their words could not check them"
+    },
+    {
+      "s": "liaison",
+      "t": "brief",
+      "type": "reads",
+      "v": "list",
+      "n": "statements",
+      "rows": "all",
+      "depth": "index",
+      "label": "so a second segmentation can see the first"
+    },
+    {
+      "s": "architect",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "rows": "query",
+      "depth": "index",
+      "label": "check prior refusals before proposing a seam"
+    },
+    {
+      "s": "terminologist",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single",
+      "label": "a choice the criteria did not make"
+    },
+    {
+      "s": "tester",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "assumption",
+      "rows": "single",
+      "label": "a choice the criteria did not make"
+    },
+    {
+      "s": "terminologist",
+      "t": "decisions",
+      "type": "writes",
+      "v": "author",
+      "n": "own decision + reason",
+      "rows": "single",
+      "label": "law 11: the decider writes the reason, in the same session"
+    },
+    {
+      "s": "architect",
+      "t": "findings",
+      "type": "reads",
+      "v": "load",
+      "n": "own findings for a batch",
+      "rows": "batch",
+      "depth": "index",
+      "label": "what it found on the previous commit"
+    },
+    {
+      "s": "terminologist",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "terminologist",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "architect",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "architect",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "area + outcome + citations",
+      "rows": "single",
+      "label": "closes this role's pass over one area"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas already surveyed",
+      "rows": "all",
+      "depth": "index",
+      "label": "sessions compound through artefacts, not context"
+    },
+    {
+      "s": "surveys",
+      "t": "code",
+      "type": "refs",
+      "v": "cites",
+      "card": "n:1"
+    },
+    {
+      "s": "terminologist",
+      "t": "decisions",
+      "type": "reads",
+      "v": "search",
+      "n": "prior art",
+      "rows": "query",
+      "depth": "index",
+      "label": "check before deciding, like every other decider"
+    },
+    {
+      "s": "architect",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "question",
+      "n": "term ambiguity, in words; the refs say what it is about",
+      "rows": "single",
+      "label": "it reads the glossary; it could not ask",
+      "prose": "question"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "writes",
+      "v": "write",
+      "n": "one file, whole",
+      "rows": "single",
+      "label": "whole-file: a hunk that does not apply is a failure to re-derive from"
+    },
+    {
+      "s": "developer",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "rows": "window",
+      "depth": "body",
+      "label": "its own worktree, including what it has not committed"
+    },
+    {
+      "s": "researcher",
+      "t": "references",
+      "type": "writes",
+      "v": "record",
+      "n": "source, passage, claim",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "what has already been looked up",
+      "rows": "delta",
+      "depth": "index"
+    },
+    {
+      "s": "researcher",
+      "t": "web",
+      "type": "reads",
+      "v": "search",
+      "n": "candidate urls",
+      "label": "which engine is configuration; ungranted by default",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "researcher",
+      "t": "web",
+      "type": "reads",
+      "v": "fetch",
+      "n": "one passage",
+      "label": "bounded extract, allowlisted domains only",
+      "rows": "single",
+      "depth": "body"
+    },
+    {
+      "s": "terminologist",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "sources cited or offered",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "terminologist",
+      "t": "researcher",
+      "type": "messages",
+      "v": "question",
+      "n": "a question of fact about something outside this repository",
+      "prose": "question",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "answer",
+      "n": "the answer, with sources — or what was tried and failed",
+      "rows": "single"
+    },
+    {
+      "s": "architect",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "sources cited or offered",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "architect",
+      "t": "researcher",
+      "type": "messages",
+      "v": "question",
+      "n": "a question of fact about something outside this repository",
+      "prose": "question",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "architect",
+      "type": "messages",
+      "v": "answer",
+      "n": "the answer, with sources — or what was tried and failed",
+      "rows": "single"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "sources cited or offered",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "researcher",
+      "type": "messages",
+      "v": "question",
+      "n": "a question of fact about something outside this repository",
+      "prose": "question",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "gatekeeper",
+      "type": "messages",
+      "v": "answer",
+      "n": "the answer, with sources — or what was tried and failed",
+      "rows": "single"
+    },
+    {
+      "s": "developer",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "sources cited or offered",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "developer",
+      "t": "researcher",
+      "type": "messages",
+      "v": "question",
+      "n": "a question of fact about something outside this repository",
+      "prose": "question",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "developer",
+      "type": "messages",
+      "v": "answer",
+      "n": "the answer, with sources — or what was tried and failed",
+      "rows": "single"
+    },
+    {
+      "s": "tester",
+      "t": "references",
+      "type": "reads",
+      "v": "load",
+      "n": "sources cited or offered",
+      "rows": "delta",
+      "depth": "body"
+    },
+    {
+      "s": "tester",
+      "t": "researcher",
+      "type": "messages",
+      "v": "question",
+      "n": "a question of fact about something outside this repository",
+      "prose": "question",
+      "rows": "single"
+    },
+    {
+      "s": "researcher",
+      "t": "tester",
+      "type": "messages",
+      "v": "answer",
+      "n": "the answer, with sources — or what was tried and failed",
+      "rows": "single"
+    }
+  ],
+  "contact_exceptions": [],
+  "silent_channels": [
+    {
+      "s": "developer",
+      "t": "critic",
+      "why": "A fail names its criterion and the Developer follows the ref. There is nothing to ask, and a judge that argues is not one."
+    },
+    {
+      "s": "gatekeeper",
+      "t": "terminologist",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "gatekeeper",
+      "t": "architect",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "terminologist",
+      "t": "architect",
+      "why": "inform: the receipt cascade wakes it"
+    },
+    {
+      "s": "terminologist",
+      "t": "critic",
+      "why": "inform: Critic is woken by the review predicate, not told"
+    },
+    {
+      "s": "tester",
+      "t": "critic",
+      "why": "inform: Critic is woken by the review predicate, not told"
+    },
+    {
+      "s": "critic",
+      "t": "terminologist",
+      "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead — a completeness fix rather than a channel."
+    }
+  ]
 }

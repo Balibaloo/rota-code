@@ -55,7 +55,17 @@
          provenance: decided}
       - {id: <g2>, term: account, sense_short: "the billing entity that owes money",
          provenance: decided}
-  inbound: {from: developer, to: terminologist, verb: question, body_refs: [<g1>]}
+  # The refs said `<g1>` and nothing else, because `question` to a role inside
+  # the project could not carry a question. Terminologist was woken with the
+  # term "account", its sense "the login identity", and no indication of what
+  # was being asked about it -- so it invented a question, answered that, and
+  # the Developer received an answer to something it never asked. The case
+  # passed, which says more about the assertion than the session: one message
+  # to developer is satisfied by an answer to anything at all.
+  inbound: {from: developer, to: terminologist, verb: question, body_refs: [<g1>],
+            body_text: "I am adding a balance column. Is the `account` a
+              transaction row hangs off the login identity or the billing
+              entity that owes the money?"}
   expect:
     messages:
       - {to: developer, verb: answer, count: 1}

@@ -424,6 +424,41 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"one. The clause a constraint rests on goes in `source_refs=`, "
             f"which also makes the entry `cited`.")
 
+    # Same argument as the reference case above, one step earlier: a name that
+    # is not a grain at all cannot be made into one by reading it either, and
+    # "you have not read it" sends the session to `code.source` with a string
+    # that names no file. An Architect bound `account` -- the pattern it had
+    # probed with, not anything the probe returned -- and spent all twelve turns
+    # alternating `code.source(ids=['account'])` with the identical amend, in a
+    # fixture whose code index is empty. Nothing it could have done would have
+    # satisfied the advice it was given.
+    # Folded to the file, the same way the read-check folds: a symbol is a real
+    # binding whether or not the indexer emitted a row for it, because the file
+    # it lives in is what anybody opens.
+    indexed = {r["grain"] for r in ctx.conn.execute("SELECT grain FROM code_index")}
+    indexed |= {_grain_path(g) for g in indexed}
+    if bindings and indexed:
+        strangers = sorted(g for g in bindings
+                           if g not in indexed and _grain_path(g) not in indexed)
+        if strangers:
+            raise ValueError(
+                f"{', '.join(strangers)} is not a grain in the index. Bindings "
+                f"name code the index already knows, and `code.probe` returns "
+                f"those ids.")
+    elif bindings:
+        raise ValueError(
+            f"there is no code index in this engagement, so {', '.join(bindings)} "
+            f"names nothing that could be bound.")
+
+    # Neither message offers the empty list as the way out, and that is
+    # deliberate. The first draft of the second one ended "leave `bindings`
+    # empty: a constraint with none is global" -- true, and read as permission.
+    # `L2-AR-place-a-block-developer-could-not` took it and wrote the constraint
+    # the case exists to forbid. An error says what is wrong with what you sent;
+    # the moment it also names something else you could send instead, it is a
+    # brief, and briefs that name an alternative to the decisive action get the
+    # alternative. Four cases lost to that shape today in three different files.
+
     unread = sorted(g for g in (bindings or []) if _grain_path(g) not in ctx.opened)
     if unread:
         raise ValueError(

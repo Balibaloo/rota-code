@@ -789,11 +789,25 @@ def run_session(
             # `round_close` offers `msg.clarify_principal` and
             # `msg.present_principal`: one asks for a ruling, the other reports
             # something worth knowing, and the brief says send one. Requiring
-            # both meant the session that got it right on turn one -- a single
-            # correct clarify -- was handed eleven more turns, and spent them
-            # sending the same question again split in half. The broadcast still
-            # needs all three of its recipients, and still gets them, because
-            # they are three different roles.
+            # both meant the session that got it right on turn one was handed
+            # eleven more turns and spent them sending the same question again
+            # split in half. The broadcast still needs all three of its
+            # recipients, because they are three different roles.
+            #
+            # A third rule was tried and reverted: woken by a message, finish
+            # when you have replied to the sender. It is right for
+            # Terminologist answering a question and wrong for Architect
+            # handling an escalation, whose job is to route the block somewhere
+            # else -- it answered the Developer, satisfied the rule, and stopped
+            # before challenging the Gatekeeper, which is the whole of what the
+            # case is about. 5/5 to 0/5.
+            #
+            # Three attempts, each fixing one case and breaking another. The
+            # terminal condition is not derivable from the channel list: "who
+            # this mode may talk to" does not say "what finishes this job", and
+            # every rule that infers one from the other is guessing. What is
+            # here is the least-wrong of the three and it is a heuristic, not a
+            # law -- the iteration cap is still the real backstop.
             reachable = {f.rsplit("_", 1)[1]
                          for f in allowed if f.startswith("msg.")}
             messaged = {m["to_role"] for m in sb.ctx.outbound}
