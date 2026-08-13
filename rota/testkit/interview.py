@@ -151,11 +151,15 @@ def flags(role: str, answers: str, ids_in_prompt: list[str],
             out.append("PROMPT HELD NO IDS")
     elif not (claimed & truth):
         out.append("RECALLED NONE")
-    # A session re-reading the same sources is not deciding. Both Developer
-    # loops found this way ran past sixty calls while the checker reported one
-    # forbidden call, which made a runaway look like a stray.
-    if len(called) > 25:
-        out.append(f"LOOPED ({len(called)} calls)")
+    # Distinct calls, not raw ones. Raw count read 71 for a Developer and looked
+    # like a session that never terminated; sessions are capped at
+    # MAX_ITERATIONS turns, and that one was six calls a turn re-reading four
+    # sources. A repeat is already answered with "unchanged since you asked
+    # earlier this session" rather than the payload, so repetition is cheap and
+    # the number to notice is how much of the *set* is being redone.
+    distinct = len(set(called))
+    if len(called) >= 3 * max(distinct, 1) and len(called) > 20:
+        out.append(f"CHURNED ({len(called)} calls over {distinct} distinct)")
     return out
 
 
