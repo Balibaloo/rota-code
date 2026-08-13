@@ -490,6 +490,36 @@ def mode_of(case: dict) -> str:
     return (case.get("inbound") or {}).get("verb") or case.get("tick", "")
 
 
+def instructions_for(case: dict) -> str:
+    """
+    The prompt text a result is evidence *about*, for stamping.
+
+    One definition because two consumers must not drift: the tier records a run
+    against it, and anything reading the results back recomputes it to ask
+    whether a green result is still about the prompt in the tree. That question
+    is the whole difference between "stale" and "failing", and getting it wrong
+    reports unmeasured cases as broken ones.
+
+    A chain's answer is *both* legs. `run_chain` composes each leg's brief
+    itself, and L3 recorded its runs against bare pins with no prompt hash at
+    all -- so five chains could go green against briefs that had since been
+    rewritten and nothing anywhere could tell. Editing either brief must make
+    the chain stale, because either one can be the reason it stopped working.
+
+    Byte-identical to what `test_l1.py` already composes for the single-session
+    case, deliberately: a different string here is a different hash, and every
+    cassette in the repository is keyed to the old one.
+    """
+    if case.get("first"):
+        legs = [case["first"], case["then"]]
+        return "\n\n".join(
+            prompts_mod.compose(
+                leg["role"],
+                leg.get("prompt") or leg.get("verb") or leg.get("tick", ""))
+            for leg in legs)
+    return prompts_mod.compose(case["role"], mode_of(case))
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)

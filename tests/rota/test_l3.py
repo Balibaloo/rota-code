@@ -79,8 +79,15 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=PINS)
 
+    # Both legs' briefs, because either one can be why the chain stopped
+    # working. This tier recorded against bare pins with no prompt hash at all,
+    # so a chain could stay green against briefs that had since been rewritten
+    # and nothing could tell -- the distinction `test_l1.py` calls out as the
+    # difference between a green result and a green result about a prompt that
+    # has since been edited, missing from the tier that most needs it.
+    stamp = PINS.with_prompt(fixtures.instructions_for(case))
     for r in results:
-        record_case_run(dev_db, case["id"], PINS, r.run, r.passed,
+        record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript())
 
     # Unknown is not wrong — see the note in `test_l1.py`.

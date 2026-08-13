@@ -172,9 +172,43 @@ def report(g: graph_mod.Graph | None = None) -> Report:
     return Report(covered=covered, missing=missing)
 
 
+def staleness() -> str:
+    """
+    How old this measurement is, in the only unit that matters: commits since.
+
+    Coverage accumulates only under `ROTA_COVERAGE_ON=1`, so the file is
+    routinely older than the tree and there is nothing in the number itself that
+    says so. I read this report at 34/137 and reported a quarter of the system
+    tested. The file was four days and eleven commits old; the real figure was
+    125/137, and Developer -- reported as having no coverage whatsoever -- was
+    complete. A stale artefact and a current one look identical, which makes
+    saying which one this is part of rendering it.
+    """
+    import subprocess
+
+    if not COVERAGE_FILE.exists():
+        return "never recorded -- run with ROTA_COVERAGE_ON=1"
+
+    mtime = COVERAGE_FILE.stat().st_mtime
+    when = __import__("datetime").datetime.fromtimestamp(mtime)
+    stamp = when.strftime("%Y-%m-%d %H:%M")
+    try:
+        out = subprocess.run(
+            ["git", "log", "--since", when.isoformat(), "--oneline", "--", "rota"],
+            capture_output=True, text=True, cwd=paths.REPO, timeout=10).stdout
+        behind = len([x for x in out.splitlines() if x.strip()])
+    except Exception:
+        return f"recorded {stamp}"
+    if behind:
+        return (f"recorded {stamp} -- STALE: {behind} commit(s) have touched "
+                f"rota/ since. Re-run with ROTA_COVERAGE_ON=1 before quoting it.")
+    return f"recorded {stamp}, no commits to rota/ since"
+
+
 def render(rep: Report) -> str:
     lines = [
         f"edge coverage: {len(rep.covered)}/{rep.total} ({rep.percent:.0f}%)",
+        f"  [{staleness()}]",
         "",
     ]
     for role, (c, m) in rep.by_role().items():
