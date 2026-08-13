@@ -117,11 +117,51 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
     """Open messages addressed to the principal. These never wake anything — the
     principal is not schedulable — so they sit until answered or deferred."""
     return [
-        Ask(message_id=r["id"], verb=r["verb"], refs=json.loads(r["body_refs"]))
+        Ask(message_id=r["id"], verb=r["verb"],
+            refs=json.loads(r["body_refs"]),
+            rendered=render_refs(conn, json.loads(r["body_refs"])))
         for r in conn.execute(
             "SELECT id, verb, body_refs FROM messages "
             "WHERE status = 'open' AND to_role = 'principal' ORDER BY seq")
     ]
+
+
+def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
+    """
+    Refs as words, for the one reader who cannot follow an id.
+
+    `Ask.rendered` has existed since the beginning and nothing ever filled it,
+    so `rendered or refs` fell through to the ids every time and the principal
+    -- a person -- was shown `[clarify] ['g_69d1e1', 'g_2d422b']` and asked to
+    rule on it. Every role downstream of a ref can dereference it; the principal
+    is the only one who cannot, which makes them the only one for whom an
+    unresolved ref is the whole message.
+
+    Roles are still forbidden to send prose. This is not prose from a role: it
+    is the rows the refs already point at, read out at the edge where ids stop
+    working. Law 2 governs what travels between roles, and the principal is not
+    one.
+    """
+    from ..core.runner import _resolve_refs
+
+    resolved = _resolve_refs(conn, refs)
+    lines = []
+    for ref in refs:
+        row = resolved.get(ref)
+        if not row:
+            lines.append(f"  {ref}")
+            continue
+        # The readable column differs by table and the principal does not need
+        # to know which table they are looking at. A term is the one row where
+        # two columns are needed: the whole reason two glossary rows reach the
+        # principal at all is that the word is the same and the sense is not, so
+        # rendering the word alone shows them "delete" and "delete".
+        if row.get("term"):
+            words = ": ".join(x for x in (row["term"], row.get("sense_short")) if x)
+        else:
+            words = next((row[k] for k in ("text", "headline") if row.get(k)), "")
+        lines.append(f"  {ref}: {words}" if words else f"  {ref}")
+    return "\n".join(lines)
 
 
 def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
