@@ -1239,6 +1239,69 @@ def _refuse(ctx: "Ctx", url: str, why: str) -> dict:
     return {"url": url, "refused": why}
 
 
+def _search_google(ctx: "Ctx", query: str) -> dict:
+    """
+    Google Programmable Search, which needs a key and a search-engine id.
+
+    Both come from the environment and neither is written to the project
+    database: a credential in `config` would be committed with the run, shown
+    in the cockpit, and carried into whatever a session pastes. `GOOGLE_API_KEY`
+    and `GOOGLE_CSE_ID` -- absent, this refuses in the same voice as `none`,
+    because a role that cannot tell "nothing matches" from "I was given no way
+    to look" invents the difference and cites a url it guessed.
+
+    Results are not filtered to `research_allowlist`, and each one is marked
+    with whether it is fetchable instead. Discovery is how anybody finds out a
+    domain is worth granting, so filtering it would make the allowlist
+    unextendable from inside; but a session that does not know which hits it
+    may actually read will spend its turns being refused one at a time.
+    """
+    import os
+    import json as _json
+    import urllib.parse
+    import urllib.request
+
+    from ..core import config, web
+
+    key, cx = os.environ.get("GOOGLE_API_KEY"), os.environ.get("GOOGLE_CSE_ID")
+    if not (key and cx):
+        absent = [n for n, v in (("GOOGLE_API_KEY", key), ("GOOGLE_CSE_ID", cx))
+                  if not v]
+        missing = " and ".join(absent)
+        is_are = "is" if len(absent) == 1 else "are"
+        return {"query": query, "refused":
+                f"`research_search` is `google` but {missing} {is_are} not set "
+                f"in the environment, so there is no way to look a url up from "
+                f"here. "
+                f"This is not 'found nothing' -- do not guess an address."}
+
+    url = ("https://www.googleapis.com/customsearch/v1?"
+           + urllib.parse.urlencode({"key": key, "cx": cx, "q": query, "num": 8}))
+    try:
+        with urllib.request.urlopen(url, timeout=20) as response:
+            payload = _json.loads(response.read().decode("utf-8", "replace"))
+    except Exception as exc:                       # noqa: BLE001 - reported, not raised
+        return {"query": query, "refused":
+                f"the search itself failed ({exc}). No result is not the same "
+                f"as no such page; do not answer as though you had looked."}
+
+    allowlist = config.get(ctx.conn, "research_allowlist") or []
+    results = [
+        {"url": item.get("link", ""),
+         "title": item.get("title", ""),
+         "snippet": item.get("snippet", ""),
+         # A snippet is not a passage. Whatever is claimed from this has to be
+         # quoted out of `web.fetch`, and this says which ones that is possible
+         # for rather than letting the session discover it one refusal at a time.
+         "fetchable": web.allowed(item.get("link", ""), allowlist)}
+        for item in payload.get("items", [])
+    ]
+    return {"query": query, "engine": "google", "results": results,
+            "note": "Snippets are search results, not sources. Fetch the page "
+                    "before you claim anything from it; a `fetchable: false` "
+                    "domain has not been granted and needs the principal."}
+
+
 @op("web", "search")
 def web_search(ctx: Ctx, query: str) -> dict:
     """
@@ -1273,10 +1336,13 @@ def web_search(ctx: Ctx, query: str) -> dict:
                 "nothing' -- do not guess an address. Answer with what you were "
                 "given, or say you need a url."}
 
+    if engine == "google":
+        return _search_google(ctx, query)
+
     if engine != "cache":
         return {"query": query, "refused":
                 f"`research_search` is {engine!r}, which is not wired up yet. "
-                f"Only `cache` can answer from here."}
+                f"Only `cache` and `google` can answer from here."}
 
     terms = [w.lower() for w in query.split() if len(w) > 2]
     hits = []

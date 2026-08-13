@@ -103,7 +103,7 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "not-forbidden. `cache` searches only what has already been fetched, "
             "which is what the suite uses, because a role whose tests reached "
             "the network would be the one role whose results differ by machine.",
-            values=("none", "cache", "brave", "tavily")),
+            values=("none", "cache", "google", "brave", "tavily")),
 
     Setting("research_allowlist", [],
             "Domains the Researcher may fetch. Empty means it may fetch nothing, "
