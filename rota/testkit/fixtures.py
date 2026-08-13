@@ -211,7 +211,8 @@ def _count_ok(actual: int, spec: Any) -> bool:
     }[op]
 
 
-def check(case: dict, delta: Delta) -> list[str]:
+def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
+          notes: list[str] | None = None) -> list[str]:
     """
     Structural assertions only. Never on prose.
 
@@ -219,8 +220,24 @@ def check(case: dict, delta: Delta) -> list[str]:
     what refs a row carries — those are checkable. Whether the wording is good is
     not, and pretending otherwise is how a suite starts measuring the model's
     prose style instead of the law.
+
+    `refused` counts the calls a guard threw out, per function. It exists because
+    the two halves of one `forbidden:` block were scoring different things:
+    `writes` reads the committed database, so a refused write never counted,
+    while `calls` reads the tool log, which records the attempt — `_CALL_LOG`
+    appends before the implementation runs. So `forbidden: writes: [decisions]`
+    meant "did not write one" and `forbidden: calls: [decisions.author]` meant
+    "did not reach for one", in the same block, with nothing saying so.
+
+    Effects win, matching `writes`: a guard that fires is the system working, and
+    scoring it as a violation marks a role down for something that did not
+    happen. The reach is still worth knowing — a brief that steers into a wall is
+    a weak brief — so it is reported rather than dropped.
     """
     problems: list[str] = []
+    # Out-param rather than a second return value: everything in `problems`
+    # fails the case, and a refused reach must not, but it must also not vanish.
+    notes = notes if notes is not None else []
     expect = case.get("expect", {})
     forbidden = case.get("forbidden", {})
 
@@ -265,10 +282,10 @@ def check(case: dict, delta: Delta) -> list[str]:
     # and none of them deserves a case of its own, because reading is a means,
     # never an end. They ride here instead: a verdict emitted without loading the
     # criterion it judges against is a guess that happened to be checkable.
-    called = set(delta.tool_calls)
+    called = delta.tool_calls
     for fn in expect.get("calls") or []:
         if fn not in called:
-            problems.append(f"expected a call to {fn}; called {sorted(called)}")
+            problems.append(f"expected a call to {fn}; called {sorted(set(called))}")
 
     # --- the negative half ---------------------------------------------------
     if "forbidden" not in case:
@@ -295,8 +312,14 @@ def check(case: dict, delta: Delta) -> list[str]:
                     f"forbidden message {m['verb']} to {m['to_role']}")
 
     for fn in forbidden.get("calls") or []:
-        if fn in called:
+        # Counted, not tested for membership. A call can be thrown out on one
+        # turn and land on the next with corrected arguments, so "it appears in
+        # the errors" is not the same as "it never happened".
+        landed = called.count(fn) - (refused or {}).get(fn, 0)
+        if landed > 0:
             problems.append(f"forbidden call to {fn}")
+        elif fn in called:
+            notes.append(f"reached for forbidden {fn}; the guard refused it")
 
     for table in forbidden.get("versions") or []:
         if table in delta.versions_moved:
@@ -328,6 +351,9 @@ class CaseResult:
     problems: list[str] = field(default_factory=list)
     delta: Delta | None = None
     outcome: RunOutcome | None = None
+    # Things worth knowing that are not failures -- a forbidden call the guard
+    # threw out, which says the brief steered into a wall while the system held.
+    notes: list[str] = field(default_factory=list)
 
     def transcript(self) -> list[dict]:
         """What the model said and what came back, turn by turn.
@@ -524,7 +550,17 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                           mode=case.get("mode", "normal"))
     delta = capture(conn, outcome.session_id, before, messages_before=seeded)
 
-    problems = check(case, delta)
+    # `runner` records a thrown-out call as f"{call.name}: {exc}", so the
+    # function name is always the prefix. Counted, because the same function can
+    # be refused once and land later with corrected arguments.
+    refused: dict[str, int] = {}
+    for err in outcome.errors:
+        fn = err.split(":", 1)[0].strip()
+        if "." in fn:
+            refused[fn] = refused.get(fn, 0) + 1
+
+    notes: list[str] = []
+    problems = check(case, delta, refused=refused, notes=notes)
     if case.get("same_session"):
         problems += check_same_session(conn, case["same_session"], outcome.session_id)
     if not outcome.committed and case.get("expect_commit", True):
@@ -536,7 +572,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
 
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
-                      delta=delta, outcome=outcome)
+                      delta=delta, outcome=outcome, notes=notes)
 
 
 def run_chain(case: dict, db_path: str | Path, backend_factory, *,
@@ -608,14 +644,21 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     if not b_out.committed:
         problems.append(f"{then['role']} did not commit: {b_out.errors}")
 
-    problems += check(case, b_delta)
+    # Scored against the second leg, so the refusals that matter are its own.
+    b_refused: dict[str, int] = {}
+    for err in b_out.errors:
+        fn = err.split(":", 1)[0].strip()
+        if "." in fn:
+            b_refused[fn] = b_refused.get(fn, 0) + 1
+    notes: list[str] = []
+    problems += check(case, b_delta, refused=b_refused, notes=notes)
     if repo is not None:
         from . import gitfixture
         gitfixture.cleanup(repo)
 
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
-                      delta=b_delta, outcome=b_out)
+                      delta=b_delta, outcome=b_out, notes=notes)
 
 
 def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None = None,

@@ -194,9 +194,16 @@ def brief_ratify(ctx: Ctx, id: str) -> dict:
 @op("brief", "list")
 def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
     """Ratified statements, ids plus text. Superseded entries are excluded —
-    the plateau is achieved by scoping, not by deleting."""
+    the plateau is achieved by scoping, not by deleting.
+
+    `span_entry` travels because it is the only way back to what the principal
+    actually said. It is an id and not prose, so law 2 is untouched: the
+    conclusion travels, and whoever needs the words follows the id into
+    `transcript.quote` — which several briefs already instruct and none could
+    obey, because nothing handed out an entry id.
+    """
     return _rows(ctx.conn.execute(
-        "SELECT id, text, status FROM statements "
+        "SELECT id, text, status, span_entry FROM statements "
         "WHERE status = 'ratified' AND version > ? ORDER BY id", (since_version,)))
 
 
@@ -240,10 +247,31 @@ def problem_prioritize(ctx: Ctx, id: str, priority: int) -> dict:
 
 @op("problem", "consult")
 def problem_consult(ctx: Ctx) -> list[dict]:
-    """Every row at index depth: ids, kind and approval, no prose bodies."""
-    return _rows(ctx.conn.execute(
+    """
+    Every row at index depth: ids, kind and approval, no prose bodies.
+
+    `from_statements` is part of this artefact -- `problem` is
+    `("items", "item_statements")` -- and was the half nothing returned. An
+    item is a reading of something the principal said, and a Gatekeeper woken
+    on a contested one is told by its brief to `transcript.quote` what they
+    actually said. It holds one id, the item's. An exit interview put it
+    plainly: "I needed to know what the principal said they meant instead, but
+    that information was not available."
+
+    Ids, not prose, so law 2 is untouched. The hop is
+    item -> statement -> `span_entry` -> entry, and every edge of it was
+    already granted; only the columns were missing.
+    """
+    rows = _rows(ctx.conn.execute(
         "SELECT id, kind, approval, approval_ver, version, substr(text, 1, 120) AS headline "
         "FROM items ORDER BY id"))
+    derives: dict[str, list[str]] = {}
+    for r in ctx.conn.execute(
+            "SELECT item_id, statement_id FROM item_statements ORDER BY item_id"):
+        derives.setdefault(r["item_id"], []).append(r["statement_id"])
+    for row in rows:
+        row["from_statements"] = derives.get(row["id"], [])
+    return rows
 
 
 # ---------------------------------------------------------------------------

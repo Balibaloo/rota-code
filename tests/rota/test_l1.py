@@ -135,6 +135,13 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
             f"result is unknown, not bad. Re-earn it with\n"
             f"    ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q")
 
+    # A guard that fired is not a failure and is not nothing: the role reached
+    # for something it must not do and the system held. Printed on a pass too,
+    # because that is exactly when it would otherwise be invisible.
+    noted = sorted({n for r in results for n in r.notes})
+    if noted:
+        print(f"\n{case['id']} — reached and refused:\n  " + "\n  ".join(noted))
+
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"
         + "\n".join(f"  run {r.run}: {'; '.join(r.problems)}"

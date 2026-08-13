@@ -15,9 +15,19 @@
     entries:
       - {id: <e1>, author: principal, ts_order: 1,
          text: "no, I meant closing the account, not deleting it"}
+    # An item always came from a statement -- Gatekeeper writes them off what
+    # Liaison delivers -- and this case used to seed an orphan, which left the
+    # correction sitting in a transcript the role had no id for. It answered
+    # the exit interview exactly that way: "I needed to know what the principal
+    # said they meant instead, but that information was not available."
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 47,
+         text: "closing an account is not deleting it", status: ratified}
     items:
       - {id: <i1>, text: "users can delete their account", kind: in_scope,
          provenance: decided, approval: contested, approval_ver: 1, version: 1}
+    item_statements:
+      - {item_id: <i1>, statement_id: <s1>}
   expect:
     writes:
       items: {count: ">=1"}
