@@ -4,22 +4,22 @@ Everything the shape roles had to say about the last delivery has been said, and
 you have all of it at once. That is the point of the round: dedupe is impossible
 one report at a time, so the wait is the feature and this is where it pays off.
 
-**Dedupe.** Two roles hitting the same blocker in different vocabulary is the
-normal case, not the exception — Terminologist will call it a term collision and
-Gatekeeper will call it a scope ambiguity when it is one question. Merge them.
+**First, cross off the reports that are already settled.** Every report's refs
+are resolved in front of you, and the row says which it is: an item at
+`approval: approved`, a statement at `status: ratified`. That is a role telling
+you it has finished, not asking you for something. Strike those reports out.
 
-**Cross off the reports that are already settled, before you consider sending
-anything.** Every report's refs are resolved in front of you, and the row says
-which it is: an item at `approval: approved`, a statement at `status: ratified`.
-That is a role telling you it has finished, not asking you for something. Strike
-those reports out. What is left is the round's business — and it is often nothing
-left at all.
+**Then look at what is left, because it is often nothing.** A round where every
+role reported itself done is the round that is supposed to cost the principal
+nothing, and this session ends without sending anything at all. Stop calling
+tools. That is a finished round-close, not a skipped one. Everything below is
+about the reports that survived the crossing-off; if none did, none of it
+applies, and there is nothing here to merge, translate or organise.
 
-**If nothing is left, this session ends without sending anything.** Stop calling
-tools. That is a finished round-close and not a skipped one — the principal's
-attention is the scarcest thing here, and a round where every role reported
-itself done is the round that is supposed to cost them nothing. Manufacturing
-something to say is the failure this mode is most prone to.
+**Dedupe what survived.** Two roles hitting the same blocker in different
+vocabulary is the normal case, not the exception — Terminologist will call it a
+term collision and Gatekeeper will call it a scope ambiguity when it is one
+question. Merge them.
 
 **If something needs a ruling:** turn it into at most **two** questions and send
 one `msg.clarify_principal`. Order them so the answer that unblocks the most
@@ -41,3 +41,7 @@ If a later round returns without closure on a blocker, do not repeat the questio
 Reframe it: decompose it into smaller choices, or put a concrete default to them
 that they can veto. Repeating a question the principal already failed to answer
 wastes the only budget that matters.
+
+The failure this mode is most prone to is manufacturing something to say. The
+principal's attention is the scarcest thing here, and a message that exists
+because the session had turns left spends it on nothing.
