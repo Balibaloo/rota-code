@@ -126,6 +126,20 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         f"you end. You have no memory of previous sessions and will have none of "
         f"this one.\n\n"
         f"Your working set is exactly these functions. Nothing else exists:\n{fns}\n\n"
+        # `artefact.verb` below is a placeholder formatted exactly like the real
+        # entries above -- same indent, same `TOOL:` prefix, because that is how
+        # `fns` is built -- and two roles duly reported it in an exit interview
+        # as a tool they had looked for and did not have.
+        #
+        # Removing it and pointing at the list instead was tried, and measured
+        # across the whole of L1: 13 failures became 16. It fixed
+        # `GK-answer-a-scope-inquiry`, `TS-apply-a-term` and `TS-hold-a-test`,
+        # and broke `DV-build-a-clear-criterion`, `DV-challenge-a-test`,
+        # `TE-survey-an-area`, `TE-amend-glossary`, `CR-pass-a-conforming-diff`
+        # and `TS-fix-a-test-that-asserts-more`. A worked example earns its keep
+        # somewhere other than where it misleads, so it stays until there is a
+        # version that measures better -- the confusion is real and the obvious
+        # fix for it is not an improvement.
         f"Call one per line. `TOOL:` is a literal marker — write those five "
         f"characters, then the function name from the list above, then its "
         f"arguments in brackets:\n"
