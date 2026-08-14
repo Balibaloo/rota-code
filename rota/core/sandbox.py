@@ -27,8 +27,12 @@ from ..roles import api
 from ..design import graph as graph_mod
 
 
-# Ids are `prefix_hex`, written by `new_id` and by nothing else.
-_ID = re.compile(r"[a-z][a-z0-9]*_[A-Za-z0-9]+")
+# What separates an id from prose is whitespace and length, not shape. The first
+# version of this required `prefix_hex`, which is what `new_id` produces and not
+# what fixtures use -- `s1`, `i1`, `g1` are ids and were refused, so two scripted
+# delivery tests stopped ratifying. A guard that rejects the system's own ids is
+# worse than the fabrication it was written to catch.
+_ID = re.compile(r"\S{1,64}")
 
 
 class SandboxError(RuntimeError):

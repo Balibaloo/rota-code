@@ -195,7 +195,12 @@ def test_only_asking_carries_words(db):
                 continue
             names = {p.split("=")[0].split(":")[0].strip()
                      for p in sig.split("(", 1)[1].rstrip(")").split(",")}
-            if sig.startswith("msg.question_"):
+            # `clarify` asks too, and asks the one recipient Law 2 does not
+            # reach: the principal is not a role and inherits nobody's
+            # reasoning. Giving it words was measured and cost nothing;
+            # `present` and `confirm` were tried the same way and cost a case,
+            # because `render_refs` already speaks for them.
+            if sig.startswith(("msg.question_", "msg.clarify_")):
                 assert "question" in names, f"{role}: {sig} cannot ask"
             else:
                 assert not (names & {"question", "text"}), \
