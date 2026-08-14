@@ -421,8 +421,55 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # happens. The bound was always doing its job; the answer to "what is ready"
     # was computed against the state before it did.
     quarantine_overrun(conn)
-    return quarantine_stalled(
-        conn, all_wakes(conn, principal_present=principal_present))
+    return waiting_filter(conn, quarantine_stalled(
+        conn, all_wakes(conn, principal_present=principal_present)))
+
+
+def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:
+    """
+    Questions this role has asked and not had answered.
+
+    Derived, like everything else in the register: an open outbound message
+    with verb `question` is what waiting *is*, and no role has to declare it.
+    """
+    return [r["id"] for r in conn.execute(
+        "SELECT id FROM messages WHERE from_role = ? AND verb = 'question' "
+        "AND status = 'open' ORDER BY seq", (role,))]
+
+
+def waiting_filter(conn: sqlite3.Connection, wakes: list[Wake]) -> list[Wake]:
+    """
+    A role that has asked a question is not offered new work until it is
+    answered. The answer still reaches it: message tips are never filtered.
+
+    Waiting had no representation at all, and the cost is visible in the
+    predicates. `tests_failing` fires for any batch with a failing run and does
+    not care that the Developer is waiting on a term it cannot proceed without,
+    so the role is woken with identical state, asks again -- the duplicate guard
+    refuses it -- hedges, and repeats until `loop_cap` is spent. Only then does
+    `exhausted` fire. The system's answer to "I am waiting" was *spend the
+    budget, then escalate*, and most of a week's churn is that loop.
+
+    Suppressing every band except traffic rather than only the wake the question
+    blocks, because nothing links a message to the work it came from: messages
+    carry no batch, and sessions carry no batch either. It is also the better
+    rule on its own terms. A role is single-instance, so one that starts
+    something new while holding an open question is holding two contexts at
+    once, which is the arrangement this whole design exists to prevent. It asked;
+    it waits.
+
+    Nothing is dropped. The obligation stays on the register, the answer wakes
+    the asker through its tip, and a question nobody ever answers is what
+    quarantine is for.
+    """
+    blocked = {}
+    for w in wakes:
+        if w.kind == "message":
+            continue                      # the answer must always get through
+        if w.role not in blocked:
+            blocked[w.role] = waiting_on(conn, w.role)
+    return [w for w in wakes
+            if w.kind == "message" or not blocked.get(w.role)]
 
 
 def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:

@@ -338,3 +338,75 @@ def test_the_artefact_handoffs_are_enumerated_at_all():
     assert any("-slicing->" in o.what or "-criteria->" in o.what
                for o in handoffs), \
         "the ticket-to-criteria handoff, which exposed this, is still invisible"
+
+
+def test_a_role_waiting_on_its_own_question_is_not_offered_new_work(db):
+    """
+    Waiting had no representation, and the cost is in the predicates.
+
+    `tests_failing` fires for any batch with a failing run and does not care
+    that the Developer is waiting on a term it cannot proceed without. So the
+    role was woken with identical state, asked again -- the duplicate guard
+    refuses it -- hedged, and repeated until `loop_cap` was spent, at which
+    point `exhausted` finally fired. The system's answer to "I am waiting" was
+    spend the budget, then escalate.
+
+    Derived, not declared: an open outbound `question` is what waiting *is*,
+    and no role has to remember to say so.
+    """
+    from rota.core.scheduler import frontier, waiting_on
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
+               "VALUES ('i1','close an account','in_scope','decided','approved')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('b1','i1','running','abc123')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','x')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','p','b')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) "
+               "VALUES ('r1','b1','tst1','fail',1)")
+
+    assert any(w.role == "developer" and w.kind == "tick:tests_failing"
+               for w in frontier(db)), "the failing batch should be offered"
+
+    # The Developer asks what a word means and stops. Nothing about the batch
+    # has changed: the tests still fail, and re-offering it achieves nothing
+    # until somebody answers.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','developer','terminologist','question','[]',"
+               "'which sense of close?',1,'open')")
+
+    assert waiting_on(db, "developer") == ["m1"]
+    assert not any(w.role == "developer" and w.kind.startswith("tick:")
+                   for w in frontier(db)), \
+        "woken to redo work it is waiting on an answer for"
+
+    # The answer must always get through, or waiting becomes a deadlock.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m2','t1','terminologist','developer','answer','[]',2,'open')")
+    assert any(w.role == "developer" and w.kind == "message"
+               for w in frontier(db)), "the answer cannot reach a waiting role"
+
+    # And once it is answered the work comes back on its own.
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm1'")
+    assert any(w.role == "developer" and w.kind == "tick:tests_failing"
+               for w in frontier(db)), "the batch never returned"
+
+
+def test_waiting_does_not_silence_a_different_role(db):
+    """The register is per obligation, not a global pause."""
+    from rota.core.scheduler import frontier
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) "
+               "VALUES ('i1','close an account','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','developer','terminologist','question','[]','?',1,'open')")
+
+    assert any(w.role == "gatekeeper" and w.kind == "tick:slicing"
+               for w in frontier(db)), \
+        "one role's open question stopped another role's work"
