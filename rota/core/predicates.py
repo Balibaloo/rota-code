@@ -239,6 +239,50 @@ def signoff(conn) -> list[Wake]:
     return tick_signoff(conn)
 
 
+@predicate("term_collision", wakes="terminologist", band="fix")
+def term_collision(conn) -> list[Wake]:
+    """
+    One word, two live senses, nobody ruling. The glossary's `contradiction`.
+
+    Two statements that conflict already raise an obligation and go to the
+    principal, because only they can say which stands. Two senses of one word
+    are the same situation in the other artefact and raised nothing at all: the
+    collision sat in the glossary until some role tripped over it while trying
+    to do something else, and then it was that role's problem to notice.
+
+    Which is why "two roles blocked on one ambiguity are two discoveries". The
+    ambiguity is one fact about the glossary and belongs on the register once,
+    owned by the role that owns the artefact.
+
+    Derived from the rows: two or more entries sharing a term, with no decision
+    referring to them. Discharged by that decision, or by the glossary coming
+    back to one sense. Nobody declares it and nobody can forget to.
+    """
+    import json
+
+    rows = conn.execute(
+        "SELECT term, GROUP_CONCAT(id) AS ids, COUNT(*) AS n "
+        "FROM glossary_terms GROUP BY term HAVING n > 1").fetchall()
+    if not rows:
+        return []
+
+    ruled: set[str] = set()
+    for d in conn.execute("SELECT refs FROM decisions"):
+        try:
+            ruled.update(json.loads(d["refs"] or "[]"))
+        except (ValueError, TypeError):
+            continue
+
+    wakes = []
+    for r in rows:
+        ids = sorted(r["ids"].split(","))
+        if any(i in ruled for i in ids):
+            continue                      # somebody has ruled on this word
+        wakes.append(Wake("terminologist", "tick:term_collision",
+                          refs=tuple(ids), detail=r["term"]))
+    return wakes
+
+
 @predicate("round_close", wakes="liaison", band="gate")
 def round_close(conn) -> list[Wake]:
     """A broadcast's subtree has terminated: harvest the reports."""

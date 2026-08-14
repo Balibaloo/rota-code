@@ -17,14 +17,14 @@ undischarged goals stay visible and countable.
 
 ## It is already here, and was never named
 
-Of twenty-six predicates, eleven move the spine forward, one is message
-traffic, and **fourteen are register entries**: something is outstanding, and
+Of twenty-seven predicates, eleven move the spine forward, one is message
+traffic, and **fifteen are register entries**: something is outstanding, and
 the predicate exists to keep offering it until it is not.
 
     contradiction   contested        constraint_zero   awaiting_confirm
     agenda          quarantined      exhausted         round_close
     observed_entries reopen          tests_failing     verdict_failed
-    checkpoint_invalid               survey
+    checkpoint_invalid               survey            term_collision
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.
@@ -74,8 +74,8 @@ should be a thing a role remembers to file.
 | a batch that spent its loop cap | `loop_cap` reached | escalation up the ladder | developer | works |
 | a message the system gave up on | dispatched past cap | reported to the principal | liaison relays | works |
 | **a question awaiting an answer** | open message, verb `question` | the answer arriving | the role asked | **derivable, underived** |
-| **a role waiting on its own question** | this role sent a message still open | the answer arriving | — | **missing** |
-| **a word with two live senses** | ≥2 `glossary_terms` sharing a term, no decision | the principal's ruling | terminologist raises | **derivable, underived** |
+| a role waiting on its own question | this role sent a message still open | the answer arriving | — | **works** |
+| a word with two live senses | ≥2 `glossary_terms` sharing a term, no decision | the principal's ruling | terminologist raises | **works** |
 | **two questions about the same thing** | open questions whose refs intersect | merged before sending | liaison | **derivable, underived** — and dedupe is judgement today |
 | **an answer that did not resolve it** | *not derivable* | asking again, elsewhere | the asker | **the one honest declaration** |
 

@@ -104,7 +104,13 @@ two senses is a finding, not a failure to resolve.
 **Reaches** developer (answer), gatekeeper (challenge), liaison (answer,
 report), researcher (question), tester (answer).
 
-**Woken by** criteria.
+**Woken by** criteria, term_collision.
+
+**A word with two live senses is raised for you, not by you.** Two statements
+that conflict have always been an obligation the frontier derives; two senses of
+one word are the same situation in your artefact and used to be raised by
+whichever role tripped over them while trying to do something else. It is one
+fact about the glossary, so it is on the register once and it is yours.
 
 ## architect
 
