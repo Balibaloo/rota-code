@@ -18,12 +18,17 @@ Consequences worth stating:
 from __future__ import annotations
 
 import inspect
+import re
 import sqlite3
 from types import SimpleNamespace
 from typing import Any, Callable
 
 from ..roles import api
 from ..design import graph as graph_mod
+
+
+# Ids are `prefix_hex`, written by `new_id` and by nothing else.
+_ID = re.compile(r"[a-z][a-z0-9]*_[A-Za-z0-9]+")
 
 
 class SandboxError(RuntimeError):
@@ -446,6 +451,18 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # ("cannot use 'dict' as a dict key"), a session killed by a message
         # somebody else composed, with the traceback pointing at the innocent
         # role. Refused here it costs the sender one turn and it can see why.
+        # A bare string is the failure this guard was blind to, because it is
+        # made of strings. `refs="m_283ec8"` passes the check below -- every
+        # character is a `str` -- and is then stored as `["m","_","2","8",...]`,
+        # a message whose refs are eight single letters that resolve to nothing.
+        # Silent at both ends, which is the worst kind, and Liaison did it five
+        # runs out of five.
+        if isinstance(refs, str):
+            raise ValueError(
+                f"refs is a list of ids and you sent one id as a bare string, "
+                f"{refs!r}. A string is a sequence of characters here, so this "
+                f"would travel as one ref per letter")
+
         bad = [r for r in (refs or []) if not isinstance(r, str)]
         if bad:
             raise ValueError(
@@ -453,6 +470,42 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"id on its own -- whatever you wrapped it in cannot travel, "
                 f"because the far end resolves ids against the tables and has "
                 f"nowhere to put the rest.")
+
+        # An id has a shape, and prose does not have it. Refused the message id
+        # above, the next thing Liaison reached for was the statement's *text*
+        # as a ref -- which travels, resolves to nothing at the far end, and
+        # looks like a well-formed message from every angle except the one that
+        # matters. Checking the shape rather than the row keeps this honest for
+        # ids written in this same session, which are not in any table yet.
+        malformed = [r for r in (refs or []) if not _ID.fullmatch(r)]
+        if malformed:
+            raise ValueError(
+                f"refs are ids, and {malformed[0][:40]!r} is not one. An id "
+                f"looks like `s_1b9009` and comes from the rows you were given "
+                f"or the tools you called -- the words of the thing are not a "
+                f"handle on it")
+
+        # The principal is the one recipient that does not share the database.
+        # They have seen the transcript and whatever came out of it; they have
+        # never seen a message, do not know the roles by name and cannot be
+        # shown a row they have no way to resolve. Every brief on this channel
+        # already says "the statement or item it is about, not a message id" and
+        # it went out as a message id anyway -- the referent a role reaches for
+        # is the one it is looking at, and it was looking at the thread.
+        #
+        # Refused here rather than asked for again, because asking again has
+        # been measured: the same instruction stated outright in the mode's own
+        # brief moved it 0/5 to 0/5.
+        if recipient == "principal" and refs:
+            unresolvable = [r for r in refs if ctx.conn.execute(
+                "SELECT 1 FROM messages WHERE id = ?", (r,)).fetchone()]
+            if unresolvable:
+                raise ValueError(
+                    f"{unresolvable[0]!r} is a message, and the principal has "
+                    f"never seen one. Refs on this channel are the statement or "
+                    f"item the question is about -- what they said, in the "
+                    f"words they used, which is the only thing they can "
+                    f"recognise at their end")
 
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a
