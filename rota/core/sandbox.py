@@ -571,6 +571,33 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # three recipients rather than three messages. A role with two genuinely
         # separate things to say to the same role says them in one message's
         # refs, which is what refs are.
+        # One question per session, and choosing who owns the block is the work.
+        #
+        # Measured on `L1-TS-a-criterion-no-machine-could-check`, which wants
+        # exactly one question to Gatekeeper. `llama3.1:8b` asked Terminologist
+        # -- one question, wrong owner. `qwen2.5` asked Researcher,
+        # Terminologist *and* Gatekeeper: it found the right recipient and
+        # declined to commit to it. Two models, and neither was defeated by the
+        # sentence; what neither did was pick.
+        #
+        # This is the system's own principle seen from the sending end. Two
+        # roles blocked on one ambiguity are two discoveries, which is why
+        # reports arriving at Liaison are grouped by shared refs -- and one role
+        # asking three roles about one block is the same waste with one author,
+        # plus three sessions spent and three answers to reconcile.
+        #
+        # Safe by inspection: no case in the suite expects two questions to
+        # different roles from one session. The only fixture naming two is an
+        # `any_of`, where they are alternatives.
+        if verb == "question":
+            asked = [m["to_role"] for m in ctx.outbound if m["verb"] == "question"]
+            if asked and recipient not in asked:
+                raise ValueError(
+                    f"you have already asked {asked[0]}. Deciding who owns this "
+                    f"block is the judgement this mode is for, and you have made "
+                    f"it; asking a second role does not confirm it, it produces "
+                    f"two answers about one thing")
+
         duplicate = any(m["to_role"] == recipient and m["verb"] == verb
                         for m in ctx.outbound)
         if duplicate:
