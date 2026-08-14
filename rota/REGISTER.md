@@ -141,3 +141,113 @@ as a single query -- the obligations are derived one predicate at a time and
 never counted together. That is the aggregation the open-uncertainty artefact
 would give, and it is worth having for its own sake rather than as a
 prerequisite for anything above.
+
+## Item 5, specified
+
+The situation, exactly: Developer asks Gatekeeper whether partial
+reconciliation counts as done. Gatekeeper's session commits, so the message is
+`answered` and Developer stops waiting. The answer was "follow the acceptance
+criteria", and Developer's question *was* that the criteria do not cover it.
+
+Nothing in the database can tell the difference between that and a good answer.
+`waiting` releases the role, `tests_failing` re-offers the batch, and Developer
+guesses -- which is the loop the waiting view was built to stop, arrived at
+through the front door.
+
+**The declaration.** `schedule.unresolved(message_id)`: the asker says an
+answered question of its own left it where it was. It goes on `schedule`
+because it is scheduler-facing rather than about any artefact -- a role telling
+the system about its own state, which is the one thing the system cannot
+derive. New message status `unresolved`; the row is no longer open, so the
+asker is not held by `waiting`, and no longer answered, so the register stops
+believing the obligation is discharged.
+
+**The escalation, derived.** A predicate over `status = 'unresolved'` wakes the
+next role that has not sent in that thread, one rung at a time, exactly as
+`exhausted` does for a spent batch -- the rung is a function of the messages,
+not a stored pointer, for the same reason it is there.
+
+Three things I decided against, recorded because each was tempting:
+
+- *Deriving it from a re-ask.* If the asker knew who to ask next it would just
+  ask, and there would be nothing to build. The whole content of the
+  declaration is **"I am still blocked and I do not know who else to ask"**,
+  which is also why the batch version of this exists.
+- *Widening `exhausted` to cover it.* Same obligation, but a different ladder:
+  a spent batch climbs `developer → architect → gatekeeper`, and a dead answer
+  cannot start at Developer when Tester is the one asking. Two ladders in one
+  predicate reads as one mechanism and is two.
+- *Reusing the `exhausted` prompts.* Architect and Gatekeeper have them, so it
+  is free -- and every word in them is about a batch that has spent its loop.
+  A mode whose prompt describes a different situation is the prose failure this
+  repository has paid for repeatedly.
+
+**The two open questions, which are why this is specified rather than built:**
+
+1. **The ladder for a dead answer.** `architect → gatekeeper → principal`, with
+   Gatekeeper the last rung woken and the principal reached by Gatekeeper's own
+   report, matching how `exhausted` terminates. The alternative is straight to
+   Liaison, which is fewer sessions and throws away the two roles most likely to
+   know.
+2. **Which modes brief the declaration.** Every mode an asker can be woken in
+   after an answer is the complete answer and the expensive one: briefing
+   thirteen unbriefed capabilities cost four green cases in a single attempt.
+   Recommendation is Developer's `tests_failing` and `exhausted` only, measured,
+   then widened on evidence.
+
+## What it looks like from the floor
+
+The table above is the shape; these are the situations it exists for. One
+running project throughout -- a fulfilment service, where the principal wants
+orders that arrive out of sequence reconciled.
+
+**One word, two live senses.** Terminologist logs `order` = a customer's
+purchase from the intake statement, and two rounds later, working from the
+reconciliation ticket, logs `order` = the sequence events arrive in. Both
+entries are right. The spine does not care: there is a glossary row, so
+`criteria` proceeds, Tester writes `test_order_is_preserved`, it passes, and
+the batch merges having pinned the wrong promise. Green is the worst outcome
+here, because green is what everyone downstream reads. `term_collision` derives
+it from the rows as the second entry lands, and any batch whose criteria touch
+either entry stops being offered until the principal rules -- not a warning, an
+absence from the frontier.
+
+**Two roles, one blocker, two vocabularies.** The same ambiguity, later.
+Gatekeeper cannot slice the item and reports ambiguous scope; Terminologist
+reports a term collision; Architect reports that the boundary between queue and
+ledger depends on which `order` is meant. Three roles that never share context,
+three reports, one statement. Without a set to query, deciding they are the
+same is Liaison's judgement, which Liaison may not exercise -- so the principal
+gets three questions and answers two. `about` groups by shared refs
+transitively, and one group is one question.
+
+**Waiting is not "try again".** Developer asks Gatekeeper whether partial
+reconciliation counts as done, and goes quiet. `tests_failing` offers the same
+batch back next pass; Developer, with no memory of asking, guesses; the guess
+costs an attempt; twelve attempts later `exhausted` escalates. The old answer
+to "I am waiting" was spend the budget, then ask for help.
+
+**The specification withdrawn mid-build.** The principal un-approves the item
+while a batch is four commits into it. `batch_start` refuses to start an
+unapproved batch and nothing touched one already running, so Developer kept
+building, Critic judged against withdrawn criteria, and it merged. The only
+case where effort is actively spent on something nobody wants, and it was the
+half that was missing.
+
+**The area nobody looked at.** Twelve areas, four surveyed. The system's
+confidence should be bounded by that, and the only honest form of the bound is
+a named list that no role can shrink by judging the code irrelevant.
+
+**The system gave up, quietly.** A message past dispatch cap stops. A tick that
+cannot drain is produced again every pass, so the run stays busy, keeps
+committing, and never arrives -- six sessions on area one of twelve before
+anybody read a counter. Reporting itself healthy while looping is the failure
+that costs the most wall-clock.
+
+**The principal walks in with ten minutes.** What is blocked on them is a
+query, not whatever Liaison remembers.
+
+**And the one still open.** Developer asks whether partial reconciliation
+counts as done. Gatekeeper answers: follow the acceptance criteria. The row
+says answered. It resolved nothing, because the question was that the criteria
+do not cover it. Nothing derives that.
