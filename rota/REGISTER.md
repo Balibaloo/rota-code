@@ -106,13 +106,15 @@ An answered question that did not help. The row says `answered`; only the asker
 knows the answer left it where it was. Nothing derives that, and it is exactly
 what the `exhausted` modes are written for.
 
-So the second half needs **one** declared transition, not the two verbs I
-specced in `REFUSAL.md`. `settled` dissolves into predicates evaluated properly
-— which is what fixing `round_close` already demonstrated. `blocked` collapses
+So the second half needs **one** declared transition, not the two verbs an
+earlier spec proposed. `settled` dissolves into predicates evaluated properly —
+which is what fixing `round_close` already demonstrated. `blocked` collapses
 into "this role has an open question", which is a query.
 
-`REFUSAL.md` should be read as superseded by this on both counts, and is kept
-for the evidence in it rather than the design.
+That spec was `REFUSAL.md` and is deleted. Both of its verbs were a role
+declaring its own state, which is the mistake this page is about; keeping the
+document to preserve the argument against it is the same instinct one level
+out.
 
 ## What is worth building, in order
 

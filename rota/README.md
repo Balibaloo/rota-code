@@ -12,7 +12,6 @@ the system may never do. Everything below is how those are made true.
 |---|---|
 | `LAWS.md` | **L0 and the laws.** The level every other file presupposed and none stated |
 | `ROLES.md` | **the nine seats** — what each is answerable for and what it may never decide. Read before changing a brief; checked against the graph by `test_roles_doc` |
-| `AGREED.md` | the change set from the design session, written to be checked rather than remembered |
 | `design/graph.json` | **the wiring.** Roles, artefacts, edges with verb, noun, rows and depth. Not a picture of the system — the part-list it is assembled from |
 | `design/layout.json` | viewer geometry, split out so editing meaning never touches coordinates |
 | `design/stories.json` | the three narrated traversals, for arc tests |

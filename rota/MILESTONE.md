@@ -9,7 +9,7 @@ scaffolding for that one claim. The failure mode the system exists to prevent is
 work nobody asked for arriving invisibly — and a suite that only proves the
 plumbing has exactly that failure mode itself.
 
-Written to be **checked**, like `AGREED.md`. Status: `[ ]` · `[~]` · `[x]`
+Written to be **checked**. Status: `[ ]` · `[~]` · `[x]`
 
 ---
 
@@ -37,7 +37,7 @@ moving 40 modules plus 160 fixtures is not.
 
 ---
 
-## 1 · Edge fixes — detail in `EDGE_PLAN.md`
+## 1 · Edge fixes
 
 - [x] **1.1 P1 · the loop closes.** `commit_sha` on `test_runs` / `verdicts` /
       `findings`; `harness`, `review`, `structural_review` fire when the current
@@ -250,7 +250,7 @@ unreachable by judgement.**
       unanswerable as one query: the obligations are derived one predicate at a
       time and never counted together
 
-**Superseded on the way:** `REFUSAL.md` specced two verbs, `settled` and
+**Superseded on the way:** an earlier spec proposed two verbs, `settled` and
 `blocked`. `settled` dissolved into predicates evaluated properly and `blocked`
 into a query over open messages. Kept for its evidence, not its design — and as
 the record of proposing declaration where derivation was available, twice.
@@ -336,4 +336,4 @@ to calibrate against.
 
 - dogfooding this repo — V1, after the map exists
 - T2 arcs against the three design stories — after L3
-- phases, ticket readiness, the abstain verdict — open in `AGREED.md` §7
+- phases, ticket readiness, the abstain verdict — open
