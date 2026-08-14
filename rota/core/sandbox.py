@@ -618,6 +618,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     # Two signatures, because the model is shown exactly what it may pass and an
     # advertised `**kwargs` is an invitation to invent one. The prose channel
     # names its argument outright; every other channel cannot take words at all.
+    #
+    # `prose` is that argument's *name*, not a description of it. Setting it to
+    # "note" on the principal channels produced an error reading "needs note=",
+    # against a parameter called `question` -- so the model passed `note=`, was
+    # told it was unexpected, and fell back to positional, sending integers
+    # where refs go. One word with two meanings, in the binder that exists to
+    # stop exactly that, and it cost `L1-LI-present-what-onboarding-only-observed`
+    # five runs out of five.
     if prose:
         def send(refs: list[str], question: str, round_no: int = 0):
             if not question:

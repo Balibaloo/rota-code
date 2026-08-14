@@ -578,8 +578,7 @@
       "v": "confirm",
       "n": "statement list",
       "label": "ratification",
-      "rows": "all",
-      "prose": "note"
+      "rows": "all"
     },
     {
       "s": "liaison",
@@ -763,8 +762,7 @@
       "v": "present",
       "n": "draft statement",
       "label": "signoff · reads as one document",
-      "rows": "all",
-      "prose": "note"
+      "rows": "all"
     },
     {
       "s": "principal",
