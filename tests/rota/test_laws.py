@@ -198,6 +198,13 @@ def test_owners_can_read_what_they_own(g):
     # Ledger writers read nothing; `ledger.log` derives its id instead, so a
     # repeat is an upsert and there is nothing to check for first.
     blind -= {(w, "ledger") for w in g.writer_of("ledger")}
+    # `schedule.unresolved` is the same case for the same reason: the row it
+    # writes is the question this session's own trigger replies to, derived from
+    # the causal chain rather than chosen. A role cannot name the wrong one, so
+    # there is nothing it would read the schedule to find out. Reading it would
+    # also be the wrong grant -- the frontier is the scheduler's, and a role that
+    # could see what it is about to be offered could work to be offered it.
+    blind -= {(w, "schedule") for w in g.writer_of("schedule")}
     assert not blind, sorted(blind)
 
 

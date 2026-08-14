@@ -43,6 +43,13 @@ SCHEMA = paths.SCHEMA
 # is a role that can be *asked*, in the order a question climbs.
 LADDER = ("developer", "architect", "gatekeeper")
 
+# The same climb for a question rather than a batch, and it starts a rung higher
+# because Developer is never the answer to somebody else's dead answer -- it is
+# the role most likely to have asked. Both ladders end at Gatekeeper, who is the
+# last rung anything wakes: above that is the principal, and nothing wakes a
+# person.
+QUESTION_LADDER = ("architect", "gatekeeper")
+
 
 DERIVED = "*"        # the wake's role comes from the rows, not the declaration
 SCHEDULER = "-"      # no role: the scheduler does this itself
@@ -529,6 +536,73 @@ def _next_rung(conn, batch_id: str) -> str:
         if role not in sent:
             return role
     return ""
+
+
+@predicate("unresolved", wakes=DERIVED, band="fix",
+           derives=(*QUESTION_LADDER, "liaison"),
+           drains=[("messages", "status", "unresolved")])
+def unresolved(conn) -> list[Wake]:
+    """
+    A question that was answered and did not land, climbing to somebody new.
+
+    This is the register's one declared entry, and everything after the
+    declaration is derived like the rest. The asker says `schedule.unresolved`;
+    who hears about it next is a function of who has already spoken in the
+    thread, so it cannot drift out of step with the conversation it is about.
+
+    What it replaces is the sentence that used to be in `developer/answer.md`:
+    "if the block truly survives the answer, the batch will bounce and wake you
+    where the ladder is." That is a role being told to spend attempts it knows
+    are wasted so that a *cap* can notice what it already knows. Caps exist for
+    glitches. A role that reports being blocked is doing its job, and the system
+    should act on the report rather than wait for the budget to agree with it.
+
+    The next rung is the first role in the ladder that has not spoken in this
+    thread *and can actually reply to the asker*, Liaison last, because a
+    question the roles cannot answer is one the principal has to and Liaison is
+    how anything reaches them. When everyone has spoken it goes quiet: by then
+    Liaison has sent, which means it is on the principal's agenda, and that has
+    a drain of its own.
+
+    Reply-capability is read off the graph rather than assumed, because the
+    graph does not grant it uniformly: Architect can ask Terminologist and
+    Terminologist has no edge to answer Architect, which is the only question
+    channel in the system missing its return path. Waking a rung that cannot
+    speak to the asker would produce a session with nothing it could do —
+    a silence indistinguishable from the answer landing.
+
+    Note that the asker is skipped for free -- it is in the thread by
+    construction, having asked -- so there is no rule about it to get wrong.
+    """
+    from ..design import graph as graph_mod
+
+    rows = conn.execute(
+        "SELECT id, from_role, thread_id, unresolved_note FROM messages "
+        "WHERE status = 'unresolved' ORDER BY seq").fetchall()
+    if not rows:
+        return []
+
+    g = graph_mod.load()
+    can_answer: dict[str, set[str]] = {}
+    for e in g.of_type("messages"):
+        if e.v == "answer":
+            can_answer.setdefault(e.t, set()).add(e.s)
+
+    wakes = []
+    for r in rows:
+        spoken = {m["from_role"] for m in conn.execute(
+            "SELECT DISTINCT from_role FROM messages WHERE thread_id = ?",
+            (r["thread_id"],))}
+        able = can_answer.get(r["from_role"], set())
+        for role in (*QUESTION_LADDER, "liaison"):
+            if role in spoken:
+                continue
+            if role != "liaison" and role not in able:
+                continue              # cannot reply to this asker; not a rung
+            wakes.append(Wake(role, "tick:unresolved", refs=(r["id"],),
+                              detail=r["unresolved_note"] or ""))
+            break
+    return wakes
 
 
 @predicate("review", wakes="critic", band="gate")

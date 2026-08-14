@@ -17,14 +17,15 @@ undischarged goals stay visible and countable.
 
 ## It is already here, and was never named
 
-Of twenty-seven predicates, eleven move the spine forward, one is message
-traffic, and **fifteen are register entries**: something is outstanding, and
+Of twenty-eight predicates, eleven move the spine forward, one is message
+traffic, and **sixteen are register entries**: something is outstanding, and
 the predicate exists to keep offering it until it is not.
 
     contradiction   contested        constraint_zero   awaiting_confirm
     agenda          quarantined      exhausted         round_close
     observed_entries reopen          tests_failing     verdict_failed
     checkpoint_invalid               survey            term_collision
+    unresolved
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.
@@ -77,7 +78,7 @@ should be a thing a role remembers to file.
 | a role waiting on its own question | this role sent a message still open | the answer arriving | — | **works** |
 | a word with two live senses | ≥2 `glossary_terms` sharing a term, no decision | the principal's ruling | terminologist raises | **works** |
 | two reports about the same thing | reports whose refs intersect, transitively | merged before sending | liaison | **works** |
-| **an answer that did not resolve it** | *not derivable* | asking again, elsewhere | the asker | **the one honest declaration** |
+| **an answer that did not resolve it** | *declared*: `schedule.unresolved` | somebody new speaking in the thread | the ladder, then liaison | **works** |
 
 ## What the gaps have in common
 
@@ -130,11 +131,25 @@ for the evidence in it rather than the design.
    written from the wrong sense passes and pins the wrong promise. Narrow on
    purpose: only this obligation, because `criteria.term_refs` is a join that
    exists and there is no general way to say what a wake's work rests on.
-5. **The declaration**, still open, and the only piece that cannot be checked by
-   derivation: an answered question that did not help. The row says answered and
-   only the asker knows it left them where they were.
+5. ~~**The declaration.**~~ Built as `schedule.unresolved`, in `answer` mode for
+   every role that can receive one. Everything after the declaration is derived
+   as before: the next rung is the first role that has not spoken in the thread
+   *and can reply to the asker*, Liaison last, and the obligation is discharged
+   by somebody new speaking rather than by anyone closing it.
 
-Nothing here added an artefact. Three views, and one verb still to come.
+Nothing here added an artefact. Four views and one verb, and the verb writes a
+single column.
+
+**What the declaration replaced.** `developer/answer.md` used to end: *"if the
+block truly survives the answer, the batch will bounce and wake you where the
+ladder is."* That is a role being told to spend attempts it knows are wasted so
+that a cap can notice what it already knows — the loop cap doing design work,
+when a cap is a net for glitches and nothing else. A role that reports being
+blocked is doing its job, and the system should act on the report rather than
+wait for the budget to agree with it. Every `answer` mode now says the opposite,
+and each says it in the terms of that role's own failure: a test encoded from a
+guess passes, a constraint that cannot be tied to a commitment binds nobody, a
+sense recorded twice leaves the collision live.
 
 **What is still traffic.** "What does this system not know" remains unanswerable
 as a single query -- the obligations are derived one predicate at a time and
@@ -182,18 +197,26 @@ Three things I decided against, recorded because each was tempting:
   A mode whose prompt describes a different situation is the prose failure this
   repository has paid for repeatedly.
 
-**The two open questions, which are why this is specified rather than built:**
+**Both open questions are now settled, and the second one moved.**
 
-1. **The ladder for a dead answer.** `architect → gatekeeper → principal`, with
-   Gatekeeper the last rung woken and the principal reached by Gatekeeper's own
-   report, matching how `exhausted` terminates. The alternative is straight to
-   Liaison, which is fewer sessions and throws away the two roles most likely to
-   know.
-2. **Which modes brief the declaration.** Every mode an asker can be woken in
-   after an answer is the complete answer and the expensive one: briefing
-   thirteen unbriefed capabilities cost four green cases in a single attempt.
-   Recommendation is Developer's `tests_failing` and `exhausted` only, measured,
-   then widened on evidence.
+1. **The ladder** is `architect → gatekeeper → liaison`, ruled. Liaison is the
+   last rung rather than a silence, because a ladder ending in nothing is the
+   dead end this half exists to prevent; it is not there to answer but because
+   it is how anything reaches the principal. Rungs are skipped when the graph
+   gives them no way to reply to the asker — which is not hypothetical, since
+   Architect cannot answer Tester.
+2. **Which modes brief it** was the wrong question, asked in cap-shaped terms.
+   It belongs in `answer` mode for every role that can receive an answer, and
+   the reason is not that this is a safe subset: that mode's job is *already*
+   judging whether the answer landed, so the declaration is the honest branch of
+   a decision the role is being asked to make rather than an alternative to
+   making it. The failure that cost four cases was a briefed alternative inside
+   a mode whose job is decisive, and this is the other thing.
+
+   The old briefing question presumed roles should be trusted with a capability
+   only where a regression would be attributable. That is designing around the
+   measurement. The system trusts every role to do its job; the caps are for
+   glitches.
 
 ## What it looks like from the floor
 

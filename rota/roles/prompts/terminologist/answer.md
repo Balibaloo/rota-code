@@ -21,3 +21,9 @@ takes an outside claim without its ref is the one nobody can check later.
 **Two senses is still a finding.** If the source gives you a second meaning
 rather than settling the first, write both. Collapsing them is a decision, and
 you are not in a mode where decisions are available.
+
+**If it does not settle the sense you asked about, say so:
+`schedule.unresolved`.** Recording both senses is a finding and the right thing
+to do; it also leaves the collision live, and the work resting on that word
+stays suppressed until somebody rules. Saying the answer did not settle it is
+how the ruling gets asked for rather than waited for.

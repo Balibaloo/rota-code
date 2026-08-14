@@ -143,7 +143,7 @@ def test_every_predicate_is_either_spine_or_register():
     from rota.core import predicates as P
 
     doc = (paths.PACKAGE / "REGISTER.md").read_text(encoding="utf-8")
-    block = re.search(r"\*\*fifteen are register entries\*\*.*?\n\n(.*?)\n\n",
+    block = re.search(r"\*\*sixteen are register entries\*\*.*?\n\n(.*?)\n\n",
                       doc, re.S)
     assert block, "the register list is no longer where the check looks for it"
     named = set(block.group(1).split())
@@ -155,10 +155,10 @@ def test_every_predicate_is_either_spine_or_register():
     # Every predicate is register, spine, or the one traffic tip. The spine half
     # is not listed in the doc by name, so it is whatever is left -- which means
     # a new predicate lands in "spine" silently unless the count is pinned too.
-    assert len(named) == 15, f"the register lists {len(named)}, not fifteen"
-    assert len(every) == 27, (
+    assert len(named) == 16, f"the register lists {len(named)}, not sixteen"
+    assert len(every) == 28, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
-        f"against 27. Classify the new one.")
+        f"against 28. Classify the new one.")
 
 
 def test_a_verb_carries_words_or_does_not_regardless_of_recipient():

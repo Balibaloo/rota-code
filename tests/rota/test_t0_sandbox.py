@@ -201,3 +201,49 @@ def test_s9_a_list_argument_still_takes_a_list(db):
     sb.call("criteria.specify", id="c1", ticket_id="tk1", text="it works",
             term_refs=["g1", "g2"])
     assert sb.ctx.writes[0][2]["term_refs"] == '["g1", "g2"]'
+
+
+def test_the_declaration_takes_no_id_and_finds_the_question_it_answers(db):
+    """
+    `schedule.unresolved` is the register's one declared transition.
+
+    It deliberately takes no message id. The role is telling us it read an
+    answer and is still blocked; asking it to name a row in that same session is
+    a way to be told about the wrong question, and the causal chain already
+    knows which one it is.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','developer','gatekeeper','question','[]','?',1,'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES "
+               "('m2','m1','t1','gatekeeper','developer','answer','[]',2,'open')")
+
+    sb = build("developer", db)
+    sb.ctx.trigger = "m2"
+    sb.call("schedule.unresolved", still_missing="the criteria do not cover partial")
+
+    assert sb.ctx.writes == [("messages", "m1", {
+        "status": "unresolved",
+        "unresolved_note": "the criteria do not cover partial"}, False)], \
+        "the declaration must land on the question, not on the answer"
+
+
+def test_only_the_asker_can_say_the_answer_did_not_land(db):
+    """
+    The whole content of the declaration is one role's private knowledge, so
+    nobody else is in a position to make it. Being woken by an answer that
+    settles somebody else's question is not a licence to reopen it.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','tester','gatekeeper','question','[]','?',1,'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES "
+               "('m2','m1','t1','gatekeeper','tester','answer','[]',2,'open')")
+
+    sb = build("developer", db)
+    sb.ctx.trigger = "m2"
+    with pytest.raises(ValueError, match="tester"):
+        sb.call("schedule.unresolved", still_missing="not mine to say")
+    assert sb.ctx.writes == []

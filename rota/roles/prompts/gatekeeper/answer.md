@@ -16,3 +16,9 @@ so, and says where.
 **If the answer widens what is being asked for, that is a gate, not an edit.**
 Learning that conformance requires three things nobody mentioned is exactly the
 situation `msg.submit_liaison` exists for.
+
+**If it leaves you unable to say what would satisfy the item, say so:
+`schedule.unresolved`.** You are usually the rung others escalate *to*, so an
+answer that fails here has nowhere obvious to go and that is exactly why it must
+be said rather than absorbed. `still_missing` is what the item would need to
+state for you to slice it.

@@ -1061,13 +1061,58 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# schedule (derived; read-only for everyone)
+# schedule (derived, with one exception)
 # ---------------------------------------------------------------------------
 
 @op("schedule", "consult")
 def schedule_consult(ctx: Ctx) -> list[dict]:
     return _rows(ctx.conn.execute(
         "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
+
+
+@op("schedule", "unresolved")
+def schedule_unresolved(ctx: Ctx, still_missing: str) -> dict:
+    """
+    The answer came back and left you where you were.
+
+    The one declared transition in a register that is otherwise entirely
+    derived, and it has to be declared because the evidence disagrees with the
+    truth: the question's row says `answered`, a reply exists and is on file,
+    and only the asker knows it did not land. No query can tell that from a
+    good answer.
+
+    It takes no id. The question is the one this answer replies to, which the
+    causal chain already knows -- and asking a role to name a message id in the
+    session where it is telling us it is confused is a way to be told about the
+    wrong question.
+
+    `still_missing` is required and is the point of the call. The next rung
+    inherits the whole thread, so it can read what was asked and what came
+    back; what it cannot read is the gap between them, which is the only thing
+    that stops it answering identically. This is a question, and by the rule
+    that settled the mute channels, a question carries words.
+    """
+    if not ctx.trigger:
+        raise ValueError(
+            "this says the answer that woke you did not resolve your question, "
+            "and nothing woke you with an answer")
+
+    row = ctx.conn.execute(
+        "SELECT q.id AS qid, q.from_role AS asker, q.verb AS verb, q.status AS status "
+        "FROM messages a JOIN messages q ON q.id = a.cause_id WHERE a.id = ?",
+        (ctx.trigger,)).fetchone()
+
+    if row is None or row["verb"] != "question":
+        raise ValueError(
+            "the message that woke you is not a reply to a question you asked")
+    if row["asker"] != ctx.role:
+        raise ValueError(
+            f"that question was {row['asker']}'s, not yours; only the role that "
+            f"asked can say the answer did not land")
+
+    ctx.writes.append(("messages", row["qid"], {
+        "status": "unresolved", "unresolved_note": still_missing}, False))
+    return {"id": row["qid"], "status": "unresolved"}
 
 
 # ---------------------------------------------------------------------------

@@ -459,3 +459,111 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
                "'[\"g1\",\"g2\"]')")
     assert any(w.role == "tester" and w.kind == "tick:tests_missing"
                for w in frontier(db)), "the ruling never released the work"
+
+
+def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
+    """
+    The register's one declared entry, and everything after it derived.
+
+    Developer asks Gatekeeper, Gatekeeper answers, and the answer does not
+    land. Nothing in the rows can tell that from a good answer -- the question
+    says `answered` and a reply exists -- so the asker says so, and from there
+    who hears about it is a function of who has already spoken in the thread.
+
+    What this replaces is a role being told to spend attempts it knows are
+    wasted so a cap can notice what it already knows.
+    """
+    from rota.core.scheduler import frontier
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','developer','gatekeeper','question','[]',"
+               "'does partial reconciliation count as done?',1,'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES "
+               "('m2','m1','t1','gatekeeper','developer','answer','[]',2,'answered')")
+
+    assert not any(w.kind == "tick:unresolved" for w in frontier(db)), \
+        "an answered question is discharged until the asker says otherwise"
+
+    db.execute("UPDATE messages SET status = 'unresolved', unresolved_note = "
+               "'the criteria do not cover partial' WHERE id = 'm1'")
+
+    wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
+    assert [w.role for w in wakes] == ["architect"], \
+        "Gatekeeper has spoken; the climb must reach somebody who has not"
+    assert wakes[0].detail == "the criteria do not cover partial", \
+        "the note is the only thing the next rung cannot re-derive"
+
+    # The discharge is `session_commit`'s, because the climb must not walk
+    # itself: a rung that answers becomes a role that has spoken, which would
+    # derive the next rung, and one declaration would tour the whole ladder
+    # without the asker ever saying the second answer missed too.
+    from rota.core import db as db_mod
+
+    db_mod.session_commit(db, db_mod.SessionResult(
+        session_id="s1", role="architect",
+        messages=[db_mod.OutboundMessage(
+            id="m3", to_role="developer", verb="answer", thread_id="t1")]))
+
+    assert not any(w.kind == "tick:unresolved" for w in frontier(db)), \
+        "the climb repeated itself after the rung it woke had spoken"
+
+
+def test_the_climb_ends_at_the_principal_rather_than_nowhere(db):
+    """
+    Everyone who could answer has, and it is still open.
+
+    A ladder whose last rung is silence is the dead end this whole half exists
+    to prevent, so Liaison is the final rung -- not because it can answer, but
+    because it is how anything reaches the principal.
+    """
+    from rota.core.scheduler import frontier
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status, unresolved_note) VALUES "
+               "('m1','t1','developer','gatekeeper','question','[]','?',1,"
+               "'unresolved','still no rule for partial')")
+    for i, role in enumerate(("gatekeeper", "architect"), start=2):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, seq, status) VALUES "
+                   f"('m{i}','t1','{role}','developer','answer','[]',{i},'answered')")
+
+    wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
+    assert [w.role for w in wakes] == ["liaison"], \
+        "the roles are exhausted and it must go to the principal, not go quiet"
+
+    from rota.core import db as db_mod
+
+    db_mod.session_commit(db, db_mod.SessionResult(
+        session_id="s1", role="liaison",
+        messages=[db_mod.OutboundMessage(
+            id="m4", to_role="principal", verb="clarify", thread_id="t1",
+            body_text="purchase or sequence?")]))
+
+    assert not any(w.kind == "tick:unresolved" for w in frontier(db)), \
+        "it is on the principal's agenda now, which has a drain of its own"
+
+
+def test_a_rung_that_cannot_reply_to_the_asker_is_not_a_rung(db):
+    """
+    Reply-capability is read off the graph, not assumed.
+
+    Architect can answer Developer and has no edge to Tester, so a Tester
+    question that dies escalates straight past Architect. Waking a rung that
+    cannot speak to the asker produces a session with nothing it can do, and
+    that silence is indistinguishable from the answer having landed.
+    """
+    from rota.core.scheduler import frontier
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status, unresolved_note) VALUES "
+               "('m1','t1','tester','terminologist','question','[]','?',1,"
+               "'unresolved','which sense does the criterion take')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m2','t1','terminologist','tester','answer','[]',2,'answered')")
+
+    wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
+    assert [w.role for w in wakes] == ["gatekeeper"], \
+        "Architect cannot answer Tester; the climb must skip to one that can"

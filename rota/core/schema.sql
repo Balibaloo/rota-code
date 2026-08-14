@@ -380,8 +380,23 @@ CREATE TABLE IF NOT EXISTS messages (
     -- A crashed session leaves its trigger on the frontier. Without a bound,
     -- the scheduler wakes the same role with the same message forever.
     attempts    INTEGER NOT NULL DEFAULT 0,
+    -- What the asker still cannot proceed without, once an answer has landed
+    -- and not helped. The only thing on the register that no query can produce:
+    -- the row says `answered` and the answer is in `body_text` on the reply, and
+    -- neither of them knows it left the asker where it was.
+    --
+    -- It is on the question rather than in a table of its own because it is a
+    -- property of that question -- what it was really asking, said again by the
+    -- one role that found out the hard way. Nothing else can carry it: the
+    -- question's own `body_text` is the asker's first attempt at the words, and
+    -- overwriting it would destroy the evidence that the two differ.
+    unresolved_note TEXT,
     status      TEXT NOT NULL DEFAULT 'open'
-                CHECK (status IN ('open','answered','quarantined'))
+                -- 'unresolved': answered, and the asker says it did not land.
+                -- Not open (nobody owes a reply to a question already answered)
+                -- and not answered (the obligation is not discharged), so it is
+                -- its own state rather than a flag on either.
+                CHECK (status IN ('open','answered','unresolved','quarantined'))
 );
 CREATE INDEX IF NOT EXISTS ix_messages_cause  ON messages(cause_id);
 CREATE INDEX IF NOT EXISTS ix_messages_status ON messages(status);

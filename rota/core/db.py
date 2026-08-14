@@ -279,6 +279,24 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 ),
             )
 
+        # A dead answer is picked up by somebody speaking in its thread.
+        #
+        # The same shape as the trigger rule below and for the same reason: the
+        # escalation is discharged by what a session did, not by anyone
+        # remembering to close it. Without this the climb walked itself -- the
+        # rung answered, which made it a role that had spoken, which derived the
+        # *next* rung, and one declaration would have toured the whole ladder
+        # without the asker ever saying the second answer missed too.
+        #
+        # Not messages this role sent itself: the asker can send in its own
+        # thread while still blocked, and that is not somebody picking it up.
+        for thread in {m.thread_id or m.cause_id or m.id for m in result.messages}:
+            conn.execute(
+                "UPDATE messages SET status = 'answered' "
+                "WHERE status = 'unresolved' AND thread_id = ? AND from_role != ?",
+                (thread, result.role),
+            )
+
         for i, (fn, args) in enumerate(result.tool_calls, start=1):
             conn.execute(
                 "INSERT INTO tool_calls (session_id, fn, args_summary, seq) "
