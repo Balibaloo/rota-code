@@ -119,6 +119,30 @@ One diagnosis, four roles: **the toolkit is narrowed per mode, and never per
 situation.** Every one of these is a session holding both the decisive action
 and an alternative, where the state already determines which applies.
 
+**How many cases it actually closes: one.** Counted rather than asserted, on
+the third try, because the first two counts in this document were wrong:
+
+| case | derivable from state? |
+|---|---|
+| `GK-the-last-rung` | **yes** — the asker is on the wake |
+| `LI-a-question-the-roles-could-not-answer` | yes, and already fixed |
+| `TS-a-word-with-two-senses` | yes, and the frontier already suppresses it — this case only runs because L1 injects wakes directly |
+| `TS-a-criterion-no-machine-could-check` | **no.** "Easy for the finance team to work with" is unambiguous and untestable, and nothing in the rows says so |
+| `TS-an-outside-fact-is-the-researchers` | **no.** Which criteria need a fact the project does not hold is a judgement |
+| `TS-apply-a-term-and-write-the-test` | unrelated — a regression from the `reask` rename |
+
+So the principle is sound and its reach is narrow. That is worth writing down
+plainly, because a design principle that explains everything explains nothing,
+and this one was on its way there.
+
+**The two judgement cases are the interesting residue.** They have never passed,
+under any prompt, in fifty runs each. No affordance is missing and no narrowing
+applies: the role has to look at a sentence and conclude *this cannot be
+tested*, or *this needs a fact we do not have*. If anything here is a limit of
+the model rather than of the design, it is these two — and unlike the earlier
+version of that claim, this one is arrived at by elimination rather than
+offered as a hypothesis.
+
 And that is not a new principle — it is one the frontier already applies and
 the sandbox does not. `rests_on_a_collision` refuses to *offer* Tester a batch
 whose criteria turn on a word with two live senses, precisely because a test
@@ -137,11 +161,13 @@ never been observed. Holes look like that before somebody draws the set.
 
 In the order the frame produces them, not the order they were noticed.
 
-1. **The toolkit is narrowed per mode and never per situation.** This is the
-   one that matters, and it accounts for five of six failing cases across four
-   roles. The scheduler already reasons this way and refuses to offer work that
-   rests on an open obligation; the sandbox builds the same namespace for a
-   mode no matter what the wake says. Where the state determines which of two
+1. **The toolkit is narrowed per mode and never per situation.** Right as a
+   principle, small as a fix: one currently-failing case, and an unknown number
+   of future ones, since it is the class of bug that only becomes visible when
+   a case happens to sit on it. The scheduler already reasons this way and
+   refuses to offer work that rests on an open obligation; the sandbox builds
+   the same namespace for a mode no matter what the wake says. Where the state
+   determines which of two
    available things applies — which role asked, whether the term is settled,
    whether this session's job is to record or to report — the namespace should
    reflect it, and the alternative should be absent rather than discouraged.
@@ -166,6 +192,20 @@ for, and Law 3 refuses the escalate edge on the grounds that Tester cannot read
 what it would be escalating about. The vocabulary table above is still worth
 having — it is how Critic's hole was found — but it is not what is breaking
 Tester.
+
+## A note on this document
+
+Three claims in it were wrong and were corrected within the hour: that Tester's
+reds came from a missing verb, that one gap explained five of six cases, and
+that the vocabulary table was the main finding. Each was stated confidently,
+each was checked afterwards rather than before, and each fell to a five-minute
+query against fixtures that were already there.
+
+The pattern is worth more than the corrections. A frame that explains everything
+you already knew is doing something other than explaining, and the tell each
+time was reaching for a satisfying shape — *four roles, one cause* — before
+counting. Where this document now says something is derivable, it has been
+checked. Where it says a thing cannot be, that has been checked too.
 
 ## What this does not change
 
