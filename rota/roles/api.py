@@ -830,11 +830,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
+    # The criterion is checked *first*, because the batch is derived from it and
+    # a derivation from a bad input fails in terms of the derived thing. An
+    # invented `criterion_id` used to come back as "no batch in this session and
+    # none given" -- true, unactionable, and about the one argument the model was
+    # never given and cannot supply. Ten identical retries in one session, on a
+    # case that had passed 130 times out of 140, and the fault was named nowhere
+    # in the message. `_must_exist` names the ids that would have worked.
+    _must_exist(ctx, "criteria", criterion_id)
+
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:
-        raise ValueError("no batch in this session and none given")
+        raise ValueError(
+            f"{criterion_id} exists and belongs to no batch, and this session "
+            f"was not woken for one, so there is nothing to attach the test to")
     _must_exist(ctx, "batches", batch_id)
-    _must_exist(ctx, "criteria", criterion_id)
 
     # Re-encoding a test byte for byte is not a write, and staging it as one
     # bumps a version to record that nothing happened. A Tester defending a
