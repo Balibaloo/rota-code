@@ -121,31 +121,74 @@ a different open question and should not be smuggled in through this door.
 it makes no decisions, so there is nothing for it to be unable to decide — a
 question it cannot answer is one it passes on, which is its ordinary work.
 
+## Where this sits against the escalation ladder
+
+There are already two ways to say "I cannot proceed", and this would be a third
+unless it does a different job. It does.
+
+| | job | names a recipient |
+|---|---|---|
+| `escalate`, `question`, `challenge`, `report` | the **request** — route the problem to whoever owns it | yes |
+| `blocked` | the **state** the request leaves you in | no |
+| quarantine | the **scheduler's** verdict once the cap is spent | n/a |
+
+The ladder stays the only way to route anything. `blocked` routes nothing; its
+whole job is to stop the frontier re-offering work that cannot move.
+
+**So `blocked` requires an outstanding request and must point at it.** The ref
+must resolve to an open message this role sent. Without one you are not blocked,
+you are stuck, and the ladder is what you owe — which is the rule that stops
+this becoming a shortcut past it, and it is checkable in exactly the way
+`none_found`'s citations are.
+
+What that fixes is visible in the predicates today. `tests_failing` fires for
+any batch with a failing run, capped by `loop_cap`, and **does not care whether
+the Developer is waiting on an answer**. A Developer that hits an ambiguous term
+mid-batch, asks, and stops is woken again with identical state, asks again — the
+duplicate guard refuses it — hedges, and repeats until the cap is spent. Only
+then does `exhausted` fire. The system's current answer to "I am waiting" is
+*burn the loop cap, then escalate.*
+
+Three consequences:
+
+- the wake is suppressed while the question is open, and **unblocking is already
+  wired**: the answer is a message to the asker, which tips and wakes it
+- quarantine returns to meaning genuinely stalled work rather than a role
+  waiting politely
+- `exhausted` stops being reached by attrition. It fires today because a cap ran
+  out, which conflates "I asked and the answer did not help" with "I have been
+  spinning" — and the mode is written for the first
+
 ## Propagation
 
 - **Message wake.** `blocked` answers the sender with the refusal and its refs.
   The sender is woken by it and is the one who chose to ask, so it is the one
   that must now do something else. This is the "error that propagates to the
   invoker" in the ordinary sense.
-- **Tick wake.** There is no sender. `blocked` must land somewhere a predicate
-  can see, or the work is silently dropped — which is the artefact this system
-  does not have. Until open uncertainty is a table, a tick-woken `blocked` has
-  nowhere honest to go, and **this half should not be built first.**
+- **Tick wake.** There is no sender, and for a while I had this waiting on an
+  artefact that does not exist. It does not need one: if `blocked` must cite an
+  open message, **the messages table already holds the state**. "This batch is
+  waiting on `m5`" is a fact about a row that exists, and the predicate skips
+  the wake while it is open. The open-uncertainty artefact is still worth
+  having, for *aggregation* — dedupe, and answering "what does this system not
+  know" — but it is not a prerequisite.
 - **`settled`** drains the wake and propagates to nobody, which is what makes it
   the safe half to build.
 
 ## Build order
 
-1. **`settled`, tick wakes only.** It has a working precedent, needs no new
-   artefact, and its propagation question is empty. It closes the round_close
-   shape and the "no terminal act" gap directly.
-2. **The open-uncertainty artefact**, because `blocked` from a tick has nowhere
-   to land without it, and because it is separately worth having: answers
-   accumulate in this system and questions do not, so the same ambiguity found
-   in two batches is two discoveries by two roles with no memory.
-3. **`blocked`, message wakes**, which needs only the refusal verb and the
-   sender.
-4. **`blocked`, tick wakes**, once 2 exists.
+1. **`settled`, tick wakes only.** Working precedent, no new artefact, empty
+   propagation question. Closes the round_close shape and the "no terminal act"
+   gap directly.
+2. **`blocked`**, both wake kinds, gated on citing an open message the role
+   sent. Both kinds land in the same place, so they are one piece of work.
+3. **The predicate suppression** that makes it worth having: a wake whose work
+   is blocked on an open message is not offered. This is where the loop-cap burn
+   stops.
+4. **The open-uncertainty artefact**, for aggregation rather than for
+   propagation. Answers accumulate in this system and questions do not, so the
+   same ambiguity found in two batches is two discoveries by two roles with no
+   memory of each other.
 
 ## What would falsify this
 
