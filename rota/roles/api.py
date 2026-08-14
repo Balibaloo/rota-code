@@ -178,6 +178,41 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     target = span_entry or ctx.entry_id
     if not target:
         raise ValueError("no entry to segment against")
+
+    # The same span twice is the same statement twice, whatever id it is given.
+    #
+    # The ids are the model's, so nothing collided and nothing complained:
+    # `L1-LI-segment` produced twenty-four statements from one sentence, which
+    # were three statements issued eight times, and passed 5/5 because the case
+    # asserted `count: ">=1"`. Every one of them would have gone to the
+    # principal to ratify and to three roles to work from.
+    #
+    # Reported rather than refused, on `tests.encode`'s precedent: the session
+    # is not doing anything wrong by arriving at the same segmentation, and an
+    # error would invite it to invent a different one.
+    same = [w for w in ctx.writes
+            if w[0] == "statements"
+            and w[2].get("span_start") == span_start
+            and w[2].get("span_end") == span_end
+            and w[2].get("span_entry") == target]
+    if same:
+        return {"id": same[0][1], "unchanged": True,
+                "note": "this span is already segmented, as "
+                        f"{same[0][1]}; nothing was written."}
+
+    # Segmenting is not interpreting, and the span is what makes that checkable.
+    # A statement whose text is not in the entry is one the principal never
+    # said -- a live run produced "and also fix the login timeout" against a
+    # sentence about SSO and LDAP. The span was always the way back to their
+    # words; nothing had ever looked through it.
+    row = ctx.conn.execute(
+        "SELECT text FROM entries WHERE id = ?", (target,)).fetchone()
+    if row is not None and text.strip() and text.strip() not in row["text"]:
+        raise ValueError(
+            f"{text.strip()[:60]!r} does not appear in the entry you are "
+            f"segmenting. A statement is a span of what they said, so its text "
+            f"has to be their words -- the entry reads: {row['text'][:120]!r}")
+
     ctx.writes.append(("statements", id, {
         "span_entry": target, "span_start": span_start,
         "span_end": span_end, "text": text, "status": "proposed"}))

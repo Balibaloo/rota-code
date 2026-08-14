@@ -92,6 +92,20 @@ class ConsolePrincipal:                                    # pragma: no cover
 
     name = "console"
 
+    def _read(self) -> str | None:
+        """
+        None on a closed stdin, which is a deferral rather than a crash.
+
+        Piping a single line in took a whole run down with an `EOFError` raised
+        inside `pump` -- the loop reached the point of asking the principal,
+        which was the thing being proved, and died on the way to the question.
+        """
+        try:
+            return input("> ").strip()
+        except EOFError:
+            print("(stdin closed — deferred)")
+            return None
+
     def respond(self, ask: Ask) -> Answer | None:
         print(f"\n[{ask.verb}] {ask.rendered or ask.refs}")
         if ask.verb in ("confirm", "present"):

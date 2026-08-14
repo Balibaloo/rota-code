@@ -199,9 +199,22 @@ _COUNT = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+)$")
 
 
 def _count_ok(actual: int, spec: Any) -> bool:
+    """
+    A comparator, or a range.
+
+    Ranges exist because `">=1"` was the only thing most expectations said, and
+    a lower bound alone measures that something happened rather than that it was
+    right. `L1-LI-segment` asserted `statements: {count: ">=1"}` and was green at
+    5/5 while turning one short sentence into fourteen statements -- every one of
+    which the roles downstream would have had to carry.
+    """
     if spec is None:
         return actual > 0
-    m = _COUNT.match(str(spec).strip())
+    text = str(spec).strip()
+    if ".." in text:
+        lo, _, hi = text.partition("..")
+        return int(lo) <= actual <= int(hi)
+    m = _COUNT.match(text)
     if not m:
         return False
     op, n = m.group(1) or "==", int(m.group(2))

@@ -15,7 +15,12 @@
             body_refs: []}
   expect:
     writes:
-      statements: {count: ">=1"}
+      # Bounded above, because a lower bound alone measures that something
+      # happened. This asserted ">=1" and passed 5/5 while the same role turned
+      # "let people export their invoices as CSV" into fourteen statements in a
+      # live run. "morning" is not a statement and the rest is one commitment
+      # with a condition on it, so three is already generous.
+      statements: {count: "1..3"}
   forbidden:
     # Recording is mechanical and already done — a second entry is the
     # fabrication this cost a session to learn about. And segmenting is not
