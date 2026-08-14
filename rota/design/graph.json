@@ -578,7 +578,8 @@
       "v": "confirm",
       "n": "statement list",
       "label": "ratification",
-      "rows": "all"
+      "rows": "all",
+      "prose": "note"
     },
     {
       "s": "liaison",
