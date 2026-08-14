@@ -586,7 +586,8 @@
       "type": "messages",
       "v": "clarify",
       "n": "ordered questions",
-      "rows": "all"
+      "rows": "all",
+      "prose": "question"
     },
     {
       "s": "liaison",
@@ -761,7 +762,8 @@
       "v": "present",
       "n": "draft statement",
       "label": "signoff · reads as one document",
-      "rows": "all"
+      "rows": "all",
+      "prose": "note"
     },
     {
       "s": "principal",
