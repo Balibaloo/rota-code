@@ -96,7 +96,7 @@ class ConsolePrincipal:                                    # pragma: no cover
         print(f"\n[{ask.verb}] {ask.rendered or ask.refs}")
         if ask.verb in ("confirm", "present"):
             print("  per-item: 'id=approve id2=contest', 'lgtm' for all, blank to defer")
-            raw = input("> ").strip()
+            raw = self._read()
             if not raw:
                 return None
             if raw.lower() in ("lgtm", "ok", "yes"):
@@ -105,7 +105,7 @@ class ConsolePrincipal:                                    # pragma: no cover
             per_item = dict(
                 part.split("=", 1) for part in raw.split() if "=" in part)
             return Answer(verb="verdict", per_item=per_item)
-        raw = input("> ").strip()
+        raw = self._read()
         return Answer(verb="converse", text=raw) if raw else None
 
 
