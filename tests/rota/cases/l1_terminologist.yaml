@@ -145,3 +145,41 @@
     # principal's attention on a round with nothing in it.
     writes: [glossary_terms, decisions, items, statements]
     recipients: [liaison, researcher]
+
+- id: L1-TE-put-a-word-with-two-senses-to-the-principal
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  tick: term_collision
+  refs: [<g1>, <g2>]
+  # The mode `term_collision` created, and the obligation it exists to raise.
+  # Two statements that conflict have gone to the principal since
+  # `contradiction` was written; two senses of one word are the same situation
+  # in the glossary and used to sit there until a role tripped over them.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "archived orders should still be searchable"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 42,
+         text: "archived orders are searchable", status: ratified}
+    glossary_terms:
+      # Genuinely two promises. One keeps the row and hides it; the other moves
+      # it somewhere cheaper and slower. Code written against the wrong one is
+      # wrong in a way no test written from the same sense would catch.
+      - {id: <g1>, term: archived, sense_short: "flagged inactive, row stays in place",
+         provenance: decided}
+      - {id: <g2>, term: archived, sense_short: "moved to cold storage",
+         provenance: decided}
+  expect:
+    messages:
+      - {to: liaison, verb: report, count: 1, refs_include: [<g1>, <g2>]}
+  forbidden:
+    # Collapsing the two is the failure: it is fast, it reads as tidying, and it
+    # picks which promise the software keeps without anyone deciding to. The
+    # mode offers no `glossary.amend` at all, so this is belt and braces on a
+    # guarantee that already holds structurally -- and `decisions` would be the
+    # same ruling written by the wrong role.
+    writes: [glossary_terms, decisions, statements]
+    recipients: [gatekeeper, architect, developer, tester, researcher]
