@@ -136,15 +136,25 @@
          provenance: decided}
   inbound: {from: liaison, to: terminologist, verb: deliver, body_refs: [<s1>]}
   expect:
-    messages: []
+    # Ruled: a role woken by a message may reply that it has nothing to do. The
+    # absence already had a positive form and no brief used it -- a report whose
+    # refs are all ratified is settled, and `report_is_settled` strikes it out
+    # before Liaison's round_close ever sees it. So this costs the principal
+    # nothing, and the round learns the difference between done and silent,
+    # which are identical from outside.
+    #
+    # This case previously expected `messages: []` and forbade Liaison. That was
+    # written on the assumption that any reply spends attention, before the
+    # settled-report machinery existed to make it free.
+    messages:
+      - {to: liaison, verb: report, count: 1, refs_include: [<s1>]}
   forbidden:
     # A second sense for a word that has one is the failure this measures: it
     # reads as diligence, it survives review because both senses look
     # reasonable, and every criterion written afterwards has two things it
-    # might mean. Reporting to Liaison is the other way out and costs the
-    # principal's attention on a round with nothing in it.
+    # might mean.
     writes: [glossary_terms, decisions, items, statements]
-    recipients: [liaison, researcher]
+    recipients: [researcher]
 
 - id: L1-TE-put-a-word-with-two-senses-to-the-principal
   tier: T1
