@@ -588,3 +588,39 @@ def test_a_pipe_in_a_value_cannot_forge_a_column(db):
 
     out = _render([{"term": "a|b", "sense": "x"}, {"term": "c", "sense": "y"}])
     assert r"a\|b" in out
+
+
+def test_reports_about_one_thing_arrive_as_one_group():
+    """
+    Dedupe was Liaison's judgement and is a join.
+
+    The brief said what makes two reports one question -- both point back at the
+    same statement -- and then asked the model to work it out anyway. Liaison
+    does not make decisions; its responsibility is lossless communication, so
+    the grouping arrives done and what is left is turning each group into words.
+
+    Connected components, not pairs: A and B share a statement, B and C share a
+    term, and all three are one question in three vocabularies. Pairwise
+    grouping would put two questions to the principal.
+    """
+    from rota.core.runner import _group_by_shared_refs
+
+    reports = [
+        {"id": "m1", "from": "terminologist", "refs": ["g1", "g2", "s1"]},
+        {"id": "m2", "from": "gatekeeper", "refs": ["i1", "s1"]},
+        {"id": "m3", "from": "architect", "refs": ["g2", "k1"]},
+        {"id": "m4", "from": "tester", "refs": ["c9"]},
+    ]
+    assert _group_by_shared_refs(reports) == [["m1", "m2", "m3"], ["m4"]]
+
+    # Nothing shared is nothing merged, which is the case that must not regress:
+    # a round of unrelated blockers is several questions and merging them would
+    # lose one.
+    apart = [{"id": "m1", "from": "a", "refs": ["x"]},
+             {"id": "m2", "from": "b", "refs": ["y"]}]
+    assert _group_by_shared_refs(apart) == [["m1"], ["m2"]]
+
+    # A report carrying no refs is its own group rather than joining everything.
+    bare = [{"id": "m1", "from": "a", "refs": []},
+            {"id": "m2", "from": "b", "refs": []}]
+    assert _group_by_shared_refs(bare) == [["m1"], ["m2"]]

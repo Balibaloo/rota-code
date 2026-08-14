@@ -10,10 +10,15 @@ are all settled never reaches you, because whether a role has finished is a
 lookup and not a decision, and decisions are not yours. What you have is the
 round's business, all of it.
 
-**Dedupe.** Two roles hitting the same blocker in different
-vocabulary is the normal case, not the exception — Terminologist will call it a
-term collision and Gatekeeper will call it a scope ambiguity when it is one
-question. Merge them.
+**`about` has already grouped them.** Two roles hitting the same blocker in
+different vocabulary is the normal case rather than the exception —
+Terminologist calls it a term collision, Gatekeeper calls it a scope ambiguity,
+and they point at the same statement. That shared ref is what makes them one
+question, so the grouping is a join and it arrives done. **One group is one
+question.**
+
+What is left is the part that is actually yours: turning each group into words
+the principal can answer.
 
 **If something needs a ruling:** turn it into at most **two** questions and send
 one `msg.clarify_principal`. Order them so the answer that unblocks the most

@@ -76,7 +76,7 @@ should be a thing a role remembers to file.
 | **a question awaiting an answer** | open message, verb `question` | the answer arriving | the role asked | **derivable, underived** |
 | a role waiting on its own question | this role sent a message still open | the answer arriving | — | **works** |
 | a word with two live senses | ≥2 `glossary_terms` sharing a term, no decision | the principal's ruling | terminologist raises | **works** |
-| **two questions about the same thing** | open questions whose refs intersect | merged before sending | liaison | **derivable, underived** — and dedupe is judgement today |
+| two reports about the same thing | reports whose refs intersect, transitively | merged before sending | liaison | **works** |
 | **an answer that did not resolve it** | *not derivable* | asking again, elsewhere | the asker | **the one honest declaration** |
 
 ## What the gaps have in common
@@ -115,16 +115,22 @@ for the evidence in it rather than the design.
 
 ## What is worth building, in order
 
-1. **The waiting view.** A role with an open outbound question is not offered
-   the work that question blocks. One query, and it stops the cap burn that is
-   behind most of this week's churn.
-2. **The open-question view.** Open questions as a queryable set, so dedupe is a
-   join and not a judgement, and so "what is unresolved" can be answered at all.
-3. **The two-senses predicate.** A word with two live senses and no ruling is an
-   obligation nobody currently raises; today it is found only when a role trips
-   over it.
-4. **The declaration**, last, because it is the only piece that cannot be
-   checked by derivation and should be added when everything cheaper is in
-   place.
+1. ~~**The waiting view.**~~ Built. A role with an open outbound question is not
+   offered new work; the answer still reaches it, because message tips are never
+   filtered.
+2. ~~**The two-senses predicate.**~~ Built as `term_collision`, the glossary's
+   `contradiction`.
+3. ~~**Dedupe as a join.**~~ Built. Reports sharing a ref arrive grouped in
+   `about`, by connected components rather than pairs, so A-B and B-C is one
+   question in three vocabularies rather than two questions.
+4. **The declaration**, still open, and the only piece that cannot be checked by
+   derivation: an answered question that did not help. The row says answered and
+   only the asker knows it left them where they were.
 
-Nothing here adds an artefact. Three views and one verb.
+Nothing here added an artefact. Three views, and one verb still to come.
+
+**What is still traffic.** "What does this system not know" remains unanswerable
+as a single query -- the obligations are derived one predicate at a time and
+never counted together. That is the aggregation the open-uncertainty artefact
+would give, and it is worth having for its own sake rather than as a
+prerequisite for anything above.

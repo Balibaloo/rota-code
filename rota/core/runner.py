@@ -449,6 +449,52 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
     return resolved
 
 
+def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:
+    """
+    Reports that are about the same thing, grouped by the refs they share.
+
+    Dedupe is the only reason a round waits, and it was Liaison's judgement:
+    "Terminologist will call it a term collision and Gatekeeper will call it a
+    scope ambiguity when it is one question. Merge them." But the brief also
+    says what makes them one question -- both point back at the same statement
+    -- and that is a join, not a decision. Liaison does not make decisions.
+
+    So the grouping arrives done. What is left for Liaison is the part that is
+    genuinely its own: turning each group into words the principal can answer.
+
+    Connected components rather than pairwise, because A-B and B-C is one
+    question in three vocabularies and pairwise grouping would send two.
+    """
+    parent = {r["id"]: r["id"] for r in reports}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    by_ref: dict[str, str] = {}
+    for r in reports:
+        for ref in r["refs"]:
+            if ref in by_ref:
+                union(r["id"], by_ref[ref])
+            else:
+                by_ref[ref] = r["id"]
+
+    groups: dict[str, list[str]] = {}
+    for r in reports:
+        groups.setdefault(find(r["id"]), []).append(r["id"])
+    # Ordered by the first report in each, so the rendering is stable.
+    order = {r["id"]: i for i, r in enumerate(reports)}
+    return sorted((sorted(g, key=order.get) for g in groups.values()),
+                  key=lambda g: order[g[0]])
+
+
 def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     Every report in the round, each one's refs resolved one hop.
@@ -481,7 +527,9 @@ def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         every_ref.extend(refs)
         reports.append({"id": r["id"], "from": r["from_role"], "refs": refs})
 
-    out: dict[str, Any] = {"thread": thread, "reports": reports}
+    out: dict[str, Any] = {"thread": thread,
+                           "reports": reports,
+                           "about": _group_by_shared_refs(reports)}
     resolved = _resolve_refs(conn, every_ref)
     if resolved:
         out["resolved_refs"] = resolved

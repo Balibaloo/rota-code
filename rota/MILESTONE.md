@@ -214,6 +214,49 @@ visible to any deterministic check:
 
 ---
 
+## 5B · The register — the half that had no shape
+
+Not in the original plan, and it should have been. The delivery spine was easy
+to design because software practice hands the shape over: a sequence, an
+artefact per step, a definition of done, an owner. The other half was built one
+predicate at a time — correctly each time — and never looked at as a set, so
+its common properties went unenforced and its gaps stayed invisible.
+
+It is a **register of open obligations**, not a pipeline. Fifteen of the
+twenty-seven predicates already were one; nobody had drawn the collection, and
+nobody can see a hole in a collection nobody has drawn. Detail in
+`REGISTER.md`; the invariant comes from constraint zero, which is the entry
+that already worked: **derived, never authored; discharged only by evidence;
+unreachable by judgement.**
+
+- [x] **5B.1 the set is drawn and pinned.** A new predicate must be classified
+      spine or register, or the check fails
+- [x] **5B.2 waiting.** An open outbound `question` is what waiting *is*, so a
+      role holding one is not offered new work. Message tips are never
+      filtered, or waiting is deadlock. This is the loop-cap burn behind most
+      of the churn: the previous answer to "I am waiting" was spend the budget,
+      then escalate
+- [x] **5B.3 `term_collision`.** Two senses of one word is the glossary's
+      `contradiction` and raised nothing at all — it sat there until a role
+      tripped over it, which is why two roles blocked on one ambiguity were two
+      discoveries
+- [x] **5B.4 dedupe is a join.** Reports sharing a ref arrive grouped, by
+      connected components rather than pairs. Liaison makes no decisions, and
+      working out which reports are the same question was one
+- [ ] **5B.5 the one declaration.** An answered question that did not help.
+      Nothing derives it — the row says answered and only the asker knows it
+      left them where they were — and it is what the `exhausted` modes are for
+- [ ] **5B.6 aggregation.** "What does this system not know" is still
+      unanswerable as one query: the obligations are derived one predicate at a
+      time and never counted together
+
+**Superseded on the way:** `REFUSAL.md` specced two verbs, `settled` and
+`blocked`. `settled` dissolved into predicates evaluated properly and `blocked`
+into a query over open messages. Kept for its evidence, not its design — and as
+the record of proposing declaration where derivation was available, twice.
+
+---
+
 ## 6 · L3 — handoffs · 235 chains
 
 - [x] **6.1** prioritise chains where B *changes an artefact*, not chains that
