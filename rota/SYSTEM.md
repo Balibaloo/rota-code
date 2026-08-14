@@ -84,58 +84,88 @@ same problem as this, solved once, in one place, and never generalised.
 
 Two roles cannot say most of what a stuck role needs to say.
 
-## What this predicts, and what actually happened
+## What this predicts, and where it was wrong
 
-A frame is worth having only if it predicts the failures before you look. This
-one does.
+A frame is worth having only if it predicts the failures before you look, and
+this one has to be corrected on its first test.
 
-**Tester** has one move. So a Tester that cannot proceed will do the only thing
-it can: the work in front of it, badly, and an ask alongside. That is precisely
-what four red cases show — three tests written *and* a question sent, in the
-same session, when the case wanted the question alone. It is not a role being
-careless. It is a role with an obligation and no affordance, improvising.
+**It predicted Tester's reds and the prediction was false.** Tester has one
+move *when stuck*, so a stuck Tester should improvise — and four red cases do
+show three tests written *and* a question sent when the case wanted the question
+alone. But every one of those cases wants a `question` to Gatekeeper,
+Terminologist or Researcher, and **Tester already has all three.** The
+affordance is there. The role reaches for it and writes the tests anyway.
 
-**Critic** cannot ask. No case tests a Critic that does not understand a
-criterion, so this has never been observed. It is a hole, not a bug, and holes
-are only found by drawing the set.
+Law 3 makes the same point from the other side. `tester → architect escalate`
+was drafted and refused: Tester neither reads an artefact Architect writes nor
+writes one Architect reads. Developer's escalate is legitimate because Developer
+reads the model, and a role that cannot see constraints could never detect the
+collision it would be escalating. The missing edge was not missing; it was
+undetectable, which is a different thing and a better answer.
 
-**Gatekeeper answering the wrong role** is the other shape: not a missing move
-but an ambiguous one. Woken to a thread between Tester and Terminologist, it
-answered Developer five runs out of five, because the mode offers both channels
-and only prose says which. An affordance the situation does not narrow is a
-guess with extra steps.
+**What actually explains every observed failure is the other half.**
 
-So the failures divide cleanly:
+- **Tester** is offered `tests.encode` in the same session where the right move
+  is to ask. Both are available and only prose says when.
+- **Gatekeeper**, woken to a thread between Tester and Terminologist, answered
+  Developer five runs out of five: two answer channels, one situation, prose
+  alone distinguishing them.
+- **Architect**, given `schedule.reask` in a mode whose job is to record a
+  constraint, called it with a boolean and never recorded the constraint.
+- **Liaison** attached a message id, then the statement's text, to a channel
+  where only the statement id resolves.
 
-- **no affordance** — the role has nothing to say. Tester, Critic.
-- **ambiguous affordance** — the role has two and the situation determines
-  which, but only prose says so. Gatekeeper's answer channel.
+One diagnosis, four roles: **the toolkit is narrowed per mode, and never per
+situation.** Every one of these is a session holding both the decisive action
+and an alternative, where the state already determines which applies.
 
-Both are structural. Neither is a prompt problem, which is consistent with prose
-having failed to move any of them.
+And that is not a new principle — it is one the frontier already applies and
+the sandbox does not. `rests_on_a_collision` refuses to *offer* Tester a batch
+whose criteria turn on a word with two live senses, precisely because a test
+written from the wrong sense passes and pins the wrong promise. The scheduler
+narrows by situation. Once a session starts, that reasoning stops.
+
+So there is one gap, not two, and it accounts for five of the six failing
+cases. Prose has failed to move any of them, which is what a structural gap
+looks like from the outside.
+
+**Critic's hole survives the correction**, and stands on its own: it cannot ask
+anything. No case tests a Critic that does not understand a criterion, so it has
+never been observed. Holes look like that before somebody draws the set.
 
 ## Where the current design is lacking
 
 In the order the frame produces them, not the order they were noticed.
 
-1. **Tester's vocabulary.** Ruled: it gets `escalate`, the same as Developer.
-   `challenge` and `report` follow from the same argument and should be settled
-   at the same time rather than one per discovered failure.
-2. **Critic's inability to ask.** Critic is starved of the model and the
-   decisions on purpose, and that starvation is load-bearing — a judge that
-   remembers its prior objection is anchored. But *cannot see* and *cannot ask*
-   are different properties, and only the first was intended.
-3. **Ambiguous recipients.** Where a mode grants two channels and the wake
-   determines which, the sandbox should narrow to the one — it narrows per mode
-   today and not per wake. The recipient is derivable; it is the role that
-   asked.
-4. **`architect → terminologist` has no reply edge.** The only question channel
+1. **The toolkit is narrowed per mode and never per situation.** This is the
+   one that matters, and it accounts for five of six failing cases across four
+   roles. The scheduler already reasons this way and refuses to offer work that
+   rests on an open obligation; the sandbox builds the same namespace for a
+   mode no matter what the wake says. Where the state determines which of two
+   available things applies — which role asked, whether the term is settled,
+   whether this session's job is to record or to report — the namespace should
+   reflect it, and the alternative should be absent rather than discouraged.
+
+   That is this repository's one reliable finding, applied where it has not
+   been: *absence works, prose does not.*
+
+2. **Critic cannot ask.** Critic is starved of the model and the decisions on
+   purpose, and that starvation is load-bearing — a judge that remembers its
+   prior objection is anchored. But *cannot see* and *cannot ask* are different
+   properties, and only the first was intended.
+
+3. **`architect → terminologist` has no reply edge.** The only question channel
    in the system that cannot be answered.
-5. **The aggregation.** "What does this system not know" is still not one query,
+
+4. **The aggregation.** "What does this system not know" is still not one query,
    though every row of it exists.
 
-Items 1–3 are one design decision each and would close five of the six failing
-cases. Item 4 is a single edge. Item 5 is the register's last piece.
+**Not on the list, having been checked and found not to be a gap:** Tester's
+missing `escalate`. It has the three question channels its failing cases call
+for, and Law 3 refuses the escalate edge on the grounds that Tester cannot read
+what it would be escalating about. The vocabulary table above is still worth
+having — it is how Critic's hole was found — but it is not what is breaking
+Tester.
 
 ## What this does not change
 
