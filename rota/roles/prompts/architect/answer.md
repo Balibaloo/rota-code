@@ -20,7 +20,7 @@ notice it being broken, it is not a constraint — and a document existing is no
 the same as this project being bound by it.
 
 **If it does not settle whether this project is bound, say so:
-`schedule.unresolved`.** The Researcher can tell you what a document says and
+`schedule.reask`.** The Researcher can tell you what a document says and
 never whether this codebase claims to conform, so an answer that quotes a
-clause and leaves that open has not answered you. `still_missing` is the
+clause and leaves that open has not answered you. `what_is_missing` is the
 commitment you cannot confirm — which is the question you were really asking.

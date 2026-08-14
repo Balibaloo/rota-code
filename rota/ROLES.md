@@ -44,7 +44,7 @@ Four are shared, by ruling rather than by accident:
 - **`surveys`** — architect, gatekeeper, terminologist. A survey record is an
   attestation by the role that did the reading.
 - **`schedule`** — architect, developer, gatekeeper, terminologist, tester, via
-  `schedule.unresolved` alone. Everything else about the schedule is derived and
+  `schedule.reask` alone. Everything else about the schedule is derived and
   read-only; this is the one thing the scheduler cannot derive, which is a role
   saying an answer it received did not resolve what it asked. Same shape as the
   ledger: whoever hit it is the only one who can report it, and restricting the

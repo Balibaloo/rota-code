@@ -205,7 +205,7 @@ def test_s9_a_list_argument_still_takes_a_list(db):
 
 def test_the_declaration_takes_no_id_and_finds_the_question_it_answers(db):
     """
-    `schedule.unresolved` is the register's one declared transition.
+    `schedule.reask` is the register's one declared transition.
 
     It deliberately takes no message id. The role is telling us it read an
     answer and is still blocked; asking it to name a row in that same session is
@@ -221,7 +221,7 @@ def test_the_declaration_takes_no_id_and_finds_the_question_it_answers(db):
 
     sb = build("developer", db)
     sb.ctx.trigger = "m2"
-    sb.call("schedule.unresolved", still_missing="the criteria do not cover partial")
+    sb.call("schedule.reask", what_is_missing="the criteria do not cover partial")
 
     assert sb.ctx.writes == [("messages", "m1", {
         "status": "unresolved",
@@ -245,5 +245,5 @@ def test_only_the_asker_can_say_the_answer_did_not_land(db):
     sb = build("developer", db)
     sb.ctx.trigger = "m2"
     with pytest.raises(ValueError, match="tester"):
-        sb.call("schedule.unresolved", still_missing="not mine to say")
+        sb.call("schedule.reask", what_is_missing="not mine to say")
     assert sb.ctx.writes == []

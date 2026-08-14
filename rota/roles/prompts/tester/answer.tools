@@ -4,4 +4,4 @@ glossary.lookup
 tests.consult
 tests.encode
 ledger.log
-schedule.unresolved
+schedule.reask

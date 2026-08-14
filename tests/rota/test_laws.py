@@ -198,7 +198,7 @@ def test_owners_can_read_what_they_own(g):
     # Ledger writers read nothing; `ledger.log` derives its id instead, so a
     # repeat is an upsert and there is nothing to check for first.
     blind -= {(w, "ledger") for w in g.writer_of("ledger")}
-    # `schedule.unresolved` is the same case for the same reason: the row it
+    # `schedule.reask` is the same case for the same reason: the row it
     # writes is the question this session's own trigger replies to, derived from
     # the causal chain rather than chosen. A role cannot name the wrong one, so
     # there is nothing it would read the schedule to find out. Reading it would

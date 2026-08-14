@@ -19,9 +19,9 @@ You have no way to ask anything in this mode, and that is deliberate. Asking a
 second role the same question is how one question becomes three answers, and
 asking the same role again is a loop with nothing new in it.
 
-**If the block genuinely survives the answer, say so: `schedule.unresolved`.**
+**If the block genuinely survives the answer, say so: `schedule.reask`.**
 Not as an escape from a hard batch — as the truthful report that you read the
-answer and still cannot proceed. Say in `still_missing` what you now know you
+answer and still cannot proceed. Say in `what_is_missing` what you now know you
 were asking, which is usually sharper than the question you sent. It goes to
 somebody who has not been in this thread, with your words attached.
 

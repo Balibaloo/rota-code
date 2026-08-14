@@ -1070,10 +1070,17 @@ def schedule_consult(ctx: Ctx) -> list[dict]:
         "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
 
 
-@op("schedule", "unresolved")
-def schedule_unresolved(ctx: Ctx, still_missing: str) -> dict:
+@op("schedule", "reask")
+def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     """
     The answer came back and left you where you were.
+
+    Named for the action rather than the condition. The first sessions to reach
+    it called `schedule.unresolved(still_missing=True)`, then `False` -- both
+    names read as fields on a form, so the model set a flag instead of taking an
+    action, repeatedly, and the case it was standing in cost five runs out of
+    five. The state it produces is still called `unresolved`, which is right:
+    the condition is a condition and the call is a call.
 
     The one declared transition in a register that is otherwise entirely
     derived, and it has to be declared because the evidence disagrees with the
@@ -1086,12 +1093,23 @@ def schedule_unresolved(ctx: Ctx, still_missing: str) -> dict:
     session where it is telling us it is confused is a way to be told about the
     wrong question.
 
-    `still_missing` is required and is the point of the call. The next rung
+    `what_is_missing` is required and is the point of the call. The next rung
     inherits the whole thread, so it can read what was asked and what came
     back; what it cannot read is the gap between them, which is the only thing
     that stops it answering identically. This is a question, and by the rule
     that settled the mute channels, a question carries words.
     """
+    # `what_is_missing=True` is what the first Architect session to reach this
+    # tool passed, and the whole value of the call is in that argument: a note
+    # nobody can read leaves the next rung with the thread and no idea why the
+    # answer missed, which is the one thing it cannot work out for itself.
+    if isinstance(what_is_missing, bool) or not str(what_is_missing or "").strip():
+        raise ValueError(
+            "what_is_missing is what you cannot proceed without, in words. The "
+            "role this reaches gets the whole thread and can read the question "
+            "and the answer for itself; what it cannot see is why the second "
+            "did not settle the first")
+
     if not ctx.trigger:
         raise ValueError(
             "this says the answer that woke you did not resolve your question, "
@@ -1111,7 +1129,7 @@ def schedule_unresolved(ctx: Ctx, still_missing: str) -> dict:
             f"asked can say the answer did not land")
 
     ctx.writes.append(("messages", row["qid"], {
-        "status": "unresolved", "unresolved_note": still_missing}, False))
+        "status": "unresolved", "unresolved_note": what_is_missing}, False))
     return {"id": row["qid"], "status": "unresolved"}
 
 

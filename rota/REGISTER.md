@@ -78,7 +78,7 @@ should be a thing a role remembers to file.
 | a role waiting on its own question | this role sent a message still open | the answer arriving | — | **works** |
 | a word with two live senses | ≥2 `glossary_terms` sharing a term, no decision | the principal's ruling | terminologist raises | **works** |
 | two reports about the same thing | reports whose refs intersect, transitively | merged before sending | liaison | **works** |
-| **an answer that did not resolve it** | *declared*: `schedule.unresolved` | somebody new speaking in the thread | the ladder, then liaison | **works** |
+| **an answer that did not resolve it** | *declared*: `schedule.reask` | somebody new speaking in the thread | the ladder, then liaison | **works** |
 
 ## What the gaps have in common
 
@@ -131,7 +131,7 @@ for the evidence in it rather than the design.
    written from the wrong sense passes and pins the wrong promise. Narrow on
    purpose: only this obligation, because `criteria.term_refs` is a join that
    exists and there is no general way to say what a wake's work rests on.
-5. ~~**The declaration.**~~ Built as `schedule.unresolved`, in `answer` mode for
+5. ~~**The declaration.**~~ Built as `schedule.reask`, in `answer` mode for
    every role that can receive one. Everything after the declaration is derived
    as before: the next rung is the first role that has not spoken in the thread
    *and can reply to the asker*, Liaison last, and the obligation is discharged
@@ -169,7 +169,7 @@ Nothing in the database can tell the difference between that and a good answer.
 guesses -- which is the loop the waiting view was built to stop, arrived at
 through the front door.
 
-**The declaration.** `schedule.unresolved(message_id)`: the asker says an
+**The declaration.** `schedule.reask(message_id)`: the asker says an
 answered question of its own left it where it was. It goes on `schedule`
 because it is scheduler-facing rather than about any artefact -- a role telling
 the system about its own state, which is the one thing the system cannot

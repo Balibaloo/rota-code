@@ -1607,7 +1607,7 @@
       "s": "architect",
       "t": "schedule",
       "type": "writes",
-      "v": "unresolved",
+      "v": "reask",
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
@@ -1616,7 +1616,7 @@
       "s": "developer",
       "t": "schedule",
       "type": "writes",
-      "v": "unresolved",
+      "v": "reask",
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
@@ -1625,7 +1625,7 @@
       "s": "gatekeeper",
       "t": "schedule",
       "type": "writes",
-      "v": "unresolved",
+      "v": "reask",
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
@@ -1634,7 +1634,7 @@
       "s": "terminologist",
       "t": "schedule",
       "type": "writes",
-      "v": "unresolved",
+      "v": "reask",
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
@@ -1643,7 +1643,7 @@
       "s": "tester",
       "t": "schedule",
       "type": "writes",
-      "v": "unresolved",
+      "v": "reask",
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
