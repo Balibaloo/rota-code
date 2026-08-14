@@ -410,3 +410,52 @@ def test_waiting_does_not_silence_a_different_role(db):
     assert any(w.role == "gatekeeper" and w.kind == "tick:slicing"
                for w in frontier(db)), \
         "one role's open question stopped another role's work"
+
+
+def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
+    """
+    Waiting, applied to somebody else's obligation rather than your own.
+
+    A Tester woken to encode a criterion whose term has two live senses can
+    only guess which to encode, and a test written from the wrong sense passes
+    and pins the wrong promise -- worse than no test, because it reports as
+    coverage. `term_collision` has already put the word to the principal, so
+    offering the batch invites a second role to discover the same ambiguity
+    independently and hedge, which is "two roles blocked on one ambiguity are
+    two discoveries" seen from the other end.
+    """
+    from rota.core.scheduler import frontier, rests_on_a_collision
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','archived orders are searchable','in_scope','decided',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','search')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','tk1','archived orders come back from search','[\"g1\"]')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','archived','flagged inactive, row stays','decided')")
+
+    assert any(w.role == "tester" and w.kind == "tick:tests_missing"
+               for w in frontier(db)), "one sense is no collision; encode it"
+
+    # A second sense arrives. Nobody has ruled, so the criterion now rests on a
+    # word that means two things.
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','archived','moved to cold storage','decided')")
+
+    assert rests_on_a_collision(
+        db, next(w for w in P.all_wakes(db) if w.role == "tester")) == ["c1"]
+    assert not any(w.role == "tester" for w in frontier(db)), \
+        "offered a criterion whose meaning is still an open question"
+    assert any(w.role == "terminologist" and w.kind == "tick:term_collision"
+               for w in frontier(db)), "the collision itself must still be raised"
+
+    # Ruled on, and the work comes back without anyone asking.
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d1','terminologist','archived means flagged inactive',"
+               "'[\"g1\",\"g2\"]')")
+    assert any(w.role == "tester" and w.kind == "tick:tests_missing"
+               for w in frontier(db)), "the ruling never released the work"

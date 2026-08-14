@@ -469,7 +469,51 @@ def waiting_filter(conn: sqlite3.Connection, wakes: list[Wake]) -> list[Wake]:
         if w.role not in blocked:
             blocked[w.role] = waiting_on(conn, w.role)
     return [w for w in wakes
-            if w.kind == "message" or not blocked.get(w.role)]
+            if w.kind == "message"
+            or not (blocked.get(w.role) or rests_on_a_collision(conn, w))]
+
+
+def rests_on_a_collision(conn: sqlite3.Connection, wake: Wake) -> list[str]:
+    """
+    Work whose criteria turn on a word with two live senses, and no ruling yet.
+
+    The same principle as waiting, applied to somebody else's obligation rather
+    than your own. A Tester woken to encode a criterion that rests on an
+    unresolved collision can only guess which sense to encode, and a test
+    written from the wrong one passes and pins the wrong promise -- which is
+    worse than no test, because it reports as coverage.
+
+    So it is not offered. `term_collision` has already put the word to the
+    principal; this stops a second role discovering it independently and
+    hedging, which is the "two roles blocked on one ambiguity are two
+    discoveries" failure from the other end.
+
+    Narrow on purpose. Only batches, only criteria, only the collision
+    obligation -- the general form is "any work resting on any open obligation"
+    and there is no general way to say what a wake's work rests on. This one is
+    a join that exists: criteria carry `term_refs`.
+    """
+    import json
+
+    from .predicates import REGISTRY
+
+    if not wake.refs or wake.kind == "message":
+        return []
+    open_terms = {t for w in REGISTRY["term_collision"].fn(conn) for t in w.refs}
+    if not open_terms:
+        return []
+
+    resting = []
+    for r in conn.execute(
+            "SELECT c.id AS cid, c.term_refs AS refs FROM criteria c "
+            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ?", (wake.refs[0],)):
+        try:
+            if open_terms & set(json.loads(r["refs"] or "[]")):
+                resting.append(r["cid"])
+        except (ValueError, TypeError):
+            continue
+    return resting
 
 
 def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:

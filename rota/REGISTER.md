@@ -123,7 +123,14 @@ for the evidence in it rather than the design.
 3. ~~**Dedupe as a join.**~~ Built. Reports sharing a ref arrive grouped in
    `about`, by connected components rather than pairs, so A-B and B-C is one
    question in three vocabularies rather than two questions.
-4. **The declaration**, still open, and the only piece that cannot be checked by
+4. ~~**Suppression generalised.**~~ Built. Waiting held a role back for *its
+   own* open question; work resting on somebody else's obligation is the same
+   principle, and not applying it was the inconsistency. A batch whose criteria
+   turn on a word with two live senses is not offered to Tester, because a test
+   written from the wrong sense passes and pins the wrong promise. Narrow on
+   purpose: only this obligation, because `criteria.term_refs` is a join that
+   exists and there is no general way to say what a wake's work rests on.
+5. **The declaration**, still open, and the only piece that cannot be checked by
    derivation: an answered question that did not help. The row says answered and
    only the asker knows it left them where they were.
 
