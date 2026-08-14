@@ -293,9 +293,31 @@ class ReplayOnlyBackend:
                           tool_calls=_calls_from(row["tool_calls"]))
 
 
+def _is_unmeasured(problems: list[str], transcript: list | None) -> bool:
+    """
+    A run that died for want of a cassette is not a result.
+
+    `case_runs` is read as "what has been measured", by `casestatus` and by
+    anyone asking whether a change cost a case. A replay with no recording
+    against the current prompt measured nothing -- the role never spoke -- and
+    writing it down as `passed = 0` turns an unmeasured case into a hard red
+    that looks exactly like a regression. Editing five `answer.md` files
+    produced five of those in one run, and the whole reason `casestatus` exists
+    is that stale read as failing once before.
+
+    Matched on the message rather than the exception type because the failure
+    reaches here as text, having already been caught and recorded by the
+    session that hit it.
+    """
+    haystack = " ".join(problems) + json.dumps(transcript or [])
+    return "no cassette for" in haystack
+
+
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
                     run_no: int, passed: bool, problems: list[str],
                     transcript: list | None = None) -> None:
+    if not passed and _is_unmeasured(problems, transcript):
+        return
     seq = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) + 1 n FROM case_runs").fetchone()["n"]
     conn.execute(

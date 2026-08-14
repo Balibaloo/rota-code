@@ -53,9 +53,22 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         want = Pins(model=model, temperature=0.0).with_prompt(
             fixtures.instructions_for(case))
 
+        # A run that died for want of a cassette is not a result, and until
+        # `record_case_run` refused to write those there were three thousand of
+        # them. They are excluded rather than deleted: the rows are somebody's
+        # history even when they are not evidence.
+        #
+        # They can carry a *current* prompt hash, which is what made them
+        # dangerous. `pins.prompt_hash` covers the role's instructions and not
+        # the mode prompt, so editing `answer.md` leaves the hash untouched
+        # while changing the cassette key -- a stale case recorded under a hash
+        # that still looks current, and it reads as a hard red.
         here = list(conn.execute(
             "SELECT passed, problems FROM case_runs "
-            "WHERE case_id = ? AND prompt_hash = ? ORDER BY seq DESC LIMIT ?",
+            "WHERE case_id = ? AND prompt_hash = ? "
+            "  AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
+            "                        OR transcript LIKE '%no cassette for%')) "
+            "ORDER BY seq DESC LIMIT ?",
             (case["id"], want.prompt_hash, case.get("runs", 5))))
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
