@@ -161,19 +161,18 @@ never been observed. Holes look like that before somebody draws the set.
 
 In the order the frame produces them, not the order they were noticed.
 
-1. **The toolkit is narrowed per mode and never per situation.** Right as a
-   principle, small as a fix: one currently-failing case, and an unknown number
-   of future ones, since it is the class of bug that only becomes visible when
-   a case happens to sit on it. The scheduler already reasons this way and
-   refuses to offer work that rests on an open obligation; the sandbox builds
-   the same namespace for a mode no matter what the wake says. Where the state
-   determines which of two
-   available things applies — which role asked, whether the term is settled,
-   whether this session's job is to record or to report — the namespace should
-   reflect it, and the alternative should be absent rather than discouraged.
+1. ~~**The toolkit is narrowed per mode and never per situation.**~~ Closed.
+   `sandbox.build` takes the wake, and `situational()` is where a rule that
+   depends on the state lives. One rule so far: on `tick:unresolved` the rung
+   can answer the role that asked and nobody else, because the asker is the
+   sender of the message the wake refers to. Gatekeeper answered Developer five
+   runs out of five about a thread Developer is not in — not a temptation to
+   resist, a capability with no situation.
 
-   That is this repository's one reliable finding, applied where it has not
-   been: *absence works, prose does not.*
+   Right as a principle, small as a fix, and the value is forward-looking: the
+   scheduler has always narrowed by situation and the sandbox stopped at the
+   session boundary, so every rule of this kind had nowhere to live. Now it has
+   one.
 
 2. **Critic cannot ask.** Critic is starved of the model and the decisions on
    purpose, and that starvation is load-bearing — a judge that remembers its

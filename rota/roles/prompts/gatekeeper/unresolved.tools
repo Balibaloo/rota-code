@@ -1,8 +1,6 @@
 problem.consult
 tickets.consult
-tickets.slice
 decisions.search
-ledger.log
 msg.answer_developer
 msg.answer_tester
 msg.submit_liaison

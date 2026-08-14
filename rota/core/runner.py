@@ -624,7 +624,8 @@ def run_session(
                            provenance=provenance, g=g,
                            area=area or (wake.refs[0]
                                  if wake.kind == "tick:survey" and wake.refs else None),
-                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)))
+                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
+                           wake=wake)
     sb.ctx.trigger = wake.message_id
 
     claim(conn, wake.role, session_id, wake.message_id)

@@ -337,11 +337,53 @@ def _attr_to_verb(attr: str) -> str:
     return attr.replace("_", " ")
 
 
+def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
+                available: dict[str, list[str]]) -> set[str]:
+    """
+    Narrow the namespace by the situation, not only by the mode.
+
+    The mode says what a role may do when woken *for this reason*. It cannot say
+    which of two permitted channels this particular wake calls for, because the
+    mode is the same every time and the wake is not — so a session ends up
+    holding both and only prose distinguishing them. Prose has not
+    distinguished anything here in six measured attempts.
+
+    The scheduler has always reasoned this way. `rests_on_a_collision` refuses
+    to *offer* Tester a batch whose criteria turn on a word with two live
+    senses, because a test written from the wrong sense passes and pins the
+    wrong promise. That reasoning stopped at the session boundary, and this is
+    it continuing past.
+
+    Returns the dotted names to keep. Rules go here rather than in a prompt
+    because absence is the only instruction that has ever held.
+    """
+    keep = {f"{a}.{fn}" for a, fns in available.items() for fn in fns}
+
+    # `unresolved`: the rung answers the role that asked, and nobody else.
+    #
+    # Gatekeeper can reach Developer and Tester, so both channels are in the
+    # mode, and woken to a thread between Tester and Terminologist it answered
+    # Developer five runs out of five. Developer is not in the thread. The asker
+    # is on the wake -- it is the sender of the message the wake refers to -- so
+    # the other channel is not a temptation to resist, it is a capability with
+    # no situation.
+    if str(getattr(wake, "kind", "")) == "tick:unresolved" and getattr(wake, "refs", None):
+        row = conn.execute(
+            "SELECT from_role FROM messages WHERE id = ?", (wake.refs[0],)).fetchone()
+        if row is not None:
+            asker = row["from_role"]
+            keep -= {k for k in keep
+                     if k.startswith("msg.answer_") and k != f"msg.answer_{asker}"}
+
+    return keep
+
+
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
           area: str | None = None,
           entry_id: str | None = None, provenance: str = "decided",
           allow: list[str] | None = None,
+          wake: object | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
     """
     Construct `role`'s namespace from its graph edges.
@@ -397,6 +439,16 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         # A narrowing, never a widening: anything named that the graph did not
         # grant is simply absent, so a bad mode file cannot invent a capability.
         keep = set(allow)
+        grouped = {
+            artefact: {fn: impl for fn, impl in fns.items()
+                       if f"{artefact}.{fn}" in keep}
+            for artefact, fns in grouped.items()
+        }
+        grouped = {a: f for a, f in grouped.items() if f}
+        available = {a: sorted(f) for a, f in grouped.items()}
+
+    if wake is not None:
+        keep = situational(conn, role, mode, wake, available)
         grouped = {
             artefact: {fn: impl for fn, impl in fns.items()
                        if f"{artefact}.{fn}" in keep}

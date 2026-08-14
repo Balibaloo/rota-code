@@ -11,10 +11,10 @@ is right and the criteria have a hole. That is yours.
 
 Three things this usually is, and only the first is answerable here:
 
-- **the ticket does not carry the case that occurs** — `tickets.slice`, then
-  answer. A ticket that names the case is worth more than an answer, because
-  Terminologist writes criteria from tickets and the next role to hit this does
-  not have to ask.
+- **the ticket does not carry the case that occurs** — then say so in the
+  answer. Amending the ticket is a separate obligation and the frontier will
+  bring it back to you; it is not what the asker is waiting on, and doing it
+  instead of answering leaves them exactly where they were.
 - **the item does not say what the principal wanted** — that is a ruling, not a
   clarification. `msg.submit_liaison`.
 - **two things that were both agreed cannot both hold** — also a ruling. Do not
@@ -27,3 +27,7 @@ one who asked; the other is not waiting on you.
 rung, so a guess from you is the end of the thread and nothing downstream will
 catch it. If you had to decide it rather than look it up, it is a ruling, and it
 goes up.
+
+**You leave this mode by sending something.** There is nothing here to write,
+and that is deliberate: a session that ends with an artefact amended and no
+message has done work the asker cannot see, on a thread they are blocked on.

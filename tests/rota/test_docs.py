@@ -97,19 +97,37 @@ def test_one_question_channel_still_has_no_reply_edge():
         f"SYSTEM.md names exactly one")
 
 
-def test_the_toolkit_is_still_narrowed_per_mode_only():
+def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
     """
-    SYSTEM.md gap 1, and the one that is a fix rather than a decision.
+    SYSTEM.md gap 1, closed. This was a staleness check asserting the gap was
+    still open, and it went red the moment the gap was fixed, which is what it
+    was for. Replaced by the behaviour it now guarantees.
 
-    `build` takes the mode and never the wake, so a session holds the same
-    namespace whatever the situation -- which is why Gatekeeper answers a role
-    that is not in the thread. The scheduler already reasons the other way.
+    Gatekeeper can answer Developer and Tester, so `unresolved` mode carries
+    both channels. Woken to a thread between Tester and Terminologist it
+    answered Developer five runs out of five. Developer is not in the thread.
+    The asker is on the wake, so the other channel is not a temptation to
+    resist; it is a capability with no situation.
     """
-    import inspect
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.sandbox import build
 
-    from rota.core import sandbox
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+               "verb, body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','tester','terminologist','question','[]','?',1,"
+               "'unresolved')")
 
-    params = set(inspect.signature(sandbox.build).parameters)
-    assert "wake" not in params, (
-        "sandbox.build takes the wake now, so the namespace can depend on the "
-        "situation. SYSTEM.md gap 1 is closed and must say so")
+    allow = ["msg.answer_developer", "msg.answer_tester", "msg.submit_liaison"]
+    wake = Wake("gatekeeper", "tick:unresolved", refs=("m1",))
+
+    wide = build("gatekeeper", db, mode="normal", allow=allow)
+    assert "msg.answer_developer" in wide.functions()
+
+    narrow = build("gatekeeper", db, mode="normal", allow=allow, wake=wake)
+    assert "msg.answer_tester" in narrow.functions(), "the asker must be reachable"
+    assert "msg.answer_developer" not in narrow.functions(), \
+        "Developer is not in this thread and did not ask"
+    assert "msg.submit_liaison" in narrow.functions(), \
+        "narrowing the answer channel must not close the way upward"
