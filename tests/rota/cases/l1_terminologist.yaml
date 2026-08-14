@@ -96,3 +96,52 @@
     # this is belt and braces on a guarantee that already holds structurally.
     writes: [glossary_terms, criteria]
     versions: [glossary_terms]
+
+- id: L1-TE-the-words-are-already-defined
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  # The brief's first bullet is "if your glossary already defines it **the same
+  # way**, do nothing", and doing nothing is the one instruction in this system
+  # with no act behind it. Every other outcome is something produced; this one
+  # is an absence, and a session with eleven turns left does not produce an
+  # absence.
+  #
+  # Written before the mechanism, on purpose. `settled` would otherwise be built
+  # with nothing measuring it -- two green checks over an empty table, which is
+  # the failure this repository already refuses elsewhere.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "an invoice is issued when a subscription renews"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 47,
+         text: "an invoice is issued when a subscription renews", status: ratified}
+    glossary_terms:
+      # Every word that carries meaning here is already on file, once, in the
+      # sense the statement uses. There is no collision to find and nothing
+      # undefined to define.
+      - {id: <g1>, term: invoice,
+         sense_short: "the billing document raised against a subscription",
+         provenance: decided}
+      - {id: <g2>, term: issued,
+         sense_short: "created and sent to the customer",
+         provenance: decided}
+      - {id: <g3>, term: subscription,
+         sense_short: "a recurring agreement that renews on a fixed period",
+         provenance: decided}
+      - {id: <g4>, term: renews,
+         sense_short: "the period rolls over and the agreement continues",
+         provenance: decided}
+  inbound: {from: liaison, to: terminologist, verb: deliver, body_refs: [<s1>]}
+  expect:
+    messages: []
+  forbidden:
+    # A second sense for a word that has one is the failure this measures: it
+    # reads as diligence, it survives review because both senses look
+    # reasonable, and every criterion written afterwards has two things it
+    # might mean. Reporting to Liaison is the other way out and costs the
+    # principal's attention on a round with nothing in it.
+    writes: [glossary_terms, decisions, items, statements]
+    recipients: [liaison, researcher]

@@ -123,6 +123,44 @@ def test_each_role_lists_the_predicates_that_wake_it():
     assert not problems, "\n".join(problems)
 
 
+def test_every_predicate_is_either_spine_or_register():
+    """
+    `REGISTER.md` divides the frontier in two and the division has to stay true.
+
+    Eleven predicates move the delivery spine forward; fourteen are open
+    obligations -- something is outstanding and the predicate exists to keep
+    offering it until it is not; one is message traffic. That second set was
+    built one predicate at a time, correctly each time, and never looked at as
+    a set, which is why its common properties went unenforced and its gaps
+    stayed invisible. Nobody can see a hole in a collection nobody has drawn.
+
+    So the collection is drawn here. A new predicate must be classified, and an
+    unclassified one fails rather than quietly joining neither half -- the same
+    reason drawing an edge creates a red coverage row.
+    """
+    import re
+
+    from rota.core import predicates as P
+
+    doc = (paths.PACKAGE / "REGISTER.md").read_text(encoding="utf-8")
+    block = re.search(r"\*\*fourteen are register entries\*\*.*?\n\n(.*?)\n\n",
+                      doc, re.S)
+    assert block, "the register list is no longer where the check looks for it"
+    named = set(block.group(1).split())
+
+    every = set(P.REGISTRY)
+    unknown = sorted(named - every)
+    assert not unknown, f"REGISTER.md names predicates that do not exist: {unknown}"
+
+    # Every predicate is register, spine, or the one traffic tip. The spine half
+    # is not listed in the doc by name, so it is whatever is left -- which means
+    # a new predicate lands in "spine" silently unless the count is pinned too.
+    assert len(named) == 14, f"the register lists {len(named)}, not fourteen"
+    assert len(every) == 26, (
+        f"{len(every)} predicates now, and the split in REGISTER.md was written "
+        f"against 26. Classify the new one.")
+
+
 def test_a_verb_carries_words_or_does_not_regardless_of_recipient():
     """
     One meaning per word, applied to the message vocabulary.
