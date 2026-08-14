@@ -1,0 +1,155 @@
+# L1 — the ladder for a question, rather than for a batch.
+#
+# Somebody asked, somebody answered, and the asker said the answer left them
+# where they were. That declaration is the one thing in the register no query
+# can produce, and everything after it is derived: the next rung is the first
+# role that has not spoken in the thread and can reply to the asker, Liaison
+# last, because a ladder ending in silence is the dead end this half exists to
+# prevent.
+#
+# One limitation these share, stated rather than designed around. In production
+# the wake carries `unresolved_note` as its detail -- the asker's own account of
+# what is still missing, written after reading the answer, which is the sharpest
+# version of the question that exists. The L1 harness sets `detail` to the tick
+# name instead, so these cases run on the thread alone. That makes them strictly
+# harder than the real thing, which is the safe direction.
+
+- id: L1-AR-a-dead-answer-is-a-question-about-the-model
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: unresolved
+  refs: [<m1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "orders arriving out of sequence are reconciled",
+         kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "reconcile out-of-order arrivals"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "an order that arrives late is reconciled against the ledger",
+         term_refs: '[]'}
+    messages:
+      # The question, and Gatekeeper's answer to it. The answer is correct about
+      # the criteria and beside the point about the work, which is the shape
+      # this whole mechanism exists for.
+      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: gatekeeper,
+         verb: question, body_refs: '["<c1>"]', seq: 1, status: unresolved,
+         body_text: "does a partially reconciled order count as done?",
+         unresolved_note: "the criteria say reconciled against the ledger and
+           do not say whether partial counts"}
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: gatekeeper,
+         to_role: developer, verb: answer, body_refs: '["<c1>"]', seq: 2,
+         status: answered}
+  expect:
+    # Either is the job: answer it, or say it is not yours. What is not the job
+    # is being a quiet rung -- the asker is already blocked.
+    any_of:
+      - messages: [{to: developer, verb: answer, count: ">=1"}]
+      - messages: [{to: liaison, verb: report, count: ">=1"}]
+  forbidden:
+    # Gatekeeper has already answered. Asking the roles in the thread again is
+    # the loop with nothing new in it.
+    calls: [msg.question_terminologist]
+
+- id: L1-GK-the-last-rung-rules-or-sends-it-up
+  tier: T1
+  role: gatekeeper
+  runs: 5
+  pass: 3
+  tick: unresolved
+  refs: [<m1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "archived orders are searchable", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "search archived orders"}
+    messages:
+      # Tester asked Terminologist; Terminologist answered; Architect has no
+      # edge to answer Tester, so the climb arrives here. Gatekeeper is the last
+      # rung anything wakes.
+      - {id: <m1>, thread_id: <t1>, from_role: tester, to_role: terminologist,
+         verb: question, body_refs: '["<tk1>"]', seq: 1, status: unresolved,
+         body_text: "which sense of archived does this ticket take?",
+         unresolved_note: "both senses are recorded and the ticket does not say
+           which one it means"}
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: terminologist,
+         to_role: tester, verb: answer, body_refs: '["<tk1>"]', seq: 2,
+         status: answered}
+    glossary_terms:
+      - {id: <g1>, term: archived, sense_short: "flagged inactive, row stays",
+         provenance: decided}
+      - {id: <g2>, term: archived, sense_short: "moved to cold storage",
+         provenance: decided}
+  expect:
+    # Which sense the project means is a ruling, not a clarification, and the
+    # last rung sending a guess ends the thread with nobody left to catch it.
+    #
+    # RED, and measuring something true: five runs out of five answered
+    # *Developer*, who is not in this thread and did not ask. The mode offers
+    # `msg.answer_developer` and `msg.answer_tester` because Gatekeeper can
+    # reach both, and the prompt saying "use the one who asked" does not
+    # arbitrate -- prose never has here. The structural fix is to derive the
+    # permitted recipient from the wake rather than from the mode, which is a
+    # narrowing the sandbox cannot currently express per-wake.
+    any_of:
+      - messages: [{to: liaison, verb: submit, count: ">=1"}]
+      - messages: [{to: tester, verb: answer, count: ">=1"}]
+  forbidden:
+    # Picking a sense is Terminologist's write and the principal's ruling.
+    writes: [glossary_terms]
+
+- id: L1-LI-a-question-the-roles-could-not-answer
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 3
+  tick: unresolved
+  refs: [<m1>]
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "orders that arrive out of sequence get reconciled"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 48,
+         text: "orders that arrive out of sequence get reconciled",
+         status: ratified}
+    messages:
+      # Everyone who could take it has spoken. That is what puts it here: not
+      # that it is important, but that the roles have been through it.
+      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: gatekeeper,
+         verb: question, body_refs: '["<s1>"]', seq: 1, status: unresolved,
+         body_text: "does a partially reconciled order count as done?",
+         unresolved_note: "nobody can say whether partial counts, and the
+           statement does not distinguish the two"}
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: gatekeeper,
+         to_role: developer, verb: answer, body_refs: '["<s1>"]', seq: 2,
+         status: answered}
+      - {id: <m3>, thread_id: <t1>, from_role: architect, to_role: developer,
+         verb: answer, body_refs: '["<s1>"]', seq: 3, status: answered}
+  expect:
+    # Their words, and the statement they can recognise -- a message id names a
+    # role they do not know reported anything.
+    #
+    # RED on the refs alone: `clarify` reaches the principal five runs out of
+    # five and carries no `refs`, which is the same signature as
+    # `L1-TS-a-word-with-two-senses-is-terminologists`. Two roles, two modes,
+    # one failure -- the right message with nothing attached -- so this is not
+    # a Tester quirk.
+    #
+    # Disproved here rather than left as a hypothesis: a paragraph in
+    # `liaison/unresolved.md` stating outright that refs is the statement and
+    # is not optional changed nothing, 0/5 before and after. Prose does not
+    # arbitrate this, as it has not arbitrated the last six. The fix will be
+    # structural -- a channel whose refs the sandbox will not let go empty.
+    messages:
+      - {to: principal, verb: clarify, count: 1, refs_include: [<s1>]}
+  forbidden:
+    # Liaison does not decide, and a question the roles failed to answer is not
+    # something to organise and present as news.
+    calls: [msg.present_principal]
+    writes: [decisions, glossary_terms, items]
