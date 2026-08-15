@@ -200,6 +200,13 @@ def test_only_asking_carries_words(db):
             # reasoning. Giving it words was measured and cost nothing;
             # `present` and `confirm` were tried the same way and cost a case,
             # because `render_refs` already speaks for them.
+            # `challenge`, `propose` and `escalate` are on the asking side of
+            # the line and are still mute -- tried, measured, reverted. Giving
+            # them words cost three cases, and the clearest was
+            # `L1-DV-fix-the-code-not-the-test`: Developer read the code, read
+            # the criteria, and asked a question instead of writing the fix. A
+            # channel with words is more attractive than the work, which is the
+            # briefed-alternative failure arriving through a different door.
             if sig.startswith(("msg.question_", "msg.clarify_")):
                 assert "question" in names, f"{role}: {sig} cannot ask"
             else:

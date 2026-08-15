@@ -61,6 +61,7 @@ needs a way out that is not a guess:
 | this conflicts with a commitment | escalate to the architect |
 | this contradicts something a peer wrote | challenge the peer |
 | the answer I got did not land | `schedule.reask` |
+| I cannot reconcile this with that | challenge · propose · escalate, *refs only — words cost three cases* |
 | nobody here can settle it | report upward, to the principal via liaison |
 | I looked and there is nothing | `none_found` — a result, not a silence |
 
