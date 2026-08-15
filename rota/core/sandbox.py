@@ -588,6 +588,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # three recipients rather than three messages. A role with two genuinely
         # separate things to say to the same role says them in one message's
         # refs, which is what refs are.
+        # "There is nothing to add" is a result. It is not a result when you
+        # looked something up, found nothing, and defined nothing.
+        #
+        # The ruling that a role woken by a message may say it has nothing to do
+        # is right, and putting it in `terminologist/deliver.md` made it the exit
+        # from that mode's actual work -- Terminologist consulted, looked up,
+        # and reported instead of defining the undefined term, five runs out of
+        # five. A briefed alternative inside a decisive mode becomes the exit,
+        # for the fourth time in one session.
+        #
+        # The two situations differ by state the session already holds, so the
+        # brief does not have to arbitrate and demonstrably could not.
+        if verb == "report" and getattr(ctx, "lookup_misses", None) and not any(
+                w[0] == "glossary_terms" for w in ctx.writes):
+            missing = sorted(ctx.lookup_misses)[0]
+            raise ValueError(
+                f"you looked up {missing!r} and the glossary had nothing, and "
+                f"you have defined nothing. There is something to add, and it "
+                f"is that")
+
         # One question per session, and choosing who owns the block is the work.
         #
         # Measured on `L1-TS-a-criterion-no-machine-could-check`, which wants

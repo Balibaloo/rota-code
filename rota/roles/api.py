@@ -58,6 +58,10 @@ class Ctx:
     # produced twenty-four constraints from sessions that had opened almost
     # nothing. The session already knew what it had read — nobody asked it.
     opened: set = None
+    # Terms this session looked up and did not find. The session already knows
+    # it found nothing; nothing asked it, and that is the difference between
+    # "there is nothing to add" being true and being an exit.
+    lookup_misses: set = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -66,6 +70,8 @@ class Ctx:
             self.outbound = []
         if self.opened is None:
             self.opened = set()
+        if self.lookup_misses is None:
+            self.lookup_misses = set()
 
 
 def op(artefact: str, verb: str):
@@ -362,9 +368,14 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
 @op("glossary", "lookup")
 def glossary_lookup(ctx: Ctx, term: str) -> list[dict]:
     """One term, all senses — collisions are visible by construction."""
-    return _rows(ctx.conn.execute(
+    rows = _rows(ctx.conn.execute(
         "SELECT id, term, sense_short, sense_body, provenance FROM glossary_terms "
         "WHERE term = ? ORDER BY id", (term,)))
+    if rows:
+        ctx.lookup_misses.discard(term)
+    else:
+        ctx.lookup_misses.add(term)
+    return rows
 
 
 @op("glossary", "consult")
