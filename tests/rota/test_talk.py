@@ -207,3 +207,48 @@ def test_the_loop_runs_on_a_connection_its_own_thread_owns(tmp_path, monkeypatch
 
     assert used, "the worker never reached the loop"
     assert used[0] is None, f"the loop got a connection its thread cannot use: {used[0]}"
+
+
+async def test_the_app_mounts_and_shows_an_ask(tmp_path):
+    """
+    The two paths I called rough and left untested, driven headless.
+
+    `show_ask` and `refresh_owed` both reach into the widget tree, and nothing
+    had ever mounted it -- so every claim about them was a claim about code I
+    had read rather than run. Textual's pilot mounts it for real.
+    """
+    from rota.cockpit import tui
+    from rota.roles.principal import Ask
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    async with app.run_test() as pilot:
+        # The sidebar renders on mount, against an empty project.
+        assert "nothing outstanding" in str(app.query_one("#owed").content)
+
+        # A question from Liaison arrives as a bubble, refs rendered.
+        app.show_ask(Ask(message_id="m1", verb="clarify", refs=["g_1", "g_2"]))
+        await pilot.pause()
+        assert len(app.query_one("#conversation").children) == 1
+
+        # And the sidebar follows the register rather than a cache.
+        app.conn.execute(
+            "INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+            "VALUES ('g1','order','a purchase','decided')")
+        app.conn.execute(
+            "INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+            "VALUES ('g2','order','a sequence','decided')")
+        app.refresh_owed()
+        await pilot.pause()
+        assert "term_collision" in str(app.query_one("#owed").content)
+
+
+async def test_the_ticker_stays_bounded(tmp_path):
+    """The cap, mounted rather than argued: forty sessions, thirty lines."""
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    async with app.run_test() as pilot:
+        for i in range(40):
+            app.note_step(f"· step {i}")
+        await pilot.pause()
+        assert len(app.query_one("#sessions").children) == app.SESSION_LINES
