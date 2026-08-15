@@ -155,8 +155,19 @@ class RotaApp(App):
         pane.mount(ChatMessage(text, sender, _now(), border_color=colour))
         pane.scroll_end(animate=False)
 
+    # A long run is dozens of sessions and the pane held every one of them, which
+    # is a leak that looks like a feature until the fortieth. Bounded, and the
+    # bound is not a loss: what happened is in the database, and what is
+    # *outstanding* is the pane beside it. This one is a ticker.
+    SESSION_LINES = 30
+
     def note_step(self, line: str) -> None:
-        self.query_one("#sessions", VerticalScroll).mount(Static(line))
+        pane = self.query_one("#sessions", VerticalScroll)
+        pane.mount(Static(line))
+        extra = len(pane.children) - self.SESSION_LINES
+        for old in list(pane.children)[:max(extra, 0)]:
+            old.remove()
+        pane.scroll_end(animate=False)
         self.refresh_owed()
 
     def show_ask(self, ask: Ask) -> None:
