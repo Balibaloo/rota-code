@@ -166,3 +166,44 @@ def test_the_sidebar_shows_what_the_register_owes(tmp_path):
     assert [r["obligation"] for r in rows] == ["term_collision"]
     assert rows[0]["owners"] == ["terminologist"], \
         "the pane must say who owes it, or it is a list of complaints"
+
+
+def test_the_loop_runs_on_a_connection_its_own_thread_owns(tmp_path, monkeypatch):
+    """
+    The failure this was shipped with, written before the fix.
+
+    `sqlite3.connect` is thread-bound unless told otherwise, and `db.connect`
+    does not tell it otherwise -- deliberately, because a connection shared
+    across threads by default is a race nobody declared. The app builds its
+    connection on the main thread for the sidebar and intake, then hands it to a
+    worker thread for the loop, and SQLite refuses on the first statement.
+
+    Tested where it joins, which is the same claim the other tests here make and
+    the one place I did not make good on it: the join is the thread boundary.
+    """
+    import threading
+
+    from rota.cockpit import tui
+
+    used: list[Exception | None] = []
+
+    def fake_run(conn, **kw):
+        # Whatever connection the worker was given has to work *here*, in this
+        # thread. That is the whole assertion.
+        try:
+            conn.execute("SELECT COUNT(*) FROM messages").fetchone()
+            used.append(None)
+        except Exception as exc:                            # noqa: BLE001
+            used.append(exc)
+
+    monkeypatch.setattr(tui.loop_mod, "run", fake_run)
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    tui.open_with(app.conn, "let people export their invoices")
+
+    t = threading.Thread(target=app._turn_the_crank)
+    t.start()
+    t.join(timeout=20)
+
+    assert used, "the worker never reached the loop"
+    assert used[0] is None, f"the loop got a connection its thread cannot use: {used[0]}"

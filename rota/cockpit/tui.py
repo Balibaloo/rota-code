@@ -53,7 +53,7 @@ if __package__ in (None, ""):                              # pragma: no cover
 
 
 from ..core import loop as loop_mod
-from ..core.db import init_db
+from ..core.db import connect, init_db
 from ..core.predicates import outstanding
 from ..llm import llm
 from ..roles.principal import Answer, Ask
@@ -191,12 +191,26 @@ class RotaApp(App):
             self.run_worker(self._turn_the_crank, thread=True)
 
     def _turn_the_crank(self) -> None:
+        """
+        The loop, on a connection this thread owns.
+
+        `db.connect` does not pass `check_same_thread=False`, and should not: a
+        connection shared across threads by default is a race nobody declared.
+        So the worker opens its own rather than borrowing the one the sidebar
+        and intake use, and the two see each other because the connections are
+        autocommit and talking to the same file.
+
+        Shipped without this and the first message died on
+        "SQLite objects created in a thread can only be used in that same
+        thread". Every test here claimed to cover the joins, and this is the
+        join I did not cover: the thread boundary.
+        """
         def on_step(step) -> None:
             self.call_from_thread(self.note_step, f"· {step}"[:120])
 
         try:
             loop_mod.run(
-                self.conn,
+                connect(self.db_path),
                 backend=llm.OllamaBackend(),
                 pins=llm.Pins(model=self.model, temperature=0.0),
                 principal=self.principal,
