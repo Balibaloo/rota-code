@@ -429,6 +429,13 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
     if open_browser:
         webbrowser.open(f"http://127.0.0.1:{port}/")
 
+    # The parent says where it is, because the child's `serve` says it into a
+    # subprocess `run_process` owns and nobody sees. The reloading path is the
+    # default, so the usual way to start the cockpit was the one that never
+    # told you the port -- and it is the one you need on the first run, before
+    # you have a tab open to remember it for you.
+    print(f"cockpit: http://127.0.0.1:{port}/", flush=True)
+
     watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
     run_process(*watch, target=serve, args=(project_root, port, False),
