@@ -1,0 +1,194 @@
+"""
+Talking to rota, with the roles' work visible while it happens.
+
+    python -m rota.cockpit.tui --db run.db
+
+Built from the existing TUI's widgets rather than beside them: `ChatMessage` is
+the same bubble the chat app uses, and `Collapsible` is the same disclosure. The
+point of reuse here is not saving work -- it is that a session's tool calls and
+an assistant turn are the same *kind* of thing to look at, and giving them two
+appearances would be a claim that they are not.
+
+Two panes, because there are two things happening and only one of them is a
+conversation.
+
+**Left: what you and Liaison said.** Your sentence, and every question that
+comes back. This is the whole of the principal's interface -- words out, words
+in, plus approve, contest and defer.
+
+**Right: what the system owes.** `predicates.outstanding()`, refreshed after
+every session. Sixteen register predicates folded into one list: an obligation,
+who owns discharging it, and what it is about. This is the pane that did not
+exist in any form until today, and it is the one worth watching -- the roles'
+sessions scroll past and are gone, and what is *outstanding* is the state.
+
+The loop runs in a worker thread. Everything it does lands through
+`call_from_thread`, so the widget tree is only ever touched from one place.
+"""
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from textual.app import App, ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Footer, Header, Input, Static
+
+from ..core import loop as loop_mod
+from ..core.db import init_db
+from ..core.predicates import outstanding
+from ..llm import llm
+from ..roles.principal import Answer, Ask
+from ..tools.talk import open_with
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.ui.widgets import ChatMessage                      # noqa: E402
+
+
+def _now() -> str:
+    return datetime.now().strftime("%H:%M:%S")
+
+
+class QueuedPrincipal:
+    """
+    The principal, answering from the UI instead of from stdin.
+
+    Same protocol as `ConsolePrincipal` and `ScriptedPrincipal` -- receive
+    confirm/clarify/present, emit converse/verdict, defer by returning None. The
+    seam was built so a backend could be a person, a script or a widget without
+    any of them knowing about the others, and this is the third one.
+
+    Deferral is the default and costs nothing: an unanswered ask stays open and
+    comes back on the agenda, so a principal who is reading rather than
+    answering does not block the loop.
+    """
+
+    name = "queued"
+
+    def __init__(self, app: "RotaApp") -> None:
+        self.app = app
+        self.pending: list[Ask] = []
+
+    def respond(self, ask: Ask) -> Answer | None:
+        self.pending.append(ask)
+        self.app.call_from_thread(self.app.show_ask, ask)
+        return None                       # deferred; the agenda brings it back
+
+
+class Outstanding(Static):
+    """What the system owes, folded from the register."""
+
+    def render_rows(self, conn: sqlite3.Connection) -> None:
+        rows = outstanding(conn)
+        if not rows:
+            self.update("[dim]nothing outstanding[/dim]")
+            return
+        lines = []
+        for r in rows:
+            if r.get("error"):
+                lines.append(f"[red]{r['obligation']}[/red]  {r['error']}")
+                continue
+            who = ", ".join(r["owners"]) or "—"
+            refs = " ".join(r["refs"][:3])
+            lines.append(f"[b]{r['obligation']}[/b] ×{r['count']}  "
+                         f"[dim]{who}[/dim]\n  [dim]{refs}[/dim]")
+        self.update("\n".join(lines))
+
+
+class RotaApp(App):
+    """The principal's seat."""
+
+    CSS = """
+    #conversation { width: 2fr; padding: 0 1; }
+    #sidebar { width: 1fr; border-left: solid $accent; padding: 0 1; }
+    #sessions { height: 40%; border-top: solid $accent; padding: 0 1; }
+    Input { dock: bottom; }
+    """
+    BINDINGS = [("ctrl+c", "quit", "quit")]
+
+    def __init__(self, db_path: Path, model: str) -> None:
+        super().__init__()
+        self.db_path = db_path
+        self.model = model
+        self.conn = init_db(db_path)
+        self.principal = QueuedPrincipal(self)
+        self.started = False
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Horizontal():
+            yield VerticalScroll(id="conversation")
+            with Vertical(id="sidebar"):
+                yield Static("[b]outstanding[/b]")
+                yield Outstanding(id="owed")
+                yield Static("[b]sessions[/b]", id="sessions_title")
+                yield VerticalScroll(id="sessions")
+        yield Input(placeholder="say what you want built…")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.title = f"rota — {self.model}"
+        self.refresh_owed()
+
+    # -- the two things the worker thread is allowed to do -------------------
+
+    def say(self, text: str, sender: str, colour: str = "blue") -> None:
+        pane = self.query_one("#conversation", VerticalScroll)
+        pane.mount(ChatMessage(text, sender, _now(), border_color=colour))
+        pane.scroll_end(animate=False)
+
+    def note_step(self, line: str) -> None:
+        self.query_one("#sessions", VerticalScroll).mount(Static(line))
+        self.refresh_owed()
+
+    def show_ask(self, ask: Ask) -> None:
+        body = ask.rendered or "\n".join(f"- {r}" for r in ask.refs)
+        self.say(f"**{ask.verb}**\n\n{body}", "liaison", "magenta")
+
+    def refresh_owed(self) -> None:
+        self.query_one("#owed", Outstanding).render_rows(self.conn)
+
+    # -- input ---------------------------------------------------------------
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        text = event.value.strip()
+        if not text:
+            return
+        event.input.value = ""
+        self.say(text, "you", "green")
+        if not self.started:
+            self.started = True
+            open_with(self.conn, text)
+            self.run_worker(self._turn_the_crank, thread=True)
+
+    def _turn_the_crank(self) -> None:
+        def on_step(step) -> None:
+            self.call_from_thread(self.note_step, f"· {step}"[:120])
+
+        try:
+            loop_mod.run(
+                self.conn,
+                backend=llm.OllamaBackend(),
+                pins=llm.Pins(model=self.model, temperature=0.0),
+                principal=self.principal,
+                max_steps=40,
+                on_step=on_step,
+            )
+        except Exception as exc:                            # noqa: BLE001
+            self.call_from_thread(self.say, f"loop stopped: {exc}", "system", "red")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="rota, with a face")
+    ap.add_argument("--db", default="rota-tui.db")
+    ap.add_argument("--model", default=llm.DEFAULT_MODEL)
+    args = ap.parse_args(argv)
+    RotaApp(Path(args.db), args.model).run()
+    return 0
+
+
+if __name__ == "__main__":                                 # pragma: no cover
+    sys.exit(main())

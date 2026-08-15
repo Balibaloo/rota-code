@@ -104,3 +104,65 @@ def test_deferral_is_always_allowed(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *a: "")
     assert ConsolePrincipal().respond(
         Ask(message_id="m1", verb="confirm", refs=["s1"])) is None
+
+
+# ---------------------------------------------------------------------------
+# The UI, tested where it joins rather than where it paints.
+# ---------------------------------------------------------------------------
+
+def test_the_ui_principal_satisfies_the_same_protocol():
+    """
+    The seam was built so a backend could be a person, a script or a widget
+    without any of them knowing about the others. This is the third, and it
+    holds only if it answers the same protocol -- receive confirm/clarify/
+    present, emit converse/verdict, defer by returning None.
+    """
+    import inspect
+
+    from rota.cockpit.tui import QueuedPrincipal
+    from rota.roles.principal import Ask, ConsolePrincipal
+
+    seen = []
+
+    class FakeApp:
+        def call_from_thread(self, fn, *a):
+            seen.append(a)
+
+        def show_ask(self, ask):
+            pass
+
+    p = QueuedPrincipal(FakeApp())
+    # Structurally, not by isinstance: `PrincipalBackend` is a Protocol and not
+    # runtime-checkable, which is correct -- the seam is a shape, and a shape is
+    # what should be compared.
+    assert list(inspect.signature(QueuedPrincipal.respond).parameters) == \
+        list(inspect.signature(ConsolePrincipal.respond).parameters), \
+        "the widget backend and the human one must answer the same call"
+
+    ask = Ask(message_id="m1", verb="confirm", refs=["s1"])
+    assert p.respond(ask) is None, "an unanswered ask must defer, not block"
+    assert p.pending == [ask], "a deferred ask has to be recoverable"
+    assert seen, "the principal was asked and the interface never showed it"
+
+
+def test_the_sidebar_shows_what_the_register_owes(tmp_path):
+    """
+    The pane that did not exist in any form until today. Sessions scroll past
+    and are gone; what is outstanding is the state, and it is the fold over the
+    register rather than anything the UI computes for itself.
+    """
+    from rota.core.db import init_db
+    from rota.core.predicates import outstanding
+
+    db = init_db(tmp_path / "ui.db")
+    assert outstanding(db) == []
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','order','a purchase','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','order','a sequence','decided')")
+
+    rows = outstanding(db)
+    assert [r["obligation"] for r in rows] == ["term_collision"]
+    assert rows[0]["owners"] == ["terminologist"], \
+        "the pane must say who owes it, or it is a list of complaints"
