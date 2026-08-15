@@ -37,6 +37,21 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Input, Static
 
+# Run as a file, not as a module: `python rota/cockpit/tui.py` is what a person
+# types, and relative imports die on it with a traceback that names none of the
+# three ways to fix it. Re-enter as the module instead, from the repository root
+# put on the path. An entry point is the one place worth this, because it is the
+# only file whose reader has not read the file.
+if __package__ in (None, ""):                              # pragma: no cover
+    import runpy
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+    runpy.run_module("rota.cockpit.tui", run_name="__main__")
+    raise SystemExit(0)
+
+
 from ..core import loop as loop_mod
 from ..core.db import init_db
 from ..core.predicates import outstanding
