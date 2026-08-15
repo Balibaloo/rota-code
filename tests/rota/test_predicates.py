@@ -609,3 +609,30 @@ def test_the_register_set_is_the_one_the_document_names():
     assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
         "the register names a predicate that does not exist"
     assert len(P.REGISTER_ENTRIES) == 16
+
+
+def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
+    """
+    Two thresholds describing one situation, in the wrong order.
+
+    A role that keeps being woken and keeps producing nothing is escalated
+    already: `count_dispatch` bounds the wake, `quarantine_overrun` abandons it
+    past `tick_attempt_cap`, and `quarantined` carries it to Liaison and on to
+    the principal. That is the register entry for a role not doing its job, and
+    it was unreachable from a loop run -- `loop.run` halted the whole thing at
+    two barren repeats, one short of the cap of three.
+
+    The guard is a last resort and has to sit above the mechanism it backs up,
+    or it replaces it.
+    """
+    from rota import paths
+    from rota.core import config
+
+    cap = config.get(db, "tick_attempt_cap")
+    assert cap >= 1
+
+    src = (paths.PACKAGE / "core" / "loop.py").read_text(encoding="utf-8")
+    assert 'barren[key] > _config.get(conn, "tick_attempt_cap")' in src, \
+        "the livelock guard must derive its threshold from the cap it backs up"
+    assert "barren[key] >= 2" not in src, \
+        "a literal threshold beside a configured one is how the two drift"

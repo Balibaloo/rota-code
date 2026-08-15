@@ -310,15 +310,26 @@ def run(
         if stop_on_failure and s.outcome and not s.outcome.committed:
             break
 
-        # Livelock guard. A wake that commits but changes nothing will be
-        # re-derived next pass and wake the same role again, forever.
+        # Livelock guard, and a last resort rather than the first response.
+        #
+        # It fired at two, and `tick_attempt_cap` is three -- so in any run this
+        # drives, a role that keeps producing nothing had the whole thing halted
+        # one dispatch before the escalation that already exists could reach it.
+        # `count_dispatch` bounds the wake, `quarantine_overrun` abandons it, and
+        # `quarantined` carries it to Liaison and on to the principal, which is
+        # the register entry for exactly this and was unreachable from here.
+        #
+        # Above the cap now, and derived from it rather than written next to it,
+        # because two constants describing one threshold is how they drift.
         if s.wake is not None:
+            from . import config as _config
+
             key = str(s.wake)
             if s.productive:
                 barren.pop(key, None)
             else:
                 barren[key] = barren.get(key, 0) + 1
-                if barren[key] >= 2:
+                if barren[key] > _config.get(conn, "tick_attempt_cap"):
                     trace.stuck = Stuck(wake=s.wake, repeats=barren[key])
                     s.note = str(trace.stuck)
                     break
