@@ -134,18 +134,50 @@ def test_no_module_computes_its_own_location():
 
     `rota/paths.py` is the one anchor. It is the only file allowed to ask where
     it is.
+
+    One exemption, and it is structural rather than granted: an entry point's
+    re-entry shim runs when `python rota/tools/talk.py` was typed, which is
+    *before* `rota` is importable, so it cannot reach the anchor by
+    construction — the anchor is inside the package it is trying to put on the
+    path. The exemption is the shim block itself and not the file, because the
+    second use is the one that matters: `cockpit/tui.py` computed the repo root
+    a second time further down, after the package was importable and the anchor
+    was right there.
     """
     import re
     from pathlib import Path
+
+    shim = re.compile(
+        r"if __package__ in \(None, \"\"\):.*?raise SystemExit\(0\)",
+        re.S)
 
     root = paths.PACKAGE
     offenders = []
     for py in sorted(root.rglob("*.py")):
         if py.name == "paths.py" or "__pycache__" in py.parts:
             continue
-        if re.search(r"__file__", py.read_text(encoding="utf-8")):
+        body = shim.sub("", py.read_text(encoding="utf-8"))
+        if re.search(r"__file__", body):
             offenders.append(str(py.relative_to(root)))
     assert not offenders, f"computing their own location: {offenders}"
+
+
+def test_the_entry_shim_exemption_is_only_the_shim():
+    """
+    An exemption nobody has proved can fail is an exemption you are trusting.
+
+    Put a `__file__` outside the shim block of a file that has one, and the
+    lint has to still catch it — otherwise the two entry points became blanket
+    exemptions the moment they earned a narrow one.
+    """
+    import re
+
+    src = (paths.PACKAGE / "cockpit" / "tui.py").read_text(encoding="utf-8")
+    shim = re.compile(
+        r"if __package__ in \(None, \"\"\):.*?raise SystemExit\(0\)", re.S)
+    assert shim.search(src), "the shim this exemption is about has moved"
+    assert "__file__" not in shim.sub("", src), \
+        "an entry point may ask where it is once, to get to the anchor"
 
 
 def test_coverage_credits_a_write_against_the_artefact_it_belongs_to():

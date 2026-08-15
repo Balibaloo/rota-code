@@ -177,7 +177,12 @@
   runs: 5
   pass: 4
   tick: quarantined
-  refs: [<m_dead>]
+  # The payload, not the envelope — and this case used to say `[<m_dead>]`,
+  # which is a wake production never emits. `msg.present_principal` refuses
+  # message ids by design, and it is the mode's only tool, so five runs went on
+  # arguing with the guard and then reaching for a tool the role does not have.
+  # The case was unpassable and read as a role failing to do its job.
+  refs: [<i1>]
   fixture:
     items:
       - {id: <i1>, text: "search results are ranked by relevance", kind: in_scope,
@@ -189,8 +194,11 @@
          verb: deliver, body_refs: '["<i1>"]', seq: 1, attempts: 6,
          status: quarantined}
   expect:
+    # Naming the stalled work, which is what the brief asks for and what the
+    # principal has a name for. A `present` that names nothing tells them
+    # something has gone wrong and not what.
     messages:
-      - {to: principal, verb: present, count: 1}
+      - {to: principal, verb: present, count: 1, refs_include: [<i1>]}
   forbidden:
     # The one thing that must not happen is this staying invisible. Retrying it
     # is not available and re-sending the work to another role would hide the

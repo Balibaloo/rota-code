@@ -53,7 +53,10 @@ KNOWN_UNBRIEFED = {
                    "msg.answer_gatekeeper", "msg.answer_terminologist",
                    "msg.answer_tester"),
     "terminologist": ("msg.question_researcher",),
-    "tester": ("msg.question_researcher",),
+    # Tester's is gone: `L1-TS-an-outside-fact-is-the-researchers` measures an
+    # edge that was in the toolset and in no sentence of the brief, and five
+    # runs of five asked whoever the other two clauses named. Four roles below
+    # still carry the same hole and the same case has not been written for them.
 }
 
 

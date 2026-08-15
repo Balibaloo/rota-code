@@ -636,3 +636,66 @@ def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
         "the livelock guard must derive its threshold from the cap it backs up"
     assert "barren[key] >= 2" not in src, \
         "a literal threshold beside a configured one is how the two drift"
+
+
+def test_the_quarantine_wake_names_something_the_principal_can_be_shown(db):
+    """
+    A mode whose only tool refuses the only ref it is given.
+
+    `quarantined` wakes Liaison to tell the principal that work has silently
+    left the system. Its whole working set is `msg.present_principal`, and that
+    channel refuses message ids on purpose -- the principal has never seen a
+    message and cannot resolve one. Both halves are right. Together they starve
+    the mode: the session is handed a dead message, has no tool that turns it
+    into the item it was carrying, and the one call it can make is refused for
+    naming the thing it was given.
+
+    Measured, before this was fixed: five runs, five sessions spent arguing with
+    the guard -- `present_principal(refs=['the quarantined message'])`, then
+    'quarantined message', then 'the message that failed to reach the
+    principal', then six attempts to call a tool it does not have. Nothing sent.
+    That is not a role failing to do its job; it is a job that could not be
+    done, and the brief asks for exactly the part that is unreachable: "name the
+    work that is now stalled, not the mechanism".
+
+    So the wake carries the payload, not the envelope. What stalled is the item
+    the dead message was about, and that is the thing with a name at the
+    principal's end.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','search results are ranked by relevance','in_scope',"
+               "'decided','approved',1,1)")
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, seq, attempts, status) VALUES "
+        "('m_dead','t1','liaison','terminologist','deliver','[\"i1\"]',1,6,"
+        "'quarantined')")
+
+    wakes = P.quarantined(db)
+    assert wakes, "a quarantined message must wake somebody"
+
+    refs = set(wakes[0].refs)
+    assert refs, (
+        "the wake named nothing, so the session has to guess what stalled — "
+        "and its one tool takes refs")
+    assert "m_dead" not in refs, (
+        "the envelope is the one id `msg.present_principal` refuses; handing it "
+        "over is handing the session a call it cannot make")
+    assert refs == {"i1"}, (
+        f"the wake must carry what the dead message was about, got {refs}")
+
+
+def test_a_quarantined_tick_still_wakes_without_refs_to_offer(db):
+    """
+    The other half of the predicate, which has no payload to carry.
+
+    A stalled tick is not a message and was never about an item, so there is
+    nothing to name -- and that is the honest answer rather than a hole. The
+    wake still fires, because a tick that cannot drain is worse than a dead
+    message: it is produced again every pass and quiescence never comes.
+    """
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES ('liaison|tick:unresolved|k1',4,1,0)")
+    wakes = P.quarantined(db)
+    assert wakes, "a stalled tick must still be reported"

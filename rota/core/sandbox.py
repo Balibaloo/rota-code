@@ -626,14 +626,49 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Safe by inspection: no case in the suite expects two questions to
         # different roles from one session. The only fixture naming two is an
         # `any_of`, where they are alternatives.
+        #
+        # It refuses the *later* question, and that was the wrong end. A
+        # session's first tool call is its reflex: measured on the case this
+        # comment was written against, the Tester looked a whole clause up in
+        # the glossary, got nothing back, read that as an undefined word and
+        # asked Terminologist on turn two -- then three turns later worked out
+        # that the sentence was the problem, called `msg.question_gatekeeper`,
+        # and was refused for a decision it had already improved on. First is
+        # not the same as decided.
+        #
+        # So the question is replaced rather than the caller refused. Nothing
+        # else staged in a session is append-only -- a write can be superseded,
+        # a re-encode is reported and dropped -- and the commit is atomic, so
+        # the outbound set is the session's final state and not its first draft.
+        # One question still leaves, which is the whole of what the guard was
+        # for; the one that leaves is the one it settled on.
+        replaced = ""
+        withdrawn: list[str] = []
         if verb == "question":
-            asked = [m["to_role"] for m in ctx.outbound if m["verb"] == "question"]
-            if asked and recipient not in asked:
-                raise ValueError(
-                    f"you have already asked {asked[0]}. Deciding who owns this "
-                    f"block is the judgement this mode is for, and you have made "
-                    f"it; asking a second role does not confirm it, it produces "
-                    f"two answers about one thing")
+            prior = [m for m in ctx.outbound if m["verb"] == "question"]
+            if prior and recipient not in {m["to_role"] for m in prior}:
+                replaced = prior[0]["to_role"]
+                for m in prior:
+                    ctx.outbound.remove(m)
+
+            # A guard used to stand here withdrawing any test staged for a
+            # criterion this question names: asking who owns a criterion and
+            # encoding it are contradictory claims about one row, and a session
+            # making both leaves a test on file reporting as coverage of the
+            # thing it just said was unencodable.
+            #
+            # It is gone because it decided the contradiction by *order*, and
+            # order is not the discriminator. In the two cases it was written
+            # for, the encode was a reflex on turn one and the question was what
+            # the session reached having read something -- so the question won.
+            # In `L1-TS-encode-a-criterion` the encode was correct and complete
+            # and the question was the noise, and the rule destroyed the work:
+            # a case green for months went to 0/5.
+            #
+            # Which of the two is worth keeping turns on whether the test is any
+            # good, which is exactly what this system cannot judge here, and
+            # picking either end of the session to trust is picking the wrong
+            # one half the time.
 
         duplicate = any(m["to_role"] == recipient and m["verb"] == verb
                         for m in ctx.outbound)
@@ -650,7 +685,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             "round_no": round_no, "cause_id": ctx.trigger,
         })
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
-        return {"id": msg_id, "to": recipient, "verb": verb}
+        out = {"id": msg_id, "to": recipient, "verb": verb}
+        if withdrawn:
+            out["note"] = (
+                f"the test you staged for that criterion ({', '.join(withdrawn)}) "
+                f"has been withdrawn. You cannot ask who owns a criterion and "
+                f"encode it in the same breath; the question is the one that "
+                f"stands.")
+        if replaced:
+            # Said, not done silently. The session that changed its mind here
+            # narrated "the previous one was not answered" and asked again —
+            # it needs to know the earlier question is gone rather than
+            # unanswered, or it spends its remaining turns chasing it.
+            out["note"] = (f"this replaces the question to {replaced}, which "
+                           f"will not be sent. One block, one owner, and you "
+                           f"have named {recipient}.")
+        return out
 
     # Two signatures, because the model is shown exactly what it may pass and an
     # advertised `**kwargs` is an invitation to invent one. The prose channel

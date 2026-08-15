@@ -52,6 +52,7 @@ if __package__ in (None, ""):                              # pragma: no cover
     raise SystemExit(0)
 
 
+from .. import paths
 from ..core import loop as loop_mod
 from ..core.db import connect, init_db
 from ..core.predicates import outstanding
@@ -59,7 +60,12 @@ from ..llm import llm
 from ..roles.principal import Answer, Ask
 from ..tools.talk import open_with
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# The repo root again, for the chat app's widgets, which live outside the
+# package. Taken from the anchor rather than counted out of this module's own
+# path a second time: by here `rota` is imported and `paths` is the thing that
+# knows where it is. The shim above is the one place that cannot ask it,
+# because it runs before there is a package to ask.
+sys.path.insert(0, str(paths.REPO))
 from src.ui.widgets import ChatMessage                      # noqa: E402
 
 

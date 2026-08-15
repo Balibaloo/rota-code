@@ -704,6 +704,20 @@ def checkpoint_invalid(conn) -> list[Wake]:
             for r in rows]
 
 
+def _refs_of(body_refs: str | None) -> list[str]:
+    """The ids a message was carrying, and nothing if the column is unreadable.
+
+    A malformed `body_refs` is a bad row, not a reason to stop reporting that
+    work has been abandoned — the count is the part that must survive.
+    """
+    import json
+    try:
+        loaded = json.loads(body_refs or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [r for r in loaded if isinstance(r, str) and r]
+
+
 @predicate("quarantined", wakes="liaison", band="fix",
            drains=[("messages", "status", "quarantined")])
 def quarantined(conn) -> list[Wake]:
@@ -715,9 +729,30 @@ def quarantined(conn) -> list[Wake]:
     pass, so the system stays busy, keeps committing, and never arrives —
     quiescence never comes and nothing reports that anything is wrong. The first
     foreign repository spun six sessions on area one of twelve before anybody
-    looked at a counter."""
-    n = conn.execute(
-        "SELECT COUNT(*) n FROM messages WHERE status = 'quarantined'").fetchone()["n"]
+    looked at a counter.
+
+    **The wake carries the payload, not the envelope.** Liaison's whole working
+    set here is `msg.present_principal`, and that channel refuses message ids —
+    the principal has never seen a message and cannot resolve one. So a wake
+    naming the dead message hands the session the single id its only call will
+    reject, with no tool to trade it for anything better. Measured before this
+    was fixed: five runs, five sessions spent arguing with the guard and then
+    reaching six times for a tool they do not have. Nothing sent.
+
+    What stalled is what the message was *about*, which is also what the brief
+    asks for — "name the work that is now stalled, not the mechanism" — and the
+    only part of this the principal has a name for."""
+    dead = conn.execute(
+        "SELECT body_refs FROM messages WHERE status = 'quarantined'").fetchall()
+    # Ordered, deduplicated, and never the message ids: one dead delivery can
+    # carry several items, and two can carry the same one.
+    refs: list[str] = []
+    for row in dead:
+        for ref in _refs_of(row["body_refs"]):
+            if ref not in refs:
+                refs.append(ref)
+
+    n = len(dead)
     try:
         n += conn.execute(
             "SELECT COUNT(*) n FROM tick_attempts "
@@ -725,7 +760,11 @@ def quarantined(conn) -> list[Wake]:
         ).fetchone()["n"]
     except Exception:                 # a database older than the table
         pass
-    return [Wake("liaison", "tick:quarantined", detail=f"{n} abandoned")] if n else []
+    # A stalled tick has no payload to offer and that is the honest answer
+    # rather than a hole: it was never about an item, so there is nothing to
+    # name. It still wakes, because a tick that cannot drain is the worse half.
+    return [Wake("liaison", "tick:quarantined", refs=tuple(refs),
+                 detail=f"{n} abandoned")] if n else []
 
 
 @predicate("agenda", wakes="liaison", band="gate", needs_principal=True,

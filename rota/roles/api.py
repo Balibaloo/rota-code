@@ -112,6 +112,22 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     return rows[0]["id"] if len(rows) == 1 else None
 
 
+def _same_words(a: str, b: str) -> bool:
+    """
+    Two strings that say the same thing in the same order.
+
+    Case, punctuation and line-folding are all differences a copy acquires for
+    free -- both measured sessions capitalised the first word and meant nothing
+    by it, and a criterion stored across two lines of YAML arrives with its
+    break in a different place. Word order is kept, because the check is for a
+    restatement and not for an overlapping vocabulary: a real test can be built
+    entirely out of the criterion's own nouns.
+    """
+    import re as _re
+    norm = lambda s: _re.findall(r"[a-z0-9]+", (s or "").lower())   # noqa: E731
+    return bool(norm(a)) and norm(a) == norm(b)
+
+
 def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
     """
     A state change needs something to change the state *of*.
@@ -366,16 +382,37 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
 
 
 @op("glossary", "lookup")
-def glossary_lookup(ctx: Ctx, term: str) -> list[dict]:
-    """One term, all senses — collisions are visible by construction."""
+def glossary_lookup(ctx: Ctx, term: str) -> list[dict] | dict:
+    """
+    One term, all senses — collisions are visible by construction.
+
+    A hit returns the rows and nothing else, exactly as it always has. A *miss*
+    says how big the glossary is, because an empty result on its own is a
+    vacuous signal that has been read as a strong one: two Tester sessions
+    looked a whole clause up in a glossary with no rows in it at all, got `[]`,
+    concluded the criterion turned on an undefined word, and sent the
+    sentence's problem to the wrong desk. Nothing was undefined; there was
+    nothing to define against.
+
+    The count is a fact the system already holds and did not mention. It is
+    reported rather than interpreted — no advice about what to do with it,
+    because the judgement is the role's and this is the input it was missing.
+    """
     rows = _rows(ctx.conn.execute(
         "SELECT id, term, sense_short, sense_body, provenance FROM glossary_terms "
         "WHERE term = ? ORDER BY id", (term,)))
     if rows:
         ctx.lookup_misses.discard(term)
-    else:
-        ctx.lookup_misses.add(term)
-    return rows
+        return rows
+
+    ctx.lookup_misses.add(term)
+    total = ctx.conn.execute(
+        "SELECT COUNT(*) n FROM glossary_terms").fetchone()["n"]
+    return {"term": term, "senses": [], "glossary_size": total,
+            "note": (f"no entry for {term!r}. The glossary holds {total} "
+                     f"term{'' if total == 1 else 's'}"
+                     + ("" if total else ", so a miss here says nothing about "
+                                        "whether any word is unclear"))}
 
 
 @op("glossary", "consult")
@@ -885,6 +922,30 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # in the message. `_must_exist` names the ids that would have worked.
     _must_exist(ctx, "criteria", criterion_id)
 
+    # A body that says no more than the criterion says has encoded nothing.
+    #
+    # The brief already asks for this -- "writing a test that passes trivially is
+    # worse than writing none, because it reports as coverage" -- and two cases
+    # measured what the sentence achieves alone. Both criteria were deliberately
+    # unencodable, one asking for something no machine could check and one
+    # needing a fact about somebody else's spec, and in ten runs of ten the
+    # session opened by saving the criterion's own words back as the test,
+    # before looking anything up. Having written a test it then had nothing left
+    # to do, and the question it owed went to whichever role was nearest.
+    #
+    # Deliberately narrow. It is a copy that is detected, not a shape: a body
+    # can be a sentence and still be doing the work -- "the billing entity that
+    # owes money, not the login identity" applies a sense the criterion left
+    # open -- and a guard demanding syntax would refuse that one too.
+    text = ctx.conn.execute(
+        "SELECT text FROM criteria WHERE id = ?", (criterion_id,)).fetchone()
+    if text is not None and _same_words(body, text["text"]):
+        raise ValueError(
+            f"that is {criterion_id}'s own sentence written back, so nothing has "
+            f"been encoded and a test that reports as coverage would exist. If "
+            f"there is nothing you can add to it, the criterion is what is wrong "
+            f"and saying so is the work of this session")
+
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:
         raise ValueError(
@@ -908,6 +969,26 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         return {"id": id, "unchanged": True,
                 "note": "identical to what is already on file, so nothing was "
                         "written and no version moved."}
+
+    # One test per criterion, which is the brief's first line and was held by
+    # nothing. A session that could not encode a criterion honestly wrote a
+    # paraphrase, then wrote the same paraphrase again under a new id, then
+    # again -- narrating each as a fresh test that "considers the term webhook".
+    # Four rows against one criterion is not coverage of it four times over; it
+    # is one unanswered question wearing four hats, and Critic downstream cannot
+    # tell the difference.
+    #
+    # Reported rather than refused, for the same reason as the byte-identical
+    # re-encode above: the session has already said what it has to say about
+    # this criterion, and an error invites it to say it a fifth way.
+    done = [w for w in ctx.writes
+            if w[0] == "tests" and w[2].get("criterion_id") == criterion_id]
+    if done:
+        return {"id": done[0][1], "unchanged": True,
+                "note": f"{criterion_id} already has a test this session "
+                        f"({done[0][1]}), and one criterion takes one. Nothing "
+                        f"was written. If that test is wrong, this is not the "
+                        f"session that discovers it."}
 
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
