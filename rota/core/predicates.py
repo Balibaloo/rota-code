@@ -778,6 +778,59 @@ def survey(conn) -> list[Wake]:
     return tick_survey(conn)
 
 
+
+# ---------------------------------------------------------------------------
+# The register, as a set the code holds rather than a list a document keeps.
+# ---------------------------------------------------------------------------
+
+REGISTER_ENTRIES = frozenset({
+    "contradiction", "contested", "constraint_zero", "awaiting_confirm",
+    "agenda", "quarantined", "exhausted", "round_close",
+    "observed_entries", "reopen", "tests_failing", "verdict_failed",
+    "checkpoint_invalid", "survey", "term_collision", "unresolved",
+})
+
+
+def outstanding(conn) -> list[dict]:
+    """
+    What this system does not know, as one query.
+
+    `REGISTER.md` classified sixteen predicates as register entries -- something
+    is owed and the predicate keeps offering it until it is not -- and then said
+    the obvious thing was still missing: every row of "what is outstanding"
+    existed and nothing counted them together. Each predicate answered its own
+    question and none of them answered that one.
+
+    It is a fold over work already done, which is why it needed no artefact. The
+    obligations were always derived; only the sum was missing.
+
+    Failures are reported rather than raised. This is the view somebody opens
+    when they want to know where things stand, and a predicate that throws
+    should not be able to make the whole answer unavailable -- that is the
+    quiescence failure again, one level up.
+    """
+    out = []
+    for name in sorted(REGISTER_ENTRIES):
+        p = REGISTRY.get(name)
+        if p is None:
+            continue
+        try:
+            wakes = p.fn(conn)
+        except Exception as exc:                       # noqa: BLE001
+            out.append({"obligation": name, "count": 0, "owners": [],
+                        "refs": [], "error": str(exc)[:120]})
+            continue
+        if not wakes:
+            continue
+        out.append({
+            "obligation": name,
+            "count": len(wakes),
+            "owners": sorted({w.role for w in wakes if w.role not in (DERIVED, SCHEDULER)}),
+            "refs": sorted({r for w in wakes for r in (w.refs or ())})[:8],
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # The lint: every state must have a way out
 # ---------------------------------------------------------------------------

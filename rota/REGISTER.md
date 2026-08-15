@@ -153,11 +153,16 @@ and each says it in the terms of that role's own failure: a test encoded from a
 guess passes, a constraint that cannot be tied to a commitment binds nobody, a
 sense recorded twice leaves the collision live.
 
-**What is still traffic.** "What does this system not know" remains unanswerable
-as a single query -- the obligations are derived one predicate at a time and
-never counted together. That is the aggregation the open-uncertainty artefact
-would give, and it is worth having for its own sake rather than as a
-prerequisite for anything above.
+**The aggregation.** Built, as `predicates.outstanding()`. "What does this
+system not know" is one query now: a fold over the sixteen register predicates,
+returning each outstanding obligation with its owners and refs. It needed no
+artefact, which is the point -- the obligations were always derived and only the
+sum was missing, and an open-uncertainty artefact would have been a second copy
+of rows that already exist.
+
+`REGISTER_ENTRIES` lives in `predicates.py` and the list above is checked
+against it, rather than this document being the only place the classification
+exists. A runtime that folds over the set cannot take it from prose.
 
 ## Item 5, specified
 

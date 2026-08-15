@@ -567,3 +567,45 @@ def test_a_rung_that_cannot_reply_to_the_asker_is_not_a_rung(db):
     wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
     assert [w.role for w in wakes] == ["gatekeeper"], \
         "Architect cannot answer Tester; the climb must skip to one that can"
+
+
+def test_what_this_system_does_not_know_is_one_query(db):
+    """
+    The register's last item, and the one it kept describing as missing.
+
+    Sixteen predicates each answered their own question and nothing answered
+    "what is outstanding" -- every row existed and none of them were counted
+    together. It is a fold over work already done, which is why it needed no
+    artefact.
+    """
+    assert P.outstanding(db) == [], "an empty project owes nothing"
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','order','a customer purchase','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','order','the sequence events arrive in','decided')")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','reconcile late orders','in_scope','decided','contested',1,1)")
+
+    rows = {r["obligation"]: r for r in P.outstanding(db)}
+    assert "term_collision" in rows, "a word with two live senses is outstanding"
+    assert "contested" in rows, "an item the principal rejected is outstanding"
+    assert rows["term_collision"]["owners"] == ["terminologist"], \
+        "an obligation nobody owns cannot be discharged"
+    assert set(rows["term_collision"]["refs"]) == {"g1", "g2"}
+
+    # Discharged by evidence, not by anyone declaring it settled.
+    db.execute("INSERT INTO decisions (id, author, text, refs) VALUES "
+               "('d1','terminologist','order means a purchase','[\"g1\",\"g2\"]')")
+    assert "term_collision" not in {r["obligation"] for r in P.outstanding(db)}
+
+
+def test_the_register_set_is_the_one_the_document_names():
+    """
+    The classification lives in code and the document is checked against it,
+    rather than the document being the only place it exists.
+    """
+    assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
+        "the register names a predicate that does not exist"
+    assert len(P.REGISTER_ENTRIES) == 16

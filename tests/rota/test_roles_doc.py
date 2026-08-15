@@ -155,7 +155,14 @@ def test_every_predicate_is_either_spine_or_register():
     # Every predicate is register, spine, or the one traffic tip. The spine half
     # is not listed in the doc by name, so it is whatever is left -- which means
     # a new predicate lands in "spine" silently unless the count is pinned too.
-    assert len(named) == 16, f"the register lists {len(named)}, not sixteen"
+    # The set lives in code now and the document is checked against it, rather
+    # than the document being the only place the classification exists. That
+    # ordering matters: `outstanding()` folds over `REGISTER_ENTRIES`, so a
+    # doc-only list would have been a second source of truth for something the
+    # runtime depends on.
+    assert named == set(P.REGISTER_ENTRIES), (
+        f"REGISTER.md and predicates.REGISTER_ENTRIES disagree: "
+        f"{sorted(named ^ set(P.REGISTER_ENTRIES))}")
     assert len(every) == 28, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 28. Classify the new one.")
