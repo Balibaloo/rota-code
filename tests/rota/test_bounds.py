@@ -39,7 +39,6 @@ UNBOUNDED: set[tuple[str, str]] = {
     ('L1-GK-amend-a-contested-item', 'items'),
     ('L1-GK-assert', 'items'),
     ('L1-GK-relay-the-ruling', 'items'),
-    ('L1-GK-slice', 'tickets'),
     ('L1-GK-survey-an-area-for-what-it-does', 'items'),
     ('L1-LI-no-report-no-question', 'statements'),
     ('L1-LI-ratify', 'statements'),

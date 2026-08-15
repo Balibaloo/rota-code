@@ -44,7 +44,11 @@
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
   expect:
     writes:
-      tickets: {count: ">=1"}
+      # Measured: exactly one, five runs out of five, for a single-clause item.
+      # Two is a legitimate split of "delete their account" and three is not,
+      # so this is generous and still catches the class that made segmentation
+      # produce twenty-four rows from one sentence.
+      tickets: {count: "1..2"}
   forbidden:
     # Slicing an approved item must not amend it — that would revoke the
     # approval that made it sliceable in the first place.
