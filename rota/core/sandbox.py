@@ -519,6 +519,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"{refs!r}. A string is a sequence of characters here, so this "
                 f"would travel as one ref per letter")
 
+        # A list of one-element lists is unambiguous, unlike the dicts below,
+        # and it is what a model does when it builds refs one at a time. Liaison
+        # sent `[["g_69d1e1"], ["g_2d422b"]]` -- both senses of the colliding
+        # word, correctly identified -- had it refused, and retried carrying
+        # one. Refusing something recoverable cost the ref it had already found.
+        if isinstance(refs, list) and any(
+                isinstance(r, list) and all(isinstance(x, str) for x in r)
+                for r in refs):
+            flat = []
+            for r in refs:
+                flat.extend(r) if isinstance(r, list) else flat.append(r)
+            refs = flat
+
         bad = [r for r in (refs or []) if not isinstance(r, str)]
         if bad:
             raise ValueError(
