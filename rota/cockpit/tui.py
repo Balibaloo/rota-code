@@ -245,19 +245,17 @@ class RotaApp(App):
             return
         event.input.value = ""
         self.say(text, "you", "green")
-        if self.started:
-            try:
-                ask = self.principal.submit(text)
-            except ValueError as exc:
-                self.say(str(exc), "system", "red")
-                return
-            if ask is not None:
-                self.run_worker(self._turn_the_crank, thread=True)
+        self.started = True
+        try:
+            ask = self.principal.submit(text)
+        except ValueError as exc:
+            self.say(str(exc), "system", "red")
             return
-        if not self.started:
-            self.started = True
+        if ask is None:
+            # No gate is open, so the user's sentence is a new chat turn to
+            # Liaison rather than an answer to a question.
             open_with(self.conn, text)
-            self.run_worker(self._turn_the_crank, thread=True)
+        self.run_worker(self._turn_the_crank, thread=True)
 
     def _turn_the_crank(self) -> None:
         """

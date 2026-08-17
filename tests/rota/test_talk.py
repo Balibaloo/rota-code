@@ -320,3 +320,31 @@ async def test_the_tui_displays_and_consumes_liaison_replies(tmp_path):
         row = app.conn.execute(
             "SELECT status FROM messages WHERE id = 'm1'").fetchone()
         assert row["status"] == "answered"
+
+
+def test_follow_up_chat_without_pending_ask_opens_new_message(
+        tmp_path, monkeypatch):
+    """After Liaison replies, the user's next sentence is a new chat turn."""
+    from rota.cockpit import tui
+
+    runs = []
+    monkeypatch.setattr(tui.loop_mod, "run", lambda *a, **k: runs.append(True))
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    tui.open_with(app.conn, "first thing")
+    app.started = True
+    app.say = lambda *a, **k: None          # don't paint during unit test
+    app.run_worker = lambda fn, thread=True: fn()  # run synchronously
+
+    class FakeEvent:
+        def __init__(self, value):
+            self.value = value
+            self.input = type("Input", (), {"value": value})()
+
+    app.on_input_submitted(FakeEvent("second thing"))
+
+    msgs = app.conn.execute(
+        "SELECT body_text FROM messages WHERE verb = 'converse' ORDER BY seq"
+    ).fetchall()
+    assert [m["body_text"] for m in msgs] == ["first thing", "second thing"]
+    assert len(runs) == 1
