@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -92,11 +93,55 @@ class QueuedPrincipal:
     def __init__(self, app: "RotaApp") -> None:
         self.app = app
         self.pending: list[Ask] = []
+        self.answers: dict[str, Answer] = {}
+        self._lock = threading.Lock()
 
     def respond(self, ask: Ask) -> Answer | None:
-        self.pending.append(ask)
-        self.app.call_from_thread(self.app.show_ask, ask)
-        return None                       # deferred; the agenda brings it back
+        with self._lock:
+            answer = self.answers.pop(ask.message_id, None)
+            known = any(p.message_id == ask.message_id for p in self.pending)
+            if answer is None and not known:
+                self.pending.append(ask)
+        if answer is not None:
+            with self._lock:
+                self.pending = [p for p in self.pending
+                                if p.message_id != ask.message_id]
+            return answer
+        if not known:
+            self.app.call_from_thread(self.app.show_ask, ask)
+        return None                       # deferred until the UI answers
+
+    def submit(self, text: str) -> Ask | None:
+        """Turn the user's reply to the oldest visible ask into an Answer."""
+        with self._lock:
+            ask = self.pending[0] if self.pending else None
+            if ask is None:
+                return None
+            self.answers[ask.message_id] = self._answer_for(ask, text)
+        return ask
+
+    @staticmethod
+    def _answer_for(ask: Ask, text: str) -> Answer:
+        raw = text.strip()
+        if ask.verb in ("confirm", "present"):
+            if raw.lower() in ("lgtm", "ok", "yes", "approve", "approved"):
+                return Answer(verb="verdict",
+                              per_item={ref: "approve" for ref in ask.refs})
+            per_item = {}
+            for part in raw.replace(",", " ").split():
+                if "=" in part:
+                    ref, ruling = part.split("=", 1)
+                elif ":" in part:
+                    ref, ruling = part.split(":", 1)
+                else:
+                    continue
+                if ref in ask.refs and ruling in ("approve", "contest", "revise"):
+                    per_item[ref] = ruling
+            if not per_item:
+                raise ValueError(
+                    "reply with 'lgtm' or rulings such as 's1=approve'")
+            return Answer(verb="verdict", per_item=per_item)
+        return Answer(verb="converse", text=raw)
 
 
 class Outstanding(Static):
@@ -191,6 +236,15 @@ class RotaApp(App):
             return
         event.input.value = ""
         self.say(text, "you", "green")
+        if self.started:
+            try:
+                ask = self.principal.submit(text)
+            except ValueError as exc:
+                self.say(str(exc), "system", "red")
+                return
+            if ask is not None:
+                self.run_worker(self._turn_the_crank, thread=True)
+            return
         if not self.started:
             self.started = True
             open_with(self.conn, text)

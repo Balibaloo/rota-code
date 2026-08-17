@@ -145,6 +145,34 @@ def test_the_ui_principal_satisfies_the_same_protocol():
     assert seen, "the principal was asked and the interface never showed it"
 
 
+def test_the_ui_principal_deduplicates_an_open_ask_and_accepts_lgtm():
+    """A deferred ask is displayed once, then becomes a verdict when answered."""
+    from rota.cockpit.tui import QueuedPrincipal
+    from rota.roles.principal import Ask
+
+    shown = []
+
+    class FakeApp:
+        def call_from_thread(self, fn, *args):
+            shown.append(args[0])
+
+        def show_ask(self, ask):
+            pass
+
+    principal = QueuedPrincipal(FakeApp())
+    ask = Ask(message_id="m1", verb="confirm", refs=["s1", "s2"])
+
+    assert principal.respond(ask) is None
+    assert principal.respond(ask) is None
+    assert len(shown) == 1
+
+    principal.submit("lgtm")
+    answer = principal.respond(ask)
+    assert answer is not None
+    assert answer.verb == "verdict"
+    assert answer.per_item == {"s1": "approve", "s2": "approve"}
+
+
 def test_the_sidebar_shows_what_the_register_owes(tmp_path):
     """
     The pane that did not exist in any form until today. Sessions scroll past
