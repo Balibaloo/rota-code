@@ -182,6 +182,7 @@ class RotaApp(App):
         self.conn = init_db(db_path)
         self.principal = QueuedPrincipal(self)
         self.started = False
+        self._pending_text = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -256,12 +257,15 @@ class RotaApp(App):
             # Liaison rather than an answer to a question.
             # Use the worker connection so ids are counted after the worker's
             # own commits; the UI connection may lag uncommitted state.
-            self.run_worker(self._open_then_turn, thread=True, text=text)
+            self._pending_text = text
+            self.run_worker(self._open_then_turn, thread=True)
         else:
             self.run_worker(self._turn_the_crank, thread=True)
 
-    def _open_then_turn(self, text: str) -> None:
+    def _open_then_turn(self) -> None:
         """Write the follow-up message from the worker thread, then run."""
+        text = self._pending_text
+        del self._pending_text
         conn = connect(self.db_path)
         try:
             open_with(conn, text)

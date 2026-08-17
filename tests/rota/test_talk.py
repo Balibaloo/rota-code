@@ -334,7 +334,14 @@ def test_follow_up_chat_without_pending_ask_opens_new_message(
     tui.open_with(app.conn, "first thing")
     app.started = True
     app.say = lambda *a, **k: None          # don't paint during unit test
-    app.run_worker = lambda fn, thread=True, **kw: fn(**kw)  # sync
+
+    captured = {}
+
+    def fake_run_worker(fn, thread=True):
+        captured["thread"] = thread
+        return fn()
+
+    app.run_worker = fake_run_worker
 
     class FakeEvent:
         def __init__(self, value):
@@ -348,3 +355,4 @@ def test_follow_up_chat_without_pending_ask_opens_new_message(
     ).fetchall()
     assert [m["body_text"] for m in msgs] == ["first thing", "second thing"]
     assert len(runs) == 1
+    assert captured.get("thread") is True
