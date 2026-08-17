@@ -61,21 +61,19 @@ def open_with(conn: sqlite3.Connection, text: str) -> str:
     statements out of it and every statement keeps a span back into it -- and
     the message is what wakes anybody.
     """
-    # The entry's id is derived from the message's, and must be: `dispatch`
-    # finds the entry to segment by looking up `f"e_{wake.message_id}"`. That
-    # coupling is a naming convention rather than a foreign key, and nothing
-    # declares it -- intake built with independent ids produced a Liaison that
-    # read the sentence, called `brief.segment` four times, was refused "no
-    # entry to segment against" every time, and committed a session that
-    # reported ok while writing nothing.
-    msg_id = new_id("m", conn)
-    entry_id = f"e_{msg_id}"
+    # Derive ids after any preceding write. `new_id` counts the table, so
+    # ids must be minted immediately before the INSERT that uses them. The
+    # entry id is coupled to the message id by naming convention.
     order = conn.execute(
         "SELECT COALESCE(MAX(ts_order), 0) + 1 n FROM entries").fetchone()["n"]
+    msg_id = new_id("m", conn)
+    entry_id = f"e_{msg_id}"
     conn.execute(
         "INSERT INTO entries (id, author, text, ts_order) VALUES (?,?,?,?)",
         (entry_id, "principal", text, order))
+    conn.commit()
 
+    msg_id = new_id("m", conn)
     seq = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
     conn.execute(
