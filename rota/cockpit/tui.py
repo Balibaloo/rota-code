@@ -254,8 +254,20 @@ class RotaApp(App):
         if ask is None:
             # No gate is open, so the user's sentence is a new chat turn to
             # Liaison rather than an answer to a question.
-            open_with(self.conn, text)
-        self.run_worker(self._turn_the_crank, thread=True)
+            # Use the worker connection so ids are counted after the worker's
+            # own commits; the UI connection may lag uncommitted state.
+            self.run_worker(self._open_then_turn, thread=True, text=text)
+        else:
+            self.run_worker(self._turn_the_crank, thread=True)
+
+    def _open_then_turn(self, text: str) -> None:
+        """Write the follow-up message from the worker thread, then run."""
+        conn = connect(self.db_path)
+        try:
+            open_with(conn, text)
+        finally:
+            conn.close()
+        self._turn_the_crank()
 
     def _turn_the_crank(self) -> None:
         """

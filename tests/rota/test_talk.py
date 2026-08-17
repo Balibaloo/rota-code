@@ -334,7 +334,7 @@ def test_follow_up_chat_without_pending_ask_opens_new_message(
     tui.open_with(app.conn, "first thing")
     app.started = True
     app.say = lambda *a, **k: None          # don't paint during unit test
-    app.run_worker = lambda fn, thread=True: fn()  # run synchronously
+    app.run_worker = lambda fn, thread=True, **kw: fn(**kw)  # sync
 
     class FakeEvent:
         def __init__(self, value):
