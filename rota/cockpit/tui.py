@@ -58,7 +58,7 @@ from ..core import loop as loop_mod
 from ..core.db import connect, init_db
 from ..core.predicates import outstanding
 from ..llm import llm
-from ..roles.principal import Answer, Ask
+from ..roles.principal import Answer, Ask, pending_replies
 from ..tools.talk import open_with
 
 # The repo root again, for the chat app's widgets, which live outside the
@@ -219,11 +219,20 @@ class RotaApp(App):
         for old in list(pane.children)[:max(extra, 0)]:
             old.remove()
         pane.scroll_end(animate=False)
+        self.show_replies()
         self.refresh_owed()
 
     def show_ask(self, ask: Ask) -> None:
         body = ask.rendered or "\n".join(f"- {r}" for r in ask.refs)
         self.say(f"**{ask.verb}**\n\n{body}", "liaison", "magenta")
+
+    def show_replies(self) -> None:
+        """Display Liaison conversational replies and mark them shown."""
+        for ask in pending_replies(self.conn):
+            self.say(ask.rendered or "", "liaison", "magenta")
+            self.conn.execute(
+                "UPDATE messages SET status = 'answered' WHERE id = ?",
+                (ask.message_id,))
 
     def refresh_owed(self) -> None:
         self.query_one("#owed", Outstanding).render_rows(self.conn)

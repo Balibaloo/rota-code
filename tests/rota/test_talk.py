@@ -280,3 +280,43 @@ async def test_the_ticker_stays_bounded(tmp_path):
             app.note_step(f"· step {i}")
         await pilot.pause()
         assert len(app.query_one("#sessions").children) == app.SESSION_LINES
+
+
+def test_converse_replies_are_not_pending_asks(db):
+    """Liaison prose replies are displayed, not offered as questions."""
+    from rota.roles.principal import pending_asks, pending_replies
+
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m1','t1','liaison','principal','converse','[]',"
+        "'Hi there!',1,'open')")
+
+    assert pending_asks(db) == []
+    assert len(pending_replies(db)) == 1
+    assert pending_replies(db)[0].rendered == "Hi there!"
+
+
+async def test_the_tui_displays_and_consumes_liaison_replies(tmp_path):
+    """A Liaison converse reply appears in the conversation pane once."""
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    async with app.run_test() as pilot:
+        app.conn.execute(
+            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+            "body_refs, body_text, seq, status) "
+            "VALUES ('m1','t1','liaison','principal','converse','[]',"
+            "'Hello from Liaison',1,'open')")
+
+        app.show_replies()
+        await pilot.pause()
+        assert len(app.query_one("#conversation").children) == 1
+
+        # Calling again should not duplicate the reply.
+        app.show_replies()
+        await pilot.pause()
+        assert len(app.query_one("#conversation").children) == 1
+        row = app.conn.execute(
+            "SELECT status FROM messages WHERE id = 'm1'").fetchone()
+        assert row["status"] == "answered"

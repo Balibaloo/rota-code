@@ -726,13 +726,17 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # end. Every other question channel shares the whole database and still
         # needs words, because a question is about something no artefact holds
         # -- that is what makes it a question. The doc says whichever applies.
-        doc = (f"Ask {recipient} a question of fact about something outside this "
-               f"repository. It has never seen this project, so say what you "
-               f"need to know in words. refs: list of ids, may be empty."
-               if recipient == "researcher" else
-               f"Ask {recipient} a question. The refs say what it is about; "
-               f"`question=` says what you need to know about them, which no "
-               f"row holds. refs: list of ids.")
+        if recipient == "researcher":
+            doc = (f"Ask {recipient} a question of fact about something outside this "
+                   f"repository. It has never seen this project, so say what you "
+                   f"need to know in words. refs: list of ids, may be empty.")
+        elif verb == "converse":
+            doc = (f"Send a natural-language {verb!r} to {recipient}. "
+                   f"`{prose}=` carries the words; refs may be empty.")
+        else:
+            doc = (f"Ask {recipient} a question. The refs say what it is about; "
+                   f"`{prose}=` says what you need to know about them, which no "
+                   f"row holds. refs: list of ids.")
     else:
         def send(refs: list[str], round_no: int = 0):
             return stage(refs, round_no)

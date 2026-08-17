@@ -575,6 +575,15 @@
       "s": "liaison",
       "t": "principal",
       "type": "messages",
+      "v": "converse",
+      "n": "free reply",
+      "rows": "none",
+      "prose": "reply"
+    },
+    {
+      "s": "liaison",
+      "t": "principal",
+      "type": "messages",
       "v": "confirm",
       "n": "statement list",
       "label": "ratification",
@@ -1165,6 +1174,15 @@
       "rows": "single"
     },
     {
+      "s": "terminologist",
+      "t": "architect",
+      "type": "messages",
+      "v": "answer",
+      "n": "term sense",
+      "label": "the reply to a question the cascade cannot carry",
+      "rows": "single"
+    },
+    {
       "s": "gatekeeper",
       "t": "tester",
       "type": "messages",
@@ -1664,11 +1682,6 @@
     },
     {
       "s": "gatekeeper",
-      "t": "architect",
-      "why": "inform: the receipt cascade wakes it"
-    },
-    {
-      "s": "terminologist",
       "t": "architect",
       "why": "inform: the receipt cascade wakes it"
     },

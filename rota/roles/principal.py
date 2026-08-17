@@ -128,15 +128,32 @@ class ConsolePrincipal:                                    # pragma: no cover
 # ---------------------------------------------------------------------------
 
 def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
-    """Open messages addressed to the principal. These never wake anything — the
-    principal is not schedulable — so they sit until answered or deferred."""
+    """Open questions addressed to the principal.
+
+    `converse` replies from Liaison are displayed, not asked — they carry prose
+    rather than a decision, so they do not become a principal gate.
+    """
     return [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
             rendered=render_refs(conn, json.loads(r["body_refs"])))
         for r in conn.execute(
             "SELECT id, verb, body_refs FROM messages "
-            "WHERE status = 'open' AND to_role = 'principal' ORDER BY seq")
+            "WHERE status = 'open' AND to_role = 'principal' "
+            "  AND verb != 'converse' ORDER BY seq")
+    ]
+
+
+def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
+    """Open Liaison `converse` replies that should be displayed to the principal."""
+    return [
+        Ask(message_id=r["id"], verb=r["verb"],
+            refs=json.loads(r["body_refs"]),
+            rendered=r["body_text"] or "")
+        for r in conn.execute(
+            "SELECT id, verb, body_refs, body_text FROM messages "
+            "WHERE status = 'open' AND to_role = 'principal' AND verb = 'converse' "
+            "ORDER BY seq")
     ]
 
 
