@@ -908,6 +908,16 @@ def run_session(
             tool_calls=sandbox_mod.drain_calls(sb.ctx),
             pins=pins.as_dict(),
         )
+        # Hard guard: a chat reply to the principal is mutually exclusive with
+        # asking the principal to ratify statements. If Liaison both chatted and
+        # segmented, drop the segmentation so the conversation does not stall
+        # on a confirm gate.
+        if any(m.to_role == "principal" and m.verb == "converse"
+               for m in result.messages):
+            result.writes = [w for w in result.writes if w.table != "statements"]
+            result.messages = [
+                m for m in result.messages
+                if not (m.to_role == "principal" and m.verb == "confirm")]
         session_commit(conn, result)
         outcome.committed = True
         outcome.result = result
