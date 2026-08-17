@@ -283,7 +283,7 @@ class RotaApp(App):
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="rota, with a face")
-    ap.add_argument("--db", default="rota-tui.db")
+    ap.add_argument("--db", default=".rota/rota.db")
     ap.add_argument("--model", default=llm.DEFAULT_MODEL)
     args = ap.parse_args(argv)
     RotaApp(Path(args.db), args.model).run()
