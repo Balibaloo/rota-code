@@ -310,3 +310,95 @@ def test_a_violated_finding_still_stops_the_merge(gated):
                   "('f1','b1','k1','sha1','violated','src/store.py')")
 
     assert lifecycle.mergeable(gated, "b1") == "1 constraint(s) violated"
+
+
+def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo):
+    """
+    The loop-back, which the happy path cannot show.
+
+    Every arc in this suite goes forward. The delivery loop's whole shape is
+    that it does not: a failing test bounces to the Developer without waiting
+    for review, because a test costs a subprocess and a Critic session costs a
+    model call. Nothing had ever run that bounce as a sequence, so nothing
+    checked the part that makes it safe -- that the judgements which pass are
+    about the commit that merges, and not about the one that failed.
+
+    Written the same way as the arc above: nothing is inserted after the batch
+    starts, and every wake has to be derived.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','users can delete their account','in_scope','decided',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) "
+               "VALUES ('tk1','i1','add a delete button')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','tk1','deleting an account tombstones it','[]')")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b1','i1','pending')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
+               "VALUES ('b1','tk1')")
+    lifecycle.start(db, "b1")
+
+    drive(db, tick(db, "tick:tests_missing"), [
+        "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
+        "body='from seam import delete_account\n"
+        "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
+    ], batch_id="b1")
+
+    # --- a first attempt that does not satisfy it ---------------------------
+    drive(db, Wake("developer", "tick:batch_start", refs=("b1",)), [
+        "TOOL: code.write(path='seam.py', text='def delete_account(account_id):"
+        "\n    return \"deleted\"\n')",
+        "TOOL: code.commit(message='delete an account')",
+    ], batch_id="b1")
+
+    from rota.core import harness
+    bad = db.execute(
+        "SELECT head_commit FROM batches WHERE id='b1'").fetchone()["head_commit"]
+    harness.run(db, "b1")
+    assert db.execute(
+        "SELECT result FROM test_runs WHERE batch_id='b1' AND commit_sha=?",
+        (bad,)).fetchone()["result"] == "fail", "the code does not tombstone"
+
+    # It goes back to the Developer, and it does *not* go to Critic: a model
+    # call on a diff whose tests are red is spent knowing that already.
+    assert tick(db, "tick:tests_failing").refs == ("b1",)
+    assert not [w for w in predicate_wakes(db) if w.kind == "tick:review"], \
+        "a red harness must not reach the expensive gate"
+
+    # --- the fix -------------------------------------------------------------
+    drive(db, tick(db, "tick:tests_failing"), [
+        "TOOL: code.write(path='seam.py', text='def delete_account(account_id):"
+        "\n    return \"tombstoned\"\n')",
+        "TOOL: code.commit(message='tombstone rather than delete')",
+    ], batch_id="b1")
+
+    good = db.execute(
+        "SELECT head_commit FROM batches WHERE id='b1'").fetchone()["head_commit"]
+    assert good != bad, "the fix has to be a new commit or nothing has changed"
+
+    harness.run(db, "b1")
+    assert db.execute(
+        "SELECT result FROM test_runs WHERE batch_id='b1' AND commit_sha=?",
+        (good,)).fetchone()["result"] == "pass"
+
+    # The failing run is still on file against the commit it judged, and does
+    # not follow the batch forward. That is the whole reason results are stamped.
+    assert lifecycle.mergeable(db, "b1") == "no verdict", \
+        f"the old failure must not still be gating: {lifecycle.mergeable(db, 'b1')}"
+
+    drive(db, tick(db, "tick:review"), [
+        "TOOL: criteria.load(batch_id='b1')",
+        "TOOL: tests.load(batch_id='b1')",
+        "TOOL: verdicts.emit(batch_id='b1', result='pass')",
+    ], batch_id="b1")
+
+    assert db.execute(
+        "SELECT commit_sha FROM verdicts WHERE batch_id='b1'"
+    ).fetchone()["commit_sha"] == good, "the verdict must judge the fix"
+
+    assert lifecycle.mergeable(db, "b1") is None
+    lifecycle.merge(db, "b1")
+    assert db.execute("SELECT status FROM batches WHERE id='b1'"
+                      ).fetchone()["status"] == "merged"
