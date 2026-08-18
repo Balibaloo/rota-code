@@ -71,11 +71,17 @@ def new_id(prefix: str, conn: sqlite3.Connection | None = None,
     """
     table = _COUNTED.get(prefix)
     if conn is not None and table:
-        # `offset` is what a session has staged but not committed. Messages are
-        # held in the context until the commit lands atomically, so counting the
-        # table alone would hand the same id to every message in one session.
-        n = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
-        return f"{prefix}{n + offset + 1}"
+        # Counting rows assumes a dense 1..N sequence, but sessions can leave
+        # gaps: a staged message may be dropped before commit (e.g. the runner
+        # guard that strips a confirm when Liaison chats). The next session
+        # would then reuse an id that already exists. Use the highest numeric
+        # suffix already in the table instead.
+        row = conn.execute(
+            f"SELECT COALESCE(MAX(CAST(SUBSTR(id, ?) AS INTEGER)), 0) AS n "
+            f"FROM {table} WHERE id GLOB ?",
+            (len(prefix) + 1, f"{prefix}[0-9]*"),
+        ).fetchone()
+        return f"{prefix}{row['n'] + offset + 1}"
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 

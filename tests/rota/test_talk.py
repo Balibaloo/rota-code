@@ -106,6 +106,26 @@ def test_deferral_is_always_allowed(monkeypatch):
         Ask(message_id="m1", verb="confirm", refs=["s1"])) is None
 
 
+def test_open_with_survives_a_message_id_gap(db):
+    """new_id must use the max numeric suffix, not the row count."""
+    # Simulate a prior session that minted m1 and m2, then dropped m2 before
+    # commit (e.g. runner guard). The next id must be m3, not m2.
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m1','t1','principal','liaison','converse','[]','hi',1,'open')")
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m3','t1','liaison','principal','converse','[]','reply',2,'open')")
+    db.commit()
+
+    talk.open_with(db, "next")
+
+    ids = [r["id"] for r in db.execute("SELECT id FROM messages ORDER BY seq")]
+    assert ids == ["m1", "m3", "m4"], ids
+
+
 # ---------------------------------------------------------------------------
 # The UI, tested where it joins rather than where it paints.
 # ---------------------------------------------------------------------------
