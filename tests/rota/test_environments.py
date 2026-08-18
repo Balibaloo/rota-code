@@ -9,6 +9,7 @@ changing that.
 from __future__ import annotations
 
 import os
+import pathlib
 
 import pytest
 
@@ -175,3 +176,193 @@ def test_boot_does_kill_what_it_can_claim(db):
 
     assert killed == [os.getpid()]
     assert reaped == [os.getpid()]
+
+
+# ---------------------------------------------------------------------------
+# Spawn and teardown — the first code here that starts anything
+# ---------------------------------------------------------------------------
+
+SLEEPER = "import time; time.sleep(30)"
+
+
+@pytest.fixture
+def spawned(db):
+    """A real child process, always cleaned up even when a test fails."""
+    import sys
+
+    started: list[int] = []
+
+    def go(batch_id="b1", script=SLEEPER):
+        pid = env.spawn(db, batch_id, [sys.executable, "-c", script])
+        started.append(pid)
+        return pid
+
+    yield go
+
+    import contextlib
+    import os
+    import signal
+    for pid in started:
+        with contextlib.suppress(OSError):
+            os.kill(pid, getattr(signal, "SIGTERM", 15))
+
+
+def test_a_spawned_process_is_recorded_with_both_facts(db, spawned):
+    """
+    The window between "it is running" and "we know it is running" is how an
+    orphan is made. The row carries the start time as well as the pid, so a
+    crash after this point leaves something boot can identify and stop.
+    """
+    pid = spawned()
+
+    row = db.execute("SELECT batch_id, command, started_at FROM runtime_processes "
+                     "WHERE pid = ?", (pid,)).fetchone()
+    assert row is not None, "a process nobody recorded is an orphan already"
+    assert row["batch_id"] == "b1"
+    assert row["started_at"], "a row without the second fact is one we cannot stop"
+    assert env.is_still_ours(db, pid)
+
+
+def test_a_string_command_is_refused(db):
+    """
+    A string would need a shell, and a shell here would be the only injection
+    surface in the system. There is no argument that turns one on.
+    """
+    with pytest.raises(env.EnvironmentError_) as exc:
+        env.spawn(db, "b1", "python -c 'print(1)'")
+    assert "shell" in str(exc.value)
+
+
+def test_teardown_stops_this_batch_and_leaves_the_others(db, spawned):
+    """
+    The capability to reach another batch's environment does not exist rather
+    than being refused, and teardown is where that would show if it did.
+    """
+    mine, theirs = spawned("b1"), spawned("b2")
+
+    stopped = env.teardown(db, "b1")
+    assert stopped == [mine]
+    assert env.is_still_ours(db, theirs), "b2's process is not b1's to stop"
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes WHERE batch_id='b2'"
+                      ).fetchone()["n"] == 1
+
+
+def test_a_deferral_keeps_the_ports_and_an_ending_gives_them_back(db, spawned):
+    """
+    The ruling, exercised. Processes are derived state and die either way; the
+    reservation is a number in a row and survives a deferral, because the tests
+    were written against those ports and resuming should be continuing.
+    """
+    base = env.reserve(db, "b1")
+    spawned("b1")
+
+    env.teardown(db, "b1")                       # deferred
+    assert env.ports_of(db, "b1") == list(range(base, base + env.PORTS_PER_BATCH))
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes WHERE batch_id='b1'"
+                      ).fetchone()["n"] == 0, "the processes go regardless"
+
+    env.teardown(db, "b1", release_ports=True)   # merged or abandoned
+    assert env.ports_of(db, "b1") == []
+
+
+def test_teardown_will_not_stop_what_it_cannot_claim(db):
+    """
+    Same care as boot, and for the same reason: a recorded pid whose start time
+    does not match is a stranger. Teardown differs from the reaper only in when
+    it runs.
+    """
+    env.record(db, "b1", os.getpid(), "pytest", started_at="an-earlier-boot")
+
+    import rota.core.environments as env_mod
+    killed = []
+    real = env_mod.os.kill if hasattr(env_mod, "os") else None
+    import os as _os
+    orig = _os.kill
+    _os.kill = lambda pid, sig: killed.append(pid)
+    try:
+        stopped = env.teardown(db, "b1")
+    finally:
+        _os.kill = orig
+
+    assert killed == [] and stopped == []
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes").fetchone()["n"] == 0
+
+
+def test_the_child_is_told_its_port_range(db, spawned):
+    """
+    A port range is a fact about where it may listen, not a decision the child
+    makes -- the same reasoning as `batch_id` arriving on a wake rather than
+    being asked for.
+    """
+    import sys
+    import tempfile
+
+    out = pathlib.Path(tempfile.mkdtemp()) / "seen.txt"
+    script = (f"import os, pathlib; pathlib.Path(r'{out}').write_text("
+              f"os.environ.get('ROTA_PORT_BASE','') + '|' + "
+              f"os.environ.get('ROTA_BATCH',''))")
+    pid = env.spawn(db, "b1", [sys.executable, "-c", script])
+
+    import time
+    for _ in range(100):
+        if out.exists():
+            break
+        time.sleep(0.05)
+
+    assert out.exists(), "the child never ran"
+    base, batch = out.read_text().split("|")
+    assert int(base) == env.ports_of(db, "b1")[0]
+    assert batch == "b1"
+
+
+# ---------------------------------------------------------------------------
+# The lifecycle hooks — where the ruling actually takes effect
+# ---------------------------------------------------------------------------
+
+def test_deferring_a_batch_stops_it_and_keeps_its_ports(db, spawned):
+    """
+    Law 9's split, applied to a third thing. The checkpoint dies and the
+    worktree lives; the processes go with the checkpoint and the reservation
+    stays with the worktree.
+    """
+    from rota.core import lifecycle
+
+    base = env.reserve(db, "b1")
+    pid = spawned("b1")
+    db.execute("UPDATE batches SET status='running' WHERE id='b1'")
+
+    lifecycle.defer(db, "b1")
+
+    assert db.execute("SELECT status FROM batches WHERE id='b1'"
+                      ).fetchone()["status"] == "deferred"
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes WHERE batch_id='b1'"
+                      ).fetchone()["n"] == 0, "a deferred batch leaves nothing running"
+    assert env.ports_of(db, "b1")[0] == base, \
+        "resuming has to be continuing, and the tests name these ports"
+
+
+def test_merging_a_batch_gives_the_ports_back(db, spawned):
+    """A delivered batch has no further claim; holding one walks the range."""
+    from rota.core import lifecycle
+
+    env.reserve(db, "b1")
+    spawned("b1")
+    db.execute("UPDATE batches SET status='running' WHERE id='b1'")
+
+    lifecycle.merge(db, "b1")
+
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes").fetchone()["n"] == 0
+    assert env.ports_of(db, "b1") == []
+
+
+def test_dispatch_reserves_before_anything_can_ask_for_a_port(db):
+    """
+    The range exists from the moment the batch is dispatched, not from the
+    first spawn -- a value the system knows should never be one a role has to
+    get right, and never one that appears halfway through.
+    """
+    from rota.core import lifecycle
+
+    assert env.ports_of(db, "b1") == []
+    lifecycle.start(db, "b1")
+    assert len(env.ports_of(db, "b1")) == env.PORTS_PER_BATCH

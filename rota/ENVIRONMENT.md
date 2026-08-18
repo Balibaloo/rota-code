@@ -24,7 +24,8 @@ outside its own database.
 | --- | --- |
 | `runtime_processes` (pid, batch_id, command, started_at) | table exists, **written by nothing yet** |
 | `boot.reap_processes` | kills only what it can prove is ours; reports the rest |
-| `core/environments.py` | reservation and ownership — **steps 1 and 2, done** |
+| `core/environments.py` | reservation, ownership, spawn, teardown — **1–4 done** |
+| `lifecycle.defer / merge` | processes die either way; ports survive a deferral |
 | `batches.port_base` | a range per batch, assigned by the scheduler at dispatch |
 | `worktrees.py` | a worktree per batch, created by the scheduler, never by a role |
 | `lifecycle.start / defer / merge` | the hooks an environment would attach to |
@@ -199,6 +200,15 @@ written against it — "a prediction that could block work would quietly become 
 permission system" — and an environment is a far more tempting place for it,
 because it is where the system touches the real machine. `env.status` reports.
 It does not gate.
+
+## Built
+
+Steps 1–4 are in, and the toolkit (5) is not — deliberately, because it is the
+only part that hands a *role* a capability, and nothing yet needs one. The
+scheduler spawns and tears down; `env.start`, `env.status` and `env.logs` wait
+for a case that needs them, on the same rule as every other edge here: a
+capability nobody can reach is indistinguishable from one that does not work,
+and one drawn before a case needs it is a guess.
 
 ## The order I would build it in
 

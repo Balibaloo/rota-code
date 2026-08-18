@@ -62,9 +62,21 @@ def defer(conn: sqlite3.Connection, batch_id: str) -> None:
     The worktree and its commits survive — commit-first is what bounds the loss,
     because an uncommitted change never existed. The checkpoint does not: a
     deferred batch resumes cold, in the worktree it left behind.
+
+    **The environment goes with the checkpoint, and the ports stay with the
+    worktree.** That split is not a new decision; it is this one applied to a
+    third thing. What survives a deferral is what cannot be recomputed, and
+    everything a running process holds — a seeded database, a warm cache, a
+    bound port — is reproducible by starting it again from the worktree. So the
+    processes are checkpoint-like and die. The reservation is a number in a row,
+    it holds nothing, and keeping it is what makes resuming *continuing*: the
+    tests were written against those ports and they are still those ports.
     """
+    from . import environments
+
     conn.execute("UPDATE batches SET status = 'deferred' WHERE id = ?", (batch_id,))
     conn.execute("UPDATE checkpoints SET valid = 0 WHERE batch_id = ?", (batch_id,))
+    environments.teardown(conn, batch_id, release_ports=False)
 
 
 def merge(conn: sqlite3.Connection, batch_id: str) -> None:
@@ -74,10 +86,15 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
 
     The worktree goes; the branch stays. Deleting the branch would make a merged
     batch harder to inspect than an abandoned one.
+
+    The environment goes too, and this time so does the reservation: a delivered
+    batch has no further claim on a port, and holding one would walk the range
+    forward for the lifetime of the project.
     """
-    from . import worktrees
+    from . import environments, worktrees
 
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
+    environments.teardown(conn, batch_id, release_ports=True)
     try:
         worktrees.destroy(conn, batch_id)
     except worktrees.WorktreeError:

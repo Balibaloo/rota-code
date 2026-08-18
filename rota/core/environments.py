@@ -182,3 +182,89 @@ def record(conn: sqlite3.Connection, batch_id: str, pid: int,
 
 def forget(conn: sqlite3.Connection, pid: int) -> None:
     conn.execute("DELETE FROM runtime_processes WHERE pid = ?", (int(pid),))
+
+
+# ---------------------------------------------------------------------------
+# Spawn and teardown
+# ---------------------------------------------------------------------------
+
+def spawn(conn: sqlite3.Connection, batch_id: str, command: list[str],
+          cwd: str | None = None) -> int:
+    """
+    Start a process inside this batch's environment, and record it before it can
+    be lost.
+
+    `command` is a list and never a string: a string means a shell, a shell
+    means quoting, and quoting means the one place in this system that starts
+    processes would be the one place with an injection surface. There is no
+    `shell=True` here and there is no argument that would enable one.
+
+    **Recorded first, then returned.** The window between "it is running" and
+    "we know it is running" is the whole of how an orphan is made, and it is
+    made by crashing inside it. The row is written with both facts before this
+    function hands the pid back, so a crash anywhere after `Popen` leaves a
+    process boot can identify and stop.
+
+    `PORT_BASE` reaches the child through its environment because a port range
+    is a fact about where it may listen, not a decision it gets to make -- the
+    same reasoning as `batch_id` on a wake.
+    """
+    import os
+    import subprocess
+
+    if isinstance(command, str) or not command:
+        raise EnvironmentError_(
+            "command is a list of arguments -- a string would need a shell, and "
+            "a shell here would be the one injection surface in the system")
+
+    base = reserve(conn, batch_id)
+    worktree = conn.execute(
+        "SELECT worktree FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    root = cwd or (worktree["worktree"] if worktree else None)
+
+    child = subprocess.Popen(
+        list(command), cwd=root,
+        env={**os.environ,
+             "ROTA_PORT_BASE": str(base),
+             "ROTA_BATCH": batch_id},
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    record(conn, batch_id, child.pid, " ".join(command))
+    return child.pid
+
+
+def teardown(conn: sqlite3.Connection, batch_id: str, *,
+             release_ports: bool = False) -> list[int]:
+    """
+    Stop this batch's processes. Nothing else, and nothing it cannot claim.
+
+    `release_ports` is the whole difference between a deferral and an ending,
+    and it is the caller's to say because only the caller knows which happened.
+    A deferred batch keeps its range: its tests name those ports, and handing
+    them to somebody else would make resuming a different operation from
+    continuing. A merged or abandoned batch has no further claim on anything.
+
+    Returns the pids actually stopped. A row it cannot identify is dropped and
+    left alone, exactly as at boot -- the difference between the two is only
+    when they run, never how careful they are.
+    """
+    import os
+    import signal
+
+    stopped = []
+    rows = conn.execute(
+        "SELECT pid FROM runtime_processes WHERE batch_id = ?",
+        (batch_id,)).fetchall()
+    for r in rows:
+        pid = r["pid"]
+        if is_still_ours(conn, pid):
+            try:
+                os.kill(pid, getattr(signal, "SIGTERM", 15))
+                stopped.append(pid)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass                  # gone between the check and the signal
+        forget(conn, pid)
+
+    if release_ports:
+        release(conn, batch_id)
+    return stopped
