@@ -875,6 +875,47 @@ def outstanding(conn) -> list[dict]:
             "owners": sorted({w.role for w in wakes if w.role not in (DERIVED, SCHEDULER)}),
             "refs": sorted({r for w in wakes for r in (w.refs or ())})[:8],
         })
+
+    # And what the principal is sitting on, asked of the state rather than of a
+    # scheduler.
+    #
+    # Every predicate above answers "should I wake somebody". That is a
+    # different question from "is anything owed", and they part company at
+    # exactly one point: when the answer is *the principal*, who is not
+    # schedulable. `tick_agenda` returns nothing while a message to them is
+    # already open -- rightly, because presenting again tells them what they can
+    # already see, and it is what makes that tick terminate. Folding it here
+    # read "there is no point waking Liaison" as "nothing is owed".
+    #
+    # Measured on a real repository: fifteen surveys, twenty-two scope items,
+    # quiescent in 125 seconds, an open `present` in front of the principal and
+    # an open assumption in the ledger -- and this function returned an empty
+    # list. The pane the cockpit and the TUI render as *what the system owes*
+    # was blank at the moment the answer was "you".
+    #
+    # A wake-suppression is not a discharge.
+    try:
+        asks = conn.execute(
+            "SELECT id, body_refs FROM messages "
+            "WHERE status = 'open' AND to_role = 'principal' ORDER BY seq"
+        ).fetchall()
+    except Exception as exc:                           # noqa: BLE001
+        out.append({"obligation": "awaiting_principal", "count": 0,
+                    "owners": [], "refs": [], "error": str(exc)[:120]})
+        return out
+
+    if asks:
+        refs: list[str] = []
+        for row in asks:
+            for ref in _refs_of(row["body_refs"]):
+                if ref not in refs:
+                    refs.append(ref)
+        out.append({
+            "obligation": "awaiting_principal",
+            "count": len(asks),
+            "owners": ["principal"],
+            "refs": refs[:8],
+        })
     return out
 
 

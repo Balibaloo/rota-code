@@ -699,3 +699,48 @@ def test_a_quarantined_tick_still_wakes_without_refs_to_offer(db):
                "reported) VALUES ('liaison|tick:unresolved|k1',4,1,0)")
     wakes = P.quarantined(db)
     assert wakes, "a stalled tick must still be reported"
+
+
+def test_the_register_reports_what_the_principal_is_sitting_on(db):
+    """
+    The register said "nothing outstanding" while the whole run was parked.
+
+    Found by onboarding a real repository: fifteen surveys, twenty-two scope
+    items, quiescent in 125 seconds, an open `present` in front of the
+    principal and an open assumption in the ledger -- and `outstanding()`
+    returned an empty list. The pane the cockpit and the TUI render as *what
+    the system owes* was blank at exactly the moment the answer was "you".
+
+    The cause is a suppression borrowed from the wrong question. `tick_agenda`
+    returns nothing when a message to the principal is already open, and it is
+    right to: presenting again would tell them something they can already see,
+    and it is what makes the tick terminate. But `outstanding()` folds the same
+    predicate, so "there is no point waking Liaison" was read as "nothing is
+    owed". A wake-suppression is not a discharge.
+
+    So the register asks the state directly rather than asking a scheduler
+    whether it would like to schedule something.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m1','t1','liaison','principal','present','[\"i1\"]',1,'open')")
+    db.execute("INSERT INTO ledger (id, author, about_ref, about_table, "
+               "default_taken, status) VALUES "
+               "('l1','developer','i1','items','assumed UTC','open')")
+
+    rows = {r["obligation"]: r for r in P.outstanding(db)}
+    assert "awaiting_principal" in rows, \
+        f"the principal is being waited on and the register does not say so: {sorted(rows)}"
+    assert rows["awaiting_principal"]["count"] == 1
+    assert rows["awaiting_principal"]["owners"] == ["principal"], \
+        "an obligation nobody owns cannot be discharged"
+    assert "i1" in rows["awaiting_principal"]["refs"], \
+        "and it has to say what about, or it is a notification"
+
+
+def test_an_answered_ask_stops_being_outstanding(db):
+    """Discharged by the answer, not by anyone declaring it handled."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m1','t1','liaison','principal','present','[\"i1\"]',1,'answered')")
+    assert "awaiting_principal" not in {r["obligation"] for r in P.outstanding(db)}
