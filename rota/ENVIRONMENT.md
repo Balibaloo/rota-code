@@ -22,22 +22,33 @@ outside its own database.
 
 | piece | state |
 | --- | --- |
-| `runtime_processes` (pid, batch_id, command) | table exists, **written by nothing** |
-| `boot.reap_processes` | kills every recorded pid at boot, then forgets |
+| `runtime_processes` (pid, batch_id, command, started_at) | table exists, **written by nothing yet** |
+| `boot.reap_processes` | kills only what it can prove is ours; reports the rest |
+| `core/environments.py` | reservation and ownership — **steps 1 and 2, done** |
+| `batches.port_base` | a range per batch, assigned by the scheduler at dispatch |
 | `worktrees.py` | a worktree per batch, created by the scheduler, never by a role |
 | `lifecycle.start / defer / merge` | the hooks an environment would attach to |
 
 So the reaper is written and the spawner is not, which is the safe order to have
 built them in and is why nothing has gone wrong yet.
 
-**One thing already wrong in what exists.** `reap_processes` kills by pid, and a
-pid is reused by the operating system. After a crash and a reboot, a recorded pid
-is overwhelmingly likely to belong to something else, and this code sends it
-`SIGTERM`. It is guarded only by "not ours" being indistinguishable from "already
-gone" — both are swallowed. Whatever else this stage decides, a recorded process
-needs a second fact that survives restart and identifies it: start time, or a
-command-line match, or both. This is the cheapest fix on the page and it is a
-fix to shipped code.
+**~~One thing already wrong in what exists.~~ Fixed.** `reap_processes` killed by
+pid, and a pid is not an identity — the operating system reuses them, so after a
+crash and a reboot a recorded pid overwhelmingly belongs to something else, and
+that code sent it `SIGTERM`. All that stood between it and killing a stranger was
+an `except` treating "not ours" and "already gone" as one outcome, which is the
+one pair it could not afford to conflate.
+
+`runtime_processes.started_at` is the second fact, and `environments.is_still_ours`
+wants both: the pid on file *and* the process now at that pid having started when
+the recorded one started. The kernel will not hand the same pid to a process that
+started at the same instant, so the pair is an identity where the pid alone is a
+coincidence. Same rule `worktrees.py` states before removing a directory — two
+independent facts, because either alone can be satisfied by an accident.
+
+**Unknown is not ownership.** A row with no start time, or one whose process
+cannot be read now, is dropped and *reported* rather than killed. A process left
+running is recoverable and visible; an unidentified process killed is neither.
 
 ---
 
@@ -145,6 +156,41 @@ boot.**
   that has crashed is not running. This is why `boot.reap_processes` exists and
   why it is the *only* correct place for it: boot is the one moment the system
   knows nothing of its own is running.
+
+## Stateful projects — what happens to a database with rows in it
+
+The question this stage keeps raising: the project being built has a database, a
+queue, a cache. Where does that live, and what happens to it?
+
+**Inside the environment, and it does not survive teardown.** That is the design
+rather than a limitation, and it follows from the ruling above: everything a
+running process holds — tables created, fixtures seeded, a warm cache — is
+reproducible by starting it again from the worktree. Derived state, and derived
+state is rebuilt rather than preserved.
+
+The consequence is the useful part. **A test that only passes because of state a
+previous run left behind is the exact failure this system exists to prevent**: it
+reports as coverage, it is evidence about nothing, and it fails the moment
+anybody runs it anywhere else. Making the environment disposable is what makes
+that failure impossible rather than discouraged. Seeding belongs at spawn, in the
+open, where it is part of what the batch says it needs.
+
+**The boundary is ownership, not proximity.** A database this batch started is
+inside it and dies with it. A database the whole machine shares was running
+before the batch and will be running after; a batch may connect to one, and
+connecting is not owning. Nothing here stops what it did not start, and the proof
+of starting it is the two facts above.
+
+**The one thing that does persist is the reservation.** `batches.port_base` is a
+number in a row, it holds nothing, and keeping it is what makes resuming a
+deferred batch *continuing* — the tests were written against those ports and they
+are still those ports.
+
+**And the exception you named: cassettes.** They are the one piece of state here
+that is deliberately durable, and they are not an environment. A cassette is
+*evidence* — what a model did on a given prompt — which is why `paths.py` puts
+them with the tests and commits them, rather than in `.rota/`, which is runtime
+state about a running project. Nothing in this stage touches them.
 
 ## What this stage must not become
 

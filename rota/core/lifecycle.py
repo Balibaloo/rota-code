@@ -39,6 +39,14 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
     from . import worktrees
 
     conn.execute("UPDATE batches SET status = 'running' WHERE id = ?", (batch_id,))
+
+    # A port range, from the scheduler and not from the batch: two batches must
+    # never reach each other's ports and a batch cannot promise that, because it
+    # cannot see the other one. Same reasoning that puts the worktree here.
+    # Idempotent, so a resumed batch gets back the ports its tests name.
+    from . import environments
+    environments.reserve(conn, batch_id)
+
     try:
         worktrees.create(conn, batch_id)
     except worktrees.WorktreeError:

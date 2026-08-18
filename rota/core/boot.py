@@ -85,18 +85,42 @@ def reap_processes(conn: sqlite3.Connection, kill=True) -> list[int]:
     Processes spawned by a batch's environment outlive the session that made them.
 
     §9 forbids half-dead environments: on restart, anything recorded here is an
-    orphan. Kill outright, then forget.
+    orphan.
+
+    **It kills only what it can prove is ours.** This used to SIGTERM every
+    recorded pid, and a pid is not an identity -- the operating system reuses
+    them, so after a crash and a reboot a recorded pid overwhelmingly belongs to
+    something else. All that stood between that and killing a stranger was an
+    `except` treating "not ours" and "already gone" as one outcome, which is the
+    one pair it could not afford to conflate.
+
+    `environments.is_still_ours` wants two facts, the pid and the start time the
+    OS reports for it now, on the rule `worktrees.py` states before removing a
+    directory: either fact alone can be satisfied by an accident.
+
+    A row it cannot claim is dropped and *reported*, never killed. A process
+    left running is recoverable and visible; an unidentified one killed is
+    neither.
     """
-    pids = [r["pid"] for r in conn.execute("SELECT pid FROM runtime_processes")]
-    reaped = []
-    for pid in pids:
-        if kill:
+    from . import environments
+
+    reaped, unclaimed = [], []
+    for r in conn.execute("SELECT pid FROM runtime_processes").fetchall():
+        pid = r["pid"]
+        ours = environments.is_still_ours(conn, pid)
+        if kill and ours:
             try:
                 os.kill(pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError):
-                pass                      # already gone, or not ours — either way, orphaned
+                pass                  # it went away between the check and here
         conn.execute("DELETE FROM runtime_processes WHERE pid = ?", (pid,))
-        reaped.append(pid)
+        (reaped if ours else unclaimed).append(pid)
+
+    if unclaimed:
+        # Reported, not raised: boot has to finish. A number here is what makes
+        # an orphan something somebody can act on rather than one nobody hears.
+        print(f"boot: {len(unclaimed)} recorded process(es) could not be "
+              f"identified and were left alone: {unclaimed}", flush=True)
     return reaped
 
 

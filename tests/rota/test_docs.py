@@ -162,30 +162,31 @@ def test_nothing_spawns_a_process_yet():
         f"says nothing does, and its risk ordering assumed that")
 
 
-def test_the_reaper_still_identifies_a_process_by_pid_alone():
+def test_the_reaper_kills_only_what_it_can_prove_is_its_own():
     """
-    The one defect ENVIRONMENT.md names in *shipped* code, pinned so that fixing
-    it is visible and so the document cannot go on claiming it afterwards.
+    ENVIRONMENT.md's one defect in shipped code, now closed — and this test is
+    the reason the document could not go on claiming it.
 
-    `boot.reap_processes` sends SIGTERM to every recorded pid. A pid is reused
-    by the operating system, so after a crash and a reboot a recorded pid very
-    likely belongs to something else entirely -- and the only thing between that
-    and a kill is an `except` treating "not ours" and "already gone" as the same
-    outcome. A second fact that survives a restart, the start time or the
-    command line, is what would make the identification real.
+    It asserted the *hole*: that `runtime_processes` carried nothing but a pid,
+    so the reaper's SIGTERM rested on a value the operating system reuses. It
+    went red the moment the column landed, which is what a staleness check is
+    for. It asserts the property now.
 
-    Asserted against the reaper's query rather than its prose: the query is what
-    decides, and the table is what would have to grow a column.
+    Two facts or no kill. `worktrees.py` states the same rule before removing a
+    directory: either alone can be satisfied by an accident.
     """
-    src = (paths.PACKAGE / "core" / "boot.py").read_text(encoding="utf-8")
-    assert "SELECT pid FROM runtime_processes" in src,         "the reaper's query moved; ENVIRONMENT.md quotes this one"
-
     schema = paths.SCHEMA.read_text(encoding="utf-8")
     table = schema.split("CREATE TABLE IF NOT EXISTS runtime_processes")[1]
     table = table.split(");")[0]
-    assert "started_at" not in table and "start_time" not in table,         ("runtime_processes now records something beyond the pid — "
-         "ENVIRONMENT.md's first build step is done and the document must "
-         "stop calling it the cheapest fix on the page")
+    assert "started_at" in table,         "the second fact is what makes a recorded pid an identity"
+
+    src = (paths.PACKAGE / "core" / "boot.py").read_text(encoding="utf-8")
+    assert "is_still_ours" in src,         "the reaper must ask whether the process is ours before signalling it"
+
+    body = src.split("def reap_processes")[1].split(chr(10) + "def ")[0]
+    signal_at = body.index("os.kill")
+    guard_at = body.index("is_still_ours")
+    assert guard_at < signal_at,         "the ownership check has to happen before the kill, not beside it"
 
 
 def test_no_role_can_reach_an_environment_yet():

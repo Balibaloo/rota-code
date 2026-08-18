@@ -523,12 +523,26 @@ def test_boot_keeps_suspended_claim(db):
     assert db.execute("SELECT COUNT(*) n FROM claims").fetchone()["n"] == 1
 
 
-def test_boot_reaps_orphan_processes(db):
+def test_boot_clears_a_process_row_it_cannot_identify(db):
+    """
+    The table is emptied either way; what changed is the claim being made.
+
+    This row has a pid and no start time, which is what every row written before
+    the second fact existed looks like -- and after a reboot it is also what a
+    *reused* pid looks like. `reap_processes` no longer reports it as reaped,
+    because it did not reap it: it cannot prove the process at 999999 is the one
+    it recorded, so it drops the row, leaves the process alone, and says so.
+
+    Killing on a pid alone is what this replaces. `tests/rota/test_environments.py`
+    holds both directions of the ownership check.
+    """
     seed_item(db)
     seed_batch(db)
-    db.execute("INSERT INTO runtime_processes (pid, batch_id, command) VALUES (999999,'b1','serve')")
-    assert reap_processes(db, kill=False) == [999999]
-    assert db.execute("SELECT COUNT(*) n FROM runtime_processes").fetchone()["n"] == 0
+    db.execute("INSERT INTO runtime_processes (pid, batch_id, command) "
+               "VALUES (999999,'b1','serve')")
+
+    assert reap_processes(db, kill=False) == [],         "an unidentifiable process was not reaped, whatever happened to its row"
+    assert db.execute("SELECT COUNT(*) n FROM runtime_processes").fetchone()["n"] == 0,         "the row goes regardless: it tracks something this system cannot stop"
 
 
 def test_boot_quarantines_exhausted_message(db):

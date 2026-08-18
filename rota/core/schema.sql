@@ -253,6 +253,15 @@ CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer
     head_commit TEXT,                        -- last commit the DB has a receipt for
     status    TEXT NOT NULL DEFAULT 'pending'
               CHECK (status IN ('pending','running','deferred','merged')),
+    -- The first port of this batch's reserved range, assigned by the scheduler
+    -- at dispatch. Two batches must never reach each other's ports and a batch
+    -- cannot guarantee that, because it cannot see the other one -- the same
+    -- reasoning that puts the worktree outside the role's hands.
+    --
+    -- It survives a deferral even though the processes do not. A port range is
+    -- a number in a row and holds nothing; re-spawning onto the same ports is
+    -- what makes resuming a deferred batch continuing rather than starting over.
+    port_base INTEGER,
     version   INTEGER NOT NULL DEFAULT 1
 );
 
@@ -489,10 +498,26 @@ CREATE TABLE IF NOT EXISTS artefact_versions (
 
 -- Processes spawned by a batch's environment. §9 forbids half-dead
 -- environments; on restart these are orphans and must be reaped.
+-- Processes this system started, and enough to prove one is still ours.
+--
+-- A pid alone is not an identity. The operating system reuses them, so after a
+-- crash and a reboot a recorded pid overwhelmingly belongs to something else --
+-- and `boot.reap_processes` sends it SIGTERM. The only thing standing between
+-- that and killing a stranger was an `except` treating "not ours" and "already
+-- gone" as one outcome.
+--
+-- `started_at` is the second fact. A pid and its start time together are unique
+-- for as long as the machine is up and cannot be coincidentally re-created: the
+-- kernel will not hand the same pid to a process that started at the same
+-- moment. Same rule as `worktrees.py` uses before removing anything -- two
+-- independent facts, because either alone can be satisfied by an accident.
 CREATE TABLE IF NOT EXISTS runtime_processes (
-    pid       INTEGER PRIMARY KEY,
-    batch_id  TEXT NOT NULL REFERENCES batches(id),
-    command   TEXT NOT NULL
+    pid        INTEGER PRIMARY KEY,
+    batch_id   TEXT NOT NULL REFERENCES batches(id),
+    command    TEXT NOT NULL,
+    -- Process creation time as the OS reports it. Text, not a number: the unit
+    -- differs by platform and nothing here does arithmetic on it, only equality.
+    started_at TEXT
 );
 
 -- Phase config: caps are read from here, never hard-coded.
