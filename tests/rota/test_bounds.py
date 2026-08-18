@@ -24,10 +24,15 @@ from rota.testkit import fixtures
 
 
 # Known debt, enumerated rather than estimated. A grep said thirty-three; the
-# cases say twenty-five, because the grep counted message counts and `any_of`
+# cases said twenty-five, because the grep counted message counts and `any_of`
 # alternatives, and messages are bounded elsewhere -- the duplicate guard
 # refuses a repeated verb to one recipient, and one question per session bounds
-# the spray.
+# the spray. Twenty-one now.
+# Three left when `tests.encode` grew its per-criterion bound: each of those
+# cases has one criterion in its fixture and a second test for it is now
+# reported and dropped, so `1..1` is derived rather than measured. That is
+# the cheap kind of payment and the only three that could be made that way --
+# the rest need a run and a judgement each.
 UNBOUNDED: set[tuple[str, str]] = {
     ('L1-AR-annotate-a-batch', 'batch_touch'),
     ('L1-AR-cite-the-clause-into-a-constraint', 'constraints'),
@@ -47,9 +52,6 @@ UNBOUNDED: set[tuple[str, str]] = {
     ('L1-TE-amend-glossary', 'glossary_terms'),
     ('L1-TE-specify-criteria', 'criteria'),
     ('L1-TE-survey-an-area-for-its-terms', 'glossary_terms'),
-    ('L1-TS-apply-a-term-and-write-the-test', 'tests'),
-    ('L1-TS-encode-a-criterion', 'tests'),
-    ('L1-TS-fix-a-test-that-asserts-more-than-its-criterion', 'tests'),
     ('L3-ratified-statement-becomes-a-term', 'glossary_terms'),
     ('L3-ratified-statement-becomes-scope', 'items'),
     ('L3-scope-becomes-a-ticket-with-criteria', 'criteria'),

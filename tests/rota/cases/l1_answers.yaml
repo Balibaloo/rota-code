@@ -115,7 +115,12 @@
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     writes:
-      tests: {count: ">=1"}
+      # One criterion in the fixture, and one test per criterion is now
+      # structural rather than asked for -- `tests.encode` reports a second
+      # test for a criterion it has already encoded and stages nothing. So the
+      # ceiling is derived, not probed: there are no runs behind this number
+      # and none needed, which is the only bound in this file that can say so.
+      tests: {count: "1..1"}
   forbidden:
     # The answer settles which "account" the criterion means. It does not make
     # the criterion Tester's to rewrite.

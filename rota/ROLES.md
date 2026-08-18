@@ -107,8 +107,8 @@ would satisfy it.
 that is Gatekeeper's report. Collapsing two senses into one is a decision, and
 two senses is a finding, not a failure to resolve.
 
-**Reaches** developer (answer), gatekeeper (challenge), liaison (answer,
-report), researcher (question), tester (answer).
+**Reaches** architect (answer), developer (answer), gatekeeper (challenge),
+liaison (answer, report), researcher (question), tester (answer).
 
 **Woken by** criteria, term_collision.
 

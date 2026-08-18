@@ -493,3 +493,122 @@ def test_a_lookup_miss_says_how_big_the_glossary_is(db):
     assert still["glossary_size"] == 1
     assert "says nothing" not in still["note"], \
         "a miss against a populated glossary is real evidence and reads as it"
+
+
+def test_a_report_carries_what_it_was_delivered(db):
+    """
+    Which delivery a report answers is a fact about the session, not a choice.
+
+    `report_is_settled` is what makes "I have nothing to add" free: a report
+    whose every ref is in a terminal state is struck out before Liaison's
+    round_close sees it, so it costs the principal nothing. It decides that by
+    looking at the refs — and a report about the wrong row cannot be decided at
+    all, so it survives and reaches a person.
+
+    Measured on `L1-TE-the-words-are-already-defined`. The session did the whole
+    job correctly: looked up all four words of a delivered statement, found
+    every one already on file in the sense used, and reported. It reported
+    `refs=[g_09b6f2]` — the glossary term it had just confirmed — and not the
+    statement it was handed. A glossary sense has no terminal marker, so the
+    report read as unsettled and the principal was going to be asked about a
+    session that had nothing to ask.
+
+    The same reasoning as `batch_id` defaulting from the wake and `area` from
+    the scheduler: a value the session already knows should not be a value the
+    role has to supply correctly.
+    """
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'an invoice is issued when a subscription renews')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,46,"
+               "'an invoice is issued when a subscription renews','ratified')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','invoice','the billing document','decided')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m1','t1','liaison','terminologist','deliver','[\"s1\"]',1,'open')")
+
+    sb = build("terminologist", db, mode="deliver")
+    sb.ctx.trigger = "m1"
+    sb.call("msg.report_liaison", refs=["g1"])
+
+    refs = sb.ctx.outbound[0]["body_refs"]
+    assert "s1" in refs, \
+        "a report that does not name what it was given cannot be settled"
+    assert "g1" in refs, "what the session found is still its own to report"
+
+    from rota.core.scheduler import report_is_settled
+    assert not report_is_settled(db, refs), \
+        "a glossary sense has no terminal marker, so this one still needs a person"
+
+
+def test_the_delivered_refs_are_added_once_and_not_reordered(db):
+    """
+    A report that already names its delivery is left exactly as it is — the
+    role got it right and there is nothing to correct, which is the difference
+    between a default and an override.
+    """
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'archived orders stay searchable')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,30,"
+               "'archived orders stay searchable','ratified')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES "
+               "('m1','t1','liaison','terminologist','deliver','[\"s1\"]',1,'open')")
+
+    sb = build("terminologist", db, mode="deliver")
+    sb.ctx.trigger = "m1"
+    sb.call("msg.report_liaison", refs=["s1"])
+
+    assert sb.ctx.outbound[0]["body_refs"] == ["s1"]
+
+    from rota.core.scheduler import report_is_settled
+    assert report_is_settled(db, sb.ctx.outbound[0]["body_refs"]), \
+        "every ref ratified is what makes 'nothing to add' cost nothing"
+
+
+def test_a_session_woken_by_a_question_can_only_answer_the_asker(db):
+    """
+    The `unresolved` narrowing, stated once instead of per tick.
+
+    It was keyed on `tick:unresolved` because that is where it was measured:
+    Gatekeeper reaches Developer and Tester, both channels sat in the mode, and
+    woken to a thread between Tester and Terminologist it answered Developer
+    five runs out of five. The reasoning was never about that tick — the asker
+    is the sender of the message that woke you, and that is true of every wake
+    that carries one.
+
+    It matters now because Terminologist can be asked by three roles. Its brief
+    said "`msg.answer_developer` (or the asking role)", which names one instance
+    and parenthesises the rest — the shape that has not held anywhere in this
+    system. With the channel derived there is nothing to get right.
+    """
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','grain','a unit of the touch set','decided')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','architect','terminologist','question','[\"g1\"]',"
+               "'does grain mean a file or a symbol?',1,'open')")
+
+    from rota.core.scheduler import Wake
+    sb = build("terminologist", db, mode="question",
+               wake=Wake(role="terminologist", kind="message", message_id="m1"))
+
+    channels = {f for f in sb.functions() if f.startswith("msg.answer_")}
+    assert channels == {"msg.answer_architect"}, \
+        f"only the asker can be answered; got {sorted(channels)}"
+
+
+def test_the_narrowing_needs_a_message_to_narrow_by(db):
+    """
+    A wake with no message behind it leaves every channel standing. Deriving
+    from nothing would silently strip a role's whole reply surface, which is a
+    worse failure than the one this prevents: it looks like a role choosing
+    silence.
+    """
+    from rota.core.scheduler import Wake
+    sb = build("terminologist", db, mode="question",
+               wake=Wake(role="terminologist", kind="tick:criteria"))
+    channels = {f for f in sb.functions() if f.startswith("msg.answer_")}
+    assert len(channels) > 1, channels

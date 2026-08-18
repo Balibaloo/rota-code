@@ -257,3 +257,59 @@ def test_logging_the_same_assumption_twice_is_one_entry(db):
         "ledger.log", about_ref="i1", about_table="items",
         default_taken="assumed hard delete")
     assert different["id"] != first["id"]
+
+
+# ---------------------------------------------------------------------------
+# A question that cannot be answered
+# ---------------------------------------------------------------------------
+
+ASKING_VERBS = {"question", "ask", "challenge", "escalate", "deliver", "propose"}
+
+
+def test_every_question_can_be_answered(g):
+    """
+    An edge that only goes one way is a role talking into a wall.
+
+    Law 3 derives who may message whom, and it is symmetric in the sense that
+    matters -- if you may ask the writer of an artefact you read, that writer
+    reads something of yours or you would not have been given the question. It
+    says nothing about the *verbs*, and the verbs are drawn by hand.
+
+    So `architect -> terminologist: question` was drawn and
+    `terminologist -> architect: answer` was not. Architect could ask about a
+    sense and the reply had nowhere to go: the Terminologist session would be
+    woken by the question, would find no function to answer with, and the
+    escalation ladder would eventually abandon the message. Every other
+    question in the system pairs -- developer, tester and researcher all have
+    theirs -- which is what made the single missing one invisible.
+
+    The mirror does not hold: an `answer` without a `question` is normal,
+    because `ask`, `deliver`, `challenge` and `escalate` are all answerable
+    too. Only the unanswerable question is a fault.
+    """
+    questions = {(e.s, e.t) for e in g.edges
+                 if e.type == "messages" and e.v == "question"}
+    answers = {(e.s, e.t) for e in g.edges
+               if e.type == "messages" and e.v == "answer"}
+
+    deaf = sorted(f"{s} -> {t} asks, {t} cannot answer"
+                  for s, t in questions if (t, s) not in answers)
+    assert not deaf, deaf
+
+
+def test_every_answer_replies_to_something(g):
+    """
+    The other half, stated so the pairing rule cannot be satisfied by drawing
+    answers nobody asked for. An `answer` edge needs an inbound verb that opens
+    something: `question`, `ask`, `challenge`, `escalate`, `deliver`, `propose`.
+    """
+    inbound: dict[tuple[str, str], set[str]] = {}
+    for e in g.edges:
+        if e.type == "messages":
+            inbound.setdefault((e.s, e.t), set()).add(e.v)
+
+    orphans = sorted(
+        f"{s} -> {t} answers nothing {t} can send"
+        for (s, t), verbs in inbound.items()
+        if "answer" in verbs and not (inbound.get((t, s), set()) & ASKING_VERBS))
+    assert not orphans, orphans

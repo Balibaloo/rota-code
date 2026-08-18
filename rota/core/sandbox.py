@@ -363,17 +363,30 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
     """
     keep = {f"{a}.{fn}" for a, fns in available.items() for fn in fns}
 
-    # `unresolved`: the rung answers the role that asked, and nobody else.
+    # You answer the role that asked, and nobody else.
     #
-    # Gatekeeper can reach Developer and Tester, so both channels are in the
-    # mode, and woken to a thread between Tester and Terminologist it answered
-    # Developer five runs out of five. Developer is not in the thread. The asker
-    # is on the wake -- it is the sender of the message the wake refers to -- so
-    # the other channel is not a temptation to resist, it is a capability with
-    # no situation.
-    if str(getattr(wake, "kind", "")) == "tick:unresolved" and getattr(wake, "refs", None):
+    # Measured on `unresolved`, and stated here for every wake that carries a
+    # message because the reasoning was never about that tick. Gatekeeper can
+    # reach Developer and Tester, so both channels sat in the mode, and woken to
+    # a thread between Tester and Terminologist it answered Developer five runs
+    # out of five. Developer is not in the thread. The asker is on the wake --
+    # it is the sender of the message the wake refers to -- so the other channel
+    # is not a temptation to resist, it is a capability with no situation.
+    #
+    # Terminologist is why it generalised: three roles can ask it what a word
+    # means, and its brief said "`msg.answer_developer` (or the asking role)",
+    # which names one instance and parenthesises the rest. Derived, there is
+    # nothing left to get right.
+    #
+    # A wake with no message behind it narrows nothing. Deriving from nothing
+    # would strip a role's whole reply surface and read as a role choosing
+    # silence, which is worse than the failure this prevents.
+    source = getattr(wake, "message_id", None)
+    if source is None and getattr(wake, "refs", None):
+        source = wake.refs[0]
+    if source is not None:
         row = conn.execute(
-            "SELECT from_role FROM messages WHERE id = ?", (wake.refs[0],)).fetchone()
+            "SELECT from_role FROM messages WHERE id = ?", (source,)).fetchone()
         if row is not None:
             asker = row["from_role"]
             keep -= {k for k in keep
@@ -669,6 +682,40 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             # good, which is exactly what this system cannot judge here, and
             # picking either end of the session to trust is picking the wrong
             # one half the time.
+
+        # A report carries what it was delivered, whatever else it carries.
+        #
+        # `report_is_settled` is what makes "I have nothing to add" free: every
+        # ref in a terminal state and the report is struck out before Liaison's
+        # round_close sees it, costing the principal nothing. It decides that by
+        # looking at the refs, so a report about the wrong row cannot be decided
+        # at all -- it survives, and reaches a person.
+        #
+        # Measured on `L1-TE-the-words-are-already-defined`, where the session
+        # did the entire job right: looked up all four words of the statement it
+        # was handed, found every one already on file in the sense used, and
+        # reported `refs=[g_09b6f2]` -- the glossary sense it had just confirmed,
+        # not the statement. A sense has no terminal marker, so a session with
+        # nothing to ask was going to ask.
+        #
+        # Same reasoning as `batch_id` defaulting from the wake and `area` from
+        # the scheduler: which delivery a report answers is a fact about the
+        # session, and a value the session already knows should not be one the
+        # role has to supply correctly. Added, never substituted -- what it
+        # found is still its own to report.
+        refs = list(refs or [])
+        if verb == "report" and ctx.trigger:
+            row = ctx.conn.execute(
+                "SELECT body_refs FROM messages WHERE id = ?",
+                (ctx.trigger,)).fetchone()
+            if row is not None:
+                import json as _json
+                try:
+                    given = _json.loads(row["body_refs"] or "[]")
+                except (TypeError, ValueError):
+                    given = []
+                refs += [r for r in given
+                         if isinstance(r, str) and r and r not in refs]
 
         duplicate = any(m["to_role"] == recipient and m["verb"] == verb
                         for m in ctx.outbound)

@@ -180,8 +180,33 @@ In the order the frame produces them, not the order they were noticed.
    prior objection is anchored. But *cannot see* and *cannot ask* are different
    properties, and only the first was intended.
 
-3. **`architect → terminologist` has no reply edge.** The only question channel
-   in the system that cannot be answered.
+   The specific version of this — *Critic can object to the code and to the
+   test, but not to the criterion it is judging against* — turns out to be
+   already routed, and the route was drawn before anybody noticed the hole.
+   Critic's own brief says it: "if a test does not encode its criterion,
+   challenge Tester. Do not re-derive the criterion yourself." Tester holds all
+   three question channels, so the chain is `critic → tester →
+   {terminologist, gatekeeper, researcher}` and every edge of it exists. Giving
+   Critic its own line would let it skip the role whose job that is, and would
+   start it accumulating exactly the context the starvation exists to deny.
+
+   What is left of the gap is narrower than it looked, and no case has yet
+   produced a Critic that is stuck: every fixture tried resolves to a defensible
+   `msg.challenge_tester`. It stays on this list because "I could not construct
+   one" is evidence and not proof.
+
+3. ~~**`architect → terminologist` has no reply edge.**~~ Closed. It was the
+   only question channel in the system that could not be answered, and the
+   reason it survived is on file: `terminologist → architect` was listed as a
+   *silent channel*, "inform: the receipt cascade wakes it". True of a push and
+   false of a reply — a correct answer often writes nothing at all, so no
+   cascade fires and the question is simply never answered. Law 3 permitted the
+   edge all along; nobody had drawn it.
+
+   The pairing is a lint now rather than a thing to notice: every `question`
+   channel needs its `answer` back, and every `answer` needs some verb it is
+   replying to. The second half is what stops the first being satisfied by
+   drawing answers nobody asked for.
 
 4. **The aggregation.** "What does this system not know" is still not one query,
    though every row of it exists.

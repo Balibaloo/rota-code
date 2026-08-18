@@ -65,7 +65,12 @@
   expect:
     calls: [criteria.load]
     writes:
-      tests: {count: ">=1"}
+      # One criterion in the fixture, and one test per criterion is now
+      # structural rather than asked for -- `tests.encode` reports a second
+      # test for a criterion it has already encoded and stages nothing. So the
+      # ceiling is derived, not probed: there are no runs behind this number
+      # and none needed, which is the only bound in this file that can say so.
+      tests: {count: "1..1"}
   forbidden:
     # A wrong test is worse than a missing one, but fixing it is not licence to
     # re-derive what was asked for.

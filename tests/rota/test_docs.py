@@ -45,6 +45,8 @@ LOAD_BEARING = {
     "ROLES.md": "test_roles_doc.py",
     "REGISTER.md": "test_roles_doc.py, predicate classification",
     "MILESTONE.md": "cockpit/progress.py reads it at runtime",
+    "ENVIRONMENT.md": "the 3Bd proposal; its claims about what exists are "
+                      "asserted below and go red when the stage is built",
 }
 
 
@@ -86,15 +88,17 @@ def test_critic_still_cannot_ask_anything():
         f"SYSTEM.md gap 2 is closed and must say so")
 
 
-def test_one_question_channel_still_has_no_reply_edge():
-    """SYSTEM.md gap 3. Every question channel but one can be answered."""
+def test_no_question_channel_is_unanswerable():
+    """
+    SYSTEM.md gap 3, closed. This asserted the gap was still open — one
+    unanswerable channel, `architect → terminologist` — and went red the moment
+    it was drawn, which is what it was for. It now asserts the property instead
+    of the hole, and `test_laws.py` carries the general form.
+    """
     g = graph_mod.load()
     asks = {(e.s, e.t) for e in g.of_type("messages") if e.v == "question"}
     answers = {(e.s, e.t) for e in g.of_type("messages") if e.v == "answer"}
-    mute = {(s, t) for s, t in asks if (t, s) not in answers}
-    assert mute == {("architect", "terminologist")}, (
-        f"the unanswerable question channels are now {sorted(mute)}; "
-        f"SYSTEM.md names exactly one")
+    assert {(s, t) for s, t in asks if (t, s) not in answers} == set()
 
 
 def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
@@ -131,3 +135,67 @@ def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
         "Developer is not in this thread and did not ask"
     assert "msg.submit_liaison" in narrow.functions(), \
         "narrowing the answer channel must not close the way upward"
+
+
+# ---------------------------------------------------------------------------
+# ENVIRONMENT.md's claims about what exists, as assertions.
+#
+# It is a proposal, and a proposal about unbuilt work rots faster than anything
+# else in this repository: the moment somebody writes the spawner, every "does
+# not exist yet" in it becomes a lie told confidently. Same treatment as
+# SYSTEM.md's gaps -- each claim fails here when it stops being true, and the
+# document has to be corrected to make the suite green.
+# ---------------------------------------------------------------------------
+
+def test_nothing_spawns_a_process_yet():
+    """
+    ENVIRONMENT.md's premise. `runtime_processes` has a reaper and no writer,
+    which is the safe order to have built them in and the reason nothing has
+    been orphaned so far. Write the spawner and this goes red, which is the
+    moment the rest of that document needs re-reading rather than trusting.
+    """
+    writers = [py.name for py in paths.PACKAGE.rglob("*.py")
+               if "__pycache__" not in py.parts
+               and "INSERT INTO runtime_processes" in py.read_text(encoding="utf-8")]
+    assert writers == [], (
+        f"{writers} spawns into runtime_processes now; ENVIRONMENT.md still "
+        f"says nothing does, and its risk ordering assumed that")
+
+
+def test_the_reaper_still_identifies_a_process_by_pid_alone():
+    """
+    The one defect ENVIRONMENT.md names in *shipped* code, pinned so that fixing
+    it is visible and so the document cannot go on claiming it afterwards.
+
+    `boot.reap_processes` sends SIGTERM to every recorded pid. A pid is reused
+    by the operating system, so after a crash and a reboot a recorded pid very
+    likely belongs to something else entirely -- and the only thing between that
+    and a kill is an `except` treating "not ours" and "already gone" as the same
+    outcome. A second fact that survives a restart, the start time or the
+    command line, is what would make the identification real.
+
+    Asserted against the reaper's query rather than its prose: the query is what
+    decides, and the table is what would have to grow a column.
+    """
+    src = (paths.PACKAGE / "core" / "boot.py").read_text(encoding="utf-8")
+    assert "SELECT pid FROM runtime_processes" in src,         "the reaper's query moved; ENVIRONMENT.md quotes this one"
+
+    schema = paths.SCHEMA.read_text(encoding="utf-8")
+    table = schema.split("CREATE TABLE IF NOT EXISTS runtime_processes")[1]
+    table = table.split(");")[0]
+    assert "started_at" not in table and "start_time" not in table,         ("runtime_processes now records something beyond the pid — "
+         "ENVIRONMENT.md's first build step is done and the document must "
+         "stop calling it the cheapest fix on the page")
+
+
+def test_no_role_can_reach_an_environment_yet():
+    """
+    The toolkit ENVIRONMENT.md proposes does not exist, so nothing in it can be
+    stale in the other direction: a role holding `env.start` before the four
+    questions are answered is the failure that document is trying to prevent.
+    """
+    g = graph_mod.load()
+    env_edges = sorted({f"{e.s}.{e.v}" for e in g.edges
+                        if str(getattr(e, "t", "")).startswith("env")
+                        or str(getattr(e, "v", "")).startswith("env")})
+    assert env_edges == [], f"environment verbs exist now: {env_edges}"
