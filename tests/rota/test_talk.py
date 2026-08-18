@@ -126,6 +126,38 @@ def test_open_with_survives_a_message_id_gap(db):
     assert ids == ["m1", "m3", "m4"], ids
 
 
+def test_liaison_converse_sees_recent_chat(db):
+    """A follow-up chat wake carries the prior turns as context."""
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import Wake
+
+    db.execute(
+        "INSERT INTO entries (id, author, text, ts_order) VALUES ('e_m1','principal','hi',1)")
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m1','t1','principal','liaison','converse','[\"e_m1\"]','hi',1,'open')")
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m2','t1','liaison','principal','converse','[]','Hello!',2,'open')")
+    db.execute(
+        "INSERT INTO entries (id, author, text, ts_order) VALUES ('e_m3','principal','how are you',2)")
+    db.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, seq, status) "
+        "VALUES ('m3','t2','principal','liaison','converse','[\"e_m3\"]','how are you',3,'open')")
+    db.commit()
+
+    wake = Wake(role="liaison", kind="message", message_id="m3", detail="converse")
+    inbound = resolve_inbound(db, wake)
+
+    assert inbound.get("recent_chat") == [
+        {"from": "principal", "text": "hi"},
+        {"from": "liaison", "text": "Hello!"},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # The UI, tested where it joins rather than where it paints.
 # ---------------------------------------------------------------------------

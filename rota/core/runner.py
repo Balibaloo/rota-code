@@ -364,7 +364,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         return {}
 
     row = conn.execute(
-        "SELECT id, from_role, verb, body_refs, body_text, round_no "
+        "SELECT id, from_role, to_role, verb, body_refs, body_text, round_no "
         "FROM messages WHERE id = ?", (wake.message_id,)).fetchone()
     if not row:
         return {}
@@ -415,7 +415,28 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         if siblings:
             out["other_reports"] = siblings
 
+    # Chat memory: a Liaison intake session sees the recent back-and-forth so
+    # greetings and follow-ups are answered in context. This is the one place
+    # where a role is deliberately given history; the no-memory rule still
+    # holds for every other mode.
+    if row["to_role"] == "liaison" and row["verb"] == "converse":
+        out["recent_chat"] = _recent_chat(conn, wake.message_id)
+
     return out
+
+
+def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
+                 limit: int = 8) -> list[dict[str, str]]:
+    """Recent principal/liaison converse turns, newest last, excluding the wake."""
+    rows = conn.execute(
+        "SELECT from_role, body_text FROM messages "
+        "WHERE verb = 'converse' AND from_role IN ('principal', 'liaison') "
+        "  AND id != ? "
+        "ORDER BY seq DESC LIMIT ?",
+        (current_msg_id, limit)
+    ).fetchall()
+    return [{"from": r["from_role"], "text": r["body_text"] or ""}
+            for r in reversed(rows)]
 
 
 def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
