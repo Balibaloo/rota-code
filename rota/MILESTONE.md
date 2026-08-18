@@ -144,30 +144,31 @@ and then record that a commit happened which never did.
 - [x] **3Bb · file operations.** The missing verbs. Needs graph edges, which
       makes it an edge-audit-shaped decision about reach, not just a function
 - [x] **3Bc · `code.commit` actually commits**, and stamps `head_commit`
-- [ ] **3Bd · environment.** Law 9's *"processes and ports die with it;
-      half-dead environments are forbidden"* has no implementation. **Still
-      open** — nothing spawns a process yet, so nothing can orphan one
+- [~] **3Bd · environment.** Law 9's *"processes and ports die with it;
+      half-dead environments are forbidden"*. Four questions answered in
+      `rota/ENVIRONMENT.md`, which is checked rather than narrative, and
+      **steps 1-4 built**:
 
-      Four things to define before any of it is written, because an environment
-      is the first thing in this system that outlives the session that made it,
-      and every other guarantee here rests on a session being a pure function:
+      - **separation** — one environment per batch, lifetime of the worktree.
+        Port allocation is the scheduler's: two batches must never reach each
+        other's ports and a batch cannot promise that, because it cannot see
+        the other one
+      - **boundary** — inside means this system started it *and* recorded it.
+        Proof of ownership is two independent facts, the pid and the process
+        start time, on the rule `worktrees.py` already states. A database the
+        machine shares is outside permanently; connecting is not owning
+      - **toolkit** — `env.start / status / logs`, **not built on purpose**. It
+        is the only part that hands a *role* a capability and nothing needs one
+        yet; an edge drawn before a case needs it is a guess
+      - **hooks** — spawn at `batch_start`, teardown on defer and on merge.
+        Processes are derived state and die either way; the port reservation
+        survives a deferral and is released on merge
 
-      - **separation** — what an environment belongs to. A batch has a worktree;
-        does it have one environment, or one per run? Two batches must never
-        reach each other's ports, and the answer decides whether port
-        allocation is owned by the batch or by the scheduler
-      - **boundary** — what is inside it and what is merely near it. A process
-        the session started is inside. A database the whole machine shares is
-        not, and must not be torn down with it. The line has to be stated
-        before teardown is written or teardown will cross it
-      - **toolkit** — the verbs a role gets: start, stop, status, logs, and
-        nothing that lets a role reach a *different* batch's environment. Same
-        rule as every other namespace — the capability does not exist rather
-        than being refused
-      - **hooks** — where lifecycle attaches. Spawn on `batch_start`, teardown
-        on the batch's terminal states *and* on crash, since a session that
-        dies mid-flight is exactly the case Law 9 names. Crash teardown cannot
-        be a session's own responsibility: it is not running
+      Also closed the defect this stage found in shipped code:
+      `boot.reap_processes` killed by pid alone, and a pid is reused, so after
+      a reboot it was signalling strangers. Two facts or no kill, and what it
+      cannot claim it reports rather than kills.
+
 - [x] **3Be** then the harness and fixtures from 3.4
 
 **Two consequences.** This is a bigger stage than 7 — it is the only place the
