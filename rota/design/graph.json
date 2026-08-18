@@ -569,7 +569,8 @@
       "type": "messages",
       "v": "converse",
       "n": "free text",
-      "rows": "none"
+      "rows": "none",
+      "prose": "text"
     },
     {
       "s": "liaison",
