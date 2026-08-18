@@ -2,6 +2,39 @@
 # to fail by being helpful: interpreting, summarising, or inventing a question.
 # The `forbidden:` blocks here carry most of the weight.
 
+- id: L1-LI-chat-is-not-work
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  # The chat half of intake, which had no case at all.
+  #
+  # `converse` grew a chat path -- greetings get a reply rather than a
+  # segmentation -- and nothing measured it, so the only evidence it worked was
+  # that somebody had watched it work once. Meanwhile it took the two cases that
+  # did exist to 0/5: handed "morning. we need SSO, but only if it works with
+  # our LDAP", Liaison answered "Hello! What would you like to build?", which is
+  # the greeting from its own brief's worked example.
+  #
+  # Both halves are pinned now. A brief that can only be tuned in one direction
+  # gets tuned until the other direction breaks, and that is exactly what
+  # happened here.
+  fixture:
+    entries:
+      - {id: e_<m_in>, author: principal, ts_order: 1,
+         text: "hey, morning!"}
+  inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
+            body_refs: []}
+  expect:
+    messages:
+      - {to: principal, verb: converse, count: 1}
+  forbidden:
+    # A greeting is not a commitment. Segmenting one puts a statement in front of
+    # the principal to ratify and sends three roles off to work from it, which is
+    # the cost of getting this wrong in the other direction.
+    writes: [statements, items, glossary_terms]
+    recipients: [gatekeeper, terminologist, architect]
+
 - id: L1-LI-segment
   tier: T1
   role: liaison

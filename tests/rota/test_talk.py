@@ -10,6 +10,7 @@ it, and a principal backend reaches the loop.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -20,6 +21,34 @@ from rota.tools import talk
 @pytest.fixture
 def db(tmp_path):
     return init_db(tmp_path / "talk.db")
+
+
+def test_connect_readonly_rejects_writes(tmp_path):
+    """The cockpit may read while the TUI remains the only writer."""
+    from rota.core.db import connect_readonly
+
+    db = init_db(tmp_path / "read_only.db")
+    db.close()
+
+    ro = connect_readonly(tmp_path / "read_only.db")
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            ro.execute(
+                "INSERT INTO messages (id, from_role, to_role, verb, status, body_refs) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                ("m1", "principal", "liaison", "converse", "open", "[]"),
+            )
+    finally:
+        ro.close()
+
+
+def test_the_tui_starts_in_paused_state(tmp_path):
+    """The TUI should start paused so the system waits for user play."""
+    from rota.cockpit import tui
+    from rota.core import config
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    assert config.get(app.conn, "run_state") == "stopping"
 
 
 def test_the_first_sentence_lands_as_an_entry_and_a_message(db):
@@ -298,6 +327,7 @@ async def test_the_app_mounts_and_shows_an_ask(tmp_path):
     had read rather than run. Textual's pilot mounts it for real.
     """
     from rota.cockpit import tui
+    from rota.core import config
     from rota.roles.principal import Ask
 
     app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
@@ -320,6 +350,44 @@ async def test_the_app_mounts_and_shows_an_ask(tmp_path):
         app.refresh_owed()
         await pilot.pause()
         assert "term_collision" in str(app.query_one("#owed").content)
+
+
+async def test_the_footer_offers_onboarding_for_the_displayed_root(tmp_path):
+    """Onboarding is a footer action, not a message the Liaison must parse."""
+    from rota.cockpit import tui
+
+    root = tmp_path / "project"
+    root.mkdir()
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b", root=root)
+    started = []
+    app.run_worker = lambda fn, thread=True: started.append((fn, thread))
+
+    async with app.run_test() as pilot:
+        assert app.title == f"rota — {root.name} — llama3.1:8b"
+        assert any(key == "ctrl+shift+o" and action == "onboard"
+                   for key, action, _ in app.BINDINGS)
+
+        await pilot.press("ctrl+shift+o")
+
+    assert app._pending_root == root
+    assert started == [(app._do_onboard, True)]
+
+
+async def test_resume_triggers_the_loop(tmp_path):
+    """Resuming should start the engine, not just flip the database flag."""
+    from rota.cockpit import tui
+    from rota.core import config
+
+    app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
+    started = []
+    app.run_worker = lambda fn, thread=True: started.append((fn, thread))
+
+    async with app.run_test() as pilot:
+        app.action_toggle_run_state()
+        await pilot.pause()
+
+    assert config.get(app.conn, "run_state") == "running"
+    assert started == [(app._turn_the_crank, True)]
 
 
 async def test_the_ticker_stays_bounded(tmp_path):
@@ -408,3 +476,63 @@ def test_follow_up_chat_without_pending_ask_opens_new_message(
     assert [m["body_text"] for m in msgs] == ["first thing", "second thing"]
     assert len(runs) == 1
     assert captured.get("thread") is True
+
+
+def test_liaison_is_shown_the_sentence_it_was_woken_to_segment(db):
+    """
+    The first thing you type was invisible to the role that has to read it.
+
+    `principal_said` is how the sentence reaches the session's prompt, and it
+    comes from `entry_for`, which read a *config* key — `entry:<message_id>` —
+    written by exactly one of the two paths that record an entry. The reply path
+    writes it. `talk.open_with`, which is intake, the CLI and the TUI, writes the
+    `entries` row and not the key.
+
+    So a follow-up reply was visible and the opening sentence was not. Woken to
+    segment nothing, Liaison answered "Hello! What would you like to build?" —
+    which is the correct response to an empty message, and took
+    `L1-LI-segment` and `L1-LI-no-report-no-question` to 0/5 while reading
+    exactly like a role that had decided to chat.
+
+    The entry text has an owning table. Reading it from a second place that only
+    half the writers fill is the failure `paths.py` exists to prevent, one table
+    down.
+    """
+    from rota.roles.principal import entry_for
+
+    msg_id = talk.open_with(db, "we need SSO, but only if it works with our LDAP")
+
+    assert db.execute("SELECT text FROM entries WHERE id = ?",
+                      (f"e_{msg_id}",)).fetchone()["text"], "intake records it"
+    assert entry_for(db, msg_id) == "we need SSO, but only if it works with our LDAP", \
+        "and the session woken to segment it has to be able to see it"
+
+
+def test_the_sentence_reaches_the_prompt(db):
+    """
+    One level up from the lookup: what the session is actually shown.
+
+    Tested here rather than trusted, because the lookup returning the right
+    string is not the claim -- the claim is that the words are in the prompt.
+    Three empty lists and no sentence is what Liaison had, and it answered
+    accordingly.
+
+    `principal_said` travels in `resolve_inbound` and not in the pushed working
+    set: the wake *is* the message, so it is resolved rather than fetched.
+    """
+    from rota.core import runner, sandbox as sandbox_mod
+    from rota.core.scheduler import Wake
+    from rota.design import graph as graph_mod
+
+    msg_id = talk.open_with(db, "we need SSO, but only if it works with our LDAP")
+    wake = Wake("liaison", "message", msg_id, detail="converse")
+    sb = sandbox_mod.build("liaison", db, mode="converse")
+
+    inbound = runner.resolve_inbound(db, wake)
+    assert inbound.get("principal_said"), "woken to read something it was not given"
+    assert inbound.get("entry_id") == f"e_{msg_id}",         "and it needs the id, because the spans are offsets into that entry"
+
+    pushed = runner.push_working_set("liaison", sb, wake, graph_mod.load())
+    _, user = runner.build_prompt("liaison", sb, wake, pushed, "INSTRUCTIONS",
+                                  inbound=inbound)
+    assert "SSO" in user and "LDAP" in user, user[:800]

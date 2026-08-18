@@ -293,6 +293,30 @@ def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:
 
 
 def entry_for(conn: sqlite3.Connection, message_id: str) -> str:
+    """
+    What the principal said, from the table that owns it.
+
+    This read a `config` key, `entry:<message_id>`, written by exactly one of
+    the two paths that record an entry. The reply path above writes it.
+    `talk.open_with` -- which is intake, the CLI and the TUI -- writes the
+    `entries` row and not the key, so **the first thing anybody typed was
+    invisible and every follow-up was visible.**
+
+    What that looked like from outside: Liaison woken to segment a requirement,
+    shown three empty lists and no sentence, answering "Hello! What would you
+    like to build?" -- the correct response to an empty message. It read as a
+    role choosing to chat, and it took `L1-LI-segment` and
+    `L1-LI-no-report-no-question` to 0/5.
+
+    `record_entry` names the row `e_<message_id>`, so the join needs nothing
+    stored. One fact in one place: the config key is still read as a fallback
+    for databases written before this, and it is no longer the authority.
+    """
     row = conn.execute(
+        "SELECT text FROM entries WHERE id = ?", (f"e_{message_id}",)).fetchone()
+    if row is not None and row["text"]:
+        return row["text"]
+
+    legacy = conn.execute(
         "SELECT value FROM config WHERE key = ?", (f"entry:{message_id}",)).fetchone()
-    return json.loads(row["value"]) if row else ""
+    return json.loads(legacy["value"]) if legacy else ""
