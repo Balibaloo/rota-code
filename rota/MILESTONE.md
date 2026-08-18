@@ -243,12 +243,20 @@ unreachable by judgement.**
 - [x] **5B.4 dedupe is a join.** Reports sharing a ref arrive grouped, by
       connected components rather than pairs. Liaison makes no decisions, and
       working out which reports are the same question was one
-- [ ] **5B.5 the one declaration.** An answered question that did not help.
+- [x] **5B.5 the one declaration.** An answered question that did not help.
       Nothing derives it — the row says answered and only the asker knows it
-      left them where they were — and it is what the `exhausted` modes are for
-- [ ] **5B.6 aggregation.** "What does this system not know" is still
-      unanswerable as one query: the obligations are derived one predicate at a
-      time and never counted together
+      left them where they were — and it is what the `exhausted` modes are for.
+      `schedule.reask(what_is_missing=...)`, and it takes no id: the causal
+      chain already knows which question, and asking the session to name a row
+      is a way to be told about the wrong one. It was
+      `schedule.unresolved(still_missing=True)` first and the model read that
+      as a flag to set rather than a thing to say
+- [x] **5B.6 aggregation.** "What does this system not know", as one query.
+      `predicates.outstanding()` folds the sixteen register predicates into one
+      list — obligation, count, owners, refs — and it is what the cockpit's
+      right-hand pane renders. Failures are reported per row rather than
+      raised, because an aggregation that dies on one bad predicate answers
+      nothing about the other fifteen
 
 **Superseded on the way:** an earlier spec proposed two verbs, `settled` and
 `blocked`. `settled` dissolved into predicates evaluated properly and `blocked`
@@ -261,8 +269,18 @@ the record of proposing declaration where derivation was available, twice.
 
 - [x] **6.1** prioritise chains where B *changes an artefact*, not chains that
       relay
-- [ ] **6.2** the tier that tests the thesis — does the message vocabulary carry
-      enough to coordinate strangers. Nothing currently touches it
+- [~] **6.2** the tier that tests the thesis — does the message vocabulary carry
+      enough to coordinate strangers. "Nothing currently touches it" was true
+      when written and is not now: five chains exist and run in
+      `tests/rota/test_l3.py`, each one B *changing an artefact* off A's
+      message rather than relaying it, which is what 6.1 says to prioritise —
+      a ratified statement becoming scope and becoming a term, scope becoming
+      a ticket with criteria, a challenge reaching the role that can answer it,
+      and a failed verdict turning into a fix.
+
+      Five of 235, so the tier exists and the thesis is not yet tested. The
+      honest reading of five green chains is that the vocabulary carries these
+      five handoffs, which is evidence and not the claim
 
 ---
 
