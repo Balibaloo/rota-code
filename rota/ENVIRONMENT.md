@@ -1,7 +1,12 @@
 # Stage 3Bd — the environment
 
-*A proposal. Four questions, four answers, and the parts that are yours rather
-than mine marked as such.*
+*A proposal. Four questions, four answers.*
+
+*One of them was marked as yours to rule on — whether an environment survives a
+deferral — and it turned out Law 9 had already answered it and I had read the
+wrong half of the existing split. It is answered below rather than asked. What
+is left for you is not a design question but a go-ahead: this is the only stage
+that touches the real machine.*
 
 An environment is the first thing in this system that **outlives the session that
 made it**. Everything else here is a pure function: wake, act, commit, end. A
@@ -110,16 +115,32 @@ boot.**
 
 - **spawn** at `batch_start`, beside worktree creation, because it is the same
   kind of decision and belongs in the same place.
-- **teardown** on merge and on abandonment. Not on deferral — Law 9 says a
-  deferred batch keeps its commits, and an environment that dies on deferral
-  makes resuming a different operation from continuing.
+- **teardown** on merge, on abandonment, and **on deferral** — but only of the
+  processes. The allocation survives.
 
-  *This is the one I am least sure of and it is genuinely yours:* an environment
-  held across a deferral holds its ports for as long as the deferral lasts, and
-  a deferral has no upper bound. Keeping it is consistent with the worktree;
-  dropping it is consistent with not hoarding. **I lean to keeping it** — the
-  worktree precedent is strong and the alternative makes deferral lossy — but
-  the cost is real and it is a cost you would pay, not me.
+  I had this the other way round and marked it as the one decision that was
+  yours. It is not; Law 9 already answers it, and I was reading the wrong half
+  of the existing split.
+
+  The worktree survives a deferral and the checkpoint does not, and that line is
+  not worktree-versus-checkpoint arbitrarily — it is **durable product versus
+  derived state**. Commits survive because they cannot be recomputed. A
+  checkpoint dies because it can.
+
+  A running process is derived state by that test. Everything it holds — a
+  seeded database, a warm cache, a bound port — is reproducible from the
+  worktree by starting it again. So an environment is a checkpoint, not a
+  worktree, and the ruling already exists.
+
+  What survives is the **port range**, as a row on the batch. Resuming
+  re-spawns onto the same ports. That costs one row, and it avoids what keeping
+  the processes would cost: a deferral has no upper bound, so an environment
+  held across one holds ports and memory indefinitely for work that may not
+  resume this week. It would also need a "how long is too long", and this system
+  is not designed around caps.
+
+  The real loss is a slow setup re-run on resume. That is the right cost to pay
+  rather than hold a machine hostage to a deferred batch.
 - **crash teardown cannot be a session's own responsibility**, because a session
   that has crashed is not running. This is why `boot.reap_processes` exists and
   why it is the *only* correct place for it: boot is the one moment the system
@@ -148,3 +169,11 @@ It does not gate.
 
 Steps 1 and 2 are worth doing whatever you decide about the rest, and neither of
 them can spawn anything.
+
+## What is still yours
+
+Nothing in the four questions, now that the deferral one has answered itself.
+What is left is the decision to start: this is the only stage that touches the
+real machine, and the last item on the list above is the first one that can
+leave something running. Steps 1 and 2 cannot, and I would take those without
+asking.
