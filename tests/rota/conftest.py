@@ -17,7 +17,28 @@ getting slower.
 """
 from __future__ import annotations
 
+import os
+
 from rota.llm.cassettes import TALLY
+
+
+def pytest_configure(config):
+    """
+    The model tiers run on one worker, and nobody has to remember why.
+
+    `pytest.ini` turns on `-n auto` because the deterministic suite is pure CPU
+    and was using one core of sixteen. L1 and L3 are the exception: they call a
+    real 8B model on one GPU when `ROTA_L1` is set, and two workers doing that
+    at once thrash it -- the run gets slower, and the per-tier durations this
+    file exists to record stop being a fact about anything.
+
+    Enforced here instead of in a flag, because a flag is a thing to forget and
+    the cost of forgetting is a number that looks real and is not.
+    """
+    if os.environ.get("ROTA_L1") or os.environ.get("ROTA_T1"):
+        if getattr(config.option, "numprocesses", None):
+            config.option.numprocesses = 0
+            config.option.dist = "no"
 from rota.llm.llm import DEFAULT_MODEL
 
 

@@ -67,7 +67,9 @@
   expect:
     calls: [web.fetch, references.record]
     writes:
-      references_: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      references_: {count: "1..2"}
     messages:
       - {to: architect, verb: answer, count: 1}
   forbidden:
@@ -128,7 +130,9 @@
     # The obligation is to every client and server that speaks OAuth 2.0, which
     # is exactly what a constraint is for — and now it can point at the clause.
     writes:
-      constraints: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      constraints: {count: "1..1"}
   forbidden:
     # The source says what conforming implementations must do. Whether this
     # project is one is a fact about this project, and the Researcher has never
@@ -164,7 +168,9 @@
     # trust boundary, and writing one over the other loses the collision that
     # every later reader needs to know about.
     writes:
-      glossary_terms: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      glossary_terms: {count: "1..2"}
   forbidden:
     # Collapsing them is a decision, and this is not a mode where decisions are
     # available. Nor is a term of art a commitment or a scope item.

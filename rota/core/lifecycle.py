@@ -112,6 +112,63 @@ def next_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
 # The merge gate
 # ---------------------------------------------------------------------------
 
+def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """
+    Whether there is anything for Architect to check this batch against.
+
+    Stated once, because the gate and the predicate were each deciding it
+    separately and disagreed. `structural_review`'s docstring says "a diff whose
+    grains intersect constraint bindings" and its query said no such thing: it
+    fired for any batch with a passing verdict and no findings. `mergeable`
+    then demanded a finding before merging. On a project with no constraints --
+    which is every project until Architect has written a model -- those two
+    combine into a deadlock, and it is a quiet one, because every part of it
+    looks like it is working.
+
+    The batch is finished. Tests pass, the verdict passes. `structural_review`
+    fires, Architect is woken, and there is nothing it can legally do:
+    `findings.find` requires a `constraint_id` and the column is `NOT NULL
+    REFERENCES constraints(id)`, so with no constraints there is no finding to
+    record. No finding lands, so the gate still says "no structural review yet",
+    so the predicate fires again. The work never merges, and what eventually
+    stops it is the livelock guard -- an escalation reporting a role that did
+    its job perfectly.
+
+    The rule is the schema's own, quoted from `constraint_bindings`: "a
+    constraint with zero bindings is global -- missing bindings must always
+    mean *always visible*, never *invisible*." So:
+
+      * no constraints at all -> nothing to review, and nothing to wait for
+      * any global constraint -> review, whatever the batch touches
+      * otherwise -> review if the batch's touch set meets a binding
+
+    Unknown touch set counts as needing review. Erring toward a review costs one
+    session; erring away from it merges a change nobody checked.
+    """
+    n = conn.execute("SELECT COUNT(*) AS n FROM constraints").fetchone()["n"]
+    if not n:
+        return False
+
+    globals_ = conn.execute(
+        "SELECT COUNT(*) AS n FROM constraints c WHERE c.is_global = 1 "
+        "   OR NOT EXISTS (SELECT 1 FROM constraint_bindings b "
+        "                  WHERE b.constraint_id = c.id)").fetchone()["n"]
+    if globals_:
+        return True
+
+    touched = conn.execute(
+        "SELECT COUNT(*) AS n FROM batch_touch WHERE batch_id = ?",
+        (batch_id,)).fetchone()["n"]
+    if not touched:
+        return True                 # nothing predicted; do not assume nothing hit
+
+    return bool(conn.execute(
+        "SELECT COUNT(*) AS n FROM batch_touch t "
+        "JOIN constraint_bindings b ON b.grain = t.grain "
+        "                          AND b.grain_kind = t.grain_kind "
+        "WHERE t.batch_id = ? AND b.resolves = 1", (batch_id,)).fetchone()["n"])
+
+
 def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     """
     Why this batch cannot merge, or None if it can.
@@ -146,7 +203,7 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     reviewed = conn.execute(
         "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ? AND commit_sha = ?",
         (batch_id, head)).fetchone()["n"]
-    if not reviewed:
+    if not reviewed and needs_structural_review(conn, batch_id):
         return "no structural review yet"
 
     violated = conn.execute(

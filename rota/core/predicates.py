@@ -648,8 +648,16 @@ def structural_review(conn) -> list[Wake]:
         "  AND NOT EXISTS (SELECT 1 FROM findings f "
         "                  WHERE f.batch_id = b.id AND f.commit_sha = b.head_commit)"
     ).fetchall()
+    # And only where there is something to check it against, which is what the
+    # first line of this docstring always claimed and the query never did. With
+    # no constraints in the project there is no finding Architect could legally
+    # record -- `constraint_id` is NOT NULL and references `constraints` -- so
+    # firing here woke a role to do something impossible, forever. The gate asks
+    # the same question through the same function, because two answers to one
+    # question is how they came to disagree.
+    from .lifecycle import needs_structural_review
     return [Wake("architect", "tick:structural_review", refs=(r["bid"],))
-            for r in rows]
+            for r in rows if needs_structural_review(conn, r["bid"])]
 
 
 @predicate("verdict_failed", wakes="developer", band="fix",

@@ -37,7 +37,9 @@
   expect:
     calls: [code.write, code.commit]
     writes:
-      batches: {count: ">=1"}     # the commit stamps head_commit
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. One batch, every time.
+      batches: {count: "1..1"}     # the commit stamps head_commit
     messages: []
   forbidden:
     # The criterion names the function, the input, the output and the file.
@@ -83,7 +85,9 @@
   expect:
     calls: [code.write, code.commit, ledger.log]
     writes:
-      ledger: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      ledger: {count: "1..2"}
   forbidden:
     # Threshold is 3-of-5 rather than 4: noticing an unstated edge case is a
     # judgement, and an 8B model finds it about three times in five. Recording

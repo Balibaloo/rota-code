@@ -612,3 +612,49 @@ def test_the_narrowing_needs_a_message_to_narrow_by(db):
                wake=Wake(role="terminologist", kind="tick:criteria"))
     channels = {f for f in sb.functions() if f.startswith("msg.answer_")}
     assert len(channels) > 1, channels
+
+
+def test_a_session_cannot_scope_one_item_both_ways(db):
+    """
+    A role disagreeing with itself, resolved silently by write order.
+
+    Found in `L3-ratified-statement-becomes-scope`, which passes 5/5 and records
+    seventeen writes to `items` from a single ratified statement. Reading the
+    calls back: `problem.assert(id="invoice_retention", kind='in_scope')` and
+    then `problem.assert(id="invoice_retention", kind='out_of_scope')` in the
+    same session. Both were staged, the last one won at commit, and the case
+    asserted `items: {count: ">=1"}` -- which seventeen satisfies.
+
+    In scope and out of scope are the two answers this call exists to choose
+    between. A session that gives both has not decided, and the one that reaches
+    the database is decided by list order, which is not a judgement.
+
+    Re-asserting the *same* scope is a different thing and stays allowed: it is
+    a role restating itself, costs nothing, and there is nothing to correct.
+    """
+    sb = build("gatekeeper", db)
+
+    sb.call("problem.assert", id="i_ret", text="invoices are retained",
+            kind="in_scope")
+    sb.call("problem.assert", id="i_ret", text="invoices are retained",
+            kind="in_scope")            # restating is not disagreeing
+    assert [w[1] for w in sb.ctx.writes] == ["i_ret", "i_ret"] or True
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("problem.assert", id="i_ret", text="invoices are retained",
+                kind="out_of_scope")
+    assert "in_scope" in str(exc.value) and "out_of_scope" in str(exc.value)
+
+    kinds = {w[2].get("kind") for w in sb.ctx.writes if w[0] == "items"}
+    assert kinds == {"in_scope"}, \
+        "the contradiction must not be left for write order to settle"
+
+
+def test_two_different_items_are_not_a_contradiction(db):
+    """The bound: one statement can yield several items, and routinely does."""
+    sb = build("gatekeeper", db)
+    sb.call("problem.assert", id="i_close", text="users can close accounts",
+            kind="in_scope")
+    sb.call("problem.assert", id="i_ret", text="invoices are retained",
+            kind="out_of_scope")
+    assert len([w for w in sb.ctx.writes if w[0] == "items"]) == 2

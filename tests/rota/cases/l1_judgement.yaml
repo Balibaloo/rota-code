@@ -176,7 +176,9 @@
   inbound: {from: liaison, to: architect, verb: deliver, body_refs: [<s1>]}
   expect:
     writes:
-      constraints: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      constraints: {count: "1..1"}
   forbidden:
     # A constraint protects an external commitment. Deciding *whether* to keep
     # invoices is scope, and scope is Gatekeeper's.
@@ -203,7 +205,9 @@
          term_refs: '[]'}
   expect:
     writes:
-      batches: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      batches: {count: "1..3"}
   forbidden:
     # Grouping is composition. It does not write the criteria it groups by, and
     # it does not decide what is in scope.

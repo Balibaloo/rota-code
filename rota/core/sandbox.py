@@ -761,12 +761,37 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     # stop exactly that, and it cost `L1-LI-present-what-onboarding-only-observed`
     # five runs out of five.
     if prose:
-        def send(refs: list[str], question: str, round_no: int = 0):
-            if not question:
-                raise ValueError(
-                    f"{label} needs {prose}=: refs say what you are asking "
-                    f"about, and nothing says what you are asking")
-            return stage(refs, round_no, text=question)
+        # The parameter is *named* from the graph, which is what the comment
+        # above always claimed and the code did not do: the argument was
+        # hardcoded `question` on every prose channel whatever the edge said.
+        #
+        # It went unnoticed while `question` was the only value. The chat work
+        # added `liaison -> principal: converse` with `prose='reply'`, and
+        # Liaison's brief tells it -- three times, once in prose and twice in
+        # worked examples -- to call `msg.converse_principal(reply='...')`.
+        # That call could not succeed: `reply` was an unexpected argument on a
+        # function that wanted `question`. A prompt naming an argument the
+        # function does not have is the failure this repository has measured
+        # most often, and here the graph, the brief and the binder each had a
+        # different name for one thing.
+        #
+        # Built by exec because a parameter name is not otherwise a runtime
+        # value, and `validate_args` reads the real signature -- annotations
+        # included, which is how `refs` is allowed to be a list.
+        arg = prose if prose.isidentifier() else "question"
+        ns: dict = {"_stage": stage, "_label": label, "_prose": prose}
+        why = ("the words are the whole message here" if verb == "converse"
+               else "refs say what you are asking about, and nothing says "
+                    "what you are asking")
+        ns["_why"] = why
+        src = (
+            f"def send(refs: list[str], {arg}: str, round_no: int = 0):\n"
+            f"    if not {arg}:\n"
+            "        raise ValueError(f'{_label} needs {_prose}=: {_why}')\n"
+            f"    return _stage(refs, round_no, text={arg})\n"
+        )
+        exec(src, ns)  # noqa: S102 - the name is the graph's, not a session's
+        send = ns["send"]
 
         # Two reasons a channel carries words, and they used to be conflated.
         # The Researcher shares no database, so an id means nothing at the far

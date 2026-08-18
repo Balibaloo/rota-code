@@ -149,8 +149,16 @@ def test_a_clean_batch_merges_without_waking_anyone(db):
 @pytest.mark.parametrize("setup,reason", [
     (lambda c: None, "no verdict"),
     (lambda c: reviewed(c, verdict="fail"), "verdict fail"),
-    (lambda c: c.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
-                         "VALUES ('v1','b1','abc123','pass')"),
+    # A constraint has to exist for a review to be owed. Without one this said
+    # "no structural review yet" -- and it was right that the gate said it, and
+    # wrong that the gate could ever open: `findings.find` needs a
+    # `constraint_id` and there was none to give, so the batch was finished and
+    # unmergeable forever. `needs_structural_review` is now the one place that
+    # decides, and both the gate and the predicate ask it.
+    (lambda c: (c.execute("INSERT INTO verdicts (id, batch_id, commit_sha, "
+                          "result) VALUES ('v1','b1','abc123','pass')"),
+                c.execute("INSERT INTO constraints (id, headline, provenance) "
+                          "VALUES ('k1','no data loss','decided')")),
      "no structural review yet"),
     (lambda c: reviewed(c, finding="violated"), "1 constraint(s) violated"),
 ])
@@ -187,14 +195,41 @@ def test_structural_review_runs_once(db):
     committed(db)
     db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
                "VALUES ('v1','b1',?,'pass')", (HEAD,))
-    assert [w for w in frontier(db) if w.kind == "tick:structural_review"]
 
+    # The constraint comes first now. It always had to exist for the review to
+    # mean anything -- a finding references one -- and this test used to fire
+    # the tick before creating it, which is the state that could never resolve.
     db.execute("INSERT INTO constraints (id, headline, provenance) "
                "VALUES ('k1','no data loss','decided')")
+    assert [w for w in frontier(db) if w.kind == "tick:structural_review"]
+
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
                "status, grain) VALUES ('f1','b1','k1',?,'satisfied','src/db.py')",
                (HEAD,))
     assert not [w for w in frontier(db) if w.kind == "tick:structural_review"]
+
+
+def test_a_project_with_no_constraints_does_not_wait_for_a_review(db):
+    """
+    The deadlock the seam arc found, from the gate's side.
+
+    Every part of it looked like it was working. The batch is finished, tested
+    and judged; `structural_review` fires; Architect is woken and has no legal
+    call to make, because `findings.find` requires a `constraint_id` and the
+    column is `NOT NULL REFERENCES constraints(id)`. No finding lands, so the
+    gate says "no structural review yet", so the tick fires again -- and what
+    finally stops it is the livelock guard, reporting a role that did its job.
+
+    On a project with no constraints, which is every project until Architect has
+    written a model, no batch could ever merge.
+    """
+    committed(db)
+    db.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+               "VALUES ('v1','b1',?,'pass')", (HEAD,))
+
+    assert db.execute("SELECT COUNT(*) n FROM constraints").fetchone()["n"] == 0
+    assert not [w for w in frontier(db) if w.kind == "tick:structural_review"],         "nobody should be woken to find against nothing"
+    assert lifecycle.mergeable(db, "b1") is None,         "there is nothing to review, so there is nothing to wait for"
 
 
 # ---------------------------------------------------------------------------

@@ -56,7 +56,9 @@
     # The statement uses "account" twice meaning two things. That is a term
     # collision arriving as ordinary English, and noticing it is the job.
     writes:
-      glossary_terms: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      glossary_terms: {count: "1..2"}
   forbidden:
     writes: [items, statements, tickets]
 
@@ -79,7 +81,9 @@
     # The handoff here is not a message at all — it is a *state*, which is the
     # other half of the frontier and the half nothing has tested.
     writes:
-      criteria: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      criteria: {count: "1..7"}
   forbidden:
     # Criteria are written against the ticket that exists, not against a
     # re-reading of what the item should have said.

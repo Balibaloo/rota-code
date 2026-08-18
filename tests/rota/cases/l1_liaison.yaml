@@ -42,7 +42,9 @@
   inbound: {from: principal, to: liaison, verb: verdict, body_refs: [<s1>]}
   expect:
     writes:
-      statements: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      statements: {count: "1..1"}
   forbidden:
     # Ratifying is a status flag, not new material.
     writes: [entries, items]

@@ -15,7 +15,9 @@
   inbound: {from: liaison, to: terminologist, verb: deliver, body_refs: [<s1>]}
   expect:
     writes:
-      glossary_terms: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      glossary_terms: {count: "1..2"}
   forbidden:
     # Terms, not scope. What the software should do is Gatekeeper's.
     writes: [items, tickets, statements]
@@ -38,7 +40,9 @@
          provenance: decided}
   expect:
     writes:
-      criteria: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      criteria: {count: "1..7"}
   forbidden:
     # Criteria are written *in* glossary terms; writing the term at the same
     # time would be defining the word to suit the criterion.

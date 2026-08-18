@@ -270,6 +270,30 @@ def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
 
 @op("problem", "assert")
 def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict:
+    """
+    An item, and the one judgement this call exists to make: in scope or out.
+
+    A session may not make both about the same item. `L3-ratified-statement-
+    becomes-scope` passed 5/5 while recording seventeen writes to `items` from
+    one ratified statement, and reading the calls back showed
+    `problem.assert(id="invoice_retention", kind='in_scope')` followed by the
+    same id at `out_of_scope`. Both staged, the last won at commit, and the
+    case's `count: ">=1"` was satisfied by seventeen. Which answer reached the
+    database was decided by list order, which is not a judgement.
+
+    Restating the same scope stays allowed. That is a role repeating itself,
+    it costs nothing, and there is nothing for it to correct -- the same
+    reasoning as the byte-identical re-encode in `tests.encode`.
+    """
+    prior = [w for w in ctx.writes
+             if w[0] == "items" and w[1] == id and "kind" in w[2]]
+    clash = next((w for w in prior if w[2]["kind"] != kind), None)
+    if clash is not None:
+        raise ValueError(
+            f"you have already put {id} {clash[2]['kind']} in this session and "
+            f"this says {kind}. Those are the two answers this call chooses "
+            f"between, so both is not an answer; decide, and send the one")
+
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
         "approval": "draft"}))

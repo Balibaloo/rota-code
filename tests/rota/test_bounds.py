@@ -11,11 +11,11 @@ The bound is not the same fix as the guard. `brief.segment` now refuses a
 repeated span and a text that is not in the entry, which makes the defect
 impossible; the bound is what made it *visible*. Only segmentation has both.
 
-This does not invent bounds for the rest. Picking numbers nobody has measured is
-how a bound goes red for the wrong reason and gets loosened until it means
-nothing again -- each of these wants one run and one judgement. What it does is
-stop the list growing: a new case cannot add an unbounded write count without
-saying so here.
+This does not invent bounds. Picking numbers nobody has measured is how a bound
+goes red for the wrong reason and gets loosened until it means nothing again --
+so every ceiling here is a number some run actually produced. What this file
+does on its own is stop the list growing: a new case cannot add an unbounded
+write count without saying so.
 """
 from __future__ import annotations
 
@@ -27,34 +27,34 @@ from rota.testkit import fixtures
 # cases said twenty-five, because the grep counted message counts and `any_of`
 # alternatives, and messages are bounded elsewhere -- the duplicate guard
 # refuses a repeated verb to one recipient, and one question per session bounds
-# the spray. Twenty-one now.
-# Three left when `tests.encode` grew its per-criterion bound: each of those
-# cases has one criterion in its fixture and a second test for it is now
-# reported and dropped, so `1..1` is derived rather than measured. That is
-# the cheap kind of payment and the only three that could be made that way --
-# the rest need a run and a judgement each.
+# the spray.
+#
+# Twenty-five became six, in two payments and neither of them a probe.
+#
+# Three fell out of a guard: `tests.encode` reports and drops a second test for
+# a criterion it has already encoded, and those three cases have one criterion
+# each, so `1..1` is derived rather than measured.
+#
+# The other sixteen were already measured and nobody had looked. Each has
+# hundreds of runs recorded against the current prompt in `cassettes.db`, and
+# every transcript carries the write count it produced. Filtered to the runs
+# that *passed* -- a failing run's count is the defect, not the ceiling -- the
+# highest is the bound. No probe rows were created, so there are none to purge,
+# which is the part of that procedure that has gone wrong before.
+#
+# Six left, and held back for stated reasons rather than unexamined. Five write
+# `items`, and `problem.assert` has just grown a guard against one session
+# scoping an item both ways -- their recorded counts describe behaviour that no
+# longer exists, so reading them now would bound the wrong thing. The sixth,
+# `L1-LI-no-report-no-question`, has no passing run against the current prompt
+# to read at all.
 UNBOUNDED: set[tuple[str, str]] = {
-    ('L1-AR-annotate-a-batch', 'batch_touch'),
-    ('L1-AR-cite-the-clause-into-a-constraint', 'constraints'),
-    ('L1-AR-constrain-an-external-commitment', 'constraints'),
-    ('L1-AR-find-against-a-constraint', 'findings'),
-    ('L1-AR-group-into-batches', 'batches'),
-    ('L1-DV-build-a-clear-criterion', 'batches'),
-    ('L1-DV-log-the-choice-the-criteria-did-not-make', 'ledger'),
     ('L1-GK-amend-a-contested-item', 'items'),
     ('L1-GK-assert', 'items'),
     ('L1-GK-relay-the-ruling', 'items'),
     ('L1-GK-survey-an-area-for-what-it-does', 'items'),
     ('L1-LI-no-report-no-question', 'statements'),
-    ('L1-LI-ratify', 'statements'),
-    ('L1-RS-answer-from-the-clause-not-from-memory', 'references_'),
-    ('L1-TE-a-standard-definition-is-not-automatically-ours', 'glossary_terms'),
-    ('L1-TE-amend-glossary', 'glossary_terms'),
-    ('L1-TE-specify-criteria', 'criteria'),
-    ('L1-TE-survey-an-area-for-its-terms', 'glossary_terms'),
-    ('L3-ratified-statement-becomes-a-term', 'glossary_terms'),
     ('L3-ratified-statement-becomes-scope', 'items'),
-    ('L3-scope-becomes-a-ticket-with-criteria', 'criteria'),
 }
 
 

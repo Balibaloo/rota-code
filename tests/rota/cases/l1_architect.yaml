@@ -35,7 +35,9 @@
   expect:
     calls: [code.probe, batches.annotate]
     writes:
-      batch_touch: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      batch_touch: {count: "1..7"}
   forbidden:
     # A prediction, not a permission, and made from source rather than from the
     # ticket text — which is why probing the codebase is part of the assertion.
@@ -91,7 +93,9 @@
   expect:
     calls: [model.consult, findings.find]
     writes:
-      findings: {count: ">=1"}
+      # Measured, not probed: read back from the runs already recorded
+      # against this prompt that passed. The ceiling is the highest of them.
+      findings: {count: "1..1"}
   forbidden:
     # A violation is a fact about a commitment, not a rejection of the work, and
     # not a licence to fix the diff or rewrite the constraint it broke.
