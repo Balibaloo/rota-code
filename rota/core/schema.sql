@@ -128,6 +128,19 @@ CREATE TABLE IF NOT EXISTS survey_records (
     area        TEXT NOT NULL,
     outcome     TEXT NOT NULL CHECK (outcome IN ('found','none_found')),
     refs        TEXT NOT NULL DEFAULT '[]',
+    -- Which tree this was a survey *of*. DECISIONS.md names this as the one
+    -- blocker on re-surveying: `tick_survey` fires on areas with no record and
+    -- nothing fires on an area whose code changed since its record, and the
+    -- predicate cannot be written before the column exists.
+    --
+    -- Read from `config.project_commit` rather than from git at attest time,
+    -- because a survey reads grains from `code_index` and `code_index` was
+    -- built at that commit. Asking git would record where the tree happens to
+    -- be standing, which is not what was surveyed.
+    --
+    -- Empty when the project is not a checkout, so a predicate can tell
+    -- "surveyed at an unknown commit" from "surveyed at this one".
+    commit_sha  TEXT NOT NULL DEFAULT '',
     version     INTEGER NOT NULL DEFAULT 1
 );
 

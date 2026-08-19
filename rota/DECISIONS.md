@@ -285,9 +285,16 @@ are the specification for this work.
 changed since its record. Over a project's lifetime this is what decides whether
 the model of the codebase stays true.
 
-*Blocked on:* a survey recording the commit it surveyed — settled above, not yet
-built. The predicate cannot be written before the column exists, which is why
-this sat here rather than being hard.
+*Blocked on:* ~~a survey recording the commit it surveyed~~ — **built.**
+`survey_records.commit_sha` carries it, read from `config.project_commit`
+because a survey reads grains from `code_index` and the index was built at that
+commit; asking git at attest time would record where the tree is standing rather
+than what was surveyed. Empty when the project is not a checkout, so the
+predicate can tell "surveyed at an unknown commit" from "surveyed at this one".
+
+*Now blocked on:* nothing. The predicate is the work — an area whose grains have
+changed since `commit_sha` needs re-surveying — and it was never hard, which is
+why it sat here behind a missing column.
 
 ### Amendment as the normal operation
 

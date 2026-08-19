@@ -122,8 +122,9 @@ def test_one_real_citation_is_enough_and_typos_do_not_kill_the_session(db):
                          citations=["src/auth/one.py", "src/auth/typo.py"])
 
     assert got["unresolved_citations"] == ["src/auth/typo.py"]
-    assert ("survey_records", "architect:src/auth",
-            {"area": "src/auth", "outcome": "none_found"}) in ctx.writes
+    staged = [(t, i, v) for t, i, v in ctx.writes if t == "survey_records"]
+    assert [(i, v["area"], v["outcome"]) for _, i, v in staged] == [
+        ("architect:src/auth", "src/auth", "none_found")]
 
 
 def test_the_validator_that_was_never_a_gate_now_agrees_with_the_gate(db):
@@ -188,3 +189,48 @@ def test_a_survey_of_an_area_that_no_longer_exists_is_flagged(db):
     problems = validators.check_survey_areas(db)
     assert len(problems) == 1
     assert "src/auth" in problems[0]
+
+
+# ---------------------------------------------------------------------------
+# What a survey was a survey *of*
+# ---------------------------------------------------------------------------
+
+def test_a_survey_records_the_commit_it_surveyed(db):
+    """
+    `DECISIONS.md` names this as the one blocker on re-surveying, verbatim:
+    *"a survey recording the commit it surveyed — settled above, not yet built.
+    The predicate cannot be written before the column exists."*
+
+    `tick_survey` fires on areas with no record. Nothing fires on an area whose
+    code changed since its record, and over a project's lifetime that is what
+    decides whether the model of the codebase stays true. The predicate is not
+    written here — the column it needs is.
+
+    The commit is read from `config`, not from git, and that is the correct
+    semantics rather than the cheap one: a survey reads grains from
+    `code_index`, and `code_index` was built at `project_commit`. Asking git
+    now would record where the tree happens to be, which is not what was
+    surveyed.
+    """
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('project_commit', '9961924abc')")
+
+    ctx = Ctx(db)
+    surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
+
+    record = [v for t, _, v in ctx.writes if t == "survey_records"][0]
+    assert record["commit_sha"] == "9961924abc"
+
+
+def test_a_survey_of_an_unversioned_tree_records_no_commit(db):
+    """
+    A tree can be onboarded without being a repository. The record then says so
+    by being empty rather than by carrying something invented — and a
+    re-survey predicate reading it can tell "surveyed at an unknown commit"
+    from "surveyed at this one".
+    """
+    ctx = Ctx(db)
+    surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
+
+    record = [v for t, _, v in ctx.writes if t == "survey_records"][0]
+    assert record["commit_sha"] == ""

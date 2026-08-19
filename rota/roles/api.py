@@ -793,7 +793,13 @@ def surveys_attest(ctx: Ctx, outcome: str,
             (f"These are not in the index at all: {unknown}. " if unknown else "") +
             f"Reading nothing and reporting nothing are not the same answer.")
 
-    ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
+    # What this was a survey *of*. See the column's note in schema.sql: the
+    # index it read was built at this commit, so this is the commit surveyed.
+    at = ctx.conn.execute(
+        "SELECT value FROM config WHERE key = 'project_commit'").fetchone()
+    ctx.writes.append(("survey_records", id, {
+        "area": area, "outcome": outcome,
+        "commit_sha": (at["value"] if at else "") or ""}))
     for grain in citations or []:
         ctx.writes.append(("survey_citations", f"{id}:{grain}", {
             "survey_id": id, "grain": grain,

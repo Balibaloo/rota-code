@@ -123,10 +123,16 @@
     # about how much reading this brief can afford before it stops acting,
     # not a reason to put eight symbols back in the dark.
     #
-    # Unconfirmed hypothesis worth one measurement: a larger index means a
-    # longer pushed working set, and llama3.1:8b's context budget is the thing
-    # HARDWARE_GUIDE.md warns about. If the brief is being truncated away, this
-    # is a budget failure wearing a behaviour failure's clothes.
+    # Two resource explanations were checked and both are dead. The prompt is
+    # ~24k characters against a 12,288-token budget — about half — so nothing
+    # is being truncated away. And the session makes 5 tool calls against
+    # `MAX_ITERATIONS = 12`, so it is not running out of turns either.
+    #
+    # It reads five things and stops, with budget left. That is a choice, and
+    # the only input that changed is that `code.probe` now has eight more
+    # grains to return. Whatever this is, it is about the brief and the model,
+    # not about a cap — which is what makes it worth leaving red and legible
+    # rather than tuned away.
     onboard: true
     message: "line totals apply the volume band"
     edit:
