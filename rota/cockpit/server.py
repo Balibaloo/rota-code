@@ -261,6 +261,15 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(json.dumps(data, default=str).encode("utf-8"),
                                "application/json")
+                elif path == "/provenance.json":
+                    conn = connect_readonly(db_path)
+                    try:
+                        body = json.dumps(inspect_api.provenance(
+                            conn, q.get("table", [""])[0],
+                            q.get("row", [""])[0]), default=str).encode("utf-8")
+                    finally:
+                        conn.close()
+                    self._send(body, "application/json")
                 elif path == "/messages.json":
                     conn = connect_readonly(db_path)
                     try:
@@ -420,6 +429,15 @@ def serve(project_root: str | Path | None = None, port: int = 8899,
     # merely in TIME_WAIT — so setting it stacks servers silently and the oldest
     # one keeps answering. A restart then appears to succeed while serving stale
     # code, which is a worse failure than a refused bind.
+    #
+    # **And it was never switched off.** `socketserver.TCPServer` defaults it to
+    # False, but `http.server.HTTPServer` overrides it to True, and this
+    # inherits from that — so the paragraph above described an intention and the
+    # flag was on the whole time. The failure it predicts is not hypothetical: I
+    # hit it adding an endpoint. Two servers listened on 8899, the older one
+    # answered, and the new route came back 404 from a process that had never
+    # heard of it. A comment is not a setting.
+    ThreadingHTTPServer.allow_reuse_address = False
     ThreadingHTTPServer.daemon_threads = True
     try:
         server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(db_path))

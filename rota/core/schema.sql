@@ -422,7 +422,23 @@ CREATE TABLE IF NOT EXISTS sessions (
     model        TEXT,
     temperature  REAL,
     num_ctx      INTEGER,
-    prompt_hash  TEXT
+    prompt_hash  TEXT,
+    -- What woke it. `trigger_msg` answers this only for a message, and in an
+    -- onboarding run nothing is a message: 24 of 24 sessions on the last real
+    -- one were ticks, so the record of why any of them ran was a null column.
+    --
+    -- Asking "why is this term here" then stopped at "a terminologist wrote
+    -- it", one step short of the answer, in exactly the case the question is
+    -- asked about. The wake is already in hand where the session is built; it
+    -- was simply not carried.
+    wake_kind    TEXT NOT NULL DEFAULT '',
+    wake_detail  TEXT NOT NULL DEFAULT '',
+    -- And its refs, because that is where the *subject* is. A survey wake is
+    -- `Wake(role, "tick:survey", refs=(area,))` -- the area is in `refs` and
+    -- `detail` is empty, so recording detail alone answers "a survey tick"
+    -- and loses "of what", which is the half the question is about.
+    -- JSON, like `messages.body_refs`, because it is the same kind of thing.
+    wake_refs    TEXT NOT NULL DEFAULT '[]'
 );
 
 -- Law 6's cycle collapse depends on a role never having two live sessions.

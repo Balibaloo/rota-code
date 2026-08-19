@@ -115,6 +115,12 @@
   .sub{margin-top:3px;font-size:11px}
   .row{padding:5px 0;border-bottom:1px solid #1d222b}
   .tw{overflow:auto;max-height:340px}
+  /* A clickable row has to look clickable, or the path exists and nobody finds
+     it -- which is the state the whole panel is fixing. */
+  tr.prov{cursor:pointer}
+  tr.prov:hover td{background:var(--hl,rgba(127,127,127,.18))}
+  pre.brief{white-space:pre-wrap;word-break:break-word;max-height:340px;
+            overflow:auto;margin:0;font-size:11px;line-height:1.45}
   .step{padding:7px 10px;border-bottom:1px solid #1d222b;cursor:pointer}
   .step.on{background:#18202e;border-left:2px solid var(--accent)}
   .step:hover{background:#161d28}

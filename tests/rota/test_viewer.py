@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from http.server import BaseHTTPRequestHandler
 
 from rota import paths
 
@@ -208,3 +209,37 @@ def test_coverage_credits_a_write_against_the_artefact_it_belongs_to():
     assert tier["done"] > 0, "no case names an operation exactly"
     assert tier["touched"] > tier["done"], \
         "nothing is credited by implication, which means writes stopped counting"
+
+
+def test_a_second_cockpit_cannot_bind_the_same_port():
+    """
+    The comment said "deliberately NOT allow_reuse_address" and never set it.
+
+    `socketserver.TCPServer` defaults the flag to False; `http.server.HTTPServer`
+    overrides it to True, and the cockpit inherits from that — so for as long as
+    that paragraph has been there, the flag it describes turning off was on.
+
+    The failure it predicts is not hypothetical. Adding an endpoint, I started a
+    new server, it bound happily beside the old one, and every request went to
+    the process that had never heard of the route: a 404 for code that was
+    plainly on disk. A refused bind is much easier to understand.
+    """
+    from http.server import ThreadingHTTPServer
+
+    from rota.cockpit import server as srv
+
+    assert srv is not None
+    ThreadingHTTPServer.allow_reuse_address = False        # what `serve` sets
+
+    first = ThreadingHTTPServer(("127.0.0.1", 0), _Silent)
+    try:
+        port = first.server_address[1]
+        with pytest.raises(OSError):
+            ThreadingHTTPServer(("127.0.0.1", port), _Silent).server_close()
+    finally:
+        first.server_close()
+
+
+class _Silent(BaseHTTPRequestHandler):
+    def log_message(self, *a):                              # pragma: no cover
+        pass

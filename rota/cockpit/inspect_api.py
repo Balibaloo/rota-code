@@ -285,3 +285,167 @@ def message_graph(conn: sqlite3.Connection, limit: int = 400) -> dict[str, Any]:
 
     return {"messages": rows, "threads": threads,
             "open": [r["id"] for r in rows if r["status"] == "open"]}
+
+
+# ---------------------------------------------------------------------------
+# Why is this row here — the chain, backwards
+# ---------------------------------------------------------------------------
+
+CHAIN_LIMIT = 40
+
+
+def _refs(blob: str | None) -> list[str]:
+    try:
+        loaded = json.loads(blob or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [r for r in loaded if isinstance(r, str)]
+
+
+def provenance(conn: sqlite3.Connection, table: str, row_id: str) -> dict[str, Any]:
+    """
+    From an artefact row back to the thing that caused it.
+
+    **row -> the session that wrote it -> what it was shown and did -> what
+    woke it -> what caused that**, to a tick or to the principal's sentence.
+
+    Every piece of this was already recorded and none of it was joined. Twice
+    now the question has had to be answered for real — once for the intake bug,
+    once for "what is a survey session actually shown" — and both times the
+    method was a throwaway script joining four tables by hand. `receipts` is the
+    link nobody was following: it has carried `(session_id, table_name, row_id)`
+    on every commit since Law 4.
+
+    Read-only, like everything else the cockpit serves.
+    """
+    out: dict[str, Any] = {
+        "table": table, "row_id": row_id, "found": False, "row": {},
+        "session": None, "history": [], "woken_by": None, "chain": [],
+        "did": [], "shown": {}, "note": "",
+    }
+
+    try:
+        cols = _columns(conn, table)
+    except sqlite3.Error:
+        out["note"] = f"no such table: {table}"
+        return out
+
+    key = "id" if "id" in cols else cols[0]
+    try:
+        row = conn.execute(
+            f"SELECT * FROM {table} WHERE {key} = ?", (row_id,)).fetchone()
+    except sqlite3.Error as exc:
+        out["note"] = str(exc)
+        return out
+    if row is None:
+        out["note"] = f"no row {row_id!r} in {table}"
+        return out
+    out["found"] = True
+    out["row"] = {c: row[c] for c in row.keys()}
+
+    # Every session that ever touched it, oldest first. The latest leads
+    # because the question is nearly always about what the row says *now*, and
+    # the rest stay because "who changed this" is the other half of it.
+    out["history"] = [
+        {"session": r["session_id"], "version": r["new_version"],
+         "role": r["role"], "wake": r["wake_kind"], "detail": r["wake_detail"]}
+        for r in conn.execute(
+            "SELECT c.session_id, c.new_version, s.role, s.wake_kind, "
+            "       s.wake_detail, s.seq "
+            "FROM receipts c JOIN sessions s ON s.id = c.session_id "
+            "WHERE c.table_name = ? AND c.row_id = ? ORDER BY s.seq",
+            (table, row_id))]
+    if not out["history"]:
+        # Ordinary, not broken: onboarding writes `code_index` and constraint
+        # zero outside any session. Saying nothing wrote it beats implying
+        # something did.
+        out["note"] = ("no session claims this row — written by onboarding or "
+                       "by a migration rather than by a role")
+        return out
+
+    sid = out["history"][-1]["session"]
+    s = conn.execute(
+        "SELECT id, role, mode, model, temperature, num_ctx, prompt_hash, "
+        "       trigger_msg, committed, seq, wake_kind, wake_detail, wake_refs "
+        "FROM sessions WHERE id = ?", (sid,)).fetchone()
+    out["session"] = {c: s[c] for c in s.keys()}
+    out["woken_by"] = {
+        "kind": s["wake_kind"] or ("message" if s["trigger_msg"] else "unrecorded"),
+        "detail": s["wake_detail"] or "",
+        "refs": _refs(s["wake_refs"]),
+        "message": s["trigger_msg"],
+    }
+    out["did"] = [{"fn": c["fn"], "args": c["args_summary"], "seq": c["seq"]}
+                  for c in conn.execute(
+                      "SELECT fn, args_summary, seq FROM tool_calls "
+                      "WHERE session_id = ? ORDER BY seq", (sid,))]
+    out["chain"] = causal_chain(conn, s["trigger_msg"])
+    out["shown"] = shown_to(conn, s["role"], s["mode"], s["prompt_hash"])
+    return out
+
+
+def causal_chain(conn: sqlite3.Connection, message_id: str | None) -> list[dict]:
+    """
+    A message and everything that caused it, newest first.
+
+    The same `cause_id` walk `scheduler.edge_repeats` makes for the livelock
+    bound, turned around: there it counts a chain to stop it, here it reads one
+    to explain it.
+
+    Bounded and cycle-guarded for the same reason `edge_repeats` is. `cause_id`
+    is data — a hand-edited database or a bug can point a message at itself,
+    and a viewer that hangs on a malformed row is worse than one that shows a
+    short chain.
+    """
+    chain: list[dict] = []
+    seen: set[str] = set()
+    at = message_id
+    while at and at not in seen and len(chain) < CHAIN_LIMIT:
+        seen.add(at)
+        m = conn.execute(
+            "SELECT id, cause_id, cause_kind, thread_id, from_role, to_role, "
+            "       verb, body_text, round_no, seq, status "
+            "FROM messages WHERE id = ?", (at,)).fetchone()
+        if m is None:
+            break
+        chain.append({c: m[c] for c in m.keys()})
+        at = m["cause_id"]
+    return chain
+
+
+def shown_to(conn: sqlite3.Connection, role: str, mode: str,
+             prompt_hash: str | None) -> dict[str, Any]:
+    """
+    What the session was told — the reconstructible part, and a plain statement
+    of the part that is not.
+
+    The **brief** composes exactly: it is a function of role and mode, so it can
+    be rebuilt. The **toolkit** derives from the graph the same way. What was
+    *pushed* into the prompt — the working set the session actually read — is
+    retained nowhere. Only `prompt_hash` is, and it hashes the whole prompt, so
+    it cannot even confirm the brief alone is unchanged.
+
+    Saying so is the point rather than a caveat. A reconstruction presented as
+    the real prompt is how "the sentence was in there, so the role ignored it"
+    survives for a week — and the intake bug turned out to be the opposite: the
+    sentence was absent, and only printing the actual prompt showed it.
+    """
+    out: dict[str, Any] = {
+        "role": role, "mode": mode, "brief": "", "tools": [],
+        "prompt_hash": prompt_hash, "working_set": None,
+        "note": ("the working set pushed into this prompt is not retained; the "
+                 "brief and toolkit below are rebuilt from the current prompts "
+                 "and graph, which may have changed since this session ran"),
+    }
+    try:
+        out["brief"] = prompts_mod.compose(role, mode if mode != "normal" else "")
+    except Exception:                                          # noqa: BLE001
+        try:
+            out["brief"] = prompts_mod.base(role)
+        except Exception:                                      # noqa: BLE001
+            out["note"] = f"no brief on file for {role}/{mode}; " + out["note"]
+    try:
+        out["tools"] = list(build_sandbox(role, conn).signatures())
+    except Exception as exc:                                   # noqa: BLE001
+        out["note"] = f"toolkit unavailable ({exc}); " + out["note"]
+    return out

@@ -23,6 +23,23 @@ function table(rows, cols) {
     }).join('')}</tr>`).join('')}</table></div>`;
 }
 
+// A table whose rows ask "why is this here". Identical to `table` except each
+// row carries its table name and key, which is exactly what `provenance` wants.
+function rowTable(tableName, rows, cols) {
+  if (!rows || !rows.length) return '<div class="empty">none</div>';
+  const use = cols || Object.keys(rows[0]);
+  const key = use.includes('id') ? 'id' : use[0];
+  return `<div class="tw"><table><tr>${use.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${
+    rows.map(r=>{
+      const id = String(r[key] ?? '');
+      return `<tr class="prov" title="why is this here?" onclick="showProvenance('${
+        esc(tableName)}','${esc(id).replace(/'/g, "\'")}')">${use.map(c=>{
+        const v=r[c], s = typeof v==='object' ? JSON.stringify(v) : String(v ?? '');
+        return `<td title="${esc(s)}">${esc(s.length>140?s.slice(0,140)+'…':s)}</td>`;
+      }).join('')}</tr>`;
+    }).join('')}</table></div>`;
+}
+
 const group = (title, body) =>
   `<div class="grp"><div class="grphead">${esc(title)}</div>${body}</div>`;
 
@@ -167,8 +184,11 @@ async function showArtefact(id) {
   // STATE first for artefacts: the rows are what you came for.
   const tables = (a.tables||[]).map(t=> t.error
     ? `<div class="fail">${esc(t.error)}</div>`
+    // Rows are clickable now. Everything needed to answer "why is this here"
+    // was already served and there was no path through it, so the path is the
+    // row itself: click it and you get the session, the wake, and the cause.
     : sec(t.name, `${t.count} rows · v${t.version}`,
-          table(t.rows, t.columns), t.count>0 && t.count<50)).join('');
+          rowTable(t.name, t.rows, t.columns), t.count>0 && t.count<50)).join('');
 
   const state = group('STATE',
     (tables || '<div class="empty">no rows yet</div>') +
@@ -726,3 +746,65 @@ function fold(label, body, open){
   return body ? `<details class="sec" ${open?'open':''}>
     <summary>${esc(label)}</summary><div class="body">${body}</div></details>` : '';
 }
+
+
+// ------------------------------------------------------- why is this here
+//
+// The chain, backwards: row -> the session that wrote it -> what it was shown
+// and did -> what woke it -> what caused that. Every piece was already served
+// by this cockpit and there was no path through them; both times I have had to
+// answer this for real, the method was a throwaway script joining four tables.
+async function showProvenance(tableName, rowId) {
+  showTab('detail');
+  phead(rowId, 'why is this here? loading…');
+  const d = await (await fetch(`/provenance.json?table=${
+    encodeURIComponent(tableName)}&row=${encodeURIComponent(rowId)}`)).json();
+
+  if (!d.found) {
+    phead(rowId, tableName);
+    P().innerHTML = `<div class="empty">${esc(d.note || 'no such row')}</div>`;
+    return;
+  }
+
+  const rowRows = Object.entries(d.row).map(([k, v]) => ({ field: k, value: v }));
+  const what = group('WHAT IT SAYS', table(rowRows, ['field', 'value']));
+
+  if (!d.session) {
+    phead(rowId, tableName);
+    P().innerHTML = what + `<div class="note">${esc(d.note)}</div>`;
+    return;
+  }
+
+  const w = d.woken_by || {};
+  const subject = (w.refs && w.refs.length) ? w.refs.join(', ')
+                : (w.detail || w.message || '');
+  const woke = group('WHAT WOKE IT',
+    `<div class="note"><b>${esc(w.kind || 'unrecorded')}</b>${
+      subject ? ' · ' + esc(subject) : ''}</div>` +
+    (d.chain.length
+      ? sec('and what caused that', d.chain.length,
+            table(d.chain, ['id', 'from_role', 'to_role', 'verb', 'status']), true)
+      : `<div class="empty">a tick, so there is no message behind it</div>`));
+
+  const who = group('WHO WROTE IT',
+    table([{ session: d.session.id, role: d.session.role, mode: d.session.mode,
+             model: d.session.model, committed: d.session.committed }]) +
+    sec('what it reached for', d.did.length,
+        table(d.did, ['seq', 'fn', 'args']), d.did.length > 0) +
+    (d.history.length > 1
+      ? sec('every session that touched it', d.history.length,
+            table(d.history, ['session', 'role', 'wake', 'version']))
+      : ''));
+
+  const s = d.shown || {};
+  const shown = group('WHAT IT WAS SHOWN',
+    `<div class="note">${esc(s.note || '')}</div>` +
+    sec('brief', `${(s.brief || '').length} chars`,
+        `<pre class="brief">${esc(s.brief || '')}</pre>`) +
+    sec('toolkit', (s.tools || []).length,
+        `<pre class="brief">${esc((s.tools || []).join(String.fromCharCode(10)))}</pre>`));
+
+  phead(rowId, `${tableName} · why is this here`);
+  P().innerHTML = what + woke + who + shown;
+}
+window.showProvenance = showProvenance;

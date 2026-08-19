@@ -82,9 +82,23 @@ ARTEFACT_TABLES = set(ARTEFACT_OF_TABLE)
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(path), isolation_level=None)
+    db_path = Path(path).expanduser()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA journal_mode = WAL")
+    return conn
+
+
+def connect_readonly(path: str | Path) -> sqlite3.Connection:
+    """Open the database in read-only mode for the cockpit and other viewers."""
+    db_path = Path(path).expanduser().resolve()
+    conn = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA query_only = ON")
     return conn
 
 
@@ -141,6 +155,11 @@ class SessionResult:
     session_id: str
     role: str
     trigger_msg: str | None = None
+    # What woke it, for the sessions no message woke. `trigger_msg` is null for
+    # every tick, which in an onboarding run is every session.
+    wake_kind: str = ""
+    wake_detail: str = ""
+    wake_refs: tuple[str, ...] = ()
     mode: str = "normal"
     writes: list[Write] = field(default_factory=list)
     messages: list[OutboundMessage] = field(default_factory=list)
@@ -245,13 +264,16 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
 
         conn.execute(
             "INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq, "
-            "model, temperature, num_ctx, prompt_hash) "
-            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)",
+            "model, temperature, num_ctx, prompt_hash, wake_kind, wake_detail, "
+            "wake_refs) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 result.session_id, result.role, result.trigger_msg, result.mode,
                 _next_seq(conn, "sessions"),
                 result.pins.get("model"), result.pins.get("temperature"),
                 result.pins.get("num_ctx"), result.pins.get("prompt_hash"),
+                result.wake_kind, result.wake_detail,
+                json.dumps(list(result.wake_refs)),
             ),
         )
 

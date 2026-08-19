@@ -929,6 +929,11 @@ def run_session(
             session_id=session_id,
             role=wake.role,
             trigger_msg=wake.message_id,
+            # Both, because `message_id` answers "why did this run" for exactly
+            # one kind of wake and the others are the common case.
+            wake_kind=wake.kind,
+            wake_detail=wake.detail,
+            wake_refs=tuple(wake.refs),
             mode=mode,
             writes=[_as_write(w) for w in sb.ctx.writes],
             messages=_messages_from(sb, wake, session_id),
