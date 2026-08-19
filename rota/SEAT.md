@@ -275,12 +275,22 @@ it names a target:
 So the typed name stays exactly where it earns its keep, and it stops being
 something I improvised.
 
-Two things to know before reusing them: `ConfirmationModal` has **no CSS** in
-the other app — only `#prompt_container` and `#input_modal_container` are
-styled — so it renders unstyled today, and the seat would want to fix that
-rather than inherit it. And the callback pattern the other app uses is a future
-resolved from the modal's callback (`_request_close_pane` is the model to copy),
-which matters here because quit has to be *cancellable*, not merely observed.
+Two things to know before reusing them.
+
+**One of the two is unstyled, and it is the one quit needs.**
+`#confirmation_container` appears exactly once in the repository — as an `id` in
+`modals.py` — and in no stylesheet. Its siblings both get the same four rules
+(`background`, `border: thick $accent`, `padding`, a width), so `ChoiceModal`
+and `InputModal` render as dialogs and `ConfirmationModal` renders as a bare
+label and two buttons floating over the dimmed backdrop `ModalScreen` provides.
+Six lines of CSS, and the pattern to copy is two rules above it. Worth fixing
+rather than inheriting, and worth knowing *before* wiring quit to it, because
+the failure looks like the modal not appearing.
+
+**Quit has to be cancellable, not merely observed.** The other app's
+`_request_close_pane` is the model: a future resolved from the modal's callback,
+awaited before the destructive step runs. A confirmation that fires a callback
+while the quit proceeds is decoration.
 
 **How does the list know a run is live?** It cannot, today, and the reason is
 worth stating exactly because it is also a defect that exists right now.
