@@ -232,16 +232,55 @@ it deserves its own argument, and it is not part of this.
 
 ---
 
-## 8 · Two questions I cannot settle for you
+## 8 · The open questions
 
-**Does closing the seat stop the run?** I think yes, and that it should be
-*said* in the interface rather than engineered around. The loop runs in the
-app's worker thread today, so closing the window pauses it — and that is already
-correct: "the frontier *is* the state; reconstructing it is the entire
-recovery." The scheduler is disposable by design, so pausing costs nothing and
-resuming is just running again. The alternative — a run that keeps going
-headless after you close the window — buys very little and adds a process whose
-lifetime nobody owns, which is the exact thing §3Bd is careful about.
+**~~Does closing the seat stop the run?~~ Ruled: yes, and that is why quitting
+needs a confirmation.**
+
+It already stops it — the loop runs in the app's worker thread — and that is
+correct rather than a limitation: "the frontier *is* the state; reconstructing
+it is the entire recovery." The scheduler is disposable by design, so pausing
+costs nothing and resuming is just running again. The alternative, a run that
+keeps going headless after the window closes, buys little and adds a process
+whose lifetime nobody owns, which is the exact thing §3Bd is careful about.
+
+What follows is the interface consequence: **`ctrl+c` currently quits with no
+confirmation, and quitting stops a run that may be forty sessions deep.** Cheap
+to resume, but never something to do by accident.
+
+### Which is where I have to correct §3 of my own reasoning
+
+I built the wipe confirmation as *arm a key, then type the run's name into the
+existing input*, and gave as the reason that it "reuses the widget tree rather
+than introducing a modal that would need its own tests."
+
+**That reason was false, and I did not check it.** `src/ui/modals.py` has had
+three modals since long before any of this — `ConfirmationModal`,
+`InputModal`, `ChoiceModal` — and the rota seat already imports from
+`src/ui/widgets.py` next door to them. I was not avoiding a new modal; I was
+avoiding an existing one I had not looked for. Same error as everything else
+found this week: a decision resting on a fact nobody checked.
+
+The typed-name idea survives, but as a *level* rather than as the only
+mechanism — and the level is set by whether the action is reversible and whether
+it names a target:
+
+| action | confirmation | why |
+| --- | --- | --- |
+| **quit** | `ConfirmationModal` | reversible — the run resumes. It only needs to not happen by accident |
+| **fork** | `InputModal` for the new name | it needs a name anyway; the modal *is* the input |
+| **wipe** | `InputModal` asking for the run's name | irreversible *and* aimed at one run. A yes/no button confirms "yes", never "yes, that one" |
+| **new run** | a form, built on the same shape | two fields plus a browse, so the only genuinely new screen |
+
+So the typed name stays exactly where it earns its keep, and it stops being
+something I improvised.
+
+Two things to know before reusing them: `ConfirmationModal` has **no CSS** in
+the other app — only `#prompt_container` and `#input_modal_container` are
+styled — so it renders unstyled today, and the seat would want to fix that
+rather than inherit it. And the callback pattern the other app uses is a future
+resolved from the modal's callback (`_request_close_pane` is the model to copy),
+which matters here because quit has to be *cancellable*, not merely observed.
 
 **How does the list know a run is live?** It cannot, today, and the reason is
 worth stating exactly because it is also a defect that exists right now.
@@ -268,6 +307,36 @@ shape to claims is small, and I want your go-ahead before touching the claim
 table, because it is load-bearing for every session commit — but the
 unconditional `stopping` and the label that never refreshes are fixable without
 going near it, and are worth doing whatever you decide about the rest.
+
+### The three I answered inside the proposal without marking them as yours
+
+Writing them as conclusions was the wrong shape. Each is a ruling, not a
+derivation, and each changes what gets built.
+
+**Does the cockpit ever act?** §1 says never, and that rule is doing real work —
+a viewer that can also act has to answer "is what I am looking at still true",
+and every panel inherits the question. But the ask was "all of this from the
+TUI *or the cockpit*", and if the browser is where you would rather start a run
+from, that rule is the only thing standing in the way. It also decides where the
+run list lives, so it gates item 1 rather than following it.
+
+**Does `alt+r` go?** §3 argues it destroys its own control and should become
+fork. I am confident about the argument and it is still a key you have been
+using, and removing a key is a thing to be told rather than to discover.
+
+**Is a run stale when the checkout moves on?** §4 proposes recording branch and
+commit. It does not say what happens when the tree changes underneath — whether
+the list should say `v3@766c9e3 · tree has moved`, and whether a run whose
+source no longer exists in that shape is still comparable. Recording the commit
+is what makes the question askable, and it does not answer it.
+
+### And one deliberately left out
+
+**The answer key as data.** §7 flags it: if a prediction were a checkable line
+rather than a paragraph, a diff could score two runs automatically and "did that
+edit help" would be a number instead of a reading. That is a change to what an
+answer key *is*, it is the largest idea in this document, and it belongs in its
+own argument rather than smuggled into an interface proposal.
 
 ---
 
