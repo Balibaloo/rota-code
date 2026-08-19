@@ -38,6 +38,10 @@ NARRATIVE = {
     "ANSWER_KEY.md": "grading data for onboarding runs, written before the "
                      "first session ran",
     "ANSWER_KEY_icalendar.md": "the same, for the second repository",
+    "ANSWER_KEY_ctn_v3.md": "the same, for the third — and the first written "
+                            "for a branch nothing had surveyed, because the "
+                            "other branch of that repo was already onboarded "
+                            "and any claim about it is contaminated",
 }
 
 # Checked by a test, or read by code at runtime.
