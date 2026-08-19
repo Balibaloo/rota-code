@@ -22,7 +22,7 @@ outside its own database.
 
 | piece | state |
 | --- | --- |
-| `runtime_processes` (pid, batch_id, command, started_at) | table exists, **written by nothing yet** |
+| `runtime_processes` (pid, batch_id, command, started_at) | table and writer exist; **nothing calls the writer yet** |
 | `boot.reap_processes` | kills only what it can prove is ours; reports the rest |
 | `core/environments.py` | reservation, ownership, spawn, teardown — **1–4 done** |
 | `lifecycle.defer / merge` | processes die either way; ports survive a deferral |
@@ -30,8 +30,18 @@ outside its own database.
 | `worktrees.py` | a worktree per batch, created by the scheduler, never by a role |
 | `lifecycle.start / defer / merge` | the hooks an environment would attach to |
 
-So the reaper is written and the spawner is not, which is the safe order to have
-built them in and is why nothing has gone wrong yet.
+So the reaper is written, the spawner is written and **unreached**, which is the
+safe order to have built them in and is why nothing has gone wrong yet. A writer
+nothing calls cannot orphan anything.
+
+That distinction was not being kept honestly. This table said "written by
+nothing yet" after `environments.record` landed, and the test guarding the claim
+grepped for the literal `INSERT INTO runtime_processes` while the writer says
+`INSERT OR REPLACE INTO` — four characters outside the needle, so the tripwire
+stayed green through exactly the change it existed to catch. A check on one
+spelling of a statement is a check on the spelling. It asks two things now:
+which module may write the table, and whether anything calls `spawn`. The second
+is the one that protects the machine.
 
 **~~One thing already wrong in what exists.~~ Fixed.** `reap_processes` killed by
 pid, and a pid is not an identity — the operating system reuses them, so after a

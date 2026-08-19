@@ -15,6 +15,7 @@ There is no fourth option and no way to add one quietly.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from rota import paths
@@ -151,19 +152,51 @@ def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
 # document has to be corrected to make the suite green.
 # ---------------------------------------------------------------------------
 
-def test_nothing_spawns_a_process_yet():
+def test_only_one_module_may_write_a_running_process():
     """
-    ENVIRONMENT.md's premise. `runtime_processes` has a reaper and no writer,
-    which is the safe order to have built them in and the reason nothing has
-    been orphaned so far. Write the spawner and this goes red, which is the
-    moment the rest of that document needs re-reading rather than trusting.
+    This test was green while the thing it forbade existed.
+
+    It grepped for the literal `INSERT INTO runtime_processes`, and
+    `environments.record` writes `INSERT OR REPLACE INTO runtime_processes` --
+    four characters that are not in the needle. So the spawner landed, the
+    tripwire that was meant to fire on exactly that did not, and
+    ENVIRONMENT.md went on saying the table was "written by nothing yet" for
+    as long as anybody trusted this.
+
+    A check on one spelling of a statement is a check on the spelling. What is
+    worth guarding is *which module* may write the table at all -- one place,
+    the one that also owns the two-fact ownership test the reaper depends on.
     """
-    writers = [py.name for py in paths.PACKAGE.rglob("*.py")
-               if "__pycache__" not in py.parts
-               and "INSERT INTO runtime_processes" in py.read_text(encoding="utf-8")]
-    assert writers == [], (
-        f"{writers} spawns into runtime_processes now; ENVIRONMENT.md still "
-        f"says nothing does, and its risk ordering assumed that")
+    writers = sorted(
+        py.name for py in paths.PACKAGE.rglob("*.py")
+        if "__pycache__" not in py.parts
+        and re.search(r"INSERT\s+(OR\s+\w+\s+)?INTO\s+runtime_processes",
+                      py.read_text(encoding="utf-8"), re.I))
+    assert writers == ["environments.py"], (
+        f"{writers} write runtime_processes. Recording a spawned process is "
+        f"`environments.record`'s alone, because that is the module holding "
+        f"the pid-and-start-time pair the reaper needs to kill safely")
+
+
+def test_nothing_calls_the_spawner_yet():
+    """
+    ENVIRONMENT.md's premise, asserted as the thing that actually protects the
+    machine rather than as a fact about SQL.
+
+    A writer nothing calls cannot orphan anything; a writer something calls
+    can, whatever its spelling. `spawn` is written and unreached, which is the
+    safe order and the reason nothing has been orphaned so far. Call it and
+    this goes red, which is the moment the rest of that document needs
+    re-reading rather than trusting -- particularly step 5, the toolkit, which
+    is the first thing that would hand a *role* the capability.
+    """
+    callers = sorted(
+        py.name for py in paths.PACKAGE.rglob("*.py")
+        if "__pycache__" not in py.parts and py.name != "environments.py"
+        and re.search(r"\bspawn\s*\(", py.read_text(encoding="utf-8")))
+    assert callers == [], (
+        f"{callers} start processes now; ENVIRONMENT.md still says nothing "
+        f"does, and its whole risk ordering rests on that")
 
 
 def test_the_reaper_kills_only_what_it_can_prove_is_its_own():
