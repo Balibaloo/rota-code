@@ -173,7 +173,22 @@ class RotaApp(App):
     #conversation { width: 2fr; padding: 0 1; }
     #sidebar { width: 1fr; border-left: solid $accent; padding: 0 1; }
     #sessions { height: 40%; border-top: solid $accent; padding: 0 1; }
-    Input { dock: bottom; }
+    /* **Scoped to the seat's own input.** Bare `Input` reached every input in
+       the app, including the one inside the shared `InputModal` -- docking it
+       to the bottom of the *screen*, outside the dialog box that was supposed
+       to contain it. So the wipe confirmation showed a label and two buttons
+       with its text box somewhere else entirely, and what you typed went
+       nowhere the modal could read. I scoped this for `#newrun_container` when
+       I wrote that form and did not go back for the modal I had reused. */
+    #say { dock: bottom; }
+    #input_modal_container Input, #modal_input { dock: none; width: 100%; }
+    #input_modal_container {
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+        width: 70;
+        height: auto;
+    }
 
     /* `#confirmation_container` had no rule anywhere in the repository, while
        both its siblings in `src/ui/modals.py` carry the same four. So the
@@ -312,7 +327,7 @@ class RotaApp(App):
                 yield Outstanding(id="owed")
                 yield Static("[b]sessions[/b]", id="sessions_title")
                 yield VerticalScroll(id="sessions")
-        yield Input(placeholder="say what you want built…")
+        yield Input(placeholder="say what you want built…", id="say")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -516,7 +531,7 @@ class RotaApp(App):
         self.say(f"**{what}** — {consequence}\n\n"
                  f"type `{self.run_name}` to confirm, anything else to cancel",
                  "system", "yellow")
-        self.query_one(Input).placeholder = f"type {self.run_name} to confirm…"
+        self.query_one("#say", Input).placeholder = f"type {self.run_name} to confirm…"
 
     def confirm(self, text: str) -> None:
         """
@@ -527,7 +542,7 @@ class RotaApp(App):
         making you press the key twice.
         """
         what, self.armed = self.armed, None
-        self.query_one(Input).placeholder = "say what you want built…"
+        self.query_one("#say", Input).placeholder = "say what you want built…"
         if text.strip() != self.run_name:
             self.say(f"{what} cancelled", "system", "blue")
             return
@@ -765,6 +780,12 @@ class RotaApp(App):
     # -- input ---------------------------------------------------------------
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        # A modal's submission is the modal's. Events bubble widget -> screen ->
+        # app, and `InputModal` does not stop them, so a name typed to confirm a
+        # wipe also arrived here and was sent to Liaison as a sentence.
+        if getattr(event.input, "id", "") in ("modal_input", "newrun_name",
+                                              "newrun_root"):
+            return
         text = event.value.strip()
         if not text:
             return

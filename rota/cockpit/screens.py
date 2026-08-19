@@ -43,9 +43,13 @@ class RunList(ModalScreen):
     indistinguishable.
     """
 
+    # No `enter` here. `DataTable` binds it to `select_cursor` and the table
+    # has the focus the whole time this screen is up, so a screen binding for
+    # it never fires -- the same way `ctrl+w` never reached the seat. Enter
+    # arrives as `RowSelected` instead, which is also what a mouse click emits,
+    # so handling the event gets both and a binding would have got neither.
     BINDINGS = [
         ("escape", "dismiss_list", "back"),
-        ("enter", "open", "open"),
         ("n", "new", "new"),
         ("f", "fork", "fork"),
         ("w", "wipe", "wipe"),
@@ -117,6 +121,10 @@ class RunList(ModalScreen):
 
     # -- actions -------------------------------------------------------------
 
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Enter and click, which are the same intent and neither was handled."""
+        self.action_open()
+
     def action_reload(self) -> None:
         self.reload()
 
@@ -169,12 +177,26 @@ class RunList(ModalScreen):
         from src.ui.modals import InputModal
 
         def confirmed(value) -> None:
-            if value != row["name"]:
+            if (value or "").strip() != row["name"]:
                 self.query_one("#runlist_note", Static).update(
                     "wipe cancelled" if value is None else
                     f"[yellow]that is not {row['name']} — not wiped[/yellow]")
                 return
-            cli.wipe(Path(row["path"]))
+            # **Through the app when it is the app's own run.** The seat holds
+            # an open connection to it, and Windows will not unlink an open
+            # file -- so wiping the run you are sitting in from here would
+            # report success, remove nothing, and leave the seat pointed at a
+            # database it thinks it wiped. `wipe_run` closes first and reopens
+            # after, which is what makes the seat sittable afterwards.
+            if self.app.db_path and Path(row["path"]) == Path(self.app.db_path):
+                if self.app.driving:
+                    self.query_one("#runlist_note", Static).update(
+                        f"[yellow]{row['name']} is running in this seat — "
+                        f"pause it first[/yellow]")
+                    return
+                self.app.wipe_run()
+            else:
+                cli.wipe(Path(row["path"]))
             self.reload()
 
         self.app.push_screen(InputModal(

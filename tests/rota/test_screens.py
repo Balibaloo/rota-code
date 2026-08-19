@@ -560,3 +560,130 @@ async def test_a_run_switch_does_not_orphan_or_close_a_cockpit(
         await pilot.pause()
         assert len(app.cockpits) == 1, "the handle was dropped on switch"
         app.cockpits.clear()          # do not signal a fake on teardown
+
+
+async def test_enter_and_a_click_both_open_the_run(tmp_path, home, project):
+    """
+    Neither worked, and for the reason the seat already had a test about:
+    `DataTable` binds `enter` to `select_cursor` and holds the focus the whole
+    time this screen is up, so a screen binding for it never fires. A click
+    emits the same `RowSelected` event, so handling the event gets both where a
+    binding would have got neither.
+    """
+    from rota.cockpit.screens import RunList
+    from textual.widgets import DataTable
+
+    _seed(home, "pickme", project)
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        assert isinstance(app.screen, RunList)
+        assert not any(k == "enter" for k, _, _ in RunList.BINDINGS), (
+            "a binding the table eats is one the footer advertises and "
+            "nothing performs")
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert app.run_name == "pickme"
+
+
+async def test_wiping_the_open_run_goes_through_the_seat(tmp_path, home, project):
+    """
+    The seat holds an open connection, and Windows will not unlink an open
+    file -- so this reported success and removed nothing, leaving the seat
+    pointed at a database it believed it had wiped.
+    """
+    from rota.cockpit.screens import RunList
+
+    app = _app(tmp_path)
+    app.conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                     "VALUES ('e1','principal','something',1)")
+    monkey = home / "seat.db"
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        screen = app.screen
+        screen.rows = [{"name": app.run_name, "path": str(app.db_path),
+                        "state": "ready", "root": str(project), "counts": {},
+                        "branch": "", "commit": "", "moved": False}]
+        screen.query_one("#runs").add_row(*screen._cells(screen.rows[0]))
+        screen.query_one("#runs").move_cursor(row=0)
+        screen.action_wipe()
+        await pilot.pause()
+        app.screen.query_one("#modal_input").value = app.run_name
+        app.screen.handle_submit(app.run_name)
+        await pilot.pause()
+
+        assert app.conn.execute(
+            "SELECT COUNT(*) n FROM entries").fetchone()["n"] == 0
+        assert app.conn.execute("SELECT 1").fetchone() is not None, \
+            "the seat was left on a dead connection"
+
+
+async def test_a_modal_submission_is_not_also_a_sentence(tmp_path, home):
+    """
+    Events bubble widget -> screen -> app, and `InputModal` does not stop them,
+    so the run name typed to confirm a wipe also arrived at the seat's own
+    handler and was sent to Liaison as a chat turn.
+    """
+    app = _app(tmp_path)
+    said = []
+    async with app.run_test() as pilot:
+        app.say = lambda text, *a, **k: said.append(text)
+        app.on_input_submitted(type("E", (), {
+            "value": "ctn_v3",
+            "input": type("I", (), {"id": "modal_input", "value": ""})()})())
+        await pilot.pause()
+    assert said == [], "a confirmation was taken as a sentence"
+
+
+async def test_every_screen_binding_survives_its_own_focused_widget(
+        tmp_path, home, project):
+    """
+    The generalisation the `enter` bug demands.
+
+    `test_every_binding_survives_the_input_having_focus` covered the *app* and
+    was written after `ctrl+w` turned out to be the input's delete-word. Then
+    `enter` on the run list turned out to be the table's `select_cursor`, and
+    the guard did not cover screens -- so the identical failure, in the
+    identical shape, got through the test written for it.
+
+    Asked per key, not per sweep. The first version compared two lists at the
+    end and, on a genuinely swallowed key, reported `swallowed: []` -- the
+    action had fired for a *different* key, so the set difference was empty and
+    only the length disagreed. A guard whose failure message names nothing is
+    most of the way back to no guard.
+
+    What it asserts is that the key *produces the action*, by whatever route.
+    `enter` reaches `open` through `RowSelected` rather than through a binding,
+    and that is a pass: the footer promises behaviour, not a mechanism.
+    """
+    from rota.cockpit.screens import NewRun, RunList
+
+    _seed(home, "somerun", project)
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        for screen_class in (RunList, NewRun):
+            app.push_screen(screen_class())
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, screen_class)
+
+            fired: list[str] = []
+            for _, action, _ in screen_class.BINDINGS:
+                setattr(screen, f"action_{action}",
+                        (lambda a: lambda: fired.append(a))(action))
+
+            for key, action, _ in screen_class.BINDINGS:
+                if action.startswith("dismiss") or action == "cancel":
+                    continue          # would close the screen mid-sweep
+                fired.clear()
+                await pilot.press(key)
+                assert action in fired, (
+                    f"{screen_class.__name__}: {key!r} is bound to {action!r} "
+                    f"and pressing it did nothing — the focused widget ate it")
+
+            screen.dismiss(None)
+            await pilot.pause()
