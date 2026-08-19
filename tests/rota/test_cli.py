@@ -189,3 +189,41 @@ def test_the_cockpit_refuses_to_invent_one(home):
 
     with pytest.raises(SystemExit):
         server.prepare_db(db=home / "never_ran.db")
+
+
+def test_wipe_removes_a_real_git_worktree_and_deregisters_it(tmp_path, home):
+    """
+    The other wipe test proves the *order*; this one proves the removal works
+    on the thing it will actually meet.
+
+    That test used a plain directory, which `shutil.rmtree` clears whether or
+    not `git worktree remove` did anything -- so it could have passed with the
+    git half broken, leaving the repository holding a registration for a path
+    that is gone. `git worktree list` is the fact that distinguishes them, and
+    it is the one a stale registration corrupts: the next batch of that id
+    cannot create its worktree, and the error names a directory nobody can see.
+    """
+    from rota.core import worktrees
+    from rota.testkit import gitfixture
+
+    repo = gitfixture.make(tmp_path)
+    path = _run(home, "ctn_v3", root=repo.root)
+
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("INSERT INTO items (id, text, kind, provenance) "
+                 "VALUES ('i1','x','in_scope','decided')")
+    conn.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
+    tree = worktrees.create(conn, "b1")
+    conn.commit()
+    conn.close()
+
+    assert tree.is_dir()
+    assert any("b1" in w for w in gitfixture.registered_worktrees(repo.root))
+
+    removed = cli.wipe(path)
+
+    assert removed["worktrees"] == ["b1"]
+    assert not tree.exists()
+    assert not any("b1" in w for w in gitfixture.registered_worktrees(repo.root)), \
+        "git still holds a registration for a directory that is gone"
