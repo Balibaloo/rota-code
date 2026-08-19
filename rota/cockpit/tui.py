@@ -54,7 +54,7 @@ if __package__ in (None, ""):                              # pragma: no cover
     raise SystemExit(0)
 
 
-from .. import paths
+from .. import cli, paths
 from ..core import config, loop as loop_mod
 from ..core.db import connect, init_db
 from ..core.predicates import outstanding
@@ -174,6 +174,25 @@ class RotaApp(App):
     #sidebar { width: 1fr; border-left: solid $accent; padding: 0 1; }
     #sessions { height: 40%; border-top: solid $accent; padding: 0 1; }
     Input { dock: bottom; }
+
+    /* `#confirmation_container` had no rule anywhere in the repository, while
+       both its siblings in `src/ui/modals.py` carry the same four. So the
+       confirm dialog rendered as a bare label and two buttons over the dimmed
+       backdrop -- which looks like the modal failing to appear, and quit is the
+       worst place to learn that. */
+    #confirmation_container, #runlist_container, #newrun_container {
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+        width: auto;
+        height: auto;
+    }
+    #runlist_container { width: 90%; height: 80%; }
+    #runs { height: 1fr; }
+    #runlist_title, #newrun_title { text-style: bold; }
+    #runlist_note, #newrun_detected { color: $text-muted; }
+    #newrun_container { width: 70; }
+    #newrun_container Input { dock: none; width: 100%; }
     """
     BINDINGS = [
         ("ctrl+shift+o", "onboard", "onboard"),
@@ -184,10 +203,11 @@ class RotaApp(App):
         # `ctrl+a` are equally spoken for. A binding the input eats is a
         # binding the footer advertises and nothing performs, which is why
         # `test_every_binding_survives_the_input_having_focus` exists.
-        ("alt+r", "rerun", "wipe + onboard"),
+        ("ctrl+l", "runs", "runs"),
+        ("ctrl+alt+r", "rerun", "rerun over the top"),
         ("alt+w", "wipe", "wipe"),
         ("alt+b", "cockpit", "cockpit"),
-        ("ctrl+c", "quit", "quit"),
+        ("ctrl+c", "request_quit", "quit"),
     ]
 
     def __init__(self, db_path: Path, model: str, root: Path | None = None) -> None:
@@ -217,11 +237,20 @@ class RotaApp(App):
                 "SELECT value FROM config WHERE key = 'project_root'").fetchone()
             if row and (row["value"] or "").strip():
                 self.root = Path(row["value"].strip().strip('"'))
-        config.set(self.conn, "run_state", "stopping")
+        # **Read `run_state`; never impose it.** This wrote `"stopping"` on
+        # every open, and `loop.step` reads that value every session -- so
+        # opening a second seat silently halted the loop the first was driving,
+        # while the first went on displaying `running` because it refreshes
+        # that label on mount and on the pause key, never on a timer.
+        #
+        # A fresh seat starting idle is a fact about *the seat*, and it is held
+        # as one: `self.driving` below. The run's state belongs to the run.
         self.principal = QueuedPrincipal(self)
+        self.driving = False
         self.started = False
         self._pending_text = ""
         self._pending_root: Path | None = None
+        self._pending_new: tuple[Path, Path] | None = None
         # What a destructive key has armed, and nothing else. `None` is the
         # ordinary state and the state a confirmation returns to either way.
         self.armed: str | None = None
@@ -263,6 +292,24 @@ class RotaApp(App):
 
     # -- the two things the worker thread is allowed to do -------------------
 
+    def _from_worker(self, fn, *args) -> None:
+        """
+        Touch the widget tree from the loop thread, or do not touch it at all.
+
+        `call_from_thread` raises `RuntimeError("App is not running")` outside a
+        running app, and the loop outlives the app in two ordinary cases: the
+        window is closed mid-session, and a test drives `_turn_the_crank`
+        directly to check the threading. Neither is an error, and neither should
+        surface as a thread exception nobody catches — there is simply no
+        screen left to update.
+        """
+        if not self.is_running:
+            return
+        try:
+            self.call_from_thread(fn, *args)
+        except RuntimeError:
+            pass                      # the app exited between the check and the call
+
     def say(self, text: str, sender: str, colour: str = "blue") -> None:
         pane = self.query_one("#conversation", VerticalScroll)
         pane.mount(ChatMessage(text, sender, _now(), border_color=colour))
@@ -297,21 +344,47 @@ class RotaApp(App):
                 (ask.message_id,))
 
     def refresh_run_state(self) -> None:
+        """
+        Two facts, because they are two facts and one label was showing them as
+        one.
+
+        `run_state` is the *run's* — whether the principal has halted it — and
+        it is shared by every seat and read by `loop.step`. Whether this window
+        is currently turning the crank is the *seat's*, and nothing recorded it
+        at all. Showing only the first meant `running` appeared over a seat that
+        was doing nothing, and the fix for that used to be writing `stopping`
+        into the run on open, which stopped anybody else's loop.
+        """
         state = config.get(self.conn, "run_state")
-        label = self.query_one("#run_state", Static)
-        label.update(f"[b]run state:[/b] {state}")
+        here = "driving" if self.driving else "idle"
+        self.query_one("#run_state", Static).update(
+            f"[b]run:[/b] {state}   [b]this seat:[/b] {here}")
 
     def refresh_owed(self) -> None:
         self.query_one("#owed", Outstanding).render_rows(self.conn)
 
     def action_toggle_run_state(self) -> None:
-        state = config.get(self.conn, "run_state")
-        if state == "running":
+        """
+        Play and pause, which is a question about *this seat*, not about the run.
+
+        It used to flip `run_state` and start a worker on the way up. That was
+        only ever coherent because the seat wrote `stopping` into the run when
+        it opened, so the flag and the seat's idleness could not disagree.
+        Without that write they can, and the toggle read the wrong one: on a
+        fresh run — whose `run_state` defaults to `running` — pressing play
+        would *pause* it.
+
+        So it asks whether this window is driving. Stopping still sets the run's
+        flag, because that is the only way to reach a loop already inside
+        `loop.run`, and it is what the flag is for.
+        """
+        if self.driving:
             config.stop(self.conn)
-            self.say("run state: stopping", "system", "blue")
+            self.say("stopping — the current session finishes first",
+                     "system", "blue")
         else:
             config.resume(self.conn)
-            self.say("run state: running", "system", "blue")
+            self.say("running", "system", "blue")
             self.run_worker(self._turn_the_crank, thread=True)
         self.refresh_run_state()
 
@@ -376,8 +449,8 @@ class RotaApp(App):
         self.conn.close()
         removed = wipe_path(self.db_path)
         self.conn = init_db(self.db_path)
-        config.set(self.conn, "run_state", "stopping")
         self.principal = QueuedPrincipal(self)
+        self.driving = False
         self.started = False
         self.refresh_run_state()
         self.refresh_owed()
@@ -389,6 +462,95 @@ class RotaApp(App):
     def action_rerun(self) -> None:
         self.arm("rerun", f"wipe, then index {self.root or 'nothing'} again")
 
+    # -- the level above one run ---------------------------------------------
+
+    def action_runs(self) -> None:
+        from .screens import RunList
+
+        self.push_screen(RunList(), self._from_run_list)
+
+    def _from_run_list(self, result) -> None:
+        if not result:
+            return
+        verb, *rest = result
+        if verb == "open":
+            self.open_run(Path(rest[0]["path"]))
+        elif verb == "onboard":
+            name, root = rest
+            self._pending_new = (cli.resolve(name), Path(root))
+            self.say(f"onboarding {root} as {name}…", "system", "blue")
+            self.run_worker(self._do_new_run, thread=True)
+
+    def _do_new_run(self) -> None:
+        path, root = self._pending_new
+        self._pending_new = None
+        try:
+            report = cli.onboard(path, root)
+        except Exception as exc:                                # noqa: BLE001
+            self.call_from_thread(self.say, f"onboarding failed: {exc}",
+                                  "system", "red")
+            return
+        self.call_from_thread(
+            self.say, f"{path.stem}: {report.areas} areas, {report.unsurveyed} "
+                      f"under constraint zero", "system", "blue")
+        # Land in what you just made. Creating a run and then having to go and
+        # find it is the friction this screen exists to remove.
+        self.call_from_thread(self.open_run, path)
+
+    def open_run(self, path: Path) -> None:
+        """
+        Point this seat at a different run.
+
+        Switching is the app rebinding its own database rather than a restart,
+        which is what makes "look at that one instead" cheap enough to do while
+        thinking. The conversation pane is cleared because it belongs to the run
+        that was open, and showing one run's words above another's register
+        would be the one thing this screen exists to prevent.
+        """
+        if self.conn is not None:
+            self.conn.close()
+        self.db_path = Path(path)
+        self.conn = init_db(self.db_path)
+        self.root = None
+        row = self.conn.execute(
+            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+        if row and (row["value"] or "").strip():
+            self.root = Path(row["value"].strip().strip('"'))
+        self.principal = QueuedPrincipal(self)
+        self.started = False
+        self.armed = None
+        self.query_one("#conversation", VerticalScroll).remove_children()
+        self.query_one("#sessions", VerticalScroll).remove_children()
+        self.retitle()
+        self.refresh_run_state()
+        self.refresh_owed()
+        self.say(f"opened {self.run_name}"
+                 + (f" — {self.root}" if self.root else ""), "system", "blue")
+
+    # -- leaving ---------------------------------------------------------------
+
+    def action_request_quit(self) -> None:
+        """
+        Quitting stops the run, so it asks first.
+
+        Cheap to resume — the frontier *is* the state, so there is nothing to
+        lose but the time a session takes — and still never something to do by
+        accident forty sessions in. The confirmation has to be able to say no,
+        which is why the quit happens in the callback rather than beside it.
+        """
+        from src.ui.modals import ConfirmationModal
+
+        def answered(confirmed: bool) -> None:
+            if confirmed:
+                self.exit()
+
+        running = config.get(self.conn, "run_state") == "running"
+        self.push_screen(ConfirmationModal(
+            f"Quit {self.run_name}?" + (
+                "  The run is running and will stop." if running else
+                "  Nothing is running."),
+            callback=answered))
+
     def action_cockpit(self) -> None:
         """
         Depth, in a browser, on *this* run.
@@ -399,14 +561,18 @@ class RotaApp(App):
         than a path to remember. The database is passed by path because a run
         is not identified by its project: several are about the same one.
         """
-        argv = [sys.executable, "-m", "rota", "cockpit", str(self.db_path),
-                "--open"]
+        self.open_cockpit(self.db_path)
+
+    def open_cockpit(self, db_path: Path) -> None:
+        """Also called from the run list, on whichever run the cursor is on."""
+        argv = [sys.executable, "-m", "rota", "cockpit", str(db_path), "--open"]
         try:
             subprocess.Popen(argv)
         except OSError as exc:                                  # noqa: BLE001
             self.say(f"could not start the cockpit: {exc}", "system", "red")
             return
-        self.say("cockpit starting at http://127.0.0.1:8899/", "system", "blue")
+        self.say(f"cockpit starting for {Path(db_path).stem} at "
+                 f"http://127.0.0.1:8899/", "system", "blue")
 
     # -- input ---------------------------------------------------------------
 
@@ -499,6 +665,8 @@ class RotaApp(App):
         def on_step(step) -> None:
             self.call_from_thread(self.note_step, f"· {step}"[:120])
 
+        self.driving = True
+        self._from_worker(self.refresh_run_state)
         try:
             loop_mod.run(
                 connect(self.db_path),
@@ -510,6 +678,12 @@ class RotaApp(App):
             )
         except Exception as exc:                            # noqa: BLE001
             self.call_from_thread(self.say, f"loop stopped: {exc}", "system", "red")
+        finally:
+            # In `finally` because "this seat is driving" must go false on the
+            # error path too. A label that sticks on `driving` after the loop
+            # died is the same lie the old one told, arrived at differently.
+            self.driving = False
+            self._from_worker(self.refresh_run_state)
 
 
 def main(argv: list[str] | None = None) -> int:

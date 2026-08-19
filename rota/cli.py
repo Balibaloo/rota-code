@@ -104,16 +104,26 @@ def _read(path: Path) -> dict:
     from .core.db import connect_readonly
 
     row: dict = {"name": path.stem, "path": str(path), "root": "", "error": "",
-                 "counts": {}, "state": ""}
+                 "counts": {}, "state": "", "branch": "", "commit": "",
+                 "moved": False}
     try:
         conn = connect_readonly(path)
     except sqlite3.Error as exc:
         row["error"] = str(exc)
         return row
     try:
-        got = conn.execute(
-            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
-        row["root"] = (got["value"] if got else "").strip('"')
+        recorded = {r["key"]: (r["value"] or "").strip('"') for r in conn.execute(
+            "SELECT key, value FROM config WHERE key IN "
+            "('project_root', 'project_branch', 'project_commit')")}
+        row["root"] = recorded.get("project_root", "")
+        row["branch"] = recorded.get("project_branch", "")
+        row["commit"] = recorded.get("project_commit", "")
+        # Has the tree moved past the receipt? The same comparison
+        # `boot.reconcile_worktrees` makes for a batch, one level up. Runs
+        # onboarded before the commit was recorded simply do not answer.
+        if row["commit"] and row["root"]:
+            _, now = checkout_of(row["root"])
+            row["moved"] = bool(now) and now != row["commit"]
         for table in COUNTED:
             got = conn.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()
             row["counts"][table] = got["n"]
@@ -155,10 +165,15 @@ def cmd_ls(args: argparse.Namespace) -> int:
             print(f"{row['name']:22s} {'unreadable':10s} {row['error'][:60]}")
             continue
         c = row["counts"]
+        where = row["root"]
+        if row["branch"]:
+            where = (f"{row['branch']}@{row['commit'][:7]}"
+                     + (" · tree has moved" if row["moved"] else "")
+                     + f"  {row['root']}")
         print(f"{row['name']:22s} {row['state']:10s} "
               f"{c.get('glossary_terms', 0):5d} {c.get('constraints', 0):5d} "
               f"{c.get('items', 0):5d} {c.get('survey_records', 0):5d} "
-              f"{c.get('sessions', 0):5d}  {row['root']}")
+              f"{c.get('sessions', 0):5d}  {where}")
         if row["state"] == "stale":
             # Said, and not acted on. Databases here are throwaway and rebuilt
             # by `init_db` at boot; a migration path would be a promise the
@@ -244,10 +259,58 @@ def cmd_wipe(args: argparse.Namespace) -> int:
 # The verbs that do the work. Each one is the existing tool, given a run.
 # ---------------------------------------------------------------------------
 
-def cmd_onboard(args: argparse.Namespace) -> int:
+def checkout_of(root: str | Path) -> tuple[str, str]:
+    """
+    The branch and commit a checkout is on, or two empty strings.
+
+    Not an error when there is no git: a directory can be onboarded without
+    being a repository, and the run then honestly records that it is about a
+    tree rather than about a commit.
+    """
+    import subprocess
+
+    out = []
+    for args in (("rev-parse", "--abbrev-ref", "HEAD"), ("rev-parse", "HEAD")):
+        try:
+            got = subprocess.run(["git", "-C", str(root), *args],
+                                 capture_output=True, text=True, timeout=10)
+            out.append(got.stdout.strip() if got.returncode == 0 else "")
+        except (OSError, subprocess.SubprocessError):
+            out.append("")
+    return out[0], out[1]
+
+
+def onboard(path: Path, root: str | Path):
+    """
+    Index a checkout into a run, and record *which* checkout.
+
+    The commit is written here rather than inside `onboarding.boot` because it
+    is a fact about the operator's choice — this tree, at this moment — and not
+    about the indexing. Every other piece of evidence in this system records the
+    commit it was gathered at (`batches.head_commit`, `test_runs.commit_sha`,
+    `findings.commit_sha`, `verdicts.commit_sha`); the understanding side never
+    did, so two runs against different branches were on the record identical.
+    """
     from .core.db import init_db
     from .onboarding import boot as onboarding_boot
 
+    root = Path(root).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = init_db(path)
+    try:
+        report = onboarding_boot.onboard(conn, root)
+        branch, commit = checkout_of(root)
+        for key, value in (("project_branch", branch), ("project_commit", commit)):
+            if value:
+                conn.execute("INSERT OR REPLACE INTO config (key, value) "
+                             "VALUES (?, ?)", (key, value))
+        conn.commit()
+    finally:
+        conn.close()
+    return report
+
+
+def cmd_onboard(args: argparse.Namespace) -> int:
     path = resolve(args.name)
     if path.exists():
         if not args.force:
@@ -260,11 +323,7 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     if not (root / ".git").exists():
         print(f"note: {root} is not a git checkout; batches will have no worktree")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = init_db(path)
-    report = onboarding_boot.onboard(conn, root)
-    conn.commit()
-    conn.close()
+    report = onboard(path, root)
     print(f"{args.name}: {report.areas} areas, {report.unsurveyed} under "
           f"constraint zero, {len(report.leaky)} leaky  ({path})")
     print(f"next: rota run {args.name}")

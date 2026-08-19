@@ -42,13 +42,24 @@ def test_connect_readonly_rejects_writes(tmp_path):
         ro.close()
 
 
-def test_the_tui_starts_in_paused_state(tmp_path):
-    """The TUI should start paused so the system waits for user play."""
+def test_the_seat_starts_idle_without_saying_so_in_the_run(tmp_path):
+    """
+    The intent survives -- a new seat waits for you rather than starting to
+    turn the crank -- and where it is recorded has moved, because the old place
+    was the run.
+
+    Writing `run_state = "stopping"` on open put a fact about *this window*
+    into state that `loop.step` reads on every session and every seat shares.
+    So opening a second seat halted the loop the first was driving. The seat
+    holds its own idleness now, and reads the run's state rather than setting
+    it.
+    """
     from rota.cockpit import tui
     from rota.core import config
 
     app = tui.RotaApp(tmp_path / "ui.db", "llama3.1:8b")
-    assert config.get(app.conn, "run_state") == "stopping"
+    assert app.driving is False
+    assert config.get(app.conn, "run_state") == config.SETTINGS["run_state"].default
 
 
 def test_the_first_sentence_lands_as_an_entry_and_a_message(db):

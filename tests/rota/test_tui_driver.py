@@ -129,7 +129,7 @@ async def test_rerun_is_wipe_then_onboard_then_crank(tmp_path, project):
     async with app.run_test() as pilot:
         app.conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                          "VALUES ('e1','principal','something',1)")
-        await pilot.press("alt+r")
+        await pilot.press("ctrl+alt+r")
         app.confirm("ctn_v3")
 
         assert app.conn.execute(
@@ -148,7 +148,7 @@ async def test_rerun_needs_a_project_to_rerun_against(tmp_path):
 
     app = tui.RotaApp(tmp_path / "ctn_v3.db", "llama3.1:8b", root=None)
     async with app.run_test() as pilot:
-        await pilot.press("alt+r")
+        await pilot.press("ctrl+alt+r")
         assert app.armed == "rerun"
         app.confirm("ctn_v3")
         assert app.db_path.exists()
