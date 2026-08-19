@@ -168,7 +168,19 @@ async def test_the_cockpit_key_opens_this_run_and_no_other(tmp_path, project, mo
     from rota.cockpit import tui
 
     calls = []
-    monkeypatch.setattr(tui.subprocess, "Popen", lambda argv, **kw: calls.append(argv))
+
+    class FakeChild:
+        """A handle, because the seat now keeps one and stops it on unmount.
+
+        The first version of this returned `None` from `Popen`, which was
+        enough while nothing held the result -- and that *was* the bug: a
+        spawned process nothing holds is an orphan.
+        """
+        pid = 1234
+        def poll(self): return 0            # already exited: nothing to stop
+
+    monkeypatch.setattr(tui.subprocess, "Popen",
+                        lambda argv, **kw: calls.append(argv) or FakeChild())
 
     app = _app(tmp_path, project)
     async with app.run_test() as pilot:
