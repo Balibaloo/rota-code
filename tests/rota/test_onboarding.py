@@ -390,7 +390,13 @@ def test_a_survey_closes_the_area_it_was_woken_for(project):
     areas.pin(db, areas.propose(db))
 
     sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
-    sb.call("surveys.attest", outcome="none_found")
+    # Citing is required now — closing an area means showing what you read in
+    # it. This test is about *which* area the record lands against, so it cites
+    # a real grain and carries on being about that.
+    grain = db.execute(
+        "SELECT grain FROM code_index WHERE area = 'src/billing' "
+        "AND grain_kind = 'path' LIMIT 1").fetchone()["grain"]
+    sb.call("surveys.attest", outcome="none_found", citations=[grain])
 
     row = db.execute("SELECT id, area FROM survey_records").fetchone() or {}
     staged = [w for w in sb.ctx.writes if w[0] == "survey_records"]
@@ -873,10 +879,11 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
     db, repo = project
     boot.onboard(db, repo.root)
 
+    read = ["src/billing/charges.py"]        # citing is required; see below
     te = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
     te.call("glossary.amend", term="charge",
             sense_short="an authorisation the gateway has already accepted")
-    te.call("surveys.attest", outcome="found")
+    te.call("surveys.attest", outcome="found", citations=read)
     assert any(t == "survey_records" for t, _, _ in te.ctx.writes), \
         "a Terminologist that defined a term has found something, and used to " \
         "have to call it a constraint to say so"
@@ -887,7 +894,7 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
     # to name the artefact this role owes, not merely say something is missing.
     ar = sandbox_mod.build("architect", db, session_id="s2", area="src/billing")
     with pytest.raises(ValueError, match="constraints"):
-        ar.call("surveys.attest", outcome="found")
+        ar.call("surveys.attest", outcome="found", citations=read)
 
 
 def test_finding_something_costs_more_than_finding_nothing(project):
@@ -902,8 +909,14 @@ def test_finding_something_costs_more_than_finding_nothing(project):
     is prose, and prose loses to structure every time.
 
     So the asymmetry becomes real. Claiming a finding means having written one,
-    with a body on it. `none_found` stays free, because the honest answer is the
-    one that has to be cheap.
+    with a body on it. `none_found` stays free *of that*, because the honest
+    answer is the one that has to be cheap.
+
+    Free of producing a finding, not free of evidence — a distinction that went
+    missing and let an area be closed on nothing. Both outcomes must cite what
+    was read, because both close the area and both shrink constraint zero, and
+    the cost of showing what you read is the same either way. See
+    `test_survey_evidence.py`.
     """
     import pytest
 
@@ -913,10 +926,11 @@ def test_finding_something_costs_more_than_finding_nothing(project):
     boot.onboard(db, repo.root)
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
 
+    read = ["src/billing/charges.py"]
     with pytest.raises(ValueError, match="wrote no constraints"):
-        sb.call("surveys.attest", outcome="found")
+        sb.call("surveys.attest", outcome="found", citations=read)
 
-    sb.call("surveys.attest", outcome="none_found")
+    sb.call("surveys.attest", outcome="none_found", citations=read)
     assert any(t == "survey_records" for t, _, _ in sb.ctx.writes), \
         "finding nothing must still close the area"
 
@@ -935,13 +949,15 @@ def test_a_constraint_with_no_body_cannot_be_attested_as_a_finding(project):
     sb.call("model.amend", headline="Billing Commitment",
             bindings=["src/billing/charges.py"])
     with pytest.raises(ValueError, match="nothing under it"):
-        sb.call("surveys.attest", outcome="found")
+        sb.call("surveys.attest", outcome="found",
+                citations=["src/billing/charges.py"])
 
     sb.call("model.amend", headline="Billing Commitment",
             text="Charges are idempotent per request id; a payment processor "
                  "retrying a timeout must not be charged twice.",
             bindings=["src/billing/charges.py"])
-    sb.call("surveys.attest", outcome="found")
+    sb.call("surveys.attest", outcome="found",
+            citations=["src/billing/charges.py"])
 
 
 def test_a_surveyor_is_not_shown_what_its_peers_concluded(project):

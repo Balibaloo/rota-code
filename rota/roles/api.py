@@ -680,9 +680,11 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
 def surveys_attest(ctx: Ctx, outcome: str,
                    citations: list[str] | None = None) -> dict:
     """
-    Close the area you were woken for. Citations are validated against the code
-    index, so "surveyed, none found" is evidence rather than a claim — a lazy
-    surveyor cannot starve constraint zero by asserting it everywhere.
+    Close the area you were woken for. **Citations are required and validated
+    against the code index**, so "surveyed, none found" is evidence rather than
+    a claim — a lazy surveyor cannot starve constraint zero by asserting it
+    everywhere. At least one cited grain must be in the index and under this
+    area; the rest are reported back unresolved rather than refused.
 
     `outcome` is 'found' or 'none_found' -- 'found' meaning you wrote down
     what this mode exists to find, which is not the same artefact for every role.
@@ -750,15 +752,55 @@ def surveys_attest(ctx: Ctx, outcome: str,
                 f"attest `none_found`.")
 
     id = f"{ctx.role}:{area}"
-    ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
-    unknown = []
+
+    # **Citations are the evidence, and they were never required.**
+    #
+    # `REGISTER.md` names this as constraint zero's third property -- it shrinks
+    # only by evidence -- and the docstring above has always repeated it. It was
+    # prose. `attest(outcome="none_found")` with no citations raised nothing,
+    # wrote the record, and `refresh_constraint_zero` duly took k0 from 7 to 6:
+    # an area marked examined on nothing at all. `validators.check_survey_citations`
+    # flags exactly this and had no caller outside the test suite -- an assertion
+    # over synthetic rows while the running system let it through.
+    #
+    # The asymmetry earned above is kept, and it was never this one. What the
+    # icalendar lesson removed was the cost of *having to produce a finding*,
+    # because that made one answer look more like work than the other. The cost
+    # of *showing what you read* is the same for both outcomes and is the whole
+    # of what makes either one evidence. Every survey brief already asks for it,
+    # in all three surveying roles, which is what made this a missing gate rather
+    # than a missing idea.
+    #
+    # Cheap for a session that looked -- `code.survey` has just handed it the
+    # list -- and not fakeable by one that did not, because a grain must be in
+    # the index and under this area.
+    unknown, inside = [], []
     for grain in citations or []:
         exists = ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ?", (grain,)).fetchone()
         if not exists:
             unknown.append(grain)
+        elif area == "." or grain == area or grain.startswith(area.rstrip("/") + "/"):
+            inside.append(grain)
+    if not inside:
+        outside = [g for g in (citations or []) if g not in unknown]
+        raise ValueError(
+            f"attesting closes {area!r}, and closing an area means citing what "
+            f"you read in it -- `citations=[...]` naming grains from "
+            f"`code.survey`. " +
+            (f"These are indexed but not under {area!r}: {outside}. "
+             if outside else "") +
+            (f"These are not in the index at all: {unknown}. " if unknown else "") +
+            f"Reading nothing and reporting nothing are not the same answer.")
+
+    ctx.writes.append(("survey_records", id, {"area": area, "outcome": outcome}))
+    for grain in citations or []:
         ctx.writes.append(("survey_citations", f"{id}:{grain}", {
-            "survey_id": id, "grain": grain, "resolves": 1 if exists else 0}))
+            "survey_id": id, "grain": grain,
+            "resolves": 1 if grain not in unknown else 0}))
+    # Unresolved ones are still reported rather than fatal. The bar is showing
+    # what you read, not spelling every path correctly, and a session that can
+    # see what it got wrong can fix it.
     return {"id": id, "unresolved_citations": unknown}
 
 
