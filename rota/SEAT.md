@@ -243,16 +243,31 @@ resuming is just running again. The alternative — a run that keeps going
 headless after you close the window — buys very little and adds a process whose
 lifetime nobody owns, which is the exact thing §3Bd is careful about.
 
-**How does the list know a run is live?** It cannot, today. A session holds a
-claim while it runs, and `reap_claims` treats *live* and *died-mid-session* as
-one condition, deliberately — a claim whose session never committed is stale by
-definition. That is the right rule at boot and the wrong one for a list, which
-wants to show `running` without lying. It is the same problem `runtime_processes`
-solved for spawned processes and by the same means: a pid is not an identity,
-pid plus start time is. Applying that to claims is a small change with a real
-consequence — two seats open on one run currently fight silently — and I would
-want your go-ahead before touching the claim table, because it is load-bearing
-for every session commit.
+**How does the list know a run is live?** It cannot, today, and the reason is
+worth stating exactly because it is also a defect that exists right now.
+
+`reap_claims` deletes every claim whose session never committed — *live* and
+*died-mid-session* are one condition to it, deliberately, because at boot they
+are: nothing of ours is running, so an uncommitted claim is stale by definition.
+That is the right rule where it sits and the wrong one for a list, which wants
+to show `running` without lying.
+
+**And two seats on one run do not merely disagree — the second stops the
+first.** `RotaApp.__init__` sets `run_state` to `stopping` unconditionally, and
+`loop.step` reads `run_state` on every session. So opening a second seat halts
+the loop the first one is driving. The first seat then goes on displaying
+`running`, because it refreshes that label on mount and on the pause key and
+never on a timer. A stopped run that says it is running is the same silent shape
+as the cockpit booting a database it could not find. (`claims.role` is a primary
+key, so two live loops would also contend for one row per role — but they never
+get that far.)
+
+It is the same problem `runtime_processes` solved for spawned processes and by
+the same means: a pid is not an identity, pid plus start time is. Applying that
+shape to claims is small, and I want your go-ahead before touching the claim
+table, because it is load-bearing for every session commit — but the
+unconditional `stopping` and the label that never refreshes are fixable without
+going near it, and are worth doing whatever you decide about the rest.
 
 ---
 
