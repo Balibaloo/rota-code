@@ -160,6 +160,7 @@ class SessionResult:
     wake_kind: str = ""
     wake_detail: str = ""
     wake_refs: tuple[str, ...] = ()
+    briefs_hash: str = ""
     mode: str = "normal"
     writes: list[Write] = field(default_factory=list)
     messages: list[OutboundMessage] = field(default_factory=list)
@@ -265,15 +266,15 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         conn.execute(
             "INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq, "
             "model, temperature, num_ctx, prompt_hash, wake_kind, wake_detail, "
-            "wake_refs) "
-            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "wake_refs, briefs_hash) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 result.session_id, result.role, result.trigger_msg, result.mode,
                 _next_seq(conn, "sessions"),
                 result.pins.get("model"), result.pins.get("temperature"),
                 result.pins.get("num_ctx"), result.pins.get("prompt_hash"),
                 result.wake_kind, result.wake_detail,
-                json.dumps(list(result.wake_refs)),
+                json.dumps(list(result.wake_refs)), result.briefs_hash,
             ),
         )
 

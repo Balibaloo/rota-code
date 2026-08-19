@@ -114,6 +114,22 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     return wake.kind
 
 
+def _briefs_hash(instructions: str) -> str:
+    """
+    A short digest of the composed brief this session was given.
+
+    Not `prompt_hash`, which covers the whole prompt including the pushed
+    working set — so it differs between two sessions that read an identical
+    brief, and cannot answer the question the evaluation loop turns on: *were
+    these two runs told the same thing*.
+    """
+    import hashlib
+
+    if not instructions:
+        return ""
+    return hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:16]
+
+
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None) -> tuple[str, str]:
@@ -934,6 +950,9 @@ def run_session(
             wake_kind=wake.kind,
             wake_detail=wake.detail,
             wake_refs=tuple(wake.refs),
+            # The brief as it was on disk when this ran, so two runs can be
+            # told apart by the only other thing that shapes an artefact.
+            briefs_hash=_briefs_hash(instructions),
             mode=mode,
             writes=[_as_write(w) for w in sb.ctx.writes],
             messages=_messages_from(sb, wake, session_id),

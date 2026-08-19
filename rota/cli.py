@@ -32,6 +32,7 @@ nothing rather than as a wrong path. Refusing is the whole feature.
     rota tui ctn_v3                            talk to it, register beside you
     rota cockpit ctn_v3                        the rows, the graph, the trace
     rota report ctn_v3                         what came out, and the audit
+    rota diff ctn_v3 ctn_v3-2                  what two runs disagree about
     rota wipe ctn_v3                           worktrees, processes, then the file
 """
 from __future__ import annotations
@@ -379,6 +380,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    from . import compare
+
+    print(compare.render(compare.runs(require(args.a), require(args.b))))
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     from .tools.onboard_run import audit, report
 
@@ -480,6 +488,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("name")
     p.add_argument("--audit-only", action="store_true")
     p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("diff", help="two runs, side by side, unscored")
+    p.add_argument("a")
+    p.add_argument("b")
+    p.set_defaults(func=cmd_diff)
 
     p = sub.add_parser("wipe", help="worktrees, processes, then the file")
     p.add_argument("name")

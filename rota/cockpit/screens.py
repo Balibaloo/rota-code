@@ -83,8 +83,15 @@ class RunList(ModalScreen):
         ("f", "fork", "fork"),
         ("w", "wipe", "wipe"),
         ("c", "cockpit", "cockpit"),
+        ("d", "diff", "diff"),
         ("r", "reload", "reload"),
     ]
+
+    # The run marked as the left-hand side of a comparison. Two presses of `d`
+    # rather than a multi-select, because marking one and then choosing the
+    # other is what you are actually doing, and a mode you can forget you are
+    # in is worse than a second keystroke.
+    marked: str | None = None
 
     COLUMNS = ("run", "state", "source", "terms", "cons", "items", "sess")
 
@@ -231,6 +238,31 @@ class RunList(ModalScreen):
         self.app.push_screen(InputModal(
             "wipe", f"its worktrees, its processes and the file. "
                     f"Type {row['name']} to confirm.", callback=confirmed))
+
+    def action_diff(self) -> None:
+        """
+        Mark one, then pick the other. The step the loop ends in.
+
+        A comparison needs two runs and the list is where both are visible, so
+        this is its home rather than the seat's. Marking is shown in the note
+        line, because a mode nothing displays is a mode you act inside without
+        knowing.
+        """
+        row = self.selected
+        if row is None:
+            return
+        note = self.query_one("#runlist_note", Static)
+        if self.marked is None:
+            self.marked = row["path"]
+            note.update(f"[b]{row['name']}[/b] marked — press d on another run "
+                        f"to compare, or d again to unmark")
+            return
+        if self.marked == row["path"]:
+            self.marked = None
+            note.update("unmarked")
+            return
+        left, self.marked = self.marked, None
+        self.dismiss(("diff", left, row["path"]))
 
     def action_cockpit(self) -> None:
         row = self.selected

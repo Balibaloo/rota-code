@@ -438,7 +438,15 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- `detail` is empty, so recording detail alone answers "a survey tick"
     -- and loses "of what", which is the half the question is about.
     -- JSON, like `messages.body_refs`, because it is the same kind of thing.
-    wake_refs    TEXT NOT NULL DEFAULT '[]'
+    wake_refs    TEXT NOT NULL DEFAULT '[]',
+    -- A hash of the composed brief this session actually ran against.
+    --
+    -- `prompt_hash` covers the whole prompt, working set and all, so it differs
+    -- between two sessions that read the same brief and cannot answer "were
+    -- these two runs told the same thing". That question is the whole of *did
+    -- that edit help*: the artefacts derive from the source, the prompts and
+    -- the model, and the first and third were recorded while the second was not.
+    briefs_hash  TEXT NOT NULL DEFAULT ''
 );
 
 -- Law 6's cycle collapse depends on a role never having two live sessions.

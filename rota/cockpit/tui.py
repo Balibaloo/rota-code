@@ -646,6 +646,19 @@ class RotaApp(App):
         verb, *rest = result
         if verb == "open":
             self.open_run(Path(rest[0]["path"]))
+        elif verb == "diff":
+            from .. import compare
+
+            left, right = rest
+            try:
+                out = compare.render(compare.runs(left, right))
+            except SystemExit as exc:
+                self.say(str(exc), "system", "red")
+                return
+            # Into the conversation pane, because it is a thing you read and
+            # then act on, and that is what that pane is.
+            fence = "```"
+            self.say(f"{fence}\n{out}\n{fence}", "system", "blue")
         elif verb == "onboard":
             name, root = rest
             self._pending_new = (cli.resolve(name), Path(root))

@@ -845,3 +845,60 @@ async def test_no_key_breaks_on_a_seat_with_no_run(tmp_path, home):
                 f"the run has no name to type")
             assert said or app.screen.__class__.__name__ != "Screen", (
                 f"{key} did nothing and said nothing")
+
+
+async def test_marking_two_runs_compares_them(tmp_path, home, project):
+    """
+    A comparison needs two runs, and the list is the only screen where both are
+    visible — so `d` marks one and `d` on another compares them. Two presses
+    rather than a multi-select mode, because a mode nothing displays is a mode
+    you act inside without knowing you are in it.
+    """
+    from rota.cockpit.screens import RunList
+
+    left = _seed(home, "ctn_v3", project, project_commit="abc")
+    right = _seed(home, "ctn_v3-2", project, project_commit="abc")
+
+    app = _app(tmp_path)
+    said: list[str] = []
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, RunList)
+        app.say = lambda t, *a, **k: said.append(t)
+
+        order = [r["name"] for r in screen.rows]
+        screen.query_one("#runs").move_cursor(row=order.index("ctn_v3"))
+        screen.action_diff()
+        await pilot.pause()
+        assert screen.marked == str(left)
+        assert "marked" in str(screen.query_one("#runlist_note").content)
+
+        screen.query_one("#runs").move_cursor(row=order.index("ctn_v3-2"))
+        screen.action_diff()
+        await pilot.pause()
+
+    assert said, "the comparison was computed and never shown"
+    assert "ctn_v3" in said[0] and "same source" in said[0]
+    assert str(right)                     # both sides were real runs
+
+
+async def test_marking_the_same_run_twice_unmarks_it(tmp_path, home, project):
+    """The way out of a mode you entered by accident."""
+    _seed(home, "one", project)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        screen = app.screen
+        screen.query_one("#runs").move_cursor(
+            row=[r["name"] for r in screen.rows].index("one"))
+
+        screen.action_diff()
+        await pilot.pause()
+        assert screen.marked is not None
+        screen.action_diff()
+        await pilot.pause()
+        assert screen.marked is None
