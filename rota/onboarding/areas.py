@@ -122,8 +122,16 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     # contains them both.
     while True:
         sizes = Counter(assigned.values())
-        small = [a for a, n in sizes.items()
-                 if n < MIN_FILES and _parent(a) or (n < MIN_FILES and a != ".")]
+        # `n < MIN_FILES and a != "."`, and nothing else. It was written as
+        # `n < MIN_FILES and _parent(a) or (n < MIN_FILES and a != ".")`, which
+        # computes the same set — a directory with a parent is never `.` — so
+        # the first clause implies the second and contributes nothing. Correct,
+        # and it read as though it were distinguishing two cases.
+        #
+        # `.` is excluded because it is where everything folds *to*; folding it
+        # into itself is the loop below's `target == area` guard, reached one
+        # step later.
+        small = [a for a, n in sizes.items() if n < MIN_FILES and a != "."]
         if not small:
             break
         moved = False

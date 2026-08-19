@@ -108,6 +108,25 @@
     # instruction was unfollowable and the role could not locate the code it is
     # being asked to judge. Challenging the Tester is what is left, which is
     # what it did, 10 times in 80 across every prompt this case has ever had.
+    #
+    # **Red since the index started carrying JS/TS exports.** `export_statement`
+    # was listed as an import node, so a bare `export function money() {}` was
+    # consumed by the import branch and never descended into: it produced a
+    # phantom unresolved import *and* left the exported symbol out of the index
+    # entirely. Both were the same line. Fixing it added eight real `web/`
+    # symbols and removed eight phantoms, and this case went 5/5 to 0/5.
+    #
+    # The failure is uniform across all five runs: the session reads —
+    # `code.probe`, `code.source`, `criteria.load`, `references.load`,
+    # `tests.load` — and then writes nothing. Not a wrong edit, no edit. The
+    # index got *more* correct and the case got worse, which is information
+    # about how much reading this brief can afford before it stops acting,
+    # not a reason to put eight symbols back in the dark.
+    #
+    # Unconfirmed hypothesis worth one measurement: a larger index means a
+    # longer pushed working set, and llama3.1:8b's context budget is the thing
+    # HARDWARE_GUIDE.md warns about. If the brief is being truncated away, this
+    # is a budget failure wearing a behaviour failure's clothes.
     onboard: true
     message: "line totals apply the volume band"
     edit:

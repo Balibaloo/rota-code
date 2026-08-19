@@ -126,6 +126,30 @@ def parse_file(path: str, source: bytes, lang: Language) -> FileFacts:
                     continue
                 args = node.child_by_field_name("arguments")
                 facts.imports.extend(_targets(args, source) if args else [])
+            elif node.type == "export_statement":
+                # An `export` is an import only when it re-exports:
+                # `export { x } from "./y"` names another module, and
+                # `export function money() {}` names a thing defined right
+                # here. Both are `export_statement`, and only the first has a
+                # `source`.
+                #
+                # Without this the bare form fell through `MODULE_FIELDS`,
+                # recursed into the declaration, and came back with the
+                # exported symbol's own name as an import target — which never
+                # resolves, because it is not a module. Three JS/TS files
+                # containing no import statement whatsoever reported three
+                # unresolved imports.
+                #
+                # It does not fabricate edges: `resolve`'s tail never tries file
+                # suffixes, so a bare name stays unresolved rather than
+                # matching something. Noise, not corruption — but the
+                # unresolved count is a tripwire, and one that reads 45% when
+                # the truth is 0% will not be believed the day it is right.
+                src = node.child_by_field_name("source")
+                if src is not None:
+                    facts.imports.extend(_targets(src, source))
+                else:
+                    stack.extend(node.children)
             else:
                 facts.imports.extend(_targets(node, source))
             continue
@@ -204,12 +228,59 @@ class IndexReport:
     skipped: list[str] = field(default_factory=list)
 
 
+def tracked(root: Path) -> set[Path] | None:
+    """
+    What git considers part of this project, or `None` when it is not a checkout.
+
+    The design story says the index respects `.gitignore` throughout, *"so build
+    artefacts, dependencies, and the framework's own state folder never enter
+    it"*. The implementation was a hardcoded eleven-name `SKIP_DIRS`. It covers
+    the usual suspects and nothing else, so any project with generated or
+    vendored code outside those names had it indexed, partitioned, and surveyed
+    as if a person had written it — and a role reading generated code will
+    faithfully report what it finds there.
+
+    Asking git rather than reimplementing it. `.gitignore` is not a list of
+    names: it has globs, negations, per-directory files, `.git/info/exclude` and
+    a global excludes file, and a partial parser is the kind of thing that looks
+    right on the repository it was written against.
+
+    `--cached --others --exclude-standard` is tracked files plus untracked ones
+    that are not ignored, which is exactly "authored". A tracked file that also
+    matches an ignore rule stays, correctly: somebody committed it on purpose.
+    """
+    import subprocess
+
+    try:
+        got = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "--others",
+             "--exclude-standard", "-z"],
+            capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if got.returncode != 0:
+        return None
+    return {(root / name.decode("utf-8", "replace")).resolve()
+            for name in got.stdout.split(b"\x00") if name}
+
+
 def walk(root: Path) -> list[Path]:
+    """
+    Every authored source file under `root`.
+
+    `SKIP_DIRS` stays as a floor even when git answers, because the two are not
+    the same question. `.rota/` is *our* state directory inside somebody else's
+    project: untracked, and nothing obliges them to have ignored it, so git
+    would list it and it must never be indexed.
+    """
+    keep = tracked(root)
     out = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        if keep is not None and path.resolve() not in keep:
             continue
         if for_path(path.name) is None:
             continue
