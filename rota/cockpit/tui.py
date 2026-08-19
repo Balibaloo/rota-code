@@ -551,34 +551,53 @@ class RotaApp(App):
                      "`rota onboard <name> --root <checkout>`", "system", "red")
             return
 
-        removed = self.wipe_run()
-        self.say(f"wiped {self.run_name}: {len(removed['worktrees'])} worktree(s), "
+        name, root = self.run_name, self.root
+        removed = self.wipe_run(reopen=(what == "rerun"))
+        self.say(f"wiped {name}: {len(removed['worktrees'])} worktree(s), "
                  f"{len(removed['pids'])} process(es)", "system", "blue")
         if what == "rerun":
-            self._pending_root = self.root
-            self.say(f"onboarding {self.root}…", "system", "blue")
+            self._pending_root = root
+            self.say(f"onboarding {root}…", "system", "blue")
             self.run_worker(self._do_onboard, thread=True)
+        else:
+            # The run is gone, so there is nothing to sit in front of. The
+            # answer to "no run open" is the screen that opens or makes one.
+            self.action_runs()
 
-    def wipe_run(self) -> dict:
+    def wipe_run(self, reopen: bool = False) -> dict:
         """
-        Close, wipe, reopen. The order is the whole of it.
+        Close, wipe, and by default do not put anything back.
 
-        The app holds the database open and Windows will not unlink an open
-        file, so a wipe that does not close first does not fail — it reports
-        what it meant to do and removes nothing, which is the shape of failure
-        this system keeps having to be taught to refuse.
+        **Wipe means the run is gone**, and it did not. From the list it deleted
+        the file and the run disappeared; from the seat it deleted the file and
+        then `init_db` put an empty one in its place, so the run survived as a
+        husk — no `project_root`, no `code_index`, opening happily and showing
+        `no project` in the title bar. One word doing two things, and the second
+        one manufactured a kind of row that should not exist. `ctn_v3` in
+        `.rota/` is one; that is where it came from.
 
-        Reopening is what makes the seat sittable afterwards. A wiped run that
-        leaves you looking at a dead connection is a restart wearing a button.
+        Closing first is still the order that matters: Windows will not unlink
+        an open file, so a wipe that skips it does not fail — it reports what it
+        meant to do and removes nothing.
+
+        `reopen` has exactly one caller. `rerun` is wipe-then-index and indexing
+        needs somewhere to write, so it says so at the call rather than leaving
+        the word ambiguous for everybody else.
         """
         from ..cli import wipe as wipe_path
 
-        self.conn.close()
-        removed = wipe_path(self.db_path)
-        self.conn = init_db(self.db_path)
-        self.principal = QueuedPrincipal(self)
-        self.driving = False
-        self.started = False
+        path = self.db_path
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
+        removed = wipe_path(path)
+        if reopen:
+            self.conn = init_db(path)
+        else:
+            self.db_path = None
+            self.root = None
+        self._init_seat_state()
+        self.retitle()
         self.refresh_run_state()
         self.refresh_owed()
         self.refresh_pulse()
@@ -828,10 +847,24 @@ class RotaApp(App):
         self._turn_the_crank()
 
     def action_onboard(self) -> None:
-        """Start onboarding the root currently shown in the title bar."""
-        root = self.root
-        self.say(f"onboarding {root}…", "system", "blue")
-        self._pending_root = root
+        """
+        Index the project this run is about, or ask which one it is.
+
+        It used to say `onboarding None…` and then return silently from the
+        worker: the message was written before the guard, and the guard said
+        nothing. Two failures in three lines — a sentence that is not true, and
+        a refusal you cannot see.
+
+        A run with no project is exactly a run that needs one, so the useful
+        answer is the form rather than an error.
+        """
+        from .screens import NewRun
+
+        if self.root is None:
+            self.push_screen(NewRun(name=self.run_name), self._from_run_list)
+            return
+        self.say(f"onboarding {self.root}…", "system", "blue")
+        self._pending_root = self.root
         self.run_worker(self._do_onboard, thread=True)
 
     def _do_onboard(self) -> None:

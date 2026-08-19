@@ -351,6 +351,31 @@ going away. Two keys, different verbs: `ctrl+alt+r` runs it again over the top,
 See §9 — it is not a new idea, it is the one place an existing pattern was never
 applied.
 
+**Wipe means the run is gone.** One word, one meaning, everywhere — asked while
+looking at a title bar that read `rota — ctn_v3 — no project`.
+
+It had two meanings. From the list it deleted the file and the run disappeared;
+from the seat it deleted the file and then put an empty one back at the same
+path, so the seat stayed sittable — and the run survived as a **husk**: no
+`project_root`, no `code_index`, listed like any other, opening happily, and
+saying `no project`. That is exactly where the `ctn_v3` row came from. A husk is
+a kind of row that should not exist, and the thing manufacturing them was the
+convenience of not having to handle an empty seat.
+
+Which had to exist anyway, for a first start. So wiping the open run leaves the
+seat empty and on the run list, and `rerun` is the single exception, said at the
+call: it is wipe-then-index, and indexing needs somewhere to write.
+
+Two corollaries, both found by doing it rather than by reading it. **The lock is
+checked before anything is destroyed** — Windows refuses to unlink an open file,
+and the old order tore down worktrees and processes first, so wiping a run that
+a seat had open lost the things only that run could prove it owned and kept the
+file recording them. A refused wipe is much better than a partial one. And **the
+form adopts a husk**: refusing an existing name is right when it holds a run and
+wrong when it holds a name, and emptiness is asked of `code_index` — what
+onboarding writes — rather than of the file existing, which is the part that was
+never informative.
+
 ### The one you pushed back on, and you are right
 
 **Claim liveness — "why do we need this?"** We do not. I proposed it to let the

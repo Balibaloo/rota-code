@@ -227,3 +227,40 @@ def test_wipe_removes_a_real_git_worktree_and_deregisters_it(tmp_path, home):
     assert not tree.exists()
     assert not any("b1" in w for w in gitfixture.registered_worktrees(repo.root)), \
         "git still holds a registration for a directory that is gone"
+
+
+def test_wiping_a_run_that_is_open_elsewhere_changes_nothing(home, monkeypatch):
+    """
+    You will do this: a seat is open on a run and you wipe it from a terminal.
+
+    Windows refuses to unlink an open file, and the old order made that a
+    *partial* wipe -- worktrees and processes were torn down first, then the
+    unlink raised, so the run lost the things only it could prove it owned and
+    kept the file that recorded them. The traceback was the polite part.
+
+    So the lock is tested before anything is destroyed, by renaming the file
+    aside and back. On Windows that fails exactly when another process holds
+    it; on POSIX it succeeds, which is correct there because the unlink would
+    have succeeded too.
+    """
+    import os
+
+    path = _run(home, "held")
+    torn = []
+    monkeypatch.setattr(cli, "_teardown", lambda conn: torn.append(True))
+
+    real_rename = os.rename
+
+    def locked(src, dst):
+        if str(src) == str(path):
+            raise PermissionError(32, "used by another process")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(cli.os, "rename", locked)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.wipe(path)
+
+    assert "open" in str(exc.value).lower()
+    assert path.exists(), "removed while another process held it"
+    assert not torn, "tore down what it could not then finish removing"

@@ -37,6 +37,7 @@ nothing rather than as a wrong path. Refusing is the whole feature.
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -187,9 +188,60 @@ def cmd_ls(args: argparse.Namespace) -> int:
 # Wiping
 # ---------------------------------------------------------------------------
 
+def _refuse_if_held(path: Path) -> None:
+    """
+    Is another process holding this run? Asked *before* anything is destroyed.
+
+    You will do this: a seat is open on a run and you wipe it from a terminal.
+    Windows refuses to unlink an open file, and the old order made that a
+    **partial** wipe -- worktrees and processes went first, then the unlink
+    raised, so the run lost the things only it could prove it owned and kept
+    the file that recorded them. The traceback was the polite part.
+
+    Renaming aside and back is the probe. On Windows it fails exactly when
+    another process has the file open; on POSIX it succeeds, which is the right
+    answer there because the unlink would have succeeded too.
+    """
+    probe = path.with_name(path.name + ".wipecheck")
+    try:
+        os.rename(path, probe)
+    except OSError:
+        raise SystemExit(
+            f"{path.name} is open in another process -- close the seat or "
+            f"cockpit holding it, then wipe again. Nothing was removed.")
+    try:
+        os.rename(probe, path)
+    except OSError as exc:                                      # pragma: no cover
+        raise SystemExit(
+            f"could not put {path.name} back after checking it ({exc}). "
+            f"It is at {probe}.")
+
+
+def _teardown(conn) -> dict:
+    """
+    The two things a run owns that are not in its file, each stopped by the
+    code that already knows how to prove ownership.
+    """
+    from .core import environments, worktrees
+
+    out: dict = {"worktrees": [], "pids": []}
+    for r in conn.execute("SELECT id FROM batches").fetchall():
+        batch = r["id"]
+        try:
+            if worktrees.destroy(conn, batch):
+                out["worktrees"].append(batch)
+        except Exception as exc:                               # noqa: BLE001
+            print(f"  worktree {batch}: {exc}")
+        try:
+            out["pids"] += environments.teardown(conn, batch, release_ports=True)
+        except Exception as exc:                               # noqa: BLE001
+            print(f"  processes {batch}: {exc}")
+    return out
+
+
 def wipe(path: Path) -> dict:
     """
-    Worktrees, then processes, then the file. In that order and for that reason.
+    Check it is ours to remove, then worktrees, then processes, then the file.
 
     This is a command rather than an `rm` because two of the three things a run
     owns are not in the file. A worktree lives in the *project*, and the only
@@ -203,25 +255,14 @@ def wipe(path: Path) -> dict:
     what it can prove is ours on two independent facts. Nothing new is allowed
     to delete anything here.
     """
-    from .core import environments, worktrees
     from .core.db import connect
 
     removed: dict = {"worktrees": [], "pids": [], "files": []}
     if path.exists():
+        _refuse_if_held(path)
         conn = connect(path)
         try:
-            batches = [r["id"] for r in conn.execute("SELECT id FROM batches")]
-            for batch in batches:
-                try:
-                    if worktrees.destroy(conn, batch):
-                        removed["worktrees"].append(batch)
-                except Exception as exc:                       # noqa: BLE001
-                    print(f"  worktree {batch}: {exc}")
-                try:
-                    removed["pids"] += environments.teardown(
-                        conn, batch, release_ports=True)
-                except Exception as exc:                       # noqa: BLE001
-                    print(f"  processes {batch}: {exc}")
+            removed |= _teardown(conn)
             conn.commit()
         except sqlite3.Error as exc:
             # An unreadable database owns nothing we can prove, so there is

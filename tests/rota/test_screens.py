@@ -166,7 +166,13 @@ async def test_the_form_refuses_to_land_on_an_existing_run(tmp_path, home, proje
     """
     from rota.cockpit.screens import NewRun
 
-    _seed(home, "taken", project)
+    taken = _seed(home, "taken", project)
+    conn = init_db(taken)
+    conn.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                 "VALUES ('a.py','path','a')")       # it holds a run, not a name
+    conn.commit()
+    conn.close()
+
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.push_screen(NewRun(name="taken", root=str(project)))
@@ -598,28 +604,25 @@ async def test_wiping_the_open_run_goes_through_the_seat(tmp_path, home, project
     from rota.cockpit.screens import RunList
 
     app = _app(tmp_path)
-    app.conn.execute("INSERT INTO entries (id, author, text, ts_order) "
-                     "VALUES ('e1','principal','something',1)")
-    monkey = home / "seat.db"
+    path = app.db_path
+    name = app.run_name
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
         await pilot.pause()
         screen = app.screen
-        screen.rows = [{"name": app.run_name, "path": str(app.db_path),
-                        "state": "ready", "root": str(project), "counts": {},
-                        "branch": "", "commit": "", "moved": False}]
+        screen.rows = [{"name": name, "path": str(path), "state": "ready",
+                        "root": str(project), "counts": {}, "branch": "",
+                        "commit": "", "moved": False}]
         screen.query_one("#runs").add_row(*screen._cells(screen.rows[0]))
         screen.query_one("#runs").move_cursor(row=0)
         screen.action_wipe()
         await pilot.pause()
-        app.screen.query_one("#modal_input").value = app.run_name
-        app.screen.handle_submit(app.run_name)
+        app.screen.handle_submit(name)
         await pilot.pause()
 
-        assert app.conn.execute(
-            "SELECT COUNT(*) n FROM entries").fetchone()["n"] == 0
-        assert app.conn.execute("SELECT 1").fetchone() is not None, \
-            "the seat was left on a dead connection"
+        assert not path.exists(), "nothing was removed"
+        assert app.db_path is None and app.conn is None, (
+            "the seat kept hold of a run that no longer exists")
 
 
 async def test_a_modal_submission_is_not_also_a_sentence(tmp_path, home):
@@ -687,3 +690,121 @@ async def test_every_screen_binding_survives_its_own_focused_widget(
 
             screen.dismiss(None)
             await pilot.pause()
+
+
+# ---------------------------------------------------------------------------
+# What "wipe" means
+# ---------------------------------------------------------------------------
+
+async def test_wiping_the_open_run_leaves_no_run_behind(tmp_path, home, project):
+    """
+    One word, one meaning.
+
+    From the list, `wipe` deleted the file and the run was gone. From the seat
+    it deleted the file and then `init_db` put an empty one back, so the run
+    survived as a husk: no `project_root`, no `code_index`, opening happily and
+    showing `no project` in the title bar. That husk is a real row in `.rota/`
+    right now, and this is how it got there.
+
+    Wipe means the run is gone. The seat then has no run, which is a state it
+    can hold, and the answer to "no run open" is the screen that makes one.
+    """
+    from rota.cockpit.screens import RunList
+
+    app = _app(tmp_path)
+    path = app.db_path
+    async with app.run_test() as pilot:
+        await pilot.press("alt+w")
+        app.confirm("seat")
+        await pilot.pause()
+
+        assert not path.exists(), "the file came back"
+        assert app.db_path is None and app.conn is None
+        assert isinstance(app.screen, RunList), "left staring at nothing"
+
+
+async def test_rerun_keeps_the_run_because_it_is_about_to_refill_it(
+        tmp_path, project):
+    """
+    The one caller that wants the file back. `rerun` is wipe-then-index, and
+    indexing needs somewhere to write -- so it is the exception, and it says so
+    at the call rather than making wipe ambiguous for everybody.
+    """
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(tmp_path / "ctn_v3.db", "llama3.1:8b", root=project)
+    app.run_worker = lambda fn, thread=True: None
+    async with app.run_test() as pilot:
+        app.conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                         "VALUES ('e1','principal','x',1)")
+        await pilot.press("ctrl+alt+r")
+        app.confirm("ctn_v3")
+        await pilot.pause()
+
+        assert app.db_path is not None and app.conn is not None
+        assert app.conn.execute(
+            "SELECT COUNT(*) n FROM entries").fetchone()["n"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Onboarding from the seat
+# ---------------------------------------------------------------------------
+
+async def test_onboarding_with_no_project_offers_one_instead_of_saying_none(
+        tmp_path, home):
+    """
+    It printed `onboarding None…` and then returned silently from the worker,
+    because the message was written before the guard and the guard said
+    nothing. Two failures in three lines: a sentence that is not true, and a
+    refusal you cannot see.
+
+    The useful answer is the form, because a run with no project is exactly a
+    run that needs one.
+    """
+    from rota.cockpit import tui
+    from rota.cockpit.screens import NewRun
+
+    app = tui.RotaApp(tmp_path / "husk.db", "llama3.1:8b", root=None)
+    said = []
+    async with app.run_test() as pilot:
+        app.say = lambda text, *a, **k: said.append(text)
+        app.action_onboard()
+        await pilot.pause()
+
+        assert not any("None" in s for s in said), said
+        assert isinstance(app.screen, NewRun)
+        assert app.screen.query_one("#newrun_name").value == "husk"
+
+
+async def test_the_form_adopts_an_empty_run_but_still_refuses_a_full_one(
+        tmp_path, home, project):
+    """
+    Refusing an existing name is right when it holds a run and wrong when it
+    holds a husk -- and a husk is precisely what you reached the form from.
+    Emptiness is asked of `code_index`, which is what onboarding writes, rather
+    than of the file's existence.
+    """
+    from rota.cockpit.screens import NewRun
+
+    _seed(home, "husk", project)                 # exists, never indexed
+    full = _seed(home, "full", project)
+    conn = init_db(full)
+    conn.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                 "VALUES ('a.py','path','a')")
+    conn.commit()
+    conn.close()
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        app.push_screen(NewRun(name="husk", root=str(project)))
+        await pilot.pause()
+        app.screen.go()
+        await pilot.pause()
+        assert app.screen.__class__.__name__ != "NewRun", "refused a husk"
+
+        app.push_screen(NewRun(name="full", root=str(project)))
+        await pilot.pause()
+        app.screen.go()
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "NewRun", "landed on a real run"
+        assert "already" in str(app.screen.query_one("#newrun_detected").content)

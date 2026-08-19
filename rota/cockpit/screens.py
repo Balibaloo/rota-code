@@ -32,6 +32,35 @@ from textual.widgets import Button, DataTable, Input, Label, Static
 from .. import cli
 
 
+def _is_empty(path: Path) -> bool:
+    """
+    A file with no `code_index` rows is a name, not a run.
+
+    Refusing an existing name is right when it holds a run and wrong when it
+    holds a husk — and a husk is precisely what you reached this form from, via
+    `onboard` on a run with no project. Emptiness is asked of what onboarding
+    *writes* rather than of the file existing, because the file existing is the
+    thing that is not informative.
+
+    Unreadable counts as not empty: a database this cannot open is one it
+    certainly must not overwrite.
+    """
+    import sqlite3
+
+    from ..core.db import connect_readonly
+
+    try:
+        conn = connect_readonly(path)
+    except sqlite3.Error:
+        return False
+    try:
+        return conn.execute("SELECT COUNT(*) n FROM code_index").fetchone()[0] == 0
+    except sqlite3.Error:
+        return False
+    finally:
+        conn.close()
+
+
 class RunList(ModalScreen):
     """
     Every run, and what state each is in. `rota ls` with a cursor.
@@ -287,10 +316,12 @@ class NewRun(ModalScreen):
             note.update("[yellow]both a name and a repo[/yellow]")
             return
         path = cli.resolve(name)
-        if path.exists():
-            # Never silently over the top of one. Forking exists precisely so
-            # that running again beside a run is the easy thing.
-            note.update(f"[red]{name} already exists — pick another name[/red]")
+        if path.exists() and not _is_empty(path):
+            # Never silently over the top of a run that holds something.
+            # Forking exists precisely so that running again beside one is the
+            # easy thing.
+            note.update(f"[red]{name} already exists — pick another name, "
+                        f"or fork it[/red]")
             return
         if not Path(root).expanduser().is_dir():
             note.update("[red]no such directory[/red]")

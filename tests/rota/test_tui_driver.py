@@ -75,23 +75,31 @@ async def test_the_wipe_key_arms_and_does_not_wipe(tmp_path, project):
         assert app.db_path.exists(), "armed is not fired"
 
 
-async def test_typing_the_name_wipes_and_leaves_a_usable_app(tmp_path, project):
+async def test_typing_the_name_wipes_the_run_out_of_existence(tmp_path, project):
     """
     The connection goes first. An open SQLite file cannot be unlinked on
     Windows, and the failure that produces is silent: the wipe reports what it
     meant to do and the file is still there.
+
+    What changed since this was written is the second half. It used to rebuild
+    an empty database at the same path so the seat stayed sittable — which made
+    `wipe` mean "the run is gone" from the list and "the run stays, emptied"
+    from the seat, and manufactured husks: runs with no project and no index,
+    opening happily and showing `no project` in the title bar. Wipe means the
+    run is gone.
     """
     app = _app(tmp_path, project)
+    path = app.db_path
     async with app.run_test() as pilot:
         app.conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                          "VALUES ('e1','principal','something',1)")
         await pilot.press("alt+w")
         app.confirm("ctn_v3")
+        await pilot.pause()
 
-        # Gone, and rebuilt: the seat is still sittable afterwards.
         assert app.armed is None
-        assert app.conn.execute(
-            "SELECT COUNT(*) n FROM entries").fetchone()["n"] == 0
+        assert not path.exists(), "an empty database was put back"
+        assert app.db_path is None and app.conn is None
 
 
 async def test_a_wrong_confirmation_disarms_rather_than_retrying(tmp_path, project):
