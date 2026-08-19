@@ -12,7 +12,7 @@ shapes and no others:
   `model.amend`, then say so with `msg.answer_developer`
 - **the structure cannot carry what is being asked** — `msg.propose_gatekeeper`
   with the seam. A refactor is scope, and scope is not yours to grant
-- **the criteria assume something nobody decided** — `msg.challenge_gatekeeper`
+- **the criteria assume something nobody decided** — `msg.challenge_gatekeeper(reason=...)`
 
 If it is none of those, hand it on rather than sitting with it. Gatekeeper is
 the last rung that can be woken, and a batch stalled at your desk is a batch

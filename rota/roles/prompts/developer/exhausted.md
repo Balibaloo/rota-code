@@ -11,7 +11,7 @@ that owns it:
 - **a term you have been reading two ways** — `msg.question_terminologist`
 - **the criterion does not say what would satisfy it** — `msg.question_gatekeeper`
 - **a constraint and a criterion cannot both hold** — `msg.escalate_architect`
-- **the test does not encode its criterion** — `msg.challenge_tester`
+- **the test does not encode its criterion** — `msg.challenge_tester(reason=...)`
 
 Pick the one that names your actual block. If you genuinely cannot, escalate to
 Architect: the ladder climbs one rung at a time because the usual reason a loop
