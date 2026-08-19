@@ -39,6 +39,11 @@ NARRATIVE = {
     "ANSWER_KEY.md": "grading data for onboarding runs, written before the "
                      "first session ran",
     "ANSWER_KEY_icalendar.md": "the same, for the second repository",
+    "SEAT.md": "a proposal for the operator's interface, argued rather than "
+               "asserted, because almost nothing in it exists yet. Its one "
+               "claim about today — that a run records nothing but its project "
+               "root — is what item 2 of it changes, and the moment that lands "
+               "this line is what has to be re-read",
     "ANSWER_KEY_ctn_v3.md": "the same, for the third — and the first written "
                             "for a branch nothing had surveyed, because the "
                             "other branch of that repo was already onboarded "
