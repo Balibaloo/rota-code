@@ -808,3 +808,40 @@ async def test_the_form_adopts_an_empty_run_but_still_refuses_a_full_one(
         await pilot.pause()
         assert app.screen.__class__.__name__ == "NewRun", "landed on a real run"
         assert "already" in str(app.screen.query_one("#newrun_detected").content)
+
+
+async def test_no_key_breaks_on_a_seat_with_no_run(tmp_path, home):
+    """
+    A state I introduced and then did not sweep the actions for.
+
+    Four of five keys assumed a run: `alt+b` built `Path(None)`, `alt+p` read
+    `config` off a closed connection, and `alt+w` and `ctrl+alt+r` armed
+    themselves against the empty string -- offering `type `` to confirm`, which
+    cannot be typed, so the seat stayed armed with no way out.
+
+    The empty seat is reachable two ways now, both ordinary: the first time you
+    ever start, and the moment after you wipe. So this asks every key, not the
+    ones I thought of.
+    """
+    from rota.cockpit import tui
+
+    for key, _, _ in tui.RotaApp.BINDINGS:
+        if key in ("ctrl+c", "ctrl+l"):
+            continue                # quit ends the test; the list is the answer
+        app = tui.RotaApp(None, "llama3.1:8b")
+        said: list[str] = []
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.pause()
+            app.screen.action_dismiss_list()
+            await pilot.pause()
+            app.say = lambda t, *a, **k: said.append(t)
+
+            await pilot.press(key)          # must not raise
+            await pilot.pause()
+
+            assert app.armed is None, (
+                f"{key} armed a confirmation nothing can satisfy: "
+                f"the run has no name to type")
+            assert said or app.screen.__class__.__name__ != "Screen", (
+                f"{key} did nothing and said nothing")

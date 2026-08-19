@@ -505,6 +505,8 @@ class RotaApp(App):
         flag, because that is the only way to reach a loop already inside
         `loop.run`, and it is what the flag is for.
         """
+        if not self._needs_run():
+            return
         if self.driving:
             config.stop(self.conn)
             self.say("stopping — the current session finishes first",
@@ -603,11 +605,33 @@ class RotaApp(App):
         self.refresh_pulse()
         return removed
 
+    def _needs_run(self) -> bool:
+        """
+        Said once, for every key that assumes a run.
+
+        The empty seat is reachable two ordinary ways — the first time you ever
+        start, and the moment after a wipe — and four of five keys assumed it
+        could not happen. `alt+b` built `Path(None)`, `alt+p` read `config` off
+        a closed connection, and the two destructive keys armed against the
+        empty string, offering `type `` to confirm`, which cannot be typed: the
+        seat stayed armed with no way out.
+
+        One guard rather than four, because the answer is the same each time
+        and because the next key added would have needed it too.
+        """
+        if self.conn is not None:
+            return True
+        self.say("no run open — ctrl+l to pick one or make one",
+                 "system", "yellow")
+        return False
+
     def action_wipe(self) -> None:
-        self.arm("wipe", "its worktrees, its recorded processes, and the file")
+        if self._needs_run():
+            self.arm("wipe", "its worktrees, its recorded processes, and the file")
 
     def action_rerun(self) -> None:
-        self.arm("rerun", f"wipe, then index {self.root or 'nothing'} again")
+        if self._needs_run():
+            self.arm("rerun", f"wipe, then index {self.root or 'nothing'} again")
 
     # -- the level above one run ---------------------------------------------
 
@@ -710,7 +734,8 @@ class RotaApp(App):
         than a path to remember. The database is passed by path because a run
         is not identified by its project: several are about the same one.
         """
-        self.open_cockpit(self.db_path)
+        if self._needs_run():
+            self.open_cockpit(self.db_path)
 
     def open_cockpit(self, db_path: Path) -> None:
         """
