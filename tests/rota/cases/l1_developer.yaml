@@ -149,9 +149,27 @@
     # one the comment above already describes as what it falls back to when it
     # cannot locate the code.
     #
-    # Left red rather than tuned away, because "the index got more complete and
-    # the Developer reached for the Tester" is a finding about the brief, and a
-    # green case that hides it is worth less than a red one that shows it.
+    # A third explanation died too, and this one was about to send me editing
+    # `code.probe`. It is *not* noisier for this case. Measured on the fixture:
+    #
+    #     probe('pricing')     5 hits, 0 from web/, src/catalog/pricing.py first
+    #     probe('line_total')  1 hit,  0 from web/
+    #     probe('catalog')    12 hits, 0 from web/, src/catalog/pricing.py first
+    #
+    # Only an empty pattern reaches `web/` at all. So the eight new symbols do
+    # not degrade what this role can see about its own task, and the case
+    # flipped on a prompt *perturbation* rather than on a degradation.
+    #
+    # Which is the finding, and it is worth more than a green case: the choice
+    # between fixing the code and challenging the test is not robust. It went
+    # 5/5 to 0/5 on eight symbols in an unrelated directory. The comment above
+    # already says why — challenging is "cheaper than fixing the code" — and
+    # when two outcomes cost that differently, which one you get is decided by
+    # noise. Same shape as `none_found` being free, one artefact along.
+    #
+    # Left red rather than tuned away. The fix is in DECISIONS.md under
+    # "Challenging a test costs less than fixing the code", and it is a graph
+    # change, so it is a ruling rather than a patch.
     onboard: true
     message: "line totals apply the volume band"
     edit:

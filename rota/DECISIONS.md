@@ -313,6 +313,48 @@ Two authorities disagreeing is the interesting case. The researcher reports the
 conflict rather than resolving it — consistent with Liaison not choosing between
 contradicting statements — but there is no mode for it.
 
+### Challenging a test costs less than fixing the code
+
+`L1-DV-fix-the-code-not-the-test` went 5/5 to 0/5 when eight exported JS symbols
+entered the index. The interesting part is that nothing about what the Developer
+can see of its own task changed: `probe('pricing')` returns five hits, none from
+`web/`, with `src/catalog/pricing.py` first, and the same holds for `line_total`
+and `catalog`. Only an empty pattern reaches `web/` at all.
+
+So it flipped on a prompt *perturbation*, not a degradation — and what that
+measures is that the choice is not robust. Every run emits
+`msg.challenge_tester` and then `code.write` in one turn; the forbidden call
+arrives first and neither lands. It is trying to do the right thing behind the
+wrong thing.
+
+The case file has said why since before any of this: challenging is *"the escape
+hatch being used as a door: cheaper than fixing the code and indistinguishable
+from progress."* **Cheaper** is the whole of it. Challenging costs one call
+carrying an id; fixing costs reading, writing and committing. When two outcomes
+cost that differently, which one you get is decided by noise — which is exactly
+the shape of `none_found` being free, one artefact along, and that one was
+closed by making both outcomes cite what was read.
+
+*Proposed:* `msg.challenge_tester` carries evidence. The criterion it claims is
+contradicted must exist and belong to the batch, and the challenge must **quote**
+— not paraphrase — a span of that criterion's text and a span of the test's
+body. All three are mechanically checkable, and quote-not-paraphrase is the rule
+`check_segmentation` already holds Liaison to.
+
+It deliberately does not decide whether the contradiction is *real*.
+`validators.py` states the line: "None of these say the choice was good. They say
+it was legal." What it removes is the asymmetry — a session that must read both
+rows before challenging has, by then, done the reading that would show it the
+test is right. The legitimate sibling survives easily: in
+`L1-DV-challenge-a-test-that-contradicts-its-criterion` the criterion says
+"leaves its invoices in place" and the test asserts `invoices_for(account_id) ==
+[]`. Quoting both is trivial when the contradiction is there.
+
+*Blocked on:* a ruling, because it changes a verb's arguments in the graph. And
+on model time: tool signatures are in every system prompt, so changing one
+invalidates the recordings for **every** Developer case, not the two this
+targets — six cases at five runs each to re-earn, not two.
+
 ---
 
 ## Assumptions
