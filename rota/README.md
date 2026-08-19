@@ -38,6 +38,44 @@ the TUI seam.
 
 ## Running it
 
+A **run** is a named database about a checkout. It records which one, so
+nothing downstream has to be told twice.
+
+```bash
+python -m rota ls                                  # what runs exist, and their state
+python -m rota onboard ctn_v3 --root <checkout>    # index, partition, constraint zero
+python -m rota tui ctn_v3                          # the seat: talk, run, wipe, rerun
+python -m rota cockpit ctn_v3                      # http://127.0.0.1:8899
+python -m rota report ctn_v3                       # what came out, and the audit
+python -m rota wipe ctn_v3                         # worktrees, processes, then the file
+```
+
+Two runs against one checkout are two names, not two wipes — which is what
+comparing a branch against its main needs, and is the case
+[ANSWER_KEY_ctn_v3.md](ANSWER_KEY_ctn_v3.md) exists for.
+
+**The TUI is the seat.** `alt+p` runs and pauses, `alt+r` wipes and reindexes,
+`alt+w` wipes, `alt+b` opens the cockpit on the run you are in. The two
+destructive keys arm rather than fire: the confirmation is typing the run's
+name, the same rule `rota wipe` uses. Bindings are `alt+` and not `ctrl+`
+because the input has the focus and a widget binding beats an app one — a key
+the input eats is a key the footer advertises and nothing performs.
+
+**The cockpit is for depth.** The register beside the chat answers what is
+*owed*; the cockpit answers the two questions it cannot — what a role was
+actually shown (the built prompt) and what caused a message (the `cause_id`
+chain). Neither is a row in any table, which is why a SQLite browser is a poor
+substitute and an ad-hoc SQL prompt is still worth having beside it.
+
+Wipe is a command rather than an `rm` because two of the three things a run owns
+are not in the file: a **worktree** lives in the target project and the only
+record that it is ours is a row in the database, and a **spawned process** is
+the same shape with a worse ending. Delete the file first and neither can ever
+be proved ours again. The **WAL** is the third — `rm run.db` leaves `run.db-wal`
+behind for the next run of that name to open.
+
+The checks, and the cockpit on a project rather than a run:
+
 ```bash
 python -m rota.design.graph                       # namespaces, contacts, consistency
 python -m rota.core.predicates                  # every state has a way out
@@ -48,6 +86,12 @@ python -m rota.cockpit.server [root] [--open]     # http://127.0.0.1:8899
 
 `--open` opens a browser tab; without it the URL is printed. Reloads never open
 one. The server restarts itself when `rota/` changes, so leave it running.
+
+Pointed at a **project root** the cockpit boots a database if there is none —
+a root may legitimately have no run yet. Pointed at a **named file** it refuses,
+because a name you typed cannot be missing for a good reason. It used to do the
+first in both cases, so every foreign-repo run was unviewable and looked like a
+system that had produced nothing.
 
 For local-model hardware profiles, context budgeting, cache distinctions, and
 the evidence required before adopting a new model, see

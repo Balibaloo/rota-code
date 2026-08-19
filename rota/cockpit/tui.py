@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import subprocess
 import sys
 import threading
 from datetime import datetime
@@ -54,10 +55,11 @@ if __package__ in (None, ""):                              # pragma: no cover
 
 
 from .. import paths
-from ..core import loop as loop_mod
+from ..core import config, loop as loop_mod
 from ..core.db import connect, init_db
 from ..core.predicates import outstanding
 from ..llm import llm
+from ..onboarding import boot
 from ..roles.principal import Answer, Ask, pending_replies
 from ..tools.talk import open_with
 
@@ -173,16 +175,61 @@ class RotaApp(App):
     #sessions { height: 40%; border-top: solid $accent; padding: 0 1; }
     Input { dock: bottom; }
     """
-    BINDINGS = [("ctrl+c", "quit", "quit")]
+    BINDINGS = [
+        ("ctrl+shift+o", "onboard", "onboard"),
+        ("alt+p", "toggle_run_state", "pause / resume"),
+        # `alt+`, not `ctrl+`, and not by taste. The input has the focus
+        # whenever you are sitting here, and a widget binding beats an app one:
+        # `ctrl+w` is its delete-word and `ctrl+u`, `ctrl+k`, `ctrl+x` and
+        # `ctrl+a` are equally spoken for. A binding the input eats is a
+        # binding the footer advertises and nothing performs, which is why
+        # `test_every_binding_survives_the_input_having_focus` exists.
+        ("alt+r", "rerun", "wipe + onboard"),
+        ("alt+w", "wipe", "wipe"),
+        ("alt+b", "cockpit", "cockpit"),
+        ("ctrl+c", "quit", "quit"),
+    ]
 
-    def __init__(self, db_path: Path, model: str) -> None:
+    def __init__(self, db_path: Path, model: str, root: Path | None = None) -> None:
         super().__init__()
-        self.db_path = db_path
+        self.db_path = Path(db_path)
         self.model = model
-        self.conn = init_db(db_path)
+        # **No default.** It used to be `root or Path.cwd()`, which is the same
+        # shape `worktrees.project_root` refuses by name: a run opened without a
+        # project would reindex whichever repository the process was started
+        # from, and a rerun would do it over the top of a wipe. A missing root
+        # is a thing to say, not a thing to guess.
+        self.root = Path(root) if root else None
+        self.conn = init_db(self.db_path)
+        # And if it was not passed, ask the run. `project_root` has been in
+        # `config` since onboarding wrote it and nothing downstream read it
+        # back, so the root was supplied twice and the two could disagree.
+        # Derived beats declared here for the usual reason: there is no second
+        # copy to be wrong.
+        #
+        # Read with plain SQL, not `config.get`: `project_root` is not a
+        # declared setting — the principal does not own it, onboarding writes
+        # it — so `config.get` would raise `UnknownSetting`, and the value is a
+        # bare path rather than JSON. `worktrees.project_root` reads it exactly
+        # this way, and this is the one place that may find it absent.
+        if self.root is None:
+            row = self.conn.execute(
+                "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+            if row and (row["value"] or "").strip():
+                self.root = Path(row["value"].strip().strip('"'))
+        config.set(self.conn, "run_state", "stopping")
         self.principal = QueuedPrincipal(self)
         self.started = False
         self._pending_text = ""
+        self._pending_root: Path | None = None
+        # What a destructive key has armed, and nothing else. `None` is the
+        # ordinary state and the state a confirmation returns to either way.
+        self.armed: str | None = None
+
+    @property
+    def run_name(self) -> str:
+        """A run is its file's stem, the same identity `rota ls` prints."""
+        return self.db_path.stem
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -190,6 +237,7 @@ class RotaApp(App):
             yield VerticalScroll(id="conversation")
             with Vertical(id="sidebar"):
                 yield Static("[b]outstanding[/b]")
+                yield Static(id="run_state")
                 yield Outstanding(id="owed")
                 yield Static("[b]sessions[/b]", id="sessions_title")
                 yield VerticalScroll(id="sessions")
@@ -197,8 +245,21 @@ class RotaApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.title = f"rota — {self.model}"
+        self.retitle()
+        self.refresh_run_state()
         self.refresh_owed()
+
+    def retitle(self) -> None:
+        """
+        The run first, the project second.
+
+        It used to be `rota — <project> — <model>`, which names everything
+        except the thing you are about to wipe. Two runs against one checkout is
+        the normal case — a branch against its main is the comparison the answer
+        key exists for — so the project alone does not say which is on screen.
+        """
+        self.title = f"rota — {self.run_name}"
+        self.sub_title = f"{self.root.name if self.root else 'no project'} — {self.model}"
 
     # -- the two things the worker thread is allowed to do -------------------
 
@@ -235,8 +296,117 @@ class RotaApp(App):
                 "UPDATE messages SET status = 'answered' WHERE id = ?",
                 (ask.message_id,))
 
+    def refresh_run_state(self) -> None:
+        state = config.get(self.conn, "run_state")
+        label = self.query_one("#run_state", Static)
+        label.update(f"[b]run state:[/b] {state}")
+
     def refresh_owed(self) -> None:
         self.query_one("#owed", Outstanding).render_rows(self.conn)
+
+    def action_toggle_run_state(self) -> None:
+        state = config.get(self.conn, "run_state")
+        if state == "running":
+            config.stop(self.conn)
+            self.say("run state: stopping", "system", "blue")
+        else:
+            config.resume(self.conn)
+            self.say("run state: running", "system", "blue")
+            self.run_worker(self._turn_the_crank, thread=True)
+        self.refresh_run_state()
+
+    # -- arming, and the one thing that fires ---------------------------------
+
+    def arm(self, what: str, consequence: str) -> None:
+        """
+        A destructive key does not do the destructive thing.
+
+        The confirmation is typing the run's name into the input you are
+        already in, which is the rule `rota wipe` uses at the command line. It
+        reuses the widget tree rather than introducing a modal screen, and it
+        costs the one thing a modal cannot: you have to know which run you are
+        in, which is exactly the mistake being guarded against.
+        """
+        self.armed = what
+        self.say(f"**{what}** — {consequence}\n\n"
+                 f"type `{self.run_name}` to confirm, anything else to cancel",
+                 "system", "yellow")
+        self.query_one(Input).placeholder = f"type {self.run_name} to confirm…"
+
+    def confirm(self, text: str) -> None:
+        """
+        One chance, then it is an ordinary line again.
+
+        A prompt that stays open until you get it right turns the next
+        unrelated sentence into a confirmation, which is a worse failure than
+        making you press the key twice.
+        """
+        what, self.armed = self.armed, None
+        self.query_one(Input).placeholder = "say what you want built…"
+        if text.strip() != self.run_name:
+            self.say(f"{what} cancelled", "system", "blue")
+            return
+        if what == "rerun" and self.root is None:
+            self.say("no project to rerun against: reopen with a root, or "
+                     "`rota onboard <name> --root <checkout>`", "system", "red")
+            return
+
+        removed = self.wipe_run()
+        self.say(f"wiped {self.run_name}: {len(removed['worktrees'])} worktree(s), "
+                 f"{len(removed['pids'])} process(es)", "system", "blue")
+        if what == "rerun":
+            self._pending_root = self.root
+            self.say(f"onboarding {self.root}…", "system", "blue")
+            self.run_worker(self._do_onboard, thread=True)
+
+    def wipe_run(self) -> dict:
+        """
+        Close, wipe, reopen. The order is the whole of it.
+
+        The app holds the database open and Windows will not unlink an open
+        file, so a wipe that does not close first does not fail — it reports
+        what it meant to do and removes nothing, which is the shape of failure
+        this system keeps having to be taught to refuse.
+
+        Reopening is what makes the seat sittable afterwards. A wiped run that
+        leaves you looking at a dead connection is a restart wearing a button.
+        """
+        from ..cli import wipe as wipe_path
+
+        self.conn.close()
+        removed = wipe_path(self.db_path)
+        self.conn = init_db(self.db_path)
+        config.set(self.conn, "run_state", "stopping")
+        self.principal = QueuedPrincipal(self)
+        self.started = False
+        self.refresh_run_state()
+        self.refresh_owed()
+        return removed
+
+    def action_wipe(self) -> None:
+        self.arm("wipe", "its worktrees, its recorded processes, and the file")
+
+    def action_rerun(self) -> None:
+        self.arm("rerun", f"wipe, then index {self.root or 'nothing'} again")
+
+    def action_cockpit(self) -> None:
+        """
+        Depth, in a browser, on *this* run.
+
+        The register answers what is owed. It cannot answer what a role was
+        shown or what caused a message, and those two are what a stuck run
+        turns out to be about — so the cockpit is one keystroke away rather
+        than a path to remember. The database is passed by path because a run
+        is not identified by its project: several are about the same one.
+        """
+        argv = [sys.executable, "-m", "rota", "cockpit", str(self.db_path),
+                "--open"]
+        try:
+            subprocess.Popen(argv)
+        except OSError as exc:                                  # noqa: BLE001
+            self.say(f"could not start the cockpit: {exc}", "system", "red")
+            return
+        self.say("cockpit starting at http://127.0.0.1:8899/", "system", "blue")
 
     # -- input ---------------------------------------------------------------
 
@@ -245,6 +415,11 @@ class RotaApp(App):
         if not text:
             return
         event.input.value = ""
+
+        if self.armed:
+            self.confirm(text)
+            return
+
         self.say(text, "you", "green")
         self.started = True
         try:
@@ -272,6 +447,39 @@ class RotaApp(App):
         finally:
             conn.close()
         self._turn_the_crank()
+
+    def action_onboard(self) -> None:
+        """Start onboarding the root currently shown in the title bar."""
+        root = self.root
+        self.say(f"onboarding {root}…", "system", "blue")
+        self._pending_root = root
+        self.run_worker(self._do_onboard, thread=True)
+
+    def _do_onboard(self) -> None:
+        """Index the codebase and put every area under constraint zero."""
+        root = self._pending_root
+        self._pending_root = None
+        if root is None:
+            return
+        conn = connect(self.db_path)
+        try:
+            report = boot.onboard(conn, root)
+            conn.commit()
+            self.call_from_thread(
+                self.say,
+                f"onboarded {root}: {report.areas} areas, "
+                f"{report.unsurveyed} under constraint zero",
+                "system", "blue")
+            # Mechanical onboarding only prepares survey wakes. Continue into
+            # the ordinary loop so the cockpit immediately shows the roles
+            # studying the selected root.
+            self._turn_the_crank()
+        except Exception as exc:                            # noqa: BLE001
+            self.call_from_thread(
+                self.say, f"onboarding failed: {exc}", "system", "red")
+        finally:
+            conn.close()
+        self.call_from_thread(self.refresh_owed)
 
     def _turn_the_crank(self) -> None:
         """
@@ -308,8 +516,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="rota, with a face")
     ap.add_argument("--db", default=".rota/rota.db")
     ap.add_argument("--model", default=llm.DEFAULT_MODEL)
+    # No default. The working directory is *this* repository, and a rerun
+    # against it would index the framework over the top of the wiped run it was
+    # meant to redo. Omitted, the root comes from the database, which is the
+    # only place that actually knows.
+    ap.add_argument("--root", type=Path, default=None,
+                    help="project root; omit to use the one the run records")
     args = ap.parse_args(argv)
-    RotaApp(Path(args.db), args.model).run()
+    RotaApp(Path(args.db), args.model, root=args.root).run()
     return 0
 
 

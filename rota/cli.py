@@ -1,0 +1,392 @@
+"""
+One way in.
+
+Everything this exposes already worked and was reachable by four module paths
+with three different ideas of where the database is: `onboard_run` defaulting to
+`<repo>/.rota/oauthlib.db`, the TUI to `.rota/rota.db`, and the cockpit to a
+path it *derives* from a project root and cannot be told. `.rota/` has eleven
+files in it, five of them named `probe2` or `.old2` or `.pre-vocab-rework`,
+which is what a wipe-and-rerun loop looks like when it is done by hand.
+
+Two ideas hold the rest together.
+
+**A run has a name.** `rota onboard ctn_v3 --root <checkout>` and every verb
+afterwards takes `ctn_v3`. Two runs against the same checkout are two names, not
+two wipes -- which is what comparing a branch against its main actually needs,
+and was done last time by remembering two paths.
+
+**The run records the project, not the other way round.** `project_root` has
+been in `config` since onboarding wrote it; nothing downstream read it, so the
+root was passed again to every tool that needed it and the two could disagree.
+Here it is read. You name a run, and what it is about comes out of it.
+
+The consequence worth having is negative: **nothing here creates a database
+because it could not find one.** That was the cockpit's behaviour and it is the
+one failure this file was written for -- pointed at a checkout it booted an
+empty database and served that, which renders as a system that ran and produced
+nothing rather than as a wrong path. Refusing is the whole feature.
+
+    rota ls                                    what runs exist, and their state
+    rota onboard ctn_v3 --root <checkout>      index, partition, constraint zero
+    rota run ctn_v3                            turn the crank to quiescence
+    rota tui ctn_v3                            talk to it, register beside you
+    rota cockpit ctn_v3                        the rows, the graph, the trace
+    rota report ctn_v3                         what came out, and the audit
+    rota wipe ctn_v3                           worktrees, processes, then the file
+"""
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+from pathlib import Path
+
+from . import paths
+
+# Where named runs live. This repository's state directory, not the target
+# project's: the databases are about work *on* a checkout and several of them
+# can be about the same one, so they cannot be identified by it.
+RUNS = paths.REPO / ".rota"
+
+
+# ---------------------------------------------------------------------------
+# Naming
+# ---------------------------------------------------------------------------
+
+def resolve(name: str) -> Path:
+    """
+    A name is a run; anything that looks like a path is a path.
+
+    Both spellings stay, because both are in use -- every recorded invocation in
+    the docs and in my own shell history passes `--db .rota/something.db`, and
+    breaking those to introduce a convenience would make this the fifth idea of
+    where the database is rather than the last.
+    """
+    text = str(name)
+    if text.endswith(".db") or "/" in text or "\\" in text:
+        return Path(text)
+    return RUNS / f"{text}.db"
+
+
+def existing() -> list[str]:
+    if not RUNS.is_dir():
+        return []
+    return sorted(p.stem for p in RUNS.glob("*.db"))
+
+
+def require(name: str) -> Path:
+    """
+    The path, or a refusal that names what is there instead.
+
+    A refusal that does not list the alternatives sends you to `ls` and back,
+    and the mistake this catches is nearly always a typo or a run you wiped --
+    both of which are answered by the list.
+    """
+    path = resolve(name)
+    if path.exists():
+        return path
+    known = existing()
+    raise SystemExit(
+        f"no run named {name!r} at {path}\n" +
+        (f"  runs: {', '.join(known)}" if known else
+         "  no runs yet: rota onboard <name> --root <checkout>"))
+
+
+# ---------------------------------------------------------------------------
+# Listing
+# ---------------------------------------------------------------------------
+
+COUNTED = ("glossary_terms", "constraints", "items", "survey_records",
+           "batches", "sessions")
+
+
+def _read(path: Path) -> dict:
+    from .core.db import connect_readonly
+
+    row: dict = {"name": path.stem, "path": str(path), "root": "", "error": "",
+                 "counts": {}, "state": ""}
+    try:
+        conn = connect_readonly(path)
+    except sqlite3.Error as exc:
+        row["error"] = str(exc)
+        return row
+    try:
+        got = conn.execute(
+            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+        row["root"] = (got["value"] if got else "").strip('"')
+        for table in COUNTED:
+            got = conn.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()
+            row["counts"][table] = got["n"]
+        from .core.scheduler import is_quiescent_readonly
+
+        row["state"] = "quiescent" if is_quiescent_readonly(conn) else "ready"
+    except sqlite3.Error as exc:
+        # A database written against a schema that has since moved is the
+        # normal case in a directory nothing prunes, and it is still worth
+        # listing -- knowing a name is taken is most of what `ls` is for.
+        #
+        # **Named, not blanked.** The first version left `state` empty here and
+        # seven of eight runs printed an empty column, which reads as "no state
+        # yet" and is the same silent shape as the cockpit booting a database it
+        # could not find. A row that cannot answer says why it cannot.
+        row["state"] = "stale"
+        row["error"] = str(exc)
+    finally:
+        conn.close()
+    return row
+
+
+def runs() -> list[dict]:
+    if not RUNS.is_dir():
+        return []
+    return [_read(p) for p in sorted(RUNS.glob("*.db"))]
+
+
+def cmd_ls(args: argparse.Namespace) -> int:
+    rows = runs()
+    if not rows:
+        print(f"no runs in {RUNS}")
+        return 0
+    head = ("run", "state", "terms", "cons", "items", "surv", "sess")
+    print(f"{head[0]:22s} {head[1]:10s} {head[2]:>5s} {head[3]:>5s} "
+          f"{head[4]:>5s} {head[5]:>5s} {head[6]:>5s}  project")
+    for row in rows:
+        if row["error"] and not row["counts"]:
+            print(f"{row['name']:22s} {'unreadable':10s} {row['error'][:60]}")
+            continue
+        c = row["counts"]
+        print(f"{row['name']:22s} {row['state']:10s} "
+              f"{c.get('glossary_terms', 0):5d} {c.get('constraints', 0):5d} "
+              f"{c.get('items', 0):5d} {c.get('survey_records', 0):5d} "
+              f"{c.get('sessions', 0):5d}  {row['root']}")
+        if row["state"] == "stale":
+            # Said, and not acted on. Databases here are throwaway and rebuilt
+            # by `init_db` at boot; a migration path would be a promise the
+            # design deliberately does not make, so the counts above are still
+            # true and only the derived state is unavailable.
+            print(f"{'':22s} [behind schema: {row['error'][:50]}]")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Wiping
+# ---------------------------------------------------------------------------
+
+def wipe(path: Path) -> dict:
+    """
+    Worktrees, then processes, then the file. In that order and for that reason.
+
+    This is a command rather than an `rm` because two of the three things a run
+    owns are not in the file. A worktree lives in the *project*, and the only
+    record that it is ours is a row in this database -- delete the database
+    first and the directory is unreachable by anything that checks ownership,
+    so it stays on disk permanently. A spawned process is the same shape with a
+    worse ending.
+
+    Both teardowns are the ones already written: `worktrees.destroy` refuses
+    anything outside the state directory, and `environments.teardown` kills only
+    what it can prove is ours on two independent facts. Nothing new is allowed
+    to delete anything here.
+    """
+    from .core import environments, worktrees
+    from .core.db import connect
+
+    removed: dict = {"worktrees": [], "pids": [], "files": []}
+    if path.exists():
+        conn = connect(path)
+        try:
+            batches = [r["id"] for r in conn.execute("SELECT id FROM batches")]
+            for batch in batches:
+                try:
+                    if worktrees.destroy(conn, batch):
+                        removed["worktrees"].append(batch)
+                except Exception as exc:                       # noqa: BLE001
+                    print(f"  worktree {batch}: {exc}")
+                try:
+                    removed["pids"] += environments.teardown(
+                        conn, batch, release_ports=True)
+                except Exception as exc:                       # noqa: BLE001
+                    print(f"  processes {batch}: {exc}")
+            conn.commit()
+        except sqlite3.Error as exc:
+            # An unreadable database owns nothing we can prove, so there is
+            # nothing to tear down and the file is still ours to remove.
+            print(f"  {path.name}: {exc}")
+        finally:
+            conn.close()
+
+    # The journal goes with it. `connect` turns WAL on for every run, so `rm
+    # run.db` leaves `run.db-wal` and `run.db-shm` behind and the next run of
+    # that name opens a file with somebody else's uncommitted tail.
+    for suffix in ("", "-wal", "-shm"):
+        target = path.with_name(path.name + suffix)
+        if target.exists():
+            target.unlink()
+            removed["files"].append(target.name)
+    return removed
+
+
+def cmd_wipe(args: argparse.Namespace) -> int:
+    path = require(args.name)
+    if not args.yes:
+        print(f"wipe {path}")
+        print("  its worktrees, its recorded processes, and the file")
+        if input("  type the run name to confirm: ").strip() != path.stem:
+            print("  not wiped")
+            return 1
+    removed = wipe(path)
+    print(f"wiped {path.stem}: {len(removed['worktrees'])} worktree(s), "
+          f"{len(removed['pids'])} process(es), {', '.join(removed['files'])}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# The verbs that do the work. Each one is the existing tool, given a run.
+# ---------------------------------------------------------------------------
+
+def cmd_onboard(args: argparse.Namespace) -> int:
+    from .core.db import init_db
+    from .onboarding import boot as onboarding_boot
+
+    path = resolve(args.name)
+    if path.exists():
+        if not args.force:
+            raise SystemExit(
+                f"{path} exists. `rota run {args.name}` continues it, "
+                f"`rota onboard {args.name} --force` starts over, "
+                f"`rota onboard <other-name>` keeps both")
+        wipe(path)
+
+    root = Path(args.root).resolve()
+    if not (root / ".git").exists():
+        print(f"note: {root} is not a git checkout; batches will have no worktree")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = init_db(path)
+    report = onboarding_boot.onboard(conn, root)
+    conn.commit()
+    conn.close()
+    print(f"{args.name}: {report.areas} areas, {report.unsurveyed} under "
+          f"constraint zero, {len(report.leaky)} leaky  ({path})")
+    print(f"next: rota run {args.name}")
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    from .tools.onboard_run import drive
+
+    path = require(args.name)
+    drive(str(path), args.model, args.limit, survey_only=not args.all)
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    from .tools.onboard_run import audit, report
+
+    path = require(args.name)
+    if args.audit_only:
+        return 1 if audit(str(path)) else 0
+    report(str(path))
+    return 0
+
+
+def cmd_tui(args: argparse.Namespace) -> int:
+    from .cockpit.tui import main as tui_main
+
+    path = resolve(args.name) if args.new else require(args.name)
+    argv = ["--db", str(path), "--model", args.model]
+    root = args.root or _root_of(path)
+    if root:
+        argv += ["--root", str(root)]
+    return tui_main(argv)
+
+
+def cmd_cockpit(args: argparse.Namespace) -> int:
+    from .cockpit import server
+
+    path = require(args.name)
+    runner = server.serve if args.no_reload else server.serve_reloading
+    runner(db=path, port=args.port, open_browser=args.open)
+    return 0
+
+
+def _root_of(path: Path) -> str:
+    from .core.db import connect_readonly
+
+    if not path.exists():
+        return ""
+    try:
+        conn = connect_readonly(path)
+    except sqlite3.Error:
+        return ""
+    try:
+        row = conn.execute(
+            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+        return (row["value"] if row else "").strip('"')
+    except sqlite3.Error:
+        return ""
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    from .llm.llm import DEFAULT_MODEL
+
+    ap = argparse.ArgumentParser(prog="rota", description=__doc__.strip(),
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("ls", help="what runs exist, and what state each is in")
+    p.set_defaults(func=cmd_ls)
+
+    p = sub.add_parser("onboard", help="index a checkout into a new run")
+    p.add_argument("name")
+    p.add_argument("--root", required=True, help="the checkout to onboard")
+    p.add_argument("--force", action="store_true",
+                   help="wipe an existing run of this name first")
+    p.set_defaults(func=cmd_onboard)
+
+    p = sub.add_parser("run", help="turn the crank until quiescent")
+    p.add_argument("name")
+    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument("--limit", type=int, default=40)
+    p.add_argument("--all", action="store_true",
+                   help="do not stop when the survey wakes run out")
+    p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("tui", help="talk to it, with the register beside you")
+    p.add_argument("name")
+    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument("--root", help="override the project recorded in the run")
+    p.add_argument("--new", action="store_true",
+                   help="allow creating this run rather than opening one")
+    p.set_defaults(func=cmd_tui)
+
+    p = sub.add_parser("cockpit", help="the rows, the graph and the trace")
+    p.add_argument("name")
+    p.add_argument("--port", type=int, default=8899)
+    p.add_argument("--open", action="store_true", help="open a browser tab")
+    p.add_argument("--no-reload", action="store_true")
+    p.set_defaults(func=cmd_cockpit)
+
+    p = sub.add_parser("report", help="what came out, and the mechanical audit")
+    p.add_argument("name")
+    p.add_argument("--audit-only", action="store_true")
+    p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("wipe", help="worktrees, processes, then the file")
+    p.add_argument("name")
+    p.add_argument("--yes", action="store_true", help="do not ask")
+    p.set_defaults(func=cmd_wipe)
+
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":                                  # pragma: no cover
+    sys.exit(main())

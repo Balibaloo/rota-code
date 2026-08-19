@@ -32,14 +32,14 @@ from ..design import graph as graph_mod
 from ..roles import prompts as prompts_mod
 from ..core.boot import state_dir
 from ..testkit.coverage import render as render_coverage, report as coverage_report
-from ..core.db import connect, init_db
+from ..core.db import connect, connect_readonly, init_db
 from . import inspect_api, progress
 from ..core.sandbox import build as build_sandbox
 from .traceview import (
     coverage_edges, frontier_overlay, steps_from_db,
 )
 from ..core.scheduler import (
-    TICKS, is_quiescent, open_tips, predicate_wakes, tick_agenda,
+    TICKS, is_quiescent_readonly, open_tips, predicate_wakes, tick_agenda,
 )
 
 HERE = paths.PACKAGE
@@ -65,7 +65,7 @@ def snapshot(conn: sqlite3.Connection) -> dict:
         return [dict(r) for r in conn.execute(sql, args)]
 
     return {
-        "quiescent": is_quiescent(conn, principal_present=True),
+        "quiescent": is_quiescent_readonly(conn, principal_present=True),
         "frontier": {
             "tips": [{"role": w.role, "message": w.message_id, "verb": w.detail}
                      for w in tips],
@@ -123,7 +123,7 @@ def prompt_bundle(db_path: Path) -> dict:
     that could disagree with the first.
     """
     g = graph_mod.load()
-    conn = connect(db_path)
+    conn = connect_readonly(db_path)
     try:
         out = {}
         for role in sorted(g.roles):
@@ -187,7 +187,7 @@ def schema_drift(db_path: Path) -> list[str]:
         declared[table] = cols
 
     problems = []
-    conn = connect(db_path)
+    conn = connect_readonly(db_path)
     try:
         have = {r["name"] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
@@ -245,7 +245,7 @@ def make_handler(db_path: Path):
                                "application/javascript; charset=utf-8")
                 elif path in ("/artefact.json", "/role.json", "/edge.json",
                               "/blast.json"):
-                    conn = connect(db_path)
+                    conn = connect_readonly(db_path)
                     try:
                         if path == "/artefact.json":
                             data = inspect_api.artefact(conn, q.get("id", [""])[0])
@@ -262,7 +262,7 @@ def make_handler(db_path: Path):
                     self._send(json.dumps(data, default=str).encode("utf-8"),
                                "application/json")
                 elif path == "/messages.json":
-                    conn = connect(db_path)
+                    conn = connect_readonly(db_path)
                     try:
                         body = json.dumps(inspect_api.message_graph(conn),
                                           default=str).encode("utf-8")
@@ -270,7 +270,7 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(body, "application/json")
                 elif path == "/trace.json":
-                    conn = connect(db_path)
+                    conn = connect_readonly(db_path)
                     try:
                         body = json.dumps({
                             "steps": steps_from_db(conn),
@@ -303,7 +303,7 @@ def make_handler(db_path: Path):
                                       default=str).encode("utf-8")
                     self._send(body, "application/json")
                 elif path == "/progress.json":
-                    conn = connect(db_path)
+                    conn = connect_readonly(db_path)
                     try:
                         body = json.dumps(progress.report(conn),
                                           default=str).encode("utf-8")
@@ -313,7 +313,7 @@ def make_handler(db_path: Path):
                 elif path == "/fingerprint":
                     self._send(source_fingerprint().encode("utf-8"), "text/plain")
                 elif path == "/state.json":
-                    conn = connect(db_path)
+                    conn = connect_readonly(db_path)
                     try:
                         body = json.dumps(snapshot(conn), default=str).encode("utf-8")
                     finally:
@@ -349,17 +349,43 @@ def make_handler(db_path: Path):
     return Handler
 
 
-def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool = False):
-    db_path = state_dir(project_root) / "rota.db"
-    if not db_path.exists():
-        # Boot rather than refuse. This is a viewer; "no database" is not a
-        # condition it should make somebody resolve by hand, and boot is
-        # idempotent — it reconciles what is there and creates what is not.
-        from ..core.boot import boot as boot_project
+def prepare_db(project_root: str | Path | None = None,
+               db: str | Path | None = None) -> Path:
+    """
+    The file this cockpit will show, brought up to schema or refused.
 
-        print(f"no database at {db_path}; booting")
-        conn, _ = boot_project(project_root)
-        conn.close()
+    Two ways in, and they are not the same question.
+
+    A **project root** may legitimately have no run yet, so a missing database
+    there is booted: boot is idempotent, and making somebody resolve "no
+    database" by hand at a viewer is friction for nothing.
+
+    A **named file** may not. It was typed, or resolved from a run name, and if
+    it is not there the answer is that you asked for the wrong one — booting a
+    fresh database in its place answers a different question with the same
+    confidence, and what it renders as is a system that ran and produced
+    nothing. Every foreign-repo run so far went to a name the cockpit had no way
+    to open, so this is not a hypothetical: the wrong half of this branch is the
+    one that was reachable.
+    """
+    if db is not None:
+        db_path = Path(db)
+        if not db_path.exists():
+            raise SystemExit(
+                f"no database at {db_path}. A cockpit shows a run; it does not "
+                f"create one.\n  rota ls           what runs exist\n"
+                f"  rota onboard <name> --root <checkout>")
+    else:
+        db_path = state_dir(project_root or ".") / "rota.db"
+        if not db_path.exists():
+            # Boot rather than refuse. This is a viewer; "no database" is not a
+            # condition it should make somebody resolve by hand, and boot is
+            # idempotent — it reconciles what is there and creates what is not.
+            from ..core.boot import boot as boot_project
+
+            print(f"no database at {db_path}; booting")
+            conn, _ = boot_project(project_root or ".")
+            conn.close()
 
     # Bring the file up to the current schema, and refuse to serve it if that
     # was not enough.
@@ -370,9 +396,9 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
     # empty box that reads like "no rows yet". Saying so plainly is worth more
     # than serving eight panels and lying about the ninth.
     #
-    # It sits in `serve` rather than the request path on purpose: a *viewer*
-    # that migrates per request is a viewer with side effects, and the one thing
-    # this tool must never do is change what it is showing you.
+    # It sits on the way in rather than in the request path on purpose: a
+    # *viewer* that migrates per request is a viewer with side effects, and the
+    # one thing this tool must never do is change what it is showing you.
     init_db(db_path).close()
     drift = schema_drift(db_path)
     if drift:
@@ -382,6 +408,12 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
             "\n\nDatabases here are throwaway — every one is built by init_db at "
             "boot. Move it aside and it will be rebuilt:\n"
             f"  mv {db_path} {db_path}.old")
+    return db_path
+
+
+def serve(project_root: str | Path | None = None, port: int = 8899,
+          open_browser: bool = False, db: str | Path | None = None):
+    db_path = prepare_db(project_root, db)
 
     # Deliberately NOT allow_reuse_address. On Windows SO_REUSEADDR permits a
     # second process to bind a port that is already *actively listening* — not
@@ -405,7 +437,8 @@ def serve(project_root: str | Path = ".", port: int = 8899, open_browser: bool =
         pass
 
 
-def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
+def serve_reloading(project_root: str | Path | None = None, port: int = 8899,
+                    open_browser: bool = False, db: str | Path | None = None):
     """
     Restart the server when Python changes, the way the page already reloads
     when prompts or the graph change.
@@ -416,6 +449,12 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
     than none: it teaches you to distrust what you are looking at.
     """
     from watchfiles import run_process
+
+    # Resolve before the watcher starts. A refusal raised inside `run_process`
+    # is raised in a child it owns and re-raised on every restart, so a mistyped
+    # run name would scroll past as a repeating traceback rather than be said
+    # once, here, by the process you are looking at. Idempotent either way.
+    prepare_db(project_root, db)
 
     # **A reload never opens a browser.** `run_process` re-invokes the target in
     # a fresh process on every change, so any argument saying "open one" is true
@@ -438,7 +477,9 @@ def serve_reloading(project_root: str | Path, port: int, open_browser: bool):
 
     watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
-    run_process(*watch, target=serve, args=(project_root, port, False),
+    run_process(*watch, target=serve,
+                kwargs={"project_root": project_root, "port": port,
+                        "open_browser": False, "db": db},
                 callback=lambda changes: print(
                     f"reload: {', '.join(sorted(Path(c[1]).name for c in changes))}"))
 
@@ -455,6 +496,10 @@ if __name__ == "__main__":
                     help="open a browser tab (otherwise just print the URL)")
     ap.add_argument("--no-reload", action="store_true",
                     help="do not restart on source changes")
+    ap.add_argument("--db", help="a run database, instead of deriving one from "
+                                 "a project root. `rota cockpit <name>` is the "
+                                 "same thing with the name resolved for you")
     args = ap.parse_args()
     runner = serve if args.no_reload else serve_reloading
-    runner(args.project_root, args.port, args.open)
+    runner(project_root=args.project_root, port=args.port,
+           open_browser=args.open, db=args.db)

@@ -363,7 +363,11 @@ async def test_the_footer_offers_onboarding_for_the_displayed_root(tmp_path):
     app.run_worker = lambda fn, thread=True: started.append((fn, thread))
 
     async with app.run_test() as pilot:
-        assert app.title == f"rota — {root.name} — llama3.1:8b"
+        # The project moved to the subtitle when the run moved into the title:
+        # two runs against one checkout is the normal case, so the project
+        # alone never said which of them was on screen. Both are still shown.
+        assert app.title == "rota — ui"
+        assert app.sub_title == f"{root.name} — llama3.1:8b"
         assert any(key == "ctrl+shift+o" and action == "onboard"
                    for key, action, _ in app.BINDINGS)
 
