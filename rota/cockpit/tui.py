@@ -210,9 +210,21 @@ class RotaApp(App):
         ("ctrl+c", "request_quit", "quit"),
     ]
 
-    def __init__(self, db_path: Path, model: str, root: Path | None = None) -> None:
+    def __init__(self, db_path: Path | None, model: str,
+                 root: Path | None = None) -> None:
         super().__init__()
-        self.db_path = Path(db_path)
+        # **A seat with no run is a legal state**, and it is the one you are in
+        # the first time you ever start this. Without it the run list was
+        # reachable only from inside a run, so creating your first one was a
+        # command — which is the exact trip to the terminal the list exists to
+        # remove, surviving in the one case where it is least excusable.
+        self.db_path = Path(db_path) if db_path else None
+        if self.db_path is None:
+            self.model = model
+            self.root = None
+            self.conn = None
+            self._init_seat_state()
+            return
         self.model = model
         # **No default.** It used to be `root or Path.cwd()`, which is the same
         # shape `worktrees.project_root` refuses by name: a run opened without a
@@ -245,6 +257,17 @@ class RotaApp(App):
         #
         # A fresh seat starting idle is a fact about *the seat*, and it is held
         # as one: `self.driving` below. The run's state belongs to the run.
+        self._init_seat_state()
+
+    def _init_seat_state(self) -> None:
+        """Everything that belongs to the seat rather than to the run it holds.
+
+        Called on construction and again on every switch, which is what makes
+        `open_run` a rebinding rather than a restart: the seat's idleness, its
+        pending question, and how long since anything was written are all about
+        *this window looking at that run*, and none of them survives a change of
+        run.
+        """
         self.principal = QueuedPrincipal(self)
         self.driving = False
         # Watched rather than logged. A session that changed nothing is the
@@ -257,6 +280,18 @@ class RotaApp(App):
         self._pending_text = ""
         self._pending_root: Path | None = None
         self._pending_new: tuple[Path, Path] | None = None
+        # Servers this seat started, kept so they can be stopped. A spawned
+        # process with nothing holding it is the orphan `ENVIRONMENT.md` is
+        # written about; holding the handle is what makes stopping it provable
+        # rather than a port scan that might hit somebody else's.
+        #
+        # **Preserved across a run switch**, unlike everything else here, which
+        # is why it reads its own previous value. A cockpit belongs to the seat
+        # that started it and not to the run that was open at the time —
+        # switching runs must not orphan one, and must not close a window you
+        # are still reading.
+        self.cockpits: list[tuple[subprocess.Popen, object]] = getattr(
+            self, "cockpits", [])
         # What a destructive key has armed, and nothing else. `None` is the
         # ordinary state and the state a confirmation returns to either way.
         self.armed: str | None = None
@@ -264,7 +299,7 @@ class RotaApp(App):
     @property
     def run_name(self) -> str:
         """A run is its file's stem, the same identity `rota ls` prints."""
-        return self.db_path.stem
+        return self.db_path.stem if self.db_path else ""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -282,9 +317,18 @@ class RotaApp(App):
 
     def on_mount(self) -> None:
         self.retitle()
+        # Drawn either way. Returning early here left the sidebar blank and made
+        # the "no run open" branches inside each refresher unreachable — guards
+        # that cannot fire, which is worse than no guard because they read as
+        # handled. Dismiss the list and the seat behind it says what it is.
         self.refresh_run_state()
         self.refresh_owed()
         self.refresh_pulse()
+        if self.conn is None:
+            # Nothing to sit in front of, so go straight to the level above.
+            # A screen rather than a message, because the answer to "no runs
+            # yet" is the thing that makes one.
+            self.call_after_refresh(self.action_runs)
 
     def retitle(self) -> None:
         """
@@ -295,8 +339,10 @@ class RotaApp(App):
         the normal case — a branch against its main is the comparison the answer
         key exists for — so the project alone does not say which is on screen.
         """
-        self.title = f"rota — {self.run_name}"
-        self.sub_title = f"{self.root.name if self.root else 'no project'} — {self.model}"
+        self.title = f"rota — {self.run_name}" if self.db_path else "rota"
+        self.sub_title = (
+            f"{self.root.name if self.root else 'no project'} — {self.model}"
+            if self.db_path else "no run open — ctrl+l")
 
     # -- the two things the worker thread is allowed to do -------------------
 
@@ -372,12 +418,18 @@ class RotaApp(App):
         was doing nothing, and the fix for that used to be writing `stopping`
         into the run on open, which stopped anybody else's loop.
         """
+        if self.conn is None:
+            self.query_one("#run_state", Static).update("[dim]no run open[/dim]")
+            return
         state = config.get(self.conn, "run_state")
         here = "driving" if self.driving else "idle"
         self.query_one("#run_state", Static).update(
             f"[b]run:[/b] {state}   [b]this seat:[/b] {here}")
 
     def refresh_owed(self) -> None:
+        if self.conn is None:
+            self.query_one("#owed", Outstanding).update("")
+            return
         self.query_one("#owed", Outstanding).render_rows(self.conn)
 
     def refresh_pulse(self) -> None:
@@ -399,6 +451,9 @@ class RotaApp(App):
         """
         from ..core.scheduler import deepest_repeat
 
+        if self.conn is None:
+            self.query_one("#pulse", Static).update("")
+            return
         bits = []
         if self.last_productive is None:
             bits.append("[dim]nothing written yet[/dim]" if self.driving
@@ -574,9 +629,7 @@ class RotaApp(App):
             "SELECT value FROM config WHERE key = 'project_root'").fetchone()
         if row and (row["value"] or "").strip():
             self.root = Path(row["value"].strip().strip('"'))
-        self.principal = QueuedPrincipal(self)
-        self.started = False
-        self.armed = None
+        self._init_seat_state()
         self.query_one("#conversation", VerticalScroll).remove_children()
         self.query_one("#sessions", VerticalScroll).remove_children()
         self.retitle()
@@ -603,6 +656,9 @@ class RotaApp(App):
             if confirmed:
                 self.exit()
 
+        if self.conn is None:
+            self.exit()                 # nothing open, so nothing to lose
+            return
         running = config.get(self.conn, "run_state") == "running"
         self.push_screen(ConfirmationModal(
             f"Quit {self.run_name}?" + (
@@ -623,15 +679,88 @@ class RotaApp(App):
         self.open_cockpit(self.db_path)
 
     def open_cockpit(self, db_path: Path) -> None:
-        """Also called from the run list, on whichever run the cursor is on."""
-        argv = [sys.executable, "-m", "rota", "cockpit", str(db_path), "--open"]
+        """
+        A cockpit on one run, owned by the seat that started it.
+
+        Three things this got wrong on the first version, and all three are the
+        same mistake: a spawned process was treated as fire-and-forget.
+
+        **Its output went to this terminal.** A child inherits stdout and
+        stderr, so the server's own logging printed *into the middle of the
+        TUI* -- text arriving from outside the widget tree, which Textual
+        neither controls nor repaints. Sent to a file instead, so it is still
+        readable when the server will not start.
+
+        **It outlived the seat.** Nothing recorded it and nothing stopped it, so
+        quitting left a server holding port 8899 and the next one refused to
+        bind. This is the failure `ENVIRONMENT.md` is entirely about, arrived at
+        by hand in the one place that spawns something outside the scheduler --
+        so it obeys the same rule the reaper does: **stop only what this process
+        started**, which is why the handles are kept rather than the port
+        scanned.
+
+        **`--no-reload`, and that is what fixed the logs at the source.** The
+        reloading server re-executes itself in a grandchild on every source
+        change, which no parent can reliably kill on Windows, and its "watching
+        for changes" and "reload:" lines were most of what was landing on the
+        screen. Reload exists for editing the cockpit's own code; a cockpit
+        opened to look at a run does not want it.
+        """
+        log = paths.REPO / ".rota" / f"cockpit-{Path(db_path).stem}.log"
+        argv = [sys.executable, "-m", "rota", "cockpit", str(db_path),
+                "--open", "--no-reload"]
         try:
-            subprocess.Popen(argv)
+            log.parent.mkdir(parents=True, exist_ok=True)
+            handle = log.open("ab")
+            child = subprocess.Popen(argv, stdout=handle, stderr=handle,
+                                     stdin=subprocess.DEVNULL)
         except OSError as exc:                                  # noqa: BLE001
             self.say(f"could not start the cockpit: {exc}", "system", "red")
             return
-        self.say(f"cockpit starting for {Path(db_path).stem} at "
-                 f"http://127.0.0.1:8899/", "system", "blue")
+        self.cockpits.append((child, handle))
+        self.say(f"cockpit for {Path(db_path).stem} at http://127.0.0.1:8899/"
+                 f"\n[dim]log: {log}[/dim]", "system", "blue")
+
+    def stop_cockpits(self) -> list[int]:
+        """
+        Stop the servers this seat started. Nothing else, and nothing it cannot
+        claim.
+
+        The same rule as `environments.teardown` and `worktrees.destroy`: the
+        proof of ownership is that we hold the handle we created. A cockpit you
+        started yourself in another terminal is not ours, is not looked for, and
+        is not touched.
+        """
+        stopped = []
+        for child, handle in self.cockpits:
+            if child.poll() is None:
+                try:
+                    child.terminate()
+                    child.wait(timeout=5)
+                    stopped.append(child.pid)
+                except (OSError, subprocess.TimeoutExpired):
+                    try:
+                        child.kill()
+                        stopped.append(child.pid)
+                    except OSError:
+                        pass                # gone between the poll and the signal
+            try:
+                handle.close()
+            except OSError:
+                pass
+        self.cockpits.clear()
+        return stopped
+
+    def on_unmount(self) -> None:
+        """
+        Every way out, not just the confirmed one.
+
+        Quitting through the modal, `ctrl+c` at a moment the modal is not up, an
+        exception that takes the app down -- all of them unmount, and only one
+        of them goes through code I wrote. Teardown belongs on the path they
+        share.
+        """
+        self.stop_cockpits()
 
     # -- input ---------------------------------------------------------------
 
@@ -643,6 +772,10 @@ class RotaApp(App):
 
         if self.armed:
             self.confirm(text)
+            return
+        if self.conn is None:
+            self.say("no run open — ctrl+l to pick one or make one",
+                     "system", "yellow")
             return
 
         self.say(text, "you", "green")
@@ -748,7 +881,11 @@ class RotaApp(App):
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="rota, with a face")
-    ap.add_argument("--db", default=".rota/rota.db")
+    # No default. `.rota/rota.db` meant every bare invocation created or opened
+    # one particular run, silently, whatever you meant -- and there is now a
+    # screen whose whole job is to ask which one.
+    ap.add_argument("--db", default=None,
+                    help="a run database; omit to open the run list")
     ap.add_argument("--model", default=llm.DEFAULT_MODEL)
     # No default. The working directory is *this* repository, and a rerun
     # against it would index the framework over the top of the wiped run it was
@@ -757,7 +894,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", type=Path, default=None,
                     help="project root; omit to use the one the run records")
     args = ap.parse_args(argv)
-    RotaApp(Path(args.db), args.model, root=args.root).run()
+    RotaApp(Path(args.db) if args.db else None, args.model, root=args.root).run()
     return 0
 
 

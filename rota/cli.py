@@ -351,6 +351,12 @@ def cmd_report(args: argparse.Namespace) -> int:
 def cmd_tui(args: argparse.Namespace) -> int:
     from .cockpit.tui import main as tui_main
 
+    # No name is not an error. It is the first thing you ever type, and it lands
+    # on the run list -- which is the screen that makes a run. Requiring a name
+    # here left creating your first one as a command, which is the one trip to
+    # the terminal the list exists to remove.
+    if not args.name:
+        return tui_main(["--model", args.model])
     path = resolve(args.name) if args.new else require(args.name)
     argv = ["--db", str(path), "--model", args.model]
     root = args.root or _root_of(path)
@@ -415,7 +421,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("tui", help="talk to it, with the register beside you")
-    p.add_argument("name")
+    p.add_argument("name", nargs="?", help="omit to open the run list")
     p.add_argument("--model", default=DEFAULT_MODEL)
     p.add_argument("--root", help="override the project recorded in the run")
     p.add_argument("--new", action="store_true",

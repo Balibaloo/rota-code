@@ -147,9 +147,12 @@ async def test_choosing_a_run_rebinds_the_seat_to_it(tmp_path, home, project):
         assert app.db_path == other
         assert app.run_name == "other"
         assert app.root == project
-        bubbles = app.query_one("#conversation").children
-        assert all("first run" not in str(getattr(b, "content", ""))
-                   for b in bubbles)
+        # Counted, not searched. `ChatMessage` wraps its text in a Panel, so
+        # `.content` never holds the words -- an "is it absent" assertion
+        # against it passes whether or not the pane was cleared, which is the
+        # shape of check this project keeps having to throw away. One bubble
+        # left, and it is the one `open_run` writes.
+        assert len(app.query_one("#conversation").children) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -405,3 +408,155 @@ def test_deepest_repeat_is_quiet_when_nothing_is_looping(tmp_path):
 
     conn = init_db(tmp_path / "quiet.db")
     assert deepest_repeat(conn) == (0, "", "")
+
+
+async def test_a_seat_with_no_run_opens_the_list(tmp_path, home, monkeypatch):
+    """
+    The first thing you ever type.
+
+    The list was reachable only from inside a run, and `--db` defaulted to
+    `.rota/rota.db` -- so a bare start silently opened or created one
+    particular run whatever you meant, and making your *first* one was a
+    command. That is the one trip to the terminal this screen exists to remove,
+    surviving in the case where it is least excusable.
+    """
+    from rota.cockpit import tui
+    from rota.cockpit.screens import RunList
+
+    app = tui.RotaApp(None, "llama3.1:8b")
+    assert app.conn is None
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.screen, RunList)
+        assert "no run open" in app.sub_title
+
+
+async def test_a_seat_with_no_run_says_so_rather_than_failing(tmp_path, home):
+    """
+    Everything the sidebar draws reads the connection, and there is not one.
+    Each of those is a crash on startup if it is not answered, and the answer
+    is a sentence rather than an empty panel.
+    """
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(None, "llama3.1:8b")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen.action_dismiss_list()
+        await pilot.pause()
+
+        assert "no run open" in str(app.query_one("#run_state").content)
+
+        said = []
+        app.say = lambda text, *a, **k: said.append(text)
+        app.on_input_submitted(type("E", (), {
+            "value": "build me a thing",
+            "input": type("I", (), {"value": ""})()})())
+        await pilot.pause()
+        assert said and "no run open" in said[0]
+
+
+# ---------------------------------------------------------------------------
+# The cockpit the seat starts, and the seat's responsibility for it
+# ---------------------------------------------------------------------------
+
+async def test_the_spawned_cockpit_never_writes_to_this_terminal(tmp_path, home):
+    """
+    A child inherits stdout and stderr, so the server's logging printed *into
+    the middle of the TUI* -- text arriving from outside the widget tree, which
+    Textual neither controls nor repaints.
+
+    `--no-reload` is the other half and fixes it at the source: the reloading
+    server re-executes itself in a grandchild on every source change and
+    narrates each one. Reload is for editing the cockpit's own code; a cockpit
+    opened to look at a run does not want it, and a grandchild is a process no
+    parent can reliably kill on Windows.
+    """
+    from rota.cockpit import tui
+
+    calls = {}
+
+    class FakeChild:
+        pid = 4321
+        def poll(self): return None
+        def terminate(self): calls["terminated"] = True
+        def wait(self, timeout=None): return 0
+
+    def fake_popen(argv, **kw):
+        calls["argv"], calls["kw"] = argv, kw
+        return FakeChild()
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(tui.subprocess, "Popen", fake_popen)
+            app.open_cockpit(app.db_path)
+            await pilot.pause()
+
+            assert "--no-reload" in calls["argv"]
+            assert calls["kw"]["stdout"] is not None, "inherits this terminal"
+            assert calls["kw"]["stderr"] is calls["kw"]["stdout"]
+            assert calls["kw"]["stdin"] is tui.subprocess.DEVNULL
+
+            # And it is held, because a process nothing holds is an orphan.
+            assert len(app.cockpits) == 1
+
+
+async def test_the_seat_stops_the_cockpits_it_started(tmp_path, home):
+    """
+    Quitting left a server holding port 8899, so the next one refused to bind.
+
+    This is the failure `ENVIRONMENT.md` is entirely about, reached by hand in
+    the one place that spawns something outside the scheduler -- so it obeys
+    the same rule the reaper does: stop only what this process started. The
+    proof of ownership is holding the handle, which is why a cockpit you
+    started yourself elsewhere is never looked for and never touched.
+
+    On unmount, because that is the path every exit shares: the confirmed quit,
+    a `ctrl+c` when no modal is up, and an exception that takes the app down.
+    """
+    from rota.cockpit import tui
+
+    stopped = []
+
+    class FakeChild:
+        pid = 99
+        def poll(self): return None
+        def terminate(self): stopped.append(self.pid)
+        def wait(self, timeout=None): return 0
+
+    class FakeLog:
+        closed = False
+        def close(self): FakeLog.closed = True
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        app.cockpits.append((FakeChild(), FakeLog()))
+        await pilot.pause()
+
+    assert stopped == [99], "the cockpit outlived the seat"
+    assert FakeLog.closed
+
+
+async def test_a_run_switch_does_not_orphan_or_close_a_cockpit(
+        tmp_path, home, project):
+    """
+    A cockpit belongs to the seat that started it, not to the run that happened
+    to be open. Switching must not orphan one -- nothing would stop it -- and
+    must not close a window you are still reading.
+    """
+    from rota.cockpit import tui
+
+    class FakeChild:
+        pid = 7
+        def poll(self): return None
+
+    app = _app(tmp_path)
+    other = _seed(home, "other", project)
+    async with app.run_test() as pilot:
+        app.cockpits.append((FakeChild(), object()))
+        app.open_run(other)
+        await pilot.pause()
+        assert len(app.cockpits) == 1, "the handle was dropped on switch"
+        app.cockpits.clear()          # do not signal a fake on teardown
