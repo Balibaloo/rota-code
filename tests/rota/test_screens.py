@@ -339,3 +339,69 @@ async def test_creating_a_run_from_the_list_actually_onboards_it(
 
     assert started == ["_do_new_run"], "the form's answer never reached the app"
     assert app._pending_new == (cli.resolve("fresh"), project)
+
+
+# ---------------------------------------------------------------------------
+# Is it going anywhere
+# ---------------------------------------------------------------------------
+
+async def test_a_barren_session_is_visible_as_one(tmp_path, home):
+    """
+    `Step.productive` has always said whether a session changed anything, and
+    nothing in the seat read it -- so a run that had stopped getting anywhere
+    looked exactly like one that was working. Every line was new, because every
+    line was a different message.
+    """
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        app.note_step("· wrote a term", productive=True)
+        await pilot.pause()
+        assert app.last_productive is not None and app.barren_since == 0
+
+        for _ in range(3):
+            app.note_step("· committed without changing anything",
+                          productive=False)
+        await pilot.pause()
+
+        assert app.barren_since == 3
+        assert "3 barren since" in str(app.query_one("#pulse").content)
+
+
+async def test_a_repeating_chain_is_shown_while_it_climbs(tmp_path, home):
+    """
+    The livelock, in time to act on.
+
+    `quarantine_looping` already walks `cause_id` counting the same edge, and
+    throws the number away unless it exceeds the cap. By then the message is
+    quarantined and the interesting part -- watching it climb -- is over. This
+    is that number, shown.
+    """
+    from rota.core.scheduler import deepest_repeat
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        prev = None
+        for i in range(1, 8):
+            app.conn.execute(
+                "INSERT INTO messages (id, thread_id, from_role, to_role, verb,"
+                " body_refs, seq, status, cause_id) VALUES "
+                "(?,?,'gatekeeper','architect','reopen','[]',?,?,?)",
+                (f"m{i}", f"t{i}", i, "open" if i == 7 else "answered", prev))
+            prev = f"m{i}"
+
+        count, edge, message = deepest_repeat(app.conn)
+        assert (count, message) == (7, "m7")
+        assert edge == "gatekeeper->architect:reopen"
+
+        app.refresh_pulse()
+        await pilot.pause()
+        shown = str(app.query_one("#pulse").content)
+        assert "gatekeeper->architect:reopen" in shown and "×7" in shown
+
+
+def test_deepest_repeat_is_quiet_when_nothing_is_looping(tmp_path):
+    """The ordinary case, which must cost nothing and say nothing."""
+    from rota.core.scheduler import deepest_repeat
+
+    conn = init_db(tmp_path / "quiet.db")
+    assert deepest_repeat(conn) == (0, "", "")

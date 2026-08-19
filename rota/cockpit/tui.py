@@ -247,6 +247,12 @@ class RotaApp(App):
         # as one: `self.driving` below. The run's state belongs to the run.
         self.principal = QueuedPrincipal(self)
         self.driving = False
+        # Watched rather than logged. A session that changed nothing is the
+        # signal, and `Step.productive` has always said so — nothing was
+        # reading it, so a run that had stopped getting anywhere looked exactly
+        # like one that was working.
+        self.last_productive: float | None = None
+        self.barren_since = 0
         self.started = False
         self._pending_text = ""
         self._pending_root: Path | None = None
@@ -267,6 +273,7 @@ class RotaApp(App):
             with Vertical(id="sidebar"):
                 yield Static("[b]outstanding[/b]")
                 yield Static(id="run_state")
+                yield Static(id="pulse")
                 yield Outstanding(id="owed")
                 yield Static("[b]sessions[/b]", id="sessions_title")
                 yield VerticalScroll(id="sessions")
@@ -277,6 +284,7 @@ class RotaApp(App):
         self.retitle()
         self.refresh_run_state()
         self.refresh_owed()
+        self.refresh_pulse()
 
     def retitle(self) -> None:
         """
@@ -321,15 +329,24 @@ class RotaApp(App):
     # *outstanding* is the pane beside it. This one is a ticker.
     SESSION_LINES = 30
 
-    def note_step(self, line: str) -> None:
+    def note_step(self, line: str, productive: bool = True) -> None:
         pane = self.query_one("#sessions", VerticalScroll)
-        pane.mount(Static(line))
+        # A barren session is dimmed rather than dropped. Seeing that the crank
+        # turned and produced nothing is the point; hiding it would leave a
+        # livelock looking like a quiet patch.
+        pane.mount(Static(line if productive else f"[dim]{line}[/dim]"))
         extra = len(pane.children) - self.SESSION_LINES
         for old in list(pane.children)[:max(extra, 0)]:
             old.remove()
         pane.scroll_end(animate=False)
+        if productive:
+            self.last_productive = datetime.now().timestamp()
+            self.barren_since = 0
+        else:
+            self.barren_since += 1
         self.show_replies()
         self.refresh_owed()
+        self.refresh_pulse()
 
     def show_ask(self, ask: Ask) -> None:
         body = ask.rendered or "\n".join(f"- {r}" for r in ask.refs)
@@ -362,6 +379,46 @@ class RotaApp(App):
 
     def refresh_owed(self) -> None:
         self.query_one("#owed", Outstanding).render_rows(self.conn)
+
+    def refresh_pulse(self) -> None:
+        """
+        The two numbers that answer "is this going anywhere", which a log cannot.
+
+        The livelock that took a long diagnosis looked *healthy* in the session
+        ticker: every line was a different message, every line was new, and
+        nothing about the shape of it said the same two roles had been handing
+        one thing back and forth for twenty sessions.
+
+        **Time since a productive session** is the cheapest honest indicator
+        there is, and it needs no new state — `Step.productive` already says
+        whether a session changed anything, and nothing was reading it here.
+
+        **Chain depth** is `deepest_repeat`, which is what `quarantine_looping`
+        computes and discards. Shown against its cap, so a climb is legible
+        before the bound fires rather than after it has quarantined something.
+        """
+        from ..core.scheduler import deepest_repeat
+
+        bits = []
+        if self.last_productive is None:
+            bits.append("[dim]nothing written yet[/dim]" if self.driving
+                        else "[dim]idle[/dim]")
+        else:
+            gap = int(datetime.now().timestamp() - self.last_productive)
+            barren = self.barren_since
+            colour = "yellow" if barren >= 3 else "dim"
+            bits.append(f"[{colour}]last wrote {gap}s ago"
+                        + (f", {barren} barren since" if barren else "")
+                        + f"[/{colour}]")
+        try:
+            count, edge, _ = deepest_repeat(self.conn)
+            cap = config.get(self.conn, "loop_cap")
+        except sqlite3.Error:
+            count, edge, cap = 0, "", 0
+        if count > 1:
+            colour = "red" if count > cap * 0.5 else "yellow"
+            bits.append(f"[{colour}]{edge} ×{count} of {cap}[/{colour}]")
+        self.query_one("#pulse", Static).update("\n".join(bits))
 
     def action_toggle_run_state(self) -> None:
         """
@@ -454,6 +511,7 @@ class RotaApp(App):
         self.started = False
         self.refresh_run_state()
         self.refresh_owed()
+        self.refresh_pulse()
         return removed
 
     def action_wipe(self) -> None:
@@ -524,6 +582,7 @@ class RotaApp(App):
         self.retitle()
         self.refresh_run_state()
         self.refresh_owed()
+        self.refresh_pulse()
         self.say(f"opened {self.run_name}"
                  + (f" — {self.root}" if self.root else ""), "system", "blue")
 
@@ -663,7 +722,8 @@ class RotaApp(App):
         join I did not cover: the thread boundary.
         """
         def on_step(step) -> None:
-            self.call_from_thread(self.note_step, f"· {step}"[:120])
+            self._from_worker(self.note_step, f"· {step}"[:120],
+                              bool(getattr(step, "productive", True)))
 
         self.driving = True
         self._from_worker(self.refresh_run_state)

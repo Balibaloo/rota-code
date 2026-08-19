@@ -706,6 +706,32 @@ def quarantine_looping(conn: sqlite3.Connection) -> list[str]:
     return stopped
 
 
+def deepest_repeat(conn: sqlite3.Connection) -> tuple[int, str, str]:
+    """
+    The longest self-repeating causal chain currently open: count, edge, message.
+
+    Exactly what `quarantine_looping` computes and throws away, returned instead
+    of acted on. The bound it feeds only speaks when it fires, and by then the
+    message is quarantined and the interesting part -- watching a chain climb --
+    is over.
+
+    That is the difference between the two, and it is the whole reason this
+    exists: a livelock looked *healthy* in the session ticker, because every
+    line was a different message and every line was new. `reopen -> elect x7`
+    while it is happening is the same fact, in time to act on.
+
+    Returns `(0, "", "")` when nothing is open, which is the ordinary case.
+    """
+    best = (0, "", "")
+    for r in conn.execute(
+            "SELECT id, from_role, to_role, verb FROM messages "
+            "WHERE status = 'open' ORDER BY seq").fetchall():
+        n = edge_repeats(conn, r["id"])
+        if n > best[0]:
+            best = (n, f"{r['from_role']}->{r['to_role']}:{r['verb']}", r["id"])
+    return best
+
+
 def quarantine_overrun(conn: sqlite3.Connection) -> int:
     """
     Mark everything past the attempt bound as abandoned. Returns how many.
