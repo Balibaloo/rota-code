@@ -180,6 +180,54 @@ Once with the researcher unavailable to survey modes, once with it available.
 either run alone, and it removes the objection that a first foreign-repo run with
 a brand-new role has two possible causes for any failure.
 
+### The operator's interface: the seat drives, the cockpit answers
+
+Three rulings, made while making rota runnable rather than derived from the
+laws. Argued in [SEAT.md](SEAT.md); recorded here because a proposal is where a
+decision gets re-argued and this is where it gets found.
+
+**The cockpit is read-only, always. The TUI drives.** Everything with an
+*intent* — create, run, wipe, fork, talk — is the seat's. Everything with a
+*question* — what was this role shown, what caused this — is the browser's.
+
+*Consequence:* the cockpit never changes state, so it never has to answer "is
+what I am looking at still true", and every panel in it inherits that guarantee
+instead of that question. The run list is therefore the seat's, and a
+browser-first operator is a thing this system does not offer rather than a gap
+in it.
+
+**A run that cannot be read is named, not migrated.** Seven of eight existing
+runs are behind the schema; `ls` reports `stale` and the reason and touches
+nothing.
+
+*Consequence:* databases stay throwaway — every one is built by `init_db` at
+boot — and no migration path is promised. The blank column that preceded this
+read as "no state yet", which is the silent shape the whole register exists to
+refuse.
+
+**Closing the seat stops the run, so quitting takes a confirmation.** The loop
+runs in the app's worker thread and there is no headless continuation.
+
+*Consequence:* pausing is free and resuming is just running again — "the
+frontier *is* the state; reconstructing it is the entire recovery" — so the
+interface says what happens rather than engineering around it. And a
+confirmation must be *cancellable* rather than merely observed, which makes
+`src/ui/modals.py` the thing to reuse rather than the arm-and-type mechanism I
+improvised without checking whether one already existed.
+
+**A survey is a receipt for a tree, and must be signed like one.** Four tables
+already record the commit their evidence was gathered at — `batches.head_commit`,
+`test_runs.commit_sha`, `findings.commit_sha`, `verdicts.commit_sha` — and
+`boot.reconcile_worktrees` is the half that notices the tree has moved past the
+receipt. None of it was ever pointed at the understanding side: `survey_records`,
+`glossary_terms` and the run itself record no commit at all.
+
+*Consequence:* **Re-surveying**, below in Open, is not blocked on a design — it
+is blocked on this. Nothing can fire on "an area whose code changed since its
+record" while nothing records which code the record was of. Recording the commit
+is also what makes two runs comparable, which is what an interface wants it for,
+but that is the smaller reason.
+
 ---
 
 ## Amendments the settled column forces on LAWS.md
@@ -236,6 +284,10 @@ are the specification for this work.
 `tick_survey` fires on areas with no record. Nothing fires on an area whose code
 changed since its record. Over a project's lifetime this is what decides whether
 the model of the codebase stays true.
+
+*Blocked on:* a survey recording the commit it surveyed — settled above, not yet
+built. The predicate cannot be written before the column exists, which is why
+this sat here rather than being hard.
 
 ### Amendment as the normal operation
 

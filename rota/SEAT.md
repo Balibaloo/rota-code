@@ -318,51 +318,181 @@ table, because it is load-bearing for every session commit — but the
 unconditional `stopping` and the label that never refreshes are fixable without
 going near it, and are worth doing whatever you decide about the rest.
 
-### The three I answered inside the proposal without marking them as yours
+### Ruled
 
-Writing them as conclusions was the wrong shape. Each is a ruling, not a
-derivation, and each changes what gets built.
+**The cockpit is read-only, always.** So the run list is the seat's, item 1 is
+unblocked, and §1's rule is now a decision rather than a proposal.
 
-**Does the cockpit ever act?** §1 says never, and that rule is doing real work —
-a viewer that can also act has to answer "is what I am looking at still true",
-and every panel inherits the question. But the ask was "all of this from the
-TUI *or the cockpit*", and if the browser is where you would rather start a run
-from, that rule is the only thing standing in the way. It also decides where the
-run list lives, so it gates item 1 rather than following it.
+**The rerun key stays, as `ctrl+alt+r`.** Checked at the layer I could check:
+`ctrl+alt+r` reaches an app binding with the input focused, as do
+`ctrl+alt+w` and `ctrl+alt+b`. Two implementation problems, one of them real.
 
-**Does `alt+r` go?** §3 argues it destroys its own control and should become
-fork. I am confident about the argument and it is still a key you have been
-using, and removing a key is a thing to be told rather than to discover.
+*The test cannot see the layer that matters.* `pilot.press` synthesises the key
+event **inside** Textual, so it proves the widget tree does not swallow the
+chord — the failure `ctrl+w` had — and says nothing about whether a terminal
+transmits it. Alt is an ESC prefix, so `ctrl+alt+r` goes over the wire as
+`ESC ^R`, and whether that arrives is a property of the emulator, not of this
+program. `test_every_binding_survives_the_input_having_focus` cannot cover it,
+and I would rather say so than let a green test imply it.
 
-**Is a run stale when the checkout moves on?** §4 proposes recording branch and
-commit. It does not say what happens when the tree changes underneath — whether
-the list should say `v3@766c9e3 · tree has moved`, and whether a run whose
-source no longer exists in that shape is still comparable. Recording the commit
-is what makes the question askable, and it does not answer it.
+*`ctrl+alt` is `AltGr`.* On Windows, AltGr is delivered as left-ctrl plus
+right-alt, so on any layout where `AltGr+R` produces a character — several
+European layouts — the chord is ambiguous at the keyboard driver, before
+anything here sees it. Harmless on a UK or US layout. Worth knowing that the
+mitigation is a second binding rather than a fix.
 
-### And one deliberately left out
+And a consequence of keeping it: **fork becomes an addition rather than a
+replacement.** §3's argument was that a rerun destroys the control it needs, and
+that still argues for fork existing — it no longer argues for the rerun key
+going away. Two keys, different verbs: `ctrl+alt+r` runs it again over the top,
+`f` runs it again beside.
 
-**The answer key as data.** §7 flags it: if a prediction were a checkable line
-rather than a paragraph, a diff could score two runs automatically and "did that
-edit help" would be a number instead of a reading. That is a change to what an
-answer key *is*, it is the largest idea in this document, and it belongs in its
-own argument rather than smuggled into an interface proposal.
+**A run is stale when its checkout moves, and the mechanism already exists.**
+See §9 — it is not a new idea, it is the one place an existing pattern was never
+applied.
+
+### The one you pushed back on, and you are right
+
+**Claim liveness — "why do we need this?"** We do not. I proposed it to let the
+run list show `running` honestly, and the two rulings above take the ground out
+from under it: the cockpit cannot drive, and closing the seat stops the run, so
+the only thing that can be running a run is an open seat — and if you are
+looking at the list, that is not this window.
+
+The real defect was never the list. It is that **a second seat silently stops
+the first**, and the cause is one line: `RotaApp.__init__` writes
+`run_state = "stopping"` unconditionally, and `loop.step` reads it every
+session.
+
+The fix is to delete that write. A fresh seat starting paused is a fact about
+*the seat*, not about the run, so it does not belong in the run's state at all —
+the seat should **read** `run_state` and display it, not impose one. Opening a
+second seat then shows `running`, truthfully, and changes nothing.
+
+What is left over is loud rather than silent: two seats both resuming would
+contend for `claims.role`, which is a primary key, so one session errors instead
+of both proceeding. That is the correct failure and it needs no new machinery.
+
+*Consequence:* the claim table is not touched, and the thing I wanted a ruling
+for turns out not to need one.
+
+### Still open: the answer key as data — asked "is this feasible?"
+
+**Mechanically, yes, and it is mostly assembly.** Every piece exists:
+
+- **the format.** `tests/rota/cases/*.yaml` is already expectations-as-data,
+  loaded by `fixtures.load_case`, with bounded counts per table. A key is the
+  same shape aimed at a run rather than a session.
+- **the runner.** `onboard_run.report` already dumps exactly the fields a key
+  predicts — surveys by area and outcome, terms with senses and provenance,
+  constraints by headline, references.
+- **the precision half.** `testkit.artefacts.audit` already scores mechanically,
+  and every check in it came from a fabrication that got past a reader.
+
+So a prediction like *area `tomlkit` is surveyed*, *a term `intent` exists*, or
+*some constraint mentions bundling* is a line of YAML and a query, today.
+
+**The hard part is not mechanism, it is what a hit means for a sense.** The
+predictions that matter are not "does the term exist" but "does it mean the
+right thing" — `intent` came back as *"a specific action or task"*, which is
+present, fluent, and the exact failure the key was written to catch. Matching
+that needs either an exact string, which is brittle enough that the key would be
+rewritten to fit each run, or a judgement, which is another model and therefore
+another thing to be wrong.
+
+There is precedent and it does not stretch this far: `_same_words` exists and
+decides copy-versus-not by normalised word sequence. A sense is not a copy.
+
+**So the feasible version is narrower and still worth having:** predictions
+split into *checkable* — presence, coverage, provenance, citation — scored
+mechanically and diffed between two runs, and *readable* — what a sense should
+mean — left as prose for a person. That makes "did that edit help" a number for
+the half that can carry one, and stops the other half pretending.
+
+It is still its own argument, not part of this document.
+
+---
+
+## 9 · The commit mechanism is already here, and was never pointed at the source
+
+You remembered a mechanism that tracks the last commit in case the tree moves.
+It exists, it is integrated, and it is applied in **four** places — every one of
+them on the delivery side:
+
+| | |
+| --- | --- |
+| `batches.head_commit` | *"last commit the DB has a receipt for"* |
+| `test_runs.commit_sha` | *"the diff this run judged"* |
+| `findings.commit_sha` | *"the diff this finding judged"* |
+| `verdicts.commit_sha` | *"the diff this verdict judged"* |
+
+And `boot.reconcile_worktrees` is the half that notices movement: it compares
+each batch's recorded `head_commit` against the worktree's real HEAD, and hands
+the divergence to the role in its wake payload rather than letting it wake
+blind — *"a cold role reads criteria and probes code; it has no reason to run
+`git log` and would happily duplicate work."*
+
+**The rule the four of them share is: evidence records the commit it was
+gathered at.** Now the omission:
+
+```
+survey_records   id · area · outcome · refs · version          — no commit
+glossary_terms   id · term · sense_short · provenance · refs   — no commit
+constraints      ...                                            — no commit
+config           project_root · run_state                       — no commit
+```
+
+**The one class of artefact produced by reading the source is the only evidence
+in the system that does not record what it read.** A survey is a receipt for a
+tree, exactly as a verdict is a receipt for a diff, and it is the only one
+issued unsigned.
+
+So this is not a feature to design. It is one pattern, stated four times, that
+was never carried across the line between *understanding* a codebase and
+*changing* one — and re-integrating it means applying it on the understanding
+side:
+
+1. **the run records the project's commit and branch** at onboarding, which is
+   also what §4's form needs to display
+2. **a survey records the commit it surveyed**, which is the same column the
+   other four carry
+3. **boot reconciles it**, the way `reconcile_worktrees` already does — the run
+   list's `tree has moved` is that comparison, rendered
+
+And item 2 closes something already on the books. `DECISIONS.md` lists under
+**Open**:
+
+> **Re-surveying.** `tick_survey` fires on areas with no record. Nothing fires
+> on an area whose code changed since its record. Over a project's lifetime this
+> is what decides whether the model of the codebase stays true.
+
+Nothing can fire on that, because nothing records which code an area's survey
+was of. **The commit on a survey row is the missing precondition of a decision
+that has been open since before this document** — which is the strongest
+argument for doing it that I can make, and it is not an interface argument at
+all.
 
 ---
 
 ## What I would build, in order
 
+0. **two one-line corrections**, before anything is built on top of them: the
+   seat stops writing `run_state` on open and reads it instead, and quit goes
+   through `ConfirmationModal` with its missing six lines of CSS. Neither needs
+   a ruling and both are wrong today.
 1. **the run list**, with the seat pushed as a screen. Nothing new underneath —
    it is `rota ls` with a cursor, and it is what makes the next three possible.
-2. **branch and commit recorded at onboarding**, then shown. One config row,
-   and every comparison afterwards depends on it.
-3. **fork, and `alt+r` retired.** The current key destroys its own control, and
-   that is worth fixing before the list makes it easy to press.
+2. **the commit, on the understanding side** — §9. The run records the project's
+   branch and commit, a survey records the commit it surveyed, and boot
+   reconciles both the way it already reconciles worktrees. Every comparison
+   afterwards depends on it, and re-surveying cannot start without it.
+3. **fork**, and the rerun key moved to `ctrl+alt+r`. Two verbs now, not one
+   replacing the other: over the top, and beside.
 4. **the two "is it stuck" numbers** in the seat — time since a productive
    session, and chain depth. Both are folds over existing machinery.
 5. **the backward chain** in the cockpit, and briefs naming their file.
 6. **diff**, last, because it is the only one that needs all of the above to say
    anything true.
 
-1 through 3 are the ones that end the trips to the terminal. 4 through 6 are
+0 through 3 are the ones that end the trips to the terminal. 4 through 6 are
 what make the loop worth being in.
