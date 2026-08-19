@@ -30,11 +30,14 @@ the system may never do. Everything below is how those are made true.
 | `llm.py` | the `complete()` seam. Ollama direct, litellm optional, scripted for tests |
 | `runner.py` | one message in → tool loop → one atomic commit out |
 | `fixtures.py` | seed → inject → run → assert on deltas; the case format |
-| `cockpit/` | local server: design structure, live state, cases and progress in one picture |
+| `cockpit/` | local server: design structure, live state, cases and progress in one picture. `tui.py` is the seat |
 | `onboarding/` | an existing checkout -> index, dependency edges, areas, constraint zero |
+| `cli.py` | **one way in.** A run has a name; the run records the project |
 
-Not built: the environment half of Developer (nothing spawns a process yet), and
-the TUI seam.
+Not built: the environment half of Developer. The spawner exists and **nothing
+calls it**, which is the safe order — a writer nothing calls cannot orphan
+anything — and step 5 of [ENVIRONMENT.md](ENVIRONMENT.md), the toolkit, is the
+first thing that would hand a *role* the capability.
 
 ## Running it
 
