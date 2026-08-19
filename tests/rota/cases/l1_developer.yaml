@@ -123,16 +123,35 @@
     # about how much reading this brief can afford before it stops acting,
     # not a reason to put eight symbols back in the dark.
     #
-    # Two resource explanations were checked and both are dead. The prompt is
-    # ~24k characters against a 12,288-token budget — about half — so nothing
-    # is being truncated away. And the session makes 5 tool calls against
-    # `MAX_ITERATIONS = 12`, so it is not running out of turns either.
+    # What it actually does, read out of the recording rather than inferred
+    # from the failure line. Two earlier explanations of mine were wrong and
+    # are recorded here because the way they were wrong is the useful part.
     #
-    # It reads five things and stops, with budget left. That is a choice, and
-    # the only input that changed is that `code.probe` now has eight more
-    # grains to return. Whatever this is, it is about the brief and the model,
-    # not about a cap — which is what makes it worth leaving red and legible
-    # rather than tuned away.
+    # *Not truncation.* The prompt is ~24k characters against a 12,288-token
+    # window, about half.
+    #
+    # *Not "reads five things and gives up".* That was read off the assertion
+    # message, which lists the *distinct* tools called, sorted — so it says
+    # nothing about how many turns were taken, and I reported a count that the
+    # data never contained. `case_interviews.called` does not settle it either:
+    # it accumulates across every recording the case has ever had, which is why
+    # it still shows `code.write` from the runs that passed.
+    #
+    # The completion says it plainly. Every run emits, in one turn:
+    #
+    #     TOOL: msg.challenge_tester(refs=['tst_6719e7'], round_no=0)
+    #     TOOL: code.write(path='src/catalog/pricing.py', ...)
+    #
+    # It *does* try to fix the code. It challenges the Tester first, that call
+    # is the one this case forbids by name, and neither lands. So the failure
+    # is not refusal to act — it is the forbidden call arriving ahead of the
+    # right one, which is the exact behaviour the case exists to catch and the
+    # one the comment above already describes as what it falls back to when it
+    # cannot locate the code.
+    #
+    # Left red rather than tuned away, because "the index got more complete and
+    # the Developer reached for the Tester" is a finding about the brief, and a
+    # green case that hides it is worth less than a red one that shows it.
     onboard: true
     message: "line totals apply the volume band"
     edit:
