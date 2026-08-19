@@ -658,3 +658,55 @@ def test_two_different_items_are_not_a_contradiction(db):
     sb.call("problem.assert", id="i_ret", text="invoices are retained",
             kind="out_of_scope")
     assert len([w for w in sb.ctx.writes if w[0] == "items"]) == 2
+
+
+def test_a_batch_cannot_be_grouped_from_ids_that_are_not_tickets(db):
+    """
+    An invented reference must be a tool error, never an IntegrityError.
+
+    This is the principle `tests.encode` already states: "a test naming a
+    criterion that does not exist fails a foreign key *inside the transaction*
+    and takes the session with it -- and is recoverable for the same reason: the
+    model can be told and try again." `batches.group` staged its
+    `batch_tickets` rows without checking any of them.
+
+    Measured on a real repository. Architect's *first* call was right --
+    `ticket_ids=['l_642631ec23']`, the one real ticket -- and then it grouped
+    five more times passing **criteria** ids, `cr1` through `cr4`. All six
+    staged. `batch_tickets.ticket_id` references `tickets(id)`, so the commit
+    raised `FOREIGN KEY constraint failed` and the whole session was lost,
+    including the grouping that was correct. Three sessions in a row, and no
+    batch was ever formed for an approved item.
+
+    Told instead, the five wrong calls cost a turn each and the right one lands.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','validate an intent','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) "
+               "VALUES ('tk1','i1','validate an intent')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) "
+               "VALUES ('cr1','tk1','an intent in the frontmatter is accepted')")
+
+    sb = build("architect", db, mode="grouping")
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("batches.group", id="b1", item_id="i1", ticket_ids=["cr1"])
+    assert "cr1" in str(exc.value)
+    assert sb.ctx.writes == [], "a refused grouping must stage nothing at all"
+
+    sb.call("batches.group", id="b1", item_id="i1", ticket_ids=["tk1"])
+    assert [w[0] for w in sb.ctx.writes] == ["batches", "batch_tickets"]
+
+
+def test_grouping_checks_the_item_too(db):
+    """The other reference on the same row, and the same failure if it is wrong."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+
+    sb = build("architect", db, mode="grouping")
+    with pytest.raises(ValueError):
+        sb.call("batches.group", id="b1", item_id="i_nope", ticket_ids=["tk1"])
+    assert sb.ctx.writes == []

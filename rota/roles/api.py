@@ -867,8 +867,29 @@ def criteria_scan(ctx: Ctx) -> list[dict]:
 
 @op("batches", "group")
 def batches_group(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dict:
-    """Collision judgement. Batches are complete feature sets, immutable once
-    formed: only a scope change may recompose one."""
+    """
+    Collision judgement. Batches are complete feature sets, immutable once
+    formed: only a scope change may recompose one.
+
+    Both references are checked here, and for the reason `tests.encode` already
+    states: a row naming something that does not exist fails a foreign key
+    *inside the transaction* and takes the session with it, when it is
+    recoverable -- the model can be told and try again.
+
+    Measured on a real repository. Architect's first call was right, naming the
+    one real ticket, and it then grouped five more times passing **criteria**
+    ids. All six staged, `batch_tickets.ticket_id` references `tickets(id)`, and
+    the commit raised `FOREIGN KEY constraint failed` -- losing the whole
+    session including the grouping that was correct. Three sessions running, and
+    an approved item never got a batch.
+
+    `_must_exist` names the ids that would have worked, so a wrong one costs a
+    turn instead of the session.
+    """
+    _must_exist(ctx, "items", item_id)
+    for tid in ticket_ids:
+        _must_exist(ctx, "tickets", tid)
+
     ctx.writes.append(("batches", id, {"item_id": item_id, "status": "pending"}))
     for tid in ticket_ids:
         ctx.writes.append(("batch_tickets", f"{id}:{tid}", {
