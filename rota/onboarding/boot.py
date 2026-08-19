@@ -48,6 +48,27 @@ class OnboardReport:
     leaky: list
 
 
+def checkout_of(root: str | Path) -> tuple[str, str]:
+    """
+    The branch and commit a checkout is on, or two empty strings.
+
+    Not an error when there is no git. A tree can be onboarded without being a
+    repository, and refusing would make the indexer care about version control,
+    which is not its job.
+    """
+    import subprocess
+
+    out = []
+    for args in (("rev-parse", "--abbrev-ref", "HEAD"), ("rev-parse", "HEAD")):
+        try:
+            got = subprocess.run(["git", "-C", str(root), *args],
+                                 capture_output=True, text=True, timeout=10)
+            out.append(got.stdout.strip() if got.returncode == 0 else "")
+        except (OSError, subprocess.SubprocessError):
+            out.append("")
+    return out[0], out[1]
+
+
 def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     """Index, partition, and put everything under constraint zero."""
     report = indexer.build(conn, root)
@@ -55,6 +76,20 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     count = areas_mod.pin(conn, proposal)
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(Path(root)),))
+    # And *which tree*. This lived in `cli.onboard`, so `rota onboard` and the
+    # new-run form recorded it while the seat's own onboard key did not --
+    # `tui._do_onboard`, `fixtures` and `onboard_run` all call this function
+    # directly. Two runs made different ways were differently identifiable,
+    # which is worse than neither recording it: a comparison's header would be
+    # right only sometimes.
+    #
+    # Empty rather than absent when there is no git: a directory can be
+    # onboarded without being a repository, and the run then honestly describes
+    # a tree rather than a commit.
+    branch, commit = checkout_of(root)
+    for key, value in (("project_branch", branch), ("project_commit", commit)):
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (key, value))
     unsurveyed = refresh_constraint_zero(conn)
     return OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
                          leaky=proposal.leaky())

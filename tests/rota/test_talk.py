@@ -379,10 +379,13 @@ async def test_the_footer_offers_onboarding_for_the_displayed_root(tmp_path):
         # alone never said which of them was on screen. Both are still shown.
         assert app.title == "rota — ui"
         assert app.sub_title == f"{root.name} — llama3.1:8b"
-        assert any(key == "ctrl+shift+o" and action == "onboard"
+        # `alt+o` now. `ctrl+shift+o` can only reach a program under the Kitty
+        # keyboard protocol; in a terminal without it the chord collapses to
+        # `ctrl+o` and the footer advertised a key that did nothing.
+        assert any(key == "alt+o" and action == "onboard"
                    for key, action, _ in app.BINDINGS)
 
-        await pilot.press("ctrl+shift+o")
+        await pilot.press("alt+o")
 
     assert app._pending_root == root
     assert started == [(app._do_onboard, True)]

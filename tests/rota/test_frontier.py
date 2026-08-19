@@ -282,3 +282,34 @@ def test_telling_the_principal_discharges_the_telling(tmp_path):
 
     assert not P.REGISTRY["quarantined"].fn(db), \
         "once the principal has been told, it must stop firing"
+
+
+def test_the_root_area_is_surveyed_last(tmp_path):
+    """
+    `.` is the leftovers, and it went first.
+
+    Areas were ordered alphabetically and `.` sorts before everything, so the
+    first glossary session on any repository met the fold-up bucket — setup
+    files, config, top-level scripts — before a single domain module. The
+    `ANSWER_KEY` predicted the consequence and the runs bore it out: the first
+    terms recorded are plumbing, and every later session sees them, because
+    `glossary.consult` shows a session what its predecessors wrote.
+
+    `.` is defined as *what did not belong anywhere else* — `areas.py` folds
+    small directories up into it — so it is the one area whose vocabulary is
+    least likely to be the project's, and it was reliably first.
+
+    Alphabetical among the rest, because a stable order is worth having and
+    nothing distinguishes them.
+    """
+    from rota.core.db import init_db
+    from rota.core.scheduler import tick_survey
+
+    conn = init_db(tmp_path / "order.db")
+    for area in (".", "src/api", "src/auth"):
+        conn.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                     "VALUES (?,'path',?)", (f"{area}/x.py", area))
+
+    order = [w.refs[0] for w in tick_survey(conn)]
+
+    assert order == ["src/api", "src/auth", "."], order

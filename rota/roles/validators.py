@@ -162,6 +162,29 @@ def check_survey_citations(conn: sqlite3.Connection) -> list[str]:
     return problems
 
 
+def check_survey_areas(conn: sqlite3.Connection) -> list[str]:
+    """
+    A survey record must be about an area the partition still has.
+
+    Neither neighbour covered this: `check_bindings_resolve` checks bindings and
+    `check_survey_citations` checks citations, and a record whose *area* has
+    ceased to exist passes both. Re-indexing is what strands one —
+    `areas.pin`'s docstring names the hazard, "a partition that changes
+    underneath a half-finished survey would strand the areas already done" —
+    and the seat can trigger it on demand.
+
+    Constraint zero rebinds correctly either way, because it is derived from
+    what is unsurveyed rather than accumulated. That is the design holding up.
+    The stranded record is the part nothing noticed: it counts as a survey of
+    something that is not there.
+    """
+    return [f"survey {r['id']} is about area {r['area']!r}, which the index "
+            f"no longer has"
+            for r in conn.execute(
+                "SELECT id, area FROM survey_records WHERE area NOT IN "
+                "(SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL)")]
+
+
 def check_criteria_terms(conn: sqlite3.Connection) -> list[str]:
     """Criteria are written in glossary terms; term_refs must exist and be used."""
     known = {r["id"] for r in conn.execute("SELECT id FROM glossary_terms")}

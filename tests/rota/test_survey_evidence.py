@@ -162,3 +162,29 @@ def test_constraint_zero_no_longer_shrinks_on_nothing(db):
         surveys_attest(Ctx(db), outcome="none_found")
 
     assert refresh_constraint_zero(db) == before, "k0 shrank on no evidence"
+
+
+def test_a_survey_of_an_area_that_no_longer_exists_is_flagged(db):
+    """
+    Re-indexing strands survey records and nothing noticed.
+
+    `check_bindings_resolve` checks bindings and `check_survey_citations`
+    checks citations; a record whose *area* has ceased to exist passes both.
+    Shrink a directory below the fold floor, re-index, and the partition no
+    longer has it — while the record still says that area was surveyed.
+
+    Constraint zero rebinds correctly regardless, because it is derived from
+    what is unsurveyed rather than accumulated. That is the design working. The
+    record counting as a survey of something absent is the part that was
+    invisible.
+    """
+    surveys_attest(Ctx(db), outcome="none_found", citations=["src/auth/one.py"])
+    db.execute("INSERT INTO survey_records (id, area, outcome) "
+               "VALUES ('architect:src/auth','src/auth','none_found')")
+    assert validators.check_survey_areas(db) == []
+
+    db.execute("DELETE FROM code_index WHERE area = 'src/auth'")
+
+    problems = validators.check_survey_areas(db)
+    assert len(problems) == 1
+    assert "src/auth" in problems[0]

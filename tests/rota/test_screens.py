@@ -902,3 +902,134 @@ async def test_marking_the_same_run_twice_unmarks_it(tmp_path, home, project):
         screen.action_diff()
         await pilot.pause()
         assert screen.marked is None
+
+
+# ---------------------------------------------------------------------------
+# Onboarding, which destroys an index
+# ---------------------------------------------------------------------------
+
+def _onboarded(home, name, project):
+    """A run with a real index, the way `boot.onboard` leaves one."""
+    from rota.core.db import init_db
+    from rota.onboarding import boot
+
+    path = home / f"{name}.db"
+    conn = init_db(path)
+    boot.onboard(conn, project)
+    conn.commit()
+    conn.close()
+    return path
+
+
+async def test_onboarding_an_indexed_run_arms_rather_than_fires(
+        tmp_path, home, project):
+    """
+    It was the only index-destroying action with no confirmation.
+
+    `indexer.build` opens with `DELETE FROM code_edges` and `DELETE FROM
+    code_index`. `alt+w` arms and demands the run's name; `ctrl+alt+r` does the
+    same and it does *less* damage in the sense that matters — it wipes
+    everything, so nothing is left pointing at anything. One keypress rebuilt
+    the index under a run with completed surveys.
+    """
+    from rota.cockpit import tui
+
+    path = _onboarded(home, "indexed", project)
+    app = tui.RotaApp(path, "llama3.1:8b", root=project)
+    async with app.run_test() as pilot:
+        await pilot.press("alt+o")
+        await pilot.pause()
+
+        assert app.armed == "onboard"
+        assert app.conn.execute(
+            "SELECT COUNT(*) n FROM code_index").fetchone()["n"] > 0
+
+
+async def test_onboarding_a_run_with_no_index_needs_no_confirmation(
+        tmp_path, home, project):
+    """
+    Arming everything is how confirmations stop being read. There is nothing to
+    destroy in a run that has never been indexed, which is what
+    `boot.is_onboarded` was written to answer — and it had no caller anywhere.
+    """
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(home / "fresh.db", "llama3.1:8b", root=project)
+    started: list = []
+    app.run_worker = lambda fn, thread=True: started.append(fn.__name__)
+    async with app.run_test() as pilot:
+        await pilot.press("alt+o")
+        await pilot.pause()
+
+        assert app.armed is None
+        assert started == ["_do_onboard"]
+
+
+async def test_onboarding_is_refused_while_the_loop_is_driving(
+        tmp_path, home, project):
+    """
+    Re-indexing under live sessions, and then a second loop on top.
+
+    `action_toggle_run_state` guards on `self.driving` and this did not, so
+    onboarding mid-run rebuilt the index while survey sessions read the old one
+    — and `_do_onboard` then called `_turn_the_crank()` unconditionally, which
+    has no re-entrancy guard, giving two concurrent `loop.run` calls on one
+    database.
+    """
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(home / "busy.db", "llama3.1:8b", root=project)
+    started: list = []
+    app.run_worker = lambda fn, thread=True: started.append(fn.__name__)
+    async with app.run_test() as pilot:
+        app.driving = True
+        await pilot.press("alt+o")
+        await pilot.pause()
+
+        assert app.armed is None
+        assert started == [], "it re-indexed under a running loop"
+
+
+async def test_a_finished_onboarding_does_not_start_a_second_loop(
+        tmp_path, home, project):
+    """
+    The other half of the same hole. `_turn_the_crank` sets `self.driving` from
+    its docstring straight through with nothing asking whether it is already
+    true, so anything that calls it twice gets two loops.
+    """
+    from rota.cockpit import tui
+
+    app = tui.RotaApp(home / "busy2.db", "llama3.1:8b", root=project)
+    ran: list = []
+    async with app.run_test() as pilot:
+        app.driving = True
+        app._turn_the_crank = lambda: ran.append(1)      # would be the second
+        app._pending_root = project
+        app._do_onboard()
+        await pilot.pause()
+
+    assert ran == [], "a second loop was started on top of a running one"
+
+
+async def test_onboard_uses_a_key_a_plain_terminal_can_send(tmp_path, home):
+    """
+    `ctrl+shift+o` needs the Kitty keyboard protocol.
+
+    Textual enables it and parses `ESC[111;6u`, so it works in kitty, WezTerm,
+    Ghostty and recent Windows Terminal. Everywhere else Ctrl+Shift+O collapses
+    to `ctrl+o` and the binding silently does nothing — the exact failure the
+    binding guard next door exists for, and the one case that guard cannot see:
+    `pilot.press` injects an already-parsed key name and never goes through the
+    sequence layer a real terminal does.
+
+    Every other binding here survives legacy encoding, so this asserts the
+    property rather than the key: nothing may require the modifier combination
+    that only the new protocol can carry.
+    """
+    from rota.cockpit import tui
+
+    needs_kitty = [k for k, _, _ in tui.RotaApp.BINDINGS
+                   if "ctrl" in k and "shift" in k]
+    assert needs_kitty == [], (
+        f"{needs_kitty} can only arrive under the Kitty keyboard protocol; in "
+        f"a terminal without it the footer advertises a key that does nothing")

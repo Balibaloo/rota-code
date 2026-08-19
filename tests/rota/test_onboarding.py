@@ -466,7 +466,13 @@ def test_one_stuck_area_does_not_block_the_rest(project):
 
     offered = tick_survey(db)
     assert len(offered) > 1, "every outstanding area should be offered, in order"
-    assert [w.refs[0] for w in offered] == sorted(w.refs[0] for w in offered)
+    # Alphabetical among the real areas, and `.` last. It sorts first, so the
+    # first glossary session on any repository used to meet the fold-up bucket
+    # — whatever belonged nowhere else — before a single domain module, and
+    # every later session sees those terms. A stable order still matters, and
+    # this is the order.
+    names = [w.refs[0] for w in offered]
+    assert names == sorted(names, key=lambda a: (a == ".", a)), names
 
     stuck = offered[0]
     for _ in range(9):
@@ -1049,3 +1055,50 @@ def test_a_survey_that_cites_nothing_is_not_evidence(project):
                "VALUES ('architect:s1', 'src/auth/nothing_here.py', 0)")
     assert validators.check_survey_citations(db), \
         "a citation that does not resolve was accepted"
+
+
+def test_onboarding_records_the_commit_whoever_calls_it(tmp_path):
+    """
+    Which tree a run is about belongs to onboarding, not to one of its callers.
+
+    It was written in `cli.onboard`, so `rota onboard` and the new-run form
+    recorded it and the seat's own onboard key did not — `tui._do_onboard`,
+    `fixtures` and `onboard_run` all call `onboarding.boot.onboard` directly.
+    Two runs made different ways were differently identifiable, which is worse
+    than neither recording it: the header of a comparison would be right
+    sometimes.
+
+    A fact about the operation belongs in the operation.
+    """
+    from rota.core.db import init_db
+    from rota.testkit import gitfixture
+
+    repo = gitfixture.make(tmp_path)
+    conn = init_db(tmp_path / "direct.db")
+    boot.onboard(conn, repo.root)
+
+    got = {r["key"]: r["value"] for r in conn.execute(
+        "SELECT key, value FROM config WHERE key LIKE 'project_%'")}
+    assert got.get("project_commit"), "no commit recorded by boot.onboard"
+    assert got.get("project_branch")
+    assert got["project_root"] == str(repo.root)
+
+
+def test_onboarding_a_tree_that_is_not_a_checkout_still_works(tmp_path):
+    """
+    A directory can be onboarded without being a repository — the run then
+    honestly describes a tree rather than a commit, and says so by leaving the
+    fields empty rather than by failing.
+    """
+    from rota.core.db import init_db
+
+    root = tmp_path / "plain"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "a.py").write_text("x = 1\n")
+    conn = init_db(tmp_path / "plain.db")
+    boot.onboard(conn, root)
+
+    got = {r["key"]: r["value"] for r in conn.execute(
+        "SELECT key, value FROM config WHERE key LIKE 'project_%'")}
+    assert got.get("project_commit", "") == ""
+    assert got["project_root"] == str(root)

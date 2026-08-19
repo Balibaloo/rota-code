@@ -210,7 +210,15 @@ class RotaApp(App):
     #newrun_container Input { dock: none; width: 100%; }
     """
     BINDINGS = [
-        ("ctrl+shift+o", "onboard", "onboard"),
+        # `alt+o`, not `ctrl+shift+o`. That chord can only reach a program
+        # under the Kitty keyboard protocol -- Textual enables it and parses
+        # `ESC[111;6u`, so it works in kitty, WezTerm, Ghostty and recent
+        # Windows Terminal, and everywhere else it collapses to `ctrl+o` and
+        # the binding silently does nothing. Every other binding here survives
+        # legacy encoding. The guard next door cannot catch this: `pilot.press`
+        # injects an already-parsed key name and never goes through the
+        # sequence layer a real terminal does.
+        ("alt+o", "onboard", "onboard"),
         ("alt+p", "toggle_run_state", "pause / resume"),
         # `alt+`, not `ctrl+`, and not by taste. The input has the focus
         # whenever you are sitting here, and a widget binding beats an app one:
@@ -377,7 +385,14 @@ class RotaApp(App):
         try:
             self.call_from_thread(fn, *args)
         except RuntimeError:
-            pass                      # the app exited between the check and the call
+            # Two ways here, both fine. The app exited between the check and
+            # the call, or this is already the app's thread -- which Textual
+            # refuses rather than deadlocking. On the app's thread the direct
+            # call is exactly what `call_from_thread` would have arranged.
+            try:
+                fn(*args)
+            except Exception:                                  # noqa: BLE001
+                pass
 
     def say(self, text: str, sender: str, colour: str = "blue") -> None:
         pane = self.query_one("#conversation", VerticalScroll)
@@ -548,6 +563,9 @@ class RotaApp(App):
         if text.strip() != self.run_name:
             self.say(f"{what} cancelled", "system", "blue")
             return
+        if what == "onboard":
+            self.start_onboarding(self.root)
+            return
         if what == "rerun" and self.root is None:
             self.say("no project to rerun against: reopen with a root, or "
                      "`rota onboard <name> --root <checkout>`", "system", "red")
@@ -671,15 +689,15 @@ class RotaApp(App):
         try:
             report = cli.onboard(path, root)
         except Exception as exc:                                # noqa: BLE001
-            self.call_from_thread(self.say, f"onboarding failed: {exc}",
+            self._from_worker(self.say, f"onboarding failed: {exc}",
                                   "system", "red")
             return
-        self.call_from_thread(
+        self._from_worker(
             self.say, f"{path.stem}: {report.areas} areas, {report.unsurveyed} "
                       f"under constraint zero", "system", "blue")
         # Land in what you just made. Creating a run and then having to go and
         # find it is the friction this screen exists to remove.
-        self.call_from_thread(self.open_run, path)
+        self._from_worker(self.open_run, path)
 
     def open_run(self, path: Path) -> None:
         """
@@ -888,21 +906,47 @@ class RotaApp(App):
         """
         Index the project this run is about, or ask which one it is.
 
-        It used to say `onboarding None…` and then return silently from the
-        worker: the message was written before the guard, and the guard said
-        nothing. Two failures in three lines — a sentence that is not true, and
-        a refusal you cannot see.
-
-        A run with no project is exactly a run that needs one, so the useful
-        answer is the form rather than an error.
+        Three guards, and the first two were missing on the one action that
+        destroys an index. `indexer.build` opens with `DELETE FROM code_edges`
+        and `DELETE FROM code_index`, and this fired on a single keypress while
+        `alt+w` and `ctrl+alt+r` -- which destroy less that anything is left
+        pointing at -- both arm and demand the run's name.
         """
         from .screens import NewRun
 
+        if not self._needs_run():
+            return
+        # Not under a running loop. Re-indexing while survey sessions read the
+        # old index is the same class of thing as two seats driving one run, and
+        # `action_toggle_run_state` already guards it this way; the pattern
+        # simply was not applied here.
+        if self.driving:
+            self.say("pause first — re-indexing under live sessions would "
+                     "rebuild what they are reading", "system", "yellow")
+            return
         if self.root is None:
+            # A run with no project is exactly a run that needs one.
             self.push_screen(NewRun(name=self.run_name), self._from_run_list)
             return
-        self.say(f"onboarding {self.root}…", "system", "blue")
-        self._pending_root = self.root
+        if boot.is_onboarded(self.conn):
+            # `boot.is_onboarded` was written for this and had no caller
+            # anywhere. Arming everything is how confirmations stop being read,
+            # so a run with nothing to lose does not ask.
+            counts = self.conn.execute(
+                "SELECT (SELECT COUNT(*) FROM code_index) AS grains, "
+                "       (SELECT COUNT(*) FROM survey_records) AS surveys"
+            ).fetchone()
+            self.arm("onboard",
+                     f"rebuild the index from {self.root} — "
+                     f"{counts['grains']} grains go, and {counts['surveys']} "
+                     f"survey record(s) may end up pointing at areas the new "
+                     f"partition does not have")
+            return
+        self.start_onboarding(self.root)
+
+    def start_onboarding(self, root: Path) -> None:
+        self.say(f"onboarding {root}…", "system", "blue")
+        self._pending_root = root
         self.run_worker(self._do_onboard, thread=True)
 
     def _do_onboard(self) -> None:
@@ -915,21 +959,51 @@ class RotaApp(App):
         try:
             report = boot.onboard(conn, root)
             conn.commit()
-            self.call_from_thread(
+            self._from_worker(
                 self.say,
                 f"onboarded {root}: {report.areas} areas, "
                 f"{report.unsurveyed} under constraint zero",
                 "system", "blue")
+            self._from_worker(self.report_orphaned_surveys)
             # Mechanical onboarding only prepares survey wakes. Continue into
             # the ordinary loop so the cockpit immediately shows the roles
-            # studying the selected root.
-            self._turn_the_crank()
+            # studying the selected root -- unless one is already turning, in
+            # which case this would be the second `loop.run` on one database.
+            # `_turn_the_crank` sets `self.driving` from its docstring straight
+            # through and asks nothing, so the guard belongs at every caller.
+            if not self.driving:
+                self._turn_the_crank()
         except Exception as exc:                            # noqa: BLE001
-            self.call_from_thread(
+            self._from_worker(
                 self.say, f"onboarding failed: {exc}", "system", "red")
         finally:
             conn.close()
-        self.call_from_thread(self.refresh_owed)
+        self._from_worker(self.refresh_owed)
+
+    def report_orphaned_surveys(self) -> list[str]:
+        """
+        Survey records left pointing at areas the new partition does not have.
+
+        `areas.pin`'s own docstring names the hazard — "a partition that changes
+        underneath a half-finished survey would strand the areas already done" —
+        and the seat is the one place that can trigger it on demand. Constraint
+        zero rebinds correctly either way, because it is derived; the stranded
+        record is what nothing notices.
+
+        Reported, not deleted. A survey that happened is evidence about a tree,
+        and quietly removing it would be the system editing its own record of
+        what it did.
+        """
+        if self.conn is None:
+            return []
+        stranded = [r["id"] for r in self.conn.execute(
+            "SELECT id FROM survey_records WHERE area NOT IN "
+            "(SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL)")]
+        if stranded:
+            self.say(f"{len(stranded)} survey record(s) now point at areas this "
+                     f"partition does not have: {', '.join(stranded[:6])}"
+                     + ("…" if len(stranded) > 6 else ""), "system", "yellow")
+        return stranded
 
     def _turn_the_crank(self) -> None:
         """
@@ -962,7 +1036,7 @@ class RotaApp(App):
                 on_step=on_step,
             )
         except Exception as exc:                            # noqa: BLE001
-            self.call_from_thread(self.say, f"loop stopped: {exc}", "system", "red")
+            self._from_worker(self.say, f"loop stopped: {exc}", "system", "red")
         finally:
             # In `finally` because "this seat is driving" must go false on the
             # error path too. A label that sticks on `driving` after the loop

@@ -303,23 +303,14 @@ def cmd_wipe(args: argparse.Namespace) -> int:
 
 def checkout_of(root: str | Path) -> tuple[str, str]:
     """
-    The branch and commit a checkout is on, or two empty strings.
+    The branch and commit a checkout is on. One implementation, in onboarding.
 
-    Not an error when there is no git: a directory can be onboarded without
-    being a repository, and the run then honestly records that it is about a
-    tree rather than about a commit.
+    This was a second copy here, which is how the recording ended up happening
+    on some paths and not others in the first place.
     """
-    import subprocess
+    from .onboarding.boot import checkout_of as _checkout_of
 
-    out = []
-    for args in (("rev-parse", "--abbrev-ref", "HEAD"), ("rev-parse", "HEAD")):
-        try:
-            got = subprocess.run(["git", "-C", str(root), *args],
-                                 capture_output=True, text=True, timeout=10)
-            out.append(got.stdout.strip() if got.returncode == 0 else "")
-        except (OSError, subprocess.SubprocessError):
-            out.append("")
-    return out[0], out[1]
+    return _checkout_of(root)
 
 
 def onboard(path: Path, root: str | Path):
@@ -341,11 +332,6 @@ def onboard(path: Path, root: str | Path):
     conn = init_db(path)
     try:
         report = onboarding_boot.onboard(conn, root)
-        branch, commit = checkout_of(root)
-        for key, value in (("project_branch", branch), ("project_commit", commit)):
-            if value:
-                conn.execute("INSERT OR REPLACE INTO config (key, value) "
-                             "VALUES (?, ?)", (key, value))
         conn.commit()
     finally:
         conn.close()

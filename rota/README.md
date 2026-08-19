@@ -57,12 +57,32 @@ Two runs against one checkout are two names, not two wipes — which is what
 comparing a branch against its main needs, and is the case
 [ANSWER_KEY_ctn_v3.md](ANSWER_KEY_ctn_v3.md) exists for.
 
-**The TUI is the seat.** `alt+p` runs and pauses, `alt+r` wipes and reindexes,
-`alt+w` wipes, `alt+b` opens the cockpit on the run you are in. The two
-destructive keys arm rather than fire: the confirmation is typing the run's
-name, the same rule `rota wipe` uses. Bindings are `alt+` and not `ctrl+`
-because the input has the focus and a widget binding beats an app one — a key
-the input eats is a key the footer advertises and nothing performs.
+**The TUI is the seat.** `python -m rota tui` with no name opens the run list.
+
+| key | what it does |
+|---|---|
+| `ctrl+l` | the run list — open, make, fork, wipe, diff |
+| `alt+p` | run / pause |
+| `alt+o` | index the project this run is about |
+
+| `ctrl+alt+r` | wipe, then index the same project again |
+| `alt+w` | wipe: worktrees, processes, then the file |
+| `alt+b` | the cockpit, on the run you are in |
+
+Everything that destroys something arms rather than fires, and the confirmation
+is typing the run's name — the same rule `rota wipe` uses, and it costs the one
+thing a yes/no cannot: you have to know which run you are in. `alt+o` is on that
+list because `indexer.build` opens with `DELETE FROM code_index`; a run with
+nothing indexed yet does not ask, because arming everything is how
+confirmations stop being read.
+
+Bindings are `alt+` and not `ctrl+` because the input has the focus and a widget
+binding beats an app one — `ctrl+w` is its delete-word, and a key the input eats
+is a key the footer advertises and nothing performs. None is `ctrl+shift+`
+either: that combination only reaches a program under the Kitty keyboard
+protocol, and elsewhere it collapses to the plain `ctrl+` key and silently does
+nothing. `test_the_footer_keys_are_the_ones_the_code_binds` checks this table
+against `RotaApp.BINDINGS`.
 
 **The cockpit is for depth.** The register beside the chat answers what is
 *owed*; the cockpit answers the two questions it cannot — what a role was

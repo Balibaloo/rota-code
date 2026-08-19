@@ -242,3 +242,33 @@ def test_no_role_can_reach_an_environment_yet():
                         if str(getattr(e, "t", "")).startswith("env")
                         or str(getattr(e, "v", "")).startswith("env")})
     assert env_edges == [], f"environment verbs exist now: {env_edges}"
+
+
+def test_the_footer_keys_are_the_ones_the_code_binds():
+    """
+    README said `alt+r` wipes and reindexes. The code binds `ctrl+alt+r` and
+    there is no `alt+r`, and the onboard key was not in README at all — so the
+    documented way to onboard was still a shell command, which is also what the
+    seat itself tells you when a run has no project.
+
+    Documentation that names keys drifts silently, because nothing types them.
+    Read off `BINDINGS` rather than kept in step by hand.
+    """
+    from rota import paths
+    from rota.cockpit.tui import RotaApp
+
+    readme = (paths.PACKAGE / "README.md").read_text(encoding="utf-8")
+    seat = readme.split("**The TUI is the seat.**", 1)[1].split("##", 1)[0]
+
+    # The *table* is the claim surface, not the prose around it. The paragraph
+    # under it names `ctrl+w` to explain why nothing here is bound to it, which
+    # is the opposite of claiming it exists — a blunter scan read that as drift,
+    # and would have taught the next person to delete the explanation.
+    documented = {m.group(1) for m in
+                  re.finditer(r"^\|\s*`([^`]+)`\s*\|", seat, re.M)}
+    bound = {k for k, _, _ in RotaApp.BINDINGS} - {"ctrl+c"}
+
+    assert bound - documented == set(), (
+        f"bound and undocumented: {sorted(bound - documented)}")
+    assert documented - bound == set(), (
+        f"README names {sorted(documented - bound)} and nothing binds them")

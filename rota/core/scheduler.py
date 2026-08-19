@@ -299,8 +299,20 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     withdraws one wake and thereby withdraws six others is not a bound, it is a
     stall with a counter on it.
     """
+    # `.` last, everything else alphabetically.
+    #
+    # It sorts first, so the first glossary session on any repository met the
+    # fold-up bucket -- setup files, config, top-level scripts -- before a
+    # single domain module, and `glossary.consult` shows every later session
+    # what its predecessors wrote. The ANSWER_KEY predicted that the first terms
+    # would be plumbing and the runs bore it out.
+    #
+    # `.` is *what did not belong anywhere else* by construction: `areas.py`
+    # folds small directories up into it. So it is the one area whose vocabulary
+    # is least likely to be the project's, and it was reliably first.
     areas = [r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area"
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL "
+        "ORDER BY (area = '.'), area"
     ).fetchall()]
     if not areas:
         return []
