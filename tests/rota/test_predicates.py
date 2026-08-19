@@ -744,3 +744,109 @@ def test_an_answered_ask_stops_being_outstanding(db):
                "body_refs, seq, status) VALUES "
                "('m1','t1','liaison','principal','present','[\"i1\"]',1,'answered')")
     assert "awaiting_principal" not in {r["obligation"] for r in P.outstanding(db)}
+
+
+# ---------------------------------------------------------------------------
+# A chain of messages that goes nowhere
+# ---------------------------------------------------------------------------
+
+def _chain(db, pairs, start_seq=1):
+    """Seed a causal chain: each message caused by the one before it."""
+    prev = None
+    for i, (frm, to, verb) in enumerate(pairs, start_seq):
+        mid = f"m{i}"
+        db.execute(
+            "INSERT INTO messages (id, thread_id, cause_id, from_role, to_role, "
+            "verb, body_refs, seq, status) VALUES (?,?,?,?,?,?,'[]',?,'open')",
+            (mid, mid, prev, frm, to, verb, i))
+        if prev:
+            db.execute("UPDATE messages SET status='answered' WHERE id = ?", (prev,))
+        prev = mid
+    return prev
+
+
+def test_two_roles_passing_one_thing_back_and_forth_is_bounded(db):
+    """
+    The livelock every existing bound misses.
+
+    Found by driving delivery on a real repository. Gatekeeper reopened,
+    Developer elected, Gatekeeper reopened, Developer elected -- four full round
+    trips in fourteen sessions, no batch ever formed, and it was still going
+    when the step limit stopped it.
+
+    Nothing counted it. `quarantine_overrun` bounds `attempts` on *one* message
+    and every link here is a new message with `attempts = 1`. The barren-tick
+    guard counts sessions that produce nothing, and every one of these produced
+    something: a message. `loop_cap` bounds Developer<->Tester bounces on a
+    batch, and no batch exists. Each message is even its own thread, so nothing
+    that counts a thread sees a chain either.
+
+    What makes it a loop is not the length. It is the same ordered edge, with
+    the same verb, arriving again as the consequence of itself -- which is
+    exactly what `cause_id` records and nothing read.
+    """
+    from rota.core import scheduler
+
+    from rota.core import config
+
+    # Seeded from the cap rather than a number written here: two constants
+    # describing one threshold is how they drift, and this file fixed that once
+    # already for the livelock guard.
+    cap = config.get(db, "loop_cap")
+    pairs = [("terminologist", "gatekeeper", "challenge")]
+    for _ in range(cap + 1):
+        pairs += [("gatekeeper", "developer", "reopen"),
+                  ("developer", "gatekeeper", "elect")]
+    last = _chain(db, pairs[:-1])          # ending on a reopen, as the run did
+
+    assert scheduler.edge_repeats(db, last) == cap + 1,         "gatekeeper->developer:reopen has caused itself past the cap"
+
+    assert scheduler.quarantine_looping(db) == [last], \
+        "a loop nothing can break has to leave the frontier"
+    assert db.execute("SELECT status FROM messages WHERE id = ?",
+                      (last,)).fetchone()["status"] == "quarantined"
+
+
+def test_a_loop_that_is_stopped_reaches_the_principal(db):
+    """
+    Quarantining is not the end of it. `quarantined` already carries an
+    abandoned message to Liaison and on to the principal, and this is the
+    escalation the register was missing a detector for -- the mechanism existed
+    and nothing could reach it.
+    """
+    from rota.core import scheduler
+
+    from rota.core import config
+
+    cap = config.get(db, "loop_cap")
+    pairs = []
+    for _ in range(cap + 1):
+        pairs += [("gatekeeper", "developer", "reopen"),
+                  ("developer", "gatekeeper", "elect")]
+    _chain(db, pairs[:-1])
+    scheduler.quarantine_looping(db)
+
+    wakes = P.REGISTRY["quarantined"].fn(db)
+    assert wakes and wakes[0].role == "liaison", \
+        "a stopped loop that nobody is told about is the silence it replaced"
+
+
+def test_a_chain_that_is_going_somewhere_is_left_alone(db):
+    """
+    The bound is on repetition, not on length. A question climbing the ladder
+    touches several roles once each and must not be mistaken for a loop --
+    that is the escalation working, and stopping it would be worse than the
+    livelock.
+    """
+    from rota.core import scheduler
+
+    last = _chain(db, [
+        ("tester", "terminologist", "question"),
+        ("terminologist", "tester", "answer"),
+        ("tester", "gatekeeper", "question"),
+        ("gatekeeper", "architect", "question"),
+        ("architect", "gatekeeper", "answer"),
+        ("gatekeeper", "tester", "answer"),
+    ])
+    assert scheduler.edge_repeats(db, last) == 1
+    assert scheduler.quarantine_looping(db) == []

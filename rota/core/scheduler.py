@@ -421,8 +421,22 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # happens. The bound was always doing its job; the answer to "what is ready"
     # was computed against the state before it did.
     quarantine_overrun(conn)
+    # And the other kind of overrun, which that one cannot see: a chain of
+    # *distinct* messages whose edge keeps causing itself. `attempts` stays at
+    # one along the whole of it, so the bound above is satisfied at every link
+    # while the loop runs forever. Marked here for the same reason and in the
+    # same pass -- the answer to "what is ready" has to be computed against a
+    # world where the abandonment has already happened.
+    quarantine_looping(conn)
     return waiting_filter(conn, quarantine_stalled(
         conn, all_wakes(conn, principal_present=principal_present)))
+
+
+def frontier_readonly(conn: sqlite3.Connection, principal_present: bool = False) -> list[Wake]:
+    """Read-only frontier view for the cockpit: no quarantine writes."""
+    from .predicates import all_wakes
+
+    return waiting_filter(conn, all_wakes(conn, principal_present=principal_present))
 
 
 def waiting_on(conn: sqlite3.Connection, role: str) -> list[str]:
@@ -520,6 +534,10 @@ def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> b
     return not frontier(conn, principal_present)
 
 
+def is_quiescent_readonly(conn: sqlite3.Connection, principal_present: bool = False) -> bool:
+    return not frontier_readonly(conn, principal_present)
+
+
 # ---------------------------------------------------------------------------
 # Ordering: a topological sort of Architect's declared dependency facts.
 # Not a role — ordering carries no judgement beyond the deps.
@@ -608,6 +626,84 @@ def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
 def clear_dispatch(conn: sqlite3.Connection, wake: Wake) -> None:
     """The wake is gone, so whatever it was owed got paid. Forget the count."""
     conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?", (tick_key(wake),))
+
+
+def edge_repeats(conn: sqlite3.Connection, message_id: str,
+                 limit: int = 40) -> int:
+    """
+    How many times this message's own edge has caused itself.
+
+    Walks `cause_id` backwards and counts the links carrying the same
+    `from_role -> to_role : verb`. One means it has not repeated.
+
+    The chain is what nothing was reading. Every bound in this system is per
+    message or per tick: `quarantine_overrun` counts `attempts` on one row and
+    a fresh reply always has one, the barren guard counts sessions that produce
+    nothing and a reply is something, `loop_cap` counts bounces on a batch and a
+    loop can happen before a batch exists. Each reply even opens its own thread,
+    so nothing counting a thread sees it either.
+
+    `limit` bounds the walk, not the loop -- a malformed chain must not hang the
+    scheduler while it is being asked whether something else is stuck.
+    """
+    row = conn.execute(
+        "SELECT cause_id, from_role, to_role, verb FROM messages WHERE id = ?",
+        (message_id,)).fetchone()
+    if row is None:
+        return 0
+    edge = (row["from_role"], row["to_role"], row["verb"])
+
+    seen, count, cause = {message_id}, 1, row["cause_id"]
+    while cause and len(seen) < limit:
+        if cause in seen:
+            break                      # a cycle in the causes themselves
+        seen.add(cause)
+        prev = conn.execute(
+            "SELECT cause_id, from_role, to_role, verb FROM messages WHERE id = ?",
+            (cause,)).fetchone()
+        if prev is None:
+            break
+        if (prev["from_role"], prev["to_role"], prev["verb"]) == edge:
+            count += 1
+        cause = prev["cause_id"]
+    return count
+
+
+def quarantine_looping(conn: sqlite3.Connection) -> list[str]:
+    """
+    Set aside open messages whose edge has caused itself past the cap.
+
+    Two roles handing one thing back and forth is a livelock that looks like
+    work from every angle the system had: each session commits, each sends a
+    message, each message is new. Measured on a real repository -- Gatekeeper
+    reopened, Developer elected, four round trips in fourteen sessions, no batch
+    ever formed, still going when the step limit stopped it.
+
+    What is bounded is *repetition*, never length. A question climbing the
+    ladder touches several roles once each and is the escalation working; a
+    chain that keeps arriving at the same edge is not going anywhere by
+    definition, because the state that produced it is the state it produces.
+
+    `loop_cap` is the number, reused rather than invented: it already means
+    "bounces between two roles before this escalates", and a second constant for
+    one idea is how the two drift.
+
+    Quarantining is the whole action, and it is enough. `quarantined` already
+    carries an abandoned message to Liaison and on to the principal, so this is
+    a detector for an escalation that existed and could not be reached -- the
+    same shape as the livelock guard that was pre-empting it.
+    """
+    from . import config
+
+    cap = config.get(conn, "loop_cap")
+    stopped = []
+    for r in conn.execute(
+            "SELECT id FROM messages WHERE status = 'open' ORDER BY seq").fetchall():
+        if edge_repeats(conn, r["id"]) > cap:
+            conn.execute("UPDATE messages SET status = 'quarantined' WHERE id = ?",
+                         (r["id"],))
+            stopped.append(r["id"])
+    return stopped
 
 
 def quarantine_overrun(conn: sqlite3.Connection) -> int:
