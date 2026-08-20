@@ -359,6 +359,16 @@ def problem_consult(ctx: Ctx) -> list[dict]:
 # glossary
 # ---------------------------------------------------------------------------
 
+def _same_sense(text: str) -> str:
+    """Two senses read as one when the index line reads the same.
+
+    Case, spacing and a trailing full stop are not a distinction a reader of
+    the glossary index can act on, so they are not one here either.
+    """
+    import re
+    return re.sub(r"\s+", " ", (text or "").strip().lower()).strip(" .;:,")
+
+
 @op("glossary", "amend")
 def glossary_amend(ctx: Ctx, term: str, sense_short: str,
                    sense_body: str = "", sense: str = "") -> dict:
@@ -376,6 +386,22 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
     guard in one module and a session binding in another is two rows, and it
     should take a deliberate act to make them. Accidental duplication is now
     impossible; deliberate duplication costs one argument.
+
+    That argument turned out to be payable by accident. On the icalendar run a
+    survey session wrote `Alarm`, and a later one wrote `alarm` with
+    `sense="observed"` — the word the brief puts in front of it twice on the
+    same page, *"everything you write here is `observed`, not `decided`"* — and
+    bought a second row with the sense_short character-for-character identical
+    to the first. Three words did it: alarm, calendar, component. The brief
+    already ruled on this: **"the same sense twice is not two senses"**, and a
+    `sense` you have not actually distinguished "puts a collision in the record
+    that does not exist". Prose, and nothing holding it — so `term_collision`
+    duly raised three, and every one of them was a phantom.
+
+    So `sense` now has to buy something. It names a second meaning, and a second
+    meaning is one that differs from the first; when it does not, the call is an
+    amendment wearing an argument, and it is taken as the error it is rather
+    than written as the collision it is not.
     """
     import re
 
@@ -398,6 +424,35 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
             f"the sense this area uses it, or leave it out.")
 
     id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
+
+    # A second sense must mean something the first does not. Compared on
+    # `sense_short` because that is the line every downstream reader is shown --
+    # two rows whose shorts match are indistinguishable in the index whatever
+    # else differs, which is the whole harm. Pending writes count as well as
+    # committed rows: a session can do this to itself inside one turn.
+    if sense:
+        # A row cannot collide with itself: writing this same id again is an
+        # amendment of that row, and keeping its sense_short while changing the
+        # body is exactly what an amendment looks like.
+        seen = {_same_sense(r["sense_short"]): r["term"] for r in ctx.conn.execute(
+            "SELECT id, term, sense_short FROM glossary_terms "
+            "WHERE (id = ? OR id LIKE ? || '#%') AND id <> ?",
+            (slug, slug, id))}
+        seen.update({_same_sense(w[2].get("sense_short", "")): w[2].get("term", "")
+                     for w in ctx.writes
+                     if w[0] == "glossary_terms" and w[1] != id
+                     and (w[1] == slug or w[1].startswith(slug + "#"))})
+        seen.pop("", None)
+        if _same_sense(sense_short) in seen:
+            raise ValueError(
+                f"{term!r} already means that. `sense={sense!r}` asks for a "
+                f"second sense of the word, and a second sense is one the "
+                f"glossary does not already carry -- "
+                f"{seen[_same_sense(sense_short)]!r} says the same thing you "
+                f"just wrote. Drop `sense` to amend the entry you have, or "
+                f"give the meaning that is genuinely different. (`sense` names "
+                f"*which meaning*, not where it came from: provenance is "
+                f"`observed` here without your saying so.)")
 
     ctx.writes.append(("glossary_terms", id, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
