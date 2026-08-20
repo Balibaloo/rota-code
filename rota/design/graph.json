@@ -653,8 +653,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "contradiction",
-      "rows": "single",
-      "prose": "reason"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -662,8 +661,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "infeasibility",
-      "rows": "single",
-      "prose": "reason"
+      "rows": "single"
     },
     {
       "s": "architect",
@@ -705,8 +703,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "failed criterion",
-      "rows": "single",
-      "prose": "reason"
+      "rows": "single"
     },
     {
       "s": "liaison",
@@ -996,8 +993,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "test disputes criterion",
-      "rows": "single",
-      "prose": "reason"
+      "rows": "single"
     },
     {
       "s": "critic",
@@ -1005,8 +1001,7 @@
       "type": "messages",
       "v": "challenge",
       "n": "test does not encode criterion",
-      "rows": "single",
-      "prose": "reason"
+      "rows": "single"
     },
     {
       "s": "tester",

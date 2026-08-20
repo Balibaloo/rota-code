@@ -39,7 +39,7 @@ are the one who has to put it there.
 **`ledger.log`** when you pick one sense and the material did not settle it.
 Choosing is your job; choosing silently is not.
 
-**`msg.challenge_gatekeeper(reason=...)`** when an approved item cannot mean anything
+**`msg.challenge_gatekeeper`** when an approved item cannot mean anything
 consistent. **`msg.answer_tester`** when Tester asks what a term covers.
 
 You are woken once, act, and end. You have no memory of previous sessions.

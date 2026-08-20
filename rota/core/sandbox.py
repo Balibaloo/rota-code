@@ -480,101 +480,6 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     return Sandbox(role, ctx, artefacts)
 
 
-def _norm(text: str) -> str:
-    """Whitespace-insensitive, the one liberty a quote may take.
-
-    The same normalisation `validators._norm` applies to Liaison's spans:
-    re-wrapping a quote is not paraphrasing it, changing a word is.
-    """
-    return " ".join((text or "").split()).lower()
-
-
-def _must_dispute(ctx: api.Ctx, refs: list[str], reason: str | None) -> None:
-    """
-    A challenge to the Tester names the criterion and quotes both rows.
-
-    Challenging cost one call carrying one id; fixing the code costs reading,
-    writing and committing. Two outcomes costing that differently means noise
-    decides which one you get, and it did: `L1-DV-fix-the-code-not-the-test`
-    went 5/5 to 0/5 when eight symbols entered the index from a directory the
-    case never touches. Every run emitted the challenge and the write in one
-    turn — the right thing behind the wrong thing.
-
-    The case file had named it long before: challenging is "the escape hatch
-    being used as a door: cheaper than fixing the code and indistinguishable
-    from progress." This is `none_found` one artefact along, and it closes the
-    same way — by making the cheap answer cite what it read.
-
-    The graph's noun for this edge is already **"test disputes criterion"**, so
-    requiring both ids is reading the edge rather than inventing a rule.
-
-    It does not decide whether the test is *actually* wrong. `validators.py`
-    draws that line and it is the right one: legality is code's, correctness is
-    not. What goes is the asymmetry — a session that must read both rows before
-    challenging has, by then, done the reading that would have shown it the
-    test is right.
-    """
-    ids = [r for r in refs if isinstance(r, str)]
-    tests = {r["id"]: r["body"] for r in ctx.conn.execute(
-        "SELECT id, body FROM tests WHERE id IN (%s)"
-        % ",".join("?" * len(ids)), ids)} if ids else {}
-    # The criterion must be one this batch is working to. An id nobody can
-    # follow is not a citation, and a criterion from another ticket is a
-    # challenge about something else.
-    mine = {r["id"]: r["text"] for r in ctx.conn.execute(
-        "SELECT c.id AS id, c.text AS text FROM criteria c "
-        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-        "WHERE bt.batch_id = ?", (ctx.batch_id,))} if ctx.batch_id else {}
-    cited = [r for r in ids if r in mine]
-    unknown = [r for r in ids if r not in mine and r not in tests]
-
-    if not cited:
-        raise ValueError(
-            "a challenge says a test contradicts its criterion, so refs must "
-            "name the criterion as well as the test"
-            + (f". These are not criteria of this batch: {unknown}" if unknown
-               else f". This batch's criteria are: {sorted(mine)}")
-            + ". If you cannot name one, the test is not disputing anything "
-              "and the code is what needs changing.")
-
-    # Four consecutive words from the criterion and three from the test body.
-    # Long enough that a paraphrase does not pass by accident, short enough
-    # that the phrase which actually disagrees usually is one — the criterion
-    # here says "leaves its invoices in place" and the test says
-    # "invoices_for(account_id) == []", and both clear it comfortably.
-    body = " ".join(tests.values())
-    quoted_criterion = any(_quotes(mine[cid], reason or "", 4) for cid in cited)
-    quoted_test = _quotes(body, reason or "", 3) if body else True
-    if not (quoted_criterion and quoted_test):
-        missing = []
-        if not quoted_criterion:
-            missing.append("the criterion")
-        if not quoted_test:
-            missing.append("the test")
-        raise ValueError(
-            f"quote {' and '.join(missing)}, do not describe it. A paraphrase "
-            f"is a claim about two rows; a quote is the rows. Copy the words "
-            f"that disagree straight out of each.")
-
-
-def _quotes(source: str, reason: str, run: int) -> bool:
-    """
-    Does `reason` contain `run` consecutive words lifted from `source`?
-
-    Slid rather than enumerated. The first version built *every* run of
-    consecutive words in the source and tested each — which is quadratic in
-    words and normalises each one, so a 250-word test body made 30,876 strings
-    and a long one made the call look like a hang with no GPU in sight. The
-    check is the same; only one window exists at a time.
-    """
-    words = _norm(source).split()
-    if len(words) < run:
-        return bool(words) and " ".join(words) in _norm(reason)
-    hay = _norm(reason)
-    return any(" ".join(words[i:i + run]) in hay
-               for i in range(len(words) - run + 1))
-
-
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -661,16 +566,6 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"looks like `s_1b9009` and comes from the rows you were given "
                 f"or the tools you called -- the words of the thing are not a "
                 f"handle on it")
-
-        # **After the refs guards, not before.** Placed first, this answered a
-        # dict-shaped ref with a complaint about the criterion -- so a session
-        # that had sent `refs=[{"id": "tst_f05eb2", ...}]` was told to name a
-        # criterion it *had* named, could not see the real defect, and repeated
-        # the same shape until its turns ran out. The guards above have a
-        # message earned for exactly that mistake; this one has no business
-        # speaking before them. See `_must_dispute`.
-        if verb == "challenge" and recipient == "tester":
-            _must_dispute(ctx, list(refs or []), text)
 
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have

@@ -9,9 +9,9 @@ Then find which of these it is:
   with `msg.answer_developer`
 - **a criterion cannot be met without breaking a constraint** — the collision
   the Developer hit and could not resolve, because neither side is theirs to
-  move. The criterion is scope. `msg.challenge_gatekeeper(reason=...)`
+  move. The criterion is scope. `msg.challenge_gatekeeper`
 - **the criteria do not mean what everyone assumed** — Terminologist's wording,
-  Gatekeeper's scope. `msg.challenge_gatekeeper(reason=...)`
+  Gatekeeper's scope. `msg.challenge_gatekeeper`
 - **the structure cannot carry what is being asked** — `msg.propose_gatekeeper`
   with the seam. A refactor is scope, and scope is not yours to grant
 

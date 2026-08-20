@@ -27,16 +27,10 @@ two attempts have not moved it, the problem is upstream of the code and
 **Yes — then the test is right and the code is wrong.** `code.source`,
 `code.write`, `code.commit`. Do not edit the test.
 
-**No — then stop.** `msg.challenge_tester(refs=[the test, the criterion],
-reason=...)` and change nothing. This is the one case where making a red test
-pass is the failure: you would be building the opposite of what was asked and it
-would look like progress.
-
-`reason=` must **quote** the words that disagree — copy them out of the
-criterion and out of the test body rather than describing them. A paraphrase is
-a claim about two rows; a quote is the rows. If you cannot find two phrases that
-contradict each other, the test is not disputing anything and the code is what
-needs changing.
+**No — then stop.** `msg.challenge_tester` with the test and the criterion, and
+change nothing. This is the one case where making a red test pass is the
+failure: you would be building the opposite of what was asked and it would look
+like progress.
 
 Answer the two-line check before you touch anything, because the answer is what
 ends the session and there is only ever one of them. A session that both changed
