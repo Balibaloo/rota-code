@@ -593,9 +593,6 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     from .runner import new_id
 
     def stage(refs: list[str], round_no: int = 0, text: str | None = None):
-        # The one verb whose cheapness was the defect. See `_must_dispute`.
-        if verb == "challenge" and recipient == "tester":
-            _must_dispute(ctx, refs if isinstance(refs, list) else [], text)
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -664,6 +661,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"looks like `s_1b9009` and comes from the rows you were given "
                 f"or the tools you called -- the words of the thing are not a "
                 f"handle on it")
+
+        # **After the refs guards, not before.** Placed first, this answered a
+        # dict-shaped ref with a complaint about the criterion -- so a session
+        # that had sent `refs=[{"id": "tst_f05eb2", ...}]` was told to name a
+        # criterion it *had* named, could not see the real defect, and repeated
+        # the same shape until its turns ran out. The guards above have a
+        # message earned for exactly that mistake; this one has no business
+        # speaking before them. See `_must_dispute`.
+        if verb == "challenge" and recipient == "tester":
+            _must_dispute(ctx, list(refs or []), text)
 
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have

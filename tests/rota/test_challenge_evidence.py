@@ -185,3 +185,34 @@ def test_a_quote_shorter_than_the_run_still_counts_when_the_row_is_short(db):
 
     assert _quotes("invoices stay put", "it says 'invoices stay put'", 4) is True
     assert _quotes("invoices stay put", "it says something else", 4) is False
+
+
+def test_a_dict_shaped_ref_is_answered_by_the_guard_that_knows_it(db):
+    """
+    Ordering, and it cost the legitimate case five runs out of five.
+
+    Models offer `refs=[{"id": "tst_1", "criterion_id": "c_1"}]` — reasonable
+    looking, and `stage` has carried a message earned for exactly it since long
+    before this gate existed. Placed first, this gate answered that shape with
+    a complaint about the criterion, so a session that *had* named one was told
+    to name one, could not see the real defect, and repeated the same shape
+    until its turns ran out.
+
+    A new check that speaks over an older and better one makes the system less
+    diagnosable than it was.
+    """
+    from rota.core.sandbox import ArgumentError
+
+    with pytest.raises((ArgumentError, ValueError)) as exc:
+        _dev(db).call(
+            "msg.challenge_tester",
+            refs=[{"id": "tst1", "criterion_id": "c1"}, {"id": "c1"}],
+            reason=f"'{CRITERION}' versus '{TEST_BODY}'")
+
+    # Matched on the guard's own words rather than on the absence of
+    # "criterion" — the refused dict carries a `criterion_id` key, so it is
+    # echoed back in the message and a naive absence check fails on the
+    # *correct* behaviour.
+    said = str(exc.value).lower()
+    assert "refs are ids and nothing else" in said, (
+        f"the criterion gate spoke over the refs guard: {said}")
