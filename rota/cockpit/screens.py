@@ -224,7 +224,13 @@ class RunList(ModalScreen):
             # report success, remove nothing, and leave the seat pointed at a
             # database it thinks it wiped. `wipe_run` closes first and reopens
             # after, which is what makes the seat sittable afterwards.
-            if self.app.db_path and Path(row["path"]) == Path(self.app.db_path):
+            # Resolved on both sides. `ls` hands back whatever string the row
+            # holds and the seat holds whatever was passed on the command line,
+            # so a relative and an absolute spelling of one run compared
+            # *unequal* — sending the seat's own database down the branch that
+            # cannot close it first, straight into the refusal below.
+            here = Path(self.app.db_path).resolve() if self.app.db_path else None
+            if here is not None and Path(row["path"]).resolve() == here:
                 if self.app.driving:
                     self.query_one("#runlist_note", Static).update(
                         f"[yellow]{row['name']} is running in this seat — "
@@ -232,7 +238,19 @@ class RunList(ModalScreen):
                     return
                 self.app.wipe_run()
             else:
-                cli.wipe(Path(row["path"]))
+                try:
+                    cli.wipe(Path(row["path"]))
+                except cli.WipeRefused as exc:
+                    # Said in the screen, not raised through it. Whatever holds
+                    # the file is something you close from a window that has to
+                    # still be open to close it.
+                    self.query_one("#runlist_note", Static).update(
+                        f"[yellow]{exc}[/yellow]")
+                    return
+                except Exception as exc:                       # noqa: BLE001
+                    self.query_one("#runlist_note", Static).update(
+                        f"[red]{type(exc).__name__}: {exc}[/red]")
+                    return
             self.reload()
 
         self.app.push_screen(InputModal(

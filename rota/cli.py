@@ -51,6 +51,22 @@ from . import paths
 RUNS = paths.REPO / ".rota"
 
 
+class WipeRefused(Exception):
+    """A wipe that changed nothing, and why.
+
+    An ordinary exception rather than `SystemExit`, because `wipe` is a library
+    function with two callers and only one of them is a shell. Raised as
+    `SystemExit` it travelled out of a Textual callback, through the message
+    pump and asyncio, and killed the seat -- so the operator was told the run
+    was open in another process *and* lost the window they would have closed it
+    from. `SystemExit` inherits from `BaseException`, so every `except
+    Exception` that exists to keep a UI alive lets it through by design.
+
+    `cmd_wipe` turns it back into a `SystemExit` at the command line, where
+    exiting is the right answer.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Naming
 # ---------------------------------------------------------------------------
@@ -207,13 +223,13 @@ def _refuse_if_held(path: Path) -> None:
     try:
         os.rename(path, probe)
     except OSError:
-        raise SystemExit(
+        raise WipeRefused(
             f"{path.name} is open in another process -- close the seat or "
             f"cockpit holding it, then wipe again. Nothing was removed.")
     try:
         os.rename(probe, path)
     except OSError as exc:                                      # pragma: no cover
-        raise SystemExit(
+        raise WipeRefused(
             f"could not put {path.name} back after checking it ({exc}). "
             f"It is at {probe}.")
 
@@ -291,7 +307,11 @@ def cmd_wipe(args: argparse.Namespace) -> int:
         if input("  type the run name to confirm: ").strip() != path.stem:
             print("  not wiped")
             return 1
-    removed = wipe(path)
+    try:
+        removed = wipe(path)
+    except WipeRefused as exc:
+        # A sentence, not a traceback. Exiting is the right answer *here*.
+        raise SystemExit(str(exc)) from None
     print(f"wiped {path.stem}: {len(removed['worktrees'])} worktree(s), "
           f"{len(removed['pids'])} process(es), {', '.join(removed['files'])}")
     return 0

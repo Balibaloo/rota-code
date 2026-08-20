@@ -149,6 +149,20 @@ class OutboundMessage:
     round_no: int = 0
 
 
+@dataclass(frozen=True)
+class Turn:
+    """One model round-trip: what it was shown, and what it said.
+
+    `seq` counts from 1 within the session, so a transcript reads in the order
+    it happened without joining anything.
+    """
+    seq: int
+    system: str
+    user: str
+    completion: str
+    ms: int = 0
+
+
 @dataclass
 class SessionResult:
     """Everything one session produced. Committed together or not at all."""
@@ -165,6 +179,9 @@ class SessionResult:
     writes: list[Write] = field(default_factory=list)
     messages: list[OutboundMessage] = field(default_factory=list)
     tool_calls: list[tuple[str, str]] = field(default_factory=list)
+    # The conversation itself. Empty is legal and means a database written
+    # before this existed, or a session that never reached the model.
+    turns: list[Turn] = field(default_factory=list)
     checkpoint: dict | None = None
     pins: dict = field(default_factory=dict)
 
@@ -319,6 +336,13 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 "WHERE status = 'unresolved' AND thread_id = ? AND from_role != ?",
                 (thread, result.role),
             )
+
+        for turn in result.turns:
+            conn.execute(
+                "INSERT INTO turns (session_id, seq, system, user, completion, "
+                "ms) VALUES (?, ?, ?, ?, ?, ?)",
+                (result.session_id, turn.seq, turn.system, turn.user,
+                 turn.completion, turn.ms))
 
         for i, (fn, args) in enumerate(result.tool_calls, start=1):
             conn.execute(

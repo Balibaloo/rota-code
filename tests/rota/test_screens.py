@@ -1033,3 +1033,67 @@ async def test_onboard_uses_a_key_a_plain_terminal_can_send(tmp_path, home):
     assert needs_kitty == [], (
         f"{needs_kitty} can only arrive under the Kitty keyboard protocol; in "
         f"a terminal without it the footer advertises a key that does nothing")
+
+
+async def test_wiping_a_held_run_says_so_instead_of_killing_the_seat(
+        tmp_path, home, project, monkeypatch):
+    """
+    The crash you hit. `cli.wipe` raised `SystemExit`, which travelled out of a
+    Textual callback, through the message pump and asyncio, and took the app
+    down — so you were told the run was open in another process *and* lost the
+    window you would have closed it from.
+
+    `SystemExit` is a `BaseException`, so every `except Exception` written to
+    keep a UI alive lets it through by design. The refusal is an ordinary
+    exception now, and the screen reports it.
+    """
+    from rota.cockpit.screens import RunList
+
+    held = _seed(home, "held", project)
+    monkeypatch.setattr(cli, "wipe", lambda p: (_ for _ in ()).throw(
+        cli.WipeRefused("held.db is open in another process")))
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, RunList)
+        row = next(r for r in screen.rows if r["name"] == "held")
+        screen.query_one("#runs").move_cursor(
+            row=screen.rows.index(row))
+        screen.action_wipe()
+        await pilot.pause()
+        app.screen.handle_submit("held")
+        await pilot.pause()
+
+        assert app.is_running, "the refusal killed the seat"
+        assert "another process" in str(
+            app.screen.query_one("#runlist_note").content)
+
+
+async def test_the_seats_own_run_is_recognised_however_it_was_spelled(
+        tmp_path, home, project):
+    """
+    Why the refusal was reached at all. The comparison was string-on-string, so
+    a relative path in the row and an absolute one in the seat were treated as
+    two different runs — and the seat's own database went down the branch that
+    cannot close it first.
+    """
+    from rota.cockpit.screens import RunList
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        screen = app.screen
+        # The same run, spelled the other way.
+        spelled = {"name": app.run_name, "state": "ready",
+                   "path": str(app.db_path).replace("\\", "/"),
+                   "root": str(project), "counts": {}, "branch": "",
+                   "commit": "", "moved": False}
+        assert isinstance(screen, RunList)
+
+        here = Path(app.db_path).resolve()
+        assert Path(spelled["path"]).resolve() == here, (
+            "the two spellings must resolve to one run")

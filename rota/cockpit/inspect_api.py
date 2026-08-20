@@ -380,7 +380,7 @@ def provenance(conn: sqlite3.Connection, table: str, row_id: str) -> dict[str, A
                       "SELECT fn, args_summary, seq FROM tool_calls "
                       "WHERE session_id = ? ORDER BY seq", (sid,))]
     out["chain"] = causal_chain(conn, s["trigger_msg"])
-    out["shown"] = shown_to(conn, s["role"], s["mode"], s["prompt_hash"])
+    out["shown"] = shown_to(conn, s["role"], s["mode"], s["prompt_hash"], sid)
     return out
 
 
@@ -414,7 +414,7 @@ def causal_chain(conn: sqlite3.Connection, message_id: str | None) -> list[dict]
 
 
 def shown_to(conn: sqlite3.Connection, role: str, mode: str,
-             prompt_hash: str | None) -> dict[str, Any]:
+             prompt_hash: str | None, session_id: str = "") -> dict[str, Any]:
     """
     What the session was told — the reconstructible part, and a plain statement
     of the part that is not.
@@ -431,12 +431,26 @@ def shown_to(conn: sqlite3.Connection, role: str, mode: str,
     sentence was absent, and only printing the actual prompt showed it.
     """
     out: dict[str, Any] = {
-        "role": role, "mode": mode, "brief": "", "tools": [],
-        "prompt_hash": prompt_hash, "working_set": None,
-        "note": ("the working set pushed into this prompt is not retained; the "
-                 "brief and toolkit below are rebuilt from the current prompts "
-                 "and graph, which may have changed since this session ran"),
+        "role": role, "mode": mode, "brief": "", "tools": [], "turns": [],
+        "prompt_hash": prompt_hash, "working_set": None, "note": "",
     }
+    # The real thing, when the run recorded it. `turns` holds the exact context
+    # and the exact response per round-trip, so there is nothing to reconstruct
+    # and nothing to apologise for.
+    if session_id:
+        out["turns"] = [{k: r[k] for k in r.keys()} for r in conn.execute(
+            "SELECT seq, system, user, completion, ms FROM turns "
+            "WHERE session_id = ? ORDER BY seq", (session_id,))]
+    if out["turns"]:
+        return out
+
+    # Older runs, and sessions that never reached the model. The rebuild is the
+    # honest fallback and says what it is -- dropping it would make a database
+    # written before `turns` less inspectable than it was.
+    out["note"] = ("no transcript was recorded for this session; the brief and "
+                   "toolkit below are rebuilt from the current prompts and "
+                   "graph, which may have changed since it ran, and the working "
+                   "set it was pushed is not retained")
     try:
         out["brief"] = prompts_mod.compose(role, mode if mode != "normal" else "")
     except Exception:                                          # noqa: BLE001

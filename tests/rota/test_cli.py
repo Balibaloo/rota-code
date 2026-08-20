@@ -258,9 +258,60 @@ def test_wiping_a_run_that_is_open_elsewhere_changes_nothing(home, monkeypatch):
 
     monkeypatch.setattr(cli.os, "rename", locked)
 
-    with pytest.raises(SystemExit) as exc:
+    # `WipeRefused`, not `SystemExit`: this is a library call and only one of
+    # its two callers is a shell. See the class docstring for what the wrong
+    # type cost.
+    with pytest.raises(cli.WipeRefused) as exc:
         cli.wipe(path)
 
     assert "open" in str(exc.value).lower()
     assert path.exists(), "removed while another process held it"
     assert not torn, "tore down what it could not then finish removing"
+
+
+def test_wipe_refuses_with_an_exception_a_caller_can_catch(home, monkeypatch):
+    """
+    `SystemExit` is a command-line answer, not a library one.
+
+    Raised from `cli.wipe`, it travelled out of a Textual callback, through the
+    message pump and asyncio, and killed the seat: "Task exception was never
+    retrieved ... SystemExit". The user was told the run was open in another
+    process *and* lost the window they would have closed it from.
+
+    `SystemExit` also inherits from `BaseException`, so every ordinary
+    `except Exception` between here and the top — including the ones that exist
+    to keep a UI alive — lets it straight through by design.
+    """
+    import os
+
+    path = _run(home, "held")
+    real_rename = os.rename
+    monkeypatch.setattr(cli.os, "rename", lambda s, d: (
+        (_ for _ in ()).throw(PermissionError(32, "in use"))
+        if str(s) == str(path) else real_rename(s, d)))
+
+    with pytest.raises(cli.WipeRefused) as exc:
+        cli.wipe(path)
+
+    assert not isinstance(exc.value, SystemExit)
+    assert isinstance(exc.value, Exception), "a caller must be able to catch it"
+    assert path.exists()
+
+
+def test_the_command_line_still_exits_rather_than_tracebacks(home, monkeypatch):
+    """
+    The refusal must still read as a refusal at a shell prompt. Moving the
+    exception type must not turn a sentence into a stack trace.
+    """
+    import os
+
+    path = _run(home, "held")
+    real_rename = os.rename
+    monkeypatch.setattr(cli.os, "rename", lambda s, d: (
+        (_ for _ in ()).throw(PermissionError(32, "in use"))
+        if str(s) == str(path) else real_rename(s, d)))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["wipe", "held", "--yes"])
+
+    assert "open in another process" in str(exc.value)

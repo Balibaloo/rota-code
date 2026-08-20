@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -27,7 +28,7 @@ from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
-from .db import OutboundMessage, SessionResult, Write, session_commit
+from .db import OutboundMessage, SessionResult, Turn, Write, session_commit
 from .scheduler import Wake, claim, release
 
 MAX_ITERATIONS = 12
@@ -714,6 +715,7 @@ def run_session(
         # before sending the message it had composed on the first one.
         pushed_keys: set[str] = {sb.call_key(name) for name in pushed}
         already_run: set[str] = set()
+        turns: list[Turn] = []
 
         # Four characters to the token is the same rough measure the cockpit
         # uses. Two thirds of the window, because the system prompt is charged
@@ -723,8 +725,15 @@ def run_session(
         for iteration in range(1, max_iterations + 1):
             outcome.iterations = iteration
             transcript = _fit(transcript, budget)
-            completion = backend.complete(system, "\n\n".join(transcript), pins)
+            user = "\n\n".join(transcript)
+            _started = time.perf_counter()
+            completion = backend.complete(system, user, pins)
             outcome.completions.append(completion.text)
+            # The exact context and the exact response, kept. Everything else
+            # about a session is recoverable from its rows; this is not, and it
+            # is what every session that behaved oddly has turned out to need.
+            turns.append(Turn(iteration, system, user, completion.text,
+                              int((time.perf_counter() - _started) * 1000)))
             if getattr(completion, "truncated", False):
                 outcome.errors.append(
                     f"prompt did not fit: {completion.prompt_tokens} tokens "
@@ -957,6 +966,7 @@ def run_session(
             writes=[_as_write(w) for w in sb.ctx.writes],
             messages=_messages_from(sb, wake, session_id),
             tool_calls=sandbox_mod.drain_calls(sb.ctx),
+            turns=turns,
             pins=pins.as_dict(),
         )
         # Hard guard: a chat reply to the principal is mutually exclusive with

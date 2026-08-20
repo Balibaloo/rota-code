@@ -520,6 +520,33 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     valid        INTEGER NOT NULL DEFAULT 1
 );
 
+-- What the model was shown and what it said, one row per round-trip.
+--
+-- `tool_calls` records what a session *did*; this records what it was told and
+-- what it replied, which is the thing that turned out to be missing every time
+-- a session behaved oddly. The provenance panel had to admit it in prose --
+-- "the working set pushed into this prompt is not retained" -- and a rebuilt
+-- brief is not the prompt: it is how "the sentence was in there, so the role
+-- ignored it" survives a week, when the sentence was in fact absent.
+--
+-- Named `turns` because that is what a session is a conversation of. The
+-- cassettes have carried exactly this for the test corpus all along, keyed by
+-- prompt hash; this is the same record for a *run*, where there is no case id
+-- and the question is about the project rather than about a prompt.
+--
+-- Deleted with its session by the same transaction that writes it. A transcript
+-- outliving a rolled-back session would be a record of something that did not
+-- happen, and the most convincing kind, because it reads like an eyewitness.
+CREATE TABLE IF NOT EXISTS turns (
+    session_id  TEXT NOT NULL REFERENCES sessions(id),
+    seq         INTEGER NOT NULL,
+    system      TEXT NOT NULL,
+    user        TEXT NOT NULL,
+    completion  TEXT NOT NULL,
+    ms          INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, seq)
+);
+
 CREATE TABLE IF NOT EXISTS tool_calls (
     session_id     TEXT NOT NULL REFERENCES sessions(id),
     fn             TEXT NOT NULL,
