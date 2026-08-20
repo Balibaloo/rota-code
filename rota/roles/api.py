@@ -782,6 +782,24 @@ def surveys_attest(ctx: Ctx, outcome: str,
             unknown.append(grain)
         elif area == "." or grain == area or grain.startswith(area.rstrip("/") + "/"):
             inside.append(grain)
+    # And you must have opened one of them. Citing was already required, and
+    # citing is not reading: the grain list is *in the prompt*, so naming one
+    # costs nothing. Measured -- one survey session in three wrote six glossary
+    # terms having called `code.source` zero times, which is the vocabulary of
+    # an area decided from paths. `Alarm: an event that triggers an action` and
+    # `folder: directory in file system` are both readings of a name.
+    #
+    # `model.amend` has refused exactly this for constraint bindings since Law
+    # 12 -- "you cannot have found one in a file you did not read" -- using the
+    # same `ctx.opened`. The rule was written and applied one artefact along.
+    read = [g for g in inside if _grain_path(g) in (ctx.opened or set())]
+    if inside and not read:
+        raise ValueError(
+            f"you cited {inside[:3]} and opened none of them. `code.survey` "
+            f"lists an area; it does not show you what is in it, so a term "
+            f"named from a path is a reading of the path. `code.source` one of "
+            f"them first, then attest.")
+
     if not inside:
         outside = [g for g in (citations or []) if g not in unknown]
         raise ValueError(

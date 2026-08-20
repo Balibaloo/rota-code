@@ -388,6 +388,10 @@ def test_a_survey_closes_the_area_it_was_woken_for(project):
     db, repo = project
     indexer.build(db, repo.root)
     areas.pin(db, areas.propose(db))
+    # `code.source` reads from the project root, and this test builds the index
+    # directly rather than through `boot.onboard`, which is what records it.
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('project_root', ?)", (str(repo.root),))
 
     sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
     # Citing is required now — closing an area means showing what you read in
@@ -396,6 +400,7 @@ def test_a_survey_closes_the_area_it_was_woken_for(project):
     grain = db.execute(
         "SELECT grain FROM code_index WHERE area = 'src/billing' "
         "AND grain_kind = 'path' LIMIT 1").fetchone()["grain"]
+    sb.call("code.source", path=grain)      # citing is not reading; see below
     sb.call("surveys.attest", outcome="none_found", citations=[grain])
 
     row = db.execute("SELECT id, area FROM survey_records").fetchone() or {}
@@ -887,6 +892,7 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
 
     read = ["src/billing/charges.py"]        # citing is required; see below
     te = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
+    te.call("code.source", path=read[0])
     te.call("glossary.amend", term="charge",
             sense_short="an authorisation the gateway has already accepted")
     te.call("surveys.attest", outcome="found", citations=read)
@@ -899,6 +905,7 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
     # Terminologist's terms were accepted as constraints found. The refusal has
     # to name the artefact this role owes, not merely say something is missing.
     ar = sandbox_mod.build("architect", db, session_id="s2", area="src/billing")
+    ar.call("code.source", path=read[0])
     with pytest.raises(ValueError, match="constraints"):
         ar.call("surveys.attest", outcome="found", citations=read)
 
@@ -933,6 +940,7 @@ def test_finding_something_costs_more_than_finding_nothing(project):
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
 
     read = ["src/billing/charges.py"]
+    sb.call("code.source", path=read[0])
     with pytest.raises(ValueError, match="wrote no constraints"):
         sb.call("surveys.attest", outcome="found", citations=read)
 

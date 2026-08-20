@@ -42,11 +42,21 @@ from rota.roles.api import surveys_attest
 
 
 class Ctx:
-    """The slice of a session context `attest` actually reads."""
+    """The slice of a session context `attest` actually reads.
 
-    def __init__(self, conn, role="architect", area="src/auth"):
+    `read=` seeds `opened` the way `code.source` would, so a test about the
+    *citation* rules does not have to stage a file read to get to them.
+    """
+
+    def __init__(self, conn, role="architect", area="src/auth", read=()):
         self.conn, self.role, self.area = conn, role, area
         self.writes: list = []
+        # What `code.source` has opened this session. The real `Ctx` has
+        # carried this since Law 12; the stub has to as well or it is a
+        # different object with the same name.
+        self.opened: set = set(read)
+        self.batch_id = None
+        self.provenance = "observed"
 
 
 @pytest.fixture
@@ -92,7 +102,7 @@ def test_a_citation_must_be_in_the_area_it_closes(db):
     prefix, so this is checkable rather than a matter of trust.
     """
     with pytest.raises(ValueError) as exc:
-        surveys_attest(Ctx(db), outcome="none_found",
+        surveys_attest(Ctx(db, read=["docs/one.py"]), outcome="none_found",
                        citations=["docs/one.py"])
 
     assert "src/auth" in str(exc.value)
@@ -117,7 +127,7 @@ def test_one_real_citation_is_enough_and_typos_do_not_kill_the_session(db):
     resolving grain inside the area closes it; the rest are still reported, the
     way they always were, so a session can see what it got wrong.
     """
-    ctx = Ctx(db)
+    ctx = Ctx(db, read=["src/auth/one.py"])
     got = surveys_attest(ctx, outcome="none_found",
                          citations=["src/auth/one.py", "src/auth/typo.py"])
 
@@ -134,7 +144,7 @@ def test_the_validator_that_was_never_a_gate_now_agrees_with_the_gate(db):
     What it flags and what `attest` refuses are now the same condition, which is
     the only way they cannot drift.
     """
-    ctx = Ctx(db)
+    ctx = Ctx(db, read=["src/auth/one.py"])
     surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
     # `survey_citations` is keyed on (survey_id, grain) and has no `id`, so the
     # writes are applied the way the committer applies them rather than by a
@@ -179,7 +189,8 @@ def test_a_survey_of_an_area_that_no_longer_exists_is_flagged(db):
     record counting as a survey of something absent is the part that was
     invisible.
     """
-    surveys_attest(Ctx(db), outcome="none_found", citations=["src/auth/one.py"])
+    surveys_attest(Ctx(db, read=["src/auth/one.py"]), outcome="none_found",
+                   citations=["src/auth/one.py"])
     db.execute("INSERT INTO survey_records (id, area, outcome) "
                "VALUES ('architect:src/auth','src/auth','none_found')")
     assert validators.check_survey_areas(db) == []
@@ -215,7 +226,7 @@ def test_a_survey_records_the_commit_it_surveyed(db):
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                "('project_commit', '9961924abc')")
 
-    ctx = Ctx(db)
+    ctx = Ctx(db, read=["src/auth/one.py"])
     surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
 
     record = [v for t, _, v in ctx.writes if t == "survey_records"][0]
@@ -229,8 +240,90 @@ def test_a_survey_of_an_unversioned_tree_records_no_commit(db):
     re-survey predicate reading it can tell "surveyed at an unknown commit"
     from "surveyed at this one".
     """
-    ctx = Ctx(db)
+    ctx = Ctx(db, read=["src/auth/one.py"])
     surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
 
     record = [v for t, _, v in ctx.writes if t == "survey_records"][0]
     assert record["commit_sha"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Citing what you read, rather than what you were listed
+# ---------------------------------------------------------------------------
+
+def test_a_survey_must_have_opened_one_of_the_files_it_cites(db):
+    """
+    Measured, not argued. The survey prompt hands a Terminologist
+    `[code.survey]` — a file list with fan-in counts — and, across 6,315
+    characters, not one `def`, `class`, `import` or `return`. Then one survey
+    session in three wrote **six glossary terms having called `code.source`
+    zero times**: the vocabulary of an area, decided from paths.
+
+    That is where `Alarm: an event that triggers an action` comes from, and
+    `folder: directory in file system` before it. Both are readings of a *name*.
+
+    Citing was already required, and citing is not reading — the list of grains
+    is in the prompt, so naming one costs nothing. The bar is the same as
+    everywhere else here: the cheap answer must show what it looked at.
+    """
+    ctx = Ctx(db)
+    with pytest.raises(ValueError) as exc:
+        surveys_attest(ctx, outcome="none_found", citations=["src/auth/one.py"])
+
+    assert "read" in str(exc.value).lower()
+
+
+def test_having_read_one_of_them_is_enough(db):
+    """
+    One file, not all of them. A survey that opened something and formed a view
+    is the behaviour wanted; requiring every citation to be read would make
+    citing widely *cost* more than citing narrowly, which is backwards.
+    """
+    ctx = Ctx(db, read=["src/auth/one.py"])
+
+    got = surveys_attest(ctx, outcome="none_found",
+                         citations=["src/auth/one.py", "src/auth/two.py"])
+
+    assert got["id"] == "architect:src/auth"
+
+
+def test_a_symbol_counts_as_having_read_its_file(db):
+    """
+    `code_index` holds files *and* symbols — `a.py` and `a.py::run` are both
+    grains — so a session that read `a.py` and cited the symbol in it has read
+    what it cited. Matching them as different strings would refuse the most
+    precise citation available.
+    """
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/auth/one.py::login','symbol','src/auth')")
+    ctx = Ctx(db, read=["src/auth/one.py"])
+
+    got = surveys_attest(ctx, outcome="none_found",
+                         citations=["src/auth/one.py::login"])
+
+    assert got["id"] == "architect:src/auth"
+
+
+def test_reading_a_file_records_it_on_the_session(db, tmp_path):
+    """
+    `ctx.opened` already exists and `code.source` already fills it — the field
+    carries its own reasoning: "a constraint is a commitment to something
+    outside the codebase; you cannot have found one in a file you did not read,
+    and the first foreign repo produced twenty-four constraints from sessions
+    that had opened almost nothing."
+
+    The rule was written, implemented, and applied to constraint *bindings*
+    only. A survey citation is the same claim about the same act.
+    """
+    from rota.roles.api import code_source
+
+    root = tmp_path / "proj"
+    (root / "src" / "auth").mkdir(parents=True)
+    (root / "src" / "auth" / "one.py").write_text("def login():\n    pass\n")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('project_root', ?)", (str(root),))
+
+    ctx = Ctx(db)
+    code_source(ctx, path="src/auth/one.py")
+
+    assert "src/auth/one.py" in ctx.opened
