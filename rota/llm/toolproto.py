@@ -109,7 +109,26 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     # Newlines inside an unquoted argument list would break the expression, so
     # they are escaped before parsing and restored by literal_eval.
     safe = args_str.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
-    expr = ast.parse(f"_f({safe})", mode="eval")
+    try:
+        expr = ast.parse(f"_f({safe})", mode="eval")
+    except SyntaxError:
+        # **A prose argument has to be able to carry code, and code is quotes.**
+        #
+        # The Developer's brief asks it to quote the test body it disputes, so
+        # the argument it produces looks like
+        #
+        #     reason='"the criterion says ..." and "assert f('SKU-1', 25) == ..."'
+        #
+        # and `ast` stops at `'SKU-1'`, because the inner quote closes the outer
+        # one. The call became a `ToolError`, the message was never sent, and
+        # `L1-DV-fix-the-code-not-the-test` turned green *because the model
+        # could not speak* — a case passing for an accident rather than a
+        # reason, produced by an instruction this protocol could not carry.
+        #
+        # So the instruction stays sayable and the protocol widens. Strict
+        # parsing is tried first and is unchanged; only what it rejects reaches
+        # here, so nothing that parsed before parses differently now.
+        return _parse_args_lenient(safe), ()
     call = expr.body
     if not isinstance(call, ast.Call):
         raise ValueError("not a call expression")
@@ -120,6 +139,14 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
             raise ValueError("**kwargs is not supported")
         out[kw.arg] = _literal(kw.value)
     return out, tuple(_literal(a) for a in call.args)
+
+
+def _parse_args_lenient(args_str: str) -> dict:
+    """The quote-tolerant fallback. Lives in `_lenient` so the strict grammar
+    here stays the thing you read first."""
+    from ._lenient import parse_args_lenient
+
+    return parse_args_lenient(args_str, _literal)
 
 
 def _scan_name(text: str, i: int) -> tuple[str, int]:
