@@ -569,6 +569,69 @@ def test_a_rung_that_cannot_reply_to_the_asker_is_not_a_rung(db):
         "Architect cannot answer Tester; the climb must skip to one that can"
 
 
+def test_a_reported_collision_stops_being_offered(db):
+    """
+    The mode has one productive verb, and using it did not stop the wake.
+
+    `term_collision` was built as the glossary's `contradiction` -- its own
+    docstring says so -- and `contradiction` has always ended with "return []
+    if a clarify is already open to the principal". This copied the intent and
+    not the check.
+
+    Measured on an Obsidian plugin: a survey of `.github` wrote two senses of
+    `issue_template`, correctly -- a bug-report template and a feature-request
+    template are two things. The mode's whole working set is
+    `glossary.consult`, `glossary.lookup`, `msg.report_liaison`; amending is
+    forbidden there because collapsing two senses is a decision. So the session
+    reported on turn 3, its first opportunity, exactly as briefed, and was woken
+    again. Six sessions, three of them to the 12-turn cap, 44 of the run's 71
+    turns. `fix` outranks `start`, so the survey wakes queued behind it were
+    never reached and the run finished with no survey record at all.
+    """
+    from rota.core.scheduler import frontier
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','issue_template','bug report template','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','issue_template','feature request template','observed')")
+
+    assert any(w.kind == "tick:term_collision" for w in frontier(db)),         "two live senses, nobody told: it must be raised"
+
+    # The one act the mode permits.
+    db.execute("INSERT INTO messages (id, seq, thread_id, from_role, to_role, "
+               "verb, status, body_refs) VALUES "
+               "('m1',1,'t1','terminologist','liaison','report','open',"
+               "'[\"g1\",\"g2\"]')")
+
+    assert not any(w.kind == "tick:term_collision" for w in frontier(db)),         "it has been put to somebody; asking again costs a turn and adds nothing"
+
+    # Parked, not discharged. The register still carries it.
+    assert P.outstanding(db), "a wake-suppression is not a discharge"
+
+    # A third sense joins the open case rather than opening a second one. This
+    # happened in the measured run: a session tried to settle the word by
+    # writing a merged third row, which under id-keyed matching would read as a
+    # brand new collision.
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g3','issue_template','template for bugs and features',"
+               "'observed')")
+    assert not any(w.kind == "tick:term_collision" for w in frontier(db)),         "a third sense is more evidence for the open case, not a new one"
+
+    # An unrelated word is still raised: the suppression is per-term, not
+    # `contradiction`'s cruder "any open clarify exists at all".
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g4','intent','a note-creation recipe','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g5','intent','a specific action or task','observed')")
+    assert [w.detail for w in frontier(db) if w.kind == "tick:term_collision"]         == ["intent"]
+
+    # Answered and dropped without a ruling: it comes back, because nothing was
+    # settled and nobody is holding it any more.
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm1'")
+    assert "issue_template" in [w.detail for w in frontier(db)
+                                if w.kind == "tick:term_collision"]
+
+
 def test_what_this_system_does_not_know_is_one_query(db):
     """
     The register's last item, and the one it kept describing as missing.

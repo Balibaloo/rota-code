@@ -280,11 +280,47 @@ def term_collision(conn) -> list[Wake]:
         except (ValueError, TypeError):
             continue
 
+    # Already put to somebody. `contradiction` -- the twin this predicate was
+    # built from, named two paragraphs up -- has had this check all along and
+    # terminates because of it; this copied the intent and not the check.
+    #
+    # What that cost, measured: a survey of `.github` wrote two senses of
+    # `issue_template`, correctly, because a bug-report template and a
+    # feature-request template are two things. The mode's whole working set is
+    # `glossary.consult`, `glossary.lookup`, `msg.report_liaison` -- it is
+    # forbidden to amend here, deliberately, because collapsing two senses is a
+    # decision. So the session reported, on turn 3, first opportunity, exactly
+    # as briefed, and was woken again. Six sessions, three of them to the
+    # 12-turn cap, 44 of the run's 71 turns. `fix` outranks `start`, so the
+    # survey wakes behind it were never reached and the run produced no survey
+    # record at all. `tick_agenda` states the rule for its own case: without
+    # this, "it fires forever, because Liaison has no verb that could satisfy
+    # it."
+    #
+    # Separate from `ruled` because they mean different things. A decision
+    # discharges the obligation; an open message parks it, and the register
+    # still carries it under `awaiting_principal`. A wake-suppression is not a
+    # discharge.
+    #
+    # By refs rather than `contradiction`'s cruder "any open clarify exists",
+    # so one reported collision does not hide every other -- and so a third
+    # sense appearing joins the open case instead of raising a new one, which
+    # is what happened here when a session tried to settle the word by writing
+    # a merged third row.
+    raised: set[str] = set()
+    for m in conn.execute("SELECT body_refs FROM messages WHERE status = 'open'"):
+        try:
+            raised.update(json.loads(m["body_refs"] or "[]"))
+        except (ValueError, TypeError):
+            continue
+
     wakes = []
     for r in rows:
         ids = sorted(r["ids"].split(","))
         if any(i in ruled for i in ids):
             continue                      # somebody has ruled on this word
+        if any(i in raised for i in ids):
+            continue                      # it is already in front of somebody
         wakes.append(Wake("terminologist", "tick:term_collision",
                           refs=tuple(ids), detail=r["term"]))
     return wakes
