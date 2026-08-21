@@ -40,13 +40,44 @@ def test_the_index_covers_both_languages(project):
     db, repo = project
     report = indexer.build(db, repo.root)
 
-    assert set(report.languages) == {"python", "javascript"}
+    assert {"python", "javascript"} <= set(report.languages)
     assert report.files > 20 and report.symbols > 30
 
     paths = {r["grain"] for r in db.execute(
         "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
     assert "src/billing/charges.py" in paths
     assert "web/invoices.js" in paths
+
+
+def test_a_file_with_no_parser_is_still_in_the_index(project):
+    """
+    The index answers "what is in this project", and it was answering "what can
+    tree-sitter parse".
+
+    On the first Obsidian plugin those differed by the four files that carried
+    the domain: a YAML schema defining every key the product reads *and imported
+    by the parser that reads them*, the README, and the two manifests holding the
+    commitments to the plugin registry. None reached the index, so none reached a
+    brief, and the Architect woken for the top level saw a build script and a
+    version bumper and wrote a constraint about the build script.
+
+    A file with no parser has no symbols and no imports. It still has a path, and
+    `code.source` opens it either way.
+    """
+    db, repo = project
+    report = indexer.build(db, repo.root)
+
+    paths = {r["grain"] for r in db.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")}
+    assert "README.md" in paths, "the file that says what the project is"
+    assert "pyproject.toml" in paths
+    assert "src/store/schema.sql" in paths, "not a parsed language, and the schema"
+
+    symbols = {r["grain"] for r in db.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'symbol'")}
+    assert not any(g.startswith(("README.md::", "pyproject.toml::"))
+                   for g in symbols), "an unparsed file contributes no symbols"
+    assert "text" in report.languages
 
 
 def test_symbols_are_indexed_under_the_file_that_defines_them(project):

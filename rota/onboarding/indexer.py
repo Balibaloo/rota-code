@@ -30,6 +30,17 @@ SKIP_DIRS = {".git", ".rota", "node_modules", "__pycache__", ".venv", "venv",
 
 MAX_BYTES = 1_000_000            # a file larger than this is generated or data
 
+# Tracked, text, under the size cap -- and still nobody's work. A lockfile is a
+# resolver's output and a minified bundle is a compiler's; indexing either puts
+# thousands of grains in front of a role that can do nothing with them.
+GENERATED = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json",
+             "poetry.lock", "Pipfile.lock", "Cargo.lock", "go.sum", "composer.lock",
+             "Gemfile.lock", "uv.lock", "flake.lock"}
+
+
+def _minified(name: str) -> bool:
+    return any(name.endswith(s) for s in (".min.js", ".min.css", ".map", ".lock"))
+
 
 class ParsersUnavailable(RuntimeError):
     """tree-sitter grammars are not installed. Onboarding needs them; nothing
@@ -281,7 +292,26 @@ def tracked(root: Path) -> set[Path] | None:
 
 def walk(root: Path) -> list[Path]:
     """
-    Every authored source file under `root`.
+    Every authored file under `root` — not only the ones with a parser.
+
+    It used to keep a file only when `languages.for_path` recognised its suffix,
+    which asks "can tree-sitter turn this into symbols" and was being used to
+    answer "is this part of the project". On the first Obsidian plugin those are
+    different questions by four files: `intentsSchema.yaml` defines every key an
+    intent may carry *and is imported by the parser that reads them*,
+    `README.md` says what the product is in its first line, and `manifest.json`
+    and `versions.json` carry the two commitments to the plugin registry. None
+    of them reached the index, so none reached a brief, so no session could cite
+    or read one. The Architect woken for the top level saw a build script and a
+    version bumper and wrote a constraint about the build script.
+
+    A file with no parser still has a path and contents, and `code.source` opens
+    it either way. It arrives as a path-kind grain with no symbols, which is a
+    shape the index already holds — `esbuild.config.mjs` has been one all along.
+
+    What stays out is what nobody authored: lockfiles, minified bundles, and
+    anything that is not text. `MAX_BYTES` and `tracked()` already carried most
+    of that and are still the first line.
 
     `SKIP_DIRS` stays as a floor even when git answers, because the two are not
     the same question. `.rota/` is *our* state directory inside somebody else's
@@ -297,7 +327,7 @@ def walk(root: Path) -> list[Path]:
             continue
         if keep is not None and path.resolve() not in keep:
             continue
-        if for_path(path.name) is None:
+        if path.name in GENERATED or _minified(path.name):
             continue
         out.append(path)
     return out
@@ -317,8 +347,6 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
 
     facts: list[FileFacts] = []
     for path in walk(root):
-        lang = for_path(path.name)
-        assert lang is not None
         try:
             source = path.read_bytes()
         except OSError:                                     # pragma: no cover
@@ -328,6 +356,21 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
             report.skipped.append(path.relative_to(root).as_posix())
             continue
         rel = path.relative_to(root).as_posix()
+        lang = for_path(path.name)
+        if lang is None:
+            # No parser, so no symbols and no imports -- but a path, which is
+            # what a session needs to find it and `code.source` needs to open
+            # it. Binary is the one thing excluded here rather than by name: a
+            # decode failure is what "not authored text" actually means, and it
+            # does not need a suffix list to be complete.
+            try:
+                source.decode("utf-8")
+            except UnicodeDecodeError:
+                report.skipped.append(rel)
+                continue
+            facts.append(FileFacts(path=rel))
+            report.languages["text"] = report.languages.get("text", 0) + 1
+            continue
         facts.append(parse_file(rel, source, lang))
         report.languages[lang.name] = report.languages.get(lang.name, 0) + 1
 
