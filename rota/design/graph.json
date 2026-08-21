@@ -1248,6 +1248,15 @@
       "label": "its own bodies, singly"
     },
     {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "writes",
+      "v": "same",
+      "n": "one word said twice",
+      "label": "recognising there was only ever one sense is an observation; collapsing two is the principal's",
+      "rows": "delta"
+    },
+    {
       "s": "architect",
       "t": "model",
       "type": "reads",

@@ -82,6 +82,26 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     sense_body   TEXT,                      -- fetched singly, never in bulk
     provenance   TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
     source_refs  TEXT NOT NULL DEFAULT '[]',
+    -- Which area the session that wrote this sense was surveying. Evidence,
+    -- never authority: two senses written while reading the same area are one
+    -- thing described twice, and two written from different areas are the word
+    -- doing different work in two places. That is what a disambiguation
+    -- session needs in order to tell a duplicate from a collision, and it is
+    -- all this column is for.
+    --
+    -- Not ownership. Ownership is not in the data: `TemplateVariable` is
+    -- declared in `src/variables` and the word is used 152 times in
+    -- `src/variables/providers`, so counting hands it to the wrong area; and
+    -- `folder`, `text` and `note` as prompt types are declared in
+    -- `intentsSchema.yaml`, which has no symbols at all. Deciding which sense
+    -- survives is a judgement, and computing it from a frequency was reaching
+    -- for the available number instead of the right one.
+    area         TEXT,
+    -- The row this one replaced, when a disambiguation session ruled them the
+    -- same word said twice. Superseded rather than deleted: sameness is a
+    -- judgement we are delegating and cannot verify, so the losing sense stays
+    -- readable and the merge stays reversible.
+    superseded_by TEXT REFERENCES glossary_terms(id),
     version      INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS ix_glossary_term ON glossary_terms(term);

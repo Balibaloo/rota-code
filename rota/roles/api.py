@@ -370,6 +370,10 @@ def problem_consult(ctx: Ctx) -> list[dict]:
 # glossary
 # ---------------------------------------------------------------------------
 
+def _slug_of(term: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", (term or "").strip().lower()).strip("_")
+
+
 def _same_sense(text: str) -> str:
     """Two senses read as one when the index line reads the same.
 
@@ -531,10 +535,116 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                 f"*which meaning*, not where it came from: provenance is "
                 f"`observed` here without your saying so.)")
 
+    # A second session saying something different about the same word is the
+    # collision signal, and it was being thrown away as a duplicate.
+    #
+    # Both arrive in the identical shape -- one word, written twice, by two
+    # sessions -- and `INSERT OR REPLACE` on an id derived from the term kept
+    # the last. So the system could not tell `endpoint` written five times
+    # meaning the same thing, which is the failure the derivation was built to
+    # stop, from `folder` written twice meaning two different things, which is
+    # what this repository actually does. It resolved both by silent
+    # last-writer-wins.
+    #
+    # What that cost, measured across two runs: the correct sense was written
+    # by an early session and destroyed by a later one four times.
+    # `folder: "in the context of template variables"` overwritten by
+    # `"a directory where notes are stored"`. `intent: "a type of frontmatter
+    # that defines a template or action"` overwritten by `"a plugin for
+    # Obsidian"`. Half the bad glossary was answers the run already had.
+    #
+    # Area is evidence and not authority. Two senses written while reading one
+    # area are one thing described twice, so that stays an amendment. Two from
+    # different areas are the word doing different work in two places, which is
+    # a second row -- exactly what `sense=` makes deliberately, arrived at from
+    # what happened instead of from the model noticing.
+    #
+    # Which sense survives is not decided here and is not computable: see the
+    # note on `glossary_terms.area`. Nothing wins silently is the whole change.
+    if not sense and ctx.area:
+        prior = ctx.conn.execute(
+            "SELECT id, area, sense_short FROM glossary_terms "
+            "WHERE id = ? AND superseded_by IS NULL", (slug,)).fetchone()
+        if (prior and prior["area"] and prior["area"] != ctx.area
+                and _same_sense(prior["sense_short"]) != _same_sense(sense_short)):
+            id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', ctx.area.lower()).strip('_')}"
+
     ctx.writes.append(("glossary_terms", id, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
-        "provenance": ctx.provenance}))
+        "provenance": ctx.provenance, "area": ctx.area or ""}))
     return {"id": id}
+
+
+@op("glossary", "same")
+def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
+    """
+    Two rows, one meaning. Say so, and the duplicate stops being a question.
+
+    `term_collision`'s brief has always named two outcomes -- *"two entries for
+    one word are sometimes one sense written twice in different words; if they
+    say the same thing, that is a duplicate and not a collision, and saying so
+    is the answer"* -- and the mode's whole working set was `glossary.lookup`,
+    `glossary.consult` and `msg.report_liaison`. The only way to say anything
+    was to escalate. Measured: three sessions looked the same two rows up eleven
+    times each and ended with nothing they could do.
+
+    This does not touch the rule it looks like it touches. *Collapsing two
+    senses* is a decision and stays the principal's, because choosing which one
+    the project means is about their intent. *Recognising that there was only
+    ever one sense* is an observation: nothing is chosen, and the alternative is
+    a question put to a person that answers itself.
+
+    It is also the easy half. Judging whether "a file in the Obsidian vault
+    containing frontmatter" and "a document or file in Obsidian that contains
+    notes" say the same thing is a far smaller task than producing either, which
+    is why it is worth a session at this model size.
+
+    **Superseded, never deleted.** Sameness is a judgement being delegated and
+    it cannot be checked mechanically, so the losing sense stays readable and
+    the merge stays reversible. Wrongly calling two senses different costs the
+    principal a glance; wrongly calling them the same destroys the ambiguity
+    this system exists to surface. Only one of those is recoverable, so only one
+    of them is allowed to be quiet.
+    """
+    rows = {r["id"]: r for r in ctx.conn.execute(
+        "SELECT id, term, sense_short, area, superseded_by FROM glossary_terms "
+        "WHERE id IN (?, ?)", (keep, drop))}
+    missing = [i for i in (keep, drop) if i not in rows]
+    if missing:
+        raise ValueError(
+            f"{missing} is not a glossary id. Both ids come from the wake that "
+            f"woke you, spelled as they were given.")
+    if keep == drop:
+        raise ValueError("keep and drop are the same row; nothing to merge.")
+    if not (why or "").strip():
+        raise ValueError(
+            "say why they are the same before merging them. Reporting two "
+            "senses costs the principal a glance; calling them the same "
+            "destroys an ambiguity only they can settle, so this one has to be "
+            "argued.")
+
+    a, b = rows[keep], rows[drop]
+    if _slug_of(a["term"]) != _slug_of(b["term"]):
+        raise ValueError(
+            f"{a['term']!r} and {b['term']!r} are different words. This says two "
+            f"rows are one word said twice; it is not for relating two words.")
+    if b["superseded_by"]:
+        return {"id": keep, "note": f"{drop} was already superseded."}
+
+    # No ledger entry and no stored prose. The ledger is for a sense picked when
+    # the material did not settle it, and a duplicate is not an assumption --
+    # filling it with these would put non-questions in front of the principal
+    # and block milestones on them. Law 2 keeps prose off artefacts anyway: the
+    # record is the pointer and both rows still being readable.
+    #
+    # `why` is required and goes nowhere. It is here so the case has to be
+    # stated before the act, which is the whole guard on a judgement that cannot
+    # be checked.
+    ctx.writes.append(("glossary_terms", drop, {
+        "term": b["term"], "sense_short": b["sense_short"],
+        "provenance": ctx.provenance, "superseded_by": keep}))
+    return {"id": keep, "superseded": drop,
+            "note": f"{drop} now points at {keep}. Both senses stay readable."}
 
 
 @op("glossary", "lookup")

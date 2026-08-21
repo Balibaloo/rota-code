@@ -267,9 +267,32 @@ def term_collision(conn) -> list[Wake]:
     """
     import json
 
+    from .scheduler import tick_survey
+
+    # Not while the survey pass is still running.
+    #
+    # This is band `fix` and surveying is band `start`, so a collision found in
+    # the second area is drained before the third is looked at. Measured: one
+    # `.github` collision held a whole run and it finished with zero survey
+    # records in 71 turns. The band order is right in general and wrong here,
+    # because the cost of an unresolved collision is downstream work built on an
+    # ambiguous word -- and during onboarding there is no downstream work.
+    # `rests_on_a_collision` already suppresses any consumer whose criteria
+    # touch the word, so waiting is safe by a mechanism that already exists.
+    #
+    # It is also judging on partial evidence. `folder`'s second sense arrived
+    # from a different area three sessions later; ruling after the first two
+    # would have settled it before the relevant fact existed.
+    #
+    # Conditional rather than a phase: a collision created later, in delivery,
+    # fires at once, because by then something does depend on the word.
+    if any(w.role == "terminologist" for w in tick_survey(conn)):
+        return []
+
     rows = conn.execute(
         "SELECT term, GROUP_CONCAT(id) AS ids, COUNT(*) AS n "
-        "FROM glossary_terms GROUP BY term HAVING n > 1").fetchall()
+        "FROM glossary_terms WHERE superseded_by IS NULL "
+        "GROUP BY term HAVING n > 1").fetchall()
     if not rows:
         return []
 

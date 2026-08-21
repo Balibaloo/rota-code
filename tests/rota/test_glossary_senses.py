@@ -37,9 +37,13 @@ from rota.roles.api import glossary_amend
 class Ctx:
     """The slice of a session context `glossary.amend` reads."""
 
-    def __init__(self, conn, provenance="observed", read=None):
+    def __init__(self, conn, provenance="observed", read=None, area=None):
         self.conn = conn
         self.provenance = provenance
+        # The area the session was surveying. Evidence for whether a second,
+        # differing sense is one thing described twice or the word doing
+        # different work somewhere else. `None` is how a non-survey mode runs.
+        self.area = area
         self.writes: list = []
         self.role = "terminologist"
         self.opened: set = set()
@@ -296,3 +300,111 @@ def test_reading_a_file_that_uses_the_word_is_enough(db):
         glossary_amend(ctx, term="selection",
                        sense_body="a range of text", sense_short="text range")
     assert "selection" in str(exc.value)
+
+
+def test_a_differing_sense_from_another_area_is_a_second_row(db):
+    """
+    The collision the system was built to surface, and threw away as a duplicate.
+
+    Both arrive in the same shape -- one word, written twice, by two sessions --
+    and `INSERT OR REPLACE` on an id derived from the term kept the last. So
+    `endpoint` written five times meaning the same thing, which the derivation
+    exists to stop, was indistinguishable from `folder` written twice meaning two
+    different things, which is what the repository actually does.
+
+    Measured across two runs: the correct sense was written early and destroyed
+    by a later session four times. `folder: "in the context of template
+    variables"` overwritten by `"a directory where notes are stored"`. `intent:
+    "a type of frontmatter that defines a template or action"` overwritten by
+    `"a plugin for Obsidian"`. Half the bad glossary was answers the run already
+    had.
+    """
+    a = Ctx(db, area="src/variables/providers", read=["folder", "variable"])
+    glossary_amend(a, term="folder", sense_body="one of five prompt types",
+                   sense_short="a variable type naming a folder")
+    a.commit()
+
+    b = Ctx(db, area="src/intents", read=["folder", "note"])
+    out = glossary_amend(b, term="folder", sense_body="where notes are kept",
+                         sense_short="a directory in the vault")
+    b.commit()
+
+    assert out["id"] != "folder", "the second sense must not land on the first"
+    rows = {r["id"]: r["sense_short"] for r in db.execute(
+        "SELECT id, sense_short FROM glossary_terms WHERE term = 'folder'")}
+    assert len(rows) == 2, "both senses survive; neither wins silently"
+    assert "a variable type naming a folder" in rows.values()
+
+
+def test_the_same_area_saying_it_again_is_an_amendment(db):
+    """
+    Area is evidence, not a rule against writing twice. One session refining its
+    own sense, or a later session in the same area, is one thing described twice
+    -- which is what the derivation was built for and stays.
+    """
+    a = Ctx(db, area="src/variables/providers", read=["folder"])
+    glossary_amend(a, term="folder", sense_body="a prompt type",
+                   sense_short="names a folder")
+    a.commit()
+
+    b = Ctx(db, area="src/variables/providers", read=["folder"])
+    out = glossary_amend(b, term="folder", sense_body="a prompt type, validated",
+                         sense_short="names a folder, checked against filters")
+    b.commit()
+
+    assert out["id"] == "folder"
+    assert db.execute("SELECT COUNT(*) n FROM glossary_terms "
+                      "WHERE term = 'folder'").fetchone()["n"] == 1
+
+
+def test_one_word_said_twice_can_finally_be_said_so(db):
+    """
+    `term_collision`'s brief has always named two outcomes -- "if they say the
+    same thing, that is a duplicate and not a collision, and saying so is the
+    answer" -- and its working set was `glossary.lookup`, `glossary.consult` and
+    `msg.report_liaison`. The only way to say anything was to escalate. Three
+    measured sessions looked the same two rows up eleven times each and ended
+    with nothing they could do.
+
+    Superseded rather than deleted: sameness is a judgement being delegated and
+    cannot be checked mechanically, so the losing sense stays readable.
+    """
+    from rota.roles.api import glossary_same
+
+    a = Ctx(db, area="src/intents", read=["note"])
+    glossary_amend(a, term="note", sense_body="a file in the vault with frontmatter",
+                   sense_short="a vault file")
+    a.commit()
+    b = Ctx(db, area="src", read=["note"])
+    glossary_amend(b, term="note", sense_body="a document in Obsidian holding notes",
+                   sense_short="an Obsidian document")
+    b.commit()
+    assert db.execute("SELECT COUNT(*) n FROM glossary_terms "
+                      "WHERE term = 'note'").fetchone()["n"] == 2
+
+    c = Ctx(db)
+    out = glossary_same(c, keep="note", drop="note#src",
+                        why="both say a file in the vault")
+    c.commit()
+
+    assert out["superseded"] == "note#src"
+    live = [r["id"] for r in db.execute(
+        "SELECT id FROM glossary_terms WHERE term='note' AND superseded_by IS NULL")]
+    assert live == ["note"], "one live sense"
+    assert db.execute("SELECT sense_short FROM glossary_terms "
+                      "WHERE id='note#src'").fetchone()["sense_short"], \
+        "the losing sense is still readable"
+
+
+def test_it_will_not_merge_two_different_words(db):
+    """It says two rows are one word said twice. It is not for relating words."""
+    from rota.roles.api import glossary_same
+
+    a = Ctx(db, area="src", read=["note", "folder"])
+    glossary_amend(a, term="note", sense_body="a vault file", sense_short="a file")
+    glossary_amend(a, term="folder", sense_body="a prompt type", sense_short="a type")
+    a.commit()
+
+    with pytest.raises(ValueError) as exc:
+        glossary_same(Ctx(db), keep="note", drop="folder", why="they are not")
+    assert "different words" in str(exc.value)
