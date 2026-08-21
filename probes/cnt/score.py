@@ -56,11 +56,17 @@ def score(db_path: str | Path) -> dict:
         (present if any(n in senses for n in names) else absent).append(term)
 
     # must_not_mean --------------------------------------------------------
-    hits = []
+    # A zero here means two different things and used to render as one. On the
+    # run after the indexer fix it read `must_not_mean: 0` against a baseline of
+    # 5, which looks like every trap avoided and was in fact none of those terms
+    # written at all. `scored` is how many of them the glossary actually holds,
+    # and it is printed on the same line so the zero cannot be read alone.
+    hits, scored = [], 0
     for term, spec in mnm.items():
         for name in spellings(term, spec):
             if name not in senses:
                 continue
+            scored += 1
             said = senses[name].lower()
             bad = next((b for b in spec["not"] if b.lower() in said), None)
             if bad:
@@ -93,7 +99,7 @@ def score(db_path: str | Path) -> dict:
         "db": str(db_path),
         "terms_present": present, "terms_absent": absent,
         "terms_required": len(key["terms_required"]),
-        "hits": hits,
+        "hits": hits, "scored": scored, "traps": len(mnm),
         "constraints_written": len(cons),
         "constraints_required_found": sorted(found),
         "constraints_required": sorted(required),
@@ -110,7 +116,10 @@ def render(s: dict) -> None:
           f"{s['terms_required']}   {s['terms_present']}")
     if s["terms_absent"]:
         print(f"    absent               {s['terms_absent']}")
-    print(f"  must_not_mean hits     {len(s['hits'])}")
+    verdict = ("nothing to score — none of those terms were written"
+               if s["scored"] == 0 else
+               f"{s['scored']} of {s['traps']} trap terms present")
+    print(f"  must_not_mean hits     {len(s['hits'])}   ({verdict})")
     for term, bad, said in s["hits"]:
         print(f"    {term:14} forbidden {bad!r:22} -> {said!r}")
     print(f"  constraints written    {s['constraints_written']}"
