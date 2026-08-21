@@ -30,9 +30,15 @@ reader could not get from the path, and it is what comes out of defining from th
 grain list instead of from the source. What does it *do*, what does the project
 mean by the word, what would break if it meant the other thing.
 
-`glossary.amend` for each term the code actually uses, and **everything you write
-here is `observed`, not `decided`** — you found it, nobody chose it. That
-distinction is the whole point of surveying rather than asking: an observed term
+`glossary.amend` for each term the code actually uses. **`sense_body` is the
+explanation and `sense_short` is a one-line summary of it** — write the
+explanation first, then say it in a clause. `sense_short` is the only line the
+glossary index carries, so it is what every session after you will see, and a
+category the word belongs to is not a summary: `github: repository` and
+`repository: data storage` are a taxonomy, and neither tells a reader anything.
+
+Everything you write here is **`observed`, not `decided`** — you found it,
+nobody chose it. That distinction is the whole point of surveying rather than asking: an observed term
 is true about the code and carries no authority about what the project is for. It
 becomes decided when the principal is shown it and does not object.
 

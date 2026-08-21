@@ -370,8 +370,8 @@ def _same_sense(text: str) -> str:
 
 
 @op("glossary", "amend")
-def glossary_amend(ctx: Ctx, term: str, sense_short: str,
-                   sense_body: str = "", sense: str = "") -> dict:
+def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
+                   sense_short: str = "", sense: str = "") -> dict:
     """
     One meaning per word — so writing the same word twice amends it, and a second
     *sense* has to be asked for.
@@ -402,6 +402,30 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
     meaning is one that differs from the first; when it does not, the call is an
     amendment wearing an argument, and it is taken as the error it is rather
     than written as the collision it is not.
+
+    **The explanation comes first and the one-liner after it**, which is why the
+    arguments are in this order. `sense_short` used to be asked for first, and a
+    field called "short" asked for before any explanation exists reads as a
+    request for a *label*. That is exactly what came back, on the Obsidian
+    plugin, across 57 calls:
+
+        term='github'      sense_short='repository'    sense_body='a collection of files…'
+        term='repository'  sense_short='data storage'
+
+    github is a repository, repository is data storage — a taxonomy, not a
+    meaning, and the definition pushed into the body where the index never shows
+    it. Then a later session took the label it found in `sense_short` and passed
+    it as `sense=` with the short left empty, which minted `github#repository` as
+    a second row, and `term_collision` spent 44 of that run's 71 turns on the
+    word. Asked *after* the explanation, the short one is a summary of something
+    already written rather than a category guessed at in advance.
+
+    Both are required, and neither may be blank. A blank `sense_short` is not
+    only a blank index line -- it is also what the second-sense check compares,
+    so an empty one walked straight past the guard that exists to stop precisely
+    the row it was creating. Declining to define a term stays free: not writing
+    the row at all is always allowed, and a thin glossary of real meanings beats
+    a full one of labels.
     """
     import re
 
@@ -417,11 +441,22 @@ def glossary_amend(ctx: Ctx, term: str, sense_short: str,
     # because the constraint side needed exactly this rule and the glossary was
     # the one artefact where writing nothing cost nothing. Declining to define a
     # term stays free -- not writing the row at all is always allowed.
-    if not (sense_short or "").strip() and not (sense_body or "").strip():
+    if not (sense_body or "").strip():
         raise ValueError(
             f"{term!r} has no sense under it. A glossary of words is the index "
             f"with the columns relabelled -- say what the word means here, in "
-            f"the sense this area uses it, or leave it out.")
+            f"the sense this area uses it, or leave it out. `sense_body` is "
+            f"where that goes: what it does, what this project means by the "
+            f"word, what would break if it meant the other thing.")
+
+    if not (sense_short or "").strip():
+        raise ValueError(
+            f"{term!r} has a body and no `sense_short`. That is the one line "
+            f"every reader of the glossary index is shown, and every session "
+            f"after you sees it and nothing else -- a blank one is a term "
+            f"nobody downstream can use. Summarise what you just wrote in a "
+            f"clause: not a category the word belongs to, which is how "
+            f"'github' came to mean 'repository', but what it means.")
 
     id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
 

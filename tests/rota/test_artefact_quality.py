@@ -347,7 +347,14 @@ def test_a_term_cannot_be_written_without_a_sense(db, tmp_path):
         with pytest.raises(ValueError, match="sense"):
             sb.call("glossary.amend", term="charge", sense_short="")
 
+        # A body with no summary is refused too: `sense_short` is the only line
+        # the index carries, so a blank one is a term nobody downstream can use.
+        with pytest.raises(ValueError, match="sense_short"):
+            sb.call("glossary.amend", term="charge",
+                    sense_body="a captured authorisation")
+
         sb.call("glossary.amend", term="charge",
+                sense_body="a captured authorisation; the gateway has taken the money",
                 sense_short="an authorisation the gateway has already accepted")
         assert any(t == "glossary_terms" for t, _, _ in sb.ctx.writes)
     finally:

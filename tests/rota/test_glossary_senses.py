@@ -60,17 +60,18 @@ def db(tmp_path):
 
 
 ALARM = "an event that triggers an action"
+ALARM_BODY = "a VALARM inside a VEVENT; fires relative to the event"
 
 
 def test_the_icalendar_duplicate_is_refused(db):
     """The exact pair the run produced, in the order it produced them."""
     first = Ctx(db)
-    glossary_amend(first, term="Alarm", sense_short=ALARM)
+    glossary_amend(first, term="Alarm", sense_body=ALARM_BODY, sense_short=ALARM)
     first.commit()
 
     with pytest.raises(ValueError) as exc:
-        glossary_amend(Ctx(db), term="alarm", sense_short=ALARM,
-                       sense="observed")
+        glossary_amend(Ctx(db), term="alarm", sense_body=ALARM_BODY,
+                       sense_short=ALARM, sense="observed")
 
     assert "already means that" in str(exc.value)
 
@@ -82,12 +83,12 @@ def test_the_refusal_says_what_sense_is_for(db):
     provenance is not a meaning.
     """
     first = Ctx(db)
-    glossary_amend(first, term="Calendar",
+    glossary_amend(first, term="Calendar", sense_body="the VCALENDAR object",
                    sense_short="a collection of events and components")
     first.commit()
 
     with pytest.raises(ValueError) as exc:
-        glossary_amend(Ctx(db), term="calendar",
+        glossary_amend(Ctx(db), term="calendar", sense_body="the VCALENDAR object",
                        sense_short="A collection of events and components.",
                        sense="observed")
 
@@ -103,10 +104,11 @@ def test_a_genuine_second_sense_still_costs_one_argument(db):
     have to exist.
     """
     ctx = Ctx(db)
-    glossary_amend(ctx, term="nonce", sense_short="a replay guard")
+    glossary_amend(ctx, term="nonce", sense_body="checked once, then discarded",
+                   sense_short="a replay guard")
     ctx.commit()
 
-    out = glossary_amend(ctx, term="nonce",
+    out = glossary_amend(ctx, term="nonce", sense_body="issued with the session",
                          sense_short="a session binding", sense="binding")
     ctx.commit()
 
@@ -122,14 +124,15 @@ def test_amending_a_second_sense_is_not_a_collision_with_itself(db):
     those apart makes the second sense un-amendable the moment it exists.
     """
     ctx = Ctx(db)
-    glossary_amend(ctx, term="nonce", sense_short="a replay guard")
-    glossary_amend(ctx, term="nonce", sense_short="a session binding",
-                   sense="binding")
+    glossary_amend(ctx, term="nonce", sense_body="checked once, then discarded",
+                   sense_short="a replay guard")
+    glossary_amend(ctx, term="nonce", sense_body="issued with the session",
+                   sense_short="a session binding", sense="binding")
     ctx.commit()
 
-    glossary_amend(ctx, term="nonce", sense_short="a session binding",
+    glossary_amend(ctx, term="nonce",
                    sense_body="bound at issue, checked at redemption",
-                   sense="binding")
+                   sense_short="a session binding", sense="binding")
     ctx.commit()
 
     rows = db.execute("SELECT sense_body FROM glossary_terms "
@@ -144,11 +147,12 @@ def test_one_session_cannot_do_it_to_itself(db):
     cannot see it in the table. Pending writes have to count.
     """
     ctx = Ctx(db)
-    glossary_amend(ctx, term="Component", sense_short="a part of a calendar")
+    glossary_amend(ctx, term="Component", sense_body="VEVENT, VTODO, VALARM",
+                   sense_short="a part of a calendar")
 
     with pytest.raises(ValueError):
-        glossary_amend(ctx, term="component", sense_short="a part of a calendar",
-                       sense="observed")
+        glossary_amend(ctx, term="component", sense_body="VEVENT, VTODO, VALARM",
+                       sense_short="a part of a calendar", sense="observed")
 
 
 def test_the_phantom_collisions_are_gone(db):
@@ -161,14 +165,79 @@ def test_the_phantom_collisions_are_gone(db):
     for term, short in (("Alarm", ALARM),
                         ("Calendar", "a collection of events and components"),
                         ("Component", "a part of a calendar")):
-        glossary_amend(ctx, term=term, sense_short=short)
+        glossary_amend(ctx, term=term, sense_body=f"the {term} object", sense_short=short)
     ctx.commit()
 
     for term, short in (("alarm", ALARM),
                         ("calendar", "a collection of events and components"),
                         ("component", "a part of a calendar")):
         with pytest.raises(ValueError):
-            glossary_amend(ctx, term=term, sense_short=short, sense="observed")
+            glossary_amend(ctx, term=term, sense_body=f"the {term} object",
+                           sense_short=short, sense="observed")
     ctx.commit()
 
     assert term_collision(db) == [], "no word carries two senses, so none is owed"
+
+
+def test_a_label_is_not_a_meaning(db):
+    """
+    What 57 calls on the Obsidian plugin actually produced.
+
+        term='github'      sense_short='repository'    sense_body='a collection of files…'
+        term='repository'  sense_short='data storage'
+
+    github is a repository, repository is data storage. A taxonomy, not a
+    meaning -- and the definition pushed into the body, where the index never
+    shows it. The field was asked for first and called "short", and a short
+    field asked for before any explanation exists reads as a request for a
+    label.
+
+    This cannot assert that a summary is good; it asserts that the body is
+    obtained first and that neither field can be skipped, which is what stops
+    the short one being written in a vacuum.
+    """
+    with pytest.raises(ValueError) as exc:
+        glossary_amend(Ctx(db), term="github", sense_short="repository")
+
+    assert "sense_body" in str(exc.value), "it must name the field it wants"
+
+
+def test_a_blank_index_line_is_refused(db):
+    """
+    A body with no summary is not a cheaper term, it is an invisible one.
+
+    `sense_short` is the only column the glossary index carries, so every
+    session after this one sees a blank row and nothing else. On the measured
+    run two of eleven terms were like this.
+
+    It is also what the second-sense check compares. An empty one has no
+    counterpart in `seen` -- the code pops the empty key before looking -- so it
+    walked straight past the guard that exists to stop exactly the row it was
+    creating, and `github#repository` was written in silence.
+    """
+    with pytest.raises(ValueError) as exc:
+        glossary_amend(Ctx(db), term="github",
+                       sense_body="a repository on GitHub")
+
+    msg = str(exc.value)
+    assert "sense_short" in msg
+    assert "index" in msg, "say why it matters, not just that it is missing"
+
+
+def test_the_measured_second_row_can_no_longer_be_written(db):
+    """
+    The exact call that minted `github#repository`, and cost 44 turns of one run.
+
+        s7  term='github'  sense='repository'  sense_short=''  sense_body='a repository on GitHub'
+    """
+    ctx = Ctx(db)
+    glossary_amend(ctx, term="github", sense_body="where this project is hosted",
+                   sense_short="the remote holding this repository")
+    ctx.commit()
+
+    with pytest.raises(ValueError):
+        glossary_amend(Ctx(db), term="github", sense="repository",
+                       sense_short="", sense_body="a repository on GitHub")
+
+    assert db.execute("SELECT COUNT(*) n FROM glossary_terms "
+                      "WHERE term = 'github'").fetchone()["n"] == 1

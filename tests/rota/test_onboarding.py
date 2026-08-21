@@ -738,7 +738,9 @@ def test_the_same_word_twice_amends_rather_than_duplicates(project):
     db, repo = project
     for area in ("src/billing", "src/auth"):
         sb = sandbox_mod.build("terminologist", db, session_id=f"s-{area}", area=area)
-        sb.call("glossary.amend", term="endpoint", sense_short=f"a path in {area}")
+        sb.call("glossary.amend", term="endpoint",
+                sense_body=f"a route handler under {area}",
+                sense_short=f"a path in {area}")
         for w in sb.ctx.writes:
             db.execute("INSERT OR REPLACE INTO glossary_terms "
                        "(id, term, sense_short, provenance) VALUES (?, ?, ?, 'observed')",
@@ -755,10 +757,12 @@ def test_a_genuine_collision_is_still_two_rows(project):
 
     db, repo = project
     sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
-    a = sb.call("glossary.amend", term="nonce", sense_short="replay guard",
-                sense="server")
-    b = sb.call("glossary.amend", term="nonce", sense_short="session binding",
-                sense="client")
+    a = sb.call("glossary.amend", term="nonce",
+                sense_body="checked once by the server, then discarded",
+                sense_short="replay guard", sense="server")
+    b = sb.call("glossary.amend", term="nonce",
+                sense_body="issued with the session and carried by the client",
+                sense_short="session binding", sense="client")
 
     assert a["id"] != b["id"], "two named senses are two rows"
     assert a["id"].startswith("nonce") and b["id"].startswith("nonce")
@@ -925,6 +929,7 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
     te = sandbox_mod.build("terminologist", db, session_id="s1", area="src/billing")
     te.call("code.source", path=read[0])
     te.call("glossary.amend", term="charge",
+            sense_body="a captured authorisation; the gateway has taken the money",
             sense_short="an authorisation the gateway has already accepted")
     te.call("surveys.attest", outcome="found", citations=read)
     assert any(t == "survey_records" for t, _, _ in te.ctx.writes), \
