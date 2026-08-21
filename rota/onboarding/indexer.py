@@ -18,6 +18,7 @@ sign, and the partition is what every later area-scoped decision rests on.
 """
 from __future__ import annotations
 
+import posixpath
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -179,7 +180,12 @@ def resolve(target: str, importer: str, known: set[str]) -> str | None:
 
     # Relative, by leading dots (Python) or by an explicit ./ (JS, TS).
     if target.startswith("."):
-        if target[:2] in ("./", "../"):
+        # `target[:2]` against `"../"` is two characters tested against three,
+        # so `../anything` never matched here and fell through to the Python
+        # dotted-relative branch, which read `..` as a package separator and
+        # produced `/variables` from `../variables`. Every `../` import in every
+        # JS, TS, Go and Rust file in the repository took that path.
+        if target.startswith("./") or target.startswith("../"):
             base = (here / target).as_posix()
             candidates = [base]
         else:
@@ -197,11 +203,20 @@ def resolve(target: str, importer: str, known: set[str]) -> str | None:
         candidates = [dotted, target]
 
     for cand in candidates:
-        cand = cand.strip("/")
-        if not cand:
+        # `Path("src/intents") / "../variables"` is
+        # `src/intents/../variables`, and `as_posix` does not collapse `..` --
+        # only `.`. So every import written with a leading `../` produced a
+        # candidate containing a literal `..`, which is in no index, in any
+        # language. On the first Obsidian plugin that was 60 unresolved imports
+        # against 10 resolved, and `code.survey` orders by fan-in, so the view
+        # every survey session opens with was sorted by a number that was almost
+        # always zero.
+        cand = posixpath.normpath(cand).strip("/")
+        if not cand or cand == "." or cand.startswith(".."):
             continue
         for suffix in ("", ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs",
-                       ".java", ".rb", "/__init__.py", "/index.js", "/mod.rs"):
+                       ".java", ".rb", "/__init__.py", "/index.js", "/index.ts",
+                       "/index.tsx", "/index.jsx", "/mod.rs"):
             hit = cand + suffix
             if hit in known:
                 return hit
