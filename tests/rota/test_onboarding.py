@@ -1146,3 +1146,59 @@ def test_onboarding_a_tree_that_is_not_a_checkout_still_works(tmp_path):
         "SELECT key, value FROM config WHERE key LIKE 'project_%'")}
     assert got.get("project_commit", "") == ""
     assert got["project_root"] == str(root)
+
+
+def test_a_mistyped_path_is_resolved_against_the_index(project):
+    """
+    A path copied by hand out of a listing, copied wrong, was terminal.
+
+    On the Obsidian plugin a session read `.github/ISSUE_TEMPLATE/bug_report.md`
+    from `code.survey` and asked for `/github/ISSUE_TEMPLATE/bug_report.md` --
+    the leading dot became a slash. `_within` refused it as escaping the
+    worktree, which is right, and the refusal ended the area: the file could not
+    be opened, so it could not be cited, so `surveys.attest` refused too. Eleven
+    of that run's 88 turns died there, and `.github` sorts first.
+
+    Nothing about it was specific to that directory. Any path transcribed wrong
+    is unopenable, and "escapes the worktree" is not something a session can act
+    on.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
+
+    out = sb.call("code.source", path="/billing/charges.py")
+
+    assert out["path"] == "src/billing/charges.py", "the grain it was reaching for"
+    assert "Charge" in out["text"]
+    assert "note" in out, "say which spelling was read, or the citation will not match"
+    assert "src/billing/charges.py" in out["note"]
+
+    # And `opened` carries the corrected spelling, or the citation check refuses
+    # a file the session demonstrably read.
+    assert "src/billing/charges.py" in sb.ctx.opened
+
+
+def test_an_ambiguous_guess_is_still_refused(project):
+    """
+    One candidate or none. `indexer.resolve` applies the same rule to a bare
+    package name, for the same reason: an ambiguous guess is a misread, and a
+    misread is worse than an error -- it hands back a file nobody asked for and
+    says nothing.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
+
+    # `accounts.py` exists under both `src/auth` and `src/billing`.
+    out = sb.call("code.source", path="accounts.py")
+    assert "error" in out
+    assert not sb.ctx.opened, "nothing was read, so nothing may be cited"
+
+    out = sb.call("code.source", path="nowhere/at/all.py")
+    assert "error" in out
+    assert "code.survey" in out["error"], "name the call that lists real paths"

@@ -1509,9 +1509,25 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     uncommitted work and Architect reading the mainline are the same question
     asked from two places.
     """
-    target = _within(_worktree_of(ctx), path)
-    if not target.exists():
-        return {"path": path, "error": "not found"}
+    note = None
+    try:
+        target = _within(_worktree_of(ctx), path)
+    except ValueError:
+        target = None
+
+    if target is None or not target.exists():
+        hit = _indexed_like(ctx, path)
+        if hit is None:
+            return {"path": path,
+                    "error": f"not found, and no grain in the index is named "
+                             f"anything like it. `code.survey` lists the area "
+                             f"you were woken for; the paths it returns are the "
+                             f"ones this can open."}
+        note = (f"{path!r} is not a path in this checkout; read "
+                f"{hit!r}, which is the only grain it could be naming. "
+                f"Cite that spelling, not yours.")
+        path = hit
+        target = _within(_worktree_of(ctx), path)
 
     # A survey session is woken *for an area*, and an area is a directory -- so
     # the one path it holds before reading anything is the one path this could
@@ -1547,9 +1563,13 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
 
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
     end = min(end, len(lines))
+    # The corrected spelling, so a citation of it resolves against the index.
     ctx.opened.add(_grain_path(path))
-    return {"path": path, "start": start, "end": end,
-            "text": chr(10).join(lines[start:end]), "lines": len(lines)}
+    out = {"path": path, "start": start, "end": end,
+           "text": chr(10).join(lines[start:end]), "lines": len(lines)}
+    if note:
+        out["note"] = note
+    return out
 
 
 @op("code", "diff")
@@ -1607,6 +1627,47 @@ def _grain_path(grain: str) -> str:
     on one platform and read on another.
     """
     return grain.split("::", 1)[0].replace("\\", "/").strip().lstrip("./")
+
+
+def _indexed_like(ctx, path: str) -> str | None:
+    """
+    The grain a mistyped path was reaching for, when exactly one fits.
+
+    A path is copied by hand out of a listing, and a model copying by hand gets
+    it wrong. On the Obsidian plugin it read `.github/ISSUE_TEMPLATE/bug_report.md`
+    from `code.survey` and asked for `/github/ISSUE_TEMPLATE/bug_report.md` --
+    the leading dot turned into a slash. `_within` refuses that as escaping the
+    worktree, correctly, and the refusal is terminal: the file cannot be opened,
+    so it cannot be cited, so the area cannot be closed. Eleven of that run's 88
+    turns ended there, and `.github` sorts first, so it is the opening move.
+
+    Nothing about it is specific to that directory. Any path transcribed wrong
+    is unopenable, and "escapes the worktree" tells a session nothing it can act
+    on.
+
+    So a miss is checked against the index before it is refused: exactly one
+    grain that the request could be naming, or nothing. One, because that is the
+    rule `indexer.resolve` already applies to a bare package name -- an
+    ambiguous guess is a misread, and a misread is worse than an error.
+
+    Read only. `code.write` keeps `_within` unhelped: guessing which file a role
+    meant to open costs a wasted turn, and guessing which file it meant to
+    overwrite costs the file.
+    """
+    want = path.replace("\\", "/").strip().lstrip("/")
+    while want.startswith("./"):
+        want = want[2:]
+    if not want:
+        return None
+
+    hits = []
+    for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        g = r["grain"]
+        bare = g.lstrip("./")
+        if want in (g, bare) or g.endswith("/" + want) or bare.endswith("/" + want):
+            hits.append(g)
+    return hits[0] if len(hits) == 1 else None
 
 
 def _within(base, path: str):
