@@ -945,7 +945,7 @@ class RotaApp(App):
         self.start_onboarding(self.root)
 
     def start_onboarding(self, root: Path) -> None:
-        self.say(f"onboarding {root}…", "system", "blue")
+        self.say(f"onboarding {root}…\nIndexing codebase and setting up db for onboarding", "system", "blue")
         self._pending_root = root
         self.run_worker(self._do_onboard, thread=True)
 

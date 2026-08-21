@@ -155,9 +155,9 @@ def coverage_edges() -> dict[str, list[list[str]]]:
 
 def frontier_overlay(conn: sqlite3.Connection) -> dict[str, Any]:
     """Who is about to move, and who is mid-session."""
-    from ..core.scheduler import frontier
+    from ..core.scheduler import frontier_readonly
 
-    ready = frontier(conn, principal_present=True)
+    ready = frontier_readonly(conn, principal_present=True)
     claimed = {r["role"]: r["session_id"] for r in
                conn.execute("SELECT role, session_id FROM claims")}
     counts = {}
