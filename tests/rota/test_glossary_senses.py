@@ -37,11 +37,19 @@ from rota.roles.api import glossary_amend
 class Ctx:
     """The slice of a session context `glossary.amend` reads."""
 
-    def __init__(self, conn, provenance="observed"):
+    def __init__(self, conn, provenance="observed", read=None):
         self.conn = conn
         self.provenance = provenance
         self.writes: list = []
         self.role = "terminologist"
+        self.opened: set = set()
+        # `read=` seeds the words `code.source` would have recorded, so a test
+        # about the *sense* rules does not have to stage a file read to reach
+        # them. `None` leaves the attribute off entirely, which is how the
+        # older cases in this file run: the read gate is a separate subject and
+        # has its own two below.
+        if read is not None:
+            self.read_words = set(read)
 
     def commit(self):
         """Land the buffered writes the way the sandbox would."""
@@ -241,3 +249,50 @@ def test_the_measured_second_row_can_no_longer_be_written(db):
 
     assert db.execute("SELECT COUNT(*) n FROM glossary_terms "
                       "WHERE term = 'github'").fetchone()["n"] == 1
+
+
+def test_a_word_you_never_read_cannot_be_defined(db):
+    """
+    The one artefact write in the system with no read requirement.
+
+    `model.amend` has refused to bind a constraint to an unread grain since law
+    12; `surveys.attest` refuses a citation for a grain nobody opened. The
+    glossary -- which every role downstream inherits as fact -- had neither.
+
+    Measured on the Obsidian plugin: a session woken for `src/intents` called
+    `code.source` exactly once, on the directory, which returns a listing and
+    deliberately leaves `opened` untouched because listing is not reading. It
+    then wrote `intent`, `note` and `template`. `intent` came out as "a specific
+    action or goal" -- the English meaning, on a plugin where an intent is a
+    note-creation recipe declared in a note's frontmatter. Its brief said, in
+    bold, "open a grain before you define a word in it".
+    """
+    with pytest.raises(ValueError) as exc:
+        glossary_amend(Ctx(db, read=[]), term="intent",
+                       sense_body="a specific action or goal",
+                       sense_short="specific action or goal")
+
+    msg = str(exc.value)
+    assert "nothing you read" in msg
+    assert "opened nothing" in msg, "say what it did, not only what it did not"
+
+
+def test_reading_a_file_that_uses_the_word_is_enough(db):
+    """
+    The gate is on the word, not on reading in general, and it takes its words
+    from the same decomposition `code.vocabulary` ranks by -- so the block
+    cannot offer a word this then refuses. Opening one file and defining eight
+    words off it is the shape it stops.
+    """
+    ctx = Ctx(db, read=["intent", "frontmatter", "template"])
+
+    out = glossary_amend(ctx, term="intent",
+                         sense_body="a note-creation recipe declared under "
+                                    "`intents_to` in a note's frontmatter",
+                         sense_short="a recipe for making a note")
+    assert out["id"] == "intent"
+
+    with pytest.raises(ValueError) as exc:
+        glossary_amend(ctx, term="selection",
+                       sense_body="a range of text", sense_short="text range")
+    assert "selection" in str(exc.value)

@@ -55,6 +55,7 @@ class Ctx:
         # carried this since Law 12; the stub has to as well or it is a
         # different object with the same name.
         self.opened: set = set(read)
+        self.read_words: set = set()
         self.batch_id = None
         self.provenance = "observed"
 

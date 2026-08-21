@@ -39,14 +39,40 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def _variant(role: str) -> Path:
+    """
+    The prompt directory for this role, or a variant of it under A/B.
+
+    `ROTA_PROMPTS=vocab` reads `<role>/vocab/` where a file exists there and
+    falls back to `<role>/` where it does not, so a variant is only the files it
+    actually changes. A subdirectory rather than a `survey_vocab.md` beside the
+    original, because `available()` globs `*.md` to enumerate a role's modes and
+    a variant is not a mode.
+
+    Debug only, and one direction: a variant can replace a brief, never widen a
+    role -- `mode_tools` still narrows what the graph granted and nothing here
+    touches the graph.
+    """
+    import os
+
+    name = (os.environ.get("ROTA_PROMPTS") or "").strip()
+    return PROMPT_DIR / role / name if name else PROMPT_DIR / role
+
+
+def _pick(role: str, filename: str) -> Path:
+    """The variant's file if it has one, otherwise the role's own."""
+    cand = _variant(role) / filename
+    return cand if cand.exists() else PROMPT_DIR / role / filename
+
+
 def base(role: str) -> str:
-    return _read(PROMPT_DIR / role / "base.md")
+    return _read(_pick(role, "base.md"))
 
 
 def piece(role: str, verb: str) -> str:
     """The mode-specific instructions, or empty if the role has no piece for it."""
     try:
-        return _read(PROMPT_DIR / role / f"{verb}.md")
+        return _read(_pick(role, f"{verb}.md"))
     except MissingPrompt:
         return ""
 
@@ -73,7 +99,7 @@ def mode_tools(role: str, mode: str) -> list[str] | None:
     `ledger.list()` and wander until it ran out of turns. It had every function
     its role owns when it needed three.
     """
-    path = PROMPT_DIR / role / f"{mode}.tools"
+    path = _pick(role, f"{mode}.tools")
     if not path.exists():
         return None
     return [line.strip() for line in _read(path).splitlines()

@@ -11,6 +11,66 @@ not move, stop and say why.** A fix that does not change the number is a
 hypothesis that was wrong, and carrying on past it is how three dead hypotheses
 got stacked on `L1-DV-fix-the-code-not-the-test`.
 
+## What five runs established
+
+```
+run   context              brief    turns  areas  terms  terms_required  must_not_mean
+new   grain list           6,950     105    5/5      8       0 of 10      5 hits
+fix   grain list           6,950     195    6/6      9       0 of 10      nothing present
+v0    grain list           6,950      88    4/6      1       0 of 10      nothing present
+v1    grain list           6,950      88    6/6      8       0 of 10      nothing present
+B     code.vocabulary      1,370     161    3/6     27       4 of 10      3 hits, 5 present
+C     code.vocabulary      1,493      54    6/6     14       4 of 10      2 hits, 3 present
+```
+
+**One change moved the number, and it was the data.** Five mechanical fixes --
+the indexer's suffix map, three import-resolver bugs, collision starvation, a
+path dead end, label-as-sense -- left `terms_required` at 0 of 10 every time.
+Replacing the pushed grain list with words-in-use moved it to 4 on the next run.
+
+The reason is that the input was specifying the answer. A session woken to
+"define this area's terms" and handed a list of symbols can only read that as
+"define these", and it was right to: 21 of the 28 terms written across the first
+four runs were exactly a symbol name or a path fragment, and the rest were
+generic words about software. `getIntentFromTFile: a function that retrieves
+intents from a TFile` is a true and accurate answer to the question that was
+actually asked.
+
+**Half of all definition work is discarded, silently.** 49 held calls in B, 55
+in C, against 99 amends and 14 surviving terms. The batching hold fires on an
+action written before its reads came back -- correct, and `s7` proves why: it
+wrote `amend('folder')` in the same breath as `code.source(folder.ts)`, so that
+definition came from the word list and not the file. The defect is that a held
+call is *lost* rather than deferred. The runner says "send them again if they
+are still what you want", in prose, in the middle of a wall of results, and the
+model does not. `folder`, `text`, `variable` and `template` were all written
+correctly and thrown away.
+
+It also produced a false negative on the best area in the repository:
+`src/variables/providers` -- `variable`x152, `folder`x47 -- had `folder` and
+`variable` held, wrote `validate`, and attested `none_found`.
+
+**Prose is inert, with one exception in a day of counting.** Six times the brief
+said the right thing and nothing enforced it: open the files before defining,
+the same sense twice is not two senses, citations are evidence, observed not
+decided, what `sense_short` is for, the renaming test. Every one needed a gate.
+The single exception is C's citation sentence -- 38 attests, zero line numbers --
+and it should still be made structural, because relying on the model reading a
+sentence is the bet that failed the other six times.
+
+**My own mistakes were all the same mistake.** A `where` column reading
+`file:line` cost four abandoned areas, because the model cited it verbatim. A
+negative example in a brief came back as the definition of `feature`. A sentence
+telling the model to strip line numbers, where a separate `grain` column would
+have made it impossible to get wrong. Each time I chose prose or formatting over
+structure, which is the thing this document is about.
+
+**Sense quality is untouched by all of it.** `intent` is still "a specific action
+or goal" on a plugin where an intent is a note-creation recipe declared in a
+note's frontmatter. Reading is now forced and turns out to be necessary and not
+sufficient -- the same shape as the survey-citation finding: a session that reads
+one file and defines eight words has read, and has not understood.
+
 ## Baseline — the run this all starts from
 
 `.rota/cnt_new.db`, commit `766c9e30`, 21 sessions, 105 turns.

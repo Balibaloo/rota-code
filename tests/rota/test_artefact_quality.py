@@ -344,6 +344,8 @@ def test_a_term_cannot_be_written_without_a_sense(db, tmp_path):
         sb = sandbox_mod.build("terminologist", conn, session_id="s1",
                                area="src/billing")
 
+        sb.call("code.source", path="src/billing/charges.py")
+
         with pytest.raises(ValueError, match="sense"):
             sb.call("glossary.amend", term="charge", sense_short="")
 

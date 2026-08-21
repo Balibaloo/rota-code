@@ -736,17 +736,23 @@ def test_the_same_word_twice_amends_rather_than_duplicates(project):
     from rota.core import sandbox as sandbox_mod
 
     db, repo = project
+    boot.onboard(db, repo.root)
     for area in ("src/billing", "src/auth"):
         sb = sandbox_mod.build("terminologist", db, session_id=f"s-{area}", area=area)
-        sb.call("glossary.amend", term="endpoint",
-                sense_body=f"a route handler under {area}",
-                sense_short=f"a path in {area}")
+        sb.call("code.source", path=f"{area}/accounts.py")
+        # `account` rather than `endpoint`: the sample repo plants this word as
+        # its collision and says it nowhere else. The old spelling came from the
+        # oauthlib story and appears in no file here, so the read gate refused
+        # it -- correctly, and the test was the thing that was wrong.
+        sb.call("glossary.amend", term="account",
+                sense_body=f"the account rows {area} works with",
+                sense_short=f"an account as {area} means it")
         for w in sb.ctx.writes:
             db.execute("INSERT OR REPLACE INTO glossary_terms "
                        "(id, term, sense_short, provenance) VALUES (?, ?, ?, 'observed')",
                        (w[1], w[2]["term"], w[2]["sense_short"]))
 
-    rows = db.execute("SELECT id FROM glossary_terms WHERE term = 'endpoint'").fetchall()
+    rows = db.execute("SELECT id FROM glossary_terms WHERE term = 'account'").fetchall()
     assert len(rows) == 1, f"one word, one row unless a sense is named: {[r[0] for r in rows]}"
 
 
@@ -756,16 +762,21 @@ def test_a_genuine_collision_is_still_two_rows(project):
     from rota.core import sandbox as sandbox_mod
 
     db, repo = project
+    boot.onboard(db, repo.root)
     sb = sandbox_mod.build("terminologist", db, session_id="s1", area="src/auth")
-    a = sb.call("glossary.amend", term="nonce",
-                sense_body="checked once by the server, then discarded",
-                sense_short="replay guard", sense="server")
-    b = sb.call("glossary.amend", term="nonce",
-                sense_body="issued with the session and carried by the client",
-                sense_short="session binding", sense="client")
+    # The word this fixture actually plants a collision on, and the one its
+    # files say. `nonce` was borrowed from the oauthlib story and appears in no
+    # file here, so the read gate refused it and was right to.
+    sb.call("code.source", path="src/auth/accounts.py")
+    a = sb.call("glossary.amend", term="account",
+                sense_body="one person, one email, one password",
+                sense_short="the login identity", sense="login")
+    b = sb.call("glossary.amend", term="account",
+                sense_body="what an invoice is addressed to; may cover several logins",
+                sense_short="the billing entity", sense="billing")
 
     assert a["id"] != b["id"], "two named senses are two rows"
-    assert a["id"].startswith("nonce") and b["id"].startswith("nonce")
+    assert a["id"].startswith("account") and b["id"].startswith("account")
 
 
 def test_the_survey_ledger_is_one_row_per_area(project):

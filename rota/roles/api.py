@@ -19,6 +19,8 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+import re
+
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -62,6 +64,13 @@ class Ctx:
     # it found nothing; nothing asked it, and that is the difference between
     # "there is nothing to add" being true and being an exit.
     lookup_misses: set = None
+    # The words this session has actually read, taken from the text of every
+    # grain it opened. `opened` answers "did you read a file"; a glossary term
+    # needs the narrower "did you read a file that uses this word", because
+    # opening one file and defining eight words off it is the shape that
+    # produced `intent: a specific action or goal` on a plugin where an intent
+    # is a note-creation recipe declared in frontmatter.
+    read_words: set = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -70,6 +79,8 @@ class Ctx:
             self.outbound = []
         if self.opened is None:
             self.opened = set()
+        if self.read_words is None:
+            self.read_words = set()
         if self.lookup_misses is None:
             self.lookup_misses = set()
 
@@ -457,6 +468,37 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
             f"nobody downstream can use. Summarise what you just wrote in a "
             f"clause: not a category the word belongs to, which is how "
             f"'github' came to mean 'repository', but what it means.")
+
+    # A word is defined by the code that uses it, and this was the one artefact
+    # write in the system that did not say so. `model.amend` has refused to bind
+    # a constraint to an unread grain since law 12 -- "you cannot have found one
+    # in a file you did not read" -- and `surveys.attest` refuses a citation for
+    # a grain nobody opened. The glossary, which every role downstream inherits
+    # as fact, had neither.
+    #
+    # Measured: a session woken for `src/intents` called `code.source` once, on
+    # the directory -- which returns a listing and deliberately leaves `opened`
+    # untouched, because listing is not reading -- and then wrote `intent`,
+    # `note` and `template`. `intent` came out as "a specific action or goal",
+    # which is what the word means in English and not what it means here. The
+    # brief said "open a grain before you define a word in it". Prose asks.
+    #
+    # Against the words actually read rather than against reading in general,
+    # and from the same decomposition `code.vocabulary` ranks by, so the block
+    # cannot offer a word this then refuses. Opening one file and defining eight
+    # words off it is the shape this stops.
+    seen = getattr(ctx, "read_words", None)
+    if seen is not None and slug.replace("_", " ") not in " ".join(seen):
+        if _words_in(term) and not (set(_words_in(term)) & set(seen)):
+            raise ValueError(
+                f"nothing you read this session says {term!r}. A word means "
+                f"what the code using it makes it mean, so a definition written "
+                f"from a file that never says it is a definition from somewhere "
+                f"else -- usually from the word itself. `code.vocabulary` names "
+                f"the grain each word appears in; `code.source` that one. "
+                f"Defining nothing is always allowed."
+                + (f" You have opened {sorted(ctx.opened)[:2]}."
+                   if ctx.opened else " You have opened nothing."))
 
     id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
 
@@ -894,8 +936,8 @@ def surveys_attest(ctx: Ctx, outcome: str,
         outside = [g for g in (citations or []) if g not in unknown]
         raise ValueError(
             f"attesting closes {area!r}, and closing an area means citing what "
-            f"you read in it -- `citations=[...]` naming grains from "
-            f"`code.survey`. " +
+            f"you read in it -- `citations=[...]` naming grains, spelled as "
+            f"they were listed for you and without line numbers. " +
             (f"These are indexed but not under {area!r}: {outside}. "
              if outside else "") +
             (f"These are not in the index at all: {unknown}. " if unknown else "") +
@@ -1483,6 +1525,173 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
         "WHERE grain LIKE ? ORDER BY fan_in DESC LIMIT 200", (f"%{pattern}%",)))
 
 
+# Words that carry no meaning of their own in any codebase. Not a general
+# stoplist -- these are the ones measured as noise on the first two repositories
+# this ran against, where `get` topped `src/intents` and `existing` beat
+# `provider`.
+_NOT_VOCABULARY = {
+    "get", "set", "from", "src", "index", "new", "the", "and", "for", "this",
+    "that", "export", "import", "const", "let", "var", "return", "type", "path",
+    "file", "name", "value", "string", "number", "boolean", "null", "void",
+    "async", "await", "class", "interface", "enum", "function", "app", "add",
+    "make", "run", "use", "used", "with", "not", "any", "all", "one", "two",
+    "existing", "result", "data", "item", "items", "list", "map", "key", "keys",
+    "ts", "js", "py", "md", "json", "yaml", "yml", "test", "tests",
+    "throw", "parse", "catch", "try", "call", "check", "each", "into", "out",
+    "chosen", "choose", "include", "exclude", "private", "public", "show",
+    "hide", "natural", "container", "object", "property", "input", "output",
+    "error", "valid", "invalid", "start", "end", "first", "last", "next",
+}
+
+
+def _words_in(text: str) -> list[str]:
+    """Identifier text as the words it is made of. `getIntentsFromFM` -> intent."""
+    import re
+
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    out = []
+    for w in re.split(r"[^A-Za-z]+", spaced):
+        w = w.lower()
+        if len(w) > 2 and w not in _NOT_VOCABULARY:
+            if w.endswith("ies") and len(w) > 5:
+                w = w[:-3] + "y"            # `properties` was becoming `propertie`
+            elif w.endswith("s") and not w.endswith("ss") and len(w) > 4:
+                w = w[:-1]
+            out.append(w)
+    return out
+
+
+def _tells_you_something(line: str) -> int:
+    """
+    How much a line says about a word in it.
+
+    An import says nothing -- it names the word and moves it. The first version
+    of this took the earliest lines and returned nothing but the import block at
+    the top of every file, which is a listing of names again, arrived at
+    differently.
+    """
+    import re
+
+    t = line.strip()
+    if t.startswith(("import ", "} from", "//", "*", "/*", "#")) or ' from "' in t:
+        return -1
+    score = 0
+    if re.match(r"(export\s+)?(type|interface|enum|class|function|const|def)\s", t):
+        score += 3
+    if "=" in t or "(" in t:
+        score += 1
+    if ":" in t:
+        score += 1
+    if len(t) > 25:
+        score += 1
+    return score
+
+
+@op("code", "vocabulary")
+def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
+    """
+    The words this area's code uses, and the lines that use them.
+
+    `code.survey` returns grains -- paths and symbols. The graph has always
+    labelled that edge "terms in use" and it is not: it is a list of names, and
+    a list of names handed to a session told to define the area's terms is a
+    specification of the answer. Measured across four runs on one repository,
+    21 of the 28 terms ever written were exactly a symbol name or a path
+    fragment, and the rest were generic words about software. Not one was a
+    concept the project uses. `getIntentFromTFile: A function that retrieves
+    intents from a TFile` is a true and accurate answer to the question that was
+    actually asked.
+
+    The vocabulary is in there, spelled inside the identifiers.
+    `getIntentsFromFM`, `runIntent`, `fmValidateIntent` and `Intent` are four
+    occurrences of a word this project is built on, and splitting on case and
+    underscore recovers it. On the same repository this puts `intent`, `note`,
+    `template`, `selection` and `variable` at the top of `src/intents`, where
+    the grain list put `getIntentsFromFM`.
+
+    Each word arrives with lines that show it working, ranked so a declaration
+    beats a use and an import never appears. Three lines across two files says
+    more about what a word means than four hundred lines of one file, and costs
+    a fiftieth of the window.
+
+    `defined` carries the sense the glossary already holds for that word, which
+    is the only reason the whole glossary was ever pushed at a survey session.
+    Handed the lot, one session spent itself re-amending four terms from another
+    area rather than surveying its own -- the glossary was the most actionable
+    list in its prompt, so it did the glossary. This shows the overlap and
+    nothing else.
+    """
+    from pathlib import Path
+    from collections import Counter
+
+    area = area or ctx.area
+    if not area:
+        return []
+    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE area = ?", (area,))})
+    if not paths:
+        return []
+
+    # Identifier decomposition is the right operation on code and the wrong one
+    # on prose. Run against `.github/ISSUE_TEMPLATE/*.md` it returned `feature`,
+    # `problem`, `concise`, `clear` and `you` -- ordinary English, split out of
+    # ordinary English sentences, and the session dutifully defined `you`. A
+    # word is vocabulary here because the code names things with it, not because
+    # a sentence in a template happens to contain it.
+    from ..onboarding.languages import for_path
+
+    paths = [rel for rel in paths if for_path(rel.split("/")[-1]) is not None]
+    if not paths:
+        # `[]` is a vacuous signal and gets read as a strong one -- the same
+        # reason `glossary.lookup` says how big the glossary is on a miss. Three
+        # sessions spent twelve turns each on `.github`, whose only files are
+        # markdown and YAML, working out from `[]` that there was nothing there.
+        return [{"note": f"no file in {area!r} is in a language this index "
+                         f"parses, so it has no vocabulary to survey. "
+                         f"`surveys.attest(outcome='none_found')` is the answer, "
+                         f"citing what you opened."}]
+
+    root = _worktree_of(ctx)
+    uses: Counter = Counter()
+    seen: dict[str, list] = {}
+    for rel in paths:
+        f = root / rel
+        if not f.is_file():
+            continue
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            continue
+        for n, line in enumerate(body.splitlines(), 1):
+            worth = _tells_you_something(line)
+            for w in set(_words_in(line)):
+                uses[w] += 1
+                if worth > 0:
+                    seen.setdefault(w, []).append((worth, rel, n, line.strip()))
+
+    known = {}
+    for r in ctx.conn.execute("SELECT term, sense_short FROM glossary_terms"):
+        known.setdefault(re.sub(r"[^a-z0-9]+", "", r["term"].lower()), r["sense_short"])
+
+    rows: list[dict] = []
+    for word, n in uses.most_common(8):
+        picks, files = [], set()
+        for _, rel, ln, text in sorted(seen.get(word, []), key=lambda x: -x[0]):
+            if rel in files and len(picks) >= 2:
+                continue
+            files.add(rel)
+            picks.append((rel, ln, text))
+            if len(picks) == 3:
+                break
+        if not picks:
+            continue
+        defined = next((v for k, v in known.items() if word in k or k in word), "")
+        for rel, ln, text in picks:
+            rows.append({"word": word, "uses": n, "defined": defined,
+                         "where": f"{rel}:{ln}", "line": text[:110]})
+    return rows
+
+
 @op("code", "survey")
 def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
     """The area's grains, most depended-upon first. Defaults to the area this
@@ -1565,6 +1774,9 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     end = min(end, len(lines))
     # The corrected spelling, so a citation of it resolves against the index.
     ctx.opened.add(_grain_path(path))
+    body = chr(10).join(lines[start:end])
+    ctx.read_words.update(_words_in(path))
+    ctx.read_words.update(_words_in(body))
     out = {"path": path, "start": start, "end": end,
            "text": chr(10).join(lines[start:end]), "lines": len(lines)}
     if note:
