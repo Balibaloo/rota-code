@@ -275,6 +275,30 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
 SURVEY_ORDER = ("terminologist", "architect", "gatekeeper")
 
 
+def survey_order() -> tuple[str, ...]:
+    """
+    The survey phases, optionally truncated for debugging.
+
+    The three roles already run in strict phases -- Terminologist finishes every
+    area before Architect starts -- so stopping after one of them is a filter on
+    an order that exists rather than a new one. `ROTA_SURVEY_UNTIL=terminologist`
+    runs the first phase and then goes quiescent, which cuts the loop for
+    anything being measured on the glossary from a whole onboarding to a third
+    of one.
+
+    A debug affordance and nothing else: unset, this is `SURVEY_ORDER`, and a
+    name that is not a survey role is ignored rather than obeyed, because a
+    typo that silently ran no phases would look exactly like a system with
+    nothing to do.
+    """
+    import os
+
+    until = (os.environ.get("ROTA_SURVEY_UNTIL") or "").strip().lower()
+    if until not in SURVEY_ORDER:
+        return SURVEY_ORDER
+    return SURVEY_ORDER[:SURVEY_ORDER.index(until) + 1]
+
+
 def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
     """
     Onboarding: one session per elected area, per role, in the order
@@ -332,7 +356,7 @@ def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
             "AND tick_key LIKE '%|tick:survey|%'")
     }
 
-    for role in SURVEY_ORDER:
+    for role in survey_order():
         outstanding = [
             area for area in areas
             if abandoned.get(area) != role

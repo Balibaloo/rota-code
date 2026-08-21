@@ -379,9 +379,17 @@ def cmd_onboard(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    import os
+
     from .tools.onboard_run import drive
 
     path = require(args.name)
+    # A filter on the phase order that already exists, for measuring one phase
+    # without paying for the two behind it. Set in the environment rather than
+    # threaded through `drive` because it is a debug affordance and should not
+    # become an argument the system takes seriously.
+    if getattr(args, "until", None):
+        os.environ["ROTA_SURVEY_UNTIL"] = args.until
     drive(str(path), args.model, args.limit, survey_only=not args.all)
     return 0
 
@@ -473,6 +481,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=40)
     p.add_argument("--all", action="store_true",
                    help="do not stop when the survey wakes run out")
+    p.add_argument("--until", choices=("terminologist", "architect", "gatekeeper"),
+                   help="stop after this survey phase (debugging)")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("tui", help="talk to it, with the register beside you")
