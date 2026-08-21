@@ -23,7 +23,7 @@ decoy constraints recorded  2
 empty constraint bodies     2
 ```
 
-## 0 · `sense_short` reads as a label, and one chain follows from it — STATUS: next
+## 0 · `sense_short` reads as a label, and one chain follows from it — STATUS: fixed; score unmoved, two upstream blockers now dominate
 
 **Should happen.** A glossary row carries a sentence saying what the word means
 here, and a second sense costs a deliberate argument that is checked.
@@ -73,6 +73,51 @@ impossible. It is the *escape hatch* that leaks.
 present`, and turns spent on `tick:term_collision`. Baselines: 0 of 10 present,
 45 turns.
 
+**Result — `cnt_v0.db`, Terminologist phase only, 14 sessions, 88 turns.**
+
+```
+glossary                  1 term    (cnt_fix: 9, cnt_new: 8)
+terms_required present    0 of 10
+must_not_mean             nothing to score -- none of those terms written
+areas surveyed            4 of 6; src/intents and src/variables abandoned
+k0 grew back to           ['.', 'src/intents', 'src/variables']
+```
+
+The phase filter works: clean stop on "no survey wakes left", 88 turns against
+~190 for a full run.
+
+**The change is not what is blocking.** The blank-`sense_short` refusal never
+fired once. The `sense_body` refusal fired only on calls that were empty in both
+fields -- `sense_body='', sense_short='', term='github'` -- which is a correct
+refusal of a term with nothing under it. No session was stopped by the new
+order.
+
+**Blocker one: `.github` cannot be opened at all.** The model writes
+`/github/ISSUE_TEMPLATE/bug_report.md`, dropping the leading dot, and `_within`
+rejects it as escaping the worktree. 11 of 88 turns ended in that error. The
+index stores `.github/...` and the brief renders `.github/...` correctly, so this
+is the model mangling a path -- but the consequence is total: it can never open
+those files, so it can never cite them, so the area cannot be closed. And
+`.github` sorts first, so it is the opening move of every run.
+
+**Blocker two: the read-evidence gate abandons areas.** Sessions cite grains
+straight from the `code.survey` listing without opening them, `surveys.attest`
+refuses -- correctly, it is the guard added this morning -- the session cannot
+recover, and after three attempts the attempt bound quarantines the area.
+`src/intents` and `src/variables` were lost that way, and constraint zero grew
+back to cover three areas.
+
+That is also why every session wrote the same term. Fifteen `glossary.amend`
+attempts across nine sessions, all of them `workflow`: with nothing opened there
+was nothing else to define, and the pushed glossary already showed `workflow`
+sitting there.
+
+**What I cannot rule out.** `cnt_fix` got 9 terms and this got 1, and the
+difference is that `src/variables` succeeded there and was abandoned here. Same
+model, same repository. It may be variance, and it may be that adding a
+paragraph to `survey.md` cost a session that was already marginal. The clean
+single-variable test is to revert the brief edit alone and re-run this phase.
+
 **Deferred, and why.** Ordering areas by size rather than alphabetically was
 going to be item 0. It fixes no defect — it reallocates budget, nothing more,
 and the claim that it "seeds the glossary with product vocabulary first" is
@@ -80,6 +125,61 @@ wrong, because every session is shown the whole glossary regardless. `.github`
 did take 64 survey turns plus the 45 above, out of ~190, on 3 grains of 89. But
 if this chain is fixed those 45 do not happen, and the budget may suffice
 without reordering. Revisit only if budget is still binding after a clean run.
+
+## 0b · A mistyped path was a dead end — STATUS: fixed and verified; score unmoved
+
+**Was.** `code.source('/github/ISSUE_TEMPLATE/bug_report.md')` — the leading dot
+copied as a slash — refused by `_within` as escaping the worktree. Terminal: not
+openable, so not citable, so `surveys.attest` refuses, so the area is
+quarantined after three attempts.
+
+**Now.** A miss is checked against the index first: exactly one grain the
+request could be naming, or nothing. The result says which spelling was read and
+`ctx.opened` records that one, so the citation resolves. Ambiguity stays refused
+— `accounts.py` under both `auth` and `billing` is a misread, and a misread is
+worse than an error. `code.write` keeps `_within` unhelped.
+
+**Result — `cnt_v1.db`, Terminologist phase, 12 sessions, 88 turns.**
+
+```
+                              cnt_v0      cnt_v1
+escapes-the-worktree turns        11           0
+areas surveyed                4 of 6      6 of 6
+areas abandoned                    2           0
+k0 covers                          3           1
+glossary terms                     1           8
+
+terms_required present        0 of 10     0 of 10
+must_not_mean            nothing to score  nothing to score
+```
+
+The mechanism is fixed. Nothing was abandoned, every area closed, and the
+lenient resolution fired twice.
+
+**The score did not move, for the third run running.** What the glossary holds:
+`FilteredOpenerMissingNotice` (twice — a live collision), `ISSUE_TEMPLATE`,
+`TemplateVariable`, `TemplateVariableVariables`, `TemplateVariableVariablesLut`,
+`feature_request`, `release`. Identifiers and GitHub-infrastructure words. Not
+one of `intent`, `template`, `prompt`, `variable`, `provider`, `frontmatter`.
+
+**What three runs now say.** Three mechanical blockers found and fixed —
+starvation by an unparked collision, label-as-sense, a path dead end — and
+`terms_required present` has been 0 of 10 every time. Coverage improves, cost
+improves, abandonment goes to zero, and the artefact does not change at all.
+
+That is what items 4 and 5 predicted and they are still not started. The brief
+still never says what the project is: `Obsidian` 0, `plugin` 0, `note` 0,
+`template` 0 in an 8,050-character prompt. And the unit of work still cannot
+hold the answer — `intent` is declared in `intentsSchema.yaml`, parsed in
+`src/intents`, stored in `src/settings`, extended in `src/templates`, filled
+from `src/variables`, so no area-shaped question reaches it.
+
+Everything fixed so far was beneath the question. Nothing has yet been aimed at
+it.
+
+**Minor, noted not chased.** `k0` still binds `.` although `.` was surveyed
+`none_found` — constraint zero was recomputed at session 15 and the survey
+landed at 17.
 
 ## 1 · A reported collision was offered again forever — STATUS: fixed and verified; score unmoved
 
