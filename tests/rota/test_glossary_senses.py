@@ -391,9 +391,12 @@ def test_one_word_said_twice_can_finally_be_said_so(db):
     live = [r["id"] for r in db.execute(
         "SELECT id FROM glossary_terms WHERE term='note' AND superseded_by IS NULL")]
     assert live == ["note"], "one live sense"
-    assert db.execute("SELECT sense_short FROM glossary_terms "
-                      "WHERE id='note#src'").fetchone()["sense_short"], \
-        "the losing sense is still readable"
+    lost = db.execute("SELECT sense_short, sense_body, area FROM glossary_terms "
+                      "WHERE id='note#src'").fetchone()
+    assert lost["sense_short"] and lost["sense_body"], (
+        "the losing sense stays readable -- a partial write nulls the rest of "
+        "the row, so supersede has to carry it forward whole")
+    assert lost["area"] == "src", "and keeps the evidence it was written from"
 
 
 def test_it_will_not_merge_two_different_words(db):
@@ -408,3 +411,38 @@ def test_it_will_not_merge_two_different_words(db):
     with pytest.raises(ValueError) as exc:
         glossary_same(Ctx(db), keep="note", drop="folder", why="they are not")
     assert "different words" in str(exc.value)
+
+
+def test_a_merge_repoints_what_referred_to_the_losing_sense(db):
+    """
+    The claim is that the two rows say the same thing, so a reference to one is
+    a reference to the other. Leaving them is the quiet kind of wrong this whole
+    change is against: `check_criteria_terms` validates against every row
+    including superseded ones, so a stale ref stays green while naming the sense
+    that was just declared redundant.
+    """
+    from rota.roles.api import glossary_same
+
+    a = Ctx(db, area="src/intents", read=["note"])
+    glossary_amend(a, term="note", sense_body="a file in the vault", sense_short="a vault file")
+    a.commit()
+    b = Ctx(db, area="src", read=["note"])
+    glossary_amend(b, term="note", sense_body="a document in Obsidian", sense_short="a document")
+    b.commit()
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','make a note','in_scope','observed','draft',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','tk1','a note is created','[\"note#src\"]')")
+
+    c = Ctx(db)
+    out = glossary_same(c, keep="note", drop="note#src", why="both say a vault file")
+    c.commit()
+
+    assert out["repointed"] == ["c1"]
+    import json as _json
+    refs = _json.loads(db.execute(
+        "SELECT term_refs FROM criteria WHERE id='c1'").fetchone()["term_refs"])
+    assert refs == ["note"], "the criterion now names the sense that survived"

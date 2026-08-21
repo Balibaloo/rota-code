@@ -607,8 +607,9 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
     of them is allowed to be quiet.
     """
     rows = {r["id"]: r for r in ctx.conn.execute(
-        "SELECT id, term, sense_short, area, superseded_by FROM glossary_terms "
-        "WHERE id IN (?, ?)", (keep, drop))}
+        "SELECT id, term, sense_short, sense_body, provenance, source_refs, "
+        "area, superseded_by FROM glossary_terms WHERE id IN (?, ?)",
+        (keep, drop))}
     missing = [i for i in (keep, drop) if i not in rows]
     if missing:
         raise ValueError(
@@ -640,11 +641,51 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
     # `why` is required and goes nowhere. It is here so the case has to be
     # stated before the act, which is the whole guard on a judgement that cannot
     # be checked.
+    # The whole row, not the changed column. Writes land as `INSERT OR REPLACE`
+    # with only the columns given, so a partial write nulls the rest -- and the
+    # first version of this dropped `sense_body`, destroying the sense it had
+    # just promised to keep readable. Supersede has to carry the row forward.
     ctx.writes.append(("glossary_terms", drop, {
         "term": b["term"], "sense_short": b["sense_short"],
-        "provenance": ctx.provenance, "superseded_by": keep}))
-    return {"id": keep, "superseded": drop,
-            "note": f"{drop} now points at {keep}. Both senses stay readable."}
+        "sense_body": b["sense_body"], "provenance": b["provenance"],
+        "source_refs": b["source_refs"], "area": b["area"],
+        "superseded_by": keep}))
+
+    # Anything pointing at the losing row is repointed at the survivor. The
+    # claim being made is that the two say the same thing, so a reference to one
+    # is a reference to the other -- and leaving them is the quiet kind of wrong
+    # this whole change is against: `check_criteria_terms` validates against
+    # every row including superseded ones, so a stale ref stays green while
+    # naming the sense that was just declared redundant.
+    #
+    # Empty during onboarding, because criteria do not exist yet. It is the
+    # delivery loop that would have paid for it.
+    repointed = []
+    for table in ("criteria", "business_rules"):
+        try:
+            rows = list(ctx.conn.execute(
+                f"SELECT * FROM {table} WHERE term_refs LIKE ?", (f'%"{drop}"%',)))
+        except sqlite3.OperationalError:                    # pragma: no cover
+            continue
+        for r in rows:
+            refs = json.loads(r["term_refs"] or "[]")
+            if drop not in refs:
+                continue
+            moved = [keep if x == drop else x for x in refs]
+            seen_once, out_refs = set(), []
+            for x in moved:
+                if x not in seen_once:
+                    seen_once.add(x); out_refs.append(x)
+            whole = {k: r[k] for k in r.keys() if k != "id"}
+            whole["term_refs"] = json.dumps(out_refs)
+            ctx.writes.append((table, r["id"], whole))
+            repointed.append(r["id"])
+
+    out = {"id": keep, "superseded": drop,
+           "note": f"{drop} now points at {keep}. Both senses stay readable."}
+    if repointed:
+        out["repointed"] = repointed
+    return out
 
 
 @op("glossary", "lookup")

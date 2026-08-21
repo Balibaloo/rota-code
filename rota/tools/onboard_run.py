@@ -55,7 +55,16 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> Non
             print(f"\nquiescent after {n - 1} sessions "
                   f"({time.time() - started:.0f}s)")
             return
-        if survey_only and not any(w.kind == "tick:survey" for w in ready):
+        # The terminologist's phase includes disambiguating the terms it wrote.
+        #
+        # `term_collision` now holds while the survey pass is running and fires
+        # the moment it finishes -- which is exactly the moment this used to
+        # return. Every run ended "no survey wakes left" with the collisions
+        # still unexamined, so the phase stopped one step before the step that
+        # cleans up after it.
+        PHASE = {"tick:survey", "tick:term_collision", "message",
+                 "tick:quarantined", "tick:constraint_zero"}
+        if survey_only and not any(w.kind in PHASE for w in ready):
             print(f"\nno survey wakes left; frontier holds "
                   f"{sorted({w.kind for w in ready})}")
             return
