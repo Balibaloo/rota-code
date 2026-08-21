@@ -470,6 +470,16 @@
       "depth": "body"
     },
     {
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "area",
+      "n": "the area's source",
+      "label": "a glossary is an output of understanding a system, not an input to one",
+      "rows": "query",
+      "depth": "body"
+    },
+    {
       "s": "gatekeeper",
       "t": "code",
       "type": "reads",

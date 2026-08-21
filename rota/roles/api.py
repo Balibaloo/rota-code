@@ -1587,6 +1587,89 @@ def _tells_you_something(line: str) -> int:
     return score
 
 
+@op("code", "area")
+def code_area(ctx: Ctx, area: str | None = None) -> dict:
+    """
+    The area's source, as source, in fan-in order until the budget runs out.
+
+    Every context this role has been given was an enumeration -- first grains,
+    then words -- and an enumeration decomposes the job into one row per item.
+    That is the wrong shape for this job. An `intent` cannot be defined from the
+    word `intent`: it comes from a note's frontmatter under `intents_to`, it
+    holds `templates`, its `newNoteProperties` hold `variables`, and running one
+    makes a note. One structure, five words in it. Asked about the five words
+    one at a time, every row is answerable from ordinary English -- so it was
+    answered that way, correctly per row, and the whole was never assembled. The
+    measured output was `intent: an intention or goal`, written before the
+    session opened a file and written again unchanged after it had opened all
+    three.
+
+    A glossary is an output of understanding a system, not an input to one. So
+    this hands over the system.
+
+    It fits, which is the part worth saying plainly. `src/intents/index.ts` --
+    the file declaring what an Intent *is*, with its name, templates and
+    sourceNotePath -- is 891 bytes. The brief telling the model how to describe
+    code it was never shown was 6,950 characters. Eight times the file.
+
+    Fan-in order, whole files while they fit, because the most depended-upon
+    file in an area is usually the one that declares its types, and a type
+    declaration is the shortest true answer to "what is this". What does not fit
+    is named rather than dropped: a session that knows a file was withheld can
+    ask for it, and a session that does not know reads a partial area as a whole
+    one.
+    """
+    area = area or ctx.area
+    if not area:
+        return {"error": "no area"}
+
+    paths = [r["grain"] for r in ctx.conn.execute(
+        "SELECT grain, MAX(fan_in) AS f FROM code_index WHERE area = ? "
+        "AND grain_kind = 'path' GROUP BY grain ORDER BY f DESC, grain", (area,))]
+    root = _worktree_of(ctx)
+
+    budget, shown, omitted = 5200, [], []
+    for rel in paths:
+        f = root / rel
+        if not f.is_file():
+            continue
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            continue
+        if len(body) <= budget:
+            shown.append((rel, body, False))
+            budget -= len(body)
+            ctx.opened.add(_grain_path(rel))
+            ctx.read_words.update(_words_in(rel))
+            ctx.read_words.update(_words_in(body))
+        elif budget > 1200:
+            head = body[:budget]
+            shown.append((rel, head, True))
+            ctx.opened.add(_grain_path(rel))
+            ctx.read_words.update(_words_in(rel))
+            ctx.read_words.update(_words_in(head))
+            budget = 0
+        else:
+            omitted.append(rel)
+
+    if not shown:
+        return {"area": area,
+                "note": f"{area!r} has no readable source. "
+                        f"`surveys.attest(outcome='none_found')` is the answer."}
+
+    parts = []
+    for rel, body, cut in shown:
+        label = "----- " + rel + (" (first part only)" if cut else "") + " -----"
+        parts.append(label + chr(10) + body)
+    text = (chr(10) + chr(10)).join(parts)
+    out = {"area": area, "source": text}
+    if omitted:
+        out["not_shown"] = (f"{omitted} did not fit. `code.source` any of them "
+                            f"if the ones above leave a word unexplained.")
+    return out
+
+
 @op("code", "vocabulary")
 def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
     """

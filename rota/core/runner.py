@@ -713,7 +713,29 @@ def run_session(
         # which held whatever the session had actually decided to do until the
         # following turn. Liaison's round_close spent two of its turns that way
         # before sending the message it had composed on the first one.
-        pushed_keys: set[str] = {sb.call_key(name) for name in pushed}
+        # Both spellings of the same call. A pushed read is registered by its
+        # no-argument key, because that is how `push_working_set` invoked it --
+        # and the signature the model is shown says `code.area(area=None)`, so
+        # the model writes `code.area(area='src/intents')`. Same result, `area`
+        # defaults to `ctx.area`, different key. The explicit form therefore
+        # counted as a *fresh* read and held everything the session wrote after
+        # it, in the same reply.
+        #
+        # Measured: every session in one run made both calls, and what the hold
+        # took was the work -- `glossary.amend(term="intent", sense_body="a type
+        # of frontmatter in Obsidian notes that defines a template or action")`,
+        # the best definition six runs had produced, held and never re-sent.
+        # Seventeen blocks across the run, each one the turn's entire output.
+        #
+        # The hold is right and this is not the case it exists for: the answer
+        # is not outstanding, it is already in the prompt, and the session is
+        # being punished for naming the argument the signature advertises.
+        pushed_keys: set[str] = set()
+        for name in pushed:
+            pushed_keys.add(sb.call_key(name))
+            if sb.ctx.area:
+                pushed_keys.add(sb.call_key(name, (), {"area": sb.ctx.area}))
+                pushed_keys.add(sb.call_key(name, (sb.ctx.area,), {}))
         already_run: set[str] = set()
         turns: list[Turn] = []
 
