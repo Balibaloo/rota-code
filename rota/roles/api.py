@@ -1538,6 +1538,7 @@ _NOT_VOCABULARY = {
     "existing", "result", "data", "item", "items", "list", "map", "key", "keys",
     "ts", "js", "py", "md", "json", "yaml", "yml", "test", "tests",
     "throw", "parse", "catch", "try", "call", "check", "each", "into", "out",
+    "typeof", "instanceof", "keyof", "readonly", "undefined",
     "chosen", "choose", "include", "exclude", "private", "public", "show",
     "hide", "natural", "container", "object", "property", "input", "output",
     "error", "valid", "invalid", "start", "end", "first", "last", "next",
@@ -1623,35 +1624,83 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
     if not area:
         return {"error": "no area"}
 
-    paths = [r["grain"] for r in ctx.conn.execute(
+    # The area's own files, and the ones it imports.
+    #
+    # An area is a folded directory and a meaning is not. `intentsSchema.yaml`
+    # lists every key an intent may carry and lives in `.`;
+    # `src/intents/frontmatter.ts` imports it and lives in `src/intents`. No
+    # session ever saw both, so the glossary learned that intents live in
+    # frontmatter and never that the key is `intents_to`. The same boundary
+    # splits `Template` and `TemplateVariable` from the code that uses them.
+    #
+    # A file the area imports is part of what the area means, wherever it sits.
+    # Depth one only: the edge is evidence that this area depends on that file,
+    # and two hops out is somebody else's subject.
+    #
+    # The four files that carry this domain -- the intent type, the template
+    # type, the variable type and the schema -- come to 4,499 bytes together,
+    # and they are small for the reason they matter: a barrel or a schema is
+    # where the declarations live, and a declaration is short.
+    rows = list(ctx.conn.execute(
         "SELECT grain, MAX(fan_in) AS f FROM code_index WHERE area = ? "
-        "AND grain_kind = 'path' GROUP BY grain ORDER BY f DESC, grain", (area,))]
+        "AND grain_kind = 'path' GROUP BY grain", (area,)))
+    own = {r["grain"]: r["f"] for r in rows}
+    imported: dict[str, int] = {}
+    for r in ctx.conn.execute(
+            "SELECT e.dst AS g, MAX(i.fan_in) AS f FROM code_edges e "
+            "JOIN code_index i ON i.grain = e.dst "
+            "WHERE e.src IN (SELECT grain FROM code_index WHERE area = ?) "
+            "AND i.area <> ? GROUP BY e.dst", (area, area)):
+        imported[r["g"]] = r["f"] or 0
+
     root = _worktree_of(ctx)
 
-    budget, shown, omitted = 5200, [], []
+    def order(item):
+        # Most depended-upon first; among equals, the ones that can be shown
+        # whole. Truncating a declaration loses the declaration.
+        grain, fan = item
+        try:
+            size = (root / grain).stat().st_size
+        except OSError:
+            size = 1 << 30
+        return (-fan, size)
+
+    paths = [g for g, _ in sorted({**own, **imported}.items(), key=order)]
+
+    # Two passes, because completeness beats rank. In one pass the
+    # highest-fan-in file that does not fit takes the remainder as a head and
+    # the small files behind it are lost -- measured: `src/main.ts` at 8KB and
+    # fan-in 2 ate the budget and pushed out `intentsSchema.yaml` at 2KB, which
+    # is the file this whole change exists to deliver. A truncated declaration
+    # is not a declaration, so whole files are taken first and a head is what
+    # the leftover buys, if it buys anything.
+    def take(rel, body, cut):
+        shown.append((rel, body, cut))
+        ctx.opened.add(_grain_path(rel))
+        ctx.read_words.update(_words_in(rel))
+        ctx.read_words.update(_words_in(body))
+
+    budget, shown, omitted, bodies = 5200, [], [], {}
     for rel in paths:
         f = root / rel
         if not f.is_file():
             continue
         try:
-            body = f.read_text(encoding="utf-8", errors="replace")
+            bodies[rel] = f.read_text(encoding="utf-8", errors="replace")
         except OSError:                                     # pragma: no cover
             continue
+
+    for rel, body in bodies.items():
         if len(body) <= budget:
-            shown.append((rel, body, False))
+            take(rel, body, False)
             budget -= len(body)
-            ctx.opened.add(_grain_path(rel))
-            ctx.read_words.update(_words_in(rel))
-            ctx.read_words.update(_words_in(body))
-        elif budget > 1200:
-            head = body[:budget]
-            shown.append((rel, head, True))
-            ctx.opened.add(_grain_path(rel))
-            ctx.read_words.update(_words_in(rel))
-            ctx.read_words.update(_words_in(head))
-            budget = 0
         else:
             omitted.append(rel)
+
+    if omitted and budget > 1200:
+        rel = omitted.pop(0)
+        take(rel, bodies[rel][:budget], True)
+        budget = 0
 
     if not shown:
         return {"area": area,
@@ -1660,7 +1709,9 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
 
     parts = []
     for rel, body, cut in shown:
-        label = "----- " + rel + (" (first part only)" if cut else "") + " -----"
+        label = ("----- " + rel
+                 + (" — imported by this area" if rel in imported else "")
+                 + (" (first part only)" if cut else "") + " -----")
         parts.append(label + chr(10) + body)
     text = (chr(10) + chr(10)).join(parts)
     out = {"area": area, "source": text}
@@ -1768,10 +1819,22 @@ def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
                 break
         if not picks:
             continue
-        defined = next((v for k, v in known.items() if word in k or k in word), "")
-        for rel, ln, text in picks:
-            rows.append({"word": word, "uses": n, "defined": defined,
-                         "where": f"{rel}:{ln}", "line": text[:110]})
+        # One row per word, and no example lines: the source is in the prompt
+        # beside this, so lines here would be the same code twice, and the
+        # `where` column that carried them was cited verbatim -- line number
+        # and all -- into `surveys.attest`, which cost four abandoned areas.
+        #
+        # `defined` is a marker and not the text. Shown as text, beside blank
+        # rows, it was a worked example of the answer: a session handed
+        # `note | A note is a piece of information.` next to three empty cells
+        # completed the form, matching that register, and the example it was
+        # matching was the previous session's own ungrounded guess. This says
+        # only that the word is taken, which is all the collision check needs.
+        files = sorted({h[1] for h in seen.get(word, [])})
+        rows.append({"word": word, "uses": n,
+                     "in": ", ".join(f.split("/")[-1] for f in files[:4]),
+                     "defined": "yes" if any(word in k or k in word
+                                             for k in known) else ""})
     return rows
 
 
