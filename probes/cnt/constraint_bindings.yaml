@@ -1,0 +1,72 @@
+# constraint_bindings — the grains each constraint governs.
+#
+# Columns mirror the table: constraint_id, grain, grain_kind.
+#
+# A binding says "changing this file could break that promise". Two of these
+# name grains that are not in the index at all; see code_index_missing.yaml.
+
+bindings:
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: intentsSchema.yaml
+  grain_kind: path
+  note: not currently indexed
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/intents/frontmatter.ts
+  grain_kind: path
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/variables/providers/text.ts
+  grain_kind: path
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/variables/providers/number.ts
+  grain_kind: path
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/variables/providers/natural_date.ts
+  grain_kind: path
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/variables/providers/note.ts
+  grain_kind: path
+
+- constraint_id: the_frontmatter_schema_is_a_public_contract
+  grain: src/variables/providers/folder.ts
+  grain_kind: path
+
+- constraint_id: the_filtered_opener_plugin_api
+  grain: src/variables/providers/note.ts
+  grain_kind: path
+
+- constraint_id: the_filtered_opener_plugin_api
+  grain: src/notice/index.ts
+  grain_kind: path
+
+- constraint_id: the_minimum_obsidian_version
+  grain: manifest.json
+  grain_kind: path
+  note: not currently indexed
+
+- constraint_id: the_minimum_obsidian_version
+  grain: src/main.ts
+  grain_kind: path
+
+- constraint_id: the_plugin_manifest_is_the_registry_contract
+  grain: manifest.json
+  grain_kind: path
+  note: not currently indexed
+
+- constraint_id: the_plugin_manifest_is_the_registry_contract
+  grain: versions.json
+  grain_kind: path
+  note: not currently indexed
+
+- constraint_id: the_plugin_manifest_is_the_registry_contract
+  grain: version-bump.mjs
+  grain_kind: path
+
+- constraint_id: intent_imports_must_terminate
+  grain: src/intents/frontmatter.ts
+  grain_kind: path

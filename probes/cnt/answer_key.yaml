@@ -1,0 +1,139 @@
+# answer_key — the scoreable predictions.
+#
+# Not a table. The files beside this one mimic rota's schema and stay loadable;
+# this holds the claims that have no column, and `must_not_mean` is the reason
+# the whole probe is worth having.
+#
+# Scored against a finished run's database.
+
+repository:
+  name: Contextual Note Templating
+  root: D:/tmp/rota-live/repo
+  branch: v3
+  commit: 766c9e30
+  files: 18 source, 73 grains, 5 areas as folded
+
+# --- 1. presence ------------------------------------------------------------
+# Mechanical. Is the term in the glossary at all, under any sense?
+
+terms_required:
+  - intent            # the central one. Absent from the recorded run.
+  - template
+  - prompt
+  - variable
+  - variable_type
+  - provider
+  - frontmatter
+  - global_intent
+  - selection
+  - filter_set
+
+terms_expected:       # good to have, not damning to miss
+  - template_variable
+  - reserved_variable
+  - local_intent
+  - intent_import
+
+# --- 2. must_not_mean -------------------------------------------------------
+# The predicted wrong answer, written down before the run. A recorded sense
+# containing any of these words for that term is a fail, not a weak pass.
+#
+# These five are the probe. Each names a member of `enum TemplateVariableType`
+# in src/variables/providers/index.ts — the five kinds of value a user may be
+# prompted for. Read as ordinary type names they are data types, and that
+# reading is fluent, confident and wrong.
+
+must_not_mean:
+  text:
+    is: a prompt type whose value is typed in, optionally matched against a regex
+    not: [string, characters, data type, primitive, sequence of]
+  number:
+    is: a prompt type whose value is numeric and may be bounded by is_over/is_under
+    not: [numeric value, integer, data type, primitive]
+  natural_date:
+    aliases: [NaturalDate, naturaldate, natural date]
+    is: a prompt type parsing a date written in words, formatted by `format`
+    not: [date format, timestamp, data type, formatting]
+  note:
+    is: >-
+      a prompt type whose value is a note chosen through the filtered-opener
+      plugin, narrowed by a filter set
+    not: [text note, markdown file, a note in the vault, document, data container]
+  folder:
+    is: a prompt type whose value is a folder chosen and validated against filters
+    not: [data container, directory on disk, container, data type]
+
+  intent:
+    is: a note-creation recipe declared in frontmatter
+    not: [a specific action, a task, an intention, a purpose, a goal]
+  template:
+    is: a note whose contents seed a new note
+    not: [a generic type, a boilerplate class, a string with placeholders]
+  provider:
+    is: the module serving one prompt type
+    not: [a service, a dependency injection, a data source, an API client]
+
+recorded_run_result:
+  measured_on: .rota/cnt_new.db
+  terms_required_present: 0 of 10
+  must_not_mean_hits: 5
+  detail:
+    - "Text: string of characters"          # hits: string, characters
+    - "Number: numeric value"               # hits: numeric value
+    - "NaturalDate: date format"            # hits: date format
+    - "Note: text note"                     # hits: text note
+    - "Folder: data container"              # hits: data container
+  note: >-
+    `intent` scored neither a hit nor a miss because it was never written. A
+    check over the terms that exist cannot see an absence, which is why
+    terms_required is a separate section and is listed first.
+  matching_note: >-
+    Five senses are wrong; a scorer keying on the slugified term catches four.
+    The glossary holds `NaturalDate`, which slugifies to `naturaldate`, while
+    this key says `natural_date` — the codebase spells the same thing both ways,
+    camelCase for the class and snake_case for the enum member, and slugifying
+    does not split camelCase. Hence `aliases`. Term identity is not `==`, and a
+    scorer that assumes it is will under-report by exactly the terms whose
+    spelling the run chose differently.
+
+# --- 3. constraints ---------------------------------------------------------
+
+constraints_required:
+  - the_frontmatter_schema_is_a_public_contract
+  - the_filtered_opener_plugin_api
+
+constraints_expected:
+  - the_minimum_obsidian_version
+  - the_plugin_manifest_is_the_registry_contract
+  - intent_imports_must_terminate
+
+constraint_decoys:     # recording one of these as a commitment is a false positive
+  - esbuild.config.mjs
+  - version-bump.mjs
+  - src/settings/settings.ts
+  - styles.css
+
+constraints_must_have_a_body: true
+
+recorded_run_constraints:
+  written: 2
+  required_found: 0
+  decoys_recorded: 2      # both about esbuild.config.mjs; one also bound settings.ts
+  empty_bodies: 2
+
+# --- 4. coverage ------------------------------------------------------------
+
+areas_all_surveyed: true
+none_found_expected_in: [src/variables]
+
+# --- 5. not scoreable -------------------------------------------------------
+# Left as prose deliberately. Matching a sense needs either an exact string,
+# brittle enough that the key gets rewritten to fit each run, or another model,
+# which is another thing to be wrong. Sections 1 to 4 are the half that can
+# carry a number; this is the half that cannot, and pretending otherwise is
+# worse than saying so.
+
+read_by_a_person:
+  - Do the senses say what the word means *here*, or what it means anywhere?
+  - Would a Developer who read only the glossary write the right thing?
+  - Does the model say what the product is for, or list what it contains?

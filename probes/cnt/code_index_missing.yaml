@@ -1,0 +1,77 @@
+# code_index — rows that should exist and do not.
+#
+# Columns mirror the table: grain, grain_kind, area.
+#
+# `indexer.walk` keeps a file only when `languages.for_path` recognises its
+# suffix, and BY_SUFFIX is built from the tree-sitter language list: .py .js
+# .ts .jsx .tsx .go .rs .java .rb. Every other suffix is dropped before
+# anything else in the system sees it.
+#
+# For cnt that removes the four files that carry the domain. They are readable
+# — `code.source` opens any path that exists, and given a directory it returns
+# a listing — but nothing advertises them, so no brief contains them and no
+# `code.survey` returns them.
+
+missing:
+
+- grain: intentsSchema.yaml
+  grain_kind: path
+  area: "."
+  why: >-
+    Defines every key an intent may carry, with types and defaults. It is the
+    single document that says what an intent, a template and a prompt are. It is
+    also imported by the code — src/intents/frontmatter.ts has
+    `import intentSchema from "../../intentsSchema.yaml"` — so it is a build
+    dependency of the parser, not documentation beside it.
+  costs: >-
+    Without it, `intent`, `template` and `prompt` are inferable only from
+    TypeScript type names. The recorded run defined none of the three.
+
+- grain: README.md
+  grain_kind: path
+  area: "."
+  why: >-
+    States what the product is in its first line — "An Obsidian plugin for
+    creating notes next to notes" — and then explains every feature in the
+    user's own vocabulary.
+  costs: >-
+    Nothing in any session's brief said the project was an Obsidian plugin, or
+    that it made notes. Counted in one 8,050-character system prompt: `Obsidian`
+    0, `plugin` 0, `note` 0, `template` 0, `purpose` 0.
+
+- grain: manifest.json
+  grain_kind: path
+  area: "."
+  why: >-
+    Carries `id`, `version`, `minAppVersion` and the one-line description. Two
+    constraints in constraints.yaml rest on it, and it is where a survey looking
+    for a commitment to an external system should land first.
+  costs: >-
+    The Architect surveying area `.` was shown esbuild.config.mjs, src/main.ts,
+    PTPlugin and version-bump.mjs, and wrote "Commitment to an external system
+    in esbuild.config.mjs". Given the contents of the room, that was the only
+    available answer.
+
+- grain: versions.json
+  grain_kind: path
+  area: "."
+  why: >-
+    The version-to-minAppVersion map the registry reads. version-bump.mjs exists
+    to keep it in step with manifest.json, and the script *is* indexed while
+    both files it maintains are not.
+  costs: The registry contract has no visible half.
+
+# --- the shape of the fix ---------------------------------------------------
+
+note: >-
+  The suffix map answers "can tree-sitter parse this into symbols", and it is
+  being used to answer "is this part of the project". Those are different
+  questions. A file with no parser still has a path, a size and contents, and
+  admitting it as a path-kind grain with no symbols costs nothing that the
+  current design does not already handle — `esbuild.config.mjs` is indexed today
+  with zero symbols and fan-in 0.
+
+  The narrower version, if a full second question is not wanted: index a small
+  fixed set of project-declaring files at the root — README, manifest, package
+  metadata, and any file a source file imports — and let the rest stay out.
+  Three of the four grains above are covered by "a file the code imports" alone.

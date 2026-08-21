@@ -1,0 +1,187 @@
+# glossary_terms — what a correct survey of cnt would have written.
+#
+# Columns mirror the table: id, term, sense_short, sense_body, provenance.
+# `id` follows the derivation in `glossary.amend`: the term, lowercased, with
+# runs of non-alphanumerics collapsed to `_`.
+#
+# Every sense here is taken from source. The file each was read in is named in
+# `read_in`, which is not a column — it is here so a reader can check the claim.
+
+terms:
+
+- id: intent
+  term: intent
+  sense_short: >-
+    a recipe for making a note, declared in another note's frontmatter under
+    `intents_to`
+  sense_body: >-
+    An intent names the note to create (`make_a`), where to put it
+    (`in_folder`), what to call it (`with_name`), which templates may seed it
+    (`with_templates`), and what to ask the user for (`with_prompts`). It is
+    data, not code: users write intents in their own notes and this plugin
+    reads them. `Intent` in src/intents/index.ts is the parsed form of one.
+    Running an intent is what produces a note.
+  provenance: observed
+  read_in: src/intents/index.ts, src/intents/frontmatter.ts, intentsSchema.yaml
+
+- id: template
+  term: template
+  sense_short: >-
+    a note whose contents seed a new note, named by an intent at `at_path`
+  sense_body: >-
+    Declared under `with_templates`. A template carries its own new-note
+    properties and its own prompts, and when one is chosen its properties are
+    merged over the intent's — so a template can override the name, folder or
+    selection replacement the intent specified. An intent with several visible
+    templates asks the user which to use.
+  provenance: observed
+  read_in: src/templates/index.ts, src/intents/intents.ts
+
+- id: prompt
+  term: prompt
+  sense_short: >-
+    a value asked of the user when an intent runs, declared under `with_prompts`
+  sense_body: >-
+    The user-facing name for what the code calls a TemplateVariable. Each has a
+    `called` name, an `of_type` naming one of the five variable types, and
+    per-type keys. `that_prompts` is the question shown. Prompts marked hidden
+    are not asked; required ones must be answered.
+  provenance: observed
+  read_in: intentsSchema.yaml, src/variables/index.ts
+
+- id: template_variable
+  term: TemplateVariable
+  sense_short: the parsed form of one prompt — the same thing `with_prompts` declares
+  sense_body: >-
+    The internal name for a prompt. Worth recording because the codebase and the
+    user-facing schema name one concept differently: a reader who greps for
+    "prompt" finds the schema, and a reader who greps for "variable" finds the
+    code. See the collision noted against `variable`.
+  provenance: observed
+  read_in: src/variables/index.ts
+
+- id: variable
+  term: variable
+  sense: placeholder
+  sense_short: >-
+    a `{{name}}` placeholder in a filename, folder path, template body or
+    selection replacement, substituted with a gathered value
+  sense_body: >-
+    This is the second sense of the word and the collision worth reporting.
+    `getReplacedVariablesText` substitutes `{{...}}` tokens; the names available
+    are the prompts of the intent plus the reserved ones. So "variable" means
+    both the thing that is asked for and the token that receives it, and the two
+    are one-to-one but not the same object.
+  provenance: observed
+  read_in: src/intents/intents.ts, src/variables/index.ts
+
+- id: variable_type
+  term: variable type
+  sense_short: >-
+    one of five kinds a prompt may be — text, number, natural_date, note,
+    folder — chosen with `of_type`
+  sense_body: >-
+    `enum TemplateVariableType` in src/variables/providers/index.ts. The type
+    decides which extra frontmatter keys are read, how the value is gathered
+    from the user, and how it is validated. It defaults to `text` when `of_type`
+    names something unrecognised, rather than failing.
+  provenance: observed
+  read_in: src/variables/providers/index.ts, src/intents/frontmatter.ts
+
+- id: provider
+  term: provider
+  sense_short: >-
+    the module serving one variable type — a frontmatter parser and a value
+    getter
+  sense_body: >-
+    One file per type under src/variables/providers. Each exports
+    `parse<Type>VariableFrontmatter`, which reads that type's extra keys, and
+    `get<Type>VariableValue`, which obtains and validates the value. They are
+    registered in two lookup tables keyed by TemplateVariableType, so adding a
+    type means adding a file and two entries.
+  provenance: observed
+  read_in: src/variables/providers/index.ts, src/variables/providers/note.ts
+
+- id: frontmatter
+  term: frontmatter
+  sense_short: >-
+    the YAML block at the head of a note, and the only place intents are
+    declared
+  sense_body: >-
+    Read through Obsidian's metadataCache rather than parsed here. It is the
+    plugin's entire input format: `intents_to`, `intents_imported_from` and
+    everything nested under them.
+  provenance: observed
+  read_in: src/intents/frontmatter.ts
+
+- id: global_intent
+  term: global intent
+  sense_short: >-
+    an intent loaded from the note at `globalIntentsNotePath`, available
+    anywhere in the vault
+  sense_body: >-
+    Contrasted with an intent read from the note you are currently on, which is
+    only available there. Global intents are loaded into settings, get their own
+    Obsidian commands, and are refreshed by the "Reload global intents" command.
+  provenance: observed
+  read_in: src/main.ts, src/settings/index.ts
+
+- id: local_intent
+  term: local intent
+  sense_short: an intent read from the active note, or from a note the user picks
+  sense_body: >-
+    Two of the plugin's commands are local — one runs an intent from the note
+    you are on, the other asks you to choose a note and runs an intent from
+    that. Paths inside a local intent resolve relative to the note that declared
+    it.
+  provenance: observed
+  read_in: src/main.ts, src/intents/frontmatter.ts
+
+- id: selection
+  term: selection
+  sense_short: >-
+    editor text an intent can consume as a prompt's value and then replace with
+    a link
+  sense_body: >-
+    A prompt with `uses_selection` takes the selected text as its value.
+    `replaces_selection_with` decides what is written back, defaulting to a link
+    to the new note. Multiple cursors mean multiple selections, and the intent
+    runs once per selection — which is how several notes are made at once.
+  provenance: observed
+  read_in: src/intents/intents.ts
+
+- id: reserved_variable
+  term: reserved variable
+  sense_short: >-
+    one of four names always available for substitution — intent_name,
+    with_name, in_folder, replaces_selection_with
+  sense_body: >-
+    `enum ReservedVariableName`. They hold the intent's own properties, so a
+    template body can refer to the name the note is about to be given.
+  provenance: observed
+  read_in: src/variables/index.ts
+
+- id: intent_import
+  term: intent import
+  sense_short: >-
+    pulling another note's intents in via `intents_imported_from`, merged with
+    the importing note's own
+  sense_body: >-
+    Resolved recursively, deep-merged by name, and guarded against circular
+    imports by a visited list — a cycle rejects with a message naming the path
+    rather than hanging. This is how one note's intents are shared across many.
+  provenance: observed
+  read_in: src/intents/frontmatter.ts
+
+- id: filter_set
+  term: filter set
+  sense_short: >-
+    a named set of note filters belonging to the separate `filtered-opener`
+    plugin, referenced by name from a note prompt
+  sense_body: >-
+    `filter_set_name` is passed straight out to another plugin's API. It is not
+    defined or stored here — cnt only names it. If filtered-opener is not
+    installed, a note prompt cannot be answered and the user is shown
+    FilteredOpenerMissingNotice.
+  provenance: observed
+  read_in: src/variables/providers/note.ts

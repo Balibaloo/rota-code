@@ -1,0 +1,96 @@
+# survey_records — the areas, and what a survey of each should conclude.
+#
+# Columns mirror the table: id, area, outcome. `id` is `role:area`.
+#
+# Areas are as the indexer currently folds them. Two entries are marked
+# `area_is_wrong` because the folding puts unrelated things together or splits
+# one subject across several — that is a finding about the traversal, not about
+# any session.
+
+surveys:
+
+- id: architect:.
+  area: "."
+  outcome: found
+  expect:
+    - the_minimum_obsidian_version
+    - the_plugin_manifest_is_the_registry_contract
+  must_cite: [manifest.json, versions.json, src/main.ts]
+  area_is_wrong: >-
+    As indexed, this area holds esbuild.config.mjs, src/main.ts, PTPlugin and
+    version-bump.mjs — two build chores and the entry point. manifest.json,
+    versions.json, intentsSchema.yaml and README.md are not in it because they
+    are not in the index at all, so the two commitments above are unreachable
+    from here and the only visible candidates are decoys.
+
+- id: architect:src
+  area: src
+  outcome: found
+  expect:
+    - the_frontmatter_schema_is_a_public_contract
+  must_cite: [src/intents/frontmatter.ts, intentsSchema.yaml]
+  area_is_wrong: >-
+    The fold puts settings, templates and notice together under `src`. The
+    schema commitment is visible from frontmatter.ts but its other half —
+    intentsSchema.yaml, which frontmatter.ts imports — is not indexed.
+
+- id: architect:src/intents
+  area: src/intents
+  outcome: found
+  expect:
+    - the_frontmatter_schema_is_a_public_contract
+    - intent_imports_must_terminate
+  must_cite: [src/intents/frontmatter.ts, src/intents/intents.ts]
+
+- id: architect:src/variables
+  area: src/variables
+  outcome: none_found
+  expect: []
+  note: >-
+    Substitution and type registration. Real, and promises nothing outward on
+    its own — the commitments it participates in are the schema's, and they
+    belong to the provider files. `none_found` is the right answer here and is
+    worth having as a case where the correct outcome is the empty one.
+
+- id: architect:src/variables/providers
+  area: src/variables/providers
+  outcome: found
+  expect:
+    - the_filtered_opener_plugin_api
+    - the_frontmatter_schema_is_a_public_contract
+  must_cite: [src/variables/providers/note.ts, src/variables/providers/index.ts]
+  note: >-
+    The strongest constraint in the repository is in note.ts. The recorded run
+    surveyed this area three times and cited folder.ts twice, never note.ts.
+
+# --- terminologist ----------------------------------------------------------
+# Same areas, different subject. The vocabulary does not divide along these
+# lines, which is the point of `spans_areas`.
+
+- id: terminologist:src/intents
+  area: src/intents
+  outcome: found
+  expect_terms: [intent, intent_import, frontmatter, local_intent]
+
+- id: terminologist:src/variables
+  area: src/variables
+  outcome: found
+  expect_terms: [variable, template_variable, reserved_variable]
+
+- id: terminologist:src/variables/providers
+  area: src/variables/providers
+  outcome: found
+  expect_terms: [variable_type, provider, filter_set]
+
+- id: terminologist:src
+  area: src
+  outcome: found
+  expect_terms: [template, global_intent, selection]
+
+spans_areas: >-
+  `intent` is declared in intentsSchema.yaml (unindexed), parsed in
+  src/intents, stored in src/settings, extended in src/templates and filled from
+  src/variables. No area contains it, so no area-shaped question can produce it,
+  and the recorded run did not define it anywhere. The same is true of
+  `template` and `prompt`. Any scoring of terminologist surveys per area has to
+  allow a term to be credited from whichever area first gets it right.

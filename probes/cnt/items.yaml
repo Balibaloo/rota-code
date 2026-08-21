@@ -1,0 +1,102 @@
+# items — the model of what this product is and does.
+#
+# Columns mirror the table: id, text, kind, provenance.
+#
+# The test each one passes: it says something about the product that a reader
+# could act on, and it would still be true if every identifier were renamed.
+# A sentence about a function is not an item — see the anti-pattern at the end.
+
+items:
+
+- id: creates_notes_from_recipes_in_notes
+  text: >-
+    The product creates notes from recipes that live in other notes. A user
+    writes an intent in a note's frontmatter and the plugin turns it into a
+    command that makes a note — so the configuration and the content live in
+    the same place, and both are the user's own files.
+  kind: in_scope
+  provenance: observed
+
+- id: the_new_note_is_placed_relative_to_the_old_one
+  text: >-
+    Where the new note goes is expressed relative to the note that declared the
+    intent. `./` means beside it. This is what "contextual" means here and it is
+    the reason intents live in notes at all rather than in a settings screen.
+  kind: in_scope
+  provenance: observed
+
+- id: an_intent_asks_before_it_writes
+  text: >-
+    Running an intent gathers values first and writes once. The user is asked
+    for each visible, enabled prompt — typed as text, number, natural date, note
+    or folder — and only then is the note created. Nothing is written for a
+    cancelled prompt.
+  kind: in_scope
+  provenance: observed
+
+- id: templates_seed_content_and_may_override_the_recipe
+  text: >-
+    An intent may offer several templates. The chosen one supplies the new
+    note's body and can also override the intent's filename, folder and
+    selection replacement, and add prompts of its own. Choosing a template is
+    therefore part of deciding what is made, not only what is in it.
+  kind: in_scope
+  provenance: observed
+
+- id: intents_are_global_or_local
+  text: >-
+    An intent read from the note you are on is available there. An intent in the
+    configured global intents note is available everywhere and gets its own
+    command. Both come from frontmatter; the difference is only which note was
+    read.
+  kind: in_scope
+  provenance: observed
+
+- id: selected_text_becomes_input_and_then_a_link
+  text: >-
+    Text selected in the editor can fill a prompt, and after the note is made
+    the selection is replaced — by default with a link to it. Several cursors
+    make several notes in one run, one per selection.
+  kind: in_scope
+  provenance: observed
+
+- id: intents_are_shared_by_importing_them
+  text: >-
+    A note can import another note's intents, and imports are merged by name and
+    resolved recursively. This is how a user keeps one definition and uses it in
+    many places without a central registry.
+  kind: in_scope
+  provenance: observed
+
+- id: choosing_a_note_needs_another_plugin
+  text: >-
+    Prompts of type `note` are answered by the separate filtered-opener plugin.
+    Without it installed, that prompt type does not work and the user is told
+    so. The product's feature set is therefore not entirely its own.
+  kind: in_scope
+  provenance: observed
+
+- id: it_is_an_obsidian_plugin_and_nothing_else
+  text: >-
+    Everything is reached through Obsidian's API — the vault, the metadata
+    cache, the editor, the command palette, the modal classes. There is no
+    standalone mode and no other host.
+  kind: in_scope
+  provenance: observed
+
+# --- what an item is not ----------------------------------------------------
+# The recorded run wrote ten items in this shape. Each is a true sentence about
+# a symbol, and together they are the export list restated.
+
+anti_pattern:
+  recorded:
+    - "getIntentFromTFile: A function that retrieves intents from a TFile."
+    - "getIntentsFromTFile: A function that retrieves intents from a TFile."
+    - "getTemplatesFromFM: A function that retrieves templates from frontmatter."
+    - "src/variables/providers/folder.ts: A function that retrieves variable
+       values from a TemplateVariable object."
+  why_not: >-
+    They name symbols rather than describe the product, two of them are the same
+    sentence twice, and the fourth is a file given another symbol's description.
+    None of them would survive a rename, and none tells a reader what the plugin
+    is for.

@@ -1,0 +1,102 @@
+# constraints — the commitments this code keeps to something outside itself.
+#
+# Columns mirror the table: id, headline, text, provenance, is_global.
+# `id` follows `model.amend`: the headline, slugified.
+#
+# The test each one passes: something outside this repository would notice if it
+# stopped being true, and this file says who and how. A tunable default fails
+# that test, which is what the decoys at the bottom are for.
+
+constraints:
+
+- id: the_frontmatter_schema_is_a_public_contract
+  headline: The frontmatter schema is a public contract
+  text: >-
+    Every key in intentsSchema.yaml is written by users, in their own notes, in
+    vaults this project never sees. `intents_to`, `make_a`, `with_templates`,
+    `at_path`, `with_prompts`, `called`, `of_type`, `with_name`, `in_folder`,
+    `replaces_selection_with`, `is_required`, `uses_selection`, `is_initially`,
+    `hinted_as`, `that_prompts`, `described_as`, `hidden`, `disabled`,
+    `intents_imported_from` and the per-type keys are all part of it. Renaming
+    or removing one does not break a build or fail a test: it makes every
+    existing note that used it silently stop working, because unrecognised keys
+    are read as undefined and `of_type` falls back to text rather than
+    erroring. This is the repository's largest external commitment and the one
+    with the weakest enforcement.
+  provenance: observed
+  is_global: 1
+  who_notices: every user with an intent in a note
+
+- id: the_filtered_opener_plugin_api
+  headline: The filtered-opener plugin's API, reached by id through a private field
+  text: >-
+    A note prompt is answered by calling another Obsidian plugin:
+    `(app as any).plugins.plugins["filtered-opener"]`, then
+    `api_getNote({name, includePathName, excludePathName, includeNoteName,
+    excludeNoteName, includeTags, excludeTags})`, expecting a TFile back. Three
+    separate commitments in one call — the plugin id, the private `plugins`
+    field cast away from the public API, and the shape of `api_getNote`. None
+    of them is checked at build time and the cast defeats the type system.
+    Absence is handled (FilteredOpenerMissingNotice); a changed signature is
+    not.
+  provenance: observed
+  is_global: 0
+  who_notices: any user of a note-typed prompt, after the other plugin updates
+
+- id: the_minimum_obsidian_version
+  headline: The declared minimum Obsidian version
+  text: >-
+    manifest.json sets `minAppVersion` to 0.15.0. Obsidian enforces this: it
+    will refuse to load the plugin below that version and will load it above.
+    So the declaration is a promise that everything the code reaches for exists
+    at 0.15.0 — Plugin, TFile, TFolder, FuzzySuggestModal, metadataCache,
+    vault.cachedRead, workspace.activeEditor, PaneType. Using something newer
+    without raising the floor breaks installs rather than builds.
+  provenance: observed
+  is_global: 1
+  who_notices: users on older Obsidian versions
+
+- id: the_plugin_manifest_is_the_registry_contract
+  headline: The plugin manifest is the registry's contract
+  text: >-
+    manifest.json's `id` is the plugin's identity everywhere outside this
+    repository — in the community registry, in installed vault folders, and in
+    any other plugin that reaches for it the way this one reaches for
+    filtered-opener. It cannot change without orphaning every install. `version`
+    must stay in step with versions.json, which is what version-bump.mjs is for.
+  provenance: observed
+  is_global: 1
+  who_notices: the Obsidian community plugin registry, and every existing install
+
+- id: intent_imports_must_terminate
+  headline: Intent imports must terminate
+  text: >-
+    `intents_imported_from` is resolved recursively across notes the user
+    controls, so a cycle is reachable from ordinary data rather than from a bug.
+    getFrontmatter carries a visited list and rejects with the offending path.
+    Removing that guard hangs the editor on a vault this project cannot inspect.
+  provenance: observed
+  is_global: 0
+  who_notices: any user whose notes import each other
+
+# --- decoys -----------------------------------------------------------------
+# Present in the repository, shaped like commitments, and not commitments.
+# Recording any of these as a constraint is a false positive.
+
+decoys:
+  - grain: esbuild.config.mjs
+    why_not: >-
+      A build configuration. It decides how this repository produces its own
+      artefact and promises nothing to anyone outside it. The recorded run wrote
+      two constraints about it.
+  - grain: version-bump.mjs
+    why_not: >-
+      A release chore that edits manifest.json and versions.json. The commitment
+      is the manifest, not the script that maintains it.
+  - grain: src/settings/settings.ts
+    why_not: >-
+      A settings panel. `globalIntentsNotePath` is a user preference stored in
+      plugin data; a path in a config field is not a commitment to an external
+      system. The recorded run's largest constraint was built on this.
+  - grain: styles.css
+    why_not: Presentation, entirely internal.
