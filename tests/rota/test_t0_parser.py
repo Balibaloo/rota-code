@@ -200,11 +200,29 @@ def test_lenient_recovers_bare_calls():
 
 
 def test_marked_calls_always_win():
-    """If any marker is present, the fallback never runs — no double-parsing."""
+    """If any marker is present, a call mentioned inline in prose is prose."""
     text = ("TOOL: criteria.load(batch_id='b1')\n"
             "and here is prose mentioning transcript.append(id='x') inline")
     calls = extract_lenient(text, ALLOWED)
     assert [c.name for c in calls] == ["criteria.load"]
+
+
+def test_a_bare_call_on_its_own_line_is_taken_beside_marked_ones():
+    """
+    The orientation session wrote four complete `problem.assert(...)` lines as
+    bullets under its account and one marked attest at the end. Marked calls
+    winning outright meant the attest ran and the four items did not, and the
+    record said the program had nothing in it. A complete call at the start of
+    its own line is a call; the inline mention above stays prose.
+    """
+    text = ("1. **intake**\n"
+            "\t* transcript.append(id='u1', author='principal', text='hello')\n"
+            "- transcript.append(id='u2', author='principal', text='again')\n"
+            "TOOL: criteria.load(batch_id='b1')\n")
+    calls = extract_lenient(text, ALLOWED)
+    assert [c.name for c in calls] == ["transcript.append", "transcript.append",
+                                       "criteria.load"]
+    assert calls[0].args["id"] == "u1"
 
 
 def test_lenient_ignores_names_outside_the_working_set():
@@ -269,7 +287,14 @@ def test_a_label_outside_the_working_set_is_not_a_call():
 
 
 def test_markers_win_over_labels():
+    """A label with arguments beside a marked call is taken too, in order:
+    per-area sessions wrote every amend as a labelled block under a marked
+    `code.area`, and "markers win" made all of them narration. A label with
+    no arguments is still narration (`_labelled` requires some)."""
     text = "GLOSSARY.AMEND: id = 1\nTOOL: glossary.consult()"
+    calls = extract_lenient(text, {"glossary.amend", "glossary.consult"})
+    assert [c.name for c in calls] == ["glossary.amend", "glossary.consult"]
+    text = "GLOSSARY.AMEND: and then I will consult\nTOOL: glossary.consult()"
     calls = extract_lenient(text, {"glossary.amend", "glossary.consult"})
     assert [c.name for c in calls] == ["glossary.consult"]
 
@@ -284,3 +309,326 @@ def test_ellipsis_is_a_placeholder_not_a_value():
     """
     result = only("TOOL: criteria.specify(id='c1', text=...)")
     assert isinstance(result, ToolError) and "placeholder" in result.reason
+
+
+def test_square_brackets_are_read_as_the_parentheses_they_stand_for():
+    """
+    A define session wrote `TOOL: glossary.amend [term="note", ...]` twelve
+    turns running and was refused twelve times with a message naming the
+    missing argument that was right there. The shape comes from the prompt's
+    own `[code.concordance]` labels. Unambiguous, so parsed; a bare path in a
+    bracket is still the parse error it always was, now saying how to write it.
+    """
+    from rota.llm.toolproto import ToolCall, ToolError, extract
+
+    got = extract('TOOL: glossary.amend [term="note", sense_body="a", sense_short="b"]')
+    assert [type(g) for g in got] == [ToolCall]
+    assert got[0].name == "glossary.amend" and got[0].args["term"] == "note"
+
+    got = extract("TOOL: code.concordance [term='note'] [limit=3]")
+    assert isinstance(got[0], ToolCall) and got[0].args == {"term": "note", "limit": 3}
+
+    got = extract("TOOL: code.source [src/intents/index.ts]")
+    assert isinstance(got[0], ToolError) and "round brackets" in got[0].reason
+
+
+def test_a_labelled_block_with_colon_keys_is_a_call_beside_marked_ones():
+    """
+    `glossary.amend:` then `term: ...`, `sense_body: ...`, `sense_short: ...`
+    -- the shape every amend in one per-area run took, beside a marked
+    `code.area`. The labelled fallback knew `key = value` and ran only when no
+    marker was present, so all of it was narration.
+    """
+    text = ("TOOL: criteria.load(batch_id='b1')\n\n"
+            "transcript.append:\n"
+            "id: u7\n"
+            "author: principal\n"
+            "text: a note about: colons, and a URL http://x.test/path\n\n"
+            "and then prose.")
+    calls = extract_lenient(text, ALLOWED)
+    assert [c.name for c in calls] == ["criteria.load", "transcript.append"]
+    assert calls[1].args["id"] == "u7"
+    assert calls[1].args["text"].startswith("a note about: colons")
+
+
+def test_a_call_written_one_argument_per_line_parses_strictly():
+    """qwen2.5 writes every call this way. Newlines between arguments are
+    whitespace; newlines inside a quoted argument are escaped and restored."""
+    from rota.llm.toolproto import ToolCall, extract
+
+    text = ('TOOL: transcript.append(\n'
+            '     id="u1",\n'
+            '     author="principal",\n'
+            '     text="a line\nand another"\n'
+            ' )')
+    got = extract(text)
+    assert isinstance(got[0], ToolCall), got
+    assert got[0].args == {"id": "u1", "author": "principal", "text": "a line\nand another"}
+
+
+def test_a_push_label_with_colon_keys_is_a_call():
+    """`[glossary.amend]` then `term: ...` lines: the prompt's own push-block
+    label, reproduced by qwen2.5:14b for every call. Nothing parsed, and the
+    word was abandoned after three silent sessions."""
+    from rota.llm.toolproto import ToolCall, extract_lenient
+
+    text = ("In this project, a prompt is a text input.\n\n"
+            "[transcript.append]\n"
+            "id: u9\n"
+            "author: principal\n"
+            "text: A text input guiding user input during note creation.\n")
+    got = extract_lenient(text, ALLOWED)
+    assert [type(g) for g in got] == [ToolCall] and got[0].name == "transcript.append"
+    assert got[0].args["id"] == "u9" and got[0].args["author"] == "principal"
+
+
+
+def test_bare_argument_lines_name_the_only_function_that_takes_them():
+    """qwen2.5:14b ends a survey with `outcome="found"` and `citations=[...]`
+    and no function name. The arguments name the function when only one
+    function in the working set takes them; two candidates is ambiguity and
+    is not parsed."""
+    from rota.llm.toolproto import ToolCall, extract_lenient
+
+    sigs = {"surveys.attest": ({"outcome"}, {"outcome", "citations"}),
+            "glossary.amend": ({"term"}, {"term", "sense_body", "sense_short", "sense"}),
+            "other.thing": ({"outcome"}, {"outcome", "citations", "extra"})}
+    text = ('The area defines types.\n\n'
+            'outcome="found"\n'
+            'citations=["src/a.py", "src/b.py"]\n')
+    got = extract_lenient(text, {"surveys.attest", "glossary.amend", "other.thing"}, signatures=sigs)
+    assert got == [], "two functions take these keys: not parsed"
+    del sigs["other.thing"]
+    got = extract_lenient(text, {"surveys.attest", "glossary.amend"}, signatures=sigs)
+    assert [type(g) for g in got] == [ToolCall] and got[0].name == "surveys.attest"
+    assert got[0].args == {"outcome": "found", "citations": ["src/a.py", "src/b.py"]}
+    # beside a marked call, same rule
+    text2 = "TOOL: glossary.amend(term='x', sense_body='b', sense_short='s')\n\n" + text
+    got = extract_lenient(text2, {"surveys.attest", "glossary.amend"}, signatures=sigs)
+    assert [g.name for g in got] == ["glossary.amend", "surveys.attest"]
+
+
+
+def test_a_labelled_blocks_key_lines_are_not_also_an_unlabelled_call():
+    """`glossary.amend:` followed by `term = ...` lines is one call, parsed by
+    the label; the same lines must not be read a second time as an unlabelled
+    block naming glossary.amend by its keys."""
+    from rota.llm.toolproto import extract_lenient
+
+    sigs = {"surveys.attest": ({"outcome"}, {"outcome", "citations"}),
+            "glossary.amend": ({"term"}, {"term", "sense_body", "sense_short", "sense"})}
+    text = ('glossary.amend:\n'
+            'term = "intent"\n'
+            'sense_body = "a named thing"\n'
+            'sense_short = "thing"\n'
+            '\n'
+            '[glossary.amend]\n'
+            'term: provider\n'
+            'sense_body: a table\n'
+            '\n'
+            'outcome="found"\n'
+            'citations=["src/a.py"]\n')
+    got = extract_lenient(text, set(sigs), signatures=sigs)
+    assert [g.name for g in got] == ["glossary.amend", "glossary.amend", "surveys.attest"]
+    assert [g.args.get("term") for g in got[:2]] == ["intent", "provider"]
+
+
+
+def test_bare_amends_then_a_one_line_attest_with_no_marker_keeps_both():
+    """The 14B's second shape: bare `glossary.amend(...)` lines, then
+    `outcome="found", citations=[...]` on one line, no marker anywhere. The
+    amends are calls and so is the attest; neither may cost the other. And
+    the inner lines of a call written one argument per line are that call's
+    arguments, not a second call."""
+    from rota.llm.toolproto import extract_lenient
+
+    sigs = {"surveys.attest": ({"outcome"}, {"outcome", "citations"}),
+            "glossary.amend": ({"term"}, {"term", "sense_body", "sense_short", "sense"})}
+    text = ("The area defines types.\n\n"
+            "glossary.amend(term='intent_properties', sense_body='Defines it.', "
+            "sense_short='Creation properties.')\n\n"
+            "glossary.amend(\n"
+            "    term='note_destination',\n"
+            "    sense_body='Where the note goes.',\n"
+            "    sense_short='Folder and filename.'\n"
+            ")\n\n"
+            'outcome="found", citations=["src/intents/index.ts", "src/variables/index.ts"]\n')
+    got = extract_lenient(text, set(sigs), signatures=sigs)
+    assert [g.name for g in got] == ["glossary.amend", "glossary.amend", "surveys.attest"]
+    assert got[1].args["term"] == "note_destination"
+    assert got[2].args == {"outcome": "found",
+                           "citations": ["src/intents/index.ts", "src/variables/index.ts"]}
+
+
+
+def test_a_key_repeated_once_per_line_is_that_keys_list():
+    """`citations="a"` / `citations="b"` / `citations="c"` under `outcome=`:
+    one key written once per value is the list, not the last value."""
+    from rota.llm.toolproto import extract_lenient
+
+    sigs = {"surveys.attest": ({"outcome"}, {"outcome", "citations"})}
+    text = ('outcome="found"\n'
+            'citations=".github/ISSUE_TEMPLATE/feature_request.md"\n'
+            'citations=".github/workflows/release.yml"\n'
+            'citations=".github/ISSUE_TEMPLATE/bug_report.md"\n')
+    got = extract_lenient(text, set(sigs), signatures=sigs)
+    assert [g.name for g in got] == ["surveys.attest"]
+    assert got[0].args["citations"] == [".github/ISSUE_TEMPLATE/feature_request.md",
+                                        ".github/workflows/release.yml",
+                                        ".github/ISSUE_TEMPLATE/bug_report.md"]
+
+
+
+def test_a_word_glued_to_a_label_is_the_calls_first_positional_argument():
+    """`glossary.amend:template_select_modal sense_body='...' sense_short='...'`:
+    the token between the label and the first `key=` is positional, bound by
+    the sandbox -- `term`, here. The ordinary `glossary.amend: term = "x"`
+    shape is untouched."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ("glossary.amend:template_select_modal sense_body='A modal for templates.' "
+            "sense_short='Modal for selecting templates.'\n"
+            "glossary.amend: term = \"filtered_opener\" sense_body = \"a plugin\" sense_short = \"plugin\"\n")
+    got = extract_lenient(text, {"glossary.amend"})
+    assert [g.name for g in got] == ["glossary.amend", "glossary.amend"]
+    assert got[0].pos == ("template_select_modal",) and "term" not in got[0].args
+    assert got[0].args["sense_short"] == "Modal for selecting templates."
+    assert got[1].pos == () and got[1].args["term"] == "filtered_opener"
+
+
+
+def test_backticked_labels_and_keys_and_a_comma_after_the_name_still_parse():
+    """`` `glossary.amend`: `sense_body`='...', `sense_short`='...', term=x `` and
+    `` `surveys.attest`, outcome="found", citations=[...] ``: one session's
+    whole output, and none of it parsed."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ("`glossary.amend`: `sense_body`='A function to calculate a relative path.', "
+            "`sense_short`='Calculates a relative path.', term=getRelativePath\n\n"
+            "`surveys.attest`, outcome=\"found\", citations=[\"src/variables/index.ts\", "
+            "\"src/variables/suggest.ts\"]\n")
+    got = extract_lenient(text, {"glossary.amend", "surveys.attest"})
+    assert [g.name for g in got] == ["glossary.amend", "surveys.attest"], got
+    assert got[0].args["term"] == "getRelativePath"
+    assert got[0].args["sense_short"] == "Calculates a relative path."
+    assert got[1].args["outcome"] == "found"
+    assert got[1].args["citations"] == ["src/variables/index.ts", "src/variables/suggest.ts"] \
+        or got[1].args["citations"] == '["src/variables/index.ts", "src/variables/suggest.ts"]'
+
+
+
+def test_a_label_token_with_a_quoted_headline_and_key_lines_under_it():
+    """`glossary.amend: normalizedIntentName "A standardized name ..."` then
+    `sense_body:` and `sense_short:` lines: the token is `term`, the headline
+    is dropped, the lines are the sense. Three refusals for a missing `term`
+    and an open area, before."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ('glossary.amend: normalizedIntentName "A standardized name derived from an intent."\n'
+            "sense_body: `normalizedIntentName` is a version of an intent's name with spaces "
+            "made hyphens, used for command ids.\n"
+            "sense_short: A consistent format for intent names used as command identifiers.\n\n"
+            'surveys.attest(outcome="found", citations=["src/main.ts"])\n')
+    got = extract_lenient(text, {"glossary.amend", "surveys.attest"})
+    assert [g.name for g in got] == ["glossary.amend", "surveys.attest"], got
+    assert got[0].pos == ("normalizedIntentName",)
+    assert got[0].args["sense_short"].startswith("A consistent format")
+    assert got[0].args["sense_body"].startswith("`normalizedIntentName` is a version")
+    # the ordinary `label: term = x` and `label:` + `term: x` shapes are untouched
+    text2 = 'glossary.amend: term = "a" sense_body = "b" sense_short = "c"\n\nglossary.amend:\nterm: d\nsense_body: e\nsense_short: f\n'
+    got2 = extract_lenient(text2, {"glossary.amend"})
+    assert [(g.pos, g.args["term"]) for g in got2] == [((), "a"), ((), "d")]
+
+
+
+def test_a_backticked_label_token_with_a_dash_headline():
+    """`` glossary.amend: `intentnote` -- A file containing ... `` then
+    `sense_body:` / `sense_short:` lines: the token is `term`, backticks and
+    headline dropped."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ("glossary.amend: `intentnote` \u2014 A file containing definitions of intents.\n"
+            "sense_body: An intent note is a file within an Obsidian vault whose front matter "
+            "defines how new notes are created.\n"
+            "sense_short: A file with front matter specifying intents.\n\n"
+            'outcome="found"\ncitations="/src/main.ts"\n')
+    sigs = {"surveys.attest": ({"outcome"}, {"outcome", "citations"}),
+            "glossary.amend": ({"term"}, {"term", "sense_body", "sense_short", "sense"})}
+    got = extract_lenient(text, set(sigs), signatures=sigs)
+    assert [g.name for g in got] == ["glossary.amend", "surveys.attest"], got
+    assert got[0].pos == ("intentnote",)
+    assert got[0].args["sense_short"] == "A file with front matter specifying intents."
+    assert got[1].args == {"outcome": "found", "citations": "/src/main.ts"}
+
+
+
+def test_a_working_set_name_in_capitals_is_that_name():
+    """`MODEL.AMEND(headline=..., text=..., bindings=[...])` at line start is
+    `model.amend`; one session wrote two that way and closed its area empty."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ('MODEL.AMEND(headline="PTPlugin.manifest.id", text="Obsidian knows the plugin by it", '
+            'bindings=["manifest.json"])\n\n'
+            'surveys.attest(outcome="found", citations=["manifest.json"])\n')
+    got = extract_lenient(text, {"model.amend", "surveys.attest"})
+    assert [g.name for g in got] == ["model.amend", "surveys.attest"], got
+    assert got[0].args["headline"] == "PTPlugin.manifest.id"
+
+
+
+def test_a_table_under_a_label_is_one_call_per_row():
+    """`[glossary.amend]` then `term | sense_body | sense_short` and rows: the
+    header names the keys; each row is a call. llama wrote a whole survey
+    that way, three times, and the area was abandoned."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ("The area defines the variable providers.\n\n"
+            "[glossary.amend]\n"
+            "term | sense_body | sense_short\n"
+            "TemplateVariableVariables_Note | An object representing a note variable. | A dictionary of filter properties.\n"
+            "parseNoteVariableFrontmatter | A function that parses a note variable's frontmatter. | Parses note frontmatter.\n\n"
+            'surveys.attest(outcome="found", citations=["src/variables/providers/note.ts"])\n')
+    got = extract_lenient(text, {"glossary.amend", "surveys.attest"})
+    assert [g.name for g in got] == ["glossary.amend", "glossary.amend", "surveys.attest"], got
+    assert got[0].args == {"term": "TemplateVariableVariables_Note",
+                           "sense_body": "An object representing a note variable.",
+                           "sense_short": "A dictionary of filter properties."}
+    assert got[1].args["term"] == "parseNoteVariableFrontmatter"
+    # a pipe-bordered table with a separator row is the same table
+    text2 = ("glossary.amend:\n| term | sense_body | sense_short |\n|---|---|---|\n"
+             "| x | a body | a short |\n")
+    got2 = extract_lenient(text2, {"glossary.amend"})
+    assert [g.args["term"] for g in got2] == ["x"]
+
+
+def test_a_whole_call_inside_one_bracket_is_a_labelled_call():
+    """`[glossary.amend term="..." sense_body="..." sense_short="..."]` -- the
+    14B wrote a define word this way three sessions running and the word was
+    quarantined. The opening bracket becomes a label; the trailing one is
+    inert."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ('In this project, an `exclude_folder_name` is a string.\n\n'
+            '[glossary.amend term="exclude_folder_name" sense_body="A string that '
+            'specifies a folder name to be excluded by configuration." '
+            'sense_short="A string specifying a folder to exclude."]\n')
+    got = extract_lenient(text, {"glossary.amend", "surveys.attest"})
+    assert [g.name for g in got] == ["glossary.amend"], got
+    assert got[0].args["term"] == "exclude_folder_name"
+    assert got[0].args["sense_short"].rstrip("]") == "A string specifying a folder to exclude."
+
+
+def test_a_label_token_followed_by_a_comma_still_binds():
+    """`glossary.amend: is_under, sense_body="..." sense_short="..."` inside a
+    yaml fence: the comma between the glued word and the keywords cost a
+    define word its three attempts."""
+    from rota.llm.toolproto import extract_lenient
+
+    text = ('```yaml\n'
+            'glossary.amend: is_under, sense_body="A numerical constraint: another '
+            'value must be less than it." sense_short="A less-than validation constraint."\n'
+            '```\n')
+    got = extract_lenient(text, {"glossary.amend"})
+    assert [g.name for g in got] == ["glossary.amend"], got
+    assert got[0].pos == ("is_under",)
+    assert got[0].args["sense_short"].startswith("A less-than")

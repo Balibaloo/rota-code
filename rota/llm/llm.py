@@ -22,6 +22,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -95,6 +96,130 @@ class Backend(Protocol):
                  tools: list | None = None) -> Completion: ...
 
 
+# Where the live view is written. One file, overwritten at the start of every
+# model call: the pins, the system prompt, the user prompt, then the completion
+# as it streams in. `ROTA_LIVE=0` turns it off; `ROTA_LIVE=<path>` moves it.
+# The historical record is the `turns` table; this is the present tense.
+LIVE_PATH = os.environ.get("ROTA_LIVE", "")
+
+
+class LiveView:
+    """The current model call, as a file a person can keep open."""
+
+    def __init__(self, path):
+        self.path = path
+        self._buf: list[str] = []
+        self._since_flush = 0
+
+    @classmethod
+    def open(cls, pins: "Pins", system: str, user: str) -> "LiveView":
+        import time
+
+        if LIVE_PATH == "0":
+            return cls(None)
+        try:
+            from .. import paths
+            target = (Path(LIVE_PATH) if LIVE_PATH
+                      else paths.REPO / ".rota" / "live.md")
+            target.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:                                   # pragma: no cover
+            return cls(None)
+        view = cls(target)
+        head = (f"# live — {time.strftime('%H:%M:%S')}  model={pins.model}  "
+                f"temp={pins.temperature}  num_ctx={pins.num_ctx}\n\n"
+                f"## system prompt\n\n{system}\n\n"
+                f"## user prompt\n\n{user}\n\n"
+                f"## completion (streaming)\n\n")
+        view._write(head, mode="w")
+        return view
+
+    def _write(self, text: str, mode: str = "a") -> None:
+        if self.path is None:
+            return
+        try:
+            with open(self.path, mode, encoding="utf-8") as f:
+                f.write(text)
+        except OSError:                                     # pragma: no cover
+            self.path = None
+
+    def token(self, text: str) -> None:
+        if self.path is None or not text:
+            return
+        self._buf.append(text)
+        self._since_flush += len(text)
+        if self._since_flush >= 80 or "\n" in text:
+            self.flush()
+
+    def flush(self) -> None:
+        if self._buf:
+            self._write("".join(self._buf))
+            self._buf, self._since_flush = [], 0
+
+    def close(self, how: str) -> None:
+        if self.path is None:
+            return
+        self.flush()
+        self._write(f"\n\n---\n[{how}]\n")
+
+
+def _consume_stream(lines, live: "LiveView") -> dict:
+    """
+    Join Ollama's streamed `/api/chat` chunks into the one body the
+    non-streaming form returned: the content concatenated, the tool calls
+    collected, and the final chunk's counters kept. Each content chunk goes to
+    the live view as it arrives.
+    """
+    content: list[str] = []
+    tool_calls: list = []
+    final: dict = {}
+    # A completion that repeats itself line for line is a fixed point, and at
+    # temperature zero it runs to `num_predict`. Measured on qwen2.5:14b,
+    # partially offloaded: one survey turn wrote the same `glossary.amend(...)`
+    # line nineteen times -- 9,843 characters, 623 seconds -- then attested on
+    # the next turn as if nothing had happened. The third identical line is
+    # enough to know; the stream is left there and the connection's close
+    # stops the generation. What was produced is kept, and the parser sees
+    # three identical calls, which dispatch as one write and two "unchanged".
+    line_buf, last_lines, stopped = "", [], False
+    for raw in lines:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", "replace")
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            chunk = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        msg = chunk.get("message") or {}
+        piece = msg.get("content") or ""
+        if piece:
+            content.append(piece)
+            live.token(piece)
+            line_buf += piece
+            while "\n" in line_buf:
+                done_line, line_buf = line_buf.split("\n", 1)
+                if done_line.strip():
+                    last_lines = (last_lines + [done_line.strip()])[-3:]
+            if (len(last_lines) == 3 and len(last_lines[0]) > 40
+                    and last_lines[0] == last_lines[1] == last_lines[2]):
+                stopped = True
+                live.token("\n[stopped: the same line three times]\n")
+                break
+        for call in msg.get("tool_calls") or []:
+            tool_calls.append(call)
+            fn = (call.get("function") or {})
+            live.token(f"\n[tool call] {fn.get('name', '')}({json.dumps(fn.get('arguments', {}))[:400]})\n")
+        if chunk.get("done"):
+            final = chunk
+    final = dict(final)
+    final["message"] = {"role": "assistant", "content": "".join(content),
+                        "tool_calls": tool_calls}
+    if stopped:
+        final["done_reason"] = "repeating"
+    return final
+
+
 class OllamaBackend:
     """
     Direct HTTP to Ollama.
@@ -128,7 +253,10 @@ class OllamaBackend:
                  tools: list | None = None) -> Completion:
         payload = {
             "model": pins.model,
-            "stream": False,
+            # Streamed, so the live file can show the completion as it is
+            # generated. The return value is unchanged: the chunks are joined
+            # into the same `Completion` the non-streaming form produced.
+            "stream": True,
             "options": {"temperature": pins.temperature, "num_ctx": pins.num_ctx,
                         "num_predict": self.max_tokens},
             "messages": [
@@ -143,17 +271,21 @@ class OllamaBackend:
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
+        live = LiveView.open(pins, system, user)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
+                body = _consume_stream(iter(resp), live)
         except TimeoutError as exc:
             # Raised bare by the socket layer rather than wrapped, so without
             # this it surfaced as `session failed: TimeoutError` — a bug report
             # against the system for something the model did.
+            live.close("timed out")
             raise LLMUnavailable(
                 f"ollama at {self.host}: no answer in {self.timeout:.0f}s") from exc
         except urllib.error.URLError as exc:
+            live.close(f"unreachable: {exc}")
             raise LLMUnavailable(f"ollama at {self.host}: {exc}") from exc
+        live.close("done")
 
         # Ollama reports how much of the prompt it actually evaluated. When that
         # reaches the window the rest was dropped, and nothing else here would

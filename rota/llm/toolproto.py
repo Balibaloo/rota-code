@@ -48,7 +48,7 @@ class ToolError:
 # syntaxes constantly — Python keyword arguments carrying `true` rather than
 # `True` — because half the tool-calling world is JSON and nothing in the prompt
 # says which dialect this is. It is not ambiguous, and it is not worth a fatal
-# error: one `default_taken=true` poisoned an entire L3 chain. The Gatekeeper
+# error: one `default_taken=true` poisoned an entire L3 chain. The Vision Keeper
 # spent every remaining turn apologising for it and never sent the message the
 # chain existed to test.
 _WORDS = {"true": True, "false": False, "null": None,
@@ -106,9 +106,14 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
             raise ValueError("JSON tool arguments must be an object")
         return parsed, ()
 
-    # Newlines inside an unquoted argument list would break the expression, so
-    # they are escaped before parsing and restored by literal_eval.
-    safe = args_str.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
+    # Newlines inside a quoted argument would break the expression, so they
+    # are escaped before parsing and restored by literal_eval. Newlines
+    # *between* arguments are whitespace and stay whitespace: the first
+    # version escaped every newline, so a call written one argument per line
+    # -- which is how qwen2.5 writes every call -- had `\n` outside any
+    # string, failed the strict parse, and fell to the lenient one, which
+    # took `term` to be everything to the closing bracket.
+    safe = _escape_newlines_in_quotes(args_str)
     try:
         expr = ast.parse(f"_f({safe})", mode="eval")
     except SyntaxError:
@@ -139,6 +144,29 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
             raise ValueError("**kwargs is not supported")
         out[kw.arg] = _literal(kw.value)
     return out, tuple(_literal(a) for a in call.args)
+
+
+def _escape_newlines_in_quotes(text: str) -> str:
+    out, quote, esc = [], None, False
+    for ch in text.replace("\r\n", "\n").replace("\r", "\n"):
+        if quote:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == quote:
+                quote = None
+            if ch == "\n":
+                out.append("\\n")
+                continue
+        else:
+            if ch in ("'", '"'):
+                quote = ch
+            elif ch == "\n":
+                out.append(" ")
+                continue
+        out.append(ch)
+    return "".join(out)
 
 
 def _parse_args_lenient(args_str: str) -> dict:
@@ -184,6 +212,61 @@ def extract(text: str) -> list[ToolCall | ToolError]:
 
         while i < len(text) and text[i].isspace():
             i += 1
+        # Square brackets where the parentheses go. A define session wrote
+        # `TOOL: glossary.amend [term="note", sense_body="..."]` on every one
+        # of its twelve turns and was told "missing required argument 'term'"
+        # on every one of them -- true, unhelpful, and unlearned. The brackets
+        # come from the prompt itself: pushed results are labelled
+        # `[code.concordance]`, and the model carried the shape over. The
+        # arguments are there and unambiguous; several groups (`[path] [start=0]`)
+        # are one list. Read them as the parentheses they stand for.
+        if i < len(text) and text[i] == "[" and "." in name:
+            groups: list[str] = []
+            j = i
+            while j < len(text) and text[j] == "[":
+                depth_b, k, in_s, in_d, esc = 0, j, False, False, False
+                while k < len(text):
+                    ch = text[k]
+                    if esc:
+                        esc = False
+                    elif ch == "\\":
+                        esc = True
+                    elif in_s:
+                        in_s = ch != "'"
+                    elif in_d:
+                        in_d = ch != '"'
+                    elif ch == "'":
+                        in_s = True
+                    elif ch == '"':
+                        in_d = True
+                    elif ch == "[":
+                        depth_b += 1
+                    elif ch == "]":
+                        depth_b -= 1
+                        if depth_b == 0:
+                            break
+                    k += 1
+                if k >= len(text):
+                    groups = []
+                    break
+                groups.append(text[j + 1:k].strip())
+                j = k + 1
+                while j < len(text) and text[j] in " 	":
+                    j += 1
+            if groups:
+                raw_args = ", ".join(g for g in groups if g)
+                try:
+                    args, pos = parse_args(raw_args)
+                except Exception as exc:
+                    results.append(ToolError(
+                        f"{MARKER} {name}[{raw_args[:80]}]",
+                        f"could not parse arguments: {exc}. Arguments go in "
+                        f"round brackets: {name}({raw_args[:60]})"))
+                else:
+                    results.append(ToolCall(name=name, args=args, pos=pos,
+                                            raw=f"{name}({raw_args})"))
+                cursor = j
+                continue
         if i >= len(text) or text[i] != "(":
             # `TOOL: model.consult` with no parentheses is a call to a function
             # whose arguments are all optional, and it was a parse error. One
@@ -253,7 +336,7 @@ def extract(text: str) -> list[ToolCall | ToolError]:
         cursor = args_end + 1
 
 
-def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall]]:
+def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall, int]]:
     """
     `GLOSSARY.AMEND: id = 1 term = "Charge"` — the marker used as a label.
 
@@ -272,15 +355,27 @@ def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall]]:
     bare; a bare one runs until the next `word =`, because prose values are
     common here and `sense_short = billing entity` means both words.
     """
-    out: list[tuple[int, ToolCall]] = []
+    out: list[tuple[int, ToolCall, int]] = []
     names = "|".join(sorted((re.escape(a) for a in allowed), key=len, reverse=True))
     if not names:
         return out
 
     # An argument list wraps across lines in real output, so a call runs from
     # its label to the next label or the next blank line — not to end of line.
-    labels = [(m.start(), m.group(1).lower(), m.end())
-              for m in re.finditer(rf"(?im)^[ \t]*({names})[ \t]*:", text)]
+    # Two spellings of a label: `glossary.amend:` and `[glossary.amend]` --
+    # the second is the prompt's own push-block label, which qwen2.5:14b
+    # reproduced for every call it made, followed by `key: value` lines, and
+    # three one-turn sessions wrote nothing and the word was abandoned.
+    # `` `surveys.attest`, outcome="found", citations=[...] `` -- the name in
+    # backticks, a comma where the colon goes, the keys in backticks too. One
+    # 14B session wrote every call that way and nothing parsed. Backticks
+    # around a name at line start or around a key before `=` are stripped
+    # before the label is looked for, and a comma after the name is a label as
+    # a colon is; prose like "glossary.amend, which ..." has no `key=` behind
+    # it and produces no call.
+    labels = [(m.start(), (m.group(1) or m.group(2)).lower(), m.end())
+              for m in re.finditer(
+                  rf"(?im)^[ \t]*(?:\[({names})\][ \t]*:?|({names})[ \t]*[:,])", text)]
 
     for i, (start, name, from_) in enumerate(labels):
         if name not in allowed:                      # matched in another case
@@ -289,6 +384,66 @@ def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall]]:
         chunk = text[from_:to]
         if gap := re.search(r"\n[ \t]*\n", chunk):
             chunk = chunk[:gap.start()]
+        # And never past a marked call: `TOOL: x()` on the next line is its
+        # own call, not this label's `TOOL = x()` argument.
+        if MARKER in chunk:
+            chunk = chunk[:chunk.index(MARKER)]
+        # Where this block ends in the text -- the blank line or the marker,
+        # not the next label -- so a bare call below it is not counted as
+        # inside it.
+        to = from_ + len(chunk)
+
+        # `glossary.amend:template_select_modal sense_body='...' sense_short='...'`
+        # -- the word glued to the label, then the keyword arguments. A bare
+        # token between the label and the first `key=` is the call's first
+        # positional argument; the sandbox binds it against the signature,
+        # which is how `term` gets its value. One 14B session wrote every
+        # amend this way, twice, and closed its area with nothing.
+        # The token may be followed by `key=` pairs, by a quoted headline
+        # (`glossary.amend: normalizedIntentName "A standardized name ..."`,
+        # with `sense_body:` and `sense_short:` lines under it), or by the end
+        # of the line. The quoted headline is dropped: the lines under it
+        # carry the sense, and a missing body is refused by name.
+        # Or by a dash and a headline: `` glossary.amend: `intentnote` -- A file
+        # containing ... `` with the lines under it. The token may wear
+        # backticks; the headline after a quote or a dash is dropped.
+        pos: tuple[Any, ...] = ()
+        if lead := re.match(
+                r"[ \t]*`?([^\s=,()'\"\[\]:`]+)`?"
+                r"(?=[ \t]*,[ \t]*\w+[ \t]*=|[ \t]+(?:\w+[ \t]*=|[\"'\u2014\u2013-])"
+                r"|[ \t]*(?:\n|$))", chunk):
+            pos = (lead.group(1),)
+            chunk = chunk[lead.end():]
+            # `glossary.amend: is_under, sense_body="..."` -- a comma between
+            # the glued word and the keywords.
+            chunk = re.sub(r"^[ \t]*,", "", chunk)
+            if headline := re.match(r"[ \t]*[\"'\u2014\u2013-][^\n]*(?=\n|$)", chunk):
+                chunk = chunk[headline.end():]
+
+        # A table under the label: a header row of parameter names, then one
+        # row per call -- `term | sense_body | sense_short` and the rows under
+        # it, which is how llama3.1:8b wrote every amend of one survey session,
+        # three sessions running, and the area was abandoned. The header names
+        # the keys, so each row is a complete call.
+        table = re.match(
+            r"[ \t]*\n?[ \t]*\|?[ \t]*(\w+(?:[ \t]*\|[ \t]*\w+)+)[ \t]*\|?[ \t]*\n",
+            chunk)
+        if table:
+            header = [h.strip() for h in table.group(1).split("|")]
+            rows_text = chunk[table.end():]
+            for line in rows_text.split("\n"):
+                line = line.strip()
+                if not line or set(line) <= set("|-: "):
+                    continue
+                cells = [c.strip() for c in line.strip("|").split("|")]
+                if len(cells) < 2:
+                    continue
+                row_args = {k: v for k, v in zip(header, cells) if v}
+                if row_args and set(row_args) >= {header[0]}:
+                    out.append((start, ToolCall(
+                        name=name, args=row_args,
+                        raw=f"{name}({' | '.join(cells)[:60]})"), to))
+            continue
 
         args: dict[str, Any] = {}
         for a in re.finditer(
@@ -300,15 +455,121 @@ def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall]]:
             else:
                 args[a.group(1)] = _WORDS.get(raw, raw)
 
+        # The other spelling of the same shape: one `key: value` per line under
+        # the label, which is how a per-area session wrote every amend in one
+        # run -- `glossary.amend:` then `term: ...`, `sense_body: ...`,
+        # `sense_short: ...` -- and committed nothing. Keys at line start only,
+        # so a colon inside prose or a URL does not split a value.
+        if not args:
+            for a in re.finditer(
+                    r"(?ms)^[ \t]*(\w+)[ \t]*:[ \t]*(.+?)(?=\n[ \t]*\w+[ \t]*:|\Z)",
+                    chunk):
+                raw = a.group(2).strip()
+                if not raw:
+                    continue
+                if raw[:1] in "\"'" and raw[-1:] == raw[:1]:
+                    args[a.group(1)] = raw[1:-1]
+                else:
+                    args[a.group(1)] = _WORDS.get(raw, raw)
+
         # A name followed by arguments is an intention; a name followed by a
         # sentence is the model narrating. Only the first may dispatch.
         if args:
-            out.append((start, ToolCall(name=name, args=args,
-                                        raw=f"{name}({' '.join(chunk.split())[:60]})")))
+            out.append((start, ToolCall(name=name, args=args, pos=pos,
+                                        raw=f"{name}({' '.join(chunk.split())[:60]})"),
+                        to))
     return out
 
 
-def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
+def _unlabelled(text: str, signatures: dict,
+                taken: list[tuple[int, int]]) -> list[tuple[int, ToolCall]]:
+    """
+    Bare argument lines with no function named at all -- and exactly one
+    function in the working set that takes exactly those keys.
+
+    qwen2.5:14b ended every survey session with
+
+        outcome="found"
+        citations=["src/intents/index.ts", "src/variables/index.ts"]
+
+    or, the next run, the same on one line --
+
+        outcome="found", citations=["src/intents/index.ts"]
+
+    and nothing else: the attestation, minus the words `surveys.attest`. The
+    arguments name the function when only one function takes them, and the
+    sandbox's signatures say which. Two functions that could both take the keys
+    is ambiguity, and ambiguity is not parsed. A block is consecutive lines
+    that each begin `key =` or `key:`; each line is read as an argument list,
+    so the one-line spelling and the one-per-line spelling are the same block.
+    A block that sits under a label line, or inside a call already taken, is
+    that call's arguments and is not read twice.
+    """
+    if not signatures:
+        return []
+    out: list[tuple[int, ToolCall]] = []
+    head_re = re.compile(r"^[ \t]*([A-Za-z_]\w*)[ \t]*(=|:)[ \t]*(.+?)[ \t]*$")
+    names = "|".join(sorted((re.escape(n) for n in signatures), key=len, reverse=True))
+    label_re = re.compile(
+        rf"(?i)^[ \t]*(?:\[(?:{names})\][ \t]*:?|(?:{names})[ \t]*:)[ \t]*$")
+
+    def inside(pos: int) -> bool:
+        return any(a <= pos < b for a, b in taken)
+
+    def line_args(line: str) -> dict:
+        m = head_re.match(line)
+        if not m or "(" in m.group(1):
+            return {}
+        if m.group(2) == "=":
+            try:
+                kw, pos = parse_args(line.strip().rstrip(","))
+                if kw and not pos:
+                    return kw
+            except Exception:
+                pass
+        raw = m.group(3).strip().rstrip(",")
+        try:
+            return {m.group(1): _literal(ast.parse(raw, mode="eval").body)}
+        except Exception:
+            return {m.group(1): _WORDS.get(raw, raw.strip("\"'"))}
+
+    lines = text.split("\n")
+    pos, i = 0, 0
+    while i < len(lines):
+        block: dict = {}
+        start_pos, j = pos, i
+        while j < len(lines):
+            kw = line_args(lines[j])
+            if not kw:
+                break
+            for k, v in kw.items():
+                # `citations="a"` then `citations="b"` on the next line: one
+                # key, written once per value, is that key's list.
+                if k in block:
+                    prev = block[k]
+                    block[k] = (prev if isinstance(prev, list) else [prev]) + (
+                        v if isinstance(v, list) else [v])
+                else:
+                    block[k] = v
+            j += 1
+        under_label = i > 0 and bool(label_re.match(lines[i - 1]))
+        if len(block) >= 2 and not inside(start_pos) and not under_label:
+            keys = set(block)
+            fits = [name for name, (req, all_) in signatures.items()
+                    if req <= keys <= all_]
+            if len(fits) == 1:
+                out.append((start_pos, ToolCall(
+                    name=fits[0], args=block,
+                    raw=f"{fits[0]}({', '.join(sorted(keys))})")))
+        step = max(1, j - i)
+        for k in range(i, i + step):
+            pos += len(lines[k]) + 1
+        i += step
+    return out
+
+
+def extract_lenient(text: str, allowed: set[str],
+                    signatures: dict | None = None) -> list[ToolCall | ToolError]:
     """
     `extract`, plus fallbacks for completions that mishandle the marker.
 
@@ -324,17 +585,59 @@ def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
     validation rather than sneaking through. Marker-prefixed calls always win;
     the fallbacks only run when the completion has no markers at all.
     """
-    marked = extract(text)
-    if marked:
-        return marked
+    # `` `surveys.attest`, outcome="found" `` -- the name in backticks, a comma
+    # where the colon goes, the keys in backticks too: one 14B session wrote
+    # every call that way and nothing parsed. Backticks around a working-set
+    # name at line start, or around a key before `=`, are stripped before any
+    # pass looks; every pass then sees the same text and the same positions.
+    if allowed and ("`" in text or any(ch.isupper() for ch in text)):
+        names = "|".join(sorted((re.escape(a) for a in allowed), key=len, reverse=True))
+        text = re.sub(rf"(?im)^([ \t]*)`({names})`", r"\1\2", text)
+        text = re.sub(r"`(\w+)`(?=[ \t]*=)", r"\1", text)
+        # `[glossary.amend term="..." sense_body="..."]` -- the whole call
+        # inside one bracket. The opening becomes a label; the stray closing
+        # bracket after the final quote matches no argument and is inert.
+        text = re.sub(rf"(?im)^([ \t]*)\[({names})[ \t]+", r"\1\2: ", text)
+        # `MODEL.AMEND(headline=...)` -- the name in capitals, one root-area
+        # session, two constraints written and none taken. A working-set name
+        # at line start, in any case, is that name.
+        text = re.sub(rf"(?im)^([ \t]*)({names})(?=[ \t]*[\(:\[,])",
+                      lambda m: m.group(1) + m.group(2).lower(), text)
 
-    if labelled := _labelled(text, allowed):
-        return [call for _, call in sorted(labelled, key=lambda p: p[0])]
+    marked = extract(text)
+
+    # Marked calls used to win outright: if the completion had any `TOOL:`
+    # line, a bare `name(...)` elsewhere in it was prose. Measured otherwise on
+    # the first orientation session of the phase design: four
+    # `problem.assert(id=..., text=..., kind='in_scope')` lines, each complete
+    # and well-formed, written as bullets under an account, and one marked
+    # `surveys.attest` at the end. The attest ran, the four items did not, and
+    # the record said the program had nothing in it. A bare call that names a
+    # function in the working set and parses is a call; the position check
+    # below keeps it from double-counting the marked ones, and validation still
+    # refuses anything outside the namespace.
+    spans = []
+    if marked:
+        for m in marked:
+            raw = getattr(m, "raw", "") or ""
+            i = text.find(raw) if raw else -1
+            if i >= 0:
+                spans.append((i, i + len(raw)))
+
+    def inside_marked(pos: int) -> bool:
+        return any(a <= pos < b for a, b in spans)
+
+    labelled_all = [] if marked else _labelled(text, allowed)
+    labelled_spans = [(a, b) for a, _, b in labelled_all]
+
+    def inside_labelled(pos: int) -> bool:
+        return any(a <= pos < b for a, b in labelled_spans)
 
     # Collect with positions and sort by them: call order is semantic. An intake
     # session must append the entry before segmenting it, so returning calls
     # in name order would invert the only sequence that matters.
     found: list[tuple[int, ToolCall]] = []
+    bare_spans: list[tuple[int, int]] = []
     for name in sorted(allowed, key=len, reverse=True):
         start = 0
         while True:
@@ -344,13 +647,55 @@ def extract_lenient(text: str, allowed: set[str]) -> list[ToolCall | ToolError]:
             if idx > 0 and (text[idx - 1].isalnum() or text[idx - 1] in "_."):
                 start = idx + 1                      # part of a longer identifier
                 continue
+            if inside_marked(idx) or inside_labelled(idx):
+                start = idx + 1                      # already taken as a marked call
+                continue
+            # Beside marked calls, a bare one counts only at the start of its
+            # own line -- after a bullet or a number, as the orientation wrote
+            # them -- and never mid-sentence. "prose mentioning
+            # transcript.append(id='x') inline" is prose, and the marked-calls
+            # rule existed to keep it so; a list of complete calls under an
+            # account is not prose, and it was being thrown away.
+            if marked:
+                line_start = text.rfind("\n", 0, idx) + 1
+                lead = text[line_start:idx]
+                if lead.strip(" \t*-+•0123456789.)"):
+                    start = idx + 1
+                    continue
             parsed = extract(f"{MARKER} {text[idx:]}")
             if parsed and isinstance(parsed[0], ToolCall):
                 found.append((idx, parsed[0]))
+                bare_spans.append((idx, idx + len(parsed[0].raw)))
                 start = idx + len(parsed[0].raw)
             else:
                 start = idx + 1
 
+    if marked:
+        # Marked, bare and labelled together, in text order. Errors among the
+        # marked calls keep their place: the model sees its own mistake either
+        # way. A labelled block is taken on the same terms as a bare call --
+        # at line start, which the label regex already requires.
+        positioned: list[tuple[int, object]] = list(found)
+        labelled_here = [(i, c, e) for i, c, e in _labelled(text, allowed)
+                         if not inside_marked(i)]
+        positioned += [(i, c) for i, c, _ in labelled_here]
+        taken = spans + bare_spans + [(i, e) for i, _, e in labelled_here]
+        positioned += _unlabelled(text, signatures or {}, taken)
+        cursor = 0
+        for m in marked:
+            raw = getattr(m, "raw", "") or ""
+            i = text.find(raw, cursor) if raw else -1
+            if i < 0:
+                i = cursor
+            positioned.append((i, m))
+            cursor = max(cursor, i + 1)
+        return [c for _, c in sorted(positioned, key=lambda pair: pair[0])]
+
+    # No marker: labelled blocks, bare calls outside them, and bare argument
+    # lines beside both -- the amends as labels and the attest as a bare call
+    # was one session's whole output, and the attest was being dropped.
+    found += [(i, c) for i, c, _ in labelled_all]
+    found += _unlabelled(text, signatures or {}, bare_spans + labelled_spans)
     return [call for _, call in sorted(found, key=lambda pair: pair[0])]
 
 
