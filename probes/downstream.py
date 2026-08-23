@@ -96,11 +96,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("db")
     ap.add_argument("--model", default="llama3.1:8b")
+    ap.add_argument("--num-ctx", type=int, default=12288,
+        help="reader context window; the artefact dump grows with the writer")
     args = ap.parse_args(argv)
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     context = artefacts(conn)
-    backend, pins = default_backend(), Pins(model=args.model, temperature=0.0)
+    backend, pins = default_backend(), Pins(model=args.model, temperature=0.0,
+                                            num_ctx=args.num_ctx)
     system = ("You are a developer joining a project you have never seen. You "
               "have exactly the notes below and nothing else -- no code, no "
               "README. Answer the question from the notes in two sentences at "
