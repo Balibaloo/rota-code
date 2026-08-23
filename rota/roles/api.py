@@ -1479,7 +1479,14 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     outside = re.search(r"\b(users?|registry|obsidian|vault|notes?|another plugin|"
                         r"other plugin|external|api|npm|github|community|client|"
                         r"consumer|caller outside|downstream)\b", saying)
-    if inside and not outside:
+    # "users of this repository who import getIntentsFromTFile" wears the word
+    # `users` over an inside party: anyone described as importing, extending
+    # or calling an identifier reads this code, whatever they are called. The
+    # disguise vetoes the outside word.
+    disguised = re.search(r"who (?:import|imports|extend|extends|call|calls|"
+                          r"use|uses|reference|references)\b|the import of\b",
+                          saying)
+    if (inside and not outside) or disguised:
         raise ValueError(
             f"{headline!r} names nobody outside this repository -- a maintainer, "
             f"the codebase, the build are inside. A constraint is kept to "

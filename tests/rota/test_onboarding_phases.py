@@ -894,6 +894,12 @@ def test_code_logic_and_files_of_this_repository_are_inside_parties(project):
                    ("PTPlugin", "the manifest.json file")]:
         with pytest.raises(ValueError, match="names nobody outside"):
             model_amend(ctx, headline=hl, text=tx, bindings=["src/billing/charges.py"])
+    for hl, tx in [("getIntentsFromTFile", "users of this repository who import or call "
+                    "getIntentsFromTFile would break with a reference error"),
+                   ("TemplateVariableType", "The import of TemplateVariableType will fail "
+                    "with an error indicating the identifier cannot be found.")]:
+        with pytest.raises(ValueError, match="names nobody outside"):
+            model_amend(ctx, headline=hl, text=tx, bindings=["src/billing/charges.py"])
     got = model_amend(ctx, headline="charge kind values",
                       text="Users who define charges in their notes using these exact strings "
                            "('fee', 'refund') would break if they were renamed.",
