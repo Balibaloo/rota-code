@@ -137,3 +137,36 @@ read_by_a_person:
   - Do the senses say what the word means *here*, or what it means anywhere?
   - Would a Developer who read only the glossary write the right thing?
   - Does the model say what the product is for, or list what it contains?
+
+# Spellings the codebase itself uses for a required concept, kept separate from
+# `terms_required` on purpose.
+#
+# The README already names this failure -- "a scorer that assumes one spelling
+# under-reports by exactly the terms whose spelling the run happened to pick
+# differently" -- and then fixed it for one term, `natural_date`, with
+# `aliases`. Five more needed it. Runs wrote `TemplateVariableType`,
+# `variable_provider`, `variableProvider` and `GenericInputPrompt` and were
+# scored as having written nothing.
+#
+# NOT merged into `terms_required`, for two reasons. Every historical score in
+# WORKLIST.md was computed against that list and has to stay comparable. And
+# the senses attached to these spellings are labels -- `TemplateVariableType:
+# "Data type for TemplateVariables"` is the forbidden reading, and
+# `GenericInputPrompt: "class extending Modal"` says nothing -- so counting
+# them as found would raise recall on rows that carry no understanding. That is
+# the exact trade `terms_required` cannot see and `copied from the index` and
+# `not in the key at all` were added to expose.
+#
+# Read the two numbers together: the first is what was defined, the second is
+# what was at least named.
+spelling_variants:
+  # `template variable type` is the lexicon's rendering of `TemplateVariableType`
+  # -- the code's own name, split into the words it is made of -- and the
+  # define phase wakes on that spelling.
+  variable_type:  [TemplateVariableType, variableType, of_type,
+                   template variable type, template_variable_type]
+  provider:       [providers, variable_provider, variableProvider,
+                   template variable provider]
+  global_intent:  [globalIntents, globalIntentsNote, global intents]
+  filter_set:     [filterSet, filter_set_name, intentNotesFilterSetName]
+  prompt:         [GenericInputPrompt, promptType, prompt type]

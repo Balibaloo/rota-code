@@ -1,0 +1,36 @@
+- .editorconfig: This file is for configuring the editor settings, specifically working with "EditorConfig" and affecting files marked by an asterisk (*).
+- .eslintignore: This file is an ESLint ignore file, which tells ESLint to ignore the "node_modules/" directory.
+- .eslintrc: This file is for configuring ESLint, a linter for JavaScript and TypeScript code. It works with the parser "@typescript-eslint/parser" and extends several recommended configurations from ESLint and the @typescript-eslint plugin.
+- .github/ISSUE_TEMPLATE/bug_report.md: This file is for creating a bug report in the program, and it works with "bug" and "New".
+- .github/ISSUE_TEMPLATE/feature_request.md: This file is for handling feature requests in the program, specifically working with "labels" and "assignees".
+- .github/workflows/release.yml: This file is for automating the release process of an Obsidian plugin, and it works with `main.js`, `manifest.json`, and `styles.css`.
+- .gitignore: This file is for ignoring certain files and directories in a Git repository. It works with the following things: `.vscode`, `node_modules`, `main.js`, `*.map`, `data.json`, and `.DS_Store`.
+- .npmrc: This file sets the tag version prefix to an empty string.
+- LICENSE: This file is for the license of the Software. It works with the Software and associated documentation files.
+- README.md: This file appears to be a README for an Obsidian plugin, specifically "Contextual Note Templating", which works with notes and templates.
+- esbuild.config.mjs: This file is for building a JavaScript bundle using esbuild, and it works with the `src/main.ts` entry point. It also interacts with external modules named "obsidian", "electron", "@codemirror/autocomplete", etc.
+- intentsSchema.yaml: This file defines the schema for intents, which work with `intents_imported_from` and have various properties such as `make_a`, `hidden`, `disabled`, etc. that can be set to specific values or defaults.
+- manifest.json: This file is a manifest for the program, and it works with the "app".
+- package.json: This file is for package metadata, and it works with the `main.js` script.
+- src/intents/frontmatter.ts: This file is for getting intents from a TFile, and it works with `App`, `FrontMatterCache`, `Notice`, `TAbstractFile`, and `TFile` objects.
+- src/intents/index.ts: This file is for managing intents in the program, which work with Templates and TemplateVariable objects.
+- src/intents/intents.ts: This file is for handling intents in the Obsidian plugin, and it works with `Intent`, `App`, `EditorPosition`, `EditorSelection`, `FuzzySuggestModal`, `Notice`, `TFile`, `TFolder`, `PTPlugin`.
+- src/main.ts: This file is for the PTPlugin class, which works with TFiles, Intent objects, and PTSettings.
+- src/notice/index.ts: This file defines a custom notice class called `FilteredOpenerMissingNotice` that works with the `Notice` class from Obsidian and is triggered when the "Filtered Opener" plugin is not installed.
+- src/settings/index.ts: This file is for defining the settings of a plugin, specifically the PTSettings interface which works with globalIntentsNotePath, intents, intentNotesFilterSetName, selectionDelimiters, showNewNotes, showNewNotesStyle, and showNewMultiNotes.
+- src/settings/settings.ts: This file is for the settings of a plugin called PTPlugin. It works with App, Notice, PaneType, PluginSettingTab, Setting, and normalizePath from Obsidian, as well as FilteredOpenerMissingNotice from another notice file.
+- src/templates/index.ts: This file is for exporting a template object and the `getIntentTemplate` function. It works with "intents" and "templates".
+- src/templates/templates.ts: This file is for getting a template based on an intent. It works with `Intent` and `Template`.
+- src/variables/index.ts: This file is for exporting template variables and related functions to other parts of the program. It works with `TemplateVariableVariables` and uses `variableProviderVariableParsers`.
+- src/variables/providers/folder.ts: This file is for parsing and validating folder variables in Obsidian. It works with `App`, `Notice`, `TFolder`, `TemplateVariable`, `FilteredOpenerMissingNotice`.
+- src/variables/providers/index.ts: This file is for providing variables to a template in an Obsidian app. It works with TemplateVariableVariables_Text, TemplateVariableVariables_Number, TemplateVariableVariables_NaturalDate, TemplateVariableVariables_Folder, and TemplateVariableVariables_Note.
+- src/variables/providers/natural_date.ts: This file is for parsing and validating natural language dates in Obsidian. It works with the `App` and `Notice` objects from Obsidian, as well as a plugin called "nldates-obsidian" which provides date parsing functionality.
+- src/variables/providers/note.ts: This file is for parsing note variables from frontmatter and getting the value of a specific note variable. It works with `App`, `Notice`, `TFile` from Obsidian, and `FilteredOpenerMissingNotice` from another notice file.
+- src/variables/providers/number.ts: This file is for parsing and validating number variables in a template. It works with `App` and `Notice` from Obsidian, `TemplateVariable`, and `GenericInputPrompt`.
+- src/variables/providers/text.ts: This file is for parsing and validating text variables in a template. It works with `App` and `Notice` from Obsidian, `TemplateVariable`, and `GenericInputPrompt`.
+- src/variables/suggest.ts: This file is for creating a generic input prompt in the Obsidian program, which works with `App`, `ButtonComponent`, `Modal`, `Notice`, and `TextComponent` objects.
+- src/variables/templateVariables.ts: This file is for getting variable values, and it works with `App`, `TemplateVariable`, `variableProviderVariableGetters`, and `getReplacedVariablesText`.
+- styles.css: This file is for styling HTML elements in the program, specifically working with `.requiredInput`, `.modal-description`, `.text-input`, `.button-bar`, and `.ok-button`.
+- tsconfig.json: This file is for configuring the TypeScript compiler. It works with modules, ESNext, and DOM.
+- version-bump.mjs: This file is for bumping the version of a program by updating two files: `manifest.json` and `versions.json`. It works with `manifest` (a JSON object from `manifest.json`) and `versions` (a JSON object from `versions.json`).
+- versions.json: This file is for mapping version numbers of a library to their corresponding versions in the program, specifically working with `library` and its versions.
