@@ -328,3 +328,150 @@ def test_reading_a_file_records_it_on_the_session(db, tmp_path):
     code_source(ctx, path="src/auth/one.py")
 
     assert "src/auth/one.py" in ctx.opened
+
+
+def test_a_bare_symbol_resolves_to_its_grain(db):
+    """
+    The gate's precondition, stated in its own comment, is that `code.survey`
+    has just handed the session the grain list. A design that hands over the
+    *source* instead has no such list, and the session cites what source shows
+    it: declarations.
+
+    Measured on `cnt_d`, whose terminologist working set is `code.area` and
+    `code.source` with no `code.survey` at all. Three sessions cited
+    `["TemplateVariableType", "TemplateVariableVariables"]`, were refused three
+    times, hit the attempt bound, and `src/variables` and
+    `src/variables/providers` were both quarantined — the two richest areas in
+    the repository, and the only ones holding `variable_type`, `provider` and
+    the five prompt types. Thirty-six turns, and the reading had been done.
+
+    Resolving costs the gate nothing it was built for: a session that did not
+    look cannot name `TemplateVariableType`, and the index is still what
+    decides.
+    """
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/auth/one.py::TokenStore','symbol','src/auth')")
+
+    ctx = Ctx(db, read=["src/auth/one.py"])
+    surveys_attest(ctx, outcome="none_found", citations=["TokenStore"])
+
+    rec = [v for t, _id, v in ctx.writes if t == "survey_records"]
+    assert rec and rec[0]["outcome"] == "none_found", "the area closes"
+
+    cites = {v["grain"]: v["resolves"] for t, _id, v in ctx.writes
+             if t == "survey_citations"}
+    assert cites == {"src/auth/one.py::TokenStore": 1}, (
+        "the citation is recorded as the grain it resolved to, not as the bare "
+        "symbol -- the record has to be traceable back to the index")
+
+
+def test_an_ambiguous_symbol_is_not_guessed_at(db):
+    """
+    Two grains ending in the same symbol is the index failing to decide, and
+    picking one for the session produces a citation nobody can trace back.
+    Unresolved is the honest answer; the refusal still names it.
+    """
+    for f in ("one.py", "two.py"):
+        db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+                   "VALUES (?,'symbol','src/auth')", (f"src/auth/{f}::Shared",))
+
+    with pytest.raises(ValueError) as exc:
+        surveys_attest(Ctx(db, read=["src/auth/one.py"]), outcome="none_found",
+                       citations=["Shared"])
+
+    assert "Shared" in str(exc.value)
+
+
+def test_a_symbol_from_another_area_still_does_not_count(db):
+    """Resolution is scoped to the area being closed, not to the whole index."""
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/api/one.py::Router','symbol','src/api')")
+
+    with pytest.raises(ValueError) as exc:
+        surveys_attest(Ctx(db, read=["src/auth/one.py"]), outcome="none_found",
+                       citations=["Router"])
+
+    assert "src/auth" in str(exc.value)
+
+
+def test_an_import_the_area_was_shown_counts_as_evidence(db):
+    """
+    `code.area` hands over "the area's own files, and the ones it imports",
+    deliberately: *"a file the area imports is part of what the area means,
+    wherever it sits."* This gate required every citation to sit under the
+    area's path — two tools disagreeing about what belongs to an area, and the
+    gate winning.
+
+    Measured on `cnt_i`: the session woken for `src/variables/providers` was
+    shown `src/variables/index.ts`, read it, cited it, and was refused twelve
+    times across three sessions. The area was quarantined — the one holding
+    `variable_type`, `provider` and the five prompt types, lost for the second
+    run running and not for the reason the first one lost it.
+    """
+    db.execute("INSERT INTO code_edges (src, dst) VALUES "
+               "('src/auth/one.py','src/api/one.py')")
+
+    ctx = Ctx(db, read=["src/api/one.py"])
+    surveys_attest(ctx, outcome="none_found", citations=["src/api/one.py"])
+
+    rec = [v for t, _id, v in ctx.writes if t == "survey_records"]
+    assert rec and rec[0]["area"] == "src/auth", (
+        "the area closes on a file it imports and the session opened")
+
+
+def test_an_unrelated_area_is_still_not_evidence(db):
+    """
+    The edge is what makes an import evidence, and it comes from the index. A
+    file in another area that nothing here imports is still somebody else's.
+    """
+    with pytest.raises(ValueError) as exc:
+        surveys_attest(Ctx(db, read=["src/api/two.py"]), outcome="none_found",
+                       citations=["src/api/two.py"])
+
+    assert "src/auth" in str(exc.value)
+
+
+def test_an_item_named_after_a_grain_is_refused(db):
+    """
+    `items.yaml` in the cnt key states the test: *"it says something about the
+    product that a reader could act on, and it would still be true if every
+    identifier were renamed"* — and names the failure outright: *"A sentence
+    about a function is not an item."* The vision_keeper brief says the same in its
+    own words. Prose, and nothing held it.
+
+    Measured on `cnt_i`, the first run in nine to reach the Vision Keeper at all:
+    of eight items, `id='src/variables/index.ts'` and `id='getRelativePath'`
+    ("Returns the relative path of a given path"). Both are grains. The other
+    six — `release_workflow`, `settings_behaviour`, `intent-processing` — are
+    not, and all six are about the product.
+
+    Renaming does not catch it: rename `getRelativePath` to anything and
+    "returns the relative path" stays true, which is exactly why it says nothing
+    about *this* product. Naming the item after the code is the tell.
+    """
+    from rota.roles.api import problem_assert
+
+    db.execute("INSERT INTO code_index (grain, grain_kind, area) "
+               "VALUES ('src/auth/one.py::getRelativePath','symbol','src/auth')")
+
+    ctx = Ctx(db, role="vision_keeper")
+    with pytest.raises(ValueError) as exc:
+        problem_assert(ctx, id="getRelativePath",
+                       text="Returns the relative path of a given path")
+    assert "sentence about a file or a function" in str(exc.value)
+
+    with pytest.raises(ValueError):
+        problem_assert(ctx, id="src/auth/one.py", text="This file exports things")
+
+
+def test_an_item_about_the_product_still_lands(db):
+    """The six good ones from the same run go through untouched."""
+    from rota.roles.api import problem_assert
+
+    ctx = Ctx(db, role="vision_keeper")
+    out = problem_assert(
+        ctx, id="release_workflow",
+        text="The workflow creates a release on GitHub when a tag is pushed.")
+
+    assert out["id"] == "release_workflow"
+    assert [v["text"] for t, _id, v in ctx.writes if t == "items"]

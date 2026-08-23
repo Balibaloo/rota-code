@@ -2,7 +2,7 @@
 A real git repository per test, and a teardown that cannot reach a real one.
 
 Five roles need this, not only Developer: Architect reads source and diffs,
-Terminologist and Gatekeeper survey code, Critic reads the batch diff. The
+Terminologist and Vision Keeper survey code, Critic reads the batch diff. The
 Developer is only the one that also *writes*.
 
 **The safety rule is the load-bearing part.** This repository has 107 live

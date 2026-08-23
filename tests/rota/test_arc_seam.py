@@ -90,14 +90,14 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
                "seq) VALUES ('m_ok','t1','principal','liaison','verdict',3)")
     drive(db, Wake("liaison", "message", "m_ok", detail="verdict"), [
         "TOOL: brief.ratify(id='s1')",
-        "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+        "TOOL: msg.deliver_vision_keeper(refs=['s1'])",
         "TOOL: msg.deliver_terminologist(refs=['s1'])",
         "TOOL: msg.deliver_architect(refs=['s1'])",
     ])
 
-    gk = db.execute("SELECT id FROM messages WHERE to_role='gatekeeper' "
+    gk = db.execute("SELECT id FROM messages WHERE to_role='vision_keeper' "
                     "AND verb='deliver'").fetchone()["id"]
-    drive(db, Wake("gatekeeper", "message", gk, detail="deliver"), [
+    drive(db, Wake("vision_keeper", "message", gk, detail="deliver"), [
         "TOOL: problem.assert(id='i1', text='users can delete their account', "
         "kind='in_scope')",
     ])
@@ -110,8 +110,8 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
     ])
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "seq) VALUES ('m_sign','t1','liaison','gatekeeper','relay',20)")
-    drive(db, Wake("gatekeeper", "message", "m_sign", detail="relay"), [
+               "seq) VALUES ('m_sign','t1','liaison','vision_keeper','relay',20)")
+    drive(db, Wake("vision_keeper", "message", "m_sign", detail="relay"), [
         "TOOL: problem.set_approval(id='i1', approval='approved')",
     ])
 

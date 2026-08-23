@@ -77,19 +77,19 @@ def test_arc_understanding_loop_reaches_approved_item(db):
                "VALUES ('m_ratify','t1','principal','liaison','verdict',3)")
     drive(db, Wake("liaison", "message", "m_ratify", detail="verdict"), [
         "TOOL: brief.ratify(id='s1')",
-        "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+        "TOOL: msg.deliver_vision_keeper(refs=['s1'])",
         "TOOL: msg.deliver_terminologist(refs=['s1'])",
         "TOOL: msg.deliver_architect(refs=['s1'])",
     ])
 
     assert db.execute("SELECT status FROM statements WHERE id='s1'").fetchone()["status"] == "ratified"
     tips = {w.role for w in frontier(db) if w.kind == "message"}
-    assert tips == {"gatekeeper", "terminologist", "architect"}, "broadcast did not reach three shape roles"
+    assert tips == {"vision_keeper", "terminologist", "architect"}, "broadcast did not reach three shape roles"
 
-    # --- Gatekeeper asserts scope; Terminologist amends the glossary -------------------
-    gatekeeper_msg = db.execute(
-        "SELECT id FROM messages WHERE to_role='gatekeeper' AND verb='deliver'").fetchone()["id"]
-    drive(db, Wake("gatekeeper", "message", gatekeeper_msg, detail="deliver"), [
+    # --- Vision Keeper asserts scope; Terminologist amends the glossary -------------------
+    vision_keeper_msg = db.execute(
+        "SELECT id FROM messages WHERE to_role='vision_keeper' AND verb='deliver'").fetchone()["id"]
+    drive(db, Wake("vision_keeper", "message", vision_keeper_msg, detail="deliver"), [
         "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
     ])
 
@@ -101,8 +101,8 @@ def test_arc_understanding_loop_reaches_approved_item(db):
 
     # --- approval ------------------------------------------------------------
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_signoff','t1','liaison','gatekeeper','relay',20)")
-    drive(db, Wake("gatekeeper", "message", "m_signoff", detail="relay"), [
+               "VALUES ('m_signoff','t1','liaison','vision_keeper','relay',20)")
+    drive(db, Wake("vision_keeper", "message", "m_signoff", detail="relay"), [
         "TOOL: problem.set_approval(id='i1', approval='approved')",
     ])
 
@@ -122,7 +122,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','account','login identity','decided')")
 
-    # Gatekeeper slices, woken by a predicate rather than a message.
+    # Vision Keeper slices, woken by a predicate rather than a message.
     slicing = [w for w in predicate_wakes(db) if w.kind == "tick:slicing"]
     assert slicing, "slicing predicate did not fire for an approved item"
     drive(db, slicing[0], [
@@ -196,8 +196,8 @@ def test_arc_revocation_stops_the_batch(db):
     assert tick_batch_start(db), "approved item should schedule its batch"
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m_ch','t1','architect','gatekeeper','challenge',1)")
-    drive(db, Wake("gatekeeper", "message", "m_ch", detail="challenge"), [
+               "VALUES ('m_ch','t1','architect','vision_keeper','challenge',1)")
+    drive(db, Wake("vision_keeper", "message", "m_ch", detail="challenge"), [
         "TOOL: problem.assert(id='i1', text='x, but only for unverified accounts', kind='in_scope')",
     ])
 

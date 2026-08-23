@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS statements (
 CREATE INDEX IF NOT EXISTS ix_statements_status ON statements(status);
 
 -- ---------------------------------------------------------------------------
--- Problem statement (Gatekeeper)
+-- Problem statement (Vision Keeper)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS items (
@@ -135,6 +135,15 @@ CREATE TABLE IF NOT EXISTS constraints (
 -- Bindings are rows, not a JSON blob: the structural trigger is a join.
 -- A constraint with zero bindings is global — missing bindings must always mean
 -- "always visible", never "invisible".
+CREATE TABLE IF NOT EXISTS model_areas (     -- Architect: what each area is for
+    id          TEXT PRIMARY KEY,             -- the area path
+    account     TEXT NOT NULL,
+    source_refs TEXT NOT NULL DEFAULT '[]',
+    provenance  TEXT NOT NULL DEFAULT 'observed'
+                CHECK (provenance IN ('observed','decided','ratified')),
+    version     INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS constraint_bindings (
     constraint_id  TEXT NOT NULL REFERENCES constraints(id),
     grain          TEXT NOT NULL,           -- path, symbol, table or route
@@ -249,7 +258,8 @@ CREATE TABLE IF NOT EXISTS code_index (
     grain       TEXT PRIMARY KEY,
     grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route')),
     area        TEXT,                        -- partition assignment, pinned by decision
-    fan_in      INTEGER NOT NULL DEFAULT 0
+    fan_in      INTEGER NOT NULL DEFAULT 0,
+    sym_kind    TEXT NOT NULL DEFAULT ''     -- for symbols: function|class|interface|type|enum|struct|trait|module
 );
 
 CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to partitioning
@@ -258,13 +268,27 @@ CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to parti
     PRIMARY KEY (src, dst)
 );
 
+-- The words the checkout declares, ranked by how loudly it declares them.
+-- Mechanical like the index and rebuilt with it: a directory name, a file
+-- name, a declared type, an authoring-surface key. The define phase of
+-- onboarding wakes Terminologist once per row here, in score order, so the
+-- list of words no session ever chooses is the project's own list.
+CREATE TABLE IF NOT EXISTS code_lexicon (
+    word      TEXT PRIMARY KEY,              -- 'intent', 'template variable type'
+    sources   TEXT NOT NULL DEFAULT '[]',    -- JSON: which kinds of evidence name it
+    grain     TEXT NOT NULL DEFAULT '',      -- where, when one place says so
+    score     REAL NOT NULL DEFAULT 0,
+    uses      INTEGER NOT NULL DEFAULT 0,
+    compound  INTEGER NOT NULL DEFAULT 0     -- more than one word, kept whole
+);
+
 -- ---------------------------------------------------------------------------
 -- Backlog: three tables, one writer each. Law 1 means one writer per *row*;
 -- per-table ownership is the strict form of that, and it is what closes the
 -- old "backlog has three writers" risk.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS tickets (         -- Gatekeeper
+CREATE TABLE IF NOT EXISTS tickets (         -- Vision Keeper
     id       TEXT PRIMARY KEY,
     item_id  TEXT NOT NULL REFERENCES items(id),
     text     TEXT NOT NULL,

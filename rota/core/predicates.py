@@ -41,14 +41,14 @@ SCHEMA = paths.SCHEMA
 # deliberate blank.
 # Law 6's ladder, and the only place it is written down as a sequence. Each rung
 # is a role that can be *asked*, in the order a question climbs.
-LADDER = ("developer", "architect", "gatekeeper")
+LADDER = ("developer", "architect", "vision_keeper")
 
 # The same climb for a question rather than a batch, and it starts a rung higher
 # because Developer is never the answer to somebody else's dead answer -- it is
-# the role most likely to have asked. Both ladders end at Gatekeeper, who is the
+# the role most likely to have asked. Both ladders end at Vision Keeper, who is the
 # last rung anything wakes: above that is the principal, and nothing wakes a
 # person.
-QUESTION_LADDER = ("architect", "gatekeeper")
+QUESTION_LADDER = ("architect", "vision_keeper")
 
 
 DERIVED = "*"        # the wake's role comes from the rows, not the declaration
@@ -226,7 +226,7 @@ def contradiction(conn) -> list[Wake]:
         Wake("liaison", "tick:contradiction", refs=tuple(r["id"] for r in rows))]
 
 
-@predicate("contested", wakes="gatekeeper", band="fix",
+@predicate("contested", wakes="vision_keeper", band="fix",
            drains=[("items", "approval", "contested")])
 def contested(conn) -> list[Wake]:
     """The principal rejected an item.
@@ -235,10 +235,10 @@ def contested(conn) -> list[Wake]:
     It wakes the item's owner to amend it or author a decision defending it."""
     rows = conn.execute(
         "SELECT id FROM items WHERE approval = 'contested'").fetchall()
-    return [Wake("gatekeeper", "tick:contested", refs=(r["id"],)) for r in rows]
+    return [Wake("vision_keeper", "tick:contested", refs=(r["id"],)) for r in rows]
 
 
-@predicate("signoff", wakes="gatekeeper", band="gate",
+@predicate("signoff", wakes="vision_keeper", band="gate",
            drains=[("items", "approval", "draft")])
 def signoff(conn) -> list[Wake]:
     """Draft items with no gate open: submit them for approval, together."""
@@ -267,6 +267,7 @@ def term_collision(conn) -> list[Wake]:
     """
     import json
 
+    from ..roles.api import _singular, _slug_of
     from .scheduler import tick_survey
 
     # Not while the survey pass is still running.
@@ -286,13 +287,83 @@ def term_collision(conn) -> list[Wake]:
     #
     # Conditional rather than a phase: a collision created later, in delivery,
     # fires at once, because by then something does depend on the word.
-    if any(w.role == "terminologist" for w in tick_survey(conn)):
+    from .scheduler import onboarding_phase
+
+    if (onboarding_phase(conn) in ("orient", "reconcile", "define")
+            or any(w.role == "terminologist" for w in tick_survey(conn))):
         return []
 
-    rows = conn.execute(
-        "SELECT term, GROUP_CONCAT(id) AS ids, COUNT(*) AS n "
-        "FROM glossary_terms WHERE superseded_by IS NULL "
-        "GROUP BY term HAVING n > 1").fetchall()
+    # A second sense from area `.` is a row, not a collision.
+    #
+    # `tick_survey` says what `.` is, in its own words: "*what did not belong
+    # anywhere else* by construction -- `areas.py` folds small directories up
+    # into it. So it is the one area whose vocabulary is least likely to be the
+    # project's." The second-row rule in `glossary.amend` is justified by the
+    # opposite claim -- "two senses from different areas are the word doing
+    # different work in two places" -- and that claim does not hold for a bucket.
+    # `.` is not a place.
+    #
+    # Measured across `cnt_i` and `cnt_j`: of the distinct collisions raised,
+    # two of five and two of four were a `#root` row against a real area's --
+    # `variable`/`variable#root`, `frontmatter`/`frontmatter#root`. Each cost up
+    # to three sessions and two of them exhausted the attempt bound, in runs
+    # that then had no budget left to reach the Architect.
+    #
+    # The row is still written and still readable, which is the half that
+    # matters: refusing `.`'s sense would let the earlier area win silently, and
+    # nothing winning silently is what this whole design rests on. What is
+    # withdrawn is the *wake* -- the claim that a person must rule on it -- and
+    # only for the one area that is a leftover bag by construction.
+    # Grouped by the id family, and `.` is material but not a trigger.
+    #
+    # Two separate bugs, both of which shrank what the woken session was given.
+    #
+    # `GROUP BY term` groups on the spelling a session happened to type. The
+    # plural rule in `glossary.amend` already files `intents` under the `intent`
+    # id, so the two rows are one word by every part of the system except this
+    # one -- and `cnt_p`'s wake for `intent` carried two of the family's four
+    # rows: `intent` and `intent#src_variables`, while `intent#src_intents`
+    # (term `intents`) went to a group of its own and `intent#root` was dropped
+    # by the rule above. The id before `#` is the family, and it is what the
+    # rest of the system already agrees on.
+    #
+    # And `.` stays out of the *count* while staying in the *refs*. Not raising
+    # a wake over the fold-up bucket is the earned half; withholding its row
+    # from a session that has been woken anyway is not. `intent#root` says
+    # "template with specific action" -- wrong, and it is still one of the four
+    # partial readings of the word, which is exactly what this session is for.
+    # Grouped on the stemmed term, in Python, because SQLite cannot stem and
+    # the id is not safe to group on.
+    #
+    # `GROUP BY term` groups on the spelling a session happened to type. The
+    # plural rule in `glossary.amend` files `intents` under the `intent` id, so
+    # the two rows are one word everywhere except here -- and `cnt_p`'s wake for
+    # `intent` carried two of the family's four rows, while `intent#src_intents`
+    # (term `intents`) went to a group of its own.
+    #
+    # Grouping on the id family instead looked equivalent and is not: it holds
+    # only because `glossary.amend` derives ids from terms, and any row written
+    # another way -- every fixture in the suite -- has an id that says nothing
+    # about its word. Two senses of `issue_template` under `g1` and `g2` stopped
+    # colliding entirely.
+    #
+    # And `.` stays out of the *count* while staying in the *refs*. Not raising
+    # a wake over the fold-up bucket is the earned half; withholding its row
+    # from a session woken anyway is not. `intent#root` says "template with
+    # specific action" -- wrong, and still one of the four partial readings of
+    # the word, which is exactly what that session is for.
+    groups: dict[str, list] = {}
+    for r in conn.execute(
+            "SELECT id, term, area FROM glossary_terms WHERE superseded_by IS NULL"):
+        groups.setdefault(_singular(_slug_of(r["term"])), []).append(r)
+
+    rows = []
+    for _stem, members in groups.items():
+        if sum(1 for m in members if (m["area"] or "") != ".") < 2:
+            continue
+        rows.append({"term": members[0]["term"],
+                     "ids": ",".join(sorted(m["id"] for m in members)),
+                     "n": len(members)})
     if not rows:
         return []
 
@@ -356,7 +427,7 @@ def round_close(conn) -> list[Wake]:
     return tick_round_close(conn)
 
 
-@predicate("slicing", wakes="gatekeeper", band="start")
+@predicate("slicing", wakes="vision_keeper", band="start")
 def slicing(conn) -> list[Wake]:
     """An approved item with no tickets."""
     from .scheduler import tick_slicing
@@ -396,6 +467,7 @@ def grouping(conn) -> list[Wake]:
 @predicate("observed_entries", wakes="liaison", band="start",
            drains=[("glossary_terms", "provenance", "observed"),
                    ("constraints", "provenance", "observed"),
+                   ("model_areas", "provenance", "observed"),
                    ("items", "provenance", "observed")])
 def observed_entries(conn) -> list[Wake]:
     """
@@ -405,7 +477,7 @@ def observed_entries(conn) -> list[Wake]:
     the principal to confirm them, so `observed` was a state with no exit.
     """
     counts = []
-    for table in ("glossary_terms", "constraints", "items"):
+    for table in ("glossary_terms", "constraints", "model_areas", "items"):
         n = conn.execute(
             f"SELECT COUNT(*) n FROM {table} WHERE provenance = 'observed'"
         ).fetchone()["n"]
@@ -529,7 +601,7 @@ def reopen(conn) -> list[Wake]:
     detail, and no producer. This is it.
 
     It goes quiet once the election is in flight: the Developer answers with
-    `msg.elect_gatekeeper`, and re-asking while that message is unread would put
+    `msg.elect_vision_keeper`, and re-asking while that message is unread would put
     the same decision on the frontier every pass.
     """
     rows = conn.execute(
@@ -584,9 +656,9 @@ def _next_rung(conn, batch_id: str) -> str:
     """
     Who has not yet been asked about this batch.
 
-    Empty once it has reached Gatekeeper, who is the last rung that can be woken
+    Empty once it has reached Vision Keeper, who is the last rung that can be woken
     — above that is the principal, and reaching them is Liaison's `report`, which
-    Gatekeeper's own session sends. Nothing wakes a person.
+    Vision Keeper's own session sends. Nothing wakes a person.
     """
     sent = {r["from_role"] for r in conn.execute(
         "SELECT DISTINCT from_role FROM messages WHERE body_refs LIKE ?",
@@ -876,10 +948,55 @@ def constraint_zero(conn) -> list[Wake]:
         Wake(SCHEDULER, "tick:constraint_zero", refs=tuple(sorted(bound - want)))]
 
 
+@predicate("orient", wakes="vision_keeper", band="start")
+def orient(conn) -> list[Wake]:
+    """
+    Onboarding, first: what does this program do for the person using it.
+
+    One wake over the whole program, before any word in it is named, because
+    the account of what the program is for is the one context that displaces
+    the everyday reading of its words -- measured: handed the call trace, the
+    model kept "an intent is a user's goal"; handed the account, it wrote "a
+    recipe for making a note". Owned by the role answerable for what the
+    project is, and discharged by its attestation.
+    """
+    from .scheduler import tick_orient
+    return tick_orient(conn)
+
+
+@predicate("reconcile", wakes="vision_keeper", band="start")
+def reconcile(conn) -> list[Wake]:
+    """
+    Onboarding, after orient: the README read against the account.
+
+    The account is written from code alone; the README is then a check, not a
+    source. A claim the account does not support is not merged -- it is a
+    ledger entry ("README says X; the code shows Y") for the principal, whose
+    agenda already carries open assumptions. Discharged by the attestation on
+    `@prose`, whose owed artefact is the ledger.
+    """
+    from .scheduler import tick_reconcile
+    return tick_reconcile(conn)
+
+
+@predicate("define", wakes="terminologist", band="start")
+def define(conn) -> list[Wake]:
+    """
+    Onboarding, second: one word at a time, from the project's own list.
+
+    A meaning is not shaped like a place -- `intent` lives in five areas and no
+    area-shaped question reaches it -- so the subject of this wake is a word,
+    the concordance is pushed, and the lexicon says which words. Discharged by
+    a glossary row in the word's family, or by `none_found` for the word.
+    """
+    from .scheduler import tick_define
+    return tick_define(conn)
+
+
 @predicate("survey", wakes=DERIVED, band="start",
            derives=SURVEY_ORDER)
 def survey(conn) -> list[Wake]:
-    """Onboarding: one elected area at a time, in role order."""
+    """Onboarding, third: one elected area at a time, in role order."""
     from .scheduler import tick_survey
     return tick_survey(conn)
 
@@ -892,8 +1009,9 @@ def survey(conn) -> list[Wake]:
 REGISTER_ENTRIES = frozenset({
     "contradiction", "contested", "constraint_zero", "awaiting_confirm",
     "agenda", "quarantined", "exhausted", "round_close",
-    "observed_entries", "reopen", "tests_failing", "verdict_failed",
+    "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
+    "orient", "define",
 })
 
 

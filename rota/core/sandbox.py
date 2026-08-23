@@ -175,6 +175,12 @@ def validate_args(fn: Callable, kwargs: dict,
             continue
         ann = str(p.annotation)
         if "list" not in ann and "dict" not in ann and "Any" not in ann:
+            # `question=["one question"]`: a one-element list around a scalar
+            # is completely determined and unwraps; two elements is a real
+            # ambiguity and stays a refusal.
+            if isinstance(kwargs[name], list) and len(kwargs[name]) == 1:
+                kwargs[name] = kwargs[name][0]
+                continue
             kind = type(kwargs[name]).__name__
             return (f"{name} was given a {kind}; it takes a single value "
                     f"({_render_signature(fn)})")
@@ -366,7 +372,7 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
     # You answer the role that asked, and nobody else.
     #
     # Measured on `unresolved`, and stated here for every wake that carries a
-    # message because the reasoning was never about that tick. Gatekeeper can
+    # message because the reasoning was never about that tick. Vision Keeper can
     # reach Developer and Tester, so both channels sat in the mode, and woken to
     # a thread between Tester and Terminologist it answered Developer five runs
     # out of five. Developer is not in the thread. The asker is on the wake --
@@ -414,7 +420,9 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
         raise SandboxError(f"{role!r} is not a role in the graph")
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
-                  batch_id=batch_id, area=area, entry_id=entry_id, provenance=provenance)
+                  batch_id=batch_id, area=area, entry_id=entry_id,
+                  provenance=provenance,
+                  wake_refs=tuple(getattr(wake, "refs", ()) or ()))
 
     grouped: dict[str, dict[str, Callable]] = {}
     available: dict[str, list[str]] = {}
@@ -510,7 +518,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Not a cap on messages — Liaison delivering the same statements to
         # three roles is three recipients and entirely correct. This is the same
         # recipient, the same verb, the same refs, which is one message sent
-        # again. L1 caught Gatekeeper answering a question twice, and once
+        # again. L1 caught Vision Keeper answering a question twice, and once
         # eleven times: the model finishes, does not notice it has finished, and
         # says it again. Telling it afterwards is weaker than making it
         # impossible.
@@ -624,9 +632,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # One question per session, and choosing who owns the block is the work.
         #
         # Measured on `L1-TS-a-criterion-no-machine-could-check`, which wants
-        # exactly one question to Gatekeeper. `llama3.1:8b` asked Terminologist
+        # exactly one question to Vision Keeper. `llama3.1:8b` asked Terminologist
         # -- one question, wrong owner. `qwen2.5` asked Researcher,
-        # Terminologist *and* Gatekeeper: it found the right recipient and
+        # Terminologist *and* Vision Keeper: it found the right recipient and
         # declined to commit to it. Two models, and neither was defeated by the
         # sentence; what neither did was pick.
         #
@@ -645,7 +653,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # comment was written against, the Tester looked a whole clause up in
         # the glossary, got nothing back, read that as an undefined word and
         # asked Terminologist on turn two -- then three turns later worked out
-        # that the sentence was the problem, called `msg.question_gatekeeper`,
+        # that the sentence was the problem, called `msg.question_vision_keeper`,
         # and was refused for a decision it had already improved on. First is
         # not the same as decided.
         #
@@ -831,7 +839,16 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
     def wrapper(**kwargs):
         args_summary = ", ".join(f"{k}={v!r}"[:60] for k, v in sorted(kwargs.items()))
         _CALL_LOG.setdefault(id(ctx), []).append((label, args_summary))
-        return impl(ctx, **kwargs)
+        try:
+            return impl(ctx, **kwargs)
+        except Exception as exc:
+            # The session's own refusals, kept where a later call can see
+            # them. `surveys.attest` reads this to tell "nothing to write"
+            # from "the write was refused", which are different results.
+            refusals = getattr(ctx, "refusals", None)
+            if refusals is not None:
+                refusals.append((label, str(exc)))
+            raise
 
     wrapper.__name__ = label.replace(".", "_")
     wrapper.__doc__ = impl.__doc__

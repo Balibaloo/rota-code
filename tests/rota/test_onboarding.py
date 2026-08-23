@@ -26,6 +26,12 @@ from rota.testkit import gitfixture, samplerepo
 def project(tmp_path):
     repo = gitfixture.make(tmp_path)
     db = init_db(tmp_path / "rota.db")
+    # These tests are about the per-area pass. Onboarding now opens with the
+    # orientation and the define phase (`test_onboarding_phases.py`), and the
+    # survey pass waits for both; running the survey phase alone is a setting,
+    # kept for exactly this -- measuring or testing one phase on its own.
+    from rota.core import config
+    config.set(db, "onboarding_phases", "survey")
     yield db, repo
     gitfixture.cleanup(repo)
 
@@ -590,11 +596,11 @@ def test_a_constraint_cannot_bind_a_file_the_session_never_opened(project):
 
     with pytest.raises(ValueError, match="not read"):
         sb.call("model.amend", headline="Charges are idempotent per request id",
-                bindings=["src/billing/charges.py"])
+                text="A commitment something outside this repository depends on, stated so it can be checked.", bindings=["src/billing/charges.py"])
 
     sb.call("code.source", path="src/billing/charges.py")
     sb.call("model.amend", headline="Charges are idempotent per request id",
-            bindings=["src/billing/charges.py"])
+            text="A commitment something outside this repository depends on, stated so it can be checked.", bindings=["src/billing/charges.py"])
     assert any(t == "constraints" for t, _, _ in sb.ctx.writes), \
         "reading the file did not make the constraint writable"
 
@@ -611,7 +617,7 @@ def test_reading_a_file_covers_the_symbols_inside_it(project):
 
     sb.call("code.source", path="src/billing/charges.py")
     sb.call("model.amend", headline="The refund path is ordered",
-            bindings=["src/billing/charges.py::refund"])
+            text="A commitment something outside this repository depends on, stated so it can be checked.", bindings=["src/billing/charges.py::refund"])
     assert any(t == "constraint_bindings" for t, _, _ in sb.ctx.writes)
 
 
@@ -658,11 +664,11 @@ def test_sourcing_an_area_names_its_files_instead_of_dead_ending(project):
 
     with pytest.raises(ValueError, match="not read"):
         sb.call("model.amend", headline="Charges are idempotent per request id",
-                bindings=["src/billing/charges.py"])
+                text="A commitment something outside this repository depends on, stated so it can be checked.", bindings=["src/billing/charges.py"])
 
     sb.call("code.source", path="src/billing/charges.py")
     sb.call("model.amend", headline="Charges are idempotent per request id",
-            bindings=["src/billing/charges.py"])
+            text="A commitment something outside this repository depends on, stated so it can be checked.", bindings=["src/billing/charges.py"])
     assert any(t == "constraints" for t, _, _ in sb.ctx.writes)
 
 
@@ -744,13 +750,19 @@ def test_the_same_word_twice_amends_rather_than_duplicates(project):
         # its collision and says it nowhere else. The old spelling came from the
         # oauthlib story and appears in no file here, so the read gate refused
         # it -- correctly, and the test was the thing that was wrong.
+        # The same meaning, twice, from two places -- which is the case this
+        # test is about. Two *different* meanings from two areas are the
+        # collision the area rule keeps as two rows, and that is the next test.
         sb.call("glossary.amend", term="account",
-                sense_body=f"the account rows {area} works with",
-                sense_short=f"an account as {area} means it")
+                sense_body="the account rows the module works with",
+                sense_short="an account as the module means it")
         for w in sb.ctx.writes:
+            # As `session_commit` would: the area travels with the row. A
+            # fixture that dropped it was hiding the area rule from the test.
             db.execute("INSERT OR REPLACE INTO glossary_terms "
-                       "(id, term, sense_short, provenance) VALUES (?, ?, ?, 'observed')",
-                       (w[1], w[2]["term"], w[2]["sense_short"]))
+                       "(id, term, sense_short, provenance, area) "
+                       "VALUES (?, ?, ?, 'observed', ?)",
+                       (w[1], w[2]["term"], w[2]["sense_short"], w[2]["area"]))
 
     rows = db.execute("SELECT id FROM glossary_terms WHERE term = 'account'").fetchall()
     assert len(rows) == 1, f"one word, one row unless a sense is named: {[r[0] for r in rows]}"
@@ -786,7 +798,7 @@ def test_the_survey_ledger_is_one_row_per_area(project):
     from rota.core import sandbox as sandbox_mod
 
     db, repo = project
-    for role in ("terminologist", "architect", "gatekeeper"):
+    for role in ("terminologist", "architect", "vision_keeper"):
         db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
                    "(?, 'src/billing', 'none_found')", (f"{role}:src/billing",))
 
@@ -794,7 +806,7 @@ def test_the_survey_ledger_is_one_row_per_area(project):
     rows = sb.call("surveys.consult")
 
     assert len(rows) == 1, "one row per area, not per record"
-    assert sorted(rows[0]["surveyed_by"]) == ["architect", "gatekeeper", "terminologist"]
+    assert sorted(rows[0]["surveyed_by"]) == ["architect", "terminologist", "vision_keeper"]
 
 
 def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
@@ -807,7 +819,7 @@ def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
     could not know it was about to be quarantined — and `quarantine_stalled`
     then removes it and returns empty. Empty is exactly what quiescence looks
     like, so the run stopped: eleven of twelve areas surveyed by Architect, one
-    abandoned, and Gatekeeper's entire pass of twelve never offered. The system
+    abandoned, and Vision Keeper's entire pass of twelve never offered. The system
     reported itself finished having done two thirds of the work.
 
     Calling `frontier` a second time returned thirteen wakes, which is both how
@@ -916,7 +928,7 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
     """
     `constraints_found` was the only way to say "found something", and two of the
     three surveying roles do not write constraints. Terminologist writes terms,
-    Architect writes constraints, Gatekeeper writes items — so the evidence check
+    Architect writes constraints, Vision Keeper writes items — so the evidence check
     had to accept any of the three, and accepting any of the three is what let a
     Terminologist attest `constraints_found` eleven times having written none.
 
@@ -949,12 +961,19 @@ def test_the_outcome_names_what_this_role_was_looking_for(project):
 
     # The graph already stops an Architect writing a glossary term, so the leak
     # only ran one way: any of the three tables satisfied the claim, and a
-    # Terminologist's terms were accepted as constraints found. The refusal has
-    # to name the artefact this role owes, not merely say something is missing.
+    # Terminologist's terms were accepted as constraints found. The record now
+    # follows what was written -- an Architect that wrote no constraints found
+    # none, whatever it claimed -- and the correction names the artefact this
+    # role owes, not merely that something is missing.
     ar = sandbox_mod.build("architect", db, session_id="s2", area="src/billing")
     ar.call("code.source", path=read[0])
-    with pytest.raises(ValueError, match="constraints"):
+    # Once, the claim is refused with the shape of the owed call; the turn
+    # after, the record follows what was written.
+    with pytest.raises(ValueError, match="model.amend.*then attest again"):
         ar.call("surveys.attest", outcome="found", citations=read)
+    ar.ctx.refusals.append(("surveys.attest", "... then attest again ..."))
+    got = ar.call("surveys.attest", outcome="found", citations=read)
+    assert got["outcome"] == "none_found" and "constraints" in got["note"]
 
 
 def test_finding_something_costs_more_than_finding_nothing(project):
@@ -988,10 +1007,17 @@ def test_finding_something_costs_more_than_finding_nothing(project):
 
     read = ["src/billing/charges.py"]
     sb.call("code.source", path=read[0])
-    with pytest.raises(ValueError, match="wrote no constraints"):
+    # Claimed `found`, wrote nothing, was not refused trying: that is a session
+    # that read and found nothing, and the record says so for it. The claim
+    # cost twelve-turn loops when it was refused instead -- the model re-sent
+    # the same `found` over the same refusal -- and a refusal only stays where
+    # a write of the owed artefact was itself refused this session.
+    # -- once the claim has been refused with the shape of the call it owes.
+    with pytest.raises(ValueError, match="then attest again"):
         sb.call("surveys.attest", outcome="found", citations=read)
-
-    sb.call("surveys.attest", outcome="none_found", citations=read)
+    sb.ctx.refusals.append(("surveys.attest", "... then attest again ..."))
+    got = sb.call("surveys.attest", outcome="found", citations=read)
+    assert got["outcome"] == "none_found"
     assert any(t == "survey_records" for t, _, _ in sb.ctx.writes), \
         "finding nothing must still close the area"
 
@@ -1007,11 +1033,16 @@ def test_a_constraint_with_no_body_cannot_be_attested_as_a_finding(project):
     sb = sandbox_mod.build("architect", db, session_id="s1", area="src/billing")
     sb.call("code.source", path="src/billing/charges.py")
 
-    sb.call("model.amend", headline="Billing Commitment",
-            bindings=["src/billing/charges.py"])
+    # The refusal moved earlier: a title cannot be *written*, not merely cannot
+    # be attested. `attest` only checked on `outcome="found"`, so a session that
+    # wrote two headlines and attested `none_found` walked past it — measured on
+    # `cnt_j`, which recorded `intent_schema_validation` and
+    # `intent_schema_validation_binds_to_the_intent_type`, both empty, and then
+    # attested `architect:src none_found`. Same words, one step upstream, and
+    # now a bodyless constraint does not reach the table at all.
     with pytest.raises(ValueError, match="nothing under it"):
-        sb.call("surveys.attest", outcome="found",
-                citations=["src/billing/charges.py"])
+        sb.call("model.amend", headline="Billing Commitment",
+                bindings=["src/billing/charges.py"])
 
     sb.call("model.amend", headline="Billing Commitment",
             text="Charges are idempotent per request id; a payment processor "
@@ -1213,3 +1244,40 @@ def test_an_ambiguous_guess_is_still_refused(project):
     out = sb.call("code.source", path="nowhere/at/all.py")
     assert "error" in out
     assert "code.survey" in out["error"], "name the call that lists real paths"
+
+
+def test_the_index_keeps_each_symbols_kind(project):
+    """The tree-sitter node type says what a symbol is; the index keeps it,
+    so no consumer has to re-derive kinds by regex at push time."""
+    db, repo = project
+    repo.edit(repo.root, "src/billing/shapes.py",
+              "class Charge:\n    pass\n\n\ndef total(charges):\n    return sum(charges)\n")
+    repo.commit_in(repo.root, "a class and a function")
+    boot.onboard(db, repo.root)
+    kinds = {r["grain"].split("::")[-1]: r["sym_kind"] for r in db.execute(
+        "SELECT grain, sym_kind FROM code_index WHERE grain LIKE 'src/billing/shapes.py::%'")}
+    assert kinds == {"Charge": "class", "total": "function"}, kinds
+
+
+def test_without_an_index_a_binding_is_a_file_the_session_read(tmp_path):
+    """Delivery engagements never onboard; `model.amend` there binds what the
+    session opened, and refuses a symbol by name instead of refusing
+    everything."""
+    import pytest
+
+    from rota.core.db import init_db
+    from rota.roles.api import Ctx, model_amend
+
+    db = init_db(tmp_path / "delivery.db")
+    ctx = Ctx(conn=db, role="architect")
+    ctx.opened.add("src/billing/invoices.py")
+    with pytest.raises(ValueError, match="INVOICE_FIELDS.*src/billing/invoices.py"):
+        model_amend(ctx, headline="CSV column order",
+                    text="Spreadsheets built by finance parse the export by position; "
+                         "reordering INVOICE_FIELDS breaks them silently.",
+                    bindings=["INVOICE_FIELDS"])
+    got = model_amend(ctx, headline="CSV column order",
+                      text="Spreadsheets built by finance parse the export by position; "
+                           "reordering the columns breaks them silently.",
+                      bindings=["src/billing/invoices.py"])
+    assert got["id"]

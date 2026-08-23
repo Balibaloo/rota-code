@@ -143,7 +143,7 @@ def test_only_roles_that_can_cite_may_ask(db):
     g = graph_mod.load()
     askers = {e.s for e in g.of_type("messages")
               if e.t == "researcher" and e.v == "question"}
-    assert askers == {"terminologist", "architect", "gatekeeper", "developer", "tester"}
+    assert askers == {"terminologist", "architect", "vision_keeper", "developer", "tester"}
     assert "critic" not in askers and "liaison" not in askers
 
 

@@ -30,7 +30,7 @@ def g():
 
 def test_batches_have_exactly_one_writer(g):
     """
-    Gatekeeper wrote priority onto batches, so batches had two writers and law 1
+    Vision Keeper wrote priority onto batches, so batches had two writers and law 1
     held only in the weaker per-row reading. Moving priority to the item — which
     is what the principal actually ordered — makes the strong reading true.
     """
@@ -52,7 +52,7 @@ def test_prioritizing_is_not_an_amendment(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
                "approval_ver, version) "
                "VALUES ('i1','x','in_scope','decided','approved',1,1)")
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("problem.prioritize", id="i1", priority=5)
 
     write = sb.ctx.writes[-1]
@@ -160,7 +160,7 @@ def test_a_decision_resolves_its_ledger_entry_in_the_same_commit(db):
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, author) "
                "VALUES ('l1','i1','items','assumed soft delete','developer')")
 
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("decisions.author", id="d1", text="soft delete it is",
             resolves_ledger="l1")
 
@@ -171,7 +171,7 @@ def test_a_decision_resolves_its_ledger_entry_in_the_same_commit(db):
 
 
 def test_a_decision_without_a_ledger_ref_touches_no_ledger(db):
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("decisions.author", id="d1", text="just a decision")
     assert {w[0] for w in sb.ctx.writes} == {"decisions"}
 
@@ -230,7 +230,7 @@ def test_everyone_who_writes_decided_can_author_the_reason(g):
     """
     for role, artefact in (("terminologist", "glossary"),
                            ("architect", "model"),
-                           ("gatekeeper", "problem")):
+                           ("vision_keeper", "problem")):
         assert artefact in g.write_set(role)
         assert "decisions" in g.write_set(role), \
             f"{role} writes `decided` rows into {artefact} and cannot say why"

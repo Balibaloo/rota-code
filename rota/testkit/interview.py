@@ -26,7 +26,7 @@ interview and the record is evidence, and it is the cheap way to find a case
 that was never possible to pass.
 
 The expectation is withheld on purpose. Told "you should have challenged the
-Gatekeeper", a model reliably answers "yes, and I lacked X" -- for any X. Ask
+Vision Keeper", a model reliably answers "yes, and I lacked X" -- for any X. Ask
 first, disclose second, and only the first answer counts.
 """
 from __future__ import annotations
@@ -51,7 +51,7 @@ QUESTIONS = [
     # read against the call log instead.
     "Name the functions you called, and any you considered and decided against.",
     # Kept, and the least reliable of the four -- but where it is right it is
-    # worth all the others: it is the question that found a Gatekeeper unable to
+    # worth all the others: it is the question that found a Vision Keeper unable to
     # reach what the principal said, which no assertion in the suite reports.
     "Was there anything you needed in order to decide, and could not find? "
     "Name it, or say `nothing`.",

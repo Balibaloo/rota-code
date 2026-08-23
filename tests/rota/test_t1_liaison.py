@@ -161,7 +161,7 @@ def test_i3_harvest_dedupes_and_traces(db, backend, dev_db):
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
                "text, status) VALUES ('s1','u1',0,29,'let people close their account','ratified')")
 
-    inject(db, "r1", "gatekeeper", "liaison", "report", ["s1"], 1)
+    inject(db, "r1", "vision_keeper", "liaison", "report", ["s1"], 1)
     inject(db, "r2", "terminologist", "liaison", "report", ["s1"], 2)
     inject(db, "r3", "architect", "liaison", "report", ["s1"], 3)
     db.execute("UPDATE messages SET status='answered' WHERE id IN ('r2','r3')")
@@ -217,7 +217,7 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
 
     sent = messages_from(db, "liaison")
     briefed = {m["to_role"] for m in sent if m["verb"] == "brief"}
-    if briefed != {"gatekeeper", "terminologist", "architect"}:
+    if briefed != {"vision_keeper", "terminologist", "architect"}:
         problems.append(f"broadcast reached {briefed or 'nobody'}, expected all three")
     if any(m["verb"] == "clarify" for m in sent):
         problems.append("invented a question with no report to justify it")
@@ -239,7 +239,7 @@ def test_i4_readonly_writes_nothing_and_bumps_nothing(db, backend, dev_db):
     db.execute("INSERT INTO checkpoints (session_id, role, working_set, valid) "
                "VALUES ('s_dev','developer','[]',1)")
     db.execute("INSERT INTO artefact_versions (table_name, version) VALUES ('items', 3)")
-    inject(db, "m1", "gatekeeper", "liaison", "answer", ["i1"])
+    inject(db, "m1", "vision_keeper", "liaison", "answer", ["i1"])
 
     before = {r["table_name"]: r["version"] for r in
               db.execute("SELECT table_name, version FROM artefact_versions")}

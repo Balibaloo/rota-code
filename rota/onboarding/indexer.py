@@ -63,7 +63,7 @@ def _parser(language: str):
 @dataclass
 class FileFacts:
     path: str
-    symbols: list[str] = field(default_factory=list)
+    symbols: list[tuple[str, str]] = field(default_factory=list)   # (name, kind)
     imports: list[str] = field(default_factory=list)
 
 
@@ -121,7 +121,9 @@ def parse_file(path: str, source: bytes, lang: Language) -> FileFacts:
         if node.type in lang.definitions:
             name = node.child_by_field_name("name")
             if name is not None:
-                facts.symbols.append(_text(name, source))
+                from .languages import kind_of
+
+                facts.symbols.append((_text(name, source), kind_of(node.type)))
             # Do not descend: a method inside a class is the class's business,
             # and indexing every nested closure turns the index into the parse
             # tree with extra steps.
@@ -395,10 +397,10 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
         conn.execute(
             "INSERT INTO code_index (grain, grain_kind, fan_in) VALUES (?, 'path', ?)",
             (f.path, fan_in.get(f.path, 0)))
-        for symbol in f.symbols:
+        for symbol, kind in f.symbols:
             conn.execute(
-                "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in) "
-                "VALUES (?, 'symbol', 0)", (f"{f.path}::{symbol}",))
+                "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in, sym_kind) "
+                "VALUES (?, 'symbol', 0, ?)", (f"{f.path}::{symbol}", kind))
             report.symbols += 1
     conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
                      sorted(edges))

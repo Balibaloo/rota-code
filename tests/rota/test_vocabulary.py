@@ -107,7 +107,9 @@ def test_the_laws_name_every_role():
     from rota.design import graph as graph_mod
 
     laws = (paths.PACKAGE / "LAWS.md").read_text(encoding="utf-8").lower()
-    missing = [r for r in graph_mod.load().roles if r not in laws]
+    # A role id may be two words; the laws write "Vision Keeper", not the id.
+    missing = [r for r in graph_mod.load().roles
+               if r not in laws and r.replace("_", " ") not in laws]
     assert not missing, f"a role the laws never mention: {missing}"
 
 
@@ -121,6 +123,7 @@ def test_the_laws_carry_no_legacy_names():
     from rota import paths
 
     laws = (paths.PACKAGE / "LAWS.md").read_text(encoding="utf-8")
-    found = re.findall(r"\b(client|interface|vision|domain|utterance|non_goal)\b",
-                       laws, re.I)
+    # `vision` alone is the legacy name; "Vision Keeper" is the current one.
+    found = re.findall(r"\b(client|interface|vision(?![ _]keeper)|domain|"
+                       r"utterance|non_goal)\b", laws, re.I)
     assert not found, f"legacy vocabulary in LAWS.md: {sorted(set(found))}"

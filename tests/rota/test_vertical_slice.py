@@ -82,7 +82,10 @@ def _matches(key: str, system: str, user: str) -> bool:
     import re
 
     role, _, mode = key.partition(":")
-    if f"You are {role}" not in system:
+    # A role id may contain an underscore; the prompt says the name with a
+    # space ("You are Vision Keeper." in the brief, "You are vision keeper."
+    # in the runner's line), so the check is space- and case-normalised.
+    if f"you are {role.replace('_', ' ')}" not in system.lower():
         return False
     return not mode or bool(re.search(rf"MODE: {re.escape(mode)}\b", system))
 
@@ -100,26 +103,26 @@ def test_understanding_loop_scripted(db):
         ],
         "liaison:verdict": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+            "TOOL: msg.deliver_vision_keeper(refs=['s1'])",
             "TOOL: msg.deliver_terminologist(refs=['s1'])",
             "TOOL: msg.deliver_architect(refs=['s1'])",
         ],
-        "gatekeeper:deliver": [
+        "vision_keeper:deliver": [
             "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
         ],
-        "gatekeeper:signoff": [
+        "vision_keeper:signoff": [
             "TOOL: msg.submit_liaison(refs=['i1'])",
         ],
         "liaison:submit": [
             "TOOL: msg.present_principal(refs=['i1'])",
         ],
         "liaison:verdict_signoff": [
-            "TOOL: msg.relay_gatekeeper(refs=['i1'])",
+            "TOOL: msg.relay_vision_keeper(refs=['i1'])",
         ],
-        "gatekeeper:relay": [
+        "vision_keeper:relay": [
             "TOOL: problem.set_approval(id='i1', approval='approved')",
         ],
-        "gatekeeper:slicing": [
+        "vision_keeper:slicing": [
             "TOOL: tickets.slice(id='tk1', item_id='i1', text='add a delete button')",
         ],
         "terminologist:criteria": [
@@ -143,7 +146,7 @@ def test_understanding_loop_scripted(db):
             "TOOL: tests.encode(id='tst1', batch_id='b1', criterion_id='c1', "
             "path='test_delete.py', body='assert tombstoned(account)')",
         ],
-        "gatekeeper": [""],
+        "vision_keeper": [""],
         "architect": [""],
         "tester": [""],
         "critic": [""],
@@ -194,9 +197,9 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
         ],
         "liaison:verdict": [
             "TOOL: brief.ratify(id='s1')",
-            "TOOL: msg.deliver_gatekeeper(refs=['s1'])",
+            "TOOL: msg.deliver_vision_keeper(refs=['s1'])",
         ],
-        "gatekeeper": [""],
+        "vision_keeper": [""],
         "terminologist": [""],
         "architect": [""],
     })
@@ -225,7 +228,7 @@ def test_gate_pauses_the_loop_and_the_principal_resumes_it(db):
 
 def test_loop_is_idempotent_when_quiescent(db):
     """Turning the crank on a settled system must not invent work."""
-    backend = RoleScript({"liaison:converse": [""], "gatekeeper": [""]})
+    backend = RoleScript({"liaison:converse": [""], "vision_keeper": [""]})
     loop.run(db, backend=backend, pins=Pins(model="scripted"), max_steps=5)
 
     before = db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"]

@@ -70,7 +70,7 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             values=("auto", "review")),
 
     Setting("contest_defences", 1,
-            "How many times Gatekeeper may defend a contested item with a "
+            "How many times Vision Keeper may defend a contested item with a "
             "decision before it must amend instead. One, by default: the "
             "principal contested it, and arguing twice is not a dialogue."),
 
@@ -123,6 +123,42 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "area two of twelve. Worse than a dead end, which at least reports "
             "quiescence. The counter resets the moment the wake stops being "
             "produced, so a loop that is making progress is never touched."),
+
+    Setting("orient_prose", "off",
+            "Whether the orientation's front includes the README. Off, the "
+            "account is written from code, schema and manifest alone and the "
+            "README is read afterwards, against it, by the reconcile phase -- "
+            "prose is a check, not a source. 'on' restores the old front for "
+            "comparison runs.",
+            values=("on", "off")),
+
+    Setting("onboarding_phases", "orient,reconcile,define,survey",
+            "Which understanding phases an onboarding runs, in order: orient "
+            "(Vision Keeper, the whole program, from code alone), reconcile "
+            "(Vision Keeper, the README read against the account, differences "
+            "to the ledger), define "
+            "(Terminologist, one word at a time from the project's own lexicon), "
+            "survey (the per-area passes, Terminologist then Architect). Strict: "
+            "each phase is written with the previous one's artefact in front of "
+            "it. 'survey' alone is the pre-orientation design, kept for "
+            "measuring one phase against another."),
+
+    Setting("define_terms", 20,
+            "How many words the define phase owes, taken from the top of the "
+            "lexicon with the orientation's words promoted. A budget, not a "
+            "judgement: the per-area pass still finds an area's own words, and "
+            "a word the lexicon ranked below the fold is not lost, only not "
+            "asked for up front."),
+
+    Setting("prose_sources", "on",
+            "Whether sessions may be shown the repository's prose -- README, "
+            "docs/, CHANGELOG and the like. 'off' withholds them from every "
+            "context the harness assembles (the front, the concordance, the "
+            "area source) and from `code.source` itself, so an onboarding can "
+            "be measured on code, schema and manifest alone. A good README is "
+            "an easy way to look like understanding; the files stay indexed, "
+            "only unread.",
+            values=("on", "off")),
 
     Setting("run_state", "running",
             "running dispatches; stopping finishes what is running and "

@@ -19,6 +19,8 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+import json as _json
+
 import re
 
 import json
@@ -50,6 +52,16 @@ class Ctx:
     # argument for, so nothing was pushed and all three survey roles opened by
     # consulting their own artefact and stopping.
     area: str | None = None
+    # The rows this session was woken about, as the wake named them.
+    #
+    # `area` is the same idea for a survey: the scheduler decides the subject
+    # and the role never guesses it. `term_collision` had no equivalent, so the
+    # only place its subject appeared was the `Refs:` line -- and the line above
+    # it reads "You were woken by: tick:term_collision". Measured on `cnt_q`: a
+    # session woken for `['template', 'template#src_intents', ...]` called
+    # `glossary.synthesise(ids=['tick', 'tock'], sense_short='a unit of time')`.
+    # It defined `tick`, off the wake kind, forty-two times.
+    wake_refs: tuple = ()
     entry_id: str | None = None
     writes: list = None          # populated by the sandbox; committed atomically
     outbound: list = None        # messages staged this session
@@ -71,6 +83,25 @@ class Ctx:
     # produced `intent: a specific action or goal` on a plugin where an intent
     # is a note-creation recipe declared in frontmatter.
     read_words: set = None
+    # The identifiers and paths this session has actually been shown --
+    # `intents_to`, `TemplateVariableType`, `src/intents/index.ts` -- as the
+    # code spells them. `read_words` is the decomposed vocabulary; this is the
+    # other grain, for the one check that needs it: a definition saying *where*
+    # a word is written down has to name a place that was in front of it.
+    read_idents: set = None
+    # Calls this session made that were refused: (label, reason). The session
+    # already knows; nothing asked it. `surveys.attest` needs it to tell "wrote
+    # nothing because there was nothing" from "wrote nothing because the
+    # write was refused" -- the first is `none_found`, the second is not a
+    # result at all and must not close the subject.
+    refusals: list = None
+    # What the concordance found settles the word, for the define guard:
+    # {"enum": name, "siblings": [...], "members": [...], "options": [...]}.
+    # A word the code declares as a member of an enum is defined by that enum
+    # and its siblings; an enum is defined by its members; an option a user
+    # writes is defined among the other options. The session was shown these
+    # and the guard asks that the sense carry at least one of them.
+    kind_facts: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -83,6 +114,12 @@ class Ctx:
             self.read_words = set()
         if self.lookup_misses is None:
             self.lookup_misses = set()
+        if self.read_idents is None:
+            self.read_idents = set()
+        if self.refusals is None:
+            self.refusals = []
+        if self.kind_facts is None:
+            self.kind_facts = {}
 
 
 def op(artefact: str, verb: str):
@@ -151,7 +188,7 @@ def _must_exist(ctx: "Ctx", table: str, id: str) -> None:
     as recoverable as a bad enum, and both should come back as tool errors the
     model can correct on its next turn.
 
-    Found by L1: a Gatekeeper session ruled on an item id it had invented, and
+    Found by L1: a Vision Keeper session ruled on an item id it had invented, and
     the whole session was lost instead of one call.
     """
     hit = ctx.conn.execute(
@@ -305,6 +342,51 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             f"this says {kind}. Those are the two answers this call chooses "
             f"between, so both is not an answer; decide, and send the one")
 
+    # An item named after a grain is a sentence about that grain.
+    #
+    # `items.yaml` in the cnt key states the test an item passes -- "it says
+    # something about the product that a reader could act on, and it would still
+    # be true if every identifier were renamed" -- and warns about the failure
+    # by name: "A sentence about a function is not an item." The vision_keeper
+    # brief says the same thing in its own words, that a behaviour composed from
+    # names is a guess wearing an observation's provenance. Prose, and nothing
+    # held it.
+    #
+    # Measured on `cnt_i`, the first run in nine to reach this role at all: of
+    # eight items, `id='src/variables/index.ts'` and `id='getRelativePath'`
+    # ("Returns the relative path of a given path"). Both are grains. The other
+    # six -- `release_workflow`, `settings_behaviour`, `intent-processing` --
+    # are not, and all six are about the product.
+    #
+    # The id is the check because the id is where it shows. Renaming does not
+    # catch it: rename `getRelativePath` to anything and "returns the relative
+    # path" stays true, which is exactly why it says nothing about this product.
+    # Naming the item after the code is the tell.
+    if ctx.conn.execute(
+            "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+            (id, f"%::{id}")).fetchone():
+        raise ValueError(
+            f"{id!r} is a grain in the index, so this is a sentence about a "
+            f"file or a function. An item says what the *product* does -- one a "
+            f"reader could act on, still true if every identifier in the "
+            f"repository were renamed. `release_workflow` and "
+            f"`settings_behaviour` are items; `getRelativePath` is a signature. "
+            f"Name the behaviour, not the code you found it in.")
+
+    # The same sentence under a second id is the same item. The no-prose
+    # orientation wrote its five behaviours on turn one and wrote them again
+    # on turn two as `user_writes_intents`, `program_reads_intents`, ... --
+    # ten items, five of them. Restating costs nothing and is not refused;
+    # it is answered with the id the item already has.
+    norm = " ".join(_words_in(text))
+    if norm:
+        for t, i, vals, *_ in ctx.writes:
+            if t == "items" and i != id and " ".join(_words_in(vals.get("text") or "")) == norm:
+                return {"id": i, "note": f"already an item as {i!r}; not written twice"}
+        for r in ctx.conn.execute("SELECT id, text FROM items WHERE id <> ?", (id,)):
+            if " ".join(_words_in(r["text"] or "")) == norm:
+                return {"id": r["id"], "note": f"already an item as {r['id']!r}; not written twice"}
+
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
         "approval": "draft"}))
@@ -344,7 +426,7 @@ def problem_consult(ctx: Ctx) -> list[dict]:
 
     `from_statements` is part of this artefact -- `problem` is
     `("items", "item_statements")` -- and was the half nothing returned. An
-    item is a reading of something the principal said, and a Gatekeeper woken
+    item is a reading of something the principal said, and a Vision Keeper woken
     on a contested one is told by its brief to `transcript.quote` what they
     actually said. It holds one id, the item's. An exit interview put it
     plainly: "I needed to know what the principal said they meant instead, but
@@ -366,12 +448,44 @@ def problem_consult(ctx: Ctx) -> list[dict]:
     return rows
 
 
+@op("problem", "baseline")
+def problem_baseline(ctx: Ctx) -> list[dict]:
+    """
+    What the program does, as observed: the orientation, whole.
+
+    The define and survey phases are written with this in front of them, and
+    it is the one context that measurably displaces the everyday reading of a
+    word -- handed the call trace, the model kept "an intent is a user's goal";
+    handed the account of what the program does for its user, it wrote "a
+    recipe for making a note". `problem.consult` is the index line, cut at 120
+    characters, and an account cut in half is not an account.
+
+    A query, not the artefact: observed items only, which during onboarding is
+    the baseline the Vision Keeper wrote from the program's front and during
+    delivery is the part of the model that was found rather than decided.
+    Non-owners read it whole because it is the phase's output being handed to
+    the next phase, which is what "shared state must be artefacts" is for.
+    """
+    return _rows(ctx.conn.execute(
+        "SELECT id, text FROM items WHERE provenance = 'observed' "
+        "AND kind = 'in_scope' ORDER BY id"))
+
+
 # ---------------------------------------------------------------------------
 # glossary
 # ---------------------------------------------------------------------------
 
 def _slug_of(term: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", (term or "").strip().lower()).strip("_")
+
+
+def _singular(slug: str) -> str:
+    """`intents` -> `intent`, by the rule `_words_in` already uses on identifiers."""
+    if slug.endswith("ies") and len(slug) > 5:
+        return slug[:-3] + "y"
+    if slug.endswith("s") and not slug.endswith("ss") and len(slug) > 4:
+        return slug[:-1]
+    return slug
 
 
 def _same_sense(text: str) -> str:
@@ -444,6 +558,12 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
     """
     import re
 
+    # `filteredOpenerApiGetListOfNoteFilterSets#src` -- a row *id* echoed back
+    # as a term, because `[glossary.consult]` prints ids and a second-area row
+    # is `word#area`. The id is derived and never the role's to write; the
+    # word is what precedes the `#`.
+    if "#" in term:
+        term = term.split("#", 1)[0]
     slug = re.sub(r"[^a-z0-9]+", "_", term.strip().lower()).strip("_")
     if not slug:
         raise ValueError("a term needs a word in it")
@@ -491,7 +611,154 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
     # and from the same decomposition `code.vocabulary` ranks by, so the block
     # cannot offer a word this then refuses. Opening one file and defining eight
     # words off it is the shape this stops.
-    seen = getattr(ctx, "read_words", None)
+    # The frame is not vocabulary, and the read gate said so in the wrong words.
+    #
+    # `d`'s brief asks for "the words your account needed", and the account is
+    # written in the frame's words because the prompt is: "MODE: survey — this
+    # area's code", "what this area does". Measured on `cnt_k`, all three
+    # sessions on `.github` opened with *"This area appears to be a survey of
+    # the `.github` directory"* and then tried to define `survey` and `area`.
+    #
+    # The read gate refused them — correctly, and with "nothing you read this
+    # session says 'survey'", which is true and reads as *read more*. So they
+    # read more, tried again, and the area was quarantined on the third attempt
+    # having produced one term. `.github` legitimately has almost no project
+    # vocabulary and `none_found` was the right ending the whole time.
+    #
+    # Same refusal, said as what it is, and pointing at the ending that was
+    # available. `_FRAME_WORDS` is the list already earned by `sense=`.
+    # The subject of a define session is one word, decided by the scheduler.
+    #
+    # The wake names the word; the session defines it. A session that defines
+    # some other word has done a different session's work and left its own
+    # undone -- the wake fires again, and the word it wrote is one nobody
+    # asked for, which is how off-key entries arrive. The common honest case
+    # is a spelling: woken for `template variable type` the model writes
+    # `TemplateVariableType`, the project's own spelling of the same words,
+    # and that is filed under the word the wake named, with a note.
+    from ..core.scheduler import is_area, term_of
+
+    subject = term_of(ctx.area) if ctx.area else ""
+    if subject:
+        same = (_singular(slug) == _singular(_slug_of(subject))
+                or (set(_words_in(term)) and
+                    set(_words_in(term)) == set(_words_in(subject))))
+        if not same:
+            raise ValueError(
+                f"this session is about {subject!r} and nothing else; "
+                f"{term!r} is not that word. Define {subject!r} from the "
+                f"concordance, or `surveys.attest(outcome='none_found')` if "
+                f"this project means nothing of its own by it.")
+        if slug != _slug_of(subject):
+            filed_under = subject
+            term, slug = subject, _slug_of(subject)
+        else:
+            filed_under = ""
+        # A definition says where the word is written down, by name. Every
+        # entry the answer key holds does -- `intents_to`, `with_prompts`,
+        # `of_type`, a file -- and every generic entry a define session has
+        # produced does not: "a note's purpose or goal", "a category of note
+        # organization", "a type used to create notes based on user input".
+        # The brief asks for it in prose and prose was inert, so the sense has
+        # to name at least one identifier or path the concordance actually
+        # showed. Not *which* -- a list of candidates in a refusal is the list
+        # that gets transcribed -- only that one is named, spelled as the code
+        # spells it.
+        named = _idents_in(f"{sense_body} {sense_short}")
+        placed = bool(named & ctx.read_idents) if ctx.read_idents else True
+        # A file stem the concordance showed counts as a place: "declared in
+        # the settings module" names `settings.ts` as surely as the path does,
+        # and the model writes the word far more often than the path.
+        if not placed:
+            stems = {i.rsplit("/", 1)[-1].split(".")[0] for i in ctx.read_idents
+                     if "/" in i or "." in i}
+            placed = bool(set(_words_in(f"{sense_body} {sense_short}"))
+                          & {w for st in stems for w in _words_in(st)} - set(_words_in(term)))
+        already = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+                      if fn == "glossary.amend" and "written down" in why)
+        if not placed and not already:
+            # Once. Measured: refused, the session opened the declaring file --
+            # the nudge works that far -- and then re-sent the same sense for
+            # eleven turns. A gate this model cannot satisfy is a loop that
+            # loses the word; a flag it can read is a note on the row.
+            raise ValueError(
+                f"{term!r} is defined without saying where it is written "
+                f"down. Name the key a user writes, or the type or file the "
+                f"code declares, as the concordance spells it -- a sense that "
+                f"names no place in this project is a sense from somewhere "
+                f"else.")
+        unplaced = not placed
+        # A kind is defined by its kind. The concordance showed the session
+        # that `note` is a member of `TemplateVariableType` beside `text`,
+        # `number`, `natural_date` and `folder`, and an option of `of_type`
+        # among the same five -- and the sense came back "a piece of
+        # information to be stored". Measured on every run: the model read
+        # the settling lines and summarised them away. So a sense for a word
+        # the code declares as a kind has to carry the kind or a sibling, and
+        # the sense of an enum has to name its members. Once, then flagged,
+        # like every other guard here.
+        facts = getattr(ctx, "kind_facts", None) or {}
+        said = f"{sense_body} {sense_short}".lower()
+        said_words = set(_words_in(said))
+        unkinded = False
+        def _names(m: str) -> bool:
+            low = m.lower()
+            return (low in said or low.replace("_", " ") in said
+                    or (len(_words_in(m)) > 1 and set(_words_in(m)) <= said_words))
+
+        if facts.get("members"):
+            named_members = [m for m in facts["members"] if _names(m)]
+            # All of them when there are few: "the five kinds a prompt may be"
+            # is the sense of `TemplateVariableType`, and a sense that names
+            # two of five has named a sample.
+            want_n = len(facts["members"]) if len(facts["members"]) <= 8 else 2
+            unkinded = len(named_members) < want_n
+            ask = (f"name its members -- it is an enumeration of "
+                   f"{len(facts['members'])}, and its members are what it means")
+        elif facts.get("enum") or facts.get("options"):
+            enum_words = set(_words_in(facts.get("enum") or ""))
+            kin = [m for m in (facts.get("siblings") or []) + (facts.get("options") or [])
+                   if _names(m)]
+            unkinded = not ((enum_words and enum_words <= said_words) or kin)
+            ask = (f"say what it is one of -- the kind the code declares it a member "
+                   f"of, and at least one of the other kinds beside it")
+        already_kind = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+                           if fn == "glossary.amend" and "one of" in why)
+        if unkinded and not already_kind:
+            raise ValueError(
+                f"{term!r} is a kind here, and the sense does not say so. "
+                f"The concordance shows it declared as one of several; {ask}. A "
+                f"sense that could be written without that is the everyday "
+                f"word, not this project's.")
+    else:
+        filed_under = ""
+        unplaced = False
+        unkinded = False
+
+    if slug in _FRAME_WORDS:
+        raise ValueError(
+            f"{term!r} is the frame you were woken in, not something this "
+            f"project means by it — every repository would have the same entry, "
+            f"which is the test a definition has to fail. Define what the code "
+            f"calls its own things, and if this area names none, "
+            f"`surveys.attest(outcome='none_found')` is a real answer and often "
+            f"the right one.")
+
+    # Only where there is code to have read. The gate was built for survey mode
+    # -- "against the words actually read rather than against reading in
+    # general" -- and fired in every mode, including the ones with no codebase
+    # in front of them at all.
+    #
+    # `deliver` wakes the Terminologist on a ratified statement: "let users
+    # delete their account", and the job is to say what `delete` means here. The
+    # evidence is the statement, and there is nothing to `code.source`. Measured
+    # on `L1-TE-amend-glossary`, 0 of 5 runs, every one refused with "nothing you
+    # read this session says 'delete'" after producing a correct call. The case
+    # had been stale since before today, so nothing reported it.
+    #
+    # `area` is the discriminator the context already carries: set by the
+    # scheduler for a survey, `None` for every other mode.
+    seen = getattr(ctx, "read_words", None) if ctx.area else None
     if seen is not None and slug.replace("_", " ") not in " ".join(seen):
         if _words_in(term) and not (set(_words_in(term)) & set(seen)):
             raise ValueError(
@@ -504,7 +771,111 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                 + (f" You have opened {sorted(ctx.opened)[:2]}."
                    if ctx.opened else " You have opened nothing."))
 
-    id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', sense.strip().lower())}" if sense else slug
+    # A tag that slugifies to nothing is not a tag. Both branches below build
+    # the id as `slug#tag`, and both could produce a bare trailing `#`:
+    # `sense="  "` here, and area `.` -- the root area, which every repository
+    # has -- in the area branch. Measured on cnt: `intent#`, which the session
+    # then spent a whole `term_collision` wake failing to name. It looked the id
+    # up as a *term* twice, called `glossary.same(keep='both')`, and reported to
+    # the Liaison. An id nobody can type is an id nobody can discharge.
+    # A plural is the same word. The id derivation promises that writing a word
+    # twice amends it -- "accidental duplication is impossible", earned on
+    # oauthlib where twelve sessions wrote `endpoint` five times -- and it was
+    # never true across a plural, because the slug is not stemmed while
+    # `_words_in` is.
+    #
+    # Measured on `cnt_l`: the session for `src/intents`, the area that declares
+    # what an Intent *is*, wrote `intents`, `templates` and `variables`. Three
+    # new rows beside `intent`, `template` and `variable`, saying the same
+    # things in the same words about the same code, and three of the eight
+    # terms that run wrote which are not in the key at all are exactly these.
+    #
+    # Only when the singular is already there. This does not decide that English
+    # plurals are never distinct -- it declines to create a second row for one
+    # when the first row exists, which is the same judgement the derivation
+    # already makes for `Endpoint` and `endpoint`.
+    # Either order. The first version mapped plural onto singular and only that,
+    # so it depended on which spelling arrived first: `cnt_n`'s `src/intents`
+    # session wrote `variables` before `variable`, there was no `variable` row to
+    # amend, and both landed — with the same `sense_short`, "data types for
+    # storing values in intents", in the same area, from the same reading.
+    #
+    # So the match is on the singular *family*, and the row that already exists
+    # keeps its spelling whichever one it is. First writer names the word; the
+    # second amends it.
+    pending = {w[1] for w in ctx.writes if w[0] == "glossary_terms"}
+    if slug not in pending:
+        stem = _singular(slug)
+        kin = [i for i in pending if _singular(i) == stem and "#" not in i]
+        kin += [r["id"] for r in ctx.conn.execute(
+            "SELECT id FROM glossary_terms WHERE id IN (?, ?)", (stem, stem + "s"))
+            if r["id"] not in kin]
+        if kin:
+            slug = kin[0]
+
+    ignored_sense = ""
+    # A define session writes the first entry for its word, over the whole
+    # program. There is no second sense to name yet, so a `sense=` here is the
+    # escape hatch paid by accident -- measured on the first run of the phase:
+    # `prompt#category`, `provider#category`, the word "category" being the
+    # most available noun in a brief that says "a category and not a
+    # meaning". Ignored, with a note, the same way a malformed tag is.
+    if sense and subject:
+        ignored_sense = (f"`sense={sense!r}` ignored: this is the first entry "
+                         f"for {subject!r}, so there is no second sense to name.")
+        sense = ""
+    sense_tag = _slug_of(sense) if sense else ""
+    # `sense` names a meaning, and in twelve runs it has never once named one.
+    #
+    # Every non-empty value ever passed, counted across every cnt database:
+    # `area` x24, `code.area()` x5, `repository` x3, `data storage` x3,
+    # `survey` x2, `error` x1, plus three whole sentences that swallowed
+    # `, sense_body=` into themselves. Nine runs carry a row with a bogus tag --
+    # `workflow#code_area_`, `templates#area`, `templates#survey`,
+    # `github#repository`, `filteredopenermissingnotice#error`.
+    #
+    # They are all the same mistake and it is not carelessness: asked for a word
+    # naming which sense this is, a session reaches for the most available noun,
+    # and the most available nouns are the frame it was woken in and the tool it
+    # just called. The escape hatch has a zero percent correct-use rate, and it
+    # costs a real row and a real collision every time it is paid by accident.
+    #
+    # Shape, not vocabulary. A second sense is named in the project's words, in
+    # a word or two -- `nonce`'s `binding` against its replay guard. A tool call,
+    # the name of the mode, or a sentence is none of those.
+    id = f"{slug}#{sense_tag}" if sense_tag else slug
+
+    if sense_tag:
+        raw = sense.strip()
+        why_not = None
+        if "(" in raw or "." in raw:
+            why_not = (f"{raw!r} is a call, not a meaning")
+        elif len(_words_in(raw)) > 3 or len(raw) > 40:
+            why_not = (f"{raw!r} is an explanation, not a name for one -- that "
+                       f"belongs in `sense_body`")
+        elif ({slug, sense_tag} & (_FRAME_WORDS - _PROVENANCE_WORDS)):
+            why_not = (f"{raw!r} is a word from the frame you were woken in, "
+                       f"not something {term!r} means")
+        if why_not:
+            # Ignored, not refused. The first version of this raised, and the
+            # session could not act on it: `cnt_m`'s `.github` sessions sent
+            # `sense='survey'` and re-sent the identical call twelve times for
+            # `templates` and nine apiece for two more, landing nothing. The
+            # refusal ends with "drop `sense` and amend the entry you have" and
+            # the model does not drop it.
+            #
+            # Dropping it is always the right reading anyway. Across twelve runs
+            # `sense` has never once named a real second meaning, so a malformed
+            # one carries no information to preserve -- and with it gone the
+            # call is the plain amend it should have been. The duplicate-sense
+            # guard above and the area rule below still decide whether this is
+            # one row or two, which is the decision that actually matters.
+            #
+            # Said in the result rather than silently: a note the session can
+            # read, on a write that landed.
+            ignored_sense = f"`sense={sense!r}` ignored: {why_not}."
+            sense_tag = ""
+            id = slug          # the id was derived above; derive it again
 
     # A second sense must mean something the first does not. Compared on
     # `sense_short` because that is the line every downstream reader is shown --
@@ -535,6 +906,8 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                 f"*which meaning*, not where it came from: provenance is "
                 f"`observed` here without your saying so.)")
 
+
+
     # A second session saying something different about the same word is the
     # collision signal, and it was being thrown away as a duplicate.
     #
@@ -561,18 +934,240 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
     #
     # Which sense survives is not decided here and is not computable: see the
     # note on `glossary_terms.area`. Nothing wins silently is the whole change.
-    if not sense and ctx.area:
+    # A row with no area was written about the whole program, by the define
+    # phase, and an area session saying something different about the word
+    # is the same situation as two areas disagreeing -- a second row, never a
+    # replacement. The first version of this test read `prior["area"] and`,
+    # so a program-level row (area empty) was silently overwritten by the
+    # first area to say the word differently, which destroyed exactly the
+    # sense the define phase exists to write.
+    if not sense and is_area(ctx.area):
         prior = ctx.conn.execute(
-            "SELECT id, area, sense_short FROM glossary_terms "
+            "SELECT id, area, sense_short, sense_body FROM glossary_terms "
             "WHERE id = ? AND superseded_by IS NULL", (slug,)).fetchone()
-        if (prior and prior["area"] and prior["area"] != ctx.area
+        # A second sense says something the first does not. "In this area, a
+        # template variable type is a type of variable" beside "A type of
+        # variable" is the same reading in more words, and the root area wrote
+        # one of those for nearly every program-level word -- then two of them
+        # were raised to the principal as collisions. Content words, minus the
+        # term's own: if the new sense adds none, there is nothing to record.
+        if prior and (prior["area"] or "") != ctx.area:
+            own = set(_words_in(term))
+            new_words = set(_words_in(f"{sense_short} {sense_body}")) - own - _FRAME_WORDS
+            old_words = set(_words_in(
+                f"{prior['sense_short']} {prior['sense_body'] or ''}")) - own
+            if new_words and new_words <= old_words:
+                raise ValueError(
+                    f"{term!r} already means that: the glossary's entry says "
+                    f"everything this one does. A second sense is one the "
+                    f"glossary does not carry -- what this area means by the "
+                    f"word that the entry above does not say. If it means the "
+                    f"same here, there is nothing to record.")
+        if (prior and (prior["area"] or "") != ctx.area
                 and _same_sense(prior["sense_short"]) != _same_sense(sense_short)):
-            id = f"{slug}#{re.sub(r'[^a-z0-9]+', '_', ctx.area.lower()).strip('_')}"
+            # `root`, not the empty string: the root area is a real area and
+            # its second sense is a real second row, so it needs a name and
+            # cannot collapse back onto `slug`.
+            id = f"{slug}#{_slug_of(ctx.area) or 'root'}"
 
     ctx.writes.append(("glossary_terms", id, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
-        "provenance": ctx.provenance, "area": ctx.area or ""}))
-    return {"id": id}
+        "provenance": ctx.provenance,
+        # An area for a survey; nothing for a word defined over the whole
+        # program. `@term:x` is a subject, not a place the word was seen.
+        "area": ctx.area if is_area(ctx.area) else ""}))
+    out = {"id": id}
+    if ignored_sense:
+        out["note"] = ignored_sense
+    if filed_under:
+        out["note"] = ((out.get("note", "") + " ").strip() +
+                       f" filed under {filed_under!r}, the word this session "
+                       f"is about.").strip()
+    if unplaced:
+        out["note"] = ((out.get("note", "") + " ").strip() +
+                       " recorded, naming no place this project writes the "
+                       "word down; a reader will have to find one.").strip()
+    if subject and unkinded:
+        out["note"] = ((out.get("note", "") + " ").strip() +
+                       " recorded without naming the kind the code declares it "
+                       "one of; a reader will have to find that out.").strip()
+    return out
+
+
+@op("glossary", "synthesise")
+def glossary_synthesise(ctx: Ctx, ids: list[str], sense_short: str,
+                        sense_body: str) -> dict:
+    """
+    Several partial readings of one word, and the sense none of them holds.
+
+    The glossary had two relations between rows and needed three. Two senses
+    that differ are a *collision*, kept apart. One sense written twice is a
+    *duplicate*, collapsed by `glossary.same`. Neither describes what a survey
+    pass actually produces, which is N sessions each seeing the word in one
+    place and writing what it looked like from there:
+
+        intent               [src]            note with properties and templates
+        intent#src_intents   [src/intents]    custom actions in Obsidian
+        intent#src_variables [src/variables]  function or action in a plugin
+        intent#root          [.]              template with specific action
+
+    Not duplicates -- no two say the same thing. Not a collision -- there is one
+    intent in this codebase. Four fragments of one meaning, and the answer key's
+    sense, "a recipe for making a note, declared in another note's frontmatter
+    under `intents_to`", is in none of them and composable from all of them plus
+    `code.concordance`.
+
+    `glossary.same` cannot do this: it collapses onto a row that already exists,
+    and the sense being written here exists nowhere yet. That is the whole
+    difference between choosing among readings and writing the reading.
+
+    **Superseded, never deleted**, on the same argument as `glossary.same`: the
+    partials stay readable and the composition stays reversible, because it is a
+    judgement being delegated to a session that cannot be checked mechanically.
+
+    No argument is required for it. `glossary.same` asks the session to say why
+    two senses are the same and the model demonstrably cannot -- five runs of
+    `different provenance`, `same sense`, `same term`. What is checked here is
+    the shape of the result, not the quality of a justification: more than one
+    row, one family, and a sense that is not simply one of the partials picked.
+    """
+    if len(set(ids)) < 2:
+        raise ValueError(
+            "synthesis composes more than one reading. One row is an amendment "
+            "-- `glossary.amend` -- and this is for the several partial senses "
+            "the wake put in front of you.")
+
+    # The rows the wake named, or a refusal that says what they were.
+    #
+    # `cnt_q` answered `ids=['tick','tock']` -- words off the wake *kind*, not
+    # the wake's refs -- and got "is not a glossary id", which is true and does
+    # not say which ids were. Same shape as the fix in `glossary.same`: name the
+    # set, do not merely reject the guess.
+    if ctx.wake_refs and not set(ids) <= set(ctx.wake_refs):
+        raise ValueError(
+            f"{sorted(set(ids) - set(ctx.wake_refs))} is not among the rows you "
+            f"were woken about. Those are {list(ctx.wake_refs)}, and they are "
+            f"the readings this session exists to compose.")
+
+    rows = {r["id"]: r for r in ctx.conn.execute(
+        "SELECT id, term, sense_short, sense_body, provenance, source_refs, "
+        "area, superseded_by FROM glossary_terms "
+        f"WHERE id IN ({','.join('?' * len(set(ids)))})", tuple(set(ids)))}
+    missing = [i for i in set(ids) if i not in rows]
+    if missing:
+        raise ValueError(
+            f"{missing} is not a glossary id. The ids are the ones the wake "
+            f"named, spelled as they were given.")
+
+    fams = {i.split("#")[0] for i in rows}
+    if len(fams) > 1:
+        raise ValueError(
+            f"{sorted(fams)} are different words. Synthesis writes one sense of "
+            f"one word from the readings of it; two words are two entries.")
+
+    if not (sense_short or "").strip() or not (sense_body or "").strip():
+        raise ValueError(
+            "a synthesised sense needs both: `sense_body` is what the readings "
+            "add up to, `sense_short` the one line every later reader is shown.")
+
+    same_as = next((i for i, r in rows.items()
+                    if _same_sense(r["sense_short"]) == _same_sense(sense_short)),
+                   None)
+    if same_as:
+        raise ValueError(
+            f"that is {same_as!r} again, word for word. Synthesis is for the "
+            f"sense the readings add up to and none of them states. If one of "
+            f"them is simply right and the others say the same thing in other "
+            f"words, `glossary.same` is the call.")
+
+    keep = sorted(fams)[0]
+
+    # It has to say something the readings do not.
+    #
+    # A sense composed only from the readings is a summary of them, and summing
+    # partial views generalises: measured on `cnt_r`, the first run where this
+    # verb worked at all, all three results were the readings welded together.
+    #
+    #   templates <- 3   "customizable note or document structure"
+    #   intent    <- 2   "template or instruction for organizing and processing notes"
+    #   variable  <- 1   "template placeholder or variable used in templates"
+    #
+    # `templates` is arguably worse than one of its own partials ("Pre-defined
+    # template for generating new notes") and `variable` is circular. None of
+    # the three contains one word from the concordance that was pushed into the
+    # prompt beside them.
+    #
+    # Checkable, unlike the argument `glossary.same` asks for: the concordance
+    # holds 53 content words for `intent` and the readings hold 26, so 47 are
+    # available. The produced sense brings in none of them; the answer key's --
+    # "a recipe for making a note, declared in another note's frontmatter under
+    # `intents_to`" -- brings in `declared`, `frontmatter`, `intent`.
+    #
+    # The refusal names none of the candidates. `cnt_o` put a list of grains in
+    # an error message and the session defined the list; a list of words a sense
+    # could contain is the same act with the same outcome.
+    said = set()
+    for r in rows.values():
+        said |= set(_words_in(f"{r['sense_short']} {r['sense_body'] or ''}"))
+    # Gated on there being an index, not wrapped in `except Exception`. The
+    # first version swallowed everything, and what it swallowed was an
+    # `AttributeError` from a context missing `batch_id` -- so the guard was
+    # silently off and its own test passed by not raising. A check that
+    # disables itself on any error is the failure this file keeps finding.
+    indexed = ctx.conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone()
+    evidence = (set(_words_in(code_concordance(ctx, term=keep)["where"]))
+                if indexed else set())
+    summary_only = False
+    if evidence:
+        brought = set(_words_in(f"{sense_short} {sense_body}")) & (evidence - said)
+        asked = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+                    if fn == "glossary.synthesise" and "nothing the readings" in why)
+        # Once. Two collision sessions re-sent a summary twelve times each
+        # against this refusal; the second attempt lands, flagged, like every
+        # other guard here -- a composition that adds nothing is still one
+        # row where there were three, and the flag says what it is.
+        if not brought and not asked:
+            raise ValueError(
+                "that says nothing the readings did not already say -- it is a "
+                "summary of them, and summing partial views of a word gives a "
+                "vaguer word, not a truer one. The readings are where it is "
+                "used; `[code.concordance]` is what it *is* -- where the "
+                "project declares it and what happens to it. A synthesised "
+                "sense has to carry something only that could tell you.")
+        summary_only = not brought
+
+    term = rows.get(keep, next(iter(rows.values())))["term"]
+    # Composed from observed readings is still observed.
+    #
+    # `ctx.provenance` is `observed` only on a `tick:survey` wake and `decided`
+    # everywhere else, this mode included -- so a synthesised sense would arrive
+    # claiming someone chose it with the reason on file. Nobody did: it was
+    # assembled from rows that were themselves found in the code, plus the
+    # concordance. Law 11 splits these on *found not chosen*, and this is found.
+    #
+    # Taken from the readings rather than asserted, so a synthesis over anything
+    # decided stays decided.
+    provenance = ("decided" if any(r["provenance"] == "decided"
+                                   for r in rows.values()) else "observed")
+    ctx.writes.append(("glossary_terms", keep, {
+        "term": term, "sense_short": sense_short, "sense_body": sense_body,
+        "provenance": provenance,
+        "area": rows[keep]["area"] if keep in rows else "",
+        "superseded_by": None}))
+    for i, r in rows.items():
+        if i == keep or r["superseded_by"]:
+            continue
+        ctx.writes.append(("glossary_terms", i, {
+            "term": r["term"], "sense_short": r["sense_short"],
+            "sense_body": r["sense_body"], "provenance": r["provenance"],
+            "source_refs": r["source_refs"], "area": r["area"],
+            "superseded_by": keep}))
+    out = {"id": keep, "composed_from": sorted(i for i in rows if i != keep)}
+    if summary_only:
+        out["note"] = ("recorded as a summary of the readings, carrying nothing "
+                       "the concordance alone could tell; a reader should weigh "
+                       "it as such.")
+    return out
 
 
 @op("glossary", "same")
@@ -612,23 +1207,74 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
         (keep, drop))}
     missing = [i for i in (keep, drop) if i not in rows]
     if missing:
+        # Say which ids exist, rather than where they came from.
+        #
+        # The old message named the wake — "both ids come from the wake that
+        # woke you, spelled as they were given" — and a session that has already
+        # lost track of them cannot act on that. Measured on `cnt_k`: woken for
+        # `template, template#src_variables_providers`, three sessions called
+        # `glossary.same(drop='templatevariable', keep='intent#src_variables_providers')`
+        # — the wrong term and an id that does not exist — identically each
+        # time, and the collision was quarantined on the third.
+        #
+        # The open collisions are derivable here: two live rows sharing a term
+        # is what the predicate means by one. So the refusal shows them.
+        open_now = [(r["term"], r["ids"]) for r in ctx.conn.execute(
+            "SELECT term, GROUP_CONCAT(id) AS ids, COUNT(*) AS n "
+            "FROM glossary_terms WHERE superseded_by IS NULL "
+            "AND COALESCE(area, '') <> '.' "
+            "GROUP BY term HAVING n > 1 LIMIT 5")]
+        listing = ("; ".join(f"{t!r}: {ids}" for t, ids in open_now)
+                   if open_now else "none right now")
         raise ValueError(
-            f"{missing} is not a glossary id. Both ids come from the wake that "
-            f"woke you, spelled as they were given.")
+            f"{missing} is not a glossary id. The words with more than one live "
+            f"sense are — {listing}. Use two ids from one of those, exactly as "
+            f"spelled; this call says two rows are one word said twice.")
     if keep == drop:
         raise ValueError("keep and drop are the same row; nothing to merge.")
-    if not (why or "").strip():
-        raise ValueError(
-            "say why they are the same before merging them. Reporting two "
-            "senses costs the principal a glance; calling them the same "
-            "destroys an ambiguity only they can settle, so this one has to be "
-            "argued.")
 
     a, b = rows[keep], rows[drop]
     if _slug_of(a["term"]) != _slug_of(b["term"]):
         raise ValueError(
             f"{a['term']!r} and {b['term']!r} are different words. This says two "
             f"rows are one word said twice; it is not for relating two words.")
+    # `why` has to be an argument, not a filled field.
+    #
+    # The first version required it to be non-empty, which is not the same as
+    # requiring it to say anything -- and the run answered `why="term_collision"`
+    # (the mode's own name) three times, and `why="different provenance"` twice,
+    # merging two rows while stating a reason they are not the same. A guard
+    # that accepts any non-empty string is a guard against forgetting, and
+    # forgetting was not the risk.
+    #
+    # Two checks, both cheap. It may not argue difference -- that is a reason to
+    # report, and the words for it are few and unambiguous. And it has to be
+    # about these two senses: a reason sharing no content word with either of
+    # them is a reason about something else, which is what a mode name is.
+    reason = (why or "").strip()
+    if not reason:
+        raise ValueError(
+            "say why they are the same before merging them. Reporting two "
+            "senses costs the principal a glance; calling them the same "
+            "destroys an ambiguity only they can settle, so this one has to be "
+            "argued.")
+    against = [w for w in ("different", "differ", "distinct", "separate",
+                           "unlike", "not the same", "another sense")
+               if w in reason.lower()]
+    if against:
+        raise ValueError(
+            f"{reason!r} is a reason they are *not* the same -- it says "
+            f"{against[0]!r}. Two senses that differ go to the principal with "
+            f"`msg.report_liaison`; this call is for two rows that say one "
+            f"thing.")
+    said = set(_words_in(f"{a['sense_short']} {a['sense_body'] or ''} "
+                         f"{b['sense_short']} {b['sense_body'] or ''}"))
+    if said and not (set(_words_in(reason)) & said):
+        raise ValueError(
+            f"{reason!r} does not mention anything either sense says. Name what "
+            f"the two have in common, in their own words -- {a['sense_short']!r} "
+            f"and {b['sense_short']!r} -- or report them instead.")
+
     if b["superseded_by"]:
         return {"id": keep, "note": f"{drop} was already superseded."}
 
@@ -689,7 +1335,7 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
 
 
 @op("glossary", "lookup")
-def glossary_lookup(ctx: Ctx, term: str) -> list[dict] | dict:
+def glossary_lookup(ctx: Ctx, term: str = "") -> list[dict] | dict:
     """
     One term, all senses — collisions are visible by construction.
 
@@ -705,6 +1351,22 @@ def glossary_lookup(ctx: Ctx, term: str) -> list[dict] | dict:
     reported rather than interpreted — no advice about what to do with it,
     because the judgement is the role's and this is the input it was missing.
     """
+    # With no term, the rows the wake named.
+    #
+    # `term_collision` wakes a session *about* specific rows and the only place
+    # they appeared was the `Refs:` line, so their senses -- the entire subject
+    # of the session -- had to be fetched by a call the model had to think of.
+    # Callable-with-no-arguments is what `push_working_set` sends unasked, and
+    # this is exactly the case its docstring describes: "if the session already
+    # holds everything a read needs, making the model ask for it is a turn spent
+    # on nothing."
+    if not (term or "").strip() and ctx.wake_refs:
+        rows = _rows(ctx.conn.execute(
+            "SELECT id, term, sense_short, sense_body, area, provenance "
+            "FROM glossary_terms WHERE id IN "
+            f"({','.join('?' * len(ctx.wake_refs))})", tuple(ctx.wake_refs)))
+        return rows or {"note": "the rows this wake named are gone."}
+
     rows = _rows(ctx.conn.execute(
         "SELECT id, term, sense_short, sense_body, provenance FROM glossary_terms "
         "WHERE term = ? ORDER BY id", (term,)))
@@ -785,6 +1447,53 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     slug = re.sub(r"[^a-z0-9]+", "_", headline.strip().lower()).strip("_")
     if not slug:
         raise ValueError("a constraint needs a headline with a word in it")
+    # A headline is what is promised, in the source's words. "commitment 1",
+    # "constraint 2": a label, and five of them arrived in one session with
+    # the orientation's items pasted under them. A headline with no word of
+    # its own beyond the frame's is not a headline.
+    if not [w for w in _words_in(headline)
+            if w not in ("commitment", "constraint", "promise", "contract")]:
+        raise ValueError(
+            f"{headline!r} is a label, not a headline. Say what is promised, "
+            f"in the words the source uses at the place it is kept.")
+    # And an item restated is an item. The baseline is pushed into this
+    # session as context -- what the program *does* -- and the same run wrote
+    # each of its five behaviours back as a constraint, word for word. A
+    # constraint answers a different question: who outside breaks if this
+    # changes. If the text is an item's text, it has not answered it.
+    # Who breaks must be outside. "A maintainer would encounter errors if they
+    # tried to call this function" names the one party the brief rules out,
+    # and a run wrote nine constraints of that shape, one per identifier it
+    # had been shown. Inside is not outside; the form is not the finding.
+    saying = f"{headline} {text}".lower()
+    # "the code inside PTPlugin.onload()", "the program's internal logic",
+    # "the manifest.json file" as WHO BREAKS: the 14B Architect's root-area
+    # pass wrote twelve of those around the one real commitment. Code, logic
+    # and files of this repository are inside, however they are named.
+    inside = re.search(r"\b(maintainers?|developers?|other parts of the code"
+                       r"(?:base)?|the codebase|the build|test suite|the tests|"
+                       r"this (?:function|constant|type|class|component|file|"
+                       r"module)|the code inside|internal(?:ly)?|"
+                       r"the program'?s? (?:own )?(?:logic|code)|hardcoded in|"
+                       r"the [\w./-]+\.\w+ file)\b", saying)
+    outside = re.search(r"\b(users?|registry|obsidian|vault|notes?|another plugin|"
+                        r"other plugin|external|api|npm|github|community|client|"
+                        r"consumer|caller outside|downstream)\b", saying)
+    if inside and not outside:
+        raise ValueError(
+            f"{headline!r} names nobody outside this repository -- a maintainer, "
+            f"the codebase, the build are inside. A constraint is kept to "
+            f"someone who does not read this code: say who, or this is not one.")
+    item_texts = [r["text"] for r in ctx.conn.execute("SELECT text FROM items")]
+    mine_words = set(_words_in(f"{headline} {text}"))
+    for it in item_texts:
+        iw = set(_words_in(it))
+        if len(iw) >= 4 and len(mine_words & iw) >= max(4, int(0.7 * len(iw))):
+            raise ValueError(
+                f"that is what the product does, and an item already says it. "
+                f"A constraint is what would break outside this repository if "
+                f"the code here changed -- who notices, and how. If nothing "
+                f"outside would, this area holds no constraint.")
     if slug == boot.ZERO or headline.strip().lower() == boot.ZERO_HEADLINE.lower():
         raise ValueError(
             f"{boot.ZERO} is derived: its bindings are the areas nobody has "
@@ -831,14 +1540,35 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         strangers = sorted(g for g in bindings
                            if g not in indexed and _grain_path(g) not in indexed)
         if strangers:
+            # Paths, never symbols, for the same reason `surveys.attest` lists
+            # paths: a list of symbols in a refusal is a list that gets
+            # transcribed. And what the session *opened*, not `code.probe`,
+            # which the survey mode does not carry -- an Architect told to
+            # probe for ids it could not probe for spent three sessions binding
+            # JSON keys out of manifest.json.
+            opened = sorted(p for p in (ctx.opened or set()) if "::" not in p)[:6]
             raise ValueError(
-                f"{', '.join(strangers)} is not a grain in the index. Bindings "
-                f"name code the index already knows, and `code.probe` returns "
-                f"those ids.")
+                f"{', '.join(str(x) for x in strangers)} is not a grain in the "
+                f"index. A binding is the path of a file that keeps the "
+                f"commitment" +
+                (f" -- you have opened {opened}, and any of those can be bound."
+                 if opened else
+                 " -- `code.source` the file that keeps it, then bind its path."))
     elif bindings:
-        raise ValueError(
-            f"there is no code index in this engagement, so {', '.join(bindings)} "
-            f"names nothing that could be bound.")
+        # No index -- a delivery engagement that never onboarded. A binding is
+        # then the path of a file this session actually read; a symbol cannot
+        # be folded to its file mechanically, so it is refused by name.
+        strangers = sorted(str(g) for g in bindings
+                           if _grain_path(str(g)) not in (ctx.opened or set()))
+        if strangers:
+            opened = sorted(p for p in (ctx.opened or set()) if "::" not in p)[:6]
+            raise ValueError(
+                f"{', '.join(strangers)} is not the path of a file this session "
+                f"read, and there is no code index in this engagement to resolve "
+                f"it. A binding is the path of a file that keeps the commitment" +
+                (f" -- you have opened {opened}, and any of those can be bound."
+                 if opened else
+                 " -- `code.source` the file that keeps it, then bind its path."))
 
     # Neither message offers the empty list as the way out, and that is
     # deliberate. The first draft of the second one ended "leave `bindings`
@@ -877,6 +1607,30 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     wanted = [r for r in (source_refs or []) if isinstance(r, str)]
     cited = [r for r in wanted if r in known]
     dropped = [r for r in wanted if r not in known]
+
+    # A constraint needs a body, and the check was in the wrong place.
+    #
+    # `surveys.attest` has the right words already -- "A title cannot be checked,
+    # argued with or satisfied -- say what it is and who outside would notice" --
+    # and applies them only when a session attests `found`. A session that writes
+    # two headlines and attests `none_found` walks past it. Measured: the cnt
+    # baseline wrote 2 constraints, both empty; `cnt_j` wrote
+    # `intent_schema_validation` and
+    # `intent_schema_validation_binds_to_the_intent_type`, both empty, then
+    # attested `architect:src none_found`. The key has carried
+    # `constraints_must_have_a_body: true` since it was written.
+    #
+    # At write time it also closes a second hole: `text` is always in the write,
+    # so amending a constraint to add a binding, with no text, blanked the body
+    # it already had.
+    if not (text or "").strip():
+        raise ValueError(
+            f"{headline!r} is a title with nothing under it. A title cannot be "
+            f"checked, argued with or satisfied -- `text` says what the "
+            f"commitment is and who outside this repository would notice if it "
+            f"stopped being true. If you cannot say that, it is probably a "
+            f"tunable default rather than a commitment, and the honest answer "
+            f"is not to write it.")
 
     id = slug[:120]
     ctx.writes.append(("constraints", id, {
@@ -926,6 +1680,39 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     return {"id": id, "status": status}
 
 
+@op("model", "describe")
+def model_describe(ctx: Ctx, account: str, area: str | None = None) -> dict:
+    """
+    What this area is for and how it works, in the surveyor's own words --
+    the two sentences every survey session already writes and the transcript
+    was discarding. One row per area, under the model, because "what is
+    buildable here" starts with what each part is.
+    """
+    from ..core.scheduler import is_area
+
+    area = area or ctx.area
+    if not is_area(area):
+        raise ValueError(
+            f"{area!r} is not an area: the account of the whole program is the "
+            f"orientation's item, not a model row.")
+    account = (account or "").strip()
+    if len(account) < 40:
+        raise ValueError(
+            "an account says what the area is for and how it works -- a "
+            "sentence or two, not a label.")
+    words = account.split()
+    pathy = sum(1 for w in words if "/" in w or w.count(".") >= 2)
+    if pathy > len(words) // 2:
+        raise ValueError(
+            "that is a list of files, and the index already holds it. Say what "
+            "the area does with them.")
+    ctx.writes.append(("model_areas", area, {
+        "account": account,
+        "source_refs": _json.dumps(sorted(ctx.opened)[:12]),
+        "provenance": ctx.provenance or "observed"}))
+    return {"area": area}
+
+
 @op("model", "consult")
 def model_consult(ctx: Ctx, grains: list[str] | None = None) -> list[dict]:
     """
@@ -959,6 +1746,12 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
         f"SELECT id, headline, text, provenance FROM constraints WHERE id IN ({marks})", ids))
 
 
+def _re_split_paths(val: str) -> list[str]:
+    import re as _re
+
+    return [t.strip("'\"[]") for t in _re.split(r"[\s,]+", val.strip()) if t.strip("'\"[]")]
+
+
 @op("surveys", "attest")
 def surveys_attest(ctx: Ctx, outcome: str,
                    citations: list[str] | None = None) -> dict:
@@ -985,11 +1778,42 @@ def surveys_attest(ctx: Ctx, outcome: str,
     The id follows from the area for the same reason: `tick_survey` counts one
     row per role per area, so re-attesting replaces rather than accumulating.
     """
+    import re as _re
+
+    from ..core.scheduler import PROGRAM, is_area
+
     area = ctx.area
     if not area:
         raise ValueError(
             "no area: attesting closes the area you were woken for, and this "
             "session was not woken for one")
+
+    # Citations are paths, as strings. A session wrote
+    # `citations=[['problem.baseline']]` -- a list inside the list -- and the
+    # database answered "type 'list' is not supported" twelve turns running,
+    # which names nothing the session can act on. Flattened, the nested name
+    # is then simply not in the index, and the refusal for that says what is.
+    # And `citations=".github/workflows/release.yml"` -- one path, as a string,
+    # not a list -- is one citation, not thirty-six one-character grains that
+    # are "not in the index at all", which is what iterating it produced for
+    # three turns of one 14B session.
+    if isinstance(citations, str):
+        citations = [citations]
+    flat: list[str] = []
+    for cval in citations or []:
+        if isinstance(cval, (list, tuple, set)):
+            flat.extend(str(x) for x in cval if x is not None)
+        elif cval is not None:
+            flat.append(str(cval))
+    # `citations="a.md b.yml c.md"` -- several paths in one string, separated
+    # by spaces or commas -- is several citations. A path with a space in it
+    # is then two grains neither of which resolves, and the refusal says so.
+    citations = [tok for cval in flat
+                 for tok in (_re_split_paths(cval) if (" " in cval or "," in cval) else [cval])
+                 if tok]
+    # `/src/main.ts` and `./src/main.ts` are `src/main.ts`: a grain is a path
+    # relative to the root, and the index holds it without the prefix.
+    citations = [_re.sub(r"^(?:\./|/)+", "", c) for c in citations]
 
     # The outcome has to match what the session actually did.
     #
@@ -1013,18 +1837,93 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # word we gave it.
     owed = {"terminologist": "glossary_terms",
             "architect": "constraints",
-            "gatekeeper": "items"}.get(ctx.role)
-    if outcome == "found":
-        mine = [v for t, _id, v in ctx.writes if t == owed]
-        if not mine:
+            "vision_keeper": "items"}.get(ctx.role)
+    # The reconcile phase's subject is the README, and what that mode exists
+    # to find is disagreements -- ledger entries, not items.
+    from ..core.scheduler import PROSE as _PROSE
+
+    if area == _PROSE:
+        owed = "ledger"
+    owed_fn = {"glossary_terms": "glossary.amend", "constraints": "model.amend",
+               "items": "problem.assert", "ledger": "ledger.log"}.get(owed or "", "")
+    mine = [v for t, _id, v in ctx.writes if t == owed]
+    note = ""
+    # The outcome follows what the session did, not what it says.
+    #
+    # Claimed `found` with nothing written, refused, claimed again: the first
+    # per-area session of the phase design spent twelve turns re-sending the
+    # same `found` over the same refusal, and the run before it had measured
+    # the same shape on another repository. Being woken for a subject is a
+    # demand, and `found` looks more like work. So the record is derived: a
+    # session that wrote the owed artefact found something; one that wrote
+    # none of it, and was not refused trying, read and found nothing -- which
+    # is `none_found`, said for it.
+    #
+    # The one case that is neither: the write was *refused* this session and
+    # nothing of that kind landed. That is not a result, and closing the
+    # subject on it would lose the word or the constraint the refusal was
+    # asking the session to fix. That stays a refusal, with the reason.
+    refusals = getattr(ctx, "refusals", None) or []
+    refused = [why for fn, why in refusals if fn == owed_fn]
+    held = sum(1 for fn, why in refusals
+               if fn == "surveys.attest" and "was refused this session" in why)
+    if not mine and refused and not held:
+        # Either claim, after a refused write and nothing landed, closes the
+        # subject on a definition that was asked to be fixed. `none_found`
+        # after a refusal was the commoner shape -- the define brief offered
+        # it as the way out and the model took it the turn after the place
+        # guard refused a generic sense -- and a word lost that way is lost
+        # silently, which the attempt bound at least is not.
+        #
+        # Once. The turn after, the record follows what landed: a refusal the
+        # session cannot act on -- a frame word it keeps re-sending, a read
+        # gate it cannot satisfy -- held `.github` for twelve turns and three
+        # sessions, with the right answer (`none_found`) refused every time
+        # because the attest rule and the write rule were pointing at each
+        # other.
+        raise ValueError(
+            f"your {owed_fn} was refused this session: {refused[-1][:240]} -- "
+            f"and nothing of that kind has landed. Fix that call, or drop it; "
+            f"a refused {owed} is not `{outcome}`.")
+    if outcome == "found" and not mine:
+        # A `found` with nothing written, once, is refused with the shape of
+        # the call; the turn after, the record follows the writes like
+        # everywhere else. It began as the orientation's rule -- the one
+        # subject whose empty record costs the whole run, and the one session
+        # that reliably wrote its account and then listed the behaviours as
+        # prose. Then the 14B Architect did the same for the root area: five
+        # RENAME WHAT / WHO BREAKS / WHAT HAPPENS answers over manifest.json,
+        # the plugin's id and name among them, and `found` -- and not one
+        # `model.amend`. Deriving `none_found` there was true to the writes
+        # and false to the session. Bounded, like the place guard, because a
+        # refusal the model cannot act on is a loop.
+        asked = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+                    if fn == "surveys.attest" and "then attest again" in why)
+        if not asked:
+            if area == PROGRAM:
+                raise ValueError(
+                    "you have attested `found` and written no items. The account "
+                    "is not the record -- each behaviour in it is one call per "
+                    "behaviour: `problem.assert(id=..., text=..., kind='in_scope')` "
+                    "on its own line, and then attest again.")
             raise ValueError(
-                f"you attested `found` and wrote no {owed} this session. That "
-                f"is the artefact this mode exists to produce -- write what you "
-                f"found, or attest `none_found`, which is a real answer and the "
-                f"commonest right one here.")
+                f"you have attested `found` and written no {owed}. What you "
+                f"found is not the record until it is written: one `{owed_fn}` "
+                f"per finding, on its own line, and then attest again -- or "
+                f"attest `none_found` if, written out, none of it holds.")
+    if outcome == "found" and not mine:
+        outcome = "none_found"
+        note = (f"recorded as `none_found`: you wrote no {owed} this session, "
+                f"and the record follows what was written.")
+    elif outcome == "none_found" and mine:
+        outcome = "found"
+        note = (f"recorded as `found`: you wrote {owed} this session, and the "
+                f"record follows what was written.")
+    if outcome == "found":
         bodied = [v for v in mine
                   if (v.get("text") or v.get("sense_short") or
-                      v.get("sense_body") or v.get("statement") or "").strip()]
+                      v.get("sense_body") or v.get("statement") or
+                      v.get("default_taken") or "").strip()]
         if not bodied:
             titles = ", ".join(str(v.get("headline") or v.get("term") or "?")
                                for v in mine)
@@ -1057,13 +1956,88 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # Cheap for a session that looked -- `code.survey` has just handed it the
     # list -- and not fakeable by one that did not, because a grain must be in
     # the index and under this area.
+    # A bare symbol resolves to its grain rather than being refused.
+    #
+    # The precondition of this gate is stated in the comment above -- "cheap for
+    # a session that looked, `code.survey` has just handed it the list". A
+    # design that hands over the *source* instead has no such list, and the
+    # session cites what source shows it: declarations. Measured on `d`, whose
+    # working set is `code.area` and `code.source` with no `code.survey` at all:
+    # three sessions cited `["TemplateVariableType", "TemplateVariableVariables"]`,
+    # were refused three times, hit the attempt bound, and `src/variables` and
+    # `src/variables/providers` were both quarantined -- the two richest areas
+    # in the repository and the only ones holding `variable_type`, `provider`
+    # and the five prompt types. Thirty-six turns, and the reading was done.
+    #
+    # Resolving costs the gate nothing it was built for. `TemplateVariableType`
+    # cannot be named by a session that did not look, which is the whole test;
+    # the index is what decides, and an unambiguous suffix match inside this
+    # area is the index deciding. Ambiguity is left unresolved rather than
+    # guessed at, because picking one of two grains for the session is the class
+    # of help that produces a citation nobody can trace.
+    def _resolve(grain: str) -> str | None:
+        if ctx.conn.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                            (grain,)).fetchone():
+            return grain
+        # The dot-stripped spelling of an indexed path, when it names exactly
+        # one: `editorconfig` for `.editorconfig`, `github/workflows/x.yml`
+        # for `.github/workflows/x.yml`. The comparison form leaks into what
+        # sessions type, and a path that unambiguously names one grain is a
+        # citation of it.
+        like = _indexed_like(ctx, grain)
+        if like:
+            return like
+        if "::" in grain or "/" in grain:
+            return None
+        hits = [r["grain"] for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE area = ? AND grain LIKE ?",
+            (area, f"%::{grain}"))]
+        return hits[0] if len(hits) == 1 else None
+
+    def _imported(grain: str) -> bool:
+        """Is this a file some grain in the area imports? See the note below."""
+        return ctx.conn.execute(
+            "SELECT 1 FROM code_edges e JOIN code_index i ON i.grain = e.src "
+            "WHERE i.area = ? AND e.dst = ? LIMIT 1",
+            (area, _grain_path(grain))).fetchone() is not None
+
+    # A subject that is not an area -- the whole program, or one word -- has
+    # no "under this path" to check, and any indexed grain the session opened
+    # is evidence about it. The orientation's front and the define phase's
+    # concordance are assembled by the harness, so what was looked at is
+    # known without the citation; the citation is still required for the
+    # program, because the session chose which of the front's files to open
+    # further, and waived for a word, because the concordance was pushed and
+    # "I looked and there is nothing" needs no second proof.
+    from ..core.scheduler import PROGRAM, is_area
+
     unknown, inside = [], []
-    for grain in citations or []:
-        exists = ctx.conn.execute(
-            "SELECT 1 FROM code_index WHERE grain = ?", (grain,)).fetchone()
-        if not exists:
-            unknown.append(grain)
-        elif area == "." or grain == area or grain.startswith(area.rstrip("/") + "/"):
+    for cited in citations or []:
+        grain = _resolve(cited)
+        if grain is None:
+            unknown.append(cited)
+        elif (not is_area(area) or area == "." or grain == area
+              or grain.startswith(area.rstrip("/") + "/")
+              or _imported(grain)):
+            # An import the area was *shown* counts as evidence about the area.
+            #
+            # `code.area` hands over "the area's own files, and the ones it
+            # imports", deliberately -- "a file the area imports is part of what
+            # the area means, wherever it sits". This gate then required every
+            # citation to sit under the area's path. Two tools disagreeing about
+            # what belongs to an area, and the gate winning.
+            #
+            # Measured on `cnt_i`: the session woken for
+            # `src/variables/providers` was shown `src/variables/index.ts` and
+            # `src/notice/index.ts`, read them, cited them, and was refused
+            # twelve times across three sessions. The area was quarantined --
+            # the one holding `variable_type`, `provider` and the five prompt
+            # types, lost for the second run running, and not for the reason the
+            # first one lost it.
+            #
+            # The evidence test is unharmed: a cited import is a file this area
+            # depends on, named by a session that opened it, and the edge comes
+            # from the index rather than from the citation.
             inside.append(grain)
     # And you must have opened one of them. Citing was already required, and
     # citing is not reading: the grain list is *in the prompt*, so naming one
@@ -1083,15 +2057,65 @@ def surveys_attest(ctx: Ctx, outcome: str,
             f"named from a path is a reading of the path. `code.source` one of "
             f"them first, then attest.")
 
-    if not inside:
+    if not inside and not is_area(area) and area != PROGRAM:
+        pass                    # a word: the concordance was the looking
+    elif not inside:
         outside = [g for g in (citations or []) if g not in unknown]
+        # Say what it *can* cite, not only what it cannot.
+        #
+        # Four runs lost `src/variables/providers` here, each to a different
+        # spelling: bare symbols (`cnt_d`), a file from a neighbouring area
+        # (`cnt_i`), symbols declared elsewhere (`cnt_l`), and now enum members
+        # as `TemplateVariableType.text` (`cnt_n`, thirty-six turns across three
+        # sessions, one of which wrote "It seems like I've been running in
+        # circles"). Three resolution rules were added for the first three and a
+        # fourth form arrived anyway.
+        #
+        # The common cause is not the spelling. `d`'s working set is `code.area`
+        # and `code.source` with no `code.survey`, so **nothing ever lists the
+        # grains** -- and this gate's own comment assumes one has ("cheap for a
+        # session that looked, `code.survey` has just handed it the list").
+        # `ctx.opened` is exactly the set that would satisfy the check, and the
+        # session is the only one who cannot see it.
+        # Paths, never symbols. The first version of this listed grains, symbol
+        # names included, and the session defined them.
+        #
+        # Measured on `cnt_o`, session 5: three terms written in the first three
+        # turns, then the refusal arrived carrying
+        # `[...::TemplateVariableType, ...::TemplateVariableVariables,
+        # ...::variableProviderVariableParsers, ...]`, and turn 4 wrote
+        # `TemplateVariableType`, `TemplateVariableVariables`,
+        # `variableProviderVariableParsers` and `variableProviderVariableGetters`
+        # as glossary terms in one go. Eleven of the run's sixteen terms are
+        # transcribed identifiers, against zero in the run before it.
+        #
+        # This document's founding finding, reproduced by me in an error string:
+        # a list of symbols handed to a session told to define an area's terms
+        # is a specification of the answer, and it does not stop being one
+        # because it arrived in a refusal.
+        #
+        # A path answers the question that was actually asked -- what may I cite
+        # -- and nobody defines `src/variables/providers/index.ts` as a word.
+        # The index's own spelling, not the comparison form. `_grain_path`
+        # strips a leading dot for matching, and the first version of this
+        # hint printed that: `editorconfig`, `eslintignore` -- which the
+        # session then cited, and which is not in the index, for twelve turns.
+        openable = sorted({
+            r["grain"] for r in ctx.conn.execute(
+                "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+                "AND (area = ? OR ? = ?)", (area, area, PROGRAM))
+            if _grain_path(r["grain"]) in (ctx.opened or set())})[:6]
         raise ValueError(
             f"attesting closes {area!r}, and closing an area means citing what "
-            f"you read in it -- `citations=[...]` naming grains, spelled as "
-            f"they were listed for you and without line numbers. " +
+            f"you read in it -- `citations=[...]` naming grains, spelled as the "
+            f"index holds them. " +
             (f"These are indexed but not under {area!r}: {outside}. "
              if outside else "") +
             (f"These are not in the index at all: {unknown}. " if unknown else "") +
+            (f"You have opened these, and any of them will do: {openable}. "
+             if openable else
+             f"You have opened nothing in {area!r} yet -- `code.area` or "
+             f"`code.source` first. ") +
             f"Reading nothing and reporting nothing are not the same answer.")
 
     # What this was a survey *of*. See the column's note in schema.sql: the
@@ -1101,14 +2125,22 @@ def surveys_attest(ctx: Ctx, outcome: str,
     ctx.writes.append(("survey_records", id, {
         "area": area, "outcome": outcome,
         "commit_sha": (at["value"] if at else "") or ""}))
-    for grain in citations or []:
+    # The record stores what the citation *resolved to*, not what was typed.
+    # Storing the bare symbol with `resolves=1` would assert that a grain named
+    # `TokenStore` is in the index, and none is -- a citation nobody can follow
+    # back, which is the whole thing citations exist to prevent.
+    for cited in citations or []:
+        grain = _resolve(cited) or cited
         ctx.writes.append(("survey_citations", f"{id}:{grain}", {
             "survey_id": id, "grain": grain,
-            "resolves": 1 if grain not in unknown else 0}))
+            "resolves": 1 if cited not in unknown else 0}))
     # Unresolved ones are still reported rather than fatal. The bar is showing
     # what you read, not spelling every path correctly, and a session that can
     # see what it got wrong can fix it.
-    return {"id": id, "unresolved_citations": unknown}
+    out = {"id": id, "outcome": outcome, "unresolved_citations": unknown}
+    if note:
+        out["note"] = note
+    return out
 
 
 @op("surveys", "consult")
@@ -1153,6 +2185,10 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     """Only approved lineages may be sliced; the caller is expected to have
     consulted the problem statement, and the predicate only fires for items whose
     approval postdates their last amendment."""
+    # A ticket naming an item that does not exist fails a foreign key inside
+    # the transaction and takes the session with it -- recoverable one level
+    # up, so it is refused here, like `batches.group` already does.
+    _must_exist(ctx, "items", item_id)
     ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text}))
     return {"id": id}
 
@@ -1215,7 +2251,8 @@ def criteria_scan(ctx: Ctx) -> list[dict]:
 
 
 @op("batches", "group")
-def batches_group(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dict:
+def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
+                  item_id: str | None = None) -> dict:
     """
     Collision judgement. Batches are complete feature sets, immutable once
     formed: only a scope change may recompose one.
@@ -1235,9 +2272,22 @@ def batches_group(ctx: Ctx, id: str, item_id: str, ticket_ids: list[str]) -> dic
     `_must_exist` names the ids that would have worked, so a wrong one costs a
     turn instead of the session.
     """
-    _must_exist(ctx, "items", item_id)
     for tid in ticket_ids:
         _must_exist(ctx, "tickets", tid)
+    if not item_id:
+        # Every ticket already names its item. One distinct item across the
+        # named tickets is not a judgement; it is the row.
+        owners = sorted({r["item_id"] for tid in ticket_ids for r in
+                         ctx.conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                                          (tid,))})
+        if len(owners) == 1:
+            item_id = owners[0]
+        else:
+            raise ValueError(
+                f"item_id is required: the named tickets trace to "
+                f"{owners or 'no items'} and a batch delivers exactly one "
+                f"approved item.")
+    _must_exist(ctx, "items", item_id)
 
     ctx.writes.append(("batches", id, {"item_id": item_id, "status": "pending"}))
     for tid in ticket_ids:
@@ -1476,7 +2526,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     resolved entry always has the decision that resolved it.
     """
     # A decision is a thing *you* decided, and adopting what you were told is
-    # not one. A Gatekeeper handed "no, I meant closing the account, not
+    # not one. A Vision Keeper handed "no, I meant closing the account, not
     # deleting it" amended the item correctly and then filed a decision reading
     # "the principal rejected the original wording, and I have amended it to
     # reflect their intention" -- a tidy note that signs the role's name to the
@@ -1492,7 +2542,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     # so is defending an item -- because defending means you did not amend it.
     # The subject only, never the refs. `refs` is how a decision points at its
     # context, so refusing on them refused decisions that merely *mentioned*
-    # something amended -- and the Gatekeeper ending an exhausted batch does
+    # something amended -- and the Vision Keeper ending an exhausted batch does
     # exactly that. Refused, it invented a fresh id and tried again, six times,
     # superseding itself down a spiral it never came out of: twelve turns, no
     # commit, every write discarded. A guard the model can walk into repeatedly
@@ -1510,7 +2560,7 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
 
     # Both of these are foreign keys, and a dangling one does not fail the call
     # -- it fails `session_commit`, which takes the whole session down with an
-    # `IntegrityError` naming no column. Fourteen turns of a Gatekeeper's work
+    # `IntegrityError` naming no column. Fourteen turns of a Vision Keeper's work
     # were discarded that way, and the model was never told why.
     #
     # `resolves_ledger` reads like a flag and got `True`, which is a boolean in
@@ -1671,6 +2721,11 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
 
 @op("code", "probe")
 def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
+    if not (pattern or "").strip():
+        return [{"note": "an empty pattern matches everything and tells you "
+                         "nothing. Probe by the name the failing test calls, "
+                         "or the word you are tracing -- `code.probe("
+                         "pattern='line_total')`."}]
     return _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, area, fan_in FROM code_index "
         "WHERE grain LIKE ? ORDER BY fan_in DESC LIMIT 200", (f"%{pattern}%",)))
@@ -1694,6 +2749,48 @@ _NOT_VOCABULARY = {
     "hide", "natural", "container", "object", "property", "input", "output",
     "error", "valid", "invalid", "start", "end", "first", "last", "next",
 }
+
+
+# The nouns a survey session is holding when it is asked to name a sense: the
+# mode, the unit of work, the tools, the artefact. Measured -- see the note in
+# `glossary_amend`. None of them is ever what a word means.
+# Left to the duplicate-sense guard below, which has the message earned for
+# them: `sense` names which meaning, and provenance is not a meaning.
+_PROVENANCE_WORDS = {"observed", "decided", "provenance"}
+
+_FRAME_WORDS = {
+    "area", "survey", "surveys", "mode", "session", "repository", "repo",
+    "code", "source", "index", "glossary", "term", "terms", "project",
+    "observed", "decided", "provenance", "vocabulary", "grain", "collision",
+    "error", "data_storage", "storage",
+    # The system prompt's own nouns. A per-area session wrote `artefact: a data
+    # structure or type representing variables or properties` -- the word the
+    # prompt uses for what the role owns, defined as if the project said it.
+    "artefact", "artefacts", "working_set", "tool", "tools",
+}
+
+
+def _idents_in(text: str) -> set[str]:
+    """
+    The identifiers and paths in a piece of text, lowercased, as spelled.
+
+    An identifier here is a token a person would not mistake for English: it
+    has an underscore, an internal capital, a dot, a slash or a hyphen --
+    `intents_to`, `TemplateVariableType`, `frontmatter.ts`, `filtered-opener`.
+    A plain word is not one, because "intent" in a sentence is the word, and
+    the check this feeds asks for the place the word is written down.
+    """
+    import re
+
+    out: set[str] = set()
+    for tok in re.findall(r"[A-Za-z_][\w./\-]*", text):
+        tok = tok.strip("._/-")
+        if len(tok) < 4:
+            continue
+        if ("_" in tok or "." in tok or "/" in tok or "-" in tok
+                or re.search(r"[a-z][A-Z]", tok)):
+            out.add(tok.lower())
+    return out
 
 
 def _words_in(text: str) -> list[str]:
@@ -1816,7 +2913,24 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
             size = 1 << 30
         return (-fan, size)
 
-    paths = [g for g, _ in sorted({**own, **imported}.items(), key=order)]
+    # The area's own files first, then what it imports.
+    #
+    # Both were merged into one dict and sorted by fan-in alone, so an imported
+    # file that half the repository depends on outranked the files the session
+    # was actually woken for. Measured on `cnt_p`, area
+    # `src/variables/providers`: the source began with `src/variables/index.ts`
+    # and `src/notice/index.ts` -- both imports -- then the area's own
+    # `index.ts`, and `not_shown` held `text.ts`, `number.ts`, `note.ts`,
+    # `natural_date.ts` and `folder.ts`. Every one of the five provider
+    # implementations was cut, which is to say the five prompt types the key
+    # calls `variable_type` and `provider` were named by the enum and never
+    # shown. The area lost its own budget to its neighbours.
+    #
+    # An import is context for the area. It is not the area.
+    paths = ([g for g, _ in sorted(own.items(), key=order)]
+             + [g for g, _ in sorted(imported.items(), key=order)])
+    if not _prose_allowed(ctx):
+        paths = [g for g in paths if not _is_prose(g)]
 
     # Two passes, because completeness beats rank. In one pass the
     # highest-fan-in file that does not fit takes the remainder as a head and
@@ -1830,8 +2944,32 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
         ctx.opened.add(_grain_path(rel))
         ctx.read_words.update(_words_in(rel))
         ctx.read_words.update(_words_in(body))
+        getattr(ctx, "read_idents", set()).update(_idents_in(rel) | _idents_in(body))
 
-    budget, shown, omitted, bodies = 5200, [], [], {}
+    # 5,200 characters was the budget while this push fed the per-word define,
+    # and it was sized for a barrel and a schema. For the survey it starved the
+    # area of itself. Measured on `cnt_14b`, area `src/intents`: the session
+    # was shown `index.ts` (891 bytes) and two *imported* files, and told that
+    # `frontmatter.ts` and `intents.ts` -- the area's own parsing code, where
+    # every frontmatter key a user writes is read by name -- "did not fit".
+    # The Architect attested `none_found` for the one area in the program that
+    # holds its largest commitment, and the prompt it was given was 6,644
+    # characters of a 12,288-token window.
+    #
+    # So: the area's own files whole while they fit, then a head of each own
+    # file that did not -- a head of the parser shows the keys it parses --
+    # then the imports, whole, with what remains. An own file is never shown
+    # less than an imported one.
+    #
+    # 10,000, not more. At 14,000 the same 14B that wrote well-formed calls
+    # from a 7,000-character prompt wrote, from a 20,000-character one,
+    # `glossary.amend: \`intent_schema\`, The structure defining ...` and
+    # `outcome="found", citing` over bare paths -- nothing the parser could
+    # take -- twice in a row for `src/intents`, and the area was abandoned.
+    # The reader's discipline is a function of the prompt's length, and the
+    # own-files-first rule is what puts the parser in front of it; the budget
+    # only has to be large enough for that.
+    budget, shown, omitted, bodies = 10000, [], [], {}
     for rel in paths:
         f = root / rel
         if not f.is_file():
@@ -1841,9 +2979,28 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
         except OSError:                                     # pragma: no cover
             continue
 
-    for rel, body in bodies.items():
+    HEAD = 3000
+    own_rels = [r for r in bodies if r in own]
+    taken: set[str] = set()
+    for rel in own_rels:                                   # own, whole
+        body = bodies[rel]
         if len(body) <= budget:
-            take(rel, body, False)
+            take(rel, body, False); taken.add(rel)
+            budget -= len(body)
+    for rel in own_rels:                                   # own, heads
+        if rel in taken:
+            continue
+        if budget > 1200:
+            head = bodies[rel][:min(HEAD, budget)]
+            take(rel, head, True); taken.add(rel)
+            budget -= len(head)
+        else:
+            omitted.append(rel)
+    for rel, body in bodies.items():                       # imports, whole
+        if rel in taken or rel in own:
+            continue
+        if len(body) <= budget:
+            take(rel, body, False); taken.add(rel)
             budget -= len(body)
         else:
             omitted.append(rel)
@@ -1869,6 +3026,275 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
     if omitted:
         out["not_shown"] = (f"{omitted} did not fit. `code.source` any of them "
                             f"if the ones above leave a word unexplained.")
+    return out
+
+
+@op("code", "prose")
+def code_prose(ctx: Ctx, limit: int = 6000) -> dict:
+    """
+    The README, for the one phase whose job is to read it -- against the
+    account, not instead of it. Everywhere else prose is withheld or on
+    demand; here it is the subject.
+    """
+    import re as _re
+
+    if not _prose_allowed(ctx):
+        return {"note": "prose sources are off for this run: there is nothing "
+                        "to reconcile. `surveys.attest(outcome='none_found', "
+                        "citations=[])` is the answer."}
+    paths = [r["grain"] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")]
+    readme = next((p for p in paths if _re.match(r"(?i)readme(\.|$)", p)), None)
+    if readme is None:
+        return {"note": "no README in the index: nothing to reconcile."}
+    root = _worktree_of(ctx)
+    try:
+        body = (root / readme).read_text(encoding="utf-8", errors="replace")
+    except OSError:                                         # pragma: no cover
+        return {"note": f"{readme} could not be read."}
+    body = _re.sub(r"<[^>]+>", "", body)
+    cut = len(body) > limit
+    ctx.opened.add(_grain_path(readme))
+    ctx.read_words.update(_words_in(body))
+    return {"path": readme, "text": body[:limit],
+            **({"cut": f"first {limit} of {len(body)} characters"} if cut else {})}
+
+
+@op("code", "front")
+def code_front(ctx: Ctx) -> dict:
+    """
+    The program's front: what a person opening the repository reads first.
+
+    The orientation session is woken for the whole program, before any word
+    in it has been named, and what it needs is the material a maintainer
+    reaches for on day one -- the manifest that says what this is, the README
+    that says what it is for, the authoring surface a user writes into, and
+    the declared entry point. Every one of those is computable from the index
+    and the tree; none of them is an area, which is why no area-shaped survey
+    ever saw them together.
+
+    Measured on cnt before this existed: `Obsidian` 0, `plugin` 0, `note` 0,
+    `template` 0 in an 8,050-character system prompt. A role told to define a
+    plugin's vocabulary had never been told it was a plugin.
+
+    Whole files while they fit, heads where they do not, and what was withheld
+    is named -- the same rule `code.area` uses, for the same reason.
+    """
+    import re as _re
+
+    from ..onboarding.languages import for_path
+
+    paths = [r["grain"] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")]
+    if not paths:
+        return {"note": "nothing onboarded: there is no index to read a front "
+                        "from, so there is no program to orient to yet."}
+    root = _worktree_of(ctx)
+    indexed = set(paths)
+    fan_in = {r["grain"]: r["fan_in"] for r in ctx.conn.execute(
+        "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path'")}
+    has_symbols = {r["g"] for r in ctx.conn.execute(
+        "SELECT DISTINCT substr(grain, 1, instr(grain, '::') - 1) AS g "
+        "FROM code_index WHERE grain_kind = 'symbol'")}
+
+    def text_of(rel: str, cap: int | None = None) -> str:
+        f = root / rel
+        if not f.is_file():
+            return ""
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            return ""
+        return body if cap is None else body[:cap]
+
+    # 1. Manifests: what the project says it is, to a registry.
+    manifests = [p for p in paths if p.lower() in (
+        "manifest.json", "package.json", "pyproject.toml", "cargo.toml",
+        "go.mod", "composer.json", "setup.cfg", "setup.py")]
+    # 2. The README, head only: it says what the thing is for, then goes on.
+    readme = next((p for p in paths if _re.match(r"(?i)readme(\.|$)", p)), None)
+    # The orientation is written from code: the README is withheld from the
+    # front by default and read afterwards, against the account, by the
+    # reconcile phase. `orient_prose=on` restores it for comparison runs.
+    from ..core import config as _config
+
+    try:
+        _front_prose = (_prose_allowed(ctx)
+                        and _config.get(ctx.conn, "orient_prose") == "on")
+    except Exception:                                       # pragma: no cover
+        _front_prose = _prose_allowed(ctx)
+    if not _front_prose:
+        readme = None
+    # 3. The authoring surface: a data file the code imports. What a user
+    #    writes, and therefore the side every product meaning is written from.
+    surface = sorted(
+        (p for p in paths if p not in has_symbols and fan_in.get(p, 0) > 0
+         and p.lower() not in ("package.json", "manifest.json")),
+        key=lambda p: -fan_in.get(p, 0))
+    # 4. The declared entry point. Declared, never inferred: fan-in cannot
+    #    find a boundary nothing inside calls.
+    entries: list[str] = []
+    for cfg in ("esbuild.config.mjs", "esbuild.config.js", "package.json",
+                "pyproject.toml"):
+        body = text_of(cfg, 6000)
+        entries += _re.findall(r"entryPoints:\s*\[\s*[\"']([^\"']+)", body)
+        for m in _re.findall(r"[\"']main[\"']:\s*[\"']([^\"']+)", body):
+            if m in indexed:
+                entries.append(m)
+        for m in _re.findall(r"=\s*[\"']([\w.]+):\w+[\"']", body):   # scripts
+            rel = m.replace(".", "/") + ".py"
+            if rel in indexed:
+                entries.append(rel)
+    for guess in ("src/main.ts", "src/main.js", "src/index.ts", "src/index.js",
+                  "main.ts", "main.js", "index.ts", "index.js", "main.py",
+                  "app.py", "__main__.py", "cli.py", "src/main.rs", "main.go",
+                  "cmd/main.go", "src/lib.rs"):
+        if guess in indexed:
+            entries.append(guess)
+    for p in paths:
+        if p.endswith("/__main__.py") or p.endswith("/main.py"):
+            entries.append(p)
+    entries = [e for e in dict.fromkeys(e for e in entries if e in indexed)]
+
+    budget, shown, omitted = 5200, [], []
+    # Without the README the front has to carry what its first paragraph
+    # would have said, in code: a page more, for the file that reads what
+    # the user writes.
+    if readme is None:
+        budget = 7000
+
+    def take(rel: str, body: str, cut: bool, label: str) -> None:
+        nonlocal budget
+        shown.append((rel, body, cut, label))
+        budget -= len(body)
+        ctx.opened.add(_grain_path(rel))
+        ctx.read_words.update(_words_in(rel))
+        ctx.read_words.update(_words_in(body))
+
+    # One manifest, the product's rather than the package manager's when both
+    # exist: `package.json` is a build file with a dependency list, and it
+    # took the room `intentsSchema.yaml` needed the first time this ran.
+    manifests.sort(key=lambda m: (m.lower() == "package.json", m))
+    for rel in manifests[:1]:
+        body = text_of(rel)
+        if body and len(body) <= min(1200, budget):
+            take(rel, body, False, "manifest")
+        elif body:
+            take(rel, body[:800], True, "manifest")
+    # The authoring surface before the README: it is the side every product
+    # meaning is written from, and it is usually small.
+    for rel in surface[:3]:
+        body = text_of(rel)
+        if not body:
+            continue
+        if len(body) <= min(2600, budget - 1800):
+            # Said as what it is for the reader, not as what it is for the
+            # indexer: the first account written from this front said "the
+            # user writes values in an authoring surface, which is a data
+            # file" -- the label, repeated. A schema is the shape of what a
+            # user writes elsewhere.
+            take(rel, body, False, "schema of the keys a user may write -- a reference "
+                                   "the code imports, not the place the user writes them")
+        else:
+            omitted.append(rel)
+    if readme:
+        body = text_of(readme)
+        if body:
+            # The beginning that says what it is for, not the table of
+            # contents: link lists and the HTML that wraps them are skipped.
+            kept = [l for l in body.splitlines()
+                    if not _re.match(r"^\s*([-*]\s*\[|<|</|\s*$)", l)
+                    and not _re.match(r"^\s*[-*]\s*<", l)]
+            head = "\n".join(kept)[:min(1400, max(600, budget // 3))]
+            # And the first worked example: the first fenced block is usually
+            # the README showing what a user writes, in the user's words, and
+            # it is where the answer key's own vocabulary comes from.
+            m = _re.search(r"```[^\n]*\n(.*?)```", body, _re.S)
+            example = (m.group(1).strip() if m else "")[:800]
+            if example and example not in head:
+                # With the paragraph that introduces it and the sentence that
+                # follows. The example alone -- `---` / `intents_to:` -- told
+                # three models that intents live in "a YAML file"; the
+                # sentence above it in the README says "kept at the start of a
+                # note in a special place called the Frontmatter", and the one
+                # below says "paste it at the start of any note". A README
+                # explains its first example right around it.
+                pre = body[:m.start()]
+                window = pre[-700:]
+                j = window.find("\n\n")
+                before = (window[j:] if j >= 0 else window).strip()
+                before = _re.sub(r"<[^>]+>", "", before)
+                after = _re.sub(r"<[^>]+>", "", body[m.end():m.end() + 400]).strip()
+                after = after.split("\n\n")[0][:300]
+                head = (head + "\n\n[the README's first example, with what it says "
+                        "around it]\n" + before + "\n\n" + example + "\n\n" + after)
+            take(readme, head, len(head) < len(body), "README, the beginning")
+    # The entry point. With prose withheld it is not the only thing left, so
+    # its head is capped to leave room for the file that declares the types.
+    head_cap = budget if readme is not None else min(budget, 1800)
+    for rel in entries[:2]:
+        body = text_of(rel)
+        if not body:
+            continue
+        if len(body) <= head_cap:
+            take(rel, body, False, "declared entry point")
+        elif head_cap > 900:
+            take(rel, body[:head_cap], True, "declared entry point")
+        else:
+            omitted.append(rel)
+    # Without prose the front is the code's own front: after the entry point,
+    # the most depended-upon source file that fits, whole -- the barrel or the
+    # type file where the program says what its things are.
+    if readme is None and budget > 700:
+        for rel, _f in sorted(((r, fan_in.get(r, 0)) for r in paths
+                               if for_path(r.rsplit("/", 1)[-1]) is not None
+                               and r not in entries and not _is_prose(r)),
+                              key=lambda x: -x[1]):
+            body = text_of(rel)
+            if body and len(body) <= budget:
+                take(rel, body, False, "most depended-upon source")
+                break
+    # And the code that reads what the user writes: the importer of the
+    # authoring surface. Without the README, every reader told that the
+    # schema is "a reference the code imports, not the place the user writes
+    # them" still wrote "users write their intents in intentsSchema.yaml" --
+    # the label said where they do not, and nothing in front of it said where
+    # they do. The file that imports the schema is where the user's writing
+    # enters the program (`frontmatter.ts`: `getFileCache(file).frontmatter`),
+    # and the edge names it. A head, because the reading is near the top.
+    if readme is None and surface and budget > 900:
+        shown_rels = {r for r, *_ in shown}
+        readers = [r["src"] for r in ctx.conn.execute(
+            "SELECT DISTINCT src FROM code_edges WHERE dst IN (%s) ORDER BY src"
+            % ",".join("?" * len(surface)), tuple(surface))]
+        for rel in readers:
+            if rel in shown_rels or _is_prose(rel):
+                continue
+            body = text_of(rel)
+            if not body:
+                continue
+            cap = min(2000, budget)
+            cut = len(body) > cap
+            take(rel, body[:cap] if cut else body, cut,
+                 "reads what a user writes: imports the schema")
+            break
+
+    words = [r["word"] for r in ctx.conn.execute(
+        "SELECT word FROM code_lexicon ORDER BY score DESC, uses DESC LIMIT 24")]
+
+    if not shown:
+        return {"note": "nothing at the front: no manifest, README, schema or "
+                        "entry point in the index. `code.source` what there is."}
+    parts = []
+    for rel, body, cut, label in shown:
+        parts.append(f"----- {rel} -- {label}"
+                     + (" (first part only)" if cut else "") + " -----\n" + body)
+    out = {"source": "\n\n".join(parts)}
+    if words:
+        out["names_the_code_declares"] = ", ".join(words)
+    if omitted:
+        out["not_shown"] = (f"{omitted} did not fit. `code.source` any of them "
+                            f"if the front above leaves the program unexplained.")
     return out
 
 
@@ -1989,6 +3415,349 @@ def code_vocabulary(ctx: Ctx, area: str | None = None) -> list[dict]:
     return rows
 
 
+@op("code", "concordance")
+def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
+    """
+    One word, everywhere the repository uses it, organised by what kind of
+    statement each line is.
+
+    Every context this role has ever been given is shaped like a *place*: an
+    area's grains, an area's words, an area's source. A meaning is not shaped
+    like a place. `intent` is declared in `intentsSchema.yaml`, parsed in
+    `src/intents`, stored in `src/settings`, extended in `src/templates` and
+    filled from `src/variables` -- no area contains it, so no area-shaped
+    question could produce it, and none did. This is the same index pivoted on
+    the word.
+
+    The first version ranked lines by how much they "said" -- declarations,
+    then the busiest uses -- and for the five words the answer key built its
+    probe around that was the wrong order. `note` is used 133 times in the
+    README as the ordinary word and once as a member of `enum
+    TemplateVariableType`; the line that settles what `note` *is* here is
+    `of_type: "text|number|natural_date|note|folder"`, and neither that line nor
+    the enum member was in the view. The model defined the document, three runs
+    out of three, with the deciding line a few hundred bytes away.
+
+    So the view is sections, in the order a maintainer would weigh them:
+
+        declared as a kind      a member of an enum, with the enum's header
+        in what a user writes   lines of the authoring surface that say the word
+        a file of its own       a file named for the word, and what it declares
+        registered              the word as a key: `[Type.word]: handler`
+        declared                the word's own declarations, types before functions
+        used                    the busiest uses, prose files last and fewest
+        flows                   the imports between the files that say it
+
+    Each section is capped; the whole view is still a few kilobytes. What is
+    shown is recorded as read, for the glossary's gate.
+    """
+    from pathlib import Path
+
+    from ..core.scheduler import term_of
+    from ..onboarding.languages import for_path
+    from ..onboarding.lexicon import MANIFESTS, parts as _parts, singular as _sing
+
+    term = (term or (ctx.wake_refs[0] if ctx.wake_refs else "")).split("#")[0]
+    term = term_of(term) or term          # `@term:intent` is the subject `intent`
+    want = set(_words_in(term)) or {_slug_of(term)}
+    need = [_sing(w) for w in _parts(term)]
+
+    def hits(line: str) -> bool:
+        if len(need) > 1:
+            return set(need) <= {_sing(w) for w in _parts(line)}
+        return bool(want & set(_words_in(line)))
+
+    paths = sorted({r["grain"].split("::")[0] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index")})
+    if not paths:
+        return {"term": term, "files": 0, "areas": 0,
+                "where": "nothing onboarded: there is no index to read."}
+    area_of = {r["grain"].split("::")[0]: r["area"] for r in ctx.conn.execute(
+        "SELECT grain, area FROM code_index")}
+    fan_in = {r["grain"]: r["fan_in"] for r in ctx.conn.execute(
+        "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path'")}
+    has_symbols = {r["g"] for r in ctx.conn.execute(
+        "SELECT DISTINCT substr(grain, 1, instr(grain, '::') - 1) AS g "
+        "FROM code_index WHERE grain_kind = 'symbol'")}
+
+    root = _worktree_of(ctx)
+    seen_words = getattr(ctx, "read_words", None)
+    idents = getattr(ctx, "read_idents", None)
+
+    def note_read(rel: str, line: str) -> None:
+        if seen_words is not None:
+            seen_words.update(_words_in(line))
+            seen_words.update(_words_in(rel))
+        if idents is not None:
+            idents.update(_idents_in(line) | _idents_in(rel))
+
+    DECL = re.compile(r"^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?"
+                      r"(enum|interface|type|class|const|function|def|struct)\s+(\w+)")
+    ENUM_OPEN = re.compile(r"^\s*(?:export\s+)?(?:const\s+)?enum\s+(\w+)|"
+                           r"^\s*class\s+(\w+)\s*\(\s*(?:\w+\.)?(?:Int|Str)?Enum\s*\)")
+    kinds: list[str] = []          # enum member lines, with the header before them
+    surface: list[str] = []        # authoring-surface lines
+    own_files: list[str] = []      # a file named for the word, and its declarations
+    registered: list[str] = []
+    decl: list[str] = []
+    uses: list[tuple] = []
+    hit_files: list[str] = []
+    shown_lines: set[tuple] = set()
+
+    word_re = None
+    if len(need) == 1:
+        word_re = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(need[0]) + r"s?(?![A-Za-z0-9])",
+                             re.IGNORECASE)
+
+    prose_ok = _prose_allowed(ctx)
+    for rel in paths:
+        if not prose_ok and _is_prose(rel):
+            continue
+        f = root / rel
+        if not f.is_file():
+            continue
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            continue
+        lines = body.splitlines()
+        name = rel.rsplit("/", 1)[-1]
+        is_code = for_path(name) is not None
+        hit = [(n, l.strip()) for n, l in enumerate(lines, 1) if hits(l)]
+        if not hit and not (set(need) <= {_sing(w) for w in _parts(name.rsplit(".", 1)[0])}):
+            continue
+        if hit:
+            hit_files.append(rel)
+
+        # A file named for the word: what it declares, whether or not it says
+        # the word on those lines. `providers/note.ts` declares the note
+        # prompt's frontmatter parser and value getter, and that is the
+        # shortest true account of what a `note` is here.
+        stem_words = {_sing(w) for w in _parts(name.rsplit(".", 1)[0])}
+        if is_code and set(need) <= stem_words and len(own_files) < 14:
+            heads = [(n, l.strip()) for n, l in enumerate(lines, 1) if DECL.match(l)][:5]
+            if heads:
+                own_files.append(f"  {rel}")
+                for n, l in heads:
+                    own_files.append(f"      {n}: {l[:110]}")
+                    shown_lines.add((rel, n)); note_read(rel, l)
+
+        if is_code:
+            # Enum members: the codebase saying "this is one of the kinds".
+            enum_name, depth_in = None, 0
+            for n, raw in enumerate(lines, 1):
+                m = ENUM_OPEN.match(raw)
+                if m and enum_name is None:
+                    enum_name = m.group(1) or m.group(2)
+                    header = (rel, n, raw.strip())
+                    hdr_line = n
+                    depth_in = 1 if "{" in raw else 0
+                    py_enum = m.group(2) is not None
+                    continue
+                if enum_name is not None:
+                    inside = (depth_in > 0) if not py_enum else (raw.startswith((" ", "\t")) or not raw.strip())
+                    if not py_enum:
+                        depth_in += raw.count("{") - raw.count("}")
+                    if inside and hits(raw) and len(kinds) < 12:
+                        if header is not None:
+                            kinds.append(f"  {header[0]}:{header[1]}  {header[2][:110]}")
+                            shown_lines.add((rel, header[1])); note_read(rel, header[2])
+                            header = None
+                        kinds.append(f"      {n}: {raw.strip()[:110]}")
+                        shown_lines.add((rel, n)); note_read(rel, raw)
+                        # The enum and its other members, for the guard:
+                        # the block's own member lines, from the header to
+                        # the closing brace, and nothing outside it -- and
+                        # only when the member *is* the word (`note = "note"`,
+                        # `natural_date` for `date`), not merely contains it:
+                        # `intent_name` in `ReservedVariableName` is not what
+                        # an intent is one of.
+                        facts = getattr(ctx, "kind_facts", None)
+                        mem = re.match(r"^\s*([A-Za-z_]\w*)", raw)
+                        mp = [_sing(w) for w in _parts(mem.group(1))] if mem else []
+                        is_member = bool(mp) and (mp == need or mp[-len(need):] == need)
+                        if facts is not None and enum_name and is_member:
+                            sib, k = [], hdr_line
+                            while k < len(lines):
+                                m2 = lines[k]
+                                if k > hdr_line - 1 and "}" in m2:
+                                    break
+                                mm = re.match(r"^\s*([A-Za-z_]\w*)\s*(?:=|,|$)", m2)
+                                if mm and mm.group(1) not in (enum_name,) and                                         not set(_words_in(mm.group(1))) == want and                                         mm.group(1).lower() != need[-1]:
+                                    sib.append(mm.group(1))
+                                k += 1
+                            # A word may be a member of two enums (`folder`
+                            # in `TemplateVariableType`, `in_folder` in
+                            # `ReservedVariableName`): the one whose member
+                            # *is* the word names its kind; a suffix match
+                            # only if nothing better has.
+                            exact = mp == need
+                            if exact or "enum" not in facts:
+                                facts["enum"] = enum_name
+                                facts["siblings"] = sib[:12]
+                            elif not facts.get("exact"):
+                                facts["siblings"] = [x for x in dict.fromkeys(
+                                    (facts.get("siblings") or []) + sib)][:12]
+                            if exact:
+                                facts["exact"] = True
+                    if (not py_enum and depth_in <= 0) or (py_enum and raw.strip() and not raw.startswith((" ", "\t")) and n > header[1] if header else False):
+                        enum_name = None
+                    if not py_enum and depth_in <= 0:
+                        enum_name = None
+            # The word as an enum of its own: its members are its meaning.
+            facts = getattr(ctx, "kind_facts", None)
+            if facts is not None:
+                for n, raw in enumerate(lines, 1):
+                    m = ENUM_OPEN.match(raw)
+                    # The enum *is* the word: its name's words are the word's,
+                    # not merely contain them. `TemplateVariableType` is not
+                    # the enum of `template`, and telling the session it was
+                    # produced "a template is one of five kinds".
+                    en = (m.group(1) or m.group(2) or "") if m else ""
+                    if m and [_sing(w) for w in _parts(en)] == need:
+                        members = []
+                        for m2 in lines[n:n + 30]:
+                            if "}" in m2 and not m2.strip().startswith("{"):
+                                break
+                            mm = re.match(r"^\s*([A-Za-z_]\w*)\s*(?:=|,|$)", m2)
+                            if mm:
+                                members.append(mm.group(1))
+                        if members:
+                            facts["members"] = members[:12]
+            # Registrations: the word as a key in a mapping.
+            for n, l in hit:
+                if word_re and re.search(r"\[\s*\w+\." + re.escape(need[0]) + r"\s*\]\s*:", l, re.I) \
+                        or re.match(r"^\s*['\"]?" + re.escape(need[-1]) + r"['\"]?\s*:", l, re.I):
+                    if len(registered) < 8 and (rel, n) not in shown_lines:
+                        registered.append(f"  {rel}:{n}  {l[:110]}")
+                        shown_lines.add((rel, n)); note_read(rel, l)
+            for n, l in hit:
+                if DECL.match(l) and (rel, n) not in shown_lines:
+                    decl.append(f"{rel}:{n}  {l[:110]}")
+        else:
+            is_surface = (rel not in has_symbols and name.lower() not in MANIFESTS
+                          and (fan_in.get(rel, 0) > 0
+                               or name.lower().endswith((".yaml", ".yml", ".toml"))))
+            if is_surface:
+                for n, l in hit:
+                    if len(surface) < 10:
+                        surface.append(f"  {rel}:{n}  {l[:110]}")
+                        shown_lines.add((rel, n)); note_read(rel, l)
+                    facts = getattr(ctx, "kind_facts", None)
+                    if facts is not None and word_re and "|" in l:
+                        opts = [o.strip() for o in re.split(r"[|\s\"'()]+", l.split(":", 1)[-1])
+                                if o.strip() and re.match(r"^[A-Za-z_]+$", o.strip())]
+                        if any(word_re.fullmatch(o) for o in opts):
+                            facts.setdefault("options", [])
+                            facts["options"] = [o for o in dict.fromkeys(
+                                facts["options"] + [o for o in opts
+                                                    if not word_re.fullmatch(o)])][:12]
+
+        if hit:
+            best = sorted(hit, key=lambda x: -_tells_you_something(x[1]))[:limit]
+            prose = name.lower().endswith((".md", ".rst", ".txt"))
+            uses.append((rel, area_of.get(rel, "?"), len(hit), prose,
+                         [(n, l) for n, l in best if _tells_you_something(l) > 0
+                          and (rel, n) not in shown_lines]))
+
+    flow = [f"{r['src']} -> {r['dst']}" for r in ctx.conn.execute(
+        "SELECT src, dst FROM code_edges")
+        if r["src"] in set(hit_files) and r["dst"] in set(hit_files)]
+
+    # Declarations ranked by whether they declare *this* word: a declaration
+    # whose declared name is the word outranks one that merely mentions it,
+    # and a type outranks a function that returns it.
+    KIND = {"enum": 0, "type": 0, "interface": 0, "class": 1, "struct": 1,
+            "const": 2, "function": 2, "def": 2}
+
+    def rank(line: str) -> tuple:
+        m = re.search(r"(enum|interface|type|class|const|function|def|struct)\s+(\w+)", line)
+        if not m:
+            return (9, 9)
+        kind, nm = m.group(1), m.group(2)
+        got = {_sing(w) for w in _parts(nm)} if len(need) > 1 else set(_words_in(nm))
+        key = set(need) if len(need) > 1 else want
+        named = 0 if got == key else (1 if key & got else 2)
+        return (named, KIND.get(kind, 3))
+
+    decl.sort(key=lambda d: rank(d.split("  ", 1)[-1]))
+    for d in decl[:8]:
+        note_read(d.split(":", 1)[0], d)
+    if seen_words is not None:
+        seen_words.update(_words_in(term))
+
+    out: list[str] = []
+    if kinds:
+        out.append("declared as a kind:")
+        out += kinds
+    if surface:
+        out.append("in what a user writes:")
+        out += surface
+    if own_files:
+        out.append("a file of its own:")
+        out += own_files
+    if registered:
+        out.append("registered:")
+        out += registered
+    if decl:
+        out.append("declared:")
+        out += [f"  {d}" for d in decl[:6]]
+    out.append("used:")
+    # Code first, prose last; the busiest first within each. Capped so the
+    # whole view, with the declaring file, stays under the render cap.
+    ordered = sorted(uses, key=lambda x: (x[3], -x[2]))
+    for rel, area, n, prose, best in ordered[:6]:
+        out.append(f"  {rel}  [{area}]  x{n}")
+        for ln, l in (best[:1] if prose else best[:2]):
+            out.append(f"      {ln}: {l[:110]}")
+            note_read(rel, l)
+    if flow:
+        out.append("flows:")
+        out += [f"  {e}" for e in flow[:8]]
+
+    # The declaring file, whole. Three lines of `providers/note.ts` say that a
+    # note prompt exists; the file says what it does -- calls another plugin's
+    # `api_getNote` with a filter set and validates what comes back -- and that
+    # is the meaning. The probes' "declaring file" variant picked the file
+    # naively and scored nothing; the sections above pick it: a file named for
+    # the word, else the file holding its top-ranked declaration. Whole while
+    # it fits, a head when it does not, and named either way.
+    declaring = None
+    # The file that declares the word as a type, when one does -- `export type
+    # Intent` in `index.ts` over `intents.ts`, which is merely named for it --
+    # else the file named for it, else the file of its top declaration.
+    if decl and rank(decl[0].split("  ", 1)[-1]) <= (0, 1):
+        declaring = decl[0].split(":", 1)[0]        # a type, enum, interface or class of that name
+    if declaring is None:
+        for line in own_files:
+            if not line.startswith("      "):
+                declaring = line.strip(); break
+    if declaring is None and decl:
+        declaring = decl[0].split(":", 1)[0]
+    file_block = ""
+    if declaring:
+        f = root / declaring
+        if f.is_file():
+            try:
+                body = f.read_text(encoding="utf-8", errors="replace")
+            except OSError:                                     # pragma: no cover
+                body = ""
+            if body:
+                cut = len(body) > 2000
+                file_block = ("----- " + declaring + (" (first part only)" if cut else "")
+                              + " -----" + chr(10) + body[:2000])
+                ctx.opened.add(_grain_path(declaring))
+                note_read(declaring, body[:2000])
+
+    result = {"term": term,
+              "files": len(hit_files),
+              "areas": len({area_of.get(r, "?") for r in hit_files}),
+              "where": chr(10).join(out)}
+    if file_block:
+        result["declaring_file"] = file_block
+    return result
+
+
 @op("code", "survey")
 def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
     """The area's grains, most depended-upon first. Defaults to the area this
@@ -2015,6 +3784,11 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     uncommitted work and Architect reading the mainline are the same question
     asked from two places.
     """
+    if not _prose_allowed(ctx) and _is_prose(path):
+        return {"path": path, "note": "prose sources are off for this run: the "
+                "README and documents are withheld so the program is read from "
+                "its code, schema and manifest. Open a source file instead."}
+
     note = None
     try:
         target = _within(_worktree_of(ctx), path)
@@ -2071,8 +3845,10 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     end = min(end, len(lines))
     # The corrected spelling, so a citation of it resolves against the index.
     ctx.opened.add(_grain_path(path))
+    getattr(ctx, "read_idents", set()).update(_idents_in(path))
     body = chr(10).join(lines[start:end])
     ctx.read_words.update(_words_in(path))
+    getattr(ctx, "read_idents", set()).update(_idents_in(body))
     ctx.read_words.update(_words_in(body))
     out = {"path": path, "start": start, "end": end,
            "text": chr(10).join(lines[start:end]), "lines": len(lines)}
@@ -2103,6 +3879,32 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         return {"batch": bid, "diff": out.stdout[:20000]}
     except Exception as exc:
         return {"batch": bid, "error": str(exc)}
+
+
+# Prose: what a person wrote *about* the code rather than the code. Withheld
+# from every context when `prose_sources` is off, so understanding can be
+# measured on the program alone; a repository's README may be excellent and
+# the next repository's may not exist.
+_PROSE_SUFFIXES = (".md", ".rst", ".txt", ".adoc", ".markdown")
+_PROSE_DIRS = {"docs", "doc", "documentation", "wiki", "site", "man"}
+
+
+def _is_prose(path: str) -> bool:
+    p = path.replace("\\", "/").lower()
+    name = p.rsplit("/", 1)[-1]
+    if any(seg in _PROSE_DIRS for seg in p.split("/")[:-1]):
+        return True
+    return name.endswith(_PROSE_SUFFIXES) or name.split(".")[0] in (
+        "readme", "changelog", "changes", "contributing", "history", "news", "authors")
+
+
+def _prose_allowed(ctx) -> bool:
+    from ..core import config
+
+    try:
+        return config.get(ctx.conn, "prose_sources") != "off"
+    except Exception:                                       # pragma: no cover
+        return True
 
 
 def _worktree_of(ctx, batch_id=None) -> "Path":

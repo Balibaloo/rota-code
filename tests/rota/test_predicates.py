@@ -125,7 +125,7 @@ def test_contested_wakes_the_items_owner(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
                "VALUES ('i1','delete accounts','in_scope','decided','contested')")
     wakes = P.REGISTRY["contested"].fn(db)
-    assert [w.role for w in wakes] == ["gatekeeper"]
+    assert [w.role for w in wakes] == ["vision_keeper"]
     assert wakes[0].refs == ("i1",)
 
 
@@ -229,12 +229,12 @@ def test_round_close_does_not_fire_with_nothing_to_harvest(db):
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
-               "VALUES ('m1','t1','liaison','gatekeeper','deliver','[]',1,'answered')")
+               "VALUES ('m1','t1','liaison','vision_keeper','deliver','[]',1,'answered')")
     assert P.REGISTRY["round_close"].fn(db) == []
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
-               "VALUES ('m2','t1','gatekeeper','liaison','report','[]',2,'open')")
+               "VALUES ('m2','t1','vision_keeper','liaison','report','[]',2,'open')")
     wakes = P.REGISTRY["round_close"].fn(db)
     assert [w.role for w in wakes] == ["liaison"] and wakes[0].refs == ("t1",)
 
@@ -261,7 +261,7 @@ def test_a_round_whose_reports_all_settled_never_wakes_liaison(db):
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
-               "VALUES ('m1','t1','liaison','gatekeeper','deliver','[]',1,'answered')")
+               "VALUES ('m1','t1','liaison','vision_keeper','deliver','[]',1,'answered')")
     db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
                "VALUES ('i1','people can close their account','in_scope',"
                "'decided','approved')")
@@ -272,7 +272,7 @@ def test_a_round_whose_reports_all_settled_never_wakes_liaison(db):
                "('s1','e1',0,30,'people can close their account','ratified')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
-               "VALUES ('m2','t1','gatekeeper','liaison','report','[\"i1\"]',2,'open')")
+               "VALUES ('m2','t1','vision_keeper','liaison','report','[\"i1\"]',2,'open')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
                "VALUES ('m3','t1','terminologist','liaison','report','[\"s1\"]',3,'open')")
@@ -320,7 +320,7 @@ def test_the_artefact_handoffs_are_enumerated_at_all():
     Twenty-six predicates are twenty-six wakes that no message caused, and the
     obligation set could not see one of them.
 
-    `l3` enumerates message chains. Gatekeeper never messages Terminologist — it
+    `l3` enumerates message chains. Vision Keeper never messages Terminologist — it
     writes a ticket and `criteria` wakes them — so the one chain case testing an
     artefact handoff scored against the message pairs, matched nothing, and read
     as covering zero. The tier the whole onboarding loop runs in had no
@@ -407,7 +407,7 @@ def test_waiting_does_not_silence_a_different_role(db):
                "body_refs, body_text, seq, status) VALUES "
                "('m1','t1','developer','terminologist','question','[]','?',1,'open')")
 
-    assert any(w.role == "gatekeeper" and w.kind == "tick:slicing"
+    assert any(w.role == "vision_keeper" and w.kind == "tick:slicing"
                for w in frontier(db)), \
         "one role's open question stopped another role's work"
 
@@ -465,7 +465,7 @@ def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
     """
     The register's one declared entry, and everything after it derived.
 
-    Developer asks Gatekeeper, Gatekeeper answers, and the answer does not
+    Developer asks Vision Keeper, Vision Keeper answers, and the answer does not
     land. Nothing in the rows can tell that from a good answer -- the question
     says `answered` and a reply exists -- so the asker says so, and from there
     who hears about it is a function of who has already spoken in the thread.
@@ -477,11 +477,11 @@ def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES "
-               "('m1','t1','developer','gatekeeper','question','[]',"
+               "('m1','t1','developer','vision_keeper','question','[]',"
                "'does partial reconciliation count as done?',1,'answered')")
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES "
-               "('m2','m1','t1','gatekeeper','developer','answer','[]',2,'answered')")
+               "('m2','m1','t1','vision_keeper','developer','answer','[]',2,'answered')")
 
     assert not any(w.kind == "tick:unresolved" for w in frontier(db)), \
         "an answered question is discharged until the asker says otherwise"
@@ -491,7 +491,7 @@ def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
 
     wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
     assert [w.role for w in wakes] == ["architect"], \
-        "Gatekeeper has spoken; the climb must reach somebody who has not"
+        "Vision Keeper has spoken; the climb must reach somebody who has not"
     assert wakes[0].detail == "the criteria do not cover partial", \
         "the note is the only thing the next rung cannot re-derive"
 
@@ -522,9 +522,9 @@ def test_the_climb_ends_at_the_principal_rather_than_nowhere(db):
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status, unresolved_note) VALUES "
-               "('m1','t1','developer','gatekeeper','question','[]','?',1,"
+               "('m1','t1','developer','vision_keeper','question','[]','?',1,"
                "'unresolved','still no rule for partial')")
-    for i, role in enumerate(("gatekeeper", "architect"), start=2):
+    for i, role in enumerate(("vision_keeper", "architect"), start=2):
         db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                    "body_refs, seq, status) VALUES "
                    f"('m{i}','t1','{role}','developer','answer','[]',{i},'answered')")
@@ -565,7 +565,7 @@ def test_a_rung_that_cannot_reply_to_the_asker_is_not_a_rung(db):
                "('m2','t1','terminologist','tester','answer','[]',2,'answered')")
 
     wakes = [w for w in frontier(db) if w.kind == "tick:unresolved"]
-    assert [w.role for w in wakes] == ["gatekeeper"], \
+    assert [w.role for w in wakes] == ["vision_keeper"], \
         "Architect cannot answer Tester; the climb must skip to one that can"
 
 
@@ -671,7 +671,7 @@ def test_the_register_set_is_the_one_the_document_names():
     """
     assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
         "the register names a predicate that does not exist"
-    assert len(P.REGISTER_ENTRIES) == 16
+    assert len(P.REGISTER_ENTRIES) == 19   # sixteen, plus orient, reconcile and define
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
@@ -832,8 +832,8 @@ def test_two_roles_passing_one_thing_back_and_forth_is_bounded(db):
     """
     The livelock every existing bound misses.
 
-    Found by driving delivery on a real repository. Gatekeeper reopened,
-    Developer elected, Gatekeeper reopened, Developer elected -- four full round
+    Found by driving delivery on a real repository. Vision Keeper reopened,
+    Developer elected, Vision Keeper reopened, Developer elected -- four full round
     trips in fourteen sessions, no batch ever formed, and it was still going
     when the step limit stopped it.
 
@@ -856,13 +856,13 @@ def test_two_roles_passing_one_thing_back_and_forth_is_bounded(db):
     # describing one threshold is how they drift, and this file fixed that once
     # already for the livelock guard.
     cap = config.get(db, "loop_cap")
-    pairs = [("terminologist", "gatekeeper", "challenge")]
+    pairs = [("terminologist", "vision_keeper", "challenge")]
     for _ in range(cap + 1):
-        pairs += [("gatekeeper", "developer", "reopen"),
-                  ("developer", "gatekeeper", "elect")]
+        pairs += [("vision_keeper", "developer", "reopen"),
+                  ("developer", "vision_keeper", "elect")]
     last = _chain(db, pairs[:-1])          # ending on a reopen, as the run did
 
-    assert scheduler.edge_repeats(db, last) == cap + 1,         "gatekeeper->developer:reopen has caused itself past the cap"
+    assert scheduler.edge_repeats(db, last) == cap + 1,         "vision_keeper->developer:reopen has caused itself past the cap"
 
     assert scheduler.quarantine_looping(db) == [last], \
         "a loop nothing can break has to leave the frontier"
@@ -884,8 +884,8 @@ def test_a_loop_that_is_stopped_reaches_the_principal(db):
     cap = config.get(db, "loop_cap")
     pairs = []
     for _ in range(cap + 1):
-        pairs += [("gatekeeper", "developer", "reopen"),
-                  ("developer", "gatekeeper", "elect")]
+        pairs += [("vision_keeper", "developer", "reopen"),
+                  ("developer", "vision_keeper", "elect")]
     _chain(db, pairs[:-1])
     scheduler.quarantine_looping(db)
 
@@ -906,10 +906,10 @@ def test_a_chain_that_is_going_somewhere_is_left_alone(db):
     last = _chain(db, [
         ("tester", "terminologist", "question"),
         ("terminologist", "tester", "answer"),
-        ("tester", "gatekeeper", "question"),
-        ("gatekeeper", "architect", "question"),
-        ("architect", "gatekeeper", "answer"),
-        ("gatekeeper", "tester", "answer"),
+        ("tester", "vision_keeper", "question"),
+        ("vision_keeper", "architect", "question"),
+        ("architect", "vision_keeper", "answer"),
+        ("vision_keeper", "tester", "answer"),
     ])
     assert scheduler.edge_repeats(db, last) == 1
     assert scheduler.quarantine_looping(db) == []

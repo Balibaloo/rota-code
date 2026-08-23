@@ -77,7 +77,7 @@ def test_a_tick_cases_fixture_would_actually_fire_that_predicate(case, tmp_path)
 
     A fixture that fires nothing must say why. This used to be a blanket skip --
     "the seeded state may be outside what the predicate reads" -- and it was
-    true of three cases and an alibi for two others. `L2-GK-end-it-rather-than-
+    true of three cases and an alibi for two others. `L2-VK-end-it-rather-than-
     send-it-back` seeded no `test_runs`, so the ladder it was climbing did not
     exist; `L1-LI-put-a-contradiction-back-unresolved` seeded both statements
     `ratified` when the predicate reads `contradicted`. Both were exactly the

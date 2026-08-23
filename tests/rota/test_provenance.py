@@ -163,8 +163,8 @@ def test_a_message_session_walks_the_causal_chain_to_its_root(db):
     prev = None
     for i, (frm, to, verb) in enumerate([
             ("principal", "liaison", "converse"),
-            ("liaison", "gatekeeper", "ratify"),
-            ("gatekeeper", "terminologist", "define")], start=1):
+            ("liaison", "vision_keeper", "ratify"),
+            ("vision_keeper", "terminologist", "define")], start=1):
         db.execute(
             "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
             "body_refs, seq, status, cause_id) VALUES (?,?,?,?,?,'[]',?,?,?)",

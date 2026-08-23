@@ -10,12 +10,12 @@ Case format (YAML, per TESTS.md §5):
 
     id: V2
     tier: T1
-    role: gatekeeper
+    role: vision_keeper
     runs: 5
     pass: 4
     fixture:
       decisions: [{id: R1, text: "deletion rejected: billing history must survive"}]
-    inbound: {from: liaison, to: gatekeeper, verb: brief, body_refs: [s2, s3]}
+    inbound: {from: liaison, to: vision_keeper, verb: brief, body_refs: [s2, s3]}
     expect:
       writes:
         items: [{kind: scope, count: ">=1"}]
@@ -254,7 +254,7 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
     expect = case.get("expect", {})
     forbidden = case.get("forbidden", {})
 
-    # Several modes have two right answers and no third. Gatekeeper handed a
+    # Several modes have two right answers and no third. Vision Keeper handed a
     # refactor proposal either asserts it as an item or authors a decision
     # refusing it; what it must not do is nothing, because Architect is blocked
     # and will not ask twice. Written as two separate cases that would be two
@@ -589,7 +589,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
-                          area=wake.refs[0] if case.get("tick") == "survey" else None,
+                          area=wake.refs[0] if case.get("tick") in ("survey", "orient", "define") else None,
                           mode=case.get("mode", "normal"))
     delta = capture(conn, outcome.session_id, before, messages_before=seeded)
 
@@ -663,7 +663,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             conn, wake, backend=backend_factory(), pins=pins,
             instructions=prompts_mod.compose(spec["role"], mode),
             batch_id=_batch_of(conn, wake),
-            area=wake.refs[0] if spec.get("tick") == "survey" else None)
+            area=wake.refs[0] if spec.get("tick") in ("survey", "orient", "define") else None)
         return out, capture(conn, out.session_id, versions, messages_before=seen)
 
     a_out, a_delta = _one(first, None)
@@ -673,7 +673,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     # Two kinds of handoff, and only one of them was ever runnable here.
     #
     # `l3a` has said so since it was written: "most of this system does not
-    # coordinate by message. Gatekeeper never messages Terminologist -- it
+    # coordinate by message. Vision Keeper never messages Terminologist -- it
     # writes a ticket and the `criteria` predicate wakes them. There is a chain
     # case for exactly that, and it scored as covering nothing." The denominator
     # was built; the harness was not, so that case demanded a message the design

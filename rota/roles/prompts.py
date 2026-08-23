@@ -65,7 +65,21 @@ def _pick(role: str, filename: str) -> Path:
     return cand if cand.exists() else PROMPT_DIR / role / filename
 
 
-def base(role: str) -> str:
+def base(role: str, verb: str = "") -> str:
+    """
+    Who the role is, for this mode.
+
+    A mode may declare its own base in `<mode>.base.md`, and the onboarding
+    modes do: the default base carries a role's standing doctrine for the
+    delivery loop -- criteria, tickets, what it may never decide -- and a
+    session woken to define one word of a program it has never seen needs
+    none of it. Measured: the brief is what carries the recall, and the
+    forty-five-line base was most of what the brief was.
+    """
+    if verb:
+        own = _pick(role, f"{verb}.base.md")
+        if own.exists():
+            return _read(own)
     return _read(_pick(role, "base.md"))
 
 
@@ -79,7 +93,7 @@ def piece(role: str, verb: str) -> str:
 
 def compose(role: str, verb: str = "") -> str:
     """base + piece(verb). The piece is what makes the session's job specific."""
-    parts = [base(role)]
+    parts = [base(role, verb)]
     extra = piece(role, verb) if verb else ""
     if extra:
         parts.append(extra)
@@ -110,7 +124,8 @@ def available(role: str) -> list[str]:
     d = PROMPT_DIR / role
     if not d.exists():
         return []
-    return sorted(p.stem for p in d.glob("*.md") if p.stem != "base")
+    return sorted(p.stem for p in d.glob("*.md")
+                  if p.stem != "base" and not p.stem.endswith(".base"))
 
 
 def check_coverage() -> list[str]:

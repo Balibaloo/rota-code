@@ -9,7 +9,7 @@ it safe: this file can be deleted and rewritten against the database contract.
 Frontier = open message tips ∪ tick predicates evaluated against current state.
 
 The second half matters as much as the first. An approved item with no tickets is
-not a message, it is a *state*; nothing would ever wake Gatekeeper for it. Because the
+not a message, it is a *state*; nothing would ever wake Vision Keeper for it. Because the
 predicates are re-evaluated every pass, residual work cannot be lost — deferred
 batches, half-sliced items, criteria-less tickets are all re-derived from state.
 That is also why the scheduler can be thrown away: pending work was never held in
@@ -64,7 +64,7 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
     was in the design, in the docstring, and in the prompt, and it never ran.
 
     A report *outside* a broadcast thread still tips, and that is the whole of
-    what `report` mode is for: the top of the escalation ladder, where Gatekeeper
+    what `report` mode is for: the top of the escalation ladder, where Vision Keeper
     has run out of rungs and the next step is a person.
     """
     rows = conn.execute(
@@ -160,7 +160,7 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
     for b in broadcasts:
         thread = b["thread_id"]
         # Every recipient of the broadcast has committed, and nothing in the
-        # subtree is still open (a terminologist->gatekeeper challenge keeps it open).
+        # subtree is still open (a terminologist->vision_keeper challenge keeps it open).
         pending = conn.execute(
             "SELECT COUNT(*) AS n FROM messages "
             "WHERE thread_id = ? AND status = 'open' AND to_role != 'liaison'",
@@ -187,7 +187,7 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
 
 def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Gatekeeper slices tickets from items whose approval postdates their last
+    Vision Keeper slices tickets from items whose approval postdates their last
     amendment. Fires per *gate result* rather than per item: one session with the
     whole batch of approvals is cheaper and better informed.
     """
@@ -199,7 +199,7 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     ).fetchall()
     if not rows:
         return []
-    return [Wake("gatekeeper", "tick:slicing", refs=tuple(r["id"] for r in rows))]
+    return [Wake("vision_keeper", "tick:slicing", refs=tuple(r["id"] for r in rows))]
 
 
 def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
@@ -248,7 +248,7 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
 
 def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     """
-    Draft items with no gate open on them: Gatekeeper submits them for approval.
+    Draft items with no gate open on them: Vision Keeper submits them for approval.
 
     Fires per *set* rather than per item, because Signoff presents one document —
     the principal is approving an interpretation, and interpretations are read
@@ -264,7 +264,7 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     ).fetchone()["n"]
     if pending:
         return []
-    return [Wake("gatekeeper", "tick:signoff", refs=tuple(drafts))]
+    return [Wake("vision_keeper", "tick:signoff", refs=tuple(drafts))]
 
 
 # Terms first, because constraints are written in glossary terms; observed
@@ -272,7 +272,229 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
 # than inlined so the obligation set can see which roles onboarding wakes —
 # buried in the loop below, the three survey modes were invisible to it, and
 # they were the three that turned out to have no prompt at all.
-SURVEY_ORDER = ("terminologist", "architect", "gatekeeper")
+# Which roles survey each area, and in what order, once the program has been
+# oriented and its words defined.
+#
+# Vision Keeper used to be the third pass, per area, and wrote sentences about
+# code -- `getRelativePath: returns the relative path` -- because a folded
+# directory is not where a product's behaviour lives. Its pass is the first one
+# now, over the whole program (`tick_orient`), and every later phase is written
+# with its account in front of it. The per-area mode files survive, unoffered;
+# putting the role back here is one edit and a re-measurement.
+SURVEY_ORDER = ("terminologist", "architect")
+
+# Onboarding subjects that are not areas. A wake carries its subject in
+# `refs[0]`; for a survey that is a path, for the orientation it is the whole
+# program, and for the define phase it is one word. Sigilled so nothing that
+# consumes an area can mistake one for a directory.
+PROGRAM = "@program"
+PROSE = "@prose"
+TERM_PREFIX = "@term:"
+ONBOARDING_TICKS = ("tick:orient", "tick:reconcile", "tick:define", "tick:survey")
+
+
+def is_area(subject: str | None) -> bool:
+    """A path under the checkout, as opposed to `@program` or `@term:x`."""
+    return bool(subject) and not str(subject).startswith("@")
+
+
+def term_of(subject: str | None) -> str:
+    return subject[len(TERM_PREFIX):] if subject and subject.startswith(TERM_PREFIX) else ""
+
+
+def onboarding_phases(conn: sqlite3.Connection) -> tuple[str, ...]:
+    """The phases this run performs, in order. A setting the principal owns."""
+    from . import config
+
+    raw = config.get(conn, "onboarding_phases")
+    return tuple(p.strip() for p in str(raw).split(",") if p.strip())
+
+
+def _abandoned(conn: sqlite3.Connection, kind: str) -> set[str]:
+    """Subjects of quarantined ticks of this kind, by `refs[0]`."""
+    return {
+        r["tick_key"].split("|", 2)[2].split(",")[0]
+        for r in conn.execute(
+            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+            "AND tick_key LIKE ?", (f"%|{kind}|%",))
+    }
+
+
+def _orient_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    The program has not been oriented: nobody has said what it does for its
+    user, and every later phase is written with that account in front of it.
+
+    One wake, for the whole program, to the role answerable for what the
+    project is. Discharged by its survey record -- `found` with items under
+    it, or `none_found`, which is a real answer about a tree that is all
+    plumbing -- or by the attempt bound.
+    """
+    if not conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone():
+        return []
+    if PROGRAM in _abandoned(conn, "tick:orient"):
+        return []
+    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (PROGRAM,)).fetchone()
+    return [] if done else [Wake("vision_keeper", "tick:orient", refs=(PROGRAM,))]
+
+
+def _reconcile_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    The README has not been read against the account.
+
+    The orientation is written from code alone -- prose is hearsay from absent
+    authors -- and then the README is read *as a check*: where it and the
+    account disagree, "the README is stale" and "the code has a bug" are the
+    two readings and only the principal can say which, so each disagreement is
+    a ledger entry the agenda puts to them. One wake, after the orientation,
+    only when there is prose to reconcile.
+    """
+    from . import config
+
+    try:
+        if config.get(conn, "prose_sources") == "off":
+            return []
+    except Exception:                                       # pragma: no cover
+        pass
+    if not conn.execute(
+            "SELECT 1 FROM code_index WHERE grain_kind = 'path' "
+            "AND (grain LIKE 'README%' OR grain LIKE 'readme%') LIMIT 1").fetchone():
+        return []
+    if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (PROGRAM,)).fetchone():
+        return []
+    if PROSE in _abandoned(conn, "tick:reconcile"):
+        return []
+    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (PROSE,)).fetchone()
+    return [] if done else [Wake("vision_keeper", "tick:reconcile", refs=(PROSE,))]
+
+
+def pending_terms(conn: sqlite3.Connection) -> list[str]:
+    """
+    The words the define phase still owes, best first.
+
+    The lexicon is the project's own list -- directories, files, declared
+    types, authoring keys -- and the orientation adds to it: a word the account
+    of the program needed is a word the program is about, and two lexicon words
+    the account says together, which the code also says together, are one
+    compound (`global intent`). Both are computed here, at frontier time,
+    because the items did not exist when the lexicon was built.
+
+    A word is settled by a live glossary row in its family, by a `none_found`
+    record for it, or by the attempt bound. Nothing else removes it.
+    """
+    import json
+    import math
+
+    from . import config
+    from ..onboarding import lexicon as lex
+    from ..roles.api import _singular, _slug_of
+
+    try:
+        rows = lex.ranked(conn)
+    except sqlite3.Error:
+        return []
+    if not rows:
+        return []
+
+    toks: list[str] = []
+    for r in conn.execute("SELECT text FROM items WHERE provenance = 'observed'"):
+        toks += [lex.singular(w) for w in lex.parts(r["text"] or "")]
+    item_words = set(toks)
+    item_bigrams = set(zip(toks, toks[1:]))
+
+    def said_together(ws: list[str]) -> bool:
+        return any(tuple(ws) == tuple(toks[i:i + len(ws)])
+                   for i in range(max(0, len(toks) - len(ws) + 1)))
+
+    scored: dict[str, tuple[float, int]] = {}
+    for r in rows:
+        word, score, uses = r["word"], float(r["score"]), int(r["uses"])
+        ws = word.split()
+        if (len(ws) == 1 and word in item_words) or (len(ws) > 1 and said_together(ws)):
+            score += 3.0
+        scored[word] = (score, uses)
+    try:
+        bigrams = json.loads(conn.execute(
+            "SELECT value FROM config WHERE key = 'lexicon_bigrams'"
+        ).fetchone()["value"])
+    except (TypeError, ValueError, sqlite3.Error):
+        bigrams = []
+    for a, b, n in bigrams:
+        if (a, b) in item_bigrams and f"{a} {b}" not in scored:
+            scored[f"{a} {b}"] = (3.0 + min(2.0, math.log10(n + 1)) + 3.0, n)
+
+    defined = {_singular(r["id"].split("#")[0]) for r in conn.execute(
+        "SELECT id FROM glossary_terms WHERE superseded_by IS NULL")}
+    declined = {term_of(r["area"]) for r in conn.execute(
+        "SELECT area FROM survey_records WHERE area LIKE ?", (TERM_PREFIX + "%",))}
+    abandoned = {term_of(a) for a in _abandoned(conn, "tick:define")}
+
+    n = int(config.get(conn, "define_terms"))
+    ranked = sorted(scored.items(), key=lambda kv: (-kv[1][0], -kv[1][1], kv[0]))
+    picked = [word for word, _ in ranked[:n]]
+    # The authoring keys, regardless of rank. `define_terms` bounds the open
+    # vocabulary; the keys are the closed one -- what the project asks its
+    # user to type -- and on the first run with keys in the lexicon all
+    # twenty were present and none cracked the cap.
+    keys = [r["word"] for r in conn.execute(
+        "SELECT word FROM code_lexicon WHERE sources LIKE ? "
+        "ORDER BY score DESC, uses DESC, word", ('%"key"%',))]
+    out = []
+    for word in picked + [k for k in keys if k not in picked]:
+        if (_singular(_slug_of(word)) in defined or word in declined
+                or word in abandoned):
+            continue
+        out.append(word)
+    return out
+
+
+def _define_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    # No lexicon, no words to owe: a tree with nothing declared in it, or a
+    # database from before the table existed.
+    if not conn.execute("SELECT 1 FROM code_lexicon LIMIT 1").fetchone():
+        return []
+    return [Wake("terminologist", "tick:define", refs=(TERM_PREFIX + w,))
+            for w in pending_terms(conn)]
+
+
+def onboarding_phase(conn: sqlite3.Connection) -> str:
+    """
+    Which onboarding phase is current: orient, define, survey, done -- or
+    none, when nothing has been onboarded.
+
+    Phases are strict, for the same reason roles survey in order: each one is
+    written with the previous one's artefact in front of it, and an account
+    written after the words were defined would have been written without
+    them. The frontier narrows by situation; this is that narrowing, one level
+    up from a session.
+    """
+    if not conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone():
+        return "none"
+    phases = onboarding_phases(conn)
+    if "orient" in phases and _orient_wakes(conn):
+        return "orient"
+    if "reconcile" in phases and _reconcile_wakes(conn):
+        return "reconcile"
+    if "define" in phases and pending_terms(conn):
+        return "define"
+    if "survey" in phases and _survey_wakes(conn):
+        return "survey"
+    return "done"
+
+
+def tick_orient(conn: sqlite3.Connection) -> list[Wake]:
+    return _orient_wakes(conn) if onboarding_phase(conn) == "orient" else []
+
+
+def tick_reconcile(conn: sqlite3.Connection) -> list[Wake]:
+    return _reconcile_wakes(conn) if onboarding_phase(conn) == "reconcile" else []
+
+
+def tick_define(conn: sqlite3.Connection) -> list[Wake]:
+    return _define_wakes(conn) if onboarding_phase(conn) == "define" else []
 
 
 def survey_order() -> tuple[str, ...]:
@@ -300,11 +522,17 @@ def survey_order() -> tuple[str, ...]:
 
 
 def tick_survey(conn: sqlite3.Connection) -> list[Wake]:
+    """The per-area survey pass, once the program is oriented and its words
+    defined. `_survey_wakes` is the pass itself; this is the phase gate."""
+    return _survey_wakes(conn) if onboarding_phase(conn) == "survey" else []
+
+
+def _survey_wakes(conn: sqlite3.Connection) -> list[Wake]:
     """
     Onboarding: one session per elected area, per role, in the order
-    Terminologist -> Architect -> Gatekeeper. Terms first, because constraints are written
-    in glossary terms; observed baseline last, because it describes behaviour in
-    those terms.
+    Terminologist -> Architect. Terms first, because constraints are written
+    in glossary terms. The observed baseline is written before either, over the
+    whole program, by `tick_orient`.
 
     Sessions compound through artefacts, not context: area N's session consults
     its own artefact and sees everything areas 1..N-1 found.
@@ -409,6 +637,9 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_slicing,
     tick_criteria,
     tick_batch_start,
+    tick_orient,
+    tick_reconcile,
+    tick_define,
     tick_survey,
 )
 
@@ -446,7 +677,7 @@ def frontier(conn: sqlite3.Connection, principal_present: bool = False) -> list[
     # `tick_survey` had no way to know it was about to be quarantined — and
     # `quarantine_stalled` then removed it and returned empty. Empty is what
     # quiescence looks like, so onboarding stopped with eleven of twelve areas
-    # done by Architect, one abandoned, and Gatekeeper's entire pass of twelve
+    # done by Architect, one abandoned, and Vision Keeper's entire pass of twelve
     # never offered. Calling `frontier` a second time returned thirteen wakes,
     # which is how it was found.
     #
@@ -711,7 +942,7 @@ def quarantine_looping(conn: sqlite3.Connection) -> list[str]:
 
     Two roles handing one thing back and forth is a livelock that looks like
     work from every angle the system had: each session commits, each sends a
-    message, each message is new. Measured on a real repository -- Gatekeeper
+    message, each message is new. Measured on a real repository -- Vision Keeper
     reopened, Developer elected, four round trips in fourteen sessions, no batch
     ever formed, still going when the step limit stopped it.
 

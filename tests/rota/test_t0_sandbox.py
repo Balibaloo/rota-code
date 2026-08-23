@@ -89,8 +89,8 @@ def test_s9_consult_mode_has_no_writers(db):
     Read-only inquiry is free — and cannot cost anything, because a consult
     sandbox has no write functions at all.
     """
-    normal = build("gatekeeper", db)
-    consult = build("gatekeeper", db, mode="readonly")
+    normal = build("vision_keeper", db)
+    consult = build("vision_keeper", db, mode="readonly")
 
     assert "problem.assert" in normal.functions()
     assert "problem.consult" in consult.functions()
@@ -128,7 +128,7 @@ def test_s9_writes_are_staged_not_applied(db):
     A sandbox write goes into the session's pending set, never straight to the
     table — atomicity is not optional and cannot be bypassed by a tool.
     """
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("problem.assert", id="i1", text="delete account", kind="in_scope")
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -145,7 +145,7 @@ def test_s9_positional_arguments_are_bound_by_signature(db):
     rule it had no standing to enforce — whether the call is well formed depends
     on the signature, and only this layer knows the signature.
     """
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("problem.assert", "i1", "delete account")
 
     assert sb.ctx.writes == [("items", "i1", {
@@ -155,13 +155,13 @@ def test_s9_positional_arguments_are_bound_by_signature(db):
 
 def test_s9_positional_and_keyword_for_the_same_argument_is_an_error(db):
     """Informality is tolerated; ambiguity is not."""
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     with pytest.raises(ArgumentError, match="both by position and by name"):
         sb.call("problem.assert", "i1", id="i2", text="delete account")
 
 
 def test_s9_too_many_positional_arguments_is_an_error(db):
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     with pytest.raises(ArgumentError, match="positional arguments"):
         sb.call("problem.assert", "i1", "text", "in_scope", "spare")
 
@@ -173,7 +173,7 @@ def test_s9_the_ledger_says_what_to_write_instead_of_id(db):
     that means something different here. Rejected 170 times before the error
     named the substitute.
     """
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     with pytest.raises(ArgumentError, match="about_ref"):
         sb.call("ledger.log", id="i1", about_table="items", default_taken="yes")
 
@@ -187,7 +187,7 @@ def test_s9_a_container_where_a_scalar_was_declared_is_a_tool_error(db):
 
     The annotation is the authority. `text: str` means a single value.
     """
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     with pytest.raises(ArgumentError, match="takes a single value"):
         sb.call("problem.assert", id="i1", text={"was": "a dict"}, kind="in_scope")
 
@@ -214,10 +214,10 @@ def test_the_declaration_takes_no_id_and_finds_the_question_it_answers(db):
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES "
-               "('m1','t1','developer','gatekeeper','question','[]','?',1,'answered')")
+               "('m1','t1','developer','vision_keeper','question','[]','?',1,'answered')")
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES "
-               "('m2','m1','t1','gatekeeper','developer','answer','[]',2,'open')")
+               "('m2','m1','t1','vision_keeper','developer','answer','[]',2,'open')")
 
     sb = build("developer", db)
     sb.ctx.trigger = "m2"
@@ -237,10 +237,10 @@ def test_only_the_asker_can_say_the_answer_did_not_land(db):
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES "
-               "('m1','t1','tester','gatekeeper','question','[]','?',1,'answered')")
+               "('m1','t1','tester','vision_keeper','question','[]','?',1,'answered')")
     db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
                "verb, body_refs, seq, status) VALUES "
-               "('m2','m1','t1','gatekeeper','tester','answer','[]',2,'open')")
+               "('m2','m1','t1','vision_keeper','tester','answer','[]',2,'open')")
 
     sb = build("developer", db)
     sb.ctx.trigger = "m2"
@@ -383,7 +383,7 @@ def test_changing_your_mind_about_who_owns_a_block_is_allowed(db):
     A session's first tool call is its reflex: measured on this very case, the
     Tester looked a whole clause up in the glossary, got nothing, read that as
     an undefined word and asked Terminologist on turn two. Three turns later it
-    worked out the sentence was the problem, called `msg.question_gatekeeper`,
+    worked out the sentence was the problem, called `msg.question_vision_keeper`,
     and was refused for a decision it had already improved on.
 
     Nothing else staged in a session is append-only. A write can be superseded,
@@ -402,11 +402,11 @@ def test_changing_your_mind_about_who_owns_a_block_is_allowed(db):
     sb = build("tester", db, mode="tests_missing")
     sb.call("msg.question_terminologist", refs=["c1"],
             question="what does 'easy to work with' mean?")
-    sb.call("msg.question_gatekeeper", refs=["c1"],
+    sb.call("msg.question_vision_keeper", refs=["c1"],
             question="no machine can check this; is it a criterion?")
 
     asked = [(m["to_role"], m["verb"]) for m in sb.ctx.outbound]
-    assert asked == [("gatekeeper", "question")], \
+    assert asked == [("vision_keeper", "question")], \
         f"one question, and the one it settled on: got {asked}"
 
 
@@ -425,11 +425,11 @@ def test_it_is_still_one_question_however_many_times_it_turns(db):
                "('c1','tk1','webhooks carry the signature the spec requires','[]')")
 
     sb = build("tester", db, mode="tests_missing")
-    for who in ("terminologist", "gatekeeper", "researcher", "gatekeeper"):
+    for who in ("terminologist", "vision_keeper", "researcher", "vision_keeper"):
         sb.call(f"msg.question_{who}", refs=["c1"], question="which of you owns this?")
 
     assert len(sb.ctx.outbound) == 1, sb.ctx.outbound
-    assert sb.ctx.outbound[0]["to_role"] == "gatekeeper"
+    assert sb.ctx.outbound[0]["to_role"] == "vision_keeper"
 
 
 def test_asking_about_a_criterion_does_not_destroy_a_test_already_written(db):
@@ -459,7 +459,7 @@ def test_asking_about_a_criterion_does_not_destroy_a_test_already_written(db):
 
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
             body="assert prorate(999, 1, 3) == 333")
-    sb.call("msg.question_gatekeeper", refs=["c1"], question="is this in scope?")
+    sb.call("msg.question_vision_keeper", refs=["c1"], question="is this in scope?")
 
     assert [w[1] for w in sb.ctx.writes if w[0] == "tests"] == ["t1"],         "a question must not withdraw work the session had already done"
 
@@ -573,7 +573,7 @@ def test_a_session_woken_by_a_question_can_only_answer_the_asker(db):
     The `unresolved` narrowing, stated once instead of per tick.
 
     It was keyed on `tick:unresolved` because that is where it was measured:
-    Gatekeeper reaches Developer and Tester, both channels sat in the mode, and
+    Vision Keeper reaches Developer and Tester, both channels sat in the mode, and
     woken to a thread between Tester and Terminologist it answered Developer
     five runs out of five. The reasoning was never about that tick — the asker
     is the sender of the message that woke you, and that is true of every wake
@@ -632,7 +632,7 @@ def test_a_session_cannot_scope_one_item_both_ways(db):
     Re-asserting the *same* scope is a different thing and stays allowed: it is
     a role restating itself, costs nothing, and there is nothing to correct.
     """
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
 
     sb.call("problem.assert", id="i_ret", text="invoices are retained",
             kind="in_scope")
@@ -652,7 +652,7 @@ def test_a_session_cannot_scope_one_item_both_ways(db):
 
 def test_two_different_items_are_not_a_contradiction(db):
     """The bound: one statement can yield several items, and routinely does."""
-    sb = build("gatekeeper", db)
+    sb = build("vision_keeper", db)
     sb.call("problem.assert", id="i_close", text="users can close accounts",
             kind="in_scope")
     sb.call("problem.assert", id="i_ret", text="invoices are retained",
@@ -710,3 +710,48 @@ def test_grouping_checks_the_item_too(db):
     with pytest.raises(ValueError):
         sb.call("batches.group", id="b1", item_id="i_nope", ticket_ids=["tk1"])
     assert sb.ctx.writes == []
+
+
+def test_a_one_element_list_around_a_scalar_unwraps(db):
+    """`question=["is it one band?"]` is completely determined; two elements
+    is a real ambiguity and stays refused."""
+    from rota.core import sandbox as sandbox_mod
+
+    sb = sandbox_mod.build("developer", db, session_id="s1")
+    got = sb.call("msg.question_researcher", refs=[], question=["is it one band?"])
+    assert got
+    import pytest
+
+    with pytest.raises(sandbox_mod.ArgumentError):
+        sb.call("msg.question_researcher", refs=[], question=["a", "b"])
+
+
+def test_a_ticket_naming_a_missing_item_is_refused_not_fatal(db):
+    from rota.core import sandbox as sandbox_mod
+
+    sb = sandbox_mod.build("vision_keeper", db, session_id="s1")
+    import pytest
+
+    with pytest.raises(Exception, match="i_ghost"):
+        sb.call("tickets.slice", id="tk1", item_id="i_ghost", text="a ticket")
+
+
+def test_grouping_infers_the_item_the_tickets_share(db):
+    """`batches.group(item_id=None)` with tickets that all trace to one item:
+    the row already knows; two items stays a refusal."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
+               "('i1', 'export invoices', 'in_scope', 'decided')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk1', 'i1', 'csv writer'), ('tk2', 'i1', 'download button')")
+    sb = sandbox_mod.build("architect", db, session_id="s1")
+    got = sb.call("batches.group", id="b1", ticket_ids=["tk1", "tk2"])
+    assert got["id"] == "b1"
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
+               "('i2', 'other', 'in_scope', 'decided')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk3', 'i2', 'x')")
+    with pytest.raises(Exception, match="exactly one approved item"):
+        sb.call("batches.group", id="b2", ticket_ids=["tk1", "tk3"])

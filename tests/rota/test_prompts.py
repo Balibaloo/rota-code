@@ -47,10 +47,10 @@ KNOWN_UNBRIEFED = {
     "architect": ("glossary.lookup", "msg.question_researcher"),
     "critic": ("msg.challenge_developer",),
     "developer": ("msg.question_researcher",),
-    "gatekeeper": ("msg.question_researcher",),
+    "vision_keeper": ("msg.question_researcher",),
     "liaison": ("decisions.search",),
     "researcher": ("msg.answer_architect", "msg.answer_developer",
-                   "msg.answer_gatekeeper", "msg.answer_terminologist",
+                   "msg.answer_vision_keeper", "msg.answer_terminologist",
                    "msg.answer_tester"),
     "terminologist": ("msg.question_researcher",),
     # Tester's is gone: `L1-TS-an-outside-fact-is-the-researchers` measures an
@@ -215,10 +215,31 @@ def test_every_operation_is_offered_by_some_mode():
         if any(prompts.mode_tools(role, m) is None for m in modes):
             continue                      # an un-narrowed mode offers everything
         offered = {fn for m in modes for fn in (prompts.mode_tools(role, m) or [])}
+        offered |= set(SUPERSEDED.get(role, ()))
         missing = sorted(set(build(role, conn).functions()) - offered)
         if missing:
             stranded[role] = missing
     assert not stranded, stranded
+
+
+# Reads the onboarding phases replaced and no main-tree mode offers any more.
+# Listed rather than deleted, with the measurement that retired each:
+#
+#   code.survey       the grain list. 88% of the glossary transcribed from it
+#                     (WORKLIST item 9); `code.area` hands over the source.
+#   code.vocabulary   the word list. Capped recall at 4 of 10 (item 8) and
+#                     added about one term over the grain list (item 9); the
+#                     lexicon and `code.concordance` do its two jobs.
+#
+# The edges stay on the graph because the ablation variants under
+# `prompts/terminologist/{grain,vocab,source}/` offer them, and those are the
+# measured controls the retirement rests on. Removing the edges removes the
+# ability to re-run the ablation; that is a deletion to make deliberately,
+# with the variants, not a side effect of a lint.
+SUPERSEDED = {
+    "terminologist": ("code.survey", "code.vocabulary"),
+    "architect": ("code.survey",),
+}
 
 
 def test_every_operation_is_mentioned_in_some_prompt():
@@ -280,7 +301,7 @@ def test_a_mode_names_no_function_it_does_not_offer():
     function the model cannot call into the model's head.
 
     Both faults were live. Developer's `tests_failing` and `verdict_failed` said
-    "fix the code" with no `code.write` in reach. Gatekeeper's `signoff` and
+    "fix the code" with no `code.write` in reach. Vision Keeper's `signoff` and
     Liaison's `verdict` spent a paragraph each forbidding a function the tool
     list had already withheld.
     """
@@ -405,7 +426,7 @@ def test_no_brief_narrates_its_own_edit_history():
     are the two for asking another question." Provenance for me, addressed to
     nobody in the session -- and it spent two sentences naming the two calls the
     case forbids and describing them as the ones that stand out. The case failed
-    5/5 on `forbidden call to msg.question_gatekeeper`.
+    5/5 on `forbidden call to msg.question_vision_keeper`.
 
     The test is deliberately narrow. Self-reference is not the fault: the
     paragraph in `developer/batch_start.md` beginning "A session that has done

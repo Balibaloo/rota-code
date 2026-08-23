@@ -109,7 +109,7 @@ def test_s1_kill_between_tool_calls_leaves_nothing(tmp_path):
     conn = init_db(dbpath)
     conn.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-        "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)"
+        "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)"
     )
     conn.close()
 
@@ -121,7 +121,7 @@ from rota.core.db import connect
 conn = connect({str(dbpath)!r})
 conn.execute("BEGIN IMMEDIATE")
 conn.execute("INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq) "
-             "VALUES ('s_dead','gatekeeper','m1','normal',1,1)")
+             "VALUES ('s_dead','vision_keeper','m1','normal',1,1)")
 conn.execute("INSERT INTO items (id, text, kind, provenance) "
              "VALUES ('i_dead','half written','in_scope','decided')")
 print("READY", flush=True)
@@ -174,7 +174,7 @@ time.sleep(30)
 
 def test_s2_frontier_returns_open_tips_and_batch_root(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
-               "VALUES ('m_open','t1','liaison','gatekeeper','deliver',1,'open')")
+               "VALUES ('m_open','t1','liaison','vision_keeper','deliver',1,'open')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
                "VALUES ('m_done','t1','liaison','terminologist','deliver',2,'answered')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, status) "
@@ -192,14 +192,14 @@ def test_s2_frontier_returns_open_tips_and_batch_root(db):
 def test_s2_quiescence_is_empty_frontier(db):
     assert is_quiescent(db)
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
+               "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
     assert not is_quiescent(db)
 
 
 def test_s2_residual_work_is_derived_not_remembered(db):
     """
     The point of predicates-as-state: an approved item with no tickets is not a
-    message, so nothing would ever wake Gatekeeper for it. It must be re-derived.
+    message, so nothing would ever wake Vision Keeper for it. It must be re-derived.
     """
     seed_item(db)
     assert any(w.kind == "tick:slicing" for w in frontier(db))
@@ -229,7 +229,7 @@ def test_s3_scheduler_disposability(tmp_path):
     seed_item(conn)
     seed_batch(conn)
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
+                 "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
     conn.close()
 
@@ -382,7 +382,7 @@ def test_s8_consult_write_is_refused_and_bumps_nothing(db):
     before = version_of(db, "items")
     with pytest.raises(ReadonlyWriteError):
         session_commit(db, SessionResult(
-            session_id="s_readonly", role="gatekeeper", mode="readonly",
+            session_id="s_readonly", role="vision_keeper", mode="readonly",
             writes=[Write("items", "i1", {
                 "text": "x", "kind": "in_scope", "provenance": "decided"})],
         ))
@@ -392,7 +392,7 @@ def test_s8_consult_write_is_refused_and_bumps_nothing(db):
 
 def test_s8_consult_may_read_and_answer(db):
     session_commit(db, SessionResult(
-        session_id="s_readonly", role="gatekeeper", mode="readonly",
+        session_id="s_readonly", role="vision_keeper", mode="readonly",
         messages=[OutboundMessage(id="m_ans", to_role="liaison", verb="answer")],
         tool_calls=[("problem.consult", "")],
     ))
@@ -463,11 +463,11 @@ def test_s12_verb_vocabulary_is_closed():
 # ---------------------------------------------------------------------------
 
 def test_s13_role_cannot_hold_two_sessions(db):
-    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s1','gatekeeper','normal',0,1)")
-    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s2','gatekeeper','normal',0,2)")
-    claim(db, "gatekeeper", "s1")
+    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s1','vision_keeper','normal',0,1)")
+    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s2','vision_keeper','normal',0,2)")
+    claim(db, "vision_keeper", "s1")
     with pytest.raises(RoleBusy):
-        claim(db, "gatekeeper", "s2")
+        claim(db, "vision_keeper", "s2")
 
 
 # ---------------------------------------------------------------------------
@@ -507,9 +507,9 @@ def test_ordering_contains_no_time(db):
 # ---------------------------------------------------------------------------
 
 def test_boot_reaps_stale_claim(db):
-    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s1','gatekeeper','normal',0,1)")
-    claim(db, "gatekeeper", "s1")
-    assert reap_claims(db) == ["gatekeeper:s1"]
+    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) VALUES ('s1','vision_keeper','normal',0,1)")
+    claim(db, "vision_keeper", "s1")
+    assert reap_claims(db) == ["vision_keeper:s1"]
     assert db.execute("SELECT COUNT(*) n FROM claims").fetchone()["n"] == 0
 
 
@@ -547,7 +547,7 @@ def test_boot_clears_a_process_row_it_cannot_identify(db):
 
 def test_boot_quarantines_exhausted_message(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq, attempts) "
-               "VALUES ('m1','t1','liaison','gatekeeper','deliver',1,10)")
+               "VALUES ('m1','t1','liaison','vision_keeper','deliver',1,10)")
     assert quarantine_exhausted(db, cap=10) == ["m1"]
     assert open_tips(db) == [], "a quarantined message must leave the frontier"
 

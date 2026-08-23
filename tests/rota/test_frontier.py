@@ -23,7 +23,13 @@ from rota.core.scheduler import frontier
 
 @pytest.fixture
 def db(tmp_path):
-    return init_db(tmp_path / "rota.db")
+    conn = init_db(tmp_path / "rota.db")
+    # The survey-phase tests here predate the orientation and define phases,
+    # which now run first; they test the per-area pass and say so by running
+    # that phase alone. See `test_onboarding_phases.py` for the order.
+    from rota.core import config
+    config.set(conn, "onboarding_phases", "survey")
+    return conn
 
 
 @pytest.fixture
@@ -52,7 +58,7 @@ def test_the_frontier_is_every_predicate(db):
     not in the registry stops being checkable by the terminal-state lint.
     """
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-               "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
+               "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
 
     assert "message_tips" in P.REGISTRY
     assert ("messages", "status", "open") in P.drained_states()
@@ -77,7 +83,7 @@ def test_traffic_outranks_everything(broken_and_ready):
     """
     broken_and_ready.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-        "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
+        "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
 
     assert frontier(broken_and_ready)[0].kind == "message"
 
@@ -246,6 +252,8 @@ def test_an_abandoned_area_lets_the_role_move_on(tmp_path):
     from rota.core.scheduler import SURVEY_ORDER, tick_survey
 
     db = init_db(tmp_path / "rota.db")
+    from rota.core import config
+    config.set(db, "onboarding_phases", "survey")     # the per-area pass alone
     for area in ("a", "b"):
         db.execute("INSERT INTO code_index (grain, grain_kind, area) "
                    "VALUES (?, 'path', ?)", (f"{area}/x.py", area))
@@ -306,6 +314,8 @@ def test_the_root_area_is_surveyed_last(tmp_path):
     from rota.core.scheduler import tick_survey
 
     conn = init_db(tmp_path / "order.db")
+    from rota.core import config
+    config.set(conn, "onboarding_phases", "survey")     # the per-area pass alone
     for area in (".", "src/api", "src/auth"):
         conn.execute("INSERT INTO code_index (grain, grain_kind, area) "
                      "VALUES (?,'path',?)", (f"{area}/x.py", area))

@@ -49,10 +49,10 @@ from rota.testkit import fixtures
 # `L1-LI-no-report-no-question`, has no passing run against the current prompt
 # to read at all.
 UNBOUNDED: set[tuple[str, str]] = {
-    ('L1-GK-amend-a-contested-item', 'items'),
-    ('L1-GK-assert', 'items'),
-    ('L1-GK-relay-the-ruling', 'items'),
-    ('L1-GK-survey-an-area-for-what-it-does', 'items'),
+    ('L1-VK-amend-a-contested-item', 'items'),
+    ('L1-VK-assert', 'items'),
+    ('L1-VK-relay-the-ruling', 'items'),
+    ('L1-VK-survey-an-area-for-what-it-does', 'items'),
     ('L1-LI-no-report-no-question', 'statements'),
     ('L3-ratified-statement-becomes-scope', 'items'),
 }

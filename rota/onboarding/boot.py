@@ -8,8 +8,11 @@ it ran — which is the same property the frontier has, for the same reason.
 
     index      what exists, and what depends on what        (mechanical)
     partition  areas, from directories, checked by the graph (mechanical)
+    lexicon    the words the checkout declares, ranked       (mechanical)
     zero       one constraint over everything unsurveyed     (mechanical)
-    survey     what any of it means                          (sessions)
+    orient     what the program does for its user            (one session)
+    define     what each declared word means here            (one per word)
+    survey     what each area adds, and what it is bound to  (per area, per role)
 
 Constraint zero is the piece that makes the last step honest. Before a codebase
 has been looked at, the true statement about it is "this may be committed to
@@ -26,6 +29,7 @@ from pathlib import Path
 
 from . import areas as areas_mod
 from . import indexer
+from . import lexicon as lexicon_mod
 
 ZERO = "k0"
 
@@ -46,6 +50,7 @@ class OnboardReport:
     areas: int
     unsurveyed: int
     leaky: list
+    words: int = 0
 
 
 def checkout_of(root: str | Path) -> tuple[str, str]:
@@ -74,6 +79,7 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     report = indexer.build(conn, root)
     proposal = areas_mod.propose(conn)
     count = areas_mod.pin(conn, proposal)
+    words = lexicon_mod.build(conn, root)
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(Path(root)),))
     # And *which tree*. This lived in `cli.onboard`, so `rota onboard` and the
@@ -92,7 +98,7 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
                      (key, value))
     unsurveyed = refresh_constraint_zero(conn)
     return OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
-                         leaky=proposal.leaky())
+                         leaky=proposal.leaky(), words=words.words)
 
 
 def refresh_constraint_zero(conn: sqlite3.Connection) -> int:

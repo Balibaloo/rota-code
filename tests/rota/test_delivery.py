@@ -349,21 +349,21 @@ def test_the_ladder_climbs_one_rung_at_a_time(db):
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES "
-               "('m2','t1','architect','gatekeeper','challenge','[\"b1\"]',2)")
-    assert waiting_on() == ["gatekeeper"]
+               "('m2','t1','architect','vision_keeper','challenge','[\"b1\"]',2)")
+    assert waiting_on() == ["vision_keeper"]
 
 
-def test_the_ladder_stops_at_gatekeeper(db):
+def test_the_ladder_stops_at_vision_keeper(db):
     """
-    Above Gatekeeper is the principal, and nothing wakes a person. Reaching them
-    is Liaison's `report`, sent by Gatekeeper's own session.
+    Above Vision Keeper is the principal, and nothing wakes a person. Reaching them
+    is Liaison's `report`, sent by Vision Keeper's own session.
     """
     committed(db)
     exhaust(db)
     for i, (frm, to, verb) in enumerate([
             ("developer", "architect", "escalate"),
-            ("architect", "gatekeeper", "challenge"),
-            ("gatekeeper", "liaison", "report")], start=1):
+            ("architect", "vision_keeper", "challenge"),
+            ("vision_keeper", "liaison", "report")], start=1):
         db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                    "body_refs, seq) VALUES (?,'t1',?,?,?,'[\"b1\"]',?)",
                    (f"m{i}", frm, to, verb, i))
@@ -530,7 +530,7 @@ def test_an_approval_that_predates_the_amendment_also_reopens(tmp_path):
 
 
 def test_it_goes_quiet_once_the_election_is_in_flight(tmp_path):
-    """The Developer answers with `msg.elect_gatekeeper`. Asking again while
+    """The Developer answers with `msg.elect_vision_keeper`. Asking again while
     that message is unread would put the same decision on the frontier every
     pass, which is how a fix band becomes a spin."""
     from rota.core.db import init_db
@@ -544,5 +544,5 @@ def test_it_goes_quiet_once_the_election_is_in_flight(tmp_path):
 
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES "
-               "('m1','t1','developer','gatekeeper','elect','[\"b1\"]',1)")
+               "('m1','t1','developer','vision_keeper','elect','[\"b1\"]',1)")
     assert not _revoked_wakes(db)

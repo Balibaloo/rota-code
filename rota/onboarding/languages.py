@@ -53,7 +53,7 @@ LANGUAGES: tuple[Language, ...] = (
         suffixes=(".ts", ".tsx"),
         definitions=("function_declaration", "class_declaration",
                      "method_definition", "interface_declaration",
-                     "type_alias_declaration"),
+                     "type_alias_declaration", "enum_declaration"),
         imports=("import_statement", "export_statement"),
     ),
     Language(
@@ -87,6 +87,25 @@ LANGUAGES: tuple[Language, ...] = (
 BY_SUFFIX: dict[str, Language] = {
     suffix: lang for lang in LANGUAGES for suffix in lang.suffixes
 }
+
+
+# The node type is the kind. One map for every grammar, because the grammars
+# already agree more than they differ.
+SYMBOL_KINDS: dict[str, str] = {
+    "function_definition": "function", "function_declaration": "function",
+    "generator_function_declaration": "function", "method_definition": "function",
+    "method_declaration": "function", "method": "function",
+    "singleton_method": "function", "function_item": "function",
+    "class_definition": "class", "class_declaration": "class", "class": "class",
+    "interface_declaration": "interface", "trait_item": "interface",
+    "type_alias_declaration": "type", "type_declaration": "type",
+    "enum_declaration": "enum", "enum_item": "enum",
+    "struct_item": "struct", "module": "module",
+}
+
+
+def kind_of(node_type: str) -> str:
+    return SYMBOL_KINDS.get(node_type, "")
 
 
 def for_path(path: str) -> Language | None:

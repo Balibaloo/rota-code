@@ -62,7 +62,7 @@ def l2(g: graph_mod.Graph | None = None) -> list[Obligation]:
 
     Deduped by id, and it has to be. `set()` over the dataclass kept four
     `developer:answer` rows because each carried a different `why` — Terminologist
-    answered, Gatekeeper answered, Tester answered — which are four ways into one
+    answered, Vision Keeper answered, Tester answered — which are four ways into one
     mode, not four modes. The count was 55 where the modes were 41, and every
     coverage figure computed against it was wrong by that margin.
     """
@@ -186,7 +186,7 @@ def l3a(g: graph_mod.Graph | None = None) -> list[Obligation]:
     One per artefact-mediated handoff: A writes X, a predicate fires, B wakes.
 
     `l3` enumerates message chains only, and most of this system does not
-    coordinate by message. Gatekeeper never messages Terminologist — it writes a
+    coordinate by message. Vision Keeper never messages Terminologist — it writes a
     ticket and the `criteria` predicate wakes them. There is a chain case for
     exactly that, and it scored as covering nothing, because the pair it names
     does not exist among the message edges and nothing else was counting.

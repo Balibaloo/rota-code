@@ -13,8 +13,8 @@
       "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only \u2014 no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
     },
     {
-      "id": "gatekeeper",
-      "label": "Gatekeeper",
+      "id": "vision_keeper",
+      "label": "Vision Keeper",
       "type": "role",
       "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals \u2014 including noticing when an old no has expired."
     },
@@ -41,7 +41,7 @@
       "id": "developer",
       "label": "Developer",
       "type": "role",
-      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Terminologist, criterion and scope gaps to Gatekeeper, constraint conflicts to Architect. Liaison is reached only through an owner reporting blocked."
+      "note": "Awoken per batch, cold. Implements against criteria. Its contact list is the writers of its read set: term questions go to Terminologist, criterion and scope gaps to Vision Keeper, constraint conflicts to Architect. Liaison is reached only through an owner reporting blocked."
     },
     {
       "id": "critic",
@@ -127,7 +127,7 @@
       "id": "tickets",
       "label": "Tickets",
       "type": "artefact",
-      "note": "Sliced by Gatekeeper from approved items. One writer. Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) \u2014 one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+      "note": "Sliced by Vision Keeper from approved items. One writer. Tickets (Vision Keeper), criteria (Terminologist), batches (Architect) \u2014 one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
     },
     {
       "id": "criteria",
@@ -155,7 +155,7 @@
       "type": "artefact",
       "contact": false,
       "contact_why": "a receipt that an area was looked at, by whom, with what result -- read by the scheduler, which is not a role, so there is nobody to ask about one",
-      "note": "One row per role per area of an onboarded codebase: found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Gatekeeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
+      "note": "One row per role per area of an onboarded codebase: found or none_found, with citations naming the grains actually read. Its own artefact rather than part of the model, for the same reason findings are: onboarding runs Terminologist, Architect and Vision Keeper over every area and each must record its own pass, which under `model` would have meant three writers on Architect's artefact -- and did mean the two who could not write one were woken for the same area forever."
     },
     {
       "id": "researcher",
@@ -209,7 +209,7 @@
       "rows": "delta"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "problem",
       "type": "writes",
       "v": "assert",
@@ -250,7 +250,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "tickets",
       "type": "writes",
       "v": "slice",
@@ -259,7 +259,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "problem",
       "type": "writes",
       "v": "prioritize",
@@ -286,7 +286,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "ledger",
       "type": "writes",
       "v": "log",
@@ -294,7 +294,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "decisions",
       "type": "writes",
       "v": "author",
@@ -326,7 +326,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "brief",
       "type": "reads",
       "v": "list",
@@ -353,7 +353,7 @@
       "depth": "index"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "transcript",
       "type": "reads",
       "v": "quote",
@@ -383,7 +383,7 @@
       "depth": "body"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "problem",
       "type": "reads",
       "v": "consult",
@@ -413,7 +413,7 @@
       "depth": "index"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "decisions",
       "type": "reads",
       "v": "search",
@@ -480,7 +480,17 @@
       "depth": "body"
     },
     {
-      "s": "gatekeeper",
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "concordance",
+      "n": "one word, everywhere",
+      "rows": "query",
+      "depth": "body",
+      "label": "a meaning is not shaped like a place; no area contains `intent`"
+    },
+    {
+      "s": "vision_keeper",
       "t": "code",
       "type": "reads",
       "v": "survey",
@@ -490,7 +500,7 @@
       "depth": "index"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "code",
       "type": "reads",
       "v": "source",
@@ -621,7 +631,7 @@
     },
     {
       "s": "liaison",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "deliver",
       "n": "changed statements",
@@ -644,7 +654,7 @@
       "rows": "delta"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "liaison",
       "type": "messages",
       "v": "report",
@@ -669,7 +679,7 @@
     },
     {
       "s": "terminologist",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "challenge",
       "n": "contradiction",
@@ -677,7 +687,7 @@
     },
     {
       "s": "architect",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "challenge",
       "n": "infeasibility",
@@ -685,7 +695,7 @@
     },
     {
       "s": "architect",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "propose",
       "n": "seam / refactor plan",
@@ -701,7 +711,7 @@
     },
     {
       "s": "developer",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap, in words; the refs say what it is about",
@@ -727,7 +737,7 @@
     },
     {
       "s": "liaison",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "ask",
       "n": "principal question",
@@ -753,7 +763,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "liaison",
       "type": "messages",
       "v": "answer",
@@ -777,7 +787,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "liaison",
       "type": "messages",
       "v": "submit",
@@ -804,14 +814,14 @@
     },
     {
       "s": "liaison",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "relay",
       "n": "verdicts",
       "rows": "all"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "problem",
       "type": "writes",
       "v": "set approval",
@@ -820,7 +830,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "developer",
       "type": "messages",
       "v": "reopen",
@@ -829,7 +839,7 @@
     },
     {
       "s": "developer",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "elect",
       "n": "revise or restart",
@@ -1025,7 +1035,7 @@
     },
     {
       "s": "tester",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "question",
       "n": "criterion or scope gap, in words; the refs say what it is about",
@@ -1056,7 +1066,7 @@
       "card": "n:n"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "tickets",
       "type": "reads",
       "v": "consult",
@@ -1171,7 +1181,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "developer",
       "type": "messages",
       "v": "answer",
@@ -1204,7 +1214,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "tester",
       "type": "messages",
       "v": "answer",
@@ -1255,6 +1265,15 @@
       "n": "one word said twice",
       "label": "recognising there was only ever one sense is an observation; collapsing two is the principal's",
       "rows": "delta"
+    },
+    {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "writes",
+      "v": "synthesise",
+      "n": "one sense from several readings",
+      "rows": "delta",
+      "label": "several partial readings of one word, and the sense none of them holds"
     },
     {
       "s": "architect",
@@ -1421,7 +1440,7 @@
       "label": "sessions compound through artefacts, not context"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "surveys",
       "type": "writes",
       "v": "attest",
@@ -1430,7 +1449,7 @@
       "label": "closes this role's pass over one area"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "surveys",
       "type": "reads",
       "v": "consult",
@@ -1575,7 +1594,7 @@
       "rows": "single"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "references",
       "type": "reads",
       "v": "load",
@@ -1584,7 +1603,7 @@
       "depth": "body"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "researcher",
       "type": "messages",
       "v": "question",
@@ -1594,7 +1613,7 @@
     },
     {
       "s": "researcher",
-      "t": "gatekeeper",
+      "t": "vision_keeper",
       "type": "messages",
       "v": "answer",
       "n": "the answer, with sources \u2014 or what was tried and failed",
@@ -1671,7 +1690,7 @@
       "label": "the answer did not resolve what I asked"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "schedule",
       "type": "writes",
       "v": "reask",
@@ -1696,6 +1715,81 @@
       "n": "dead answer",
       "rows": "single",
       "label": "the answer did not resolve what I asked"
+    },
+    {
+      "s": "vision_keeper",
+      "t": "code",
+      "type": "reads",
+      "v": "front",
+      "n": "the program's front: manifest, README, authoring surface, entry point",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "orientation: what a person opening the repository reads first, and no area ever showed together"
+    },
+    {
+      "s": "terminologist",
+      "t": "problem",
+      "type": "reads",
+      "v": "baseline",
+      "n": "what the program does, as observed",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "the account of the program is the one context that displaces the everyday reading of a word"
+    },
+    {
+      "s": "architect",
+      "t": "problem",
+      "type": "reads",
+      "v": "baseline",
+      "n": "what the program does, as observed",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "a commitment is to someone outside; the account says who uses this"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "area",
+      "n": "the area's source",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "a constraint is found in source, not composed from a grain list"
+    },
+    {
+      "s": "vision_keeper",
+      "t": "code",
+      "type": "reads",
+      "v": "prose",
+      "n": "the README, read against the account",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "reconcile: prose is a check of what the code said, not a source"
+    },
+    {
+      "s": "vision_keeper",
+      "t": "problem",
+      "type": "reads",
+      "v": "baseline",
+      "n": "its own observed account, whole",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "the account the README is read against"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "writes",
+      "v": "describe",
+      "n": "one account per area: what it is for, on which files",
+      "rows": "delta",
+      "label": "the survey's first two sentences, kept instead of discarded"
     }
   ],
   "contact_exceptions": [],
@@ -1706,12 +1800,12 @@
       "why": "A fail names its criterion and the Developer follows the ref. There is nothing to ask, and a judge that argues is not one."
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "terminologist",
       "why": "inform: the receipt cascade wakes it"
     },
     {
-      "s": "gatekeeper",
+      "s": "vision_keeper",
       "t": "architect",
       "why": "inform: the receipt cascade wakes it"
     },

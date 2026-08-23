@@ -39,6 +39,10 @@ NARRATIVE = {
     "ANSWER_KEY.md": "grading data for onboarding runs, written before the "
                      "first session ran",
     "ANSWER_KEY_icalendar.md": "the same, for the second repository",
+    "ONBOARDING.md": "the derivation of the onboarding phases and the measured "
+                     "reasoning behind each; its structural claims -- phase "
+                     "order, what drains each, what a session may write -- are "
+                     "asserted in test_onboarding_phases.py",
     "SEAT.md": "a proposal for the operator's interface, argued rather than "
                "asserted, because almost nothing in it exists yet. Its one "
                "claim about today — that a run records nothing but its project "
@@ -117,7 +121,7 @@ def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
     still open, and it went red the moment the gap was fixed, which is what it
     was for. Replaced by the behaviour it now guarantees.
 
-    Gatekeeper can answer Developer and Tester, so `unresolved` mode carries
+    Vision Keeper can answer Developer and Tester, so `unresolved` mode carries
     both channels. Woken to a thread between Tester and Terminologist it
     answered Developer five runs out of five. Developer is not in the thread.
     The asker is on the wake, so the other channel is not a temptation to
@@ -134,12 +138,12 @@ def test_the_toolkit_narrows_to_the_role_that_asked(tmp_path):
                "'unresolved')")
 
     allow = ["msg.answer_developer", "msg.answer_tester", "msg.submit_liaison"]
-    wake = Wake("gatekeeper", "tick:unresolved", refs=("m1",))
+    wake = Wake("vision_keeper", "tick:unresolved", refs=("m1",))
 
-    wide = build("gatekeeper", db, mode="normal", allow=allow)
+    wide = build("vision_keeper", db, mode="normal", allow=allow)
     assert "msg.answer_developer" in wide.functions()
 
-    narrow = build("gatekeeper", db, mode="normal", allow=allow, wake=wake)
+    narrow = build("vision_keeper", db, mode="normal", allow=allow, wake=wake)
     assert "msg.answer_tester" in narrow.functions(), "the asker must be reachable"
     assert "msg.answer_developer" not in narrow.functions(), \
         "Developer is not in this thread and did not ask"

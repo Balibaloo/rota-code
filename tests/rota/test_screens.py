@@ -394,18 +394,18 @@ async def test_a_repeating_chain_is_shown_while_it_climbs(tmp_path, home):
             app.conn.execute(
                 "INSERT INTO messages (id, thread_id, from_role, to_role, verb,"
                 " body_refs, seq, status, cause_id) VALUES "
-                "(?,?,'gatekeeper','architect','reopen','[]',?,?,?)",
+                "(?,?,'vision_keeper','architect','reopen','[]',?,?,?)",
                 (f"m{i}", f"t{i}", i, "open" if i == 7 else "answered", prev))
             prev = f"m{i}"
 
         count, edge, message = deepest_repeat(app.conn)
         assert (count, message) == (7, "m7")
-        assert edge == "gatekeeper->architect:reopen"
+        assert edge == "vision_keeper->architect:reopen"
 
         app.refresh_pulse()
         await pilot.pause()
         shown = str(app.query_one("#pulse").content)
-        assert "gatekeeper->architect:reopen" in shown and "×7" in shown
+        assert "vision_keeper->architect:reopen" in shown and "×7" in shown
 
 
 def test_deepest_repeat_is_quiet_when_nothing_is_looping(tmp_path):
