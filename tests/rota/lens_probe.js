@@ -251,13 +251,13 @@ document.getElementById = (id) => id === 'gsvg' ? vp : null;
 
 GV.mode = 'team';
 GV.source = 'design';
-GV.focus = 'gatekeeper';
-GV.view = {k: 1.4, x: 250 - GV.layout.gatekeeper.x * 1.4,
-                   y: 180 - GV.layout.gatekeeper.y * 1.4};
+GV.focus = 'vision_keeper';
+GV.view = {k: 1.4, x: 250 - GV.layout.vision_keeper.x * 1.4,
+                   y: 180 - GV.layout.vision_keeper.y * 1.4};
 
 const gone = offscreenNeighbours();
 const incident = GV.graph.edges.filter(
-  e => e.s === 'gatekeeper' || e.t === 'gatekeeper');
+  e => e.s === 'vision_keeper' || e.t === 'vision_keeper');
 const suppressed = incident.filter(e => gone.has(e.s) || gone.has(e.t));
 const drawn = drawTeam().edges;
 const chips = ghostChips();
@@ -270,7 +270,7 @@ for (const e of suppressed)
   if (drawn.includes('data-e="' + e.s + '|' + e.t + '|' + e.type)) leaked++;
 
 console.log('');
-console.log('off-screen substitution, zoomed on gatekeeper at 1.4x in 500x360:');
+console.log('off-screen substitution, zoomed on vision_keeper at 1.4x in 500x360:');
 console.log('  ' + gone.size + ' neighbours off canvas, ' + suppressed.length
             + ' of its ' + incident.length + ' edges suppressed');
 console.log('  ' + chipCount + ' stand-ins drawn, carrying ' + localLines

@@ -46,7 +46,7 @@
     # There is nothing left to ask, and asking anyway is the paralysis failure —
     # a question costs a whole round trip through another role's session.
     writes: [criteria, tickets, items, tests]
-    calls: [msg.question_gatekeeper, msg.question_terminologist]
+    calls: [msg.question_vision_keeper, msg.question_terminologist]
 
 - id: L1-DV-log-the-choice-the-criteria-did-not-make
   tier: T1
@@ -352,7 +352,7 @@
     # A verdict names a criterion and nothing else. There is no route back to
     # Critic and no version of this where asking a third role about it helps.
     writes: [criteria, verdicts]
-    calls: [msg.question_gatekeeper, msg.question_terminologist]
+    calls: [msg.question_vision_keeper, msg.question_terminologist]
 
 - id: L1-DV-elect-on-a-revoked-item
   tier: T1
@@ -379,7 +379,7 @@
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     messages:
-      - {to: gatekeeper, verb: elect, count: 1}
+      - {to: vision_keeper, verb: elect, count: 1}
   forbidden:
     # An item whose approval was revoked is not something to keep building
     # against. Electing is the whole job; writing code here is work against a

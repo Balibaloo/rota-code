@@ -36,9 +36,9 @@
     calls: [code.write, code.commit]
   forbidden:
     # The answer is from the role that owns the artefact, so it is
-    # authoritative. Taking it to Gatekeeper as well is how one question becomes
+    # authoritative. Taking it to Vision Keeper as well is how one question becomes
     # two answers that nobody reconciles.
-    calls: [msg.question_gatekeeper, msg.question_terminologist]
+    calls: [msg.question_vision_keeper, msg.question_terminologist]
     writes: [criteria, glossary_terms]
 
 - id: L1-DV-take-out-what-nobody-asked-for
@@ -146,7 +146,7 @@
     # Collapsing them into one while here would settle a collision the principal
     # has never been asked about.
     writes: [glossary_terms, decisions, criteria]
-    recipients: [gatekeeper, architect, developer, tester]
+    recipients: [vision_keeper, architect, developer, tester]
 
 - id: L1-LI-put-the-open-assumptions-to-a-present-principal
   tier: T1
@@ -175,7 +175,7 @@
     # Presentation, not a gate. They may defer every one of these; what must not
     # happen is Liaison resolving one on their behalf to keep things moving.
     writes: [ledger, decisions, items, criteria]
-    recipients: [gatekeeper, developer, tester, architect]
+    recipients: [vision_keeper, developer, tester, architect]
 
 - id: L1-LI-relay-an-answer-without-improving-it
   tier: T1
@@ -200,4 +200,4 @@
     # is free and that is a property to preserve, not an opportunity to tidy
     # something up while here — and the answer travels as the owner wrote it.
     writes: [glossary_terms, statements, items, decisions]
-    recipients: [gatekeeper, terminologist, architect, developer]
+    recipients: [vision_keeper, terminologist, architect, developer]

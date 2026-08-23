@@ -24,18 +24,19 @@
   repo:
     onboard: true
   expect:
-    calls: [code.survey, code.source]
+    # The area's source is pushed (`code.area`); what the session calls is the
+    # file it wants whole. The per-area pass runs after the define phase and
+    # usually finds the words already defined, so zero terms is a pass too.
+    calls: [code.source]
     writes:
-      # Measured, not probed: read back from the runs already recorded
-      # against this prompt that passed. The ceiling is the highest of them.
-      glossary_terms: {count: "1..3"}
+      glossary_terms: {count: "0..4"}
       survey_records: {count: 1}
   forbidden:
     # Terms first, and only terms. Constraints are Architect's pass over the
-    # same area and behaviours are Gatekeeper's; a Terminologist that writes
+    # same area and behaviours are Vision Keeper's; a Terminologist that writes
     # either has done the next two roles' jobs from the first role's brief.
     writes: [constraints, items, criteria]
-    recipients: [architect, gatekeeper, liaison]
+    recipients: [architect, vision_keeper, liaison]
 
 - id: L1-AR-survey-an-area-for-its-commitments
   tier: T1
@@ -56,8 +57,11 @@
       - {id: <g2>, term: invoice, provenance: observed,
          sense_short: "a charge issued against a billing account"}
   expect:
-    calls: [code.survey]
+    # `code.source` was expected when `code.area` pushed a grain list; the
+    # push now carries the area's own files whole, so reading needs no call.
+    # The model row is the survey's account, kept.
     writes:
+      model_areas: {count: 1}
       survey_records: {count: 1}
   forbidden:
     # `none_found` is a legitimate outcome here and often the right one, so the
@@ -66,9 +70,9 @@
     # Terminologist already wrote.
     writes: [glossary_terms, items, criteria]
 
-- id: L1-GK-survey-an-area-for-what-it-does
+- id: L1-VK-survey-an-area-for-what-it-does
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   tick: survey
@@ -97,3 +101,78 @@
     # itself the principal's ruling over a codebase they have not seen yet.
     writes: [glossary_terms, constraints, criteria, tickets]
     calls: [problem.set_approval]
+
+# The two modes that came before the per-area pass. Orientation is one
+# session over the whole program; define is one session per word, from the
+# project's own lexicon, with the concordance and the orientation pushed.
+#
+# Both `tick_unseedable`: the program and its lexicon come from onboarding a
+# checkout, which fixture rows cannot produce.
+
+- id: L1-VK-orient-the-program
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 3
+  tick: orient
+  tick_unseedable: the program and its front come from repo onboarding, not fixture rows
+  refs: ["@program"]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      # The brief asks for four to eight; the first real session wrote five.
+      items: {count: "2..8"}
+      survey_records: {count: 1}
+  forbidden:
+    # The account of what the product does, observed. Not its words, not its
+    # commitments, and never approved -- approving an observation is the
+    # system granting itself the principal's ruling.
+    writes: [glossary_terms, constraints, criteria, tickets]
+    calls: [problem.set_approval]
+
+- id: L1-TE-define-a-word
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  tick: define
+  tick_unseedable: the lexicon the wake is drawn from comes from repo onboarding, not fixture rows
+  refs: ["@term:invoice"]
+  repo:
+    onboard: true
+  fixture:
+    survey_records:
+      - {id: "vision_keeper:@program", area: "@program", outcome: found}
+    items:
+      - {id: <i1>, kind: in_scope, provenance: observed, approval: draft,
+         text: "The product issues invoices to billing accounts and records
+                what each account owes; a login account is a different thing."}
+  expect:
+    writes:
+      glossary_terms: {count: 1}
+  forbidden:
+    # One word, this word. Constraints and items are other roles' artefacts,
+    # and a second glossary row would be a word nobody asked for.
+    writes: [constraints, items, criteria]
+
+- id: L1-VK-reconcile-the-readme
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 3
+  tick: reconcile
+  tick_unseedable: the README and the account come from repo onboarding, not fixture rows
+  refs: ["@prose"]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      # The sample repo's README makes claims an empty account cannot support;
+      # each becomes one ledger entry, and the attestation closes @prose.
+      ledger: {count: "1..6"}
+      survey_records: {count: 1}
+  forbidden:
+    # Reconciling is not merging: the README adds no items, no words, no
+    # constraints -- a disagreement is the principal's to rule on.
+    writes: [items, glossary_terms, constraints, criteria, tickets]

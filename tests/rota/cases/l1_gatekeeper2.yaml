@@ -1,12 +1,12 @@
-# L1 — Gatekeeper, the modes the first file left uncovered.
+# L1 — Vision Keeper, the modes the first file left uncovered.
 #
-# Gatekeeper is the only role that can change what is in scope, which makes its
+# Vision Keeper is the only role that can change what is in scope, which makes its
 # failures the quiet expensive kind: an item amended without dropping its
 # approval, or a contest answered by arguing rather than by deciding.
 
-- id: L1-GK-amend-a-contested-item
+- id: L1-VK-amend-a-contested-item
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   tick: contested
@@ -15,7 +15,7 @@
     entries:
       - {id: <e1>, author: principal, ts_order: 1,
          text: "no, I meant closing the account, not deleting it"}
-    # An item always came from a statement -- Gatekeeper writes them off what
+    # An item always came from a statement -- Vision Keeper writes them off what
     # Liaison delivers -- and this case used to seed an orphan, which left the
     # correction sitting in a transcript the role had no id for. It answered
     # the exit interview exactly that way: "I needed to know what the principal
@@ -37,9 +37,9 @@
     writes: [tickets, criteria, glossary_terms]
     calls: [decisions.author]
 
-- id: L1-GK-submit-drafts-together
+- id: L1-VK-submit-drafts-together
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   tick: signoff
@@ -58,19 +58,19 @@
   forbidden:
     writes: [items, tickets, criteria]
 
-- id: L1-GK-answer-a-refactor-proposal
+- id: L1-VK-answer-a-refactor-proposal
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
-  inbound: {from: architect, to: gatekeeper, verb: propose, body_refs: [<i1>]}
+  inbound: {from: architect, to: vision_keeper, verb: propose, body_refs: [<i1>]}
   fixture:
     items:
       - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
          provenance: decided, approval: approved, approval_ver: 1, version: 1}
     decisions:
       # Refused eighteen months ago, for a reason that has not expired.
-      - {id: <d1>, author: gatekeeper,
+      - {id: <d1>, author: vision_keeper,
          text: "the store layer stays synchronous: the export path is the only
                 caller that would benefit and it is not hot"}
   expect:
@@ -85,12 +85,12 @@
     writes: [tickets, criteria]
     recipients: [developer, critic, tester]
 
-- id: L1-GK-reopen-after-an-election
+- id: L1-VK-reopen-after-an-election
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
-  inbound: {from: developer, to: gatekeeper, verb: elect, body_refs: [<b1>]}
+  inbound: {from: developer, to: vision_keeper, verb: elect, body_refs: [<b1>]}
   fixture:
     items:
       - {id: <i1>, text: "accounts are never deleted, only closed", kind: in_scope,
@@ -109,12 +109,12 @@
     # how much of the Developer's understanding survives, and they already said.
     writes: [items, tickets, criteria]
 
-- id: L1-GK-decide-a-challenge-to-an-approved-item
+- id: L1-VK-decide-a-challenge-to-an-approved-item
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
-  inbound: {from: terminologist, to: gatekeeper, verb: challenge, body_refs: [<i1>]}
+  inbound: {from: terminologist, to: vision_keeper, verb: challenge, body_refs: [<i1>]}
   fixture:
     items:
       # "Account" has two senses in this codebase and the item does not say

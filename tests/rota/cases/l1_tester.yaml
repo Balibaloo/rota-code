@@ -76,12 +76,12 @@
     # re-derive what was asked for.
     writes: [criteria, items, tickets]
 
-- id: L1-GK-answer-a-scope-inquiry-read-only
+- id: L1-VK-answer-a-scope-inquiry-read-only
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
-  inbound: {from: liaison, to: gatekeeper, verb: ask, body_refs: [<i1>, <i2>]}
+  inbound: {from: liaison, to: vision_keeper, verb: ask, body_refs: [<i1>, <i2>]}
   fixture:
     items:
       - {id: <i1>, text: "people can close their account", kind: in_scope,
@@ -101,7 +101,7 @@
 # ---------------------------------------------------------------------------
 # The three questions Tester can ask, one case each.
 #
-# All three edges were uncovered: `tester => gatekeeper`, `tester => researcher`
+# All three edges were uncovered: `tester => vision_keeper`, `tester => researcher`
 # and `tester => terminologist` had no case at all, and until `question` carried
 # words they could not have had a meaningful one -- a question of refs alone
 # names its subject and never what is being asked, so the assertion could only
@@ -113,7 +113,7 @@
 # clean, so writing the test is the wrong move for a nameable reason.
 # ---------------------------------------------------------------------------
 
-- id: L1-TS-a-criterion-no-machine-could-check-is-gatekeepers
+- id: L1-TS-a-criterion-no-machine-could-check-is-vision_keepers
   tier: T1
   role: tester
   runs: 5
@@ -138,7 +138,7 @@
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
     messages:
-      - {to: gatekeeper, verb: question, count: 1, refs_include: [<c1>]}
+      - {to: vision_keeper, verb: question, count: 1, refs_include: [<c1>]}
   forbidden:
     # A test that asserts the file is non-empty would pass forever and report as
     # coverage of a criterion nobody has actually pinned down. That is worse
@@ -177,4 +177,4 @@
     # Encoding a remembered header name is the failure: the test passes, and it
     # pins the wrong thing against a spec nobody read.
     writes: [tests, criteria]
-    recipients: [gatekeeper, terminologist]
+    recipients: [vision_keeper, terminologist]

@@ -19,7 +19,7 @@
       # against this prompt that passed. The ceiling is the highest of them.
       glossary_terms: {count: "1..2"}
   forbidden:
-    # Terms, not scope. What the software should do is Gatekeeper's.
+    # Terms, not scope. What the software should do is Vision Keeper's.
     writes: [items, tickets, statements]
 
 - id: L1-TE-specify-criteria
@@ -196,4 +196,4 @@
     # guarantee that already holds structurally -- and `decisions` would be the
     # same ruling written by the wrong role.
     writes: [glossary_terms, decisions, statements]
-    recipients: [gatekeeper, architect, developer, tester, researcher]
+    recipients: [vision_keeper, architect, developer, tester, researcher]

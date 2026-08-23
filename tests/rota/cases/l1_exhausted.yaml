@@ -2,7 +2,7 @@
 #
 # `tests_failing` goes quiet above the cap, which on its own is abandonment
 # wearing the clothes of a budget. Exhaustion escalates instead, one rung at a
-# time: Developer, then Architect, then Gatekeeper, who is the last rung that
+# time: Developer, then Architect, then Vision Keeper, who is the last rung that
 # can be woken because above them is a person and nothing wakes a person.
 #
 # The failure every rung shares is the same one, and it is why these are worth
@@ -50,7 +50,7 @@
     # not something an 8B model should be graded on picking first time.
     any_of:
       - messages: [{to: architect, verb: escalate, count: ">=1"}]
-      - messages: [{to: gatekeeper, verb: question, count: ">=1"}]
+      - messages: [{to: vision_keeper, verb: question, count: ">=1"}]
       - messages: [{to: terminologist, verb: question, count: ">=1"}]
       - messages: [{to: tester, verb: challenge, count: ">=1"}]
   forbidden:
@@ -117,19 +117,19 @@
          attempt: 10}
   expect:
     # The criterion asks for something a commitment forbids. That is scope, and
-    # scope is not Architect's to grant — it goes to Gatekeeper either way.
+    # scope is not Architect's to grant — it goes to Vision Keeper either way.
     any_of:
-      - messages: [{to: gatekeeper, verb: challenge, count: ">=1"}]
-      - messages: [{to: gatekeeper, verb: propose, count: ">=1"}]
+      - messages: [{to: vision_keeper, verb: challenge, count: ">=1"}]
+      - messages: [{to: vision_keeper, verb: propose, count: ">=1"}]
   forbidden:
     # Weakening the constraint resolves it and is the one route that must not be
     # taken: it is the system deciding, on the principal's behalf, that an
     # external commitment did not matter after all.
     writes: [constraints, criteria, items]
 
-- id: L2-GK-end-it-rather-than-send-it-back
+- id: L2-VK-end-it-rather-than-send-it-back
   tier: T2
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   tick: exhausted
@@ -154,7 +154,7 @@
     messages:
       - {id: <m_esc>, thread_id: t1, from_role: developer, to_role: architect,
          verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
-      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: gatekeeper,
+      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: vision_keeper,
          verb: challenge, body_refs: '["<b1>","<k1>"]', seq: 2, status: answered}
     # `exhausted` reads failing test_runs at the cap; without them the ladder has
     # nothing to climb and this case woke nobody at all. It skipped rather than
@@ -179,7 +179,7 @@
     recipients: [developer, architect, critic, tester]
     writes: [constraints, criteria, tickets]
 
-# The rung above the last one. Gatekeeper has just sent the report the case
+# The rung above the last one. Vision Keeper has just sent the report the case
 # above expects, and there is nobody left below the principal.
 #
 # `report` is a *message* verb, and this is the only wake that produces it: a
@@ -192,7 +192,7 @@
   role: liaison
   runs: 5
   pass: 3
-  inbound: {id: <m_rep>, from: gatekeeper, to: liaison, verb: report,
+  inbound: {id: <m_rep>, from: vision_keeper, to: liaison, verb: report,
             thread: t1, body_refs: [<c1>, <k1>]}
   fixture:
     items:
@@ -214,7 +214,7 @@
     messages:
       - {id: <m_esc>, thread_id: t1, from_role: developer, to_role: architect,
          verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
-      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: gatekeeper,
+      - {id: <m_ch>, thread_id: t1, from_role: architect, to_role: vision_keeper,
          verb: challenge, body_refs: '["<b1>","<k1>"]', seq: 2, status: answered}
   expect:
     # One question, carrying both halves of the collision. A question that names
@@ -227,4 +227,4 @@
     # between the criterion and the commitment is the ruling being asked for,
     # and taking it is the system answering its own question.
     writes: [criteria, constraints, items, decisions]
-    recipients: [gatekeeper, architect, developer, terminologist]
+    recipients: [vision_keeper, architect, developer, terminologist]

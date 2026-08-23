@@ -35,7 +35,7 @@
     # Only the principal can say which stands. Ranking them by recency is the
     # tempting wrong answer and it looks like helpfulness.
     writes: [statements, items, decisions]
-    recipients: [gatekeeper, terminologist, architect]
+    recipients: [vision_keeper, terminologist, architect]
 
 - id: L1-LI-ask-for-the-confirmation-nobody-asked-for
   tier: T1
@@ -81,9 +81,9 @@
          verb: present, body_refs: '["<i1>","<i2>"]', seq: 1}
   expect:
     messages:
-      - {to: gatekeeper, verb: relay, count: 1, refs_include: [<i1>, <i2>]}
+      - {to: vision_keeper, verb: relay, count: 1, refs_include: [<i1>, <i2>]}
   forbidden:
-    # Approval state is Gatekeeper's artefact and the ruling travels as refs.
+    # Approval state is Vision Keeper's artefact and the ruling travels as refs.
     # A Liaison that applies it here is writing another role's artefact; one
     # that relays only the approval has decided what a contest ought to mean.
     writes: [items, decisions, statements]
@@ -123,20 +123,20 @@
       - {id: <g2>, term: "delete", sense_short: "revoke access, keep the record",
          provenance: observed, source_refs: '["<s1>"]'}
     items:
-      # Recorded but never approved: Gatekeeper could not tell which promise it
+      # Recorded but never approved: Vision Keeper could not tell which promise it
       # is being asked to admit, which is the same collision in its own words.
       - {id: <i1>, text: "people can delete their account", kind: in_scope,
          provenance: decided, version: 1}
     messages:
-      - {id: <m0>, thread_id: t1, from_role: liaison, to_role: gatekeeper,
+      - {id: <m0>, thread_id: t1, from_role: liaison, to_role: vision_keeper,
          verb: deliver, body_refs: '["<s1>"]', seq: 1, status: answered}
       # Three reports, two questions at most. The first two are one question in
-      # two vocabularies — Terminologist calls it a term collision, Gatekeeper
+      # two vocabularies — Terminologist calls it a term collision, Vision Keeper
       # calls it a scope ambiguity, and both point back at the same statement.
       # Architect's is a genuinely separate one.
       - {id: <m1>, thread_id: t1, from_role: terminologist, to_role: liaison,
          verb: report, body_refs: '["<g1>","<g2>","<s1>"]', seq: 2}
-      - {id: <m2>, thread_id: t1, from_role: gatekeeper, to_role: liaison,
+      - {id: <m2>, thread_id: t1, from_role: vision_keeper, to_role: liaison,
          verb: report, body_refs: '["<i1>","<s1>"]', seq: 3}
       - {id: <m3>, thread_id: t1, from_role: architect, to_role: liaison,
          verb: report, body_refs: '["<s1>"]', seq: 4}
@@ -169,7 +169,7 @@
     # Choosing a sense is the principal's call — writing one here is the system
     # answering its own question and calling it progress.
     writes: [statements, items, decisions, glossary_terms]
-    recipients: [gatekeeper, terminologist, architect]
+    recipients: [vision_keeper, terminologist, architect]
 
 - id: L1-LI-surface-a-quarantined-message
   tier: T1
@@ -204,7 +204,7 @@
     # is not available and re-sending the work to another role would hide the
     # gap rather than report it.
     writes: [items, tickets, statements]
-    recipients: [terminologist, gatekeeper, architect]
+    recipients: [terminologist, vision_keeper, architect]
 
 - id: L1-LI-present-what-onboarding-only-observed
   tier: T1

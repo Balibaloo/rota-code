@@ -1,4 +1,4 @@
-# L1 — Gatekeeper. One action per case, in a state where it is the only right
+# L1 — Vision Keeper. One action per case, in a state where it is the only right
 # move, asserted structurally: which rows appeared, who was messaged, what did
 # not happen. Never on prose — a case that graded wording would measure my taste
 # rather than the role's judgement.
@@ -10,9 +10,9 @@
 # 4 of 5. Stochastic output is a measured quantity, not an excuse: a case that
 # passed 5/5 for a week and now passes 3/5 is a prompt regression.
 
-- id: L1-GK-assert
+- id: L1-VK-assert
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   fixture:
@@ -21,19 +21,19 @@
     statements:
       - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 43,
          text: "users should be able to delete their account", status: ratified}
-  inbound: {from: liaison, to: gatekeeper, verb: deliver, body_refs: [<s1>]}
+  inbound: {from: liaison, to: vision_keeper, verb: deliver, body_refs: [<s1>]}
   expect:
     writes:
       items: {count: ">=1"}
   forbidden:
-    # Gatekeeper does not approve its own work: the principal rules on items.
+    # Vision Keeper does not approve its own work: the principal rules on items.
     # Nor does it touch the brief, which is Liaison's.
     writes: [statements, entries]
     recipients: [developer, tester, critic]
 
-- id: L1-GK-slice
+- id: L1-VK-slice
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   tick: slicing
@@ -55,16 +55,16 @@
     versions: [items]
     writes: [criteria, batches]
 
-- id: L1-GK-relay-the-ruling
+- id: L1-VK-relay-the-ruling
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   fixture:
     items:
       - {id: <i1>, text: "delete an account", kind: in_scope, provenance: decided,
          approval: pending, version: 1}
-  inbound: {from: liaison, to: gatekeeper, verb: relay, body_refs: [<i1>]}
+  inbound: {from: liaison, to: vision_keeper, verb: relay, body_refs: [<i1>]}
   expect:
     writes:
       items: {count: ">=1"}
@@ -73,9 +73,9 @@
     writes: [tickets, decisions]
     recipients: [developer, architect, terminologist]
 
-- id: L1-GK-answer-a-scope-question
+- id: L1-VK-answer-a-scope-question
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 4
   fixture:
@@ -83,11 +83,11 @@
       - {id: <i1>, text: "deleting an account tombstones it, keeping invoices",
          kind: in_scope, provenance: decided, approval: approved,
          approval_ver: 1, version: 1}
-  # Refs alone named the item and not the question. Gatekeeper was woken with
+  # Refs alone named the item and not the question. Vision Keeper was woken with
   # "deleting an account tombstones it, keeping invoices" and asked to answer
   # an unstated question about it, which it could only do by guessing which
   # part was in doubt.
-  inbound: {from: developer, to: gatekeeper, verb: question, body_refs: [<i1>],
+  inbound: {from: developer, to: vision_keeper, verb: question, body_refs: [<i1>],
             body_text: "The item says invoices are kept. Does that include the
               line items, or only the invoice header and totals?"}
   expect:

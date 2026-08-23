@@ -33,15 +33,15 @@
          text: "an order that arrives late is reconciled against the ledger",
          term_refs: '[]'}
     messages:
-      # The question, and Gatekeeper's answer to it. The answer is correct about
+      # The question, and Vision Keeper's answer to it. The answer is correct about
       # the criteria and beside the point about the work, which is the shape
       # this whole mechanism exists for.
-      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: gatekeeper,
+      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: vision_keeper,
          verb: question, body_refs: '["<c1>"]', seq: 1, status: unresolved,
          body_text: "does a partially reconciled order count as done?",
          unresolved_note: "the criteria say reconciled against the ledger and
            do not say whether partial counts"}
-      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: gatekeeper,
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: vision_keeper,
          to_role: developer, verb: answer, body_refs: '["<c1>"]', seq: 2,
          status: answered}
   expect:
@@ -51,13 +51,13 @@
       - messages: [{to: developer, verb: answer, count: ">=1"}]
       - messages: [{to: liaison, verb: report, count: ">=1"}]
   forbidden:
-    # Gatekeeper has already answered. Asking the roles in the thread again is
+    # Vision Keeper has already answered. Asking the roles in the thread again is
     # the loop with nothing new in it.
     calls: [msg.question_terminologist]
 
-- id: L1-GK-the-last-rung-rules-or-sends-it-up
+- id: L1-VK-the-last-rung-rules-or-sends-it-up
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 3
   tick: unresolved
@@ -70,7 +70,7 @@
       - {id: <tk1>, item_id: <i1>, text: "search archived orders"}
     messages:
       # Tester asked Terminologist; Terminologist answered; Architect has no
-      # edge to answer Tester, so the climb arrives here. Gatekeeper is the last
+      # edge to answer Tester, so the climb arrives here. Vision Keeper is the last
       # rung anything wakes.
       - {id: <m1>, thread_id: <t1>, from_role: tester, to_role: terminologist,
          verb: question, body_refs: '["<tk1>"]', seq: 1, status: unresolved,
@@ -91,7 +91,7 @@
     #
     # RED, and measuring something true: five runs out of five answered
     # *Developer*, who is not in this thread and did not ask. The mode offers
-    # `msg.answer_developer` and `msg.answer_tester` because Gatekeeper can
+    # `msg.answer_developer` and `msg.answer_tester` because Vision Keeper can
     # reach both, and the prompt saying "use the one who asked" does not
     # arbitrate -- prose never has here. The structural fix is to derive the
     # permitted recipient from the wake rather than from the mode, which is a
@@ -121,12 +121,12 @@
     messages:
       # Everyone who could take it has spoken. That is what puts it here: not
       # that it is important, but that the roles have been through it.
-      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: gatekeeper,
+      - {id: <m1>, thread_id: <t1>, from_role: developer, to_role: vision_keeper,
          verb: question, body_refs: '["<s1>"]', seq: 1, status: unresolved,
          body_text: "does a partially reconciled order count as done?",
          unresolved_note: "nobody can say whether partial counts, and the
            statement does not distinguish the two"}
-      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: gatekeeper,
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: vision_keeper,
          to_role: developer, verb: answer, body_refs: '["<s1>"]', seq: 2,
          status: answered}
       - {id: <m3>, thread_id: <t1>, from_role: architect, to_role: developer,

@@ -136,7 +136,7 @@
   forbidden:
     # The source says what conforming implementations must do. Whether this
     # project is one is a fact about this project, and the Researcher has never
-    # seen it — so nothing here is Terminologist's or Gatekeeper's to be told yet.
+    # seen it — so nothing here is Terminologist's or Vision Keeper's to be told yet.
     writes: [glossary_terms, items, criteria]
     recipients: [liaison, developer]
 
@@ -175,14 +175,14 @@
     # Collapsing them is a decision, and this is not a mode where decisions are
     # available. Nor is a term of art a commitment or a scope item.
     writes: [constraints, items, criteria, decisions]
-    recipients: [architect, gatekeeper, developer]
+    recipients: [architect, vision_keeper, developer]
 
-- id: L1-GK-a-source-does-not-settle-scope
+- id: L1-VK-a-source-does-not-settle-scope
   tier: T1
-  role: gatekeeper
+  role: vision_keeper
   runs: 5
   pass: 3
-  inbound: {id: <m_a>, from: researcher, to: gatekeeper, verb: answer,
+  inbound: {id: <m_a>, from: researcher, to: vision_keeper, verb: answer,
             thread: t1, body_refs: [<r1>]}
   fixture:
     entries:
@@ -195,7 +195,7 @@
       - {id: <r1>, url: "https://www.rfc-editor.org/rfc/rfc8252#section-8.1",
          claim: "RFC 8252 requires native apps to use PKCE with the authorization code flow, and forbids the implicit flow",
          quote: "Native apps MUST use PKCE... The implicit grant... SHOULD NOT be used.",
-         asked_by: gatekeeper}
+         asked_by: vision_keeper}
   expect:
     # Learning that conformance requires something nobody mentioned is a gate,
     # not an edit. Either it goes to the principal or it is recorded as scope

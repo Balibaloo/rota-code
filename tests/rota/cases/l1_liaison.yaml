@@ -33,7 +33,7 @@
     # the principal to ratify and sends three roles off to work from it, which is
     # the cost of getting this wrong in the other direction.
     writes: [statements, items, glossary_terms]
-    recipients: [gatekeeper, terminologist, architect]
+    recipients: [vision_keeper, terminologist, architect]
 
 - id: L1-LI-segment
   tier: T1
@@ -59,7 +59,7 @@
     # fabrication this cost a session to learn about. And segmenting is not
     # interpreting: no items, no glossary.
     writes: [entries, items, glossary_terms]
-    recipients: [gatekeeper, terminologist, architect]
+    recipients: [vision_keeper, terminologist, architect]
 
 - id: L1-LI-ratify
   tier: T1
@@ -93,13 +93,13 @@
          provenance: decided, approval: draft, version: 1}
       - {id: <i2>, text: "deleted accounts keep their invoices", kind: out_of_scope,
          provenance: decided, approval: draft, version: 1}
-  inbound: {from: gatekeeper, to: liaison, verb: submit, body_refs: [<i1>, <i2>]}
+  inbound: {from: vision_keeper, to: liaison, verb: submit, body_refs: [<i1>, <i2>]}
   expect:
     messages:
       - {to: principal, verb: present, count: 1}
   forbidden:
     # Presenting is not deciding. Liaison never sets approval — that is
-    # Gatekeeper applying the principal's ruling, one hop later.
+    # Vision Keeper applying the principal's ruling, one hop later.
     writes: [items, statements]
 
 - id: L1-LI-no-report-no-question

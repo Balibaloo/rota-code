@@ -17,7 +17,7 @@
   runs: 5
   pass: 3
   first: {role: liaison, prompt: verdict, verb: verdict, refs: [<s1>]}
-  then:  {role: gatekeeper}
+  then:  {role: vision_keeper}
   fixture:
     entries:
       - {id: <e1>, author: principal, ts_order: 1,
@@ -28,13 +28,13 @@
          text: "people can close their account and the invoices are kept",
          status: proposed}
   expect:
-    # Liaison broadcasts the ratified statement; Gatekeeper turns it into scope.
+    # Liaison broadcasts the ratified statement; Vision Keeper turns it into scope.
     # Nothing hand-written passes between them — if `deliver` with a statement
     # ref is not enough to produce an item, the vocabulary is too thin.
     writes:
       items: {count: ">=1"}
   forbidden:
-    # Gatekeeper decides what is in scope. It does not write the words the
+    # Vision Keeper decides what is in scope. It does not write the words the
     # statement is made of, nor the criteria that would test it.
     writes: [statements, glossary_terms, criteria, tickets]
 
@@ -66,7 +66,7 @@
   tier: T3
   runs: 5
   pass: 3
-  first: {role: gatekeeper, tick: slicing, refs: [<i1>]}
+  first: {role: vision_keeper, tick: slicing, refs: [<i1>]}
   then:  {role: terminologist, tick: criteria}
   fixture:
     items:
@@ -77,7 +77,7 @@
       - {id: <g1>, term: account, provenance: decided,
          sense_short: "the login identity"}
   expect:
-    # Gatekeeper slices; Terminologist writes what done means for what it sliced.
+    # Vision Keeper slices; Terminologist writes what done means for what it sliced.
     # The handoff here is not a message at all — it is a *state*, which is the
     # other half of the frontier and the half nothing has tested.
     writes:
@@ -94,7 +94,7 @@
   runs: 5
   pass: 3
   first: {role: terminologist, tick: criteria, refs: [<i1>]}
-  then:  {role: gatekeeper}
+  then:  {role: vision_keeper}
   fixture:
     items:
       # Unbuildable as written, and Terminologist is the role that finds out —
@@ -104,7 +104,7 @@
     tickets:
       - {id: <tk1>, item_id: <i1>, text: "make the reporting better"}
   expect:
-    # Whether the item changes is Gatekeeper's call; that it is *answered* is
+    # Whether the item changes is Vision Keeper's call; that it is *answered* is
     # the law. Silence here strands the ticket forever with no criteria.
     any_of:
       - writes: {items: {count: ">=1"}}

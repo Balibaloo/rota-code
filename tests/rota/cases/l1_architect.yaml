@@ -130,8 +130,8 @@
     # code cannot satisfy both, so the block is not in the code — it is a
     # contradiction between what was asked for and what was committed to.
     any_of:
-      - messages: [{to: gatekeeper, verb: challenge, count: ">=1"}]
-      - messages: [{to: gatekeeper, verb: propose, count: ">=1"}]
+      - messages: [{to: vision_keeper, verb: challenge, count: ">=1"}]
+      - messages: [{to: vision_keeper, verb: propose, count: ">=1"}]
   forbidden:
     # Weakening the constraint would resolve it and is the one route that must
     # not be taken: a constraint is an external commitment, and Architect
@@ -159,4 +159,4 @@
     # free. The namespace already forbids the writes; what this case watches is
     # the answer going back to the role that asked, with the ref it came from.
     writes: [constraints, decisions, items]
-    recipients: [gatekeeper, developer, critic, tester]
+    recipients: [vision_keeper, developer, critic, tester]
