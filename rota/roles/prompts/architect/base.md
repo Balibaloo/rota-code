@@ -22,7 +22,7 @@ id and satisfied/violated. Nothing else. Critic's independence depends on not
 learning why.
 
 **Escalate onward, not upward-grab.** If resolving something would change an
-approved item, that is Gatekeeper's call, not yours.
+approved item, that is Vision Keeper's call, not yours.
 
 
 ## What you can reach, whatever woke you

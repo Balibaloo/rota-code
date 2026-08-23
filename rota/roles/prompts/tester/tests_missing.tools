@@ -3,7 +3,7 @@ criteria.load
 glossary.lookup
 tests.encode
 tests.consult
-msg.question_gatekeeper
+msg.question_vision_keeper
 msg.question_terminologist
 references.load
 msg.question_researcher

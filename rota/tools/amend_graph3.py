@@ -1,40 +1,24 @@
 """
-Third amendment pass: `question` means one thing.
+Third amendment: the edges the onboarding phases need.
 
-There are ten question channels. Five carry words and five do not, and which
-half a channel falls in depends on the recipient: every question to the
-Researcher has a `question=` field, and every question to a role inside the
-project has refs and nothing else.
+Onboarding became three phases -- orient, define, survey -- and each is written
+with the previous phase's artefact in front of it. That is four read edges the
+graph did not have, because the per-area survey never handed one role's output
+to another:
 
-So a Terminologist woken by `developer -> terminologist: question` is shown
-this, in full:
+    vision_keeper    reads code     front     the program's front, for the orientation
+    terminologist reads problem  baseline  the observed account, whole, for defining
+    architect     reads problem  baseline  the same, for the counterfactual
+    architect     reads code     area      source, not a grain list, for a constraint
 
-    {"from": "developer", "verb": "question", "refs": ["g_851c9a"],
-     "resolved_refs": {"g_851c9a": {"term": "account",
-                                    "sense_short": "the login identity"}}}
+Law 3 is unchanged by any of them. `code` is a fact artefact and generates no
+contact. `problem` is a judgement artefact written by Vision Keeper, so reading it
+derives a contact to Vision Keeper for Terminologist and for Architect -- and both
+already hold one (`challenge`, and for Architect `propose` as well), so the
+declared set still equals the derived set and `check_contacts` stays green.
 
-Developer asks you about the term "account", whose sense is "the login
-identity". *What question?* There is none. The role has to invent one, answer
-it, and the Developer receives an answer to something it never asked.
-
-The justification for the Researcher's exception is real but incomplete: it
-shares no database, so an id means nothing at the far end. True — and
-`developer -> terminologist` shares the entire database and still cannot ask a
-question, because a question is definitionally about something no artefact
-holds. That is what makes it a question. Refs name the subject; they cannot
-name the uncertainty.
-
-This is an inconsistency under a law the repository already keeps rather than a
-new position. One meaning per word was enforced across the whole vocabulary,
-and `question` still means two things. Law 2 is untouched: conclusions travel
-and reasoning stays home governs *telling*, and every pointing channel --
-deliver, relay, reopen, elect, submit, verdict -- keeps refs and nothing else,
-which is where prose would genuinely let a wrong conclusion outrun the row it
-came from. Asking is not telling.
-
-`challenge`, `propose` and `escalate` have the same shape and are deliberately
-not touched here. They are a design decision about disputes rather than a
-vocabulary inconsistency, and they are open in ROLES.md.
+A script rather than a hand edit, like the two before it, so the change set is
+reviewable as code and survives a re-extraction.
 
     python -m rota.tools.amend_graph3
 """
@@ -46,42 +30,43 @@ from .. import paths
 
 GRAPH = paths.DESIGN / "graph.json"
 
-# The five that could not ask. Listed rather than derived so the change is
-# reviewable as a change, and so a sixth appearing later is a diff.
-WORDLESS = {
-    ("architect", "terminologist"),
-    ("developer", "gatekeeper"),
-    ("developer", "terminologist"),
-    ("tester", "gatekeeper"),
-    ("tester", "terminologist"),
-}
+EDGES = [
+    {"s": "vision_keeper", "t": "code", "type": "reads", "v": "front",
+     "n": "the program's front: manifest, README, authoring surface, entry point",
+     "actor": "role", "rows": "query", "depth": "body",
+     "label": "orientation: what a person opening the repository reads first, "
+              "and no area ever showed together"},
+    {"s": "terminologist", "t": "problem", "type": "reads", "v": "baseline",
+     "n": "what the program does, as observed",
+     "actor": "role", "rows": "query", "depth": "body",
+     "label": "the account of the program is the one context that displaces "
+              "the everyday reading of a word"},
+    {"s": "architect", "t": "problem", "type": "reads", "v": "baseline",
+     "n": "what the program does, as observed",
+     "actor": "role", "rows": "query", "depth": "body",
+     "label": "a commitment is to someone outside; the account says who uses this"},
+    {"s": "architect", "t": "code", "type": "reads", "v": "area",
+     "n": "the area's source",
+     "actor": "role", "rows": "query", "depth": "body",
+     "label": "a constraint is found in source, not composed from a grain list"},
+]
 
 
-def main() -> None:
+def main() -> int:
     graph = json.loads(GRAPH.read_text(encoding="utf-8"))
-    edges = graph["edges"]
-
-    changed = []
-    for e in edges:
-        if e.get("type") != "messages" or e.get("v") != "question":
+    have = {(e["s"], e["t"], e["type"], e.get("v", "")) for e in graph["edges"]}
+    added = 0
+    for edge in EDGES:
+        key = (edge["s"], edge["t"], edge["type"], edge["v"])
+        if key in have:
             continue
-        if (e["s"], e["t"]) not in WORDLESS:
-            continue
-        e["prose"] = "question"
-        e["n"] = (e.get("n") or "a question").rstrip(".") + \
-            ", in words; the refs say what it is about"
-        changed.append(f"{e['s']} -> {e['t']}")
-
+        graph["edges"].append(edge)
+        added += 1
     GRAPH.write_text(json.dumps(graph, indent=2, ensure_ascii=False) + "\n",
                      encoding="utf-8")
-
-    every = [e for e in edges
-             if e.get("type") == "messages" and e.get("v") == "question"]
-    with_words = [e for e in every if e.get("prose")]
-    print(f"amended {len(changed)}: {', '.join(sorted(changed))}")
-    print(f"question channels: {len(with_words)}/{len(every)} carry words")
-    assert len(with_words) == len(every), "question still means two things"
+    print(f"{added} edge(s) added, {len(graph['edges'])} total")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

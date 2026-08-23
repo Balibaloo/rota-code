@@ -17,9 +17,9 @@ talked round is not one. Your answer is the next commit.
 Which means the first option only ends the dispute if somebody widens the
 criteria. The ledger entry is how that happens: it reaches the principal through
 Liaison and comes back as a decision. If you need it settled sooner than that,
-`msg.question_gatekeeper` is the route, and until it is settled, expect Critic
+`msg.question_vision_keeper` is the route, and until it is settled, expect Critic
 to keep failing the change. That is the system working, not a deadlock.
 
 Do not argue that it is an improvement. It may well be. The question is whether
 anybody asked for it, and if that question is genuinely open,
-`msg.question_gatekeeper` is the route.
+`msg.question_vision_keeper` is the route.

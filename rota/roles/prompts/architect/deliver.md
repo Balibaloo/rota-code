@@ -24,4 +24,4 @@ is written that way and bound later. Inventing a plausible name to put in
 commitment goes unrecorded while you argue with the argument.
 
 If a statement implies a seam the current structure cannot carry,
-`msg.propose_gatekeeper` — a refactor is scope, and scope is not yours.
+`msg.propose_vision_keeper` — a refactor is scope, and scope is not yours.

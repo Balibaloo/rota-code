@@ -25,8 +25,8 @@ Law 1 is single-writer, and thirteen artefacts have exactly one:
 
 | artefact | owner | | artefact | owner |
 |---|---|---|---|---|
-| `problem` | gatekeeper | | `model` | architect |
-| `tickets` | gatekeeper | | `batches` | architect |
+| `problem` | vision_keeper | | `model` | architect |
+| `tickets` | vision_keeper | | `batches` | architect |
 | `glossary` | terminologist | | `findings` | architect |
 | `criteria` | terminologist | | `code` | developer |
 | `brief` | liaison | | `tests` | tester |
@@ -35,15 +35,15 @@ Law 1 is single-writer, and thirteen artefacts have exactly one:
 
 Four are shared, by ruling rather than by accident:
 
-- **`ledger`** — architect, developer, gatekeeper, terminologist, tester. A
+- **`ledger`** — architect, developer, vision_keeper, terminologist, tester. A
   choice the criteria did not make is logged by whoever had to make it, so
   restricting the writer would mean the choice went unrecorded or was recorded by
   somebody who did not make it.
-- **`decisions`** — architect, gatekeeper, terminologist. Each owns a kind of
+- **`decisions`** — architect, vision_keeper, terminologist. Each owns a kind of
   ruling in its own domain.
-- **`surveys`** — architect, gatekeeper, terminologist. A survey record is an
+- **`surveys`** — architect, vision_keeper, terminologist. A survey record is an
   attestation by the role that did the reading.
-- **`schedule`** — architect, developer, gatekeeper, terminologist, tester, via
+- **`schedule`** — architect, developer, vision_keeper, terminologist, tester, via
   `schedule.reask` alone. Everything else about the schedule is derived and
   read-only; this is the one thing the scheduler cannot derive, which is a role
   saying an answer it received did not resolve what it asked. Same shape as the
@@ -72,7 +72,7 @@ woken. Whether a report has settled is a lookup on `approval` and `status`, so
 Liaison at all. If you find yourself writing "Liaison should work out whether…"
 into a brief, the sentence belongs in a predicate.
 
-**Reaches** architect, gatekeeper, terminologist (ask, deliver), gatekeeper
+**Reaches** architect, vision_keeper, terminologist (ask, deliver), vision_keeper
 (relay), and the principal (clarify, confirm, present).
 
 **Woken by** agenda, awaiting_confirm, contradiction, observed_entries,
@@ -84,7 +84,7 @@ problem being raised actually is — the two senses of a word when the collision
 the problem, the statement when the wording is. Nothing is mandatory beyond
 naming the thing in question.
 
-## gatekeeper
+## vision_keeper
 
 **Answerable for** scope: what is in, what is explicitly out, and cutting
 approved items into tickets a Developer can pick up cold.
@@ -96,7 +96,13 @@ the difference is whose artefact changes.
 **Reaches** developer (answer, reopen), liaison (answer, report, submit),
 researcher (question), tester (answer).
 
-**Woken by** contested, signoff, slicing.
+**Woken by** contested, orient, reconcile, signoff, slicing.
+
+**Orient is its first session on any repository.** Before a word in the
+program has been named, it reads the front — manifest, README, the authoring
+surface, the entry point — and writes what the product does for its user, as
+observed items. Every later onboarding phase is written with that account in
+front of it.
 
 ## terminologist
 
@@ -104,13 +110,19 @@ researcher (question), tester (answer).
 would satisfy it.
 
 **Never decides scope.** If a statement is vague about *what should be built*
-that is Gatekeeper's report. Collapsing two senses into one is a decision, and
+that is Vision Keeper's report. Collapsing two senses into one is a decision, and
 two senses is a finding, not a failure to resolve.
 
-**Reaches** architect (answer), developer (answer), gatekeeper (challenge),
+**Reaches** architect (answer), developer (answer), vision_keeper (challenge),
 liaison (answer, report), researcher (question), tester (answer).
 
-**Woken by** criteria, term_collision.
+**Woken by** criteria, define, term_collision.
+
+**Define is one word at a time, over the whole program.** The lexicon — what the
+checkout declares: directories, files, types, authoring keys — says which words,
+the concordance is pushed, and the session writes one entry for the word it was
+woken for. A meaning is not shaped like a place; this is the mode that stops
+asking area-shaped questions about words that live in five areas.
 
 **A word with two live senses is raised for you, not by you.** Two statements
 that conflict have always been an obligation the frontier derives; two senses of
@@ -124,11 +136,11 @@ fact about the glossary, so it is on the register once and it is yours.
 — their bindings, batch grouping, and structural review.
 
 **Never grants scope.** A refactor is scope, so a seam the structure cannot
-carry is `msg.propose_gatekeeper`, not a decision. An escalation that arrives
+carry is `msg.propose_vision_keeper`, not a decision. An escalation that arrives
 carrying a constraint has already been diagnosed by the role that hit it;
 passing it to Liaison spends a rung of the ladder and answers nobody.
 
-**Reaches** developer (answer), gatekeeper (challenge, propose), liaison
+**Reaches** developer (answer), vision_keeper (challenge, propose), liaison
 (answer, report), researcher (question), terminologist (question).
 
 **Woken by** annotate, grouping, structural_review.
@@ -141,7 +153,7 @@ passing it to Liaison spends a rung of the ladder and answers nobody.
 question or a `ledger.log`, never a quiet fix — invisible in the moment and
 undiscoverable afterwards is the exact failure this system exists to prevent.
 
-**Reaches** architect (escalate), gatekeeper (elect, question), researcher
+**Reaches** architect (escalate), vision_keeper (elect, question), researcher
 (question), terminologist (question), tester (challenge).
 
 **Woken by** batch_start, reopen, tests_failing, verdict_failed.
@@ -158,10 +170,10 @@ implementation.
 
 **Never decides what the criterion means.** A word it cannot pin down is
 `msg.question_terminologist`; a criterion no machine could check is
-`msg.question_gatekeeper`. A test that passes trivially is worse than no test,
+`msg.question_vision_keeper`. A test that passes trivially is worse than no test,
 because it reports as coverage.
 
-**Reaches** developer (answer), gatekeeper (question), researcher (question),
+**Reaches** developer (answer), vision_keeper (question), researcher (question),
 terminologist (question).
 
 **Woken by** tests_missing.
@@ -192,7 +204,7 @@ that make them checkable later.
 authoritative about the standard and says nothing about which sense this project
 means — that judgement stays with whoever asked.
 
-**Reaches** architect, developer, gatekeeper, terminologist, tester (answer).
+**Reaches** architect, developer, vision_keeper, terminologist, tester (answer).
 
 **Woken by** nothing. It is the only role with no predicate: it acts when asked
 and never on its own initiative.
@@ -227,5 +239,5 @@ Written down because an undecided boundary is worse when it is invisible.
   field, because it shares no database. Making prose the default across every
   channel is an amendment to Law 2 rather than a change of habit.
 - **Ticket readiness** is split three ways — Architect via the touch set,
-  Gatekeeper owning the text, Terminologist the criteria — and is recorded as an
+  Vision Keeper owning the text, Terminologist the criteria — and is recorded as an
   accountability rather than resolved.

@@ -11,7 +11,7 @@ They had three causes, all real:
      -> fixed in rota/graph.py, not here.
 
   2. `backlog` is one node with three writers, so deriving contacts at artefact
-     granularity gave Critic a channel to all of Gatekeeper, Terminologist and Architect
+     granularity gave Critic a channel to all of Vision Keeper, Terminologist and Architect
      merely for reading criteria. Law 1 means one writer per *row*; the schema
      splits the backlog into tickets/criteria/batches, and the graph must match
      or the derivation stays too coarse.
@@ -42,11 +42,11 @@ LAYOUT = DESIGN / "layout.json"
 
 # Which of the old `backlog` edges belong to which split table.
 BACKLOG_SPLIT = {
-    ("gatekeeper", "writes", "slice"): "tickets",
-    ("gatekeeper", "writes", "prioritize"): "batches",
+    ("vision_keeper", "writes", "slice"): "tickets",
+    ("vision_keeper", "writes", "prioritize"): "batches",
     ("terminologist", "writes", "specify"): "criteria",
     ("architect", "writes", "batch"): "batches",
-    ("gatekeeper", "reads", "consult"): "tickets",
+    ("vision_keeper", "reads", "consult"): "tickets",
     ("terminologist", "reads", "consult"): "criteria",
     ("terminologist", "reads", "scan"): "tickets",
     ("architect", "reads", "consult"): "batches",
@@ -85,7 +85,7 @@ def main() -> None:
     nodes = [n for n in nodes if n["id"] != "backlog"]
     nodes += [
         {"id": "tickets", "label": "Tickets", "type": "artefact",
-         "note": "Sliced by Gatekeeper from approved items. One writer. " + backlog_note},
+         "note": "Sliced by Vision Keeper from approved items. One writer. " + backlog_note},
         {"id": "criteria", "label": "Criteria", "type": "artefact",
          "note": "Written by Terminologist in glossary terms, one set per ticket. One writer."},
         {"id": "batches", "label": "Batches", "type": "artefact",
@@ -123,8 +123,8 @@ def main() -> None:
 
     # ---- 4. two read edges the oracle proved missing -------------------------
     # Running the contact check with the split backlog left exactly four
-    # underivable message edges (developer->gatekeeper, tester->gatekeeper,
-    # gatekeeper->developer, critic->developer). All four resolve to omissions in the
+    # underivable message edges (developer->vision_keeper, tester->vision_keeper,
+    # vision_keeper->developer, critic->developer). All four resolve to omissions in the
     # original graph rather than needing exceptions:
     #
     #   * Developer and Tester read criteria but not the *ticket* those criteria
@@ -168,7 +168,7 @@ def main() -> None:
         # the design specified asking thoroughly and never drew the answering
         # half. Most are fine, because the answer *is* a write and the cascade
         # carries it — Architect resolves an escalation by amending the model,
-        # Gatekeeper resolves a challenge by amending an item, and the receipt wakes
+        # Vision Keeper resolves a challenge by amending an item, and the receipt wakes
         # the asker.
         #
         # The rule: **an ask needs a reply edge exactly when answering it writes
@@ -178,13 +178,13 @@ def main() -> None:
         # forever on a question that was in fact answered.
         {"s": "terminologist", "t": "developer", "type": "messages", "v": "answer",
          "n": "term sense", "a": "single", "label": "answering is not amending"},
-        {"s": "gatekeeper", "t": "developer", "type": "messages", "v": "answer",
+        {"s": "vision_keeper", "t": "developer", "type": "messages", "v": "answer",
          "n": "criterion or scope clarification", "a": "single"},
         {"s": "architect", "t": "developer", "type": "messages", "v": "answer",
          "n": "constraint clarification", "a": "single"},
         {"s": "terminologist", "t": "tester", "type": "messages", "v": "answer",
          "n": "term sense", "a": "single"},
-        {"s": "gatekeeper", "t": "tester", "type": "messages", "v": "answer",
+        {"s": "vision_keeper", "t": "tester", "type": "messages", "v": "answer",
          "n": "criterion clarification", "a": "single"},
         {"s": "tester", "t": "developer", "type": "messages", "v": "answer",
          "n": "test intent", "a": "single"},

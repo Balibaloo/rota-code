@@ -1,0 +1,4 @@
+DEPRECATION CANDIDATE — source plus word list (runs F, G).
+
+Carries the word list's 4-of-10 ceiling for no measured gain over `account/`,
+which drops it. Kept as the evidence behind item 10.

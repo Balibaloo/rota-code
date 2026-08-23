@@ -11,6 +11,7 @@ the system may never do. Everything below is how those are made true.
 | file | what it is |
 |---|---|
 | `LAWS.md` | **L0 and the laws.** The level every other file presupposed and none stated |
+| `ONBOARDING.md` | **understanding a repository, derived**: why onboarding is three questions over the whole program before it is a pass over areas, and what each phase is shown |
 | `ROLES.md` | **the nine seats** — what each is answerable for and what it may never decide. Read before changing a brief; checked against the graph by `test_roles_doc` |
 | `design/graph.json` | **the wiring.** Roles, artefacts, edges with verb, noun, rows and depth. Not a picture of the system — the part-list it is assembled from |
 | `design/layout.json` | viewer geometry, split out so editing meaning never touches coordinates |
@@ -31,7 +32,7 @@ the system may never do. Everything below is how those are made true.
 | `runner.py` | one message in → tool loop → one atomic commit out |
 | `fixtures.py` | seed → inject → run → assert on deltas; the case format |
 | `cockpit/` | local server: design structure, live state, cases and progress in one picture. `tui.py` is the seat |
-| `onboarding/` | an existing checkout -> index, dependency edges, areas, constraint zero |
+| `onboarding/` | an existing checkout -> index, dependency edges, areas, **lexicon**, constraint zero. The phases that follow -- orient, define, survey -- are [ONBOARDING.md](ONBOARDING.md) |
 | `cli.py` | **one way in.** A run has a name; the run records the project |
 
 Not built: the environment half of Developer. The spawner exists and **nothing
@@ -46,7 +47,8 @@ nothing downstream has to be told twice.
 
 ```bash
 python -m rota ls                                  # what runs exist, and their state
-python -m rota onboard ctn_v3 --root <checkout>    # index, partition, constraint zero
+python -m rota onboard ctn_v3 --root <checkout>    # index, partition, lexicon, constraint zero
+python -m rota onboard ctn_v3 --root <checkout> --no-prose   # and withhold README/docs from every session
 python -m rota tui ctn_v3                          # the seat: talk, run, wipe, rerun
 python -m rota cockpit ctn_v3                      # http://127.0.0.1:8899
 python -m rota report ctn_v3                       # what came out, and the audit
@@ -56,6 +58,13 @@ python -m rota wipe ctn_v3                         # worktrees, processes, then 
 Two runs against one checkout are two names, not two wipes — which is what
 comparing a branch against its main needs, and is the case
 [ANSWER_KEY_ctn_v3.md](ANSWER_KEY_ctn_v3.md) exists for.
+
+**`.rota/live.md` is the present tense.** One file, overwritten at the start
+of every model call: the pins, the system prompt, the user prompt, and the
+completion streaming in as Ollama generates it. Keep it open in an editor that
+reloads on change to watch a run work. `ROTA_LIVE=<path>` moves it,
+`ROTA_LIVE=0` turns it off. The historical record is the `turns` table, which
+the cockpit renders; this is only ever the current call.
 
 **The TUI is the seat.** `python -m rota tui` with no name opens the run list.
 
@@ -150,7 +159,7 @@ refuses the rest, but because nothing else was created. The only way to grant a
 capability is to draw an edge; a prompt has no authority.
 
 **The frontier includes state, not just messages.** An approved item with no
-tickets is not a message — nothing would ever wake Gatekeeper for it. Predicates are
+tickets is not a message — nothing would ever wake Vision Keeper for it. Predicates are
 re-evaluated every pass, so residual work is re-derived rather than remembered,
 which is also why the scheduler can be deleted and rewritten. The universal
 invariant: *at quiescence, no predicate fires.*

@@ -21,7 +21,7 @@ about to touch, and build it.
    a legitimate outcome and says so; it is not an error to work around
 
 **Build the ticket, and nothing beside it.** If you notice something else that
-wants fixing, you have two honest options: leave it, or `msg.question_gatekeeper`
+wants fixing, you have two honest options: leave it, or `msg.question_vision_keeper`
 about whether it is in scope. Fixing it quietly is the failure this whole system
 is built against — it is invisible in the moment and undiscoverable afterwards.
 

@@ -23,7 +23,7 @@ import urllib.request
 
 OLLAMA = "http://localhost:11434"
 
-# One real operation, with the enum the sandbox validates. Gatekeeper asserting
+# One real operation, with the enum the sandbox validates. Vision Keeper asserting
 # a scope item is the simplest thing any role does.
 TOOLS = [{
     "type": "function",
@@ -43,14 +43,14 @@ TOOLS = [{
 }]
 
 SYSTEM_NATIVE = (
-    "You are Gatekeeper. You own the problem statement: what this software is "
+    "You are Vision Keeper. You own the problem statement: what this software is "
     "for and what it is not for.\n\n"
     "A ratified statement has arrived. Record what it means for scope using the "
     "tool provided. Use the tool — do not describe what you would do."
 )
 
 SYSTEM_TEXT = (
-    "You are Gatekeeper. You own the problem statement: what this software is "
+    "You are Vision Keeper. You own the problem statement: what this software is "
     "for and what it is not for.\n\n"
     "A ratified statement has arrived. Record what it means for scope.\n\n"
     "Your working set is exactly these functions. Nothing else exists:\n"

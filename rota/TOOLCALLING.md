@@ -2,7 +2,7 @@
 
 `python -m rota.tools.probe_tools --runs 3`, on the target box, one fixture put
 to every model twice — once with native tools, once with the `TOOL:` text
-protocol. The fixture is Gatekeeper asserting one scope item, which is the
+protocol. The fixture is Vision Keeper asserting one scope item, which is the
 simplest thing any role does, and it is graded on the same terms both ways: a
 call named right, with a legal enum, carrying an id and text.
 

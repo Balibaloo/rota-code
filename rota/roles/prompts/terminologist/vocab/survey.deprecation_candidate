@@ -1,0 +1,5 @@
+DEPRECATION CANDIDATE — the word-list design (runs B, C).
+
+`code.vocabulary` ranks decomposed identifiers by frequency, which caps recall at
+4 of 10 on cnt (item 8) and destroys every compound term. Beaten by `account/` on
+recall, transcription and off-key. Kept as the evidence behind items 8 and 9.

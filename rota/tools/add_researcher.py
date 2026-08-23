@@ -41,7 +41,7 @@ NEW_NODES = ("researcher", "references", "web")
 
 # The roles that can cite an external source into an artefact they own. This
 # list is not the contact list -- law 3 derives that from the read edges below.
-ASKERS = ("terminologist", "architect", "gatekeeper", "developer", "tester")
+ASKERS = ("terminologist", "architect", "vision_keeper", "developer", "tester")
 
 
 def main() -> None:

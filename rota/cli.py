@@ -372,8 +372,16 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     if not (root / ".git").exists():
         print(f"note: {root} is not a git checkout; batches will have no worktree")
     report = onboard(path, root)
+    if getattr(args, "no_prose", False):
+        from .core import config
+        from .core.db import connect
+
+        conn = connect(path)
+        config.set(conn, "prose_sources", "off")
+        conn.commit(); conn.close()
     print(f"{args.name}: {report.areas} areas, {report.unsurveyed} under "
-          f"constraint zero, {len(report.leaky)} leaky  ({path})")
+          f"constraint zero, {len(report.leaky)} leaky  ({path})"
+          + ("  [prose withheld]" if getattr(args, "no_prose", False) else ""))
     print(f"next: rota run {args.name}")
     return 0
 
@@ -473,6 +481,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--root", required=True, help="the checkout to onboard")
     p.add_argument("--force", action="store_true",
                    help="wipe an existing run of this name first")
+    p.add_argument("--no-prose", action="store_true",
+                   help="withhold README/docs from every session: measure "
+                        "understanding on code, schema and manifest alone")
     p.set_defaults(func=cmd_onboard)
 
     p = sub.add_parser("run", help="turn the crank until quiescent")
@@ -481,7 +492,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=40)
     p.add_argument("--all", action="store_true",
                    help="do not stop when the survey wakes run out")
-    p.add_argument("--until", choices=("terminologist", "architect", "gatekeeper"),
+    p.add_argument("--until", choices=("terminologist", "architect", "vision_keeper"),
                    help="stop after this survey phase (debugging)")
     p.set_defaults(func=cmd_run)
 

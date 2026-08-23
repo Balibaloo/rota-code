@@ -19,7 +19,7 @@ here because it was found in the data and cost whole cases:
 
 The last column is what makes it useful: **the same mechanism across several
 cases is one bug, and fixing it moves the whole group.** Sorting by role hides
-that — the `true` parse error looked like a Gatekeeper problem and a
+that — the `true` parse error looked like a Vision Keeper problem and a
 Terminologist problem and a chain problem, and it was one line in the parser.
 
     python -m rota.tools.triage             # the last run of every case

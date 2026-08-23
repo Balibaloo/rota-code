@@ -160,7 +160,7 @@ def coverage() -> dict:
     # L3a: A writes, a predicate fires, B wakes. Credited by what the chain case
     # names outright — the writer, the predicate that woke the second role, and
     # that role. The one chain case testing an artefact handoff used to score
-    # against the message pairs and match nothing, because Gatekeeper never
+    # against the message pairs and match nothing, because Vision Keeper never
     # messages Terminologist: it writes a ticket and `criteria` does the rest.
     l3a = obligations.l3a()
     tripped = {(c["first"]["role"], (c["then"].get("tick") or ""), c["then"]["role"])
@@ -542,7 +542,7 @@ def cases(dev_db: Path | None = None) -> list[dict]:
         # Seeded is not the same as *visible*. A ticket has an `item_id`
         # foreign key, so a fixture cannot create one without an item — and
         # Developer has no read edge to `problem` at all, because scope is
-        # Gatekeeper's. Those rows are there to make the fixture valid and the
+        # Vision Keeper's. Those rows are there to make the fixture valid and the
         # scheduler able to find a batch, not because the role was handed them.
         #
         # Drawn as one colour they produced a disconnected subgraph and an

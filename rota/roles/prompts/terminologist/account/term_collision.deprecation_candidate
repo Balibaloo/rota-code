@@ -1,0 +1,11 @@
+DEPRECATION CANDIDATE — synthesis by reconciliation.
+
+Works mechanically (item 20): the trigger carries the whole family, the evidence
+and the readings arrive unasked, the verb composes and supersedes reversibly.
+`llama3.1:8b` cannot do the task. Two briefs -- "the sense the readings add up
+to" and "write the definition from the concordance, not a summary of the
+readings" -- both produced the readings concatenated.
+
+Superseded in the proposed design by *defining the word once*, from the trace and
+the concordance, rather than reconciling N readings after the fact. Reconciliation
+is the one shape this model reliably fails; see also `glossary.same`.

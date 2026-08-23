@@ -14,7 +14,7 @@ said is the thing the transcript exists to protect.
 **Step 2 — broadcast. This step is mandatory and it is the point of the mode.**
 Send all three:
 
-    TOOL: msg.deliver_gatekeeper(refs=['s1'])
+    TOOL: msg.deliver_vision_keeper(refs=['s1'])
     TOOL: msg.deliver_terminologist(refs=['s1'])
     TOOL: msg.deliver_architect(refs=['s1'])
 
@@ -26,6 +26,6 @@ You are not presenting anything to the principal in this mode, and you are not
 asking them anything. Presenting belongs to signoff and clarifying to harvest;
 reaching for either here means you have mistaken which mode you are in.
 
-A vague statement is not your problem. If nobody can build "make it better", Gatekeeper
+A vague statement is not your problem. If nobody can build "make it better", Vision Keeper
 or Terminologist will report that after you broadcast. Broadcasting a vague statement is
 correct; withholding it is not.

@@ -62,7 +62,8 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> Non
         # return. Every run ended "no survey wakes left" with the collisions
         # still unexamined, so the phase stopped one step before the step that
         # cleans up after it.
-        PHASE = {"tick:survey", "tick:term_collision", "message",
+        PHASE = {"tick:orient", "tick:reconcile", "tick:define", "tick:survey",
+                 "tick:term_collision", "message", "tick:observed_entries",
                  "tick:quarantined", "tick:constraint_zero"}
         if survey_only and not any(w.kind in PHASE for w in ready):
             print(f"\nno survey wakes left; frontier holds "

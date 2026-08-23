@@ -57,7 +57,7 @@ needs a way out that is not a guess:
 | the situation | the move |
 |---|---|
 | a word means two things | ask the terminologist |
-| I cannot tell what would satisfy this | ask the gatekeeper |
+| I cannot tell what would satisfy this | ask the vision_keeper |
 | this conflicts with a commitment | escalate to the architect |
 | this contradicts something a peer wrote | challenge the peer |
 | the answer I got did not land | `schedule.reask` |
@@ -75,7 +75,7 @@ same problem as this, solved once, in one place, and never generalised.
 | role | can say when stuck | missing |
 |---|---|---|
 | architect | question · challenge · propose · report | — |
-| gatekeeper | question · report · submit | — |
+| vision_keeper | question · report · submit | — |
 | terminologist | question · challenge · report | — |
 | developer | question · challenge · escalate | — |
 | **tester** | **question** | escalate · challenge · report |
@@ -93,7 +93,7 @@ this one has to be corrected on its first test.
 **It predicted Tester's reds and the prediction was false.** Tester has one
 move *when stuck*, so a stuck Tester should improvise — and four red cases do
 show three tests written *and* a question sent when the case wanted the question
-alone. But every one of those cases wants a `question` to Gatekeeper,
+alone. But every one of those cases wants a `question` to Vision Keeper,
 Terminologist or Researcher, and **Tester already has all three.** The
 affordance is there. The role reaches for it and writes the tests anyway.
 
@@ -108,7 +108,7 @@ undetectable, which is a different thing and a better answer.
 
 - **Tester** is offered `tests.encode` in the same session where the right move
   is to ask. Both are available and only prose says when.
-- **Gatekeeper**, woken to a thread between Tester and Terminologist, answered
+- **Vision Keeper**, woken to a thread between Tester and Terminologist, answered
   Developer five runs out of five: two answer channels, one situation, prose
   alone distinguishing them.
 - **Architect**, given `schedule.reask` in a mode whose job is to record a
@@ -125,7 +125,7 @@ the third try, because the first two counts in this document were wrong:
 
 | case | derivable from state? |
 |---|---|
-| `GK-the-last-rung` | **yes** — the asker is on the wake |
+| `VK-the-last-rung` | **yes** — the asker is on the wake |
 | `LI-a-question-the-roles-could-not-answer` | yes, and already fixed |
 | `TS-a-word-with-two-senses` | yes, and the frontier already suppresses it — this case only runs because L1 injects wakes directly |
 | `TS-a-criterion-no-machine-could-check` | **no.** "Easy for the finance team to work with" is unambiguous and untestable, and nothing in the rows says so |
@@ -166,7 +166,7 @@ In the order the frame produces them, not the order they were noticed.
    `sandbox.build` takes the wake, and `situational()` is where a rule that
    depends on the state lives. One rule so far: on `tick:unresolved` the rung
    can answer the role that asked and nobody else, because the asker is the
-   sender of the message the wake refers to. Gatekeeper answered Developer five
+   sender of the message the wake refers to. Vision Keeper answered Developer five
    runs out of five about a thread Developer is not in — not a temptation to
    resist, a capability with no situation.
 
@@ -186,7 +186,7 @@ In the order the frame produces them, not the order they were noticed.
    Critic's own brief says it: "if a test does not encode its criterion,
    challenge Tester. Do not re-derive the criterion yourself." Tester holds all
    three question channels, so the chain is `critic → tester →
-   {terminologist, gatekeeper, researcher}` and every edge of it exists. Giving
+   {terminologist, vision_keeper, researcher}` and every edge of it exists. Giving
    Critic its own line would let it skip the role whose job that is, and would
    start it accumulating exactly the context the starvation exists to deny.
 

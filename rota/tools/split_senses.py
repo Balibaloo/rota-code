@@ -186,10 +186,10 @@ def targets() -> list[Path]:
 def main() -> None:
     fix_graph()
 
-    if Path("rota/prompts/gatekeeper/consult.md").exists():
-        subprocess.run(["git", "mv", "rota/prompts/gatekeeper/consult.md",
-                        "rota/prompts/gatekeeper/readonly.md"], check=True)
-        print("  gatekeeper/consult.md -> readonly.md")
+    if Path("rota/prompts/vision_keeper/consult.md").exists():
+        subprocess.run(["git", "mv", "rota/prompts/vision_keeper/consult.md",
+                        "rota/prompts/vision_keeper/readonly.md"], check=True)
+        print("  vision_keeper/consult.md -> readonly.md")
 
     changed = 0
     for path in targets():

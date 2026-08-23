@@ -1,0 +1,7 @@
+DEPRECATION CANDIDATE — the A-era grain-list survey.
+
+Measured against `probes/cnt/answer_key.yaml`: 0 of 10 required terms across four
+runs, 88% of the glossary transcribed identifiers verbatim, and `L1-TE-survey-an-
+area-for-its-terms` fails 0/5 because the session never opens a file. Superseded
+by the `account/` variant on every axis. Kept because it is still the default and
+nothing has been measured on a second repository.

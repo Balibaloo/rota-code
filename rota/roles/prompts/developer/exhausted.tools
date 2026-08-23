@@ -3,7 +3,7 @@ criteria.load
 verdicts.load
 model.load
 ledger.log
-msg.question_gatekeeper
+msg.question_vision_keeper
 msg.question_terminologist
 msg.challenge_tester
 msg.escalate_architect

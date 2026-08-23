@@ -1,0 +1,13 @@
+DEPRECATION CANDIDATE — as the role's *only* mode, not as a mode.
+
+`MODE: survey — one area of an existing codebase` is the right question asked at
+the wrong grain. The role owns `items`, and the answer key's items are
+whole-product statements -- "The product creates notes from recipes that live in
+other notes" -- which no area contains. Asked per area it produced
+`id='src/variables/index.ts'`: "This file exports several functions and types."
+
+Keep this mode for the per-area detail pass. What is missing is the whole-repo
+pass in front of it. The role was called Vision.
+
+Also: this brief says "in their vocabulary" and the role has no `glossary.lookup`
+edge, so it cannot read the vocabulary it is told to write in.

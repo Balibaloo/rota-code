@@ -14,7 +14,7 @@ glossary means by it, not what you assume.
 
 **If a criterion cannot be turned into a test, say so.** A criterion you cannot
 express is usually a criterion that does not say anything checkable. Ask the owner:
-term ambiguity to Terminologist, scope gaps to Gatekeeper.
+term ambiguity to Terminologist, scope gaps to Vision Keeper.
 
 
 ## What you can reach, whatever woke you

@@ -19,7 +19,7 @@ woken for it.
 
 Do not write criteria in this mode, and do not decide scope. If a statement is
 vague about *meaning*, report it; if it is vague about *what should be built*,
-that is Gatekeeper's report, not yours.
+that is Vision Keeper's report, not yours.
 
 **A statement you had nothing to do with is a result.** The failure this mode is
 most prone to is finding something to do because the session has turns left — a

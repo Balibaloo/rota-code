@@ -17,15 +17,16 @@ undischarged goals stay visible and countable.
 
 ## It is already here, and was never named
 
-Of twenty-eight predicates, eleven move the spine forward, one is message
-traffic, and **sixteen are register entries**: something is outstanding, and
+Of thirty-one predicates, eleven move the spine forward, one is message
+traffic, and **sixteen are register entries** -- nineteen, since onboarding
+gained its phases: something is outstanding, and
 the predicate exists to keep offering it until it is not.
 
     contradiction   contested        constraint_zero   awaiting_confirm
     agenda          quarantined      exhausted         round_close
     observed_entries reopen          tests_failing     verdict_failed
     checkpoint_invalid               survey            term_collision
-    unresolved
+    unresolved      orient           reconcile         define
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.
@@ -67,10 +68,10 @@ should be a thing a role remembers to file.
 
 | obligation | derived from | discharged by | owner | today |
 |---|---|---|---|---|
-| an area nobody surveyed | areas − surveyed areas | `surveys.attest`, incl. `none_found` | architect · gatekeeper · terminologist | **works** |
+| an area nobody surveyed | areas − surveyed areas | `surveys.attest`, incl. `none_found` | architect · vision_keeper · terminologist | **works** |
 | a statement awaiting ratification | proposed, no confirm outstanding | the principal's verdict | liaison relays | works |
 | two statements in contradiction | both `contradicted` | the principal's ruling | liaison relays | works |
-| an item the principal rejected | `approval = contested` | gatekeeper amends or defends | gatekeeper | works |
+| an item the principal rejected | `approval = contested` | vision_keeper amends or defends | vision_keeper | works |
 | entries observed, never ruled on | onboarding entries with no decision | presented and ruled | liaison relays | works |
 | a batch that spent its loop cap | `loop_cap` reached | escalation up the ladder | developer | works |
 | a message the system gave up on | dispatched past cap | reported to the principal | liaison relays | works |
@@ -166,8 +167,8 @@ exists. A runtime that folds over the set cannot take it from prose.
 
 ## Item 5, specified
 
-The situation, exactly: Developer asks Gatekeeper whether partial
-reconciliation counts as done. Gatekeeper's session commits, so the message is
+The situation, exactly: Developer asks Vision Keeper whether partial
+reconciliation counts as done. Vision Keeper's session commits, so the message is
 `answered` and Developer stops waiting. The answer was "follow the acceptance
 criteria", and Developer's question *was* that the criteria do not cover it.
 
@@ -196,17 +197,17 @@ Three things I decided against, recorded because each was tempting:
   declaration is **"I am still blocked and I do not know who else to ask"**,
   which is also why the batch version of this exists.
 - *Widening `exhausted` to cover it.* Same obligation, but a different ladder:
-  a spent batch climbs `developer → architect → gatekeeper`, and a dead answer
+  a spent batch climbs `developer → architect → vision_keeper`, and a dead answer
   cannot start at Developer when Tester is the one asking. Two ladders in one
   predicate reads as one mechanism and is two.
-- *Reusing the `exhausted` prompts.* Architect and Gatekeeper have them, so it
+- *Reusing the `exhausted` prompts.* Architect and Vision Keeper have them, so it
   is free -- and every word in them is about a batch that has spent its loop.
   A mode whose prompt describes a different situation is the prose failure this
   repository has paid for repeatedly.
 
 **Both open questions are now settled, and the second one moved.**
 
-1. **The ladder** is `architect → gatekeeper → liaison`, ruled. Liaison is the
+1. **The ladder** is `architect → vision_keeper → liaison`, ruled. Liaison is the
    last rung rather than a silence, because a ladder ending in nothing is the
    dead end this half exists to prevent; it is not there to answer but because
    it is how anything reaches the principal. Rungs are skipped when the graph
@@ -243,7 +244,7 @@ either entry stops being offered until the principal rules -- not a warning, an
 absence from the frontier.
 
 **Two roles, one blocker, two vocabularies.** The same ambiguity, later.
-Gatekeeper cannot slice the item and reports ambiguous scope; Terminologist
+Vision Keeper cannot slice the item and reports ambiguous scope; Terminologist
 reports a term collision; Architect reports that the boundary between queue and
 ledger depends on which `order` is meant. Three roles that never share context,
 three reports, one statement. Without a set to query, deciding they are the
@@ -251,7 +252,7 @@ same is Liaison's judgement, which Liaison may not exercise -- so the principal
 gets three questions and answers two. `about` groups by shared refs
 transitively, and one group is one question.
 
-**Waiting is not "try again".** Developer asks Gatekeeper whether partial
+**Waiting is not "try again".** Developer asks Vision Keeper whether partial
 reconciliation counts as done, and goes quiet. `tests_failing` offers the same
 batch back next pass; Developer, with no memory of asking, guesses; the guess
 costs an attempt; twelve attempts later `exhausted` escalates. The old answer
@@ -278,6 +279,6 @@ that costs the most wall-clock.
 query, not whatever Liaison remembers.
 
 **And the one still open.** Developer asks whether partial reconciliation
-counts as done. Gatekeeper answers: follow the acceptance criteria. The row
+counts as done. Vision Keeper answers: follow the acceptance criteria. The row
 says answered. It resolved nothing, because the question was that the criteria
 do not cover it. Nothing derives that.

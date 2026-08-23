@@ -1,7 +1,7 @@
 # rota — the engagement, and the laws
 
 Every other document in this repo presupposes this one. `HANDOFF.md` opens at the
-laws; `schema.sql` opens at the tables; the prompts open at "You are Gatekeeper."
+laws; `schema.sql` opens at the tables; the prompts open at "You are Vision Keeper."
 Not one of them says what the whole thing *is*, which is why the vocabulary drifted
 in the first place — there was no level above the parts for the parts to hang from.
 
@@ -36,7 +36,7 @@ The nine, and what each is answerable for:
 |---|---|
 | **Principal** | wanting it, and ruling on it. Not a role — the root of the message DAG, and the whole that stayed whole while the roles are fragments of their attention |
 | **Liaison** | the conversation with the principal, and the clarity of everything crossing to and from them |
-| **Gatekeeper** | what the project is, and isn't — over time |
+| **Vision Keeper** | what the project is, and isn't — over time |
 | **Terminologist** | one meaning per word |
 | **Architect** | the system holding together, and its outward promises |
 | **Tester** | what "done" means, written so a machine can check it |
@@ -46,12 +46,12 @@ The nine, and what each is answerable for:
 
 **The understanding loop** — *hear, shape, agree* — turns what was said into what
 is meant. The principal speaks; Liaison records it verbatim and cuts it into
-statements; the principal confirms the cut; Gatekeeper, Terminologist and
+statements; the principal confirms the cut; Vision Keeper, Terminologist and
 Architect each read the same words against different artefacts and write what
 they mean for scope, for terms, for structure; the principal approves.
 
 **The delivery loop** — *plan, build, judge* — turns what is meant into what
-exists. Gatekeeper slices tickets, Terminologist writes criteria in glossary
+exists. Vision Keeper slices tickets, Terminologist writes criteria in glossary
 terms, Architect groups tickets into batches; a batch is built, tested, judged
 for intent and then for structure, and merged.
 
@@ -95,7 +95,7 @@ entry, append-only, which is the same property stated for a table whose rows are
 independent.
 
 Per-table ownership is the strict form. The backlog is three tables:
-`tickets` (Gatekeeper), `criteria` (Terminologist), `batches` (Architect).
+`tickets` (Vision Keeper), `criteria` (Terminologist), `batches` (Architect).
 
 > **Amended.** Priority moved from `batches` to `items`. It is a property of what
 > the principal wants, and what they want is an item — which makes `batches`
@@ -169,7 +169,7 @@ plan forces reconstruction.
 
 ### 6. Escalation only climbs
 
-Developer → Architect → Gatekeeper → principal. Budget exhaustion escalates; only
+Developer → Architect → Vision Keeper → principal. Budget exhaustion escalates; only
 exhaustion *at the principal* converts to a ledger assumption. Cycles collapse by
 routing the counter-question into the suspended session; roles are single-instance.
 

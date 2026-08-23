@@ -85,7 +85,7 @@ under 3Bd, and **runtime observation** under Tester.
 
 *Consequence:* it fails the role test on its own terms. Every role exists to make
 a judgement no other can; a deployer would judge "is this safe to release", which
-is Critic and Gatekeeper, and "is it working out there", which is evidence that
+is Critic and Vision Keeper, and "is it working out there", which is evidence that
 it works and therefore Tester's.
 
 *Consequence:* deployment is the first irreversible outward action in a system
@@ -172,6 +172,26 @@ sockets blocked. icalendar is second, once test partitioning is fixed.
 question of putting unrequested output in front of maintainers and keeps `gh` out
 of scope. Upstreaming can be decided later on the merits of an actual diff.
 
+### Onboarding is three questions before it is a pass over areas
+
+Orient (Vision Keeper, the whole program: what it does for its user), define
+(Terminologist, one word at a time from the project's own lexicon, with the
+concordance pushed), then the per-area survey (Terminologist for what an area
+adds, Architect for the rename counterfactual). Strict phases, derived from the
+rows by `scheduler.onboarding_phase`, each written with the previous phase's
+artefact in front of it.
+
+*Consequence:* the unit of work is a question with its context assembled by the
+harness, not an area with a grain list; a word that lives in five areas is
+defined once, over the program. The per-area Vision Keeper pass is withdrawn (not
+deleted) because the orientation is the same role asking the right question at
+the right grain. Measured reasoning in `ONBOARDING.md`; the worklist that forced
+it in `probes/cnt/WORKLIST.md` items 21–24.
+
+*Consequence:* `onboarding_phases` is a setting, so `survey` alone -- the
+pre-orientation design -- stays runnable for measuring one phase against
+another, and every test of the area pass still tests the area pass.
+
 ### Onboarding runs twice
 
 Once with the researcher unavailable to survey modes, once with it available.
@@ -229,6 +249,22 @@ is also what makes two runs comparable, which is what an interface wants it for,
 but that is the smaller reason.
 
 ---
+
+### The scope role is Vision Keeper
+
+The role answerable for what the project is and is not was renamed from
+`vision` to `gatekeeper` in the first rename, because the job is the gate:
+what is in, what is explicitly out, and the tickets cut from approved items.
+The name said the gate and hid the other half, which is the half onboarding
+opens with: identity, purpose, the non-goals, the rejection log, the account
+of what a program is *for* -- the original design's "Vision: identity and
+scope over time". **Decided 2026-08-23: the role is `vision_keeper`, "Vision
+Keeper" in prose** -- it says both halves and keeps the gate. Done
+mechanically and reviewably by `rota/tools/rename_vision_keeper.py` (109
+files; the prompts directory moved; case ids `GK-` became `VK-`). Consequence:
+every brief that names the role changed, so the recordings made against the
+old briefs are invalid and were re-earned; old run databases keep
+`gatekeeper` in their session rows and are re-onboarded rather than migrated.
 
 ## Amendments the settled column forces on LAWS.md
 

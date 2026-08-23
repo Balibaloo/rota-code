@@ -3,7 +3,7 @@ MODE: reopen — an approved item changed under you.
 Something the batch traces to was amended, so its approval was revoked and this
 batch stopped. The message carries the revoked item and the batch you were in.
 
-You elect, with `msg.elect_gatekeeper`:
+You elect, with `msg.elect_vision_keeper`:
 
 - **amend** — the change is small enough that the worktree is still worth having.
   You keep the commits and rebuild your understanding of what is now being asked

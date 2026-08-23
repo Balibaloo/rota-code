@@ -90,7 +90,7 @@ previous session's finding: `llama3.1:8b` honours native calls 3/3 at 0.4s, and
 so does `qwen2.5:7b` — only `gemma3` refuses, with a 400. The native path turned
 out to be *built and unwired*: `runner.py` computed the schemas into a variable
 and called `complete()` without passing them. Verified end to end with a real
-Gatekeeper session that committed a real item.
+Vision Keeper session that committed a real item.
 
 ---
 
@@ -112,7 +112,7 @@ Gatekeeper session that committed a real item.
       create under `tmp_path`, snapshot before, remove only what is new *and*
       temp-rooted
 - [x] **3.5** shared, not Developer-only — Architect reads source and diffs,
-      Terminologist and Gatekeeper survey code, Critic reads the batch diff
+      Terminologist and Vision Keeper survey code, Critic reads the batch diff
 
 **Note:** a found repo was considered. Synthesised wins — stage 7 asserts on
 *planted* properties, and a real repo has none of them; cloning needs network and
@@ -189,7 +189,7 @@ produces a real commit today. That slice lands inside stage 1.
 - [~] **4.5** expect prompt churn; this is where the vocabulary rework gets its
       verdict, so L1 is not a single pass
 
-**4 of 109 cases written, all Gatekeeper, all green at 4/5 or better against
+**4 of 109 cases written, all Vision Keeper, all green at 4/5 or better against
 `llama3.1:8b`.** The machinery is proven end to end — case file, seeded fixture,
 real session, structural delta, sampled threshold, cassette. What remains is
 volume.
@@ -202,7 +202,7 @@ visible to any deterministic check:
 - the relay prompt said "approve, contest, or leave pending" — the *ruling*
   words — where the enum is `approved`/`contested`. Two vocabularies in one
   sentence, in a prompt, after the whole vocabulary pass
-- Gatekeeper answered the same question twice, and once eleven times
+- Vision Keeper answered the same question twice, and once eleven times
 
 ---
 

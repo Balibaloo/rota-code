@@ -12,7 +12,7 @@ round's business, all of it.
 
 **`about` has already grouped them.** Two roles hitting the same blocker in
 different vocabulary is the normal case rather than the exception —
-Terminologist calls it a term collision, Gatekeeper calls it a scope ambiguity,
+Terminologist calls it a term collision, Vision Keeper calls it a scope ambiguity,
 and they point at the same statement. That shared ref is what makes them one
 question, so the grouping is a join and it arrives done. **One group is one
 question.**

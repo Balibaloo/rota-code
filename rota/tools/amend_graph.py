@@ -10,7 +10,7 @@ Amendments (all agreed in the design session preceding implementation):
   1. Planner dissolved. Ordering is a topological sort in scheduler code, not an
      LLM role. Its schedule artefact survives (the scheduler reads it); Liaison
      gains a schedule read so principal ordering questions can still be answered.
-  2. Tester added, between Terminologist/Gatekeeper and Critic. Reads criteria + glossary,
+  2. Tester added, between Terminologist/Vision Keeper and Critic. Reads criteria + glossary,
      writes tests. Starved of the diff on purpose: tests written after seeing an
      implementation encode the implementation.
   3. Developer reads tests; Critic reads tests. Critic judges the diff *given*
@@ -100,7 +100,7 @@ def main() -> None:
          "n": "test disputes criterion", "a": "single"},
         {"s": "critic", "t": "tester", "type": "messages", "v": "challenge",
          "n": "test does not encode criterion", "a": "single"},
-        {"s": "tester", "t": "gatekeeper", "type": "messages", "v": "question",
+        {"s": "tester", "t": "vision_keeper", "type": "messages", "v": "question",
          "n": "criterion or scope gap", "a": "single"},
         {"s": "tester", "t": "terminologist", "type": "messages", "v": "question",
          "n": "term ambiguity", "a": "single"},
@@ -112,7 +112,7 @@ def main() -> None:
          "card": "n:n"},
 
         # ---- 4. Backlog reads for its three writers --------------------------
-        {"s": "gatekeeper", "t": "backlog", "type": "reads", "v": "consult",
+        {"s": "vision_keeper", "t": "backlog", "type": "reads", "v": "consult",
          "n": "own tickets", "a": "full", "label": "before amending"},
         {"s": "terminologist", "t": "backlog", "type": "reads", "v": "consult",
          "n": "own criteria", "a": "full", "label": "before amending"},
@@ -128,7 +128,7 @@ def main() -> None:
     for n in nodes:
         if n["id"] == "backlog":
             n["note"] = (
-                "Tickets (Gatekeeper), criteria (Terminologist), batches (Architect) — one "
+                "Tickets (Vision Keeper), criteria (Terminologist), batches (Architect) — one "
                 "writer per table, which is what law 1 means by single writer: one "
                 "writer per row. Batches are complete feature sets, immutable once "
                 "formed: priority moves them whole; only a scope change may "

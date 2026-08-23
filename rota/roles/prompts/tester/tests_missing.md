@@ -16,7 +16,7 @@ they are told apart by what is missing, and they go to different people:
 
 - a **word** in it could mean more than one thing — `msg.question_terminologist`
 - the **sentence** asks for something no machine could check, however the words
-  are read — `msg.question_gatekeeper`
+  are read — `msg.question_vision_keeper`
 - checking it needs a **fact this project does not hold**, in someone else's
   spec, standard or documentation — `msg.question_researcher`
 

@@ -74,11 +74,11 @@
       {
         "title": "Three roles, three readings",
         "round": "round 1",
-        "text": "Gatekeeper, Terminologist and Architect each read the same eleven words against different artefacts, and immediately understand three different features.",
+        "text": "Vision Keeper, Terminologist and Architect each read the same eleven words against different artefacts, and immediately understand three different features.",
         "edges": [
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "brief"
           ],
@@ -95,7 +95,7 @@
             "brief"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "brief",
             "reads"
           ],
@@ -114,10 +114,10 @@
       {
         "title": "We said no to this before",
         "round": "round 1",
-        "text": "`Gatekeeper` checks the new statements against the rejection log — not out of suspicion, but because guarding the project’s identity over time is its job at every intake. A refusal from eight months ago surfaces: deletion was declined because billing history had to survive.",
+        "text": "`Vision Keeper` checks the new statements against the rejection log — not out of suspicion, but because guarding the project’s identity over time is its job at every intake. A refusal from eight months ago surfaces: deletion was declined because billing history had to survive.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "decisions",
             "reads"
           ],
@@ -167,15 +167,15 @@
       {
         "title": "Is the old refusal still valid?",
         "round": "round 1",
-        "text": "Gatekeeper reads the rejection log and cannot tell whether the reasoning that killed this last time still holds. Blocked — and this is the question nobody would have thought to ask.",
+        "text": "Vision Keeper reads the rejection log and cannot tell whether the reasoning that killed this last time still holds. Blocked — and this is the question nobody would have thought to ask.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "decisions",
             "reads"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "report"
@@ -217,21 +217,21 @@
       {
         "title": "The rejection is overturned on the record",
         "round": "round 2",
-        "text": "`Gatekeeper` commits the problem statement with explicit out-of-scope items — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
+        "text": "`Vision Keeper` commits the problem statement with explicit out-of-scope items — and in the same awakening authors the decision entry: rejection overturned, because the reason it rested on does not apply to the login identity and a regulator now mandates it. The decider writes at the moment of deciding; nothing waits for a recording step.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "brief",
             "reads"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "decisions",
             "writes",
             "author"
@@ -241,11 +241,11 @@
       {
         "title": "Architect challenges the scope",
         "round": "round 2",
-        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Gatekeeper` to name that as a out-of-scope item, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
+        "text": "Erasing the identity is possible; erasing invoices is not. `Architect` challenges `Vision Keeper` to name that as a out-of-scope item, writes the constraint into the model — and authors its reasoning in the decision record in the same session.",
         "edges": [
           [
             "architect",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "challenge"
           ],
@@ -275,7 +275,7 @@
         "edges": [
           [
             "terminologist",
-            "gatekeeper",
+            "vision_keeper",
             "messages"
           ],
           [
@@ -288,10 +288,10 @@
       {
         "title": "One thing nobody can settle",
         "round": "round 2",
-        "text": "How long the anonymised tombstone should live is a legal question the principal has not answered. Round budget spent — Gatekeeper decides, and writes the assumption down instead of hiding it.",
+        "text": "How long the anonymised tombstone should live is a legal question the principal has not answered. Round budget spent — Vision Keeper decides, and writes the assumption down instead of hiding it.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "ledger",
             "writes"
           ]
@@ -300,10 +300,10 @@
       {
         "title": "Submitted for sign-off",
         "round": "signoff",
-        "text": "Nothing can be sliced yet. `Gatekeeper` hands `Liaison` the in-scope and out-of-scope items — not for wording review, but for the principal to agree that this is what gets built.",
+        "text": "Nothing can be sliced yet. `Vision Keeper` hands `Liaison` the in-scope and out-of-scope items — not for wording review, but for the principal to agree that this is what gets built.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "submit"
@@ -341,12 +341,12 @@
         "edges": [
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "relay"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "set approval"
@@ -356,16 +356,16 @@
       {
         "title": "One more round, one item wide",
         "round": "signoff",
-        "text": "Only the contested item goes back round. `Terminologist` names the wording the user will see; `Gatekeeper` amends that out-of-scope item and nothing else.",
+        "text": "Only the contested item goes back round. `Terminologist` names the wording the user will see; `Vision Keeper` amends that out-of-scope item and nothing else.",
         "edges": [
           [
             "terminologist",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "challenge"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "assert"
@@ -391,12 +391,12 @@
           ],
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "relay"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "set approval"
@@ -406,10 +406,10 @@
       {
         "title": "Sliced, then batched",
         "round": "backlog",
-        "text": "`Gatekeeper` slices tickets from the approved items; `Terminologist` writes criteria in glossary terms; `Architect` groups tickets into batches — each a complete feature set: one discrete change, one worktree, one PR, tracing to exactly one approved item — and declares any inter-batch dependencies as backlog facts. Batches are immutable once formed: priority moves them whole, and only a scope change may recompose one. The scheduler will read `Planner`’s ordering directly; nobody announces it.",
+        "text": "`Vision Keeper` slices tickets from the approved items; `Terminologist` writes criteria in glossary terms; `Architect` groups tickets into batches — each a complete feature set: one discrete change, one worktree, one PR, tracing to exactly one approved item — and declares any inter-batch dependencies as backlog facts. Batches are immutable once formed: priority moves them whole, and only a scope change may recompose one. The scheduler will read `Planner`’s ordering directly; nobody announces it.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "backlog",
             "writes",
             "slice"
@@ -456,16 +456,16 @@
       {
         "title": "Shared content",
         "round": "batch 1",
-        "text": "The user owns documents other people are still using. Nothing in the batch criteria covers it — a scope gap, so the question routes to the gap’s owner: `Gatekeeper`, not `Liaison`. `Gatekeeper` cannot determine the answer either, reports blocked, and the same harvesting chain runs — entered one link higher, arriving at the principal owned and translated.",
+        "text": "The user owns documents other people are still using. Nothing in the batch criteria covers it — a scope gap, so the question routes to the gap’s owner: `Vision Keeper`, not `Liaison`. `Vision Keeper` cannot determine the answer either, reports blocked, and the same harvesting chain runs — entered one link higher, arriving at the principal owned and translated.",
         "edges": [
           [
             "developer",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "question"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "report"
@@ -502,18 +502,18 @@
         "edges": [
           [
             "architect",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "challenge"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "set approval"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "developer",
             "messages",
             "reopen"
@@ -527,7 +527,7 @@
         "edges": [
           [
             "developer",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "elect"
           ]
@@ -539,7 +539,7 @@
         "text": "`Liaison` turns a foreign key problem into a plain trade-off: shared documents keep working, authorship shows as a removed user. The principal rules in under a minute, and the item’s approval is reinstated.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "submit"
@@ -558,12 +558,12 @@
           ],
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "relay"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "set approval"
@@ -693,10 +693,10 @@
       {
         "title": "Merged",
         "round": "close",
-        "text": "The batch merges. `Gatekeeper` authors the closing entry — what shipped against which approved item — because shipped scope is an identity fact about the project, and identity is `Gatekeeper`’s artefact.",
+        "text": "The batch merges. `Vision Keeper` authors the closing entry — what shipped against which approved item — because shipped scope is an identity fact about the project, and identity is `Vision Keeper`’s artefact.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "decisions",
             "writes",
             "author"
@@ -798,15 +798,15 @@
       {
         "title": "What it appears to be for",
         "round": "survey",
-        "text": "`Gatekeeper` reads the user-facing surfaces — routes, screens, entry points — and drafts baseline statements of what the system appears to do. Code shows what a system does, never what it is for; every item is marked observed and waits for the only party who can say otherwise.",
+        "text": "`Vision Keeper` reads the user-facing surfaces — routes, screens, entry points — and drafts baseline statements of what the system appears to do. Code shows what a system does, never what it is for; every item is marked observed and waits for the only party who can say otherwise.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "code",
             "reads"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "assert"
@@ -819,7 +819,7 @@
         "text": "The harvest, unchanged from greenfield: each role reports what it cannot determine. A module nothing imports — dead or dormant? An unreachable discount path — bug or feature? Which of the two “order” senses is canonical? Nobody invents questions; the code simply underdetermines.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "report"
@@ -910,16 +910,16 @@
       {
         "title": "A bug becomes the first decision",
         "round": "baseline",
-        "text": "The principal rules: the unreachable discount path is a bug, not a feature. An observed behaviour has been challenged — and challenging an observed entry forces its first decision. `Gatekeeper` authors the entry at the moment of the ruling: the project’s decision record begins here, four years after its codebase did.",
+        "text": "The principal rules: the unreachable discount path is a bug, not a feature. An observed behaviour has been challenged — and challenging an observed entry forces its first decision. `Vision Keeper` authors the entry at the moment of the ruling: the project’s decision record begins here, four years after its codebase did.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "decisions",
             "writes",
             "author"
@@ -929,10 +929,10 @@
       {
         "title": "Baseline submitted",
         "round": "signoff",
-        "text": "Roughly thirty statements describing what the system is, each marked observed, plus the intent going forward. `Gatekeeper` hands it to `Liaison` for the signoff — the principal confirming not what will be built, but what already exists.",
+        "text": "Roughly thirty statements describing what the system is, each marked observed, plus the intent going forward. `Vision Keeper` hands it to `Liaison` for the signoff — the principal confirming not what will be built, but what already exists.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "submit"
@@ -942,7 +942,7 @@
       {
         "title": "Signoff on what already is",
         "round": "signoff",
-        "text": "One page. The principal reads, corrects two statements, and lgtms the rest — a complete, valid response. `Liaison` records per-item verdicts; `Gatekeeper` sets approval. Principal effort scaled with the ambiguity the code held, not with its size.",
+        "text": "One page. The principal reads, corrects two statements, and lgtms the rest — a complete, valid response. `Liaison` records per-item verdicts; `Vision Keeper` sets approval. Principal effort scaled with the ambiguity the code held, not with its size.",
         "edges": [
           [
             "liaison",
@@ -958,12 +958,12 @@
           ],
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "relay"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "set approval"
@@ -976,7 +976,7 @@
         "text": "Everything under the lazy election — unconfirmed observed items outside the payments core — is logged to the ledger: assumptions awaiting their first touch. Uncertainty the principal chose to defer, written down rather than forgotten, drained through the same gates as everything else.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "ledger",
             "writes",
             "log"
@@ -986,22 +986,22 @@
       {
         "title": "An optional product: the seam plan",
         "round": "signoff",
-        "text": "The survey already holds the raw material — fan-in, constraint zero’s residue, the areas the principal named as least familiar. `Architect` proposes a boundary plan; `Gatekeeper` drafts it as structural items whose criteria are behaviour preserved, boundary exists; it goes to signoff like any scope. The principal funds seams explicitly or declines them knowingly — the monolith’s cost stops being ambient.",
+        "text": "The survey already holds the raw material — fan-in, constraint zero’s residue, the areas the principal named as least familiar. `Architect` proposes a boundary plan; `Vision Keeper` drafts it as structural items whose criteria are behaviour preserved, boundary exists; it goes to signoff like any scope. The principal funds seams explicitly or declines them knowingly — the monolith’s cost stops being ambient.",
         "edges": [
           [
             "architect",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "propose"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "writes",
             "assert"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "submit"
@@ -1078,11 +1078,11 @@
       {
         "title": "A question, not a directive",
         "round": "inquiry",
-        "text": "First the principal just asks: “how does deletion handle search results right now?” `Liaison` cannot answer from its own reads, so it opens readonly sessions — read-only wakes. `Gatekeeper` answers what was promised, `Terminologist` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
+        "text": "First the principal just asks: “how does deletion handle search results right now?” `Liaison` cannot answer from its own reads, so it opens readonly sessions — read-only wakes. `Vision Keeper` answers what was promised, `Terminologist` what the terms mean, `Architect` what the index actually does. No writes anywhere.",
         "edges": [
           [
             "liaison",
-            "gatekeeper",
+            "vision_keeper",
             "messages",
             "consult"
           ],
@@ -1106,7 +1106,7 @@
         "text": "Three answers compose into one reply. Because readonly sessions write nothing, no version bumped, no receipt exists, and the suspended batch’s checkpoint remains valid by construction — the running development never learns the question was asked. Read-only inquiry is free.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "liaison",
             "messages",
             "answer"
@@ -1192,7 +1192,7 @@
         "text": "Ratified, the statement reads like any other: deleted users are excluded from search. The urgency — “honestly”, “most”, “immediately” — did not survive segmentation. All three shaping roles pull the transcript window around it to recover what the atomisation flattened: this is a priority signal, not just a requirement.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "transcript",
             "reads"
           ],
@@ -1209,18 +1209,18 @@
         ]
       },
       {
-        "title": "Gatekeeper maps the priority to a batch",
+        "title": "Vision Keeper maps the priority to a batch",
         "round": "interrupt",
-        "text": "Which batch moves? A refs walk, not a judgement: `Gatekeeper` consults its own problem statement to find the item the statement is about, and item → batch is already in the refs. It writes the priority onto that backlog entry — and touches nothing else. No amendment, no approval change, no `Architect`: batches are complete feature sets, and priority never edits their composition.",
+        "text": "Which batch moves? A refs walk, not a judgement: `Vision Keeper` consults its own problem statement to find the item the statement is about, and item → batch is already in the refs. It writes the priority onto that backlog entry — and touches nothing else. No amendment, no approval change, no `Architect`: batches are complete feature sets, and priority never edits their composition.",
         "edges": [
           [
-            "gatekeeper",
+            "vision_keeper",
             "problem",
             "reads",
             "consult"
           ],
           [
-            "gatekeeper",
+            "vision_keeper",
             "backlog",
             "writes",
             "prioritize"

@@ -158,7 +158,7 @@ oauth2/rfc8628/endpoints/pre_configured.py". "endpoint: an instance or path in
 OAuth protocols". The grain name goes in, a paraphrase of the grain name comes
 out, and nothing that required opening the file appears anywhere.
 
-**Gatekeeper's items are docstrings.** "This module contains client classes for
+**Vision Keeper's items are docstrings.** "This module contains client classes for
 OAuth 2.0." That is not scope — it is the first line of the module, relabelled
 `in_scope`.
 
@@ -261,7 +261,7 @@ and the dedup instead.
 
 ## Scored: second run, after the harness fixes
 
-**62 sessions, 446s, and it stopped two thirds through** — Gatekeeper's entire
+**62 sessions, 446s, and it stopped two thirds through** — Vision Keeper's entire
 pass never ran, because abandoning one area settled *after* the frontier had
 already answered. That is a scheduling fault, fixed separately, and it means the
 artefacts below are 23 of 36 surveys rather than a complete run.

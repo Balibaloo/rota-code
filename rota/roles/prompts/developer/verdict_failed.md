@@ -12,5 +12,5 @@ Asking is for one narrow case: the criterion's *wording* is genuinely open, so
 you cannot tell what would satisfy it. Not "I think I satisfied it" — Critic read
 the same words and disagreed, and you are the one holding the diff. Only when the
 sentence itself admits two readings do you take it to whoever owns the wording:
-`msg.question_terminologist` for what a term means, `msg.question_gatekeeper` for
+`msg.question_terminologist` for what a term means, `msg.question_vision_keeper` for
 what was asked for. It is never a question for Critic, who will not answer it.
