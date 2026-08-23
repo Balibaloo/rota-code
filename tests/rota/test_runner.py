@@ -21,12 +21,12 @@ def db(tmp_path):
     conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                  "VALUES ('u1','principal','let users delete their account',1)")
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
-                 "VALUES ('m1','t1','liaison','gatekeeper','deliver',1)")
+                 "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
     return conn
 
 
-def wake_gatekeeper():
-    return Wake(role="gatekeeper", kind="message", message_id="m1", detail="deliver")
+def wake_vision_keeper():
+    return Wake(role="vision_keeper", kind="message", message_id="m1", detail="deliver")
 
 
 def test_session_writes_commit_atomically_with_receipts(db):
@@ -35,7 +35,7 @@ def test_session_writes_commit_atomically_with_receipts(db):
         "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
@@ -46,18 +46,18 @@ def test_session_writes_commit_atomically_with_receipts(db):
 
 def test_trigger_message_is_answered_on_commit(db):
     backend = ScriptedBackend(["nothing to do"])
-    run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     status = db.execute("SELECT status FROM messages WHERE id='m1'").fetchone()["status"]
     assert status == "answered"
 
 
 def test_out_of_working_set_call_is_an_error_not_a_write(db):
-    """Gatekeeper reaching for the system model gets told no and the session survives."""
+    """Vision Keeper reaching for the system model gets told no and the session survives."""
     backend = ScriptedBackend([
         "TOOL: model.amend(id='c1', headline='no')",
         "Understood.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed
     assert any("working set" in e for e in outcome.errors)
@@ -70,7 +70,7 @@ def test_malformed_call_is_reported_back_not_misparsed(db):
         "Sorry. TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed
     assert any("parse" in e or "unterminated" in e for e in outcome.errors)
@@ -82,11 +82,11 @@ def test_messages_route_only_to_derived_contacts(db):
         "TOOL: msg.report_liaison(refs=['u1'])",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
 
     rows = db.execute("SELECT from_role, to_role, verb, body_refs, cause_id FROM messages "
-                      "WHERE from_role='gatekeeper'").fetchall()
+                      "WHERE from_role='vision_keeper'").fetchall()
     assert len(rows) == 1
     assert rows[0]["to_role"] == "liaison" and rows[0]["verb"] == "report"
     assert json.loads(rows[0]["body_refs"]) == ["u1"]
@@ -94,12 +94,12 @@ def test_messages_route_only_to_derived_contacts(db):
 
 
 def test_role_cannot_address_the_principal(db):
-    """Only Liaison sees the principal. Gatekeeper has no such function to call."""
+    """Only Liaison sees the principal. Vision Keeper has no such function to call."""
     backend = ScriptedBackend([
         "TOOL: msg.converse_principal(refs=[])",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     assert any("working set" in e for e in outcome.errors)
     assert db.execute(
         "SELECT COUNT(*) n FROM messages WHERE to_role='principal'").fetchone()["n"] == 0
@@ -113,7 +113,7 @@ def test_failed_session_never_happened_and_raises_attempts(db):
         def complete(self, system, user, pins):
             raise RuntimeError("model evicted")
 
-    outcome = run_session(db, wake_gatekeeper(), backend=Exploding(), pins=Pins(model="x"))
+    outcome = run_session(db, wake_vision_keeper(), backend=Exploding(), pins=Pins(model="x"))
 
     assert not outcome.committed
     assert db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"] == 0
@@ -126,7 +126,7 @@ def test_failed_session_never_happened_and_raises_attempts(db):
 
 def test_pins_are_recorded_on_the_session(db):
     backend = ScriptedBackend(["done"])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="qwen3.5:9b", temperature=0.0, num_ctx=8192))
     row = db.execute("SELECT model, temperature, num_ctx, prompt_hash FROM sessions").fetchone()
     assert row["model"] == "qwen3.5:9b"
@@ -139,7 +139,7 @@ def test_tool_calls_are_logged_for_assertion(db):
         "TOOL: problem.consult()",
         "Nothing there yet.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     calls = db.execute("SELECT fn FROM tool_calls WHERE session_id=? ORDER BY seq",
                        (outcome.session_id,)).fetchall()
     assert "problem.consult" in [c["fn"] for c in calls]
@@ -150,7 +150,7 @@ def test_readonly_mode_cannot_write(db):
         "TOOL: problem.assert(id='i9', text='x', kind='in_scope')",
         "ok",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, mode="readonly",
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, mode="readonly",
                           pins=Pins(model="scripted"))
     assert any("working set" in e for e in outcome.errors)
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
@@ -180,7 +180,13 @@ def test_a_cut_result_says_it_was_cut_and_by_how_much(db):
     text = _render({"body": full})
 
     assert "TRUNCATED" in text, "the cut is invisible to the model"
-    assert str(RESULT_CHARS) in text and str(len(json.dumps({"body": full}))) in text, \
+    # Against the rendered length, not the JSON-encoded one. A dict carrying
+    # long text now renders as text -- `code.area` and `code.source` handed
+    # source to the model as an escaped JSON string, every newline a literal
+    # `\n` -- so the total the notice reports is the size of what the
+    # model would actually have been shown.
+    shown = len(full) + len(chr(10) + "[body]" + chr(10))
+    assert str(RESULT_CHARS) in text and str(shown) in text, \
         "the notice must say how much was withheld, not merely that some was"
     assert "Ask for the next range" in text, "no way offered to get the rest"
 
@@ -198,12 +204,12 @@ def test_a_long_read_reaches_the_model_past_the_old_cap(db):
     # this one. The cap on a *fetched* result needs a fetch.
     for i in range(20):
         db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
-                   (f"d{i:02d}", "gatekeeper", f"scope ruling {i:02d} " + "detail " * 20))
+                   (f"d{i:02d}", "vision_keeper", f"scope ruling {i:02d} " + "detail " * 20))
     db.execute("UPDATE decisions SET text = 'CANARY_PAST_THE_OLD_CAP ' || text "
                "WHERE id='d19'")
 
     backend = ScriptedBackend(["TOOL: decisions.search(query='scope')", "Seen."])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
 
     _, user = backend.calls[1]
@@ -218,7 +224,7 @@ def test_working_set_is_pushed_not_only_offered(db):
     db.execute("INSERT INTO items (id, text, kind, provenance) "
                "VALUES ('i_existing','prior scope','in_scope','decided')")
     backend = ScriptedBackend(["done"])
-    run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     system, user = backend.calls[0]
     assert "i_existing" in user, "existing items were not pushed into the prompt"
@@ -329,7 +335,7 @@ def test_a_session_that_writes_its_own_tool_results_is_told(db):
         "TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert "wrote its own tool results" in outcome.errors
     _, user = backend.calls[1]
@@ -347,7 +353,7 @@ def test_a_real_result_in_the_transcript_is_not_mistaken_for_a_fabrication(db):
         "Nothing there. TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
     assert "wrote its own tool results" not in outcome.errors
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
@@ -374,11 +380,11 @@ def test_a_read_already_answered_does_not_hold_the_action_again(db):
              "TOOL: msg.report_liaison(refs=['u1'])")
     backend = ScriptedBackend([batch, batch, "Done."])
 
-    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
-    sent = db.execute("SELECT COUNT(*) n FROM messages WHERE from_role='gatekeeper'"
+    sent = db.execute("SELECT COUNT(*) n FROM messages WHERE from_role='vision_keeper'"
                       ).fetchone()["n"]
     assert sent == 1, "the action was held behind a read the session had already seen"
 
@@ -392,14 +398,14 @@ def test_a_genuinely_new_read_still_holds_the_action(db):
     # Genuinely new means genuinely not held already: a pushed read is in front
     # of the model before it speaks, so re-asking for one holds nothing.
     db.execute("INSERT INTO decisions (id, author, text) "
-               "VALUES ('d1','gatekeeper','scope ruling on closing an account')")
+               "VALUES ('d1','vision_keeper','scope ruling on closing an account')")
 
     backend = ScriptedBackend([
         "TOOL: decisions.search(query='scope')\n"
         "TOOL: problem.assert(id='i1', text='premature', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="scripted"))
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0, \
@@ -450,14 +456,14 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     """
     for i in range(20):
         db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
-                   (f"d{i:02d}", "gatekeeper", "scope " + "detail " * 20))
+                   (f"d{i:02d}", "vision_keeper", "scope " + "detail " * 20))
 
     backend = ScriptedBackend([
         "TOOL: decisions.search(query='scope')",
         "TOOL: decisions.search(query='scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend, pins=Pins(model="scripted"))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
 
     first = backend.calls[1][1]
@@ -490,7 +496,7 @@ def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
         "TOOL: problem.assert(id='i2', text='and export them', kind='in_scope')",
         "Done.",
     ])
-    outcome = run_session(db, wake_gatekeeper(), backend=backend,
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
@@ -514,16 +520,21 @@ def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):
     The identical call costs 6,086 characters when the model asks for it. One
     rule for how much of anything a session sees, and this is the path where it
     matters more, because nobody chose to fetch it.
+
+    The push has its own cap now, `PUSH_CHARS`, a page above the pushes' own
+    budgets: a pushed read is the wake, and `code.area` repacked to show an
+    area its own files was being cut back to the fetched-result cap with "ask
+    for the next range", which a push cannot. Capped still, and announced.
     """
-    from rota.core.runner import RESULT_CHARS, build_prompt
+    from rota.core.runner import PUSH_CHARS, build_prompt
     from rota.core.sandbox import build as build_sandbox
 
     huge = {"grains": [f"src/pkg/module_{i:04d}.py" for i in range(4000)]}
-    sb = build_sandbox("gatekeeper", db)
-    _, user = build_prompt("gatekeeper", sb, wake_gatekeeper(),
+    sb = build_sandbox("vision_keeper", db)
+    _, user = build_prompt("vision_keeper", sb, wake_vision_keeper(),
                            {"code.survey": huge}, "brief")
 
-    assert len(user) < RESULT_CHARS * 3, \
+    assert len(user) < PUSH_CHARS + 2000, \
         f"the pushed working set is uncapped: {len(user):,} characters"
     assert "TRUNCATED" in user, "it was cut without saying so"
 
@@ -607,7 +618,7 @@ def test_reports_about_one_thing_arrive_as_one_group():
 
     reports = [
         {"id": "m1", "from": "terminologist", "refs": ["g1", "g2", "s1"]},
-        {"id": "m2", "from": "gatekeeper", "refs": ["i1", "s1"]},
+        {"id": "m2", "from": "vision_keeper", "refs": ["i1", "s1"]},
         {"id": "m3", "from": "architect", "refs": ["g2", "k1"]},
         {"id": "m4", "from": "tester", "refs": ["c9"]},
     ]
@@ -624,3 +635,89 @@ def test_reports_about_one_thing_arrive_as_one_group():
     bare = [{"id": "m1", "from": "a", "refs": []},
             {"id": "m2", "from": "b", "refs": []}]
     assert _group_by_shared_refs(bare) == [["m1"], ["m2"]]
+
+
+
+def test_the_streamed_chunks_join_into_the_old_body_and_feed_the_live_view(tmp_path):
+    """`stream: True` for the live view; the Completion is the same as before."""
+    import json
+
+    from rota.llm import llm as L
+
+    class View:
+        def __init__(self):
+            self.got = []
+
+        def token(self, t):
+            self.got.append(t)
+
+    chunks = [
+        json.dumps({"message": {"role": "assistant", "content": "TOOL: "}, "done": False}),
+        json.dumps({"message": {"role": "assistant", "content": "x.y(a=1)"}, "done": False}),
+        json.dumps({"message": {"role": "assistant", "content": "",
+                                "tool_calls": [{"function": {"name": "x.y", "arguments": {"a": 1}}}]},
+                    "done": False}),
+        json.dumps({"message": {"role": "assistant", "content": ""}, "done": True,
+                    "prompt_eval_count": 123}),
+    ]
+    view = View()
+    body = L._consume_stream(iter(chunks), view)
+    assert body["message"]["content"] == "TOOL: x.y(a=1)"
+    assert body["message"]["tool_calls"][0]["function"]["name"] == "x.y"
+    assert body["prompt_eval_count"] == 123 and body["done"] is True
+    assert "".join(view.got).startswith("TOOL: x.y(a=1)")
+
+
+def test_the_live_view_is_one_file_overwritten_per_call(tmp_path, monkeypatch):
+    from rota.llm import llm as L
+
+    monkeypatch.setattr(L, "LIVE_PATH", str(tmp_path / "live.md"))
+    v = L.LiveView.open(L.Pins(model="m"), "SYS", "USER")
+    v.token("hello "); v.token("world\n"); v.close("done")
+    text = (tmp_path / "live.md").read_text(encoding="utf-8")
+    assert "## system prompt" in text and "SYS" in text and "USER" in text
+    assert "hello world" in text and "[done]" in text
+    v2 = L.LiveView.open(L.Pins(model="m"), "SYS2", "USER2"); v2.close("done")
+    text2 = (tmp_path / "live.md").read_text(encoding="utf-8")
+    assert "USER2" in text2 and "USER\n" not in text2.replace("USER2", "")
+
+
+
+def test_a_pushed_read_is_not_cut_at_the_result_cap():
+    """A pushed read is the wake. `cnt_14b` showed 5,900 of `code.area`'s
+    13,726 characters with "ask for the next range", which a push cannot."""
+    from rota.core import runner
+
+    big = {"area": "src/x", "source": "x" * 12000}
+    assert "TRUNCATED" in runner._render(big)
+    assert "TRUNCATED" not in runner._render(big, runner.PUSH_CHARS)
+    assert "TRUNCATED" in runner._render({"source": "x" * (runner.PUSH_CHARS + 10)},
+                                         runner.PUSH_CHARS)
+
+
+
+def test_a_stream_that_repeats_the_same_line_three_times_is_stopped_there():
+    """One 14B turn wrote the same amend line nineteen times to the token cap,
+    623 seconds. The third identical line is enough; the stream is left there
+    and the connection's close stops the generation."""
+    import json
+
+    from rota.llm import llm
+
+    line = 'glossary.amend(term="x", sense_body="a long enough body to count as a line", sense_short="s")'
+    pulled = []
+
+    def chunks():
+        for i in range(40):
+            piece = line + "\n"
+            pulled.append(i)
+            yield json.dumps({"message": {"role": "assistant", "content": piece}, "done": False}).encode()
+        yield json.dumps({"message": {"role": "assistant", "content": ""}, "done": True}).encode()
+
+    class Quiet:
+        def token(self, *_): pass
+
+    out = llm._consume_stream(chunks(), Quiet())
+    assert out.get("done_reason") == "repeating"
+    assert len(pulled) == 3, pulled
+    assert out["message"]["content"].count(line) == 3

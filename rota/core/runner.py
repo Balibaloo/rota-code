@@ -145,7 +145,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     fns = "\n".join(f"  TOOL: {sig}" for sig in sb.signatures())
     system = (
         f"{instructions.strip()}\n\n"
-        f"You are {role}. This is a single session: you are woken once, you act, "
+        f"You are {role.replace('_', ' ')}. This is a single session: you are woken once, you act, "
         f"you end. You have no memory of previous sessions and will have none of "
         f"this one.\n\n"
         f"Your working set is exactly these functions. Nothing else exists:\n{fns}\n\n"
@@ -156,7 +156,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         #
         # Removing it and pointing at the list instead was tried, and measured
         # across the whole of L1: 13 failures became 16. It fixed
-        # `GK-answer-a-scope-inquiry`, `TS-apply-a-term` and `TS-hold-a-test`,
+        # `VK-answer-a-scope-inquiry`, `TS-apply-a-term` and `TS-hold-a-test`,
         # and broke `DV-build-a-clear-criterion`, `DV-challenge-a-test`,
         # `TE-survey-an-area`, `TE-amend-glossary`, `CR-pass-a-conforming-diff`
         # and `TS-fix-a-test-that-asserts-more`. A worked example earns its keep
@@ -187,6 +187,17 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         body.append(f"Inbound message: {wake.message_id} ({wake.detail})")
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
+        # The subject, said plainly. A define session read `Refs: @term:note`
+        # and defined `@term`; the sigil is for the scheduler, not the role.
+        from .scheduler import PROGRAM, is_area, term_of
+
+        subject = wake.refs[0]
+        if term_of(subject):
+            body.append(f"The word: {term_of(subject)}")
+        elif subject == PROGRAM:
+            body.append("The subject: the whole program")
+        elif is_area(subject) and wake.kind == "tick:survey":
+            body.append(f"The area: {subject}")
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
@@ -212,7 +223,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             # One rule for how much of anything a session sees, whether it asked
             # or not -- and this is the path where it matters more, because
             # nobody chose to fetch it.
-            body.append(f"\n[{key}]\n{_render(value)}")
+            body.append(f"\n[{key}]\n{_render(value, PUSH_CHARS)}")
     return system, "\n".join(body)
 
 
@@ -237,6 +248,17 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
 # silent cut is indistinguishable from a short answer, and the model has no
 # reason to ask for the rest of something it does not know was cut.
 RESULT_CHARS = 6000
+# A pushed read is the wake, not a result the session asked for, and it is
+# rendered at its own cap. Measured on `cnt_14b`: `[code.area]` had been
+# repacked to show an area its own files -- 13,726 characters for
+# `src/intents` -- and the wake showed 5,900 of them with "TRUNCATED after 6000
+# ... ask for the next range", which a push has no range to ask for. Every
+# survey in the run, and every define whose concordance ran long, had been
+# reading a cut working set and nobody had said so. The pushes budget
+# themselves (code.area 14,000, code.front its own), so the cap here is a
+# backstop a page above them; `_fit` still keeps the whole prompt in the
+# window, announced.
+PUSH_CHARS = 20000
 
 # The model writing the harness's half of the conversation.
 #
@@ -294,8 +316,12 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     # the pushed working set lives in it, and on a 1,357-grain area that was
     # 198,366 characters. Protecting it unconditionally meant the one block that
     # could overflow the window on its own was the one block never trimmed.
-    if len(transcript[0]) > budget // 2:
-        transcript = [_render_cut(transcript[0], budget // 2)] + transcript[1:]
+    # Two thirds of the budget for the wake, not half: the pushed working set
+    # is the part of the prompt the session was woken to read, and a source
+    # push the size the area deserves is most of it.
+    wake_room = (budget * 2) // 3
+    if len(transcript[0]) > wake_room:
+        transcript = [_render_cut(transcript[0], wake_room)] + transcript[1:]
 
     head, tail = transcript[:1], transcript[-2:]
     room = budget - sum(len(t) + 2 for t in head + tail)
@@ -345,14 +371,55 @@ def _as_table(result: Any) -> str | None:
     return "\n".join(lines)
 
 
-def _render(result: Any) -> str:
+def _as_block(result: Any) -> str | None:
+    """
+    A result carrying text, as text.
+
+    Everything fell through to `json.dumps`, so a tool handing over source
+    handed over an escaped JSON string: every newline `\n`, every
+    em-dash `\u2014`, every quote `\"`. `code.area` exists to give a
+    session the system "as source" -- its docstring argues the case at length
+    -- and what arrived instead was, verbatim from `cnt_p`:
+
+        {"area": "src/variables/providers", "source": "----- 
+        src/variables/index.ts \u2014 imported by this area -----\n\n
+        import { getVariableValues } from \"./templateVariables\";\n..."}
+
+    `code.source` the same, under `text`. Every file every survey session has
+    ever read, in every run in this repository, arrived escaped -- and `d`'s
+    whole design is handing over source rather than a list of names.
+
+    Scalars stay on a header line so nothing is lost -- `path`, `start`,
+    `end`, `not_shown` are all still there and still legible -- and the long
+    text is written out plainly beneath it.
+    """
+    if not isinstance(result, dict) or not result:
+        return None
+    body = {k: v for k, v in result.items()
+            if isinstance(v, str) and (chr(10) in v or len(v) > 200)}
+    if not body:
+        return None
+    head = {k: v for k, v in result.items() if k not in body}
+    lines: list[str] = []
+    if head:
+        lines.append(", ".join(f"{k}: {v}" for k, v in head.items()))
+    for k, v in body.items():
+        lines.append(f"{chr(10)}[{k}]{chr(10)}{v}")
+    return chr(10).join(lines)
+
+
+def _render(result: Any, limit: int = RESULT_CHARS) -> str:
     """A tool result as the model sees it, saying plainly when it was cut."""
-    text = _as_table(result) or json.dumps(result, default=str)
-    if len(text) <= RESULT_CHARS:
+    if isinstance(result, str):
+        text = result
+    else:
+        text = (_as_table(result) or _as_block(result)
+                or json.dumps(result, default=str))
+    if len(text) <= limit:
         return text
-    note = (f"... TRUNCATED after {RESULT_CHARS} of {len(text)} characters. "
+    note = (f"... TRUNCATED after {limit} of {len(text)} characters. "
             f"Ask for the next range if you need it.")
-    return text[:RESULT_CHARS] + "\n" + note
+    return text[:limit] + "\n" + note
 
 
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
@@ -498,7 +565,7 @@ def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:
     Reports that are about the same thing, grouped by the refs they share.
 
     Dedupe is the only reason a round waits, and it was Liaison's judgement:
-    "Terminologist will call it a term collision and Gatekeeper will call it a
+    "Terminologist will call it a term collision and Vision Keeper will call it a
     scope ambiguity when it is one question. Merge them." But the brief also
     says what makes them one question -- both point back at the same statement
     -- and that is a join, not a decision. Liaison does not make decisions.
@@ -661,13 +728,18 @@ def run_session(
 
     # Law 11, decided by the wake rather than by the role: a survey is reading
     # a codebase, so what it writes was found. Everything else was chosen.
-    provenance = "observed" if wake.kind == "tick:survey" else "decided"
+    from .scheduler import ONBOARDING_TICKS
+
+    provenance = "observed" if wake.kind in ONBOARDING_TICKS else "decided"
 
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
                            session_id=session_id, entry_id=entry_id,
                            provenance=provenance, g=g,
+                           # The subject the scheduler decided: an area for a
+                           # survey, `@program` for the orientation, `@term:x`
+                           # for a word. Never the role's to choose.
                            area=area or (wake.refs[0]
-                                 if wake.kind == "tick:survey" and wake.refs else None),
+                                 if wake.kind in ONBOARDING_TICKS and wake.refs else None),
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
                            wake=wake)
     sb.ctx.trigger = wake.message_id
@@ -762,8 +834,26 @@ def run_session(
                     f"evaluated against a {pins.num_ctx} window — the session "
                     f"was briefed with less than it was given")
 
-            calls = toolproto.extract_lenient(completion.text, allowed)
+            calls = toolproto.extract_lenient(completion.text, allowed,
+                                              signatures=_param_sets(sb))
             if not calls:
+                break
+
+            # A turn identical to the one before it is the session saying it
+            # has nothing more to say. At temperature zero the model is a
+            # function of its prompt, and the prompt has only grown by "the
+            # answer is above"; the next completion will be this one again.
+            # Measured: a 14B survey session wrote two terms, never attested,
+            # and re-sent the byte-identical batch eleven times at forty
+            # seconds each. The attempt bound still governs what the unfinished
+            # work costs; this only stops paying for it twelve times a session.
+            # Twice: the first repeat is answered ("unchanged since you asked")
+            # and the model gets to read that; a third identical turn after it
+            # is the fixed point.
+            if (len(turns) >= 3
+                    and turns[-1].completion.strip() == turns[-2].completion.strip()
+                    == turns[-3].completion.strip()):
+                outcome.errors.append("repeated its previous turn verbatim twice; ended")
                 break
 
             feedback = []
@@ -827,10 +917,29 @@ def run_session(
                 # but it is not a repeat either, because the session has not
                 # asked before. It is served.
                 key = sb.call_key(call.name, call.pos, call.args)
+                # Nor is any spelling of a read that was pushed. The `area`
+                # variants above were the first instance; the define phase
+                # produced the second in its first session, with
+                # `code.concordance(term='template', limit=3)` restating the
+                # subject the wake had already pushed, and the amend behind it
+                # held for three turns. A pushed read's subject is fixed by the
+                # wake, so a call naming it asks nothing outstanding -- and a
+                # call naming something else still runs and is served; it just
+                # cannot hold the work the session has already decided on.
                 fresh_read = (call.name in read_fns and key not in already_run
-                              and key not in pushed_keys)
+                              and key not in pushed_keys
+                              and call.name not in pushed)
 
-                if seen_read and call.name not in read_fns:
+                # The terminal act is never held. Attesting closes the subject
+                # and ends the session, and its evidence check already refuses
+                # a citation of anything the session did not open -- so a read
+                # ahead of it in the same batch runs first and the attest can
+                # only cite what that read opened. Held, it was the call that
+                # never ran: a survey session re-sent its reads and its attest
+                # every turn, each turn's reads were fresh, and the attest sat
+                # behind them for twelve turns until the area was abandoned.
+                if (seen_read and call.name not in read_fns
+                        and call.name != "surveys.attest"):
                     held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
                     break
                 seen_read = seen_read or fresh_read
@@ -895,7 +1004,7 @@ def run_session(
             # And when saying so is not enough, stop.
             #
             # Asking nicely held for most modes and not for the ones that matter:
-            # Gatekeeper answering a scope inquiry sent `answer` three times with
+            # Vision Keeper answering a scope inquiry sent `answer` three times with
             # slightly different refs, which the duplicate guard cannot catch
             # because they are three different messages. Every one after the
             # first is the same answer restated, and the recipient has to
@@ -922,7 +1031,7 @@ def run_session(
             # Terminologist answering a question and wrong for Architect
             # handling an escalation, whose job is to route the block somewhere
             # else -- it answered the Developer, satisfied the rule, and stopped
-            # before challenging the Gatekeeper, which is the whole of what the
+            # before challenging the Vision Keeper, which is the whole of what the
             # case is about. 5/5 to 0/5.
             #
             # Three attempts, each fixing one case and breaking another. The
@@ -931,8 +1040,8 @@ def run_session(
             # every rule that infers one from the other is guessing. What is
             # here is the least-wrong of the three and it is a heuristic, not a
             # law -- the iteration cap is still the real backstop.
-            reachable = {f.rsplit("_", 1)[1]
-                         for f in allowed if f.startswith("msg.")}
+            reachable = {_recipient_of(f, g) for f in allowed if f.startswith("msg.")}
+            reachable.discard("")
             messaged = {m["to_role"] for m in sb.ctx.outbound}
             if reachable and reachable <= messaged:
                 break
@@ -944,6 +1053,27 @@ def run_session(
             # under a second invented id. That was the top mechanism in the run:
             # "expected writes to survey_records (1), got 2", three cases.
             if any(w[0] == "survey_records" for w in sb.ctx.writes):
+                break
+
+            # And a define session ends when its word has landed. It has no
+            # attestation to end on -- the glossary row *is* the result -- and
+            # without this the first run of the phase wrote `provider` on turn
+            # two and re-sent the same batch for ten more, each re-amending
+            # the row and the last of them buying a bogus `sense=` tag.
+            if wake.kind == "tick:define" and any(
+                    w[0] == "glossary_terms" for w in sb.ctx.writes):
+                break
+
+            # A collision session ends the same way, on the write that is its
+            # verdict: a synthesis or a `glossary.same`, both of which leave one
+            # row superseded by another. Not on a plain amend -- a session may
+            # correct a reading before it composes them. Without this the first
+            # 14B collision wrote its synthesis on turn three and re-sent the
+            # identical call five more times, a minute each, until the
+            # third-identical rule ended it.
+            if wake.kind == "tick:term_collision" and any(
+                    w[0] == "glossary_terms" and (w[2] or {}).get("superseded_by")
+                    for w in sb.ctx.writes):
                 break
 
             # No stopping rule for "this session had nothing to do", and it is
@@ -1011,6 +1141,37 @@ def run_session(
         release(conn, wake.role)
         sandbox_mod.drain_calls(sb.ctx)
         return outcome
+
+
+def _recipient_of(fn: str, g) -> str:
+    """`msg.question_vision_keeper` -> `vision_keeper`: the recipient is the
+    role id the function name ends with, matched against the graph's roles,
+    because a role id may itself contain an underscore."""
+    name = fn.split(".", 1)[1] if "." in fn else fn
+    known = getattr(g, "roles", None) if g is not None else None
+    known = known() if callable(known) else (known or [])
+    roles = sorted(known, key=len, reverse=True)
+    for r in roles:
+        if name.endswith("_" + r):
+            return r
+    return name.rsplit("_", 1)[1] if "_" in name else ""
+
+
+def _param_sets(sb) -> dict:
+    """{function: (required params, all params)} for the unlabelled-block
+    parse. The sandbox's bound functions carry the real signature."""
+    import inspect
+
+    out = {}
+    for name in sb.functions():
+        art, fn = name.split(".", 1)
+        try:
+            sig = inspect.signature(getattr(sb[art], fn))
+        except (TypeError, ValueError, KeyError, AttributeError):
+            continue
+        req = {n for n, prm in sig.parameters.items() if prm.default is inspect.Parameter.empty}
+        out[name] = (req, set(sig.parameters))
+    return out
 
 
 def _as_write(staged: tuple) -> Write:
