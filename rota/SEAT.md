@@ -521,3 +521,64 @@ all.
 
 0 through 3 are the ones that end the trips to the terminal. 4 through 6 are
 what make the loop worth being in.
+
+---
+
+## The seed interview — principles, fixed before any of it is built (2026-08-25)
+
+The principal can speed onboarding up by *providing* what the system would
+otherwise spend sessions deriving: the frame, the boundary facts, the words
+that matter, a paragraph of intent, where to start reading. The measured
+leverage is large -- frame rulings alone remove the furniture surveys that
+were sixty percent of a run. But the intake has rules, and they are the
+seat's rules, so they are fixed here before a line of it exists.
+
+**Asked separately, asked specifically.** One question at a time, each about
+one thing, each answerable in a sentence. Never a form, never a file the
+principal must know the shape of. A question names its subject concretely:
+"is `docs/` documentation about the program, or is it the product?" -- not
+"classify your directories".
+
+**Every question states its price and its bargain.** What answering saves
+(sessions, minutes), and -- the caveat, stated in the ask itself -- what the
+machine will *not* do with the answer: an answered question is, to its
+stated degree, exempt from verification. That is the point of answering it.
+The degrees are three, and each question carries one:
+
+- **taken** -- your word is the record, full stop. The frame, entry points,
+  what to ignore. Wrong answers misdirect effort and show up as waste, not
+  as false understanding, so no check is owed.
+- **evidenced** -- your word stands; the system attaches what the code shows
+  for it (bindings, citations) but will not dispute it. Boundary facts,
+  the vocabulary's names.
+- **checked** -- your word enters the record and the challenge pass still
+  applies. Claims about behaviour, if you choose to make them.
+
+**"Derive it" is always an answer, and silence means it.** Every question
+has the default of not having been asked. A skipped interview is exactly
+today's system. Nothing blocks, nothing waits, headless runs never see a
+question.
+
+**Answers are decided rows in artefacts that already exist.** frame_rulings,
+constraints, the ledger, nominations -- with provenance `decided` and author
+`principal`, so the record always shows which understanding was provided and
+which was earned, and a consult can honestly say "per the principal". The
+seat stores nothing of its own; it is intake and lens, never a second
+database.
+
+**The principal's attention is the scarce currency.** The interrupt_cap
+doctrine governs asking the way it governs escalation: at most a handful of
+questions per moment (onboard-time, agenda-time), ranked by leverage, never
+the same question twice -- a re-touch must reframe or offer a new default.
+The onboard interview is five questions and two minutes, or it is wrong.
+
+**Answers are rulings, and rulings are revisable.** The same re-earn path
+that serves a changed frame serves a changed answer; the seat can show what
+stands on an answer before the principal changes it.
+
+**One surface, two directions.** Outbound: what the system wants from the
+principal -- seed questions at onboard, ledger rulings at the agenda,
+falsified claims, blind spots. Inbound: what the principal volunteers at
+any moment -- a fact, a correction, a don't-bother. The TUI is that seat;
+a web seat, if it comes, is the same verbs over the same contract, because
+the seat was already a thin client over the run and its ops.
