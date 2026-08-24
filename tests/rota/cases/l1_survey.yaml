@@ -70,6 +70,27 @@
     # Terminologist already wrote.
     writes: [glossary_terms, items, criteria]
 
+- id: L1-AR-a-boundary-file-read-outside-in
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: boundary
+  # Boundary subjects are enumerated from a real index, like areas.
+  tick_unseedable: boundary subjects are enumerated from repo onboarding
+  refs: ["@surface:pyproject.toml"]
+  repo:
+    onboard: true
+  expect:
+    # The view arrives pushed; the session's job is the attestation, and
+    # `none_found` is legitimate -- a sample project's pyproject may commit
+    # nothing. What is forbidden is answering at symbol grain or writing
+    # another role's artefact.
+    writes:
+      survey_records: {count: 1}
+  forbidden:
+    writes: [glossary_terms, items, criteria, model_areas]
+
 - id: L1-VK-survey-an-area-for-what-it-does
   tier: T1
   role: vision_keeper

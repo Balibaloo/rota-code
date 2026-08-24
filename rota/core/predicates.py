@@ -1006,12 +1006,29 @@ def survey(conn) -> list[Wake]:
 # The register, as a set the code holds rather than a list a document keeps.
 # ---------------------------------------------------------------------------
 
+@predicate("boundary", wakes="architect", band="start")
+def boundary(conn) -> list[Wake]:
+    """
+    Onboarding, last: one session per file the outside touches.
+
+    The area survey kept answering the constraint question at symbol grain --
+    ten identifier-headlined rows on the first measured run, zero of the two
+    the answer key requires -- because an area's context is its source and a
+    session holds the names it just read. This pass asks outside-in: the
+    subject is a boundary file (authoring surface, manifest), the front is
+    that file and every reader of it, and the question is what the other
+    side relies on and whether its failure is loud or silent.
+    """
+    from .scheduler import tick_boundary
+    return tick_boundary(conn)
+
+
 REGISTER_ENTRIES = frozenset({
     "contradiction", "contested", "constraint_zero", "awaiting_confirm",
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
-    "orient", "define",
+    "orient", "define", "boundary",
 })
 
 

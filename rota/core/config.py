@@ -132,13 +132,16 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "comparison runs.",
             values=("on", "off")),
 
-    Setting("onboarding_phases", "orient,reconcile,define,survey",
+    Setting("onboarding_phases", "orient,reconcile,define,survey,boundaries",
             "Which understanding phases an onboarding runs, in order: orient "
             "(Vision Keeper, the whole program, from code alone), reconcile "
             "(Vision Keeper, the README read against the account, differences "
             "to the ledger), define "
             "(Terminologist, one word at a time from the project's own lexicon), "
-            "survey (the per-area passes, Terminologist then Architect). Strict: "
+            "survey (the per-area passes, Terminologist then Architect), "
+            "boundaries (Architect, one session per file the outside touches "
+            "-- authoring surfaces and manifests -- where the commitments "
+            "actually live). Strict: "
             "each phase is written with the previous one's artefact in front of "
             "it. 'survey' alone is the pre-orientation design, kept for "
             "measuring one phase against another."),

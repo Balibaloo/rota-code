@@ -106,6 +106,8 @@ def main(argv=None) -> int:
     ap.add_argument("db")
     ap.add_argument("--model", default="llama3.1:8b")
     ap.add_argument("--num-ctx", type=int, default=12288)
+    ap.add_argument("--questions", default="probes.downstream",
+                    help="dotted module exporting QUESTIONS [(q, want), ...]")
     args = ap.parse_args(argv)
 
     conn = sqlite3.connect(args.db)
@@ -113,10 +115,14 @@ def main(argv=None) -> int:
     backend = default_backend()
     pins = Pins(model=args.model, temperature=0.0, num_ctx=args.num_ctx)
 
-    fixed = fixed_sections(conn)
-    print(f"=== {args.db}  (consulted by owner; the glossary by lookup)\n")
+    import importlib
 
-    for q, want in QUESTIONS:
+    questions = importlib.import_module(args.questions).QUESTIONS
+    fixed = fixed_sections(conn)
+    print(f"=== {args.db}  (consulted by owner; the glossary by lookup; "
+          f"questions from {args.questions})\n")
+
+    for q, want in questions:
         parts = dict(fixed)
         parts["terminologist"] = glossary_for(conn, q)
         answers = []

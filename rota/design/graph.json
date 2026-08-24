@@ -1761,6 +1761,17 @@
       "label": "a constraint is found in source, not composed from a grain list"
     },
     {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "boundary",
+      "n": "a boundary file and its readers",
+      "actor": "role",
+      "rows": "query",
+      "depth": "body",
+      "label": "the outside touches a file, not a symbol; the reader's code says whether a mistake fails loud or silent"
+    },
+    {
       "s": "vision_keeper",
       "t": "code",
       "type": "reads",

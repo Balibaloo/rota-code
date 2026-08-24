@@ -1,0 +1,186 @@
+# answer_key — click, written before the first understanding session ran.
+#
+# The third repository, and the first library. cnt is an app: its users write
+# yaml, its importers are inside. click inverts that -- its users ARE
+# importers, its authoring surface is Python decorators, its README is
+# marketing and its real prose is docs/. Every entry here was verified by
+# reading the source at the pinned commit, not recalled from familiarity with
+# the library. Predictions about how the *system* will do are labelled as
+# predictions; the truths are labelled as truths.
+#
+# Scored against a finished run's database: .rota/click_v0.db
+
+repository:
+  name: click
+  root: D:/tmp/rota-live/click
+  version: 8.5.0.dev (stable branch)
+  files: 17 py in src/click; 6 areas after examples attach
+  runtime_dependencies: none        # pyproject has no [project] dependencies
+
+# --- 1. presence ------------------------------------------------------------
+
+terms_required:
+  - command          # the central one: a Command object wrapping a callback
+  - group            # a Command that nests commands, dispatches by name
+  - option           # a named parameter (--flag), may prompt / read envvar
+  - argument         # a positional parameter
+  - parameter        # the base Option and Argument share, attached to a Command
+  - context          # the per-invocation Context object, chained via parent
+  - echo             # click's print: encodings, ANSI, closed-pipe safety
+  - prompt           # asks for input with type conversion; NOT cnt's prompt
+  - choice           # a ParamType restricting to enumerated values
+  - callback         # the user function a Command wraps / a param's processor
+
+terms_expected:
+  - param_type       # ParamType: the conversion pipeline (name, convert, fail)
+  - completion       # shell completion via the _{PROG}_COMPLETE env protocol
+  - runner           # CliRunner: invoke a command in-process for tests
+  - decorator        # the authoring surface itself
+  - envvar
+  - eager            # eager params (--help, --version) processed before others
+  - flag
+
+# --- 2. must_not_mean -------------------------------------------------------
+# The fluent, confident, wrong reading -- predicted before the run. For a CLI
+# library the trap is the *English* reading of its own domain words.
+
+must_not_mean:
+  command:
+    is: >-
+      a Command object wrapping a Python callback, registered under a name,
+      created by the @click.command decorator, invoked by a Group by name
+    not: [a shell command, a terminal command, an instruction executed,
+          a command the program runs, a subprocess]
+  group:
+    is: a Command that holds other commands and dispatches to one by name
+    not: [a set of related, a collection of items, a category, a grouping of options]
+  option:
+    is: >-
+      a named command-line parameter (--name), declared by @click.option,
+      which can prompt, read an environment variable, or take a default
+    not: [a choice available, a configuration option, a setting, a possibility]
+  argument:
+    is: a positional command-line parameter, declared by @click.argument
+    not: [a value passed to a function, a function argument, a parameter of a method]
+  context:
+    is: >-
+      the Context object created per invocation, linked to its parent,
+      carrying params and obj down the command chain; reachable via
+      pass_context / get_current_context
+    not: [surrounding information, the circumstances, the environment in which,
+          contextual data]
+  echo:
+    is: >-
+      click's output function: writes to stdout handling encoding, ANSI
+      stripping when piped, and closed-pipe errors
+    not: [repeats, echoes back, returns the input, prints the same]
+  prompt:
+    is: asks the user for terminal input, converting and validating via a type
+    not: [a dialog in a note, a template variable, a frontmatter key]
+
+# --- 3. constraints ---------------------------------------------------------
+# The library inversion, stated as truths:
+
+constraints_required:
+  # Every name re-exported in src/click/__init__.py is the public API; every
+  # downstream program on PyPI imports them. Renaming any is an ImportError
+  # in somebody else's release. This is the constraint the inside-party
+  # guard, written for an app, is predicted to veto -- see prediction below.
+  - the_import_surface_is_the_contract
+  # pyproject: name "click" on PyPI, requires-python >=3.10, zero runtime
+  # dependencies. The registry contract plus the floor downstreams pin to.
+  - the_pypi_name_and_python_floor
+
+constraints_expected:
+  - the_shell_completion_protocol   # _{PROG}_COMPLETE=<shell>_source, sourced scripts in users' rc files
+  - deprecations_are_commitments    # "removed in Click 9.0" strings: dated promises
+  - readthedocs_builds_the_docs     # .readthedocs.yaml: a service contract
+
+constraint_decoys:
+  - .pre-commit-config.yaml
+  - tox settings in pyproject
+  - ruff settings in pyproject
+  - docs/conf.py
+
+constraints_must_have_a_body: true
+
+# --- 4. predictions about the run (not truths) ------------------------------
+
+predictions:
+  - id: library_direction_veto
+    text: >-
+      The boundary/survey guard treats "anyone who imports an identifier" as
+      inside -- true for an app, false for a library. Predicted: the run
+      writes no constraint naming the import surface, or a session tries and
+      is refused. ASSUMPTIONS.md carries the entry; this run is its measure.
+  - id: prose_nominations_empty
+    text: >-
+      The README is marketing whose vocabulary the code owns; prose_names
+      nominates nothing. Verified mechanically before any session ran.
+  - id: docs_area_surveys
+    text: >-
+      docs/ and .github/* form areas and will be surveyed; none_found is the
+      honest outcome there. Sessions spent: ~6 of ~12 survey sessions on
+      non-program areas. The partition entry in ASSUMPTIONS.md counts this.
+  - id: decorator_surface_invisible
+    text: >-
+      The "in what a user writes" concordance section keys on yaml/toml
+      authoring keys; click's authoring surface is decorators in Python.
+      Predicted: define sessions see no authoring-surface section, and the
+      glossary leans on declarations -- adequate for presence, weaker for
+      the user's-eye sense of a word.
+
+# --- 5. consult questions (probes/click/questions.py mirrors this) ----------
+# Expected answers are truths from the source, written before the run.
+
+questions:
+  - q: >-
+      A maintainer renames `echo` to `print_out` throughout src/click and the
+      build passes. Who is affected, and how do they find out?
+    expect: >-
+      every downstream program that does `from click import echo` or
+      `click.echo` -- an ImportError/AttributeError the moment their program
+      starts; loud, immediate, ecosystem-wide.
+  - q: >-
+      What is the difference between an option and an argument here?
+    expect: >-
+      both are Parameters attached to a command; an option is named
+      (--name), optional by default, can prompt and read envvars; an
+      argument is positional, required by default.
+  - q: >-
+      When an option's value is not on the command line, where else can it
+      come from, and in what order?
+    expect: >-
+      environment variable (envvar), the context's default_map, the
+      declared default; if still missing and prompt is set, the user is
+      prompted. ParameterSource records which one won.
+  - q: >-
+      A user types a value that a Choice option does not allow. What exactly
+      happens?
+    expect: >-
+      conversion fails with an invalid-choice UsageError (exit code 2),
+      naming the allowed values; loud.
+  - q: >-
+      How does a group decide which command runs, and what does the user see
+      when the name does not exist?
+    expect: >-
+      Group resolves the first argument via get_command(name); a missing
+      name raises NoSuchCommand (a UsageError, added 8.4) -- "No such
+      command", with suggestions.
+  - q: >-
+      What is `ctx.obj`, and how does a subcommand get at it?
+    expect: >-
+      an arbitrary user object carried on the Context and inherited down
+      the chain; pass_context / pass_obj / make_pass_decorator hand it to
+      callbacks; ensure_object creates it.
+  - q: >-
+      How does a user's shell get tab completion for a click program?
+    expect: >-
+      the _{PROG}_COMPLETE=<shell>_source protocol emits a script the user
+      sources in their shell rc; ShellComplete subclasses implement bash,
+      zsh, fish.
+  - q: >-
+      How do you test a click command without running a real shell?
+    expect: >-
+      CliRunner().invoke(cmd, args) from click.testing, returning a Result
+      with output and exit_code.

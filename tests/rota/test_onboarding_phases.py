@@ -1259,3 +1259,81 @@ def test_examples_attach_like_tests_and_docs_trip_the_wire(tmp_path):
     assert got is not None, "indexed and findable"
     text = "\n".join(report.stresses)
     assert "prose files under docs/" in text, text
+
+
+# ---------------------------------------------------------------------------
+# The boundaries pass
+# ---------------------------------------------------------------------------
+
+def _boundary_repo(tmp_path):
+    """A schema the code imports, a manifest at the root, a reader, and the
+    furniture that must not become a subject."""
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "schema.yaml").write_text(
+        'with_name: "text"\nof_kind: "a|b"\n', encoding="utf-8")
+    (root / "manifest.json").write_text(
+        '{"id": "sample-plugin", "minAppVersion": "1.0"}', encoding="utf-8")
+    (root / "src" / "parser.ts").write_text(
+        "import schema from '../schema.yaml';\n"
+        "export function parse(x: string): string { return x; }\n",
+        encoding="utf-8")
+    (root / "README.md").write_text("# sample\n", encoding="utf-8")
+    (root / "tests").mkdir()
+    (root / "tests" / "data.yaml").write_text("k: v\n", encoding="utf-8")
+    return root
+
+
+def test_boundary_subjects_are_surfaces_and_manifests(tmp_path):
+    """The schema and the root manifest are subjects; prose, source files and
+    anything attached (test data) are not."""
+    from rota.core.scheduler import boundary_subjects
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    got = boundary_subjects(db)
+    assert "schema.yaml" in got, got
+    assert "manifest.json" in got, got
+    assert "README.md" not in got
+    assert "src/parser.ts" not in got
+    assert "tests/data.yaml" not in got, "attached files are nobody's boundary"
+
+
+def test_the_boundary_phase_runs_last_and_drains_by_attest(tmp_path):
+    """`tick:boundary` wakes the Architect once per subject, after survey;
+    a survey record on the @surface subject retires the wake."""
+    from rota.core.scheduler import SURFACE_PREFIX, tick_boundary
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    config.set(db, "onboarding_phases", "boundaries")
+
+    wakes = tick_boundary(db)
+    assert wakes and all(w.role == "architect" and w.kind == "tick:boundary"
+                         for w in wakes)
+    subjects = {w.refs[0] for w in wakes}
+    assert SURFACE_PREFIX + "schema.yaml" in subjects
+
+    for ref in subjects:
+        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+                   "(?, ?, 'none_found')", (f"architect:{ref}", ref))
+    assert tick_boundary(db) == []
+    assert onboarding_phase(db) == "done"
+
+
+def test_the_boundary_view_carries_the_file_and_its_readers(tmp_path):
+    """`code.boundary` pushes the subject whole plus the files that import
+    it -- the reader's code is where loud-or-silent is decided -- and marks
+    both opened so bindings on them pass."""
+    from rota.core.scheduler import SURFACE_PREFIX
+    from rota.roles.api import Ctx, code_boundary
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    ctx = Ctx(conn=db, role="architect", area=SURFACE_PREFIX + "schema.yaml",
+              wake_refs=(SURFACE_PREFIX + "schema.yaml",))
+    got = code_boundary(ctx)
+    assert got["subject"] == "schema.yaml"
+    assert got["readers"] == ["src/parser.ts"]
+    assert "of_kind" in got["view"], "the schema body"
+    assert "function parse" in got["view"], "the reader body"

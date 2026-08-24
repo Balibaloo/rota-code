@@ -290,7 +290,8 @@ SURVEY_ORDER = ("terminologist", "architect")
 PROGRAM = "@program"
 PROSE = "@prose"
 TERM_PREFIX = "@term:"
-ONBOARDING_TICKS = ("tick:orient", "tick:reconcile", "tick:define", "tick:survey")
+ONBOARDING_TICKS = ("tick:orient", "tick:reconcile", "tick:define",
+                    "tick:survey", "tick:boundary")
 
 
 def is_area(subject: str | None) -> bool:
@@ -300,6 +301,15 @@ def is_area(subject: str | None) -> bool:
 
 def term_of(subject: str | None) -> str:
     return subject[len(TERM_PREFIX):] if subject and subject.startswith(TERM_PREFIX) else ""
+
+
+SURFACE_PREFIX = "@surface:"
+
+
+def surface_of(subject: str | None) -> str:
+    """`@surface:intentsSchema.yaml` is the subject `intentsSchema.yaml`."""
+    return (subject[len(SURFACE_PREFIX):]
+            if subject and subject.startswith(SURFACE_PREFIX) else "")
 
 
 def onboarding_phases(conn: sqlite3.Connection) -> tuple[str, ...]:
@@ -502,6 +512,8 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
         return "define"
     if "survey" in phases and _survey_wakes(conn):
         return "survey"
+    if "boundaries" in phases and _boundary_wakes(conn):
+        return "boundaries"
     return "done"
 
 
@@ -651,6 +663,68 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     return [Wake("liaison", "tick:agenda", detail=f"ledger={open_ledger}")]
 
 
+def boundary_subjects(conn: sqlite3.Connection) -> list[str]:
+    """
+    The files an outside party touches, mechanically enumerated.
+
+    The survey asks its constraint question per *area*, and an area's context
+    is source -- so the answers came back at symbol grain ("who imports
+    getIntentsFromTFile"), which the guard rightly calls inside, and the
+    first measured run held zero of the answer key's two required
+    commitments. The commitments live where the outside touches the
+    repository: the authoring surface (a data file the code imports and the
+    user writes against) and the root manifests (what a registry or platform
+    knows this project by). Both are enumerable from the index with no
+    judgement; the judgement -- contract, or build furniture? -- stays with
+    the session, which may attest `none_found` and often should.
+    """
+    from ..onboarding.areas import is_attached
+    from ..onboarding.lexicon import MANIFESTS
+
+    has_symbols = {r["g"] for r in conn.execute(
+        "SELECT DISTINCT substr(grain, 1, instr(grain, '::') - 1) AS g "
+        "FROM code_index WHERE grain_kind = 'symbol'")}
+    out: list[str] = []
+    for r in conn.execute(
+            "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path' "
+            "ORDER BY fan_in DESC, grain"):
+        rel = r["grain"]
+        name = rel.rsplit("/", 1)[-1].lower()
+        # A dot-directory's yaml is a tool's configuration -- CI, hooks,
+        # issue templates. The commitment such files witness (publishing to
+        # a registry, a supported matrix) is stated in the root manifests,
+        # which are subjects already; on the first library measured, eight
+        # .github yamls filled the cap before pyproject.toml could enter.
+        if is_attached(rel) or any(seg.startswith(".") for seg in rel.split("/")[:-1]):
+            continue
+        if name in MANIFESTS and "/" not in rel:
+            out.append(rel)
+            continue
+        if rel in has_symbols:
+            continue
+        if name.endswith((".yaml", ".yml", ".toml")) or (
+                name.endswith(".json") and int(r["fan_in"] or 0) > 0):
+            out.append(rel)
+    return out[:8]
+
+
+def _boundary_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """One Architect session per boundary file, after the areas are surveyed:
+    the constraints are written last, with the whole model in front of them."""
+    done = {r["area"] for r in conn.execute(
+        "SELECT area FROM survey_records WHERE area LIKE ?",
+        (SURFACE_PREFIX + "%",))}
+    gone = _abandoned(conn, "tick:boundary")
+    return [Wake("architect", "tick:boundary", refs=(SURFACE_PREFIX + rel,))
+            for rel in boundary_subjects(conn)
+            if SURFACE_PREFIX + rel not in done
+            and SURFACE_PREFIX + rel not in gone]
+
+
+def tick_boundary(conn: sqlite3.Connection) -> list[Wake]:
+    return _boundary_wakes(conn) if onboarding_phase(conn) == "boundaries" else []
+
+
 TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_round_close,
     tick_signoff,
@@ -661,6 +735,7 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_reconcile,
     tick_define,
     tick_survey,
+    tick_boundary,
 )
 
 

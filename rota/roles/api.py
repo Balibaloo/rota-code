@@ -3783,6 +3783,60 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
     return result
 
 
+@op("code", "boundary")
+def code_boundary(ctx: Ctx, path: str = "") -> dict:
+    """
+    A boundary file, whole, and every file in this repository that reads it.
+
+    The survey's counterfactual produced identifier answers because the
+    session stood inside an area's source. This view stands on the boundary:
+    the subject is the file the outside touches -- a schema a user writes
+    against, a manifest a registry reads -- and the readers travel with it
+    because "what happens when the other side writes something unknown" is
+    answered by the reader's code, and the absence of a rejecting branch is
+    the finding.
+    """
+    from ..core.scheduler import surface_of
+
+    rel = surface_of(path) or path
+    if not rel and ctx.wake_refs:
+        rel = surface_of(ctx.wake_refs[0]) or ""
+    if not rel:
+        return {"note": "no boundary file named: this view reads the file the "
+                        "wake names, or pass `path=`."}
+    root = _worktree_of(ctx)
+    readers = sorted({r["src"] for r in ctx.conn.execute(
+        "SELECT src FROM code_edges WHERE dst = ?", (rel,))})
+    budget = 12000
+    parts: list[str] = []
+
+    def take(p2: str, cap: int) -> int:
+        f = root / p2
+        if not f.is_file():
+            return 0
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            return 0
+        cut = " (first part only)" if len(body) > cap else ""
+        parts.append(f"----- {p2}{cut} -----" + chr(10) + body[:cap])
+        ctx.opened.add(_grain_path(p2))
+        if getattr(ctx, "read_idents", None) is not None:
+            ctx.read_idents.update(_idents_in(body[:cap]) | _idents_in(p2))
+        if getattr(ctx, "read_words", None) is not None:
+            ctx.read_words.update(_words_in(body[:cap]))
+        return len(body[:cap])
+
+    used = take(rel, 6000)
+    for rd in readers:
+        if used >= budget:
+            break
+        used += take(rd, min(4000, budget - used))
+    return {"subject": rel, "readers": readers,
+            "view": (chr(10) + chr(10)).join(parts) if parts
+            else f"{rel}: not on disk"}
+
+
 @op("code", "survey")
 def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
     """The area's grains, most depended-upon first. Defaults to the area this

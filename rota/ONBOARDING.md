@@ -692,3 +692,27 @@ for cnt is the right answer.
 
 Each of the four is a multi-role sequence; none is validated by its parts
 passing. The first is the one the runs above are the start of.
+
+## The boundaries phase (added after validation 2)
+
+The severity read of validation 2 found the one class of fact both
+measurements missed from opposite sides: consequences of change. The
+constraints artefact held ten identifier-headlined rows ("choseIntent",
+"PTPlugin") and zero of the answer key's two required commitments, and the
+consult probe's rename question ("who breaks, and how do they find out?")
+got "not mine" from every owner. The survey brief already forbade
+symbol-grain constraints -- the failure was what stood in front of the
+session: an area's source foregrounds identifiers, and the boundary (the
+schema a user writes against, the manifest a registry reads) was never
+anyone's subject.
+
+So onboarding gained a fifth phase, after survey: `boundary_subjects`
+enumerates the authoring surfaces (data files the code imports) and root
+manifests mechanically from the index; one Architect session per file,
+pushed `code.boundary` -- the file whole, plus every file that reads it --
+under a brief that asks outside-in: who is on the other side, what do they
+rely on, and when they make a mistake, find the branch that rejects it --
+and if there is none, the failure is silence, and silence is the finding.
+`none_found` stays free and honest for build furniture. The constraints are
+written last, with the whole model in front of them, which is where a
+commitment can actually be seen.

@@ -181,7 +181,8 @@ def check_survey_areas(conn: sqlite3.Connection) -> list[str]:
     return [f"survey {r['id']} is about area {r['area']!r}, which the index "
             f"no longer has"
             for r in conn.execute(
-                "SELECT id, area FROM survey_records WHERE area NOT IN "
+                "SELECT id, area FROM survey_records WHERE area NOT LIKE '@%' "
+                "AND area NOT IN "
                 "(SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL)")]
 
 
