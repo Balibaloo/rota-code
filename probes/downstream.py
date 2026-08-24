@@ -43,8 +43,10 @@ QUESTIONS = [
     ("A maintainer renames the frontmatter key `with_templates` to `templates` "
      "throughout the code and the build passes. Who is affected, and how do "
      "they find out?",
-     "every user whose notes use `with_templates`; their intents silently lose "
-     "their templates -- unknown keys are ignored, no error"),
+     "every user whose notes use `with_templates`; validateFmSchema lists the "
+     "unrecognized property in a console warning, and a user-facing Notice "
+     "fires only for four legacy key names -- with_templates is not one, so "
+     "in the UI their templates are simply gone"),
     ("What is a 'template' here -- a string with placeholders, a class, or "
      "something else?",
      "a note whose contents seed the new note, named by an intent (at_path); "

@@ -3810,6 +3810,18 @@ def code_boundary(ctx: Ctx, path: str = "") -> dict:
     budget = 12000
     parts: list[str] = []
 
+    # The brief's question is loud-or-silent, and the deciding branch sits
+    # wherever it sits. Measured: frontmatter.ts is 8.6k, the cap showed 4k,
+    # and validateFmSchema -- console.warn for unknown keys, a Notice for
+    # four legacy names -- was at the end of the file. The session asserted
+    # silence over a truncated reader, and the constraint repeated the
+    # answer key's own unchecked claim. So every reader also carries its
+    # failure vocabulary, whole-file, line-numbered: the lines a truncated
+    # head would have to guess about.
+    _FAILS = re.compile(r"(?i)\b(throw|raise|warn|warning|error|notice|"
+                        r"invalid|unknown|unrecognized|unrecognised|missing|"
+                        r"reject|refuse|fail|fails|ignore|ignored|silent)\b")
+
     def take(p2: str, cap: int) -> int:
         f = root / p2
         if not f.is_file():
@@ -3820,6 +3832,17 @@ def code_boundary(ctx: Ctx, path: str = "") -> dict:
             return 0
         cut = " (first part only)" if len(body) > cap else ""
         parts.append(f"----- {p2}{cut} -----" + chr(10) + body[:cap])
+        if cut:
+            hits = [f"      {n}: {l.strip()[:140]}"
+                    for n, l in enumerate(body.splitlines(), 1)
+                    if _FAILS.search(l)][:12]
+            if hits:
+                parts.append(f"[{p2}: every line of failure vocabulary, "
+                             f"whole file -- the cut cannot hide a branch]"
+                             + chr(10) + chr(10).join(hits))
+                for h in hits:
+                    if getattr(ctx, "read_idents", None) is not None:
+                        ctx.read_idents.update(_idents_in(h))
         ctx.opened.add(_grain_path(p2))
         if getattr(ctx, "read_idents", None) is not None:
             ctx.read_idents.update(_idents_in(body[:cap]) | _idents_in(p2))

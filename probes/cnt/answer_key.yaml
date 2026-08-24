@@ -110,7 +110,11 @@ constraints_required_match:
   the_frontmatter_schema_is_a_public_contract:
     - [frontmatter, yaml, intents_to]
     - [schema, key, keys, property, properties]
-    - [user, users, notes, silently, silence]
+    # 2026-08-24: "warning", "console" and "notice" joined the group when the
+    # original claim was checked against the source and lost -- see
+    # corrections below. A constraint stating the *actual* behaviour must
+    # match as surely as one stating the silence we wrongly predicted.
+    - [user, users, notes, silently, silence, warning, console, notice]
   the_filtered_opener_plugin_api:
     - [filtered]
     - [opener]
@@ -134,6 +138,23 @@ recorded_run_constraints:
   required_found: 0
   decoys_recorded: 2      # both about esbuild.config.mjs; one also bound settings.ts
   empty_bodies: 2
+
+# --- corrections ------------------------------------------------------------
+# The key is an artefact too, and its claims age like any others.
+
+corrections:
+  - date: 2026-08-24
+    claim: "unknown frontmatter keys are ignored, no error (Q4, constraints)"
+    truth: >-
+      src/intents/frontmatter.ts validateFmSchema: unknown keys produce a
+      console.warn naming them and listing the valid properties; a
+      user-facing Notice ("found outdated properties") fires only when one
+      of four legacy keys is present (output_pathname,
+      output_pathname_template, replaces_selection_with_templated,
+      with_prompts); missing *required* keys throw. For a renamed
+      with_templates the UI shows nothing -- the console does. The original
+      wording scored the 14B boundary run's "fails silently" as fully true
+      when it is only UI-true.
 
 # --- 4. coverage ------------------------------------------------------------
 

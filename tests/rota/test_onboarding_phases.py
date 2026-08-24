@@ -1339,3 +1339,29 @@ def test_the_boundary_view_carries_the_file_and_its_readers(tmp_path):
     assert got["readers"] == ["src/parser.ts"]
     assert "of_kind" in got["view"], "the schema body"
     assert "function parse" in got["view"], "the reader body"
+
+
+def test_a_cut_reader_still_shows_its_failure_branches(tmp_path):
+    """The deciding branch of the loud-or-silent question sits wherever it
+    sits -- measured, at the end of an 8.6k reader shown to 4k. A truncated
+    reader carries every line of its failure vocabulary, whole-file."""
+    from rota.core.scheduler import SURFACE_PREFIX
+    from rota.roles.api import Ctx, code_boundary
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "schema.yaml").write_text('with_name: "text"\n', encoding="utf-8")
+    filler = "".join(f"const pad{i} = {i};\n" for i in range(400))
+    (root / "src" / "reader.ts").write_text(
+        "import schema from '../schema.yaml';\n" + filler +
+        "export function check(fm: object): void {\n"
+        "  console.warn('Unrecognized properties found');\n"
+        "}\n", encoding="utf-8")
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, root)
+    ctx = Ctx(conn=db, role="architect", area=SURFACE_PREFIX + "schema.yaml",
+              wake_refs=(SURFACE_PREFIX + "schema.yaml",))
+    view = code_boundary(ctx)["view"]
+    assert "(first part only)" in view, "the reader was cut"
+    assert "Unrecognized properties found" in view, "the branch survives the cut"
+    assert "failure vocabulary" in view
