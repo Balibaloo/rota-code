@@ -1257,6 +1257,8 @@ def test_examples_attach_like_tests_and_docs_trip_the_wire(tmp_path):
     got = db.execute("SELECT area FROM code_index WHERE grain = ?",
                      ("examples/demoapp/app0.py",)).fetchone()
     assert got is not None, "indexed and findable"
+    words = {r["word"] for r in lexicon.ranked(db)}
+    assert "demoapp" not in words, "an example's name is not vocabulary"
     text = "\n".join(report.stresses)
     assert "prose files under docs/" in text, text
 

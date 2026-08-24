@@ -237,8 +237,15 @@ def build(conn: sqlite3.Connection, root: str | Path) -> LexiconReport:
         if grain:
             e.grains.add(grain)
 
+    from .areas import is_attached
+
+    # Tests and examples are indexed and findable, but their names are not
+    # the program's vocabulary: on the first library measured, `color`,
+    # `inout` and `naval` -- demo-app directories -- outranked half the real
+    # API because a directory is the loudest structural signal there is.
     paths = [r["grain"] for r in conn.execute(
-        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")]
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")
+        if not is_attached(r["grain"])]
     fan_in = {r["grain"]: r["fan_in"] for r in conn.execute(
         "SELECT grain, fan_in FROM code_index WHERE grain_kind = 'path'")}
     has_symbols = {r["g"] for r in conn.execute(
