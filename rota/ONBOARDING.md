@@ -716,3 +716,78 @@ and if there is none, the failure is silence, and silence is the finding.
 `none_found` stays free and honest for build furniture. The constraints are
 written last, with the whole model in front of them, which is where a
 commitment can actually be seen.
+
+## Onboarding v2.0.0 -- the design, to build
+
+v1.0.0 was a one-pass pipeline over a heuristic frame, whose artefacts stood
+because they were written. Three validated repositories and one week of
+severity reads broke that contract in three places at once: the frame is a
+judgement (measured: a 14B judge scores 34/38 on six repositories including
+two shapes every heuristic fails -- probes/partition_judge.py); the pipeline
+must loop (an account written cold is a draft, and early errors seed every
+later phase); and standing must be earned (sessions satisfy "found" with
+stamps, because generating plausible text costs a model nothing). v2 wraps
+the v1 spine -- unchanged phases, briefs and guards -- in revision machinery.
+
+The governing rule, from the logical-failure review: **every cut circle gets
+a revision path, and every artefact gets a falsification path.** A claim
+climbs: exists -> drafted -> checked -> challenged -> ruled -> standing but
+revisable. No claim skips a rung.
+
+The stages, in order:
+
+1.  **Index** (mechanical, exists). Trusted for existence claims only.
+2.  **Frame** (new). Code claims the root manifests (the name-list is
+    reliable exactly there); a judge session classifies the rest of the tree
+    -- program / attached / ignore / boundary -- from the top-level stats,
+    the README's first lines, and the entry point's imports (the fzf lesson:
+    a README of badges misleads a judge that cannot see what main imports).
+    The proposal is diffed against the heuristic prior; every disagreement
+    and gray call becomes a ledger entry with a stated default. Defaults pin
+    immediately; nothing waits. Rulings re-pin, and a re-pin re-earns what
+    stood on the old frame.
+3.  **Orient** (exists) -- explicitly a draft.
+4.  **Reconcile** (reframed): a README claim the account cannot confirm is
+    recorded as "the account did not see this" -- never "the code shows no
+    such thing" -- and triggers a code look or a ruling. The prose's names
+    are nominated for the glossary (v1.1 mechanism; a nominating session
+    may replace the markdown-emphasis heuristics later, heuristics as prior).
+5.  **Define** (exists). Collisions repair context-dependence after the fact.
+6.  **Survey** (exists), over program areas only -- the frame guarantees it.
+7.  **Re-orient** (new): one session, the draft account re-read with the full
+    glossary and model in hand. The first draft stops being the final draft.
+    Runs before boundaries so the most consequence-laden sessions get the
+    revised account.
+8.  **Boundaries** (exists, extended): each subject is typed -- authoring
+    surface / manifest / export surface -- and the session's first recorded
+    act declares who is on the other side. The declaration gates the
+    inside-party guard (a library's importers are outside) and later feeds
+    consult routing. Declarations are per-file: no repo-global shape.
+9.  **Challenge** (new). `challenge = off | sample | full` in config, default
+    sample: the load-bearing artefacts (constraints, the account, a sample
+    of senses). A challenge session succeeds only by citation -- a line of
+    source the claim cannot survive. **Models never adjudicate models**:
+    authority attaches to evidence and rulings, never to which model spoke.
+    A successful challenge supersedes the artefact AND re-wakes its writer
+    -- a flag nobody drains is the quarantine-counter mistake again. Both
+    readings surviving with evidence = contested, for the principal.
+10. **Blind spots** (new): a session writes what this run structurally could
+    not see -- unparsed formats, quarantined areas, dilution -- to the
+    ledger. How tripwires are discovered rather than hand-written.
+11. **Agenda** (exists): partition calls, prose disagreements, collisions,
+    contested artefacts, blind spots. Rulings are decisions; decisions pin.
+12. **Verification** (local only -- standing decision: no non-local models).
+    Preregistered keys written before the run and checked against source;
+    the consult probe; cross-family reading (different local models find
+    different lines -- search diversity, never a trust hierarchy).
+13. **Standing revision** (planned): own commits through the team; foreign
+    commits re-survey; survey findings reopen frame rulings the moment they
+    are found, not at a scheduled stage; rulings naming dead paths surface
+    as tripwires.
+
+Validation plan: the challenge on/off twin (same repo, challenge off and
+sample -- the score diff is the measured value of the pass), the v1 baseline
+(v2 scores are not comparable to v1 scores by design; the twins bridge
+them), and the fifth-repository rule: every new mechanism's validation set
+must contain a shape chosen to break it, because the judgement layer's
+input space is repo shapes and three similar repositories prove nothing.
