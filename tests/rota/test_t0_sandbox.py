@@ -32,7 +32,7 @@ def test_s9_no_capability_exists_without_an_edge():
     assert check_no_orphan_implementations() == []
 
 
-def test_s9_critic_namespace_is_exactly_criteria_tests_diff_and_verdict(db):
+def test_s9_critic_namespace_is_review_plus_challenge(db):
     """
     The richest fixture in the suite paired with the narrowest permitted surface.
 
@@ -44,7 +44,7 @@ def test_s9_critic_namespace_is_exactly_criteria_tests_diff_and_verdict(db):
     sb = build("critic", db)
     artefact_fns = {f for f in sb.functions() if not f.startswith("msg.")}
     assert artefact_fns == {
-        "criteria.load", "tests.load", "code.read", "verdicts.emit",
+        "criteria.load", "tests.load", "code.read", "verdicts.emit", "challenge.load", "challenge.uphold", "challenge.break", "code.source",
     }
     # Its only outbound channels are the two disputes it is entitled to raise.
     assert {f for f in sb.functions() if f.startswith("msg.")} == {

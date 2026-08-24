@@ -151,6 +151,35 @@
   forbidden:
     writes: [glossary_terms, items, constraints, model_areas]
 
+- id: L1-CR-challenge-a-claim
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 3
+  tick: challenge
+  tick_unseedable: claims come from an onboarded, surveyed state
+  refs: ["@claim:constraints:<k1>"]
+  repo:
+    onboard: true
+  fixture:
+    survey_records:
+      - {id: "architect:@frame", area: "@frame", outcome: none_found}
+    constraints:
+      - {id: <k1>, headline: "invoices are stored as JSON records",
+         text: "closing an account deletes its invoices immediately",
+         provenance: observed}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: "src/billing/accounts.py", grain_kind: path}
+  expect:
+    # The fixture's claim contradicts the cited source (close_account keeps
+    # invoices: "Closing does not delete"). A verdict is the requirement;
+    # either verdict passes the harness -- the break is the better answer
+    # and the transcript shows which the model found.
+    writes:
+      challenges: {count: 1}
+  forbidden:
+    writes: [constraints, glossary_terms, items, model_areas]
+
 - id: L1-VK-reorient-the-account
   tier: T1
   role: vision_keeper
@@ -169,9 +198,9 @@
       - {id: how_it_works, kind: in_scope, provenance: observed,
          text: "The program manages billing data and does various things with accounts."}
     glossary_terms:
-      - {id: g1, term: invoice, provenance: observed,
+      - {id: <g1>, term: invoice, provenance: observed,
          sense_short: "a charge issued against a billing account"}
-      - {id: g2, term: account, provenance: observed,
+      - {id: <g2>, term: account, provenance: observed,
          sense_short: "the billing entity that owes money"}
   expect:
     # The vague draft item and the precise glossary are the setup; revising

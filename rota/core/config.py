@@ -133,7 +133,8 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             values=("on", "off")),
 
     Setting("onboarding_phases",
-            "frame,orient,reconcile,define,survey,reorient,boundaries",
+            "frame,orient,reconcile,define,survey,reorient,boundaries,"
+            "challenge",
             "Which understanding phases an onboarding runs, in order: frame "
             "(Architect judges the partition -- program, attached, ignore, "
             "boundary -- before anything reads it), orient "
@@ -144,13 +145,22 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "survey (the per-area passes, Terminologist then Architect), "
             "reorient (Vision Keeper, the draft account re-read with the "
             "vocabulary and model in hand -- the first draft stops being "
-            "the final draft), "
+            "the final draft), boundaries, challenge (the Critic tries to "
+            "falsify the load-bearing claims against source), "
             "boundaries (Architect, one session per file the outside touches "
             "-- authoring surfaces and manifests -- where the commitments "
             "actually live). Strict: "
             "each phase is written with the previous one's artefact in front of "
             "it. 'survey' alone is the pre-orientation design, kept for "
             "measuring one phase against another."),
+
+    Setting("challenge", "sample",
+            "Whether the Critic challenges the understanding artefacts after "
+            "the boundaries phase. 'sample' (default) challenges the "
+            "load-bearing claims -- constraints and items, capped at twelve, "
+            "newest first; 'full' adds every glossary sense and model "
+            "account; 'off' skips the pass. A break requires a citation the "
+            "session opened: models never adjudicate models."),
 
     Setting("define_terms", 20,
             "How many words the define phase owes, taken from the top of the "

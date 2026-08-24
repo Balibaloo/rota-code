@@ -368,6 +368,11 @@ COMPOSITION = {
     frozenset({"noun", "table"}),        # a column and what it holds
     frozenset({"node", "noun", "table"}),
     frozenset({"noun", "operation"}),    # an operation and what it returns
+    # An artefact and a message verb sharing a word share a meaning: the
+    # Developer challenges a test, the Critic challenges a claim -- one
+    # job, an evidence-backed demand, in two mechanisms. Renaming them
+    # apart would hide that they are the same act.
+    frozenset({"node", "verb"}),
 }
 
 

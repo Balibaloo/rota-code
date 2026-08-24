@@ -76,6 +76,12 @@
       "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed \u2014 extracted from an onboarded codebase and awaiting confirmation."
     },
     {
+      "id": "challenge",
+      "label": "Claim verdicts",
+      "type": "artefact",
+      "note": "The Critic's verdicts on understanding claims: stands, or falsified with the line of source that decided it. Standing comes from surviving challenge, never from who wrote a row; a falsified claim goes to the ledger for the principal, because no role touches another role's artefact."
+    },
+    {
       "id": "frame",
       "label": "The frame",
       "type": "artefact",
@@ -1776,6 +1782,42 @@
       "rows": "query",
       "depth": "index",
       "label": "the frame judge's whole view; measured at 34/38 before it was built"
+    },
+    {
+      "s": "critic",
+      "t": "challenge",
+      "type": "reads",
+      "v": "load",
+      "n": "the claim and the sources it cites",
+      "rows": "single",
+      "depth": "body"
+    },
+    {
+      "s": "critic",
+      "t": "challenge",
+      "type": "writes",
+      "v": "uphold",
+      "n": "a claim that survived",
+      "rows": "single"
+    },
+    {
+      "s": "critic",
+      "t": "challenge",
+      "type": "writes",
+      "v": "break",
+      "n": "a falsified claim, with its line",
+      "rows": "single",
+      "label": "a break is a citation, or it is refused"
+    },
+    {
+      "s": "critic",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "rows": "window",
+      "depth": "body",
+      "label": "challenge: the attack is this claim against those lines"
     },
     {
       "s": "architect",

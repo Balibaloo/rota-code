@@ -1577,3 +1577,72 @@ def test_reorient_runs_after_survey_and_before_boundaries(tmp_path):
                "('vision_keeper:@reorient', '@reorient', 'found')")
     assert tick_reorient(db) == []
     assert onboarding_phase(db) == "boundaries"
+
+
+# ---------------------------------------------------------------------------
+# v2: challenge
+# ---------------------------------------------------------------------------
+
+def test_challenge_owes_the_load_bearing_claims(tmp_path):
+    """Sample mode owes constraints and items, newest first, capped; off
+    owes nothing; a verdict retires a subject."""
+    from rota.core.scheduler import challenge_subjects, tick_challenge
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    config.set(db, "onboarding_phases", "challenge")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1', 'schema is a contract', 'users write against it', 'observed')")
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
+               "('i1', 'parses schemas', 'in_scope', 'observed')")
+
+    assert challenge_subjects(db) == ["constraints:k1", "items:i1"]
+    wakes = tick_challenge(db)
+    assert [(w.role, w.refs[0]) for w in wakes] == [
+        ("critic", "@claim:constraints:k1"), ("critic", "@claim:items:i1")]
+
+    db.execute("INSERT INTO challenges (id, verdict) VALUES "
+               "('constraints:k1', 'stands')")
+    assert [w.refs[0] for w in tick_challenge(db)] == ["@claim:items:i1"]
+
+    config.set(db, "challenge", "off")
+    assert challenge_subjects(db) == []
+
+
+def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
+    """The evidence rule, mechanical: a break must cite a file the session
+    opened and carry the quote; an uphold is always available and cheap.
+    A break also puts the consequence on the principal's ledger."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1', 'the schema is silent on unknown keys', 'no warning exists', "
+               "'observed')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
+               "VALUES ('k1', 'src/parser.ts', 'path')")
+
+    sb = sandbox_mod.build("critic", db, session_id="s1", mode="challenge",
+                           area="@claim:constraints:k1")
+    sb.ctx.wake_refs = ("@claim:constraints:k1",)
+
+    loaded = sb.call("challenge.load")
+    assert "src/parser.ts" in loaded["sources"]
+
+    with pytest.raises(Exception, match="opened this session"):
+        sb.call("challenge.break", citation="schema.yaml",
+                quote="of_kind: a|b", why="a warning exists")
+
+    got = sb.call("challenge.break", citation="src/parser.ts",
+                  quote="export function parse", why="the parser warns")
+    assert got["verdict"] == "falsified"
+    assert any(w[0] == "ledger" for w in sb.ctx.writes), "the drain is the ledger"
+
+    sb2 = sandbox_mod.build("critic", db, session_id="s2", mode="challenge",
+                           area="@claim:constraints:k1")
+    sb2.ctx.wake_refs = ("@claim:constraints:k1",)
+    up = sb2.call("challenge.uphold", why="the source supports it")
+    assert up["verdict"] == "stands"

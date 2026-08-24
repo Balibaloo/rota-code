@@ -3787,6 +3787,126 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
     return result
 
 
+_CLAIM_TABLES = {
+    "constraints": ("headline", "text"),
+    "items": ("text",),
+    "glossary_terms": ("term", "sense_short", "sense_body"),
+    "model_areas": ("account",),
+}
+
+
+def _claim_of(ctx: Ctx) -> tuple[str, str]:
+    from ..core.scheduler import CLAIM_PREFIX
+
+    ref = (ctx.wake_refs[0] if ctx.wake_refs else "") or (ctx.area or "")
+    if ref.startswith(CLAIM_PREFIX):
+        ref = ref[len(CLAIM_PREFIX):]
+    table, _, row = ref.partition(":")
+    if table not in _CLAIM_TABLES or not row:
+        raise ValueError(f"{ref!r} names no claim: a claim ref is "
+                         f"<table>:<row id> over {sorted(_CLAIM_TABLES)}")
+    return table, row
+
+
+@op("challenge", "load")
+def challenge_load(ctx: Ctx) -> dict:
+    """
+    The claim this session was woken to attack, with the sources it cites.
+
+    The claim's own citations travel with it -- bindings for a constraint,
+    source_refs for a sense or an account -- because the attack the brief
+    asks for is *this claim against those lines*, and every file shown is
+    marked opened so a break's citation check can hold.
+    """
+    import json as _json
+
+    try:
+        table, row = _claim_of(ctx)
+    except ValueError as e:
+        return {"note": str(e)}
+    cols = _CLAIM_TABLES[table]
+    r = ctx.conn.execute(
+        f"SELECT * FROM {table} WHERE id = ?", (row,)).fetchone()
+    if not r:
+        return {"note": f"{table}:{row} no longer exists; nothing to challenge."}
+    claim = " -- ".join(str(r[c]) for c in cols if r[c])
+
+    cited: list[str] = []
+    if table == "constraints":
+        cited = [b["grain"] for b in ctx.conn.execute(
+            "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
+            (row,))]
+    else:
+        try:
+            cited = _json.loads(r["source_refs"] or "[]") if "source_refs" in r.keys() else []
+        except Exception:
+            cited = []
+    root = _worktree_of(ctx)
+    parts: list[str] = []
+    used = 0
+    for rel in cited[:6]:
+        f = root / rel
+        if not f.is_file() or used > 9000:
+            continue
+        body = f.read_text(encoding="utf-8", errors="replace")
+        cap = min(4000, 12000 - used)
+        cut = " (first part only)" if len(body) > cap else ""
+        parts.append(f"----- {rel}{cut} -----" + chr(10) + body[:cap])
+        used += min(len(body), cap)
+        ctx.opened.add(_grain_path(rel))
+        if getattr(ctx, "read_idents", None) is not None:
+            ctx.read_idents.update(_idents_in(body[:cap]))
+    return {"claim": f"[{table}:{row}] {claim}",
+            "cited": cited,
+            "sources": (chr(10) + chr(10)).join(parts) if parts else
+                       "the claim cites nothing -- open what would decide it"}
+
+
+@op("challenge", "uphold")
+def challenge_uphold(ctx: Ctx, why: str = "") -> dict:
+    """The claim survived the attempt. Cheap on purpose: honesty about a
+    sound claim must cost less than theatre about a broken one."""
+    table, row = _claim_of(ctx)
+    ctx.writes.append(("challenges", f"{table}:{row}",
+                       {"verdict": "stands", "why": why or ""}))
+    return {"id": f"{table}:{row}", "verdict": "stands"}
+
+
+@op("challenge", "break")
+def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
+    """
+    The claim is falsified -- by a line of source, never by an opinion.
+
+    Models never adjudicate models: the citation must be a file this
+    session opened and the quote must be carried, or the break is refused.
+    The verdict is the Critic's own artefact; the consequence goes to the
+    ledger for the principal -- no role touches another role's rows.
+    """
+    import re as _re
+
+    table, row = _claim_of(ctx)
+    citation = _re.sub(r"^(?:\./|/)+", "", (citation or "").strip())
+    if not (quote or "").strip() or not (why or "").strip():
+        raise ValueError("a break carries the line and the reason: "
+                         "quote= the source's words, why= what they defeat")
+    if _grain_path(citation) not in ctx.opened:
+        raise ValueError(f"{citation!r} was not opened this session: a break "
+                         f"is a line you read, not one you remember. "
+                         f"code.source it first, or uphold.")
+    ctx.writes.append(("challenges", f"{table}:{row}", {
+        "verdict": "falsified", "citation": citation,
+        "quote": quote.strip()[:300], "why": why.strip()[:300]}))
+    ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
+        "about_ref": f"{table}:{row}", "about_table": table,
+        "default_taken": (f"the Critic falsified {table}:{row} against "
+                          f"{citation}: \"{quote.strip()[:160]}\" -- "
+                          f"{why.strip()[:160]}. The claim stands in the "
+                          f"record until ruled."),
+        "author": "critic"}))
+    return {"id": f"{table}:{row}", "verdict": "falsified",
+            "note": "recorded, and on the principal's ledger"}
+
+
 @op("code", "tree")
 def code_tree(ctx: Ctx) -> dict:
     """

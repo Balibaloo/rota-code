@@ -1066,6 +1066,12 @@ def run_session(
                 _derive_frame_record(conn, sb)
                 break
 
+            # A challenge session ends on its verdict, the same shape as a
+            # survey ending on its attest.
+            if wake.kind == "tick:challenge" and any(
+                    w[0] == "challenges" for w in sb.ctx.writes):
+                break
+
             # And a define session ends when its word has landed. It has no
             # attestation to end on -- the glossary row *is* the result -- and
             # without this the first run of the phase wrote `provider` on turn

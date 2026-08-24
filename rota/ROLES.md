@@ -21,7 +21,7 @@ below matches the graph, so this drifts loudly rather than quietly.
 
 ## Ownership, and the three exceptions
 
-Law 1 is single-writer, and fourteen artefacts have exactly one:
+Law 1 is single-writer, and fifteen artefacts have exactly one:
 
 | artefact | owner | | artefact | owner |
 |---|---|---|---|---|
@@ -32,6 +32,7 @@ Law 1 is single-writer, and fourteen artefacts have exactly one:
 | `brief` | liaison | | `tests` | tester |
 | `transcript` | liaison | | `verdicts` | critic |
 | `references` | researcher | | `frame` | architect |
+| `challenge` | critic | | | |
 
 Four are shared, by ruling rather than by accident:
 
@@ -188,7 +189,7 @@ and stops.
 
 **Reaches** developer (challenge), tester (challenge).
 
-**Woken by** review.
+**Woken by** challenge, review.
 
 **Work nobody asked for is the one judgement a verdict cannot carry** — a fail
 names the criterion it fails, and an unrequested change satisfies every criterion

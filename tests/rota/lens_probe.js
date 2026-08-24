@@ -286,6 +286,44 @@ else if (gone.size && !chipCount) {
 document.getElementById = realGet;
 GV.focus = null;
 
+// ---- the layout generators ---------------------------------------------------
+//
+// Every generator must place every node, at finite coordinates, with no two
+// nodes stacked on one spot — a generated layout that omits a node makes the
+// node vanish from the canvas, which is the picture claiming it does not
+// exist. And `placeStrays` is the guard for the same failure in *saved*
+// layouts, so it is exercised on a layout with a hole cut in it.
+
+for (const [name, fn] of Object.entries(AUTO_LAYOUTS)) {
+  const pos = fn();
+  const ids = Object.keys(pos);
+  const missing = GV.graph.nodes.filter(n => !pos[n.id]);
+  const bad = ids.filter(id => !isFinite(pos[id].x) || !isFinite(pos[id].y));
+  let stacked = 0;
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++) {
+      const d = Math.hypot(pos[ids[i]].x - pos[ids[j]].x,
+                           pos[ids[i]].y - pos[ids[j]].y);
+      if (d < 24) stacked++;
+    }
+  console.log('layout ' + name.padEnd(14) + ' places ' + ids.length + '/'
+              + GV.graph.nodes.length + ' nodes'
+              + (stacked ? '  ' + stacked + ' STACKED PAIRS' : ''));
+  if (missing.length)
+    problems.push(name + ' omits ' + missing.map(n => n.id).join(', '));
+  if (bad.length) problems.push(name + ' places nodes at non-finite coordinates');
+  if (stacked) problems.push(name + ' stacks nodes on one spot');
+}
+
+const dropped = GV.graph.nodes[GV.graph.nodes.length - 1].id;
+const holed = {};
+for (const [id, p] of Object.entries(GV.layout))
+  if (id !== dropped) holed[id] = p;
+const healed = placeStrays(holed);
+if (!healed[dropped])
+  problems.push('placeStrays leaves a node the layout omits invisible');
+else console.log('placeStrays: a node the layout omits is parked, not vanished');
+
 // ---- the entry points still exist -------------------------------------------
 //
 // Twice in one session a function was deleted by accident, carried out inside a
@@ -302,7 +340,11 @@ const ENTRY = ['gvLoad', 'gvDraw', 'gvControls', 'gvFit', 'gvFocus', 'gvGoto',
                'gvInhabit', 'gvMode', 'gvSet', 'gvFar', 'gvLegend', 'gvNarrate',
                'gvDrawInner', 'offscreenNeighbours',
                'drawTeam', 'drawChat', 'refPath', 'computeSpread', 'foldPlan',
-               'keySelects', 'gvLit', 'gvSteps', 'gvVisible', 'ghostChips'];
+               'keySelects', 'gvLit', 'gvSteps', 'gvVisible', 'ghostChips',
+               'setLens', 'gvWireStage', 'applyLayout', 'saveLayout',
+               'saveLayoutAs', 'deleteLayout', 'placeStrays',
+               'autoFlow', 'autoGrid', 'autoForce',
+               'dd', 'ddToggle', 'ddCloseAll', 'ddWire'];
 
 const missing = ENTRY.filter(name => {
   try { return typeof eval(name) !== 'function'; }

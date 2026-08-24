@@ -82,13 +82,24 @@ for (const f of ['graphview.js', 'panels.js']) {
     fs.readFileSync(`${__dirname}/../../rota/cockpit/static/${f}`, 'utf8'), ctx);
 }
 
+// Which fifth thing the panel owes depends on what the run kept. A session
+// with recorded `turns` owes the verbatim transcript; one without owes the
+// admission that the rebuilt brief is a reconstruction. Asserting "not
+// retained" unconditionally made the check fail on exactly the sessions with
+// the *best* evidence.
+const prov = JSON.parse(get(`/provenance.json?table=${
+  encodeURIComponent(TABLE)}&row=${encodeURIComponent(ROW)}`));
+const recorded = !!(((prov.shown || {}).turns) || []).length;
+
 ctx.showProvenance(TABLE, ROW).then(() => {
   const want = [
     ['WHAT IT SAYS', 'the row itself'],
     ['WHAT WOKE IT', 'the wake'],
     ['WHO WROTE IT', 'the session'],
     ['WHAT IT WAS SHOWN', 'the brief'],
-    ['not retained', 'the admission about the working set'],
+    recorded
+      ? ['recorded verbatim', 'the transcript the run kept']
+      : ['not retained', 'the admission about the working set'],
   ];
   const missing = want.filter(([needle]) => !panelHTML.includes(needle));
   if (!panelHTML) { console.error('the panel rendered nothing at all'); process.exit(1); }

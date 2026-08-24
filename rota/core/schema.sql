@@ -634,6 +634,19 @@ CREATE TABLE IF NOT EXISTS runtime_processes (
 -- judge session writes source='judge' (provenance: observed); a principal's
 -- ruling writes source='ruling' (decided) and outranks the judge. v2's
 -- first stage; probes/partition_judge.py is the measurement that earned it.
+-- The Critic's verdicts on understanding claims. `stands` is a claim that
+-- survived an attempt to kill it; `falsified` carries the line of source
+-- that killed it, and the ledger holds the consequence for the principal.
+-- Standing comes from surviving challenge, never from who wrote a row.
+CREATE TABLE IF NOT EXISTS challenges (
+    id        TEXT PRIMARY KEY,              -- claim ref: <table>:<row id>
+    verdict   TEXT NOT NULL CHECK (verdict IN ('stands','falsified')),
+    citation  TEXT NOT NULL DEFAULT '',      -- the grain that decided it
+    quote     TEXT NOT NULL DEFAULT '',      -- the line, in the source's words
+    why       TEXT NOT NULL DEFAULT '',
+    version   INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS frame_rulings (
     id       TEXT PRIMARY KEY,               -- a path or directory prefix
     -- `surface` is the class the boundary phase surveys; the value shares

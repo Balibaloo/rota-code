@@ -292,9 +292,10 @@ PROSE = "@prose"
 TERM_PREFIX = "@term:"
 FRAME = "@frame"
 REORIENT = "@reorient"
+CLAIM_PREFIX = "@claim:"
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
                     "tick:define", "tick:survey", "tick:reorient",
-                    "tick:boundary")
+                    "tick:boundary", "tick:challenge")
 
 
 def is_area(subject: str | None) -> bool:
@@ -576,6 +577,8 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
         return "reorient"
     if "boundaries" in phases and _boundary_wakes(conn):
         return "boundaries"
+    if "challenge" in phases and _challenge_wakes(conn):
+        return "challenge"
     return "done"
 
 
@@ -799,6 +802,53 @@ def boundary_subjects(conn: sqlite3.Connection) -> list[str]:
     return out[:8]
 
 
+def challenge_subjects(conn: sqlite3.Connection) -> list[str]:
+    """
+    The claims the Critic owes an attempt on, as `<table>:<row id>` refs.
+
+    Sample mode: the load-bearing claims -- constraints (k0 aside: it is
+    scaffolding, not a claim) and the account's items -- newest first,
+    capped at twelve, because each costs a session and the expensive
+    mistakes measured so far were all in these two artefacts. Full adds
+    every live glossary sense and model account. Off is off.
+    """
+    from . import config
+
+    try:
+        mode = config.get(conn, "challenge")
+    except Exception:
+        mode = "sample"
+    if mode == "off":
+        return []
+    subjects: list[str] = []
+    for r in conn.execute("SELECT id FROM constraints WHERE id != 'k0' "
+                          "ORDER BY rowid DESC"):
+        subjects.append(f"constraints:{r['id']}")
+    for r in conn.execute("SELECT id FROM items ORDER BY rowid DESC"):
+        subjects.append(f"items:{r['id']}")
+    if mode == "full":
+        for r in conn.execute("SELECT id FROM glossary_terms WHERE "
+                              "superseded_by IS NULL ORDER BY rowid DESC"):
+            subjects.append(f"glossary_terms:{r['id']}")
+        for r in conn.execute("SELECT id FROM model_areas ORDER BY rowid DESC"):
+            subjects.append(f"model_areas:{r['id']}")
+    return subjects if mode == "full" else subjects[:12]
+
+
+def _challenge_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """One Critic session per unchallenged load-bearing claim."""
+    done = {r["id"] for r in conn.execute("SELECT id FROM challenges")}
+    gone = _abandoned(conn, "tick:challenge")
+    return [Wake("critic", "tick:challenge", refs=(CLAIM_PREFIX + ref,))
+            for ref in challenge_subjects(conn)
+            if ref not in done and CLAIM_PREFIX + ref not in gone]
+
+
+def tick_challenge(conn: sqlite3.Connection) -> list[Wake]:
+    return (_challenge_wakes(conn)
+            if onboarding_phase(conn) == "challenge" else [])
+
+
 def _boundary_wakes(conn: sqlite3.Connection) -> list[Wake]:
     """One Architect session per boundary file, after the areas are surveyed:
     the constraints are written last, with the whole model in front of them."""
@@ -829,6 +879,7 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_survey,
     tick_reorient,
     tick_boundary,
+    tick_challenge,
 )
 
 

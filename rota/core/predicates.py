@@ -1041,12 +1041,21 @@ def boundary(conn) -> list[Wake]:
     return tick_boundary(conn)
 
 
+@predicate("challenge", wakes="critic", band="start")
+def challenge(conn) -> list[Wake]:
+    """Onboarding, last: the Critic tries to falsify the load-bearing
+    claims against source. A claim's standing comes from surviving this,
+    never from who wrote it; a break is a citation, or it is refused."""
+    from .scheduler import tick_challenge
+    return tick_challenge(conn)
+
+
 REGISTER_ENTRIES = frozenset({
     "contradiction", "contested", "constraint_zero", "awaiting_confirm",
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
-    "orient", "define", "boundary", "frame", "reorient",
+    "orient", "define", "boundary", "frame", "reorient", "challenge",
 })
 
 
