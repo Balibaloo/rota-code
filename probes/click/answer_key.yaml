@@ -130,6 +130,25 @@ predictions:
       glossary leans on declarations -- adequate for presence, weaker for
       the user's-eye sense of a word.
 
+# --- recorded run result (2026-08-24, .rota/click_v0.db, qwen2.5:14b) ------
+# Written after the run, beside the predictions it tested.
+
+recorded_run_result:
+  terms_required_present: 6 of 10   # command, group, option, argument, parameter, choice
+  must_not_mean_hits: 0 of 7        # `command` held: "a class defined using decorators..."
+  copied_from_index: 0 of 26
+  terms_absent: [context, echo, prompt, callback]   # context declined; the rest never nominated
+  consult: 2 of 8 -- identical for the glossary-only half-run and the
+    complete run; the Architect's one flat src/click account added nothing
+    (partition granularity, not model quality, was the cap)
+  constraints_required_found: 0 of 2
+  boundary_pyproject: none_found    # on the file that says name = "click"
+  decoys_recorded: [html_theme, project_links_in_html_context]
+  predictions: all five confirmed -- library_direction_veto in the stronger
+    form (the import-surface constraint was never attempted, not vetoed);
+    prose_nominations_empty; docs_area_surveys (worse than predicted, seven
+    decoy-class constraints instead of none_found); decorator_surface_invisible.
+
 # --- 5. consult questions (probes/click/questions.py mirrors this) ----------
 # Expected answers are truths from the source, written before the run.
 
