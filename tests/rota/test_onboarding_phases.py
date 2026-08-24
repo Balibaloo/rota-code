@@ -1373,3 +1373,57 @@ def test_a_cut_reader_still_shows_its_failure_branches(tmp_path):
     assert "(first part only)" in view, "the reader was cut"
     assert "Unrecognized properties found" in view, "the branch survives the cut"
     assert "failure-vocabulary" in view
+
+
+# ---------------------------------------------------------------------------
+# v2: the frame's rulings outrank the heuristics
+# ---------------------------------------------------------------------------
+
+def test_frame_rulings_outrank_the_name_heuristics(tmp_path):
+    """docs ruled `program` is surveyed (the docs-as-product repository);
+    a src subtree ruled `ignore` leaves the partition; an unruled tree keeps
+    the heuristics' answer. Re-pinning applies it all deterministically."""
+    from rota.onboarding.boot import repin
+
+    root = _boundary_repo(tmp_path)
+    (root / "docs").mkdir()
+    for i in range(4):
+        (root / "docs" / f"guide{i}.md").write_text("# g\n", encoding="utf-8")
+    (root / "src" / "vendored").mkdir()
+    for i in range(3):
+        (root / "src" / "vendored" / f"lib{i}.ts").write_text(
+            "export const v = 1;\n", encoding="utf-8")
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, root)
+    areas0 = {r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
+    assert "docs" in areas0, "today's heuristics still survey prose directories"
+
+    db.execute("INSERT INTO frame_rulings (prefix, kind, source, reason) VALUES "
+               "('docs', 'attached', 'judge', 'documentation about the program'),"
+               "('src/vendored', 'ignore', 'judge', 'vendored copy')")
+    repin(db, root)
+
+    areas1 = {r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
+    assert "docs" not in areas1, "ruled attached, so no longer surveyed"
+    got = db.execute("SELECT area FROM code_index WHERE grain = ?",
+                     ("src/vendored/lib0.ts",)).fetchone()
+    assert got is None or got["area"] in (None, ""), "ruled ignore, out of the partition"
+    kept = db.execute("SELECT area FROM code_index WHERE grain = ?",
+                      ("src/parser.ts",)).fetchone()
+    assert kept is not None, "unruled grains keep the heuristics' answer"
+
+
+def test_a_ruling_outranks_the_judge_at_the_same_prefix(tmp_path):
+    """Same prefix, judge says attached, ruling says program: the ruling
+    wins. That is the whole meaning of `source`."""
+    from rota.onboarding.areas import ruling_for
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO frame_rulings (prefix, kind, source) VALUES "
+               "('docs', 'attached', 'judge')")
+    db.execute("INSERT OR REPLACE INTO frame_rulings (prefix, kind, source) "
+               "VALUES ('docs', 'program', 'ruling')")
+    assert ruling_for(db, "docs/index.md") == "program"

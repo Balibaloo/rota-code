@@ -51,6 +51,26 @@ TEST_FILE_INFIXES = ("_test.", ".test.", ".spec.", "_spec.")
 EXAMPLE_DIRS = {"example", "examples", "demo", "demos", "sample", "samples"}
 
 
+def ruling_for(conn, grain: str) -> str | None:
+    """The frame's word on a grain, if it has one: the most specific ruling
+    whose prefix covers the path, rulings outranking the judge at equal
+    depth. None means the heuristics decide, as they always did."""
+    import sqlite3
+
+    try:
+        rows = list(conn.execute("SELECT prefix, kind, source FROM frame_rulings"))
+    except sqlite3.Error:
+        return None
+    best = None
+    for r in rows:
+        pre = r["prefix"].rstrip("/")
+        if grain == pre or grain.startswith(pre + "/"):
+            key = (len(pre), 1 if r["source"] == "ruling" else 0)
+            if best is None or key > best[0]:
+                best = (key, r["kind"])
+    return best[1] if best else None
+
+
 def is_attached(grain: str) -> bool:
     """Tests, examples and dot-directories: indexed and attached, never
     counted when the partition decides what deserves a survey.
@@ -137,8 +157,17 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     if not every:
         return Proposal()
 
-    paths = [p for p in every if not is_attached(p)]
-    tests = [p for p in every if is_attached(p)]
+    # The frame's rulings outrank the name heuristics, path by path. A grain
+    # ruled `ignore` leaves the partition entirely; `attached` joins the
+    # tests; `program` is surveyed even where a heuristic would attach it
+    # (docs that are the product); `boundary` files stay indexed and are the
+    # boundary phase's business, not an area's.
+    ruled = {p: ruling_for(conn, p) for p in every}
+    every = [p for p in every if ruled[p] != "ignore"]
+    paths = [p for p in every
+             if ruled[p] == "program"
+             or (ruled[p] not in ("attached", "boundary") and not is_attached(p))]
+    tests = [p for p in every if p not in set(paths)]
     if not paths:                      # a repository of nothing but tests
         return Proposal()
 
@@ -221,13 +250,22 @@ def pin(conn: sqlite3.Connection, proposal: Proposal) -> int:
     """
     for grain, area in proposal.areas.items():
         conn.execute("UPDATE code_index SET area = ? WHERE grain = ?", (area, grain))
+    # A grain the proposal no longer covers -- ruled `ignore` on a re-pin --
+    # must not keep the area a previous pin gave it: a stale area is a
+    # standing invitation to survey something the frame excluded.
+    keep = set(proposal.areas)
+    for row in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "AND area IS NOT NULL").fetchall():
+        if row["grain"] not in keep:
+            conn.execute("UPDATE code_index SET area = NULL WHERE grain = ?",
+                         (row["grain"],))
     # Symbols inherit their file's area, so `code.survey` returns a definition
     # beside the file it is defined in rather than in an area of its own.
     by_path = defaultdict(str, proposal.areas)
     for row in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'symbol'").fetchall():
         path = row["grain"].split("::", 1)[0]
-        if path in by_path:
-            conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
-                         (by_path[path], row["grain"]))
+        conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
+                     (by_path[path] if path in by_path else None, row["grain"]))
     return len(set(proposal.areas.values()))

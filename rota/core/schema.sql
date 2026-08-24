@@ -629,6 +629,19 @@ CREATE TABLE IF NOT EXISTS runtime_processes (
 );
 
 -- Phase config: caps are read from here, never hard-coded.
+-- The frame, as judged and as ruled. The partition's heuristics are the
+-- default; a row here overrides them for everything under `prefix`. The
+-- judge session writes source='judge' (provenance: observed); a principal's
+-- ruling writes source='ruling' (decided) and outranks the judge. v2's
+-- first stage; probes/partition_judge.py is the measurement that earned it.
+CREATE TABLE IF NOT EXISTS frame_rulings (
+    prefix   TEXT PRIMARY KEY,               -- a path or directory prefix
+    kind     TEXT NOT NULL CHECK (kind IN ('program','attached','ignore','boundary')),
+    source   TEXT NOT NULL CHECK (source IN ('judge','ruling')),
+    reason   TEXT NOT NULL DEFAULT '',
+    version  INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS config (
     key    TEXT PRIMARY KEY,
     value  TEXT NOT NULL

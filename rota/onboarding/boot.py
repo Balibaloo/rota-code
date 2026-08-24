@@ -183,6 +183,27 @@ def stresses(conn: sqlite3.Connection, report: OnboardReport) -> list[str]:
     return out
 
 
+def repin(conn: sqlite3.Connection, root: str | Path) -> int:
+    """
+    Recompute the frame-dependent layers after the rulings changed.
+
+    The judge session or a principal's ruling writes `frame_rulings`; this
+    re-runs the partition and the lexicon over the ruled table and rebinds
+    constraint zero. Deterministic and idempotent: same rulings, same frame.
+    The hazard `areas.pin` names -- a partition changing under a
+    half-finished survey -- is the caller's to respect: re-pin before the
+    surveys, or re-earn what a changed area invalidates.
+    """
+    from . import areas as areas_mod
+    from . import lexicon as lexicon_mod
+
+    proposal = areas_mod.propose(conn)
+    count = areas_mod.pin(conn, proposal)
+    lexicon_mod.build(conn, root)
+    refresh_constraint_zero(conn)
+    return count
+
+
 def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
     """
     Bind constraint zero to exactly the areas nobody has surveyed.
