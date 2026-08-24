@@ -24,6 +24,16 @@ it — and what it is for.
 Thirty words at most. Test it by putting a different word in its place: if the
 sentence still reads true, it is a category and not a meaning.
 
+A concordance headed "the code never says this word; the prose does" is the
+README's word, not the code's. The question is whether the README uses it as a
+name for something this project declares under its own word. If it does, the
+sense says exactly that -- `In this project, a <word> is the README's name for
+<the code's word> ...` -- and still names the place the code's word is written
+down: pull `code.concordance` for the code's own word if you need its key or
+file. If the prose word names nothing the code shows, `surveys.attest(
+outcome="none_found")` -- for a prose word that is the common honest ending,
+not the rare one.
+
 `code.source` a file the concordance makes you want to read whole — the one
 that declares the word is usually enough.
 

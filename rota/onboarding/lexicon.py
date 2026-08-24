@@ -69,7 +69,7 @@ MANIFESTS = {"package.json", "manifest.json", "pyproject.toml", "setup.cfg",
 # authoring-surface key is what the project asks its user to write; a function
 # name is evidence the word is in use and nothing more.
 WEIGHT = {"key": 4.0, "dir": 4.0, "decl_type": 3.0, "file": 3.0, "surface": 2.0,
-          "decl_part": 0.5, "decl_fn": 0.5}
+          "decl_part": 0.5, "decl_fn": 0.5, "prose": 1.0}
 
 # A declared compound longer than this is an implementation name, not a word
 # anybody says: `TemplateVariableVariables_NaturalDate` is the interface for one
@@ -90,6 +90,60 @@ TYPE_KINDS = {"enum", "interface", "type", "class", "struct", "trait",
               "record", "protocol"}
 
 _KEY = re.compile(r"^\s*[\"']?(?P<key>[A-Za-z_][\w\-]*)[\"']?\s*:")
+
+
+# English function words the code-oriented stopword list never needed. Only
+# the prose harvest sees them: a README speaks sentences, so its frequency
+# table is grammar first and names second.
+_PROSE_FUNCTION_WORDS = frozenset("""
+    you your yours can could will would should shall may might must are is was
+    were been being have has had having do does did doing see also when then
+    than that this these those there here how what which who whom whose why
+    where all any both each few more most other some such only own same very
+    just because while about against between into through during before after
+    above below again further once the and but nor not for with its they them
+    their example note new use used using make made create creating chose
+    chosen choose shown show available called selected select selection add
+    added adding want wanted like first second next last different section
+    list click expand enter entered set setting per each etc
+""".split())
+
+
+def prose_names(text: str, family: set[str], stop: set[str],
+                floor: int = 4, cap: int = 8) -> list[tuple[str, int]]:
+    """
+    The words a README uses as names for things the code never says.
+
+    Measured on the consult probe: the glossary held `intents_to` and its
+    definition answered the question -- asked with the README's word, "recipe"
+    -- and no lookup could connect them, because no artefact carried the
+    prose's vocabulary. The claims of a README stay a check; its *names* are
+    data.
+
+    Three gates, all mechanical: said at least `floor` times outside code
+    fences; emphasised at least once -- a heading, bold, or double quotes,
+    which is a README marking its own vocabulary; absent from every code
+    word's family. Capped best-first, because each survivor costs a define
+    session, and whether it names anything is that session's judgement, not
+    this function's.
+    """
+    prose = re.sub(r"```.*?```", " ", text, flags=re.S)
+    prose = re.sub(r"`[^`]*`", " ", prose)
+    prose = re.sub(r"<[^>]+>|https?://\S+", " ", prose)
+    emphasised = " ".join(
+        re.findall(r"^#+ .*$", prose, flags=re.M)
+        + re.findall(r"\*\*([^*]+)\*\*", prose)
+        + re.findall(r'"([^"\n]{2,60})"', prose))
+    emph = {singular(w.lower())
+            for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", emphasised)}
+    counts: Counter = Counter()
+    for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", prose):
+        w = singular(w.lower())
+        if w not in stop and w not in _PROSE_FUNCTION_WORDS:
+            counts[w] += 1
+    out = [(w, n) for w, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+           if n >= floor and w in emph and w not in family]
+    return out[:cap]
 
 
 def parts(name: str) -> list[str]:
@@ -297,6 +351,27 @@ def build(conn: sqlite3.Connection, root: str | Path) -> LexiconReport:
         e.uses = uses.get(word, 0) if " " not in word else sum(
             uses.get(w, 0) for w in word.split())
 
+    # The prose's own names, after the code has said everything it will.
+    # Family is computed from the code entries as they stand, so a README
+    # that says "invoices" adds nothing to a lexicon that declares `Invoice`.
+    readme = next((rel for rel in paths if "/" not in rel
+                   and re.match(r"(?i)readme(\.|$)", rel)), None)
+    if readme and (root / readme).is_file():
+        family: set[str] = set()
+        for word in entries:
+            family.add(singular(word))
+            family.update(singular(w) for w in parts(word))
+        try:
+            text = (root / readme).read_text(encoding="utf-8", errors="replace")
+        except OSError:                                     # pragma: no cover
+            text = ""
+        for w, n in prose_names(text, family, stop):
+            e = entries.setdefault(w, Entry(w))
+            e.sources.add("prose")
+            e.grains.add(readme)
+            if not e.uses:
+                e.uses = n
+
     # Bigrams are kept for the scheduler, which decides at frontier time whether
     # an orientation item names one of them -- `global intent` is two ordinary
     # words until the account of the program says "global intents" and the
@@ -304,7 +379,7 @@ def build(conn: sqlite3.Connection, root: str | Path) -> LexiconReport:
     conn.execute("DELETE FROM code_lexicon")
     rows = []
     for word, e in entries.items():
-        if not (e.sources & set(STRUCTURAL)):
+        if not (e.sources & set(STRUCTURAL) or "prose" in e.sources):
             continue
         rows.append((word, json.dumps(sorted(e.sources)),
                      sorted(e.grains)[0] if len(e.grains) == 1 else

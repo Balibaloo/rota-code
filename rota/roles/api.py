@@ -3661,8 +3661,12 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
                                                     if not word_re.fullmatch(o)])][:12]
 
         if hit:
-            best = sorted(hit, key=lambda x: -_tells_you_something(x[1]))[:limit]
             prose = name.lower().endswith((".md", ".rst", ".txt"))
+            # A prose file keeps more candidates than it will normally show:
+            # if the word turns out to be prose-only, those lines are the
+            # whole evidence and the render gives them the room.
+            best = sorted(hit, key=lambda x: -_tells_you_something(x[1]))[
+                :(8 if prose else limit)]
             uses.append((rel, area_of.get(rel, "?"), len(hit), prose,
                          [(n, l) for n, l in best if _tells_you_something(l) > 0
                           and (rel, n) not in shown_lines]))
@@ -3709,15 +3713,29 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
     if decl:
         out.append("declared:")
         out += [f"  {d}" for d in decl[:6]]
-    out.append("used:")
-    # Code first, prose last; the busiest first within each. Capped so the
-    # whole view, with the declaring file, stays under the render cap.
-    ordered = sorted(uses, key=lambda x: (x[3], -x[2]))
-    for rel, area, n, prose, best in ordered[:6]:
-        out.append(f"  {rel}  [{area}]  x{n}")
-        for ln, l in (best[:1] if prose else best[:2]):
-            out.append(f"      {ln}: {l[:110]}")
-            note_read(rel, l)
+    code_spoke = bool(kinds or surface or own_files or registered or decl
+                      or any(not pr for _, _, _, pr, _ in uses))
+    if uses and not code_spoke:
+        # Every hit is prose: this is the README's word, not the code's. The
+        # one-line prose cap below guards against a README out-shouting the
+        # code; here there is no code to out-shout, and these lines are the
+        # whole evidence for what the prose means by the word.
+        out.append("the code never says this word; the prose does:")
+        for rel, area, n, prose, best in sorted(uses, key=lambda x: -x[2])[:2]:
+            out.append(f"  {rel}  x{n}")
+            for ln, l in best[:8]:
+                out.append(f"      {ln}: {l[:150]}")
+                note_read(rel, l)
+    else:
+        out.append("used:")
+        # Code first, prose last; the busiest first within each. Capped so the
+        # whole view, with the declaring file, stays under the render cap.
+        ordered = sorted(uses, key=lambda x: (x[3], -x[2]))
+        for rel, area, n, prose, best in ordered[:6]:
+            out.append(f"  {rel}  [{area}]  x{n}")
+            for ln, l in (best[:1] if prose else best[:2]):
+                out.append(f"      {ln}: {l[:110]}")
+                note_read(rel, l)
     if flow:
         out.append("flows:")
         out += [f"  {e}" for e in flow[:8]]

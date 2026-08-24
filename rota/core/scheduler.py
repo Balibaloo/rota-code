@@ -442,10 +442,30 @@ def pending_terms(conn: sqlite3.Connection) -> list[str]:
     keys = [r["word"] for r in conn.execute(
         "SELECT word FROM code_lexicon WHERE sources LIKE ? "
         "ORDER BY score DESC, uses DESC, word", ('%"key"%',))]
+    # The prose's names, after the keys. The lexicon nominated them from the
+    # README (frequent, emphasised, absent from the code's vocabulary); a run
+    # that withholds prose has no README for a word to be the name of, so it
+    # owes none of them.
+    prose_words: list[str] = []
+    banned: set[str] = set()
+    try:
+        if config.get(conn, "prose_sources") != "off":
+            prose_words = [r["word"] for r in conn.execute(
+                "SELECT word FROM code_lexicon WHERE sources LIKE ? "
+                "ORDER BY uses DESC, word", ('%"prose"%',))]
+        else:
+            # A small lexicon ranks everything into `picked`, prose words
+            # included -- the ban has to hold wherever the word got in.
+            banned = {r["word"] for r in conn.execute(
+                "SELECT word FROM code_lexicon WHERE sources = ?",
+                ('["prose"]',))}
+    except Exception:                                       # pragma: no cover
+        pass
     out = []
-    for word in picked + [k for k in keys if k not in picked]:
-        if (_singular(_slug_of(word)) in defined or word in declined
-                or word in abandoned):
+    for word in (picked + [k for k in keys if k not in picked]
+                 + [w for w in prose_words if w not in picked]):
+        if (word in banned or _singular(_slug_of(word)) in defined
+                or word in declined or word in abandoned):
             continue
         out.append(word)
     return out
