@@ -572,6 +572,19 @@ questions per moment (onboard-time, agenda-time), ranked by leverage, never
 the same question twice -- a re-touch must reframe or offer a new default.
 The onboard interview is five questions and two minutes, or it is wrong.
 
+**Selection over composition — buttons wherever they beat language.** A
+question is not ready to ask until its plausible answers are enumerated:
+the frame's four kinds are four keys, a ledger entry is [take the default]
+[overrule] [defer], a falsified claim is [accept the break] [the claim
+stands] [defer], and the seed interview's questions are choices before
+they are prompts ("is docs/ documentation or the product?" is two buttons
+and a skip, not a text box). If the system cannot enumerate the plausible
+answers, it has not finished preparing the question. Free text is the
+escape hatch -- always present, never the norm -- and earns its place only
+where the answer is genuinely generative: a name the system has never
+seen, a fact it could not know, the paragraph of intent. One keypress per
+ruling is the budget; typing is spending the principal's attention twice.
+
 **Answers are rulings, and rulings are revisable.** The same re-earn path
 that serves a changed frame serves a changed answer; the seat can show what
 stands on an answer before the principal changes it.
