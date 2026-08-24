@@ -144,7 +144,7 @@ recorded_run_result:
   constraints_required_found: 0 of 2
   boundary_pyproject: none_found    # on the file that says name = "click"
   decoys_recorded: [html_theme, project_links_in_html_context]
-  predictions: all five confirmed -- library_direction_veto in the stronger
+  predictions: all four confirmed -- library_direction_veto in the stronger
     form (the import-surface constraint was never attempted, not vetoed);
     prose_nominations_empty; docs_area_surveys (worse than predicted, seven
     decoy-class constraints instead of none_found); decorator_surface_invisible.
