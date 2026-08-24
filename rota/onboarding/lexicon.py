@@ -334,9 +334,13 @@ def build(conn: sqlite3.Connection, root: str | Path) -> LexiconReport:
             # -- `version`, `main`, `devDependencies` -- so they are left to the
             # Architect. JSON counts only when the code imports it; YAML and
             # TOML at all, because a schema is usually one of those.
-            surface = rel not in has_symbols and name.lower() not in MANIFESTS and (
+            # A dotfile's keys are a tool's grammar, not the project's:
+            # `.pre-commit-config.yaml` put `default_install_hook_types` into
+            # icalendar's define queue ahead of `event`.
+            surface = (rel not in has_symbols and name.lower() not in MANIFESTS
+                       and not name.startswith(".") and (
                 fan_in.get(rel, 0) > 0
-                or name.lower().endswith((".yaml", ".yml", ".toml")))
+                or name.lower().endswith((".yaml", ".yml", ".toml"))))
             if surface:
                 for line in body.splitlines()[:400]:
                     m = _KEY.match(line)

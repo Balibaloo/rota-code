@@ -95,6 +95,16 @@ files — measured on click, whose README is a page of marketing (the harvest
 correctly nominated nothing: its vocabulary is the code's) while 37 files of
 real prose sit in `docs/` where reconcile never looks.
 
+**The authoring surface speaks yaml.** Surfaces are detected as data files
+the code imports plus yaml/toml at the root — cnt's shape. Measured on
+icalendar the moment it was onboarded: the outside contract there is RFC 5545
+itself, witnessed by 193 `.ics` fixture files the parser round-trips — and
+`.ics` is invisible to both the surface detection and the boundary
+enumeration. The tripwire report at least *names* the blindness ("193 .ics
+files have no parser"); making the format a first-class boundary subject
+needs design, because the contract is a standard, not a file. *Tell:* the
+unparsed-suffix lines of the onboard report.
+
 **There is an authoring surface.** The strongest vocabulary signal (weight 4.0)
 is keys a user writes in yaml/toml — and the loudest concordance section is
 "in what a user writes". A library has neither: click's users author *code*
