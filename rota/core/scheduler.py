@@ -290,8 +290,9 @@ SURVEY_ORDER = ("terminologist", "architect")
 PROGRAM = "@program"
 PROSE = "@prose"
 TERM_PREFIX = "@term:"
-ONBOARDING_TICKS = ("tick:orient", "tick:reconcile", "tick:define",
-                    "tick:survey", "tick:boundary")
+FRAME = "@frame"
+ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
+                    "tick:define", "tick:survey", "tick:boundary")
 
 
 def is_area(subject: str | None) -> bool:
@@ -328,6 +329,60 @@ def _abandoned(conn: sqlite3.Connection, kind: str) -> set[str]:
             "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
             "AND tick_key LIKE ?", (f"%|{kind}|%",))
     }
+
+
+def _frame_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    The frame has not been judged.
+
+    v2's first stage: one Architect session classifies the tree -- program,
+    attached, ignore, boundary -- before anything reads it, because the
+    partition decides what every later session can see, and a 14B judge
+    measured 34/38 on six repositories where the name heuristics fail two
+    (probes/partition_judge.py). The attest re-pins; `none_found` means the
+    heuristic frame stands, and is the honest common answer for a
+    conventionally-shaped checkout.
+    """
+    if not conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone():
+        return []
+    if FRAME in _abandoned(conn, "tick:frame"):
+        return []
+    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (FRAME,)).fetchone()
+    return [] if done else [Wake("architect", "tick:frame", refs=(FRAME,))]
+
+
+def tick_frame(conn: sqlite3.Connection) -> list[Wake]:
+    return _frame_wakes(conn) if onboarding_phase(conn) == "frame" else []
+
+
+def _repin_after_frame(conn: sqlite3.Connection) -> None:
+    """
+    Apply the judged frame, once, lazily.
+
+    The judge's rulings land when its session commits -- after any op has
+    returned -- so the re-pin cannot run inside the attest. It runs here
+    instead: the first frontier computation that sees the @frame record
+    re-derives partition, lexicon and constraint zero over the ruled table,
+    and a flag keeps it from running twice. Deterministic: same rulings,
+    same frame, whenever it fires.
+    """
+    flag = conn.execute(
+        "SELECT value FROM config WHERE key = 'frame_repinned'").fetchone()
+    if flag and flag["value"] == "1":
+        return
+    if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (FRAME,)).fetchone():
+        return
+    root = conn.execute(
+        "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+    if not root:
+        return
+    from ..onboarding.boot import repin
+
+    repin(conn, root["value"])
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                 "('frame_repinned', '1')")
 
 
 def _orient_wakes(conn: sqlite3.Connection) -> list[Wake]:
@@ -504,6 +559,9 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
     if not conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone():
         return "none"
     phases = onboarding_phases(conn)
+    if "frame" in phases and _frame_wakes(conn):
+        return "frame"
+    _repin_after_frame(conn)
     if "orient" in phases and _orient_wakes(conn):
         return "orient"
     if "reconcile" in phases and _reconcile_wakes(conn):
@@ -731,6 +789,7 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_slicing,
     tick_criteria,
     tick_batch_start,
+    tick_frame,
     tick_orient,
     tick_reconcile,
     tick_define,

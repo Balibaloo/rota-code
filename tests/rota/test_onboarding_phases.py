@@ -42,7 +42,18 @@ def _onboarding(wakes):
     return [w for w in wakes if w.kind in ONBOARDING_TICKS]
 
 
+def _framed(db, outcome="none_found"):
+    """Past the frame phase: the tree has been judged (or the heuristic
+    frame attested as standing). v2's zeroth gate; frame_repinned is set so
+    the lazy re-pin does not fire mid-test."""
+    db.execute("INSERT OR IGNORE INTO survey_records (id, area, outcome) "
+               "VALUES ('architect:@frame', '@frame', ?)", (outcome,))
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('frame_repinned', '1')")
+
+
 def _oriented(db, outcome="none_found"):
+    _framed(db)
     db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?, ?, ?)",
                (f"vision_keeper:{PROGRAM}", PROGRAM, outcome))
 
@@ -110,6 +121,12 @@ def test_the_first_wake_after_onboarding_is_the_orientation(project):
     boot.onboard(db, repo.root)
     db.commit()
 
+    assert onboarding_phase(db) == "frame", "v2: the frame is judged first"
+    ready = _onboarding(frontier(db))
+    assert [(w.role, w.kind, w.refs) for w in ready] == \
+        [("architect", "tick:frame", ("@frame",))]
+
+    _framed(db)
     assert onboarding_phase(db) == "orient"
     ready = _onboarding(frontier(db))
     assert [(w.role, w.kind, w.refs) for w in ready] == \
@@ -187,6 +204,7 @@ def test_an_abandoned_orientation_does_not_hold_the_run(project):
     is recorded as abandoned, reported, and the run carries on behind it."""
     db, repo = project
     boot.onboard(db, repo.root)
+    _framed(db)
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
                "VALUES (?, 3, 1)", (f"vision_keeper|tick:orient|{PROGRAM}",))
     assert onboarding_phase(db) == "define"
@@ -276,6 +294,7 @@ def test_term_collision_holds_until_the_words_are_defined(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
+    _framed(db)
     for i, area in enumerate(("src/auth", "src/billing")):
         db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
                    "provenance, area) VALUES (?, 'account', ?, 'b', 'observed', ?)",
@@ -382,6 +401,7 @@ def test_an_orientation_session_writes_observed_items_and_closes_the_phase(proje
 
     db, repo = project
     boot.onboard(db, repo.root)
+    _framed(db)
     db.commit()
     wake = _onboarding(frontier(db))[0]
     assert wake.kind == "tick:orient"
@@ -1400,9 +1420,9 @@ def test_frame_rulings_outrank_the_name_heuristics(tmp_path):
         "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
     assert "docs" in areas0, "today's heuristics still survey prose directories"
 
-    db.execute("INSERT INTO frame_rulings (prefix, kind, source, reason) VALUES "
-               "('docs', 'attached', 'judge', 'documentation about the program'),"
-               "('src/vendored', 'ignore', 'judge', 'vendored copy')")
+    db.execute("INSERT INTO frame_rulings (id, kind, provenance, reason) VALUES "
+               "('docs', 'attached', 'observed', 'documentation about the program'),"
+               "('src/vendored', 'ignore', 'observed', 'vendored copy')")
     repin(db, root)
 
     areas1 = {r["area"] for r in db.execute(
@@ -1422,8 +1442,109 @@ def test_a_ruling_outranks_the_judge_at_the_same_prefix(tmp_path):
     from rota.onboarding.areas import ruling_for
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO frame_rulings (prefix, kind, source) VALUES "
-               "('docs', 'attached', 'judge')")
-    db.execute("INSERT OR REPLACE INTO frame_rulings (prefix, kind, source) "
-               "VALUES ('docs', 'program', 'ruling')")
+    db.execute("INSERT INTO frame_rulings (id, kind, provenance) VALUES "
+               "('docs', 'attached', 'observed')")
+    db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
+               "VALUES ('docs', 'program', 'decided')")
     assert ruling_for(db, "docs/index.md") == "program"
+
+
+# ---------------------------------------------------------------------------
+# v2: the frame session
+# ---------------------------------------------------------------------------
+
+def test_the_frame_is_judged_before_anything_else(tmp_path):
+    """A fresh onboard wakes the Architect for @frame first; the attest
+    releases orient. The partition decides what every later session sees,
+    so it goes first or it lies."""
+    from rota.core.scheduler import tick_frame
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    assert onboarding_phase(db) == "frame"
+    wakes = tick_frame(db)
+    assert [w.role for w in wakes] == ["architect"]
+    assert wakes[0].refs == ("@frame",)
+    assert tick_orient(db) == [], "orient waits for the frame"
+
+    _framed(db)
+    assert onboarding_phase(db) == "orient"
+
+
+def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
+    """An assignment that disagrees with the heuristic prior carries a
+    ledger row, mechanically; one that agrees does not. Manifests are
+    refused -- they are claimed by code -- and a principal's ruling on the
+    same prefix cannot be overwritten by the judge."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db = init_db(tmp_path / "rota.db")
+    root = _boundary_repo(tmp_path)
+    (root / "docs").mkdir()
+    for i in range(3):
+        (root / "docs" / f"g{i}.md").write_text("# g\n", encoding="utf-8")
+    boot.onboard(db, root)
+
+    sb = sandbox_mod.build("architect", db, session_id="s1", mode="frame",
+                           area="@frame")
+    got = sb.call("frame.assign", path="docs", kind="program",
+                  reason="the docs are the product")
+    assert got["kind"] == "program" and "ledger" in got["note"]
+    from rota.core.db import _apply_write
+    from rota.core.runner import _as_write
+    for w in sb.ctx.writes:
+        _apply_write(db, _as_write(w))
+    row = db.execute("SELECT kind, provenance FROM frame_rulings "
+                     "WHERE id = 'docs'").fetchone()
+    assert (row["kind"], row["provenance"]) == ("program", "observed")
+    led = db.execute("SELECT default_taken FROM ledger WHERE about_table = "
+                     "'frame_rulings'").fetchone()
+    assert led and "docs" in led["default_taken"]
+
+    with pytest.raises(Exception, match="manifest"):
+        sb.call("frame.assign", path="manifest.json", kind="attached")
+    db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
+               "VALUES ('src', 'program', 'decided')")
+    with pytest.raises(Exception, match="decided|outranks"):
+        sb.call("frame.assign", path="src", kind="ignore")
+
+
+def test_the_tree_view_carries_priors_and_entry_imports(tmp_path):
+    """`code.tree` shows each top-level entry with the heuristic prior, and
+    what the root's own files import -- the fzf lesson: a README of badges
+    misleads a judge that cannot see where the entry points."""
+    from rota.roles.api import Ctx, code_tree
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    view = code_tree(Ctx(conn=db, role="architect", area="@frame"))["view"]
+    assert "src/" in view and "[prior: program]" in view
+    assert "manifest.json" in view and "claimed mechanically" in view
+    assert "README.md" in view
+
+
+def test_the_repin_fires_once_after_the_frame_record(tmp_path):
+    """The judge's rulings land when its session commits, so the re-pin is
+    lazy: the first phase computation after the @frame record applies the
+    ruled frame and sets the flag; the second is a no-op."""
+    root = _boundary_repo(tmp_path)
+    (root / "docs").mkdir()
+    for i in range(3):
+        (root / "docs" / f"g{i}.md").write_text("# g\n", encoding="utf-8")
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, root)
+    assert "docs" in {r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
+
+    db.execute("INSERT INTO frame_rulings (id, kind, provenance) VALUES "
+               "('docs', 'attached', 'observed')")
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "('architect:@frame', '@frame', 'found')")
+    onboarding_phase(db)
+    areas = {r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
+    assert "docs" not in areas, "the ruled frame applied"
+    flag = db.execute("SELECT value FROM config WHERE key = 'frame_repinned'").fetchone()
+    assert flag["value"] == "1"

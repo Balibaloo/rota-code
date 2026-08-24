@@ -42,6 +42,7 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "problem":    ("items", "item_statements"),
     "glossary":   ("glossary_terms", "business_rules"),
     "model":      ("constraints", "constraint_bindings", "model_areas"),
+    "frame":      ("frame_rulings",),
     # Also not part of `model`, and for a second reason beyond the cascade.
     # Onboarding runs three roles over every area and each has to record its own
     # pass, which under `model` meant three writers on Architect's artefact --

@@ -17,8 +17,8 @@ undischarged goals stay visible and countable.
 
 ## It is already here, and was never named
 
-Of thirty-two predicates, eleven move the spine forward, one is message
-traffic, and **sixteen are register entries** -- twenty, since onboarding
+Of thirty-three predicates, eleven move the spine forward, one is message
+traffic, and **sixteen are register entries** -- twenty-one, since onboarding
 gained its phases: something is outstanding, and
 the predicate exists to keep offering it until it is not.
 
@@ -27,7 +27,7 @@ the predicate exists to keep offering it until it is not.
     observed_entries reopen          tests_failing     verdict_failed
     checkpoint_invalid               survey            term_collision
     unresolved      orient           reconcile         define
-    boundary
+    boundary        frame
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.

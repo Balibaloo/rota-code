@@ -76,6 +76,12 @@
       "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed \u2014 extracted from an onboarded codebase and awaiting confirmation."
     },
     {
+      "id": "frame",
+      "label": "The frame",
+      "type": "artefact",
+      "note": "The partition, as judged and as ruled: what is program, what is attached, what is ignored, where the outside touches. frame_rulings overrides the name heuristics path by path; a principal's ruling outranks the judge. v2's first stage -- the frame decides what every later session can see."
+    },
+    {
       "id": "model",
       "label": "System model",
       "type": "artefact",
@@ -1759,6 +1765,35 @@
       "rows": "query",
       "depth": "body",
       "label": "a constraint is found in source, not composed from a grain list"
+    },
+    {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "tree",
+      "n": "the top level, priors and entry imports",
+      "actor": "role",
+      "rows": "query",
+      "depth": "index",
+      "label": "the frame judge's whole view; measured at 34/38 before it was built"
+    },
+    {
+      "s": "architect",
+      "t": "frame",
+      "type": "reads",
+      "v": "load",
+      "n": "the rulings as they stand",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "architect",
+      "t": "frame",
+      "type": "writes",
+      "v": "assign",
+      "n": "frame classifications",
+      "rows": "delta",
+      "label": "the judge writes; a ruling outranks; diffs to the ledger"
     },
     {
       "s": "architect",

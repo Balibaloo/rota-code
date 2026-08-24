@@ -163,7 +163,7 @@ def test_every_predicate_is_either_spine_or_register():
     assert named == set(P.REGISTER_ENTRIES), (
         f"REGISTER.md and predicates.REGISTER_ENTRIES disagree: "
         f"{sorted(named ^ set(P.REGISTER_ENTRIES))}")
-    assert len(every) == 32, (
+    assert len(every) == 33, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

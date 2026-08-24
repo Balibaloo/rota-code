@@ -1847,12 +1847,16 @@ def surveys_attest(ctx: Ctx, outcome: str,
             "vision_keeper": "items"}.get(ctx.role)
     # The reconcile phase's subject is the README, and what that mode exists
     # to find is disagreements -- ledger entries, not items.
+    from ..core.scheduler import FRAME as _FRAME
     from ..core.scheduler import PROSE as _PROSE
 
     if area == _PROSE:
         owed = "ledger"
+    if area == _FRAME:
+        owed = "frame_rulings"
     owed_fn = {"glossary_terms": "glossary.amend", "constraints": "model.amend",
-               "items": "problem.assert", "ledger": "ledger.log"}.get(owed or "", "")
+               "items": "problem.assert", "ledger": "ledger.log",
+               "frame_rulings": "frame.assign"}.get(owed or "", "")
     mine = [v for t, _id, v in ctx.writes if t == owed]
     note = ""
     # The outcome follows what the session did, not what it says.
@@ -3781,6 +3785,148 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
     if file_block:
         result["declaring_file"] = file_block
     return result
+
+
+@op("code", "tree")
+def code_tree(ctx: Ctx) -> dict:
+    """
+    The repository's top level, with the facts a frame judgement needs.
+
+    The probe that earned this view (probes/partition_judge.py, 34/38 on six
+    repositories) showed a judge three things: the tree with per-directory
+    file-type counts, the README's first lines, and -- the fzf lesson -- what
+    the entry files import, because a README of badges misleads a judge that
+    cannot see where main points. Each entry carries the heuristic prior, so
+    the session argues with a stated default rather than a blank.
+    """
+    from collections import Counter as _Counter
+
+    from ..onboarding.areas import is_attached
+    from ..onboarding.lexicon import MANIFESTS
+
+    try:
+        root = _worktree_of(ctx)
+    except Exception:
+        root = None
+    paths = [r["grain"] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")]
+    tops: dict[str, list[str]] = {}
+    for rel in paths:
+        top = rel.split("/", 1)[0]
+        tops.setdefault(top, []).append(rel)
+
+    def prior(top: str, members: list[str]) -> str:
+        if "/" not in members[0] and top.lower() in MANIFESTS:
+            return "boundary (claimed mechanically -- do not assign)"
+        if all(is_attached(m) or _is_prose(m) for m in members):
+            return "attached"
+        return "program"
+
+    lines = []
+    for top in sorted(tops, key=str.lower):
+        members = tops[top]
+        if len(members) == 1 and "/" not in members[0]:
+            lines.append(f"{top}  [prior: {prior(top, members)}]")
+            continue
+        suf = _Counter((m.rsplit(".", 1)[-1] if "." in m.rsplit("/", 1)[-1]
+                        else "(none)") for m in members)
+        mix = ", ".join(f".{k} x{v}" if k != "(none)" else f"(none) x{v}"
+                        for k, v in suf.most_common(3))
+        lines.append(f"{top}/  ({len(members)} files: {mix})  "
+                     f"[prior: {prior(top, members)}]")
+
+    entry_imports: list[str] = []
+    for r in ctx.conn.execute("SELECT src, dst FROM code_edges"):
+        if "/" not in r["src"]:
+            entry_imports.append(f"  {r['src']} -> {r['dst']}")
+    readme = next((rel for rel in sorted(paths) if "/" not in rel
+                   and rel.lower().startswith("readme")), None)
+    head = ""
+    if readme and root is not None:
+        try:
+            head = chr(10).join((root / readme).read_text(
+                encoding="utf-8", errors="replace").splitlines()[:10])
+        except OSError:                                     # pragma: no cover
+            pass
+    out = "[the repository's top level, with the heuristic prior for each]"
+    out += chr(10) + chr(10).join(lines)
+    if entry_imports:
+        out += chr(10) + chr(10) + "[what the root's own files import]"
+        out += chr(10) + chr(10).join(sorted(set(entry_imports))[:12])
+    if head:
+        out += chr(10) + chr(10) + "[the README's first lines]" + chr(10) + head
+    return {"entries": len(tops), "view": out}
+
+
+# The model-facing word for the fourth class stays `boundary` -- the brief
+# and the boundary phase say it -- and it files as `surface`, the value that
+# shares the @surface: prefix's word.
+_FRAME_KINDS = {"program": "program", "attached": "attached",
+                "attach": "attached", "ignore": "ignore",
+                "ignored": "ignore", "boundary": "surface",
+                "surface": "surface"}
+
+
+@op("frame", "load")
+def frame_load(ctx: Ctx) -> list[dict]:
+    """The rulings as they stand -- the judge's observed rows and any
+    decided ones, which outrank and are not the judge's to touch."""
+    return _rows(ctx.conn.execute(
+        "SELECT id, kind, provenance, reason FROM frame_rulings ORDER BY id"))
+
+
+@op("frame", "assign")
+def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
+    """
+    One frame classification, judged: everything under `path` is `kind`.
+
+    The write is the judge's (source='judge'); a principal's ruling on the
+    same prefix outranks it and is refused overwriting. Where the judgement
+    disagrees with the heuristic prior, a ledger row records the difference
+    with the judge's answer as the taken default -- mechanically, because
+    the diff is a fact, not a claim.
+    """
+    from ..onboarding.areas import is_attached
+    from ..onboarding.lexicon import MANIFESTS
+
+    k = _FRAME_KINDS.get((kind or "").strip().lower())
+    if not k:
+        raise ValueError(f"kind must be one of program/attached/ignore/"
+                         f"boundary, not {kind!r}")
+    path = (path or "").strip().strip("`").rstrip("/")
+    path = path.lstrip("./")
+    covered = [r["grain"] for r in ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' AND "
+        "(grain = ? OR grain LIKE ?)", (path, path + "/%"))]
+    if not covered:
+        raise ValueError(f"{path!r} covers nothing in the index; assign a "
+                         f"path the tree above actually shows")
+    if "/" not in path and path.lower() in MANIFESTS:
+        raise ValueError(f"{path} is a manifest: claimed mechanically as a "
+                         f"boundary already, not the judge's to assign")
+    ruled = ctx.conn.execute(
+        "SELECT provenance FROM frame_rulings WHERE id = ?", (path,)).fetchone()
+    if ruled and ruled["provenance"] == "decided":
+        raise ValueError(f"{path} carries a principal's ruling, which "
+                         f"outranks the judge; it stands")
+
+    ctx.writes.append(("frame_rulings", path,
+                       {"kind": k, "provenance": "observed",
+                        "reason": reason or ""}))
+    heuristic = ("attached" if all(is_attached(m) or _is_prose(m)
+                                   for m in covered) else "program")
+    if k != heuristic:
+        ctx.writes.append(("ledger", f"frame_{_slug_of(path)}", {
+            "about_ref": path, "about_table": "frame_rulings",
+            "default_taken": (f"the frame judge classified {path} as {k} "
+                              f"({reason or 'no reason given'}); the "
+                              f"heuristics said {heuristic}; the judge's "
+                              f"answer is taken"),
+            "author": "frame"}))
+    return {"id": path, "kind": k,
+            "note": ("differs from the heuristic prior; a ledger row "
+                     "records it" if k != heuristic else "agrees with the "
+                     "heuristic prior")}
 
 
 @op("code", "boundary")

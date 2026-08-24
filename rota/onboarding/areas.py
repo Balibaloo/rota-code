@@ -58,14 +58,15 @@ def ruling_for(conn, grain: str) -> str | None:
     import sqlite3
 
     try:
-        rows = list(conn.execute("SELECT prefix, kind, source FROM frame_rulings"))
+        rows = list(conn.execute(
+            "SELECT id AS prefix, kind, provenance FROM frame_rulings"))
     except sqlite3.Error:
         return None
     best = None
     for r in rows:
         pre = r["prefix"].rstrip("/")
         if grain == pre or grain.startswith(pre + "/"):
-            key = (len(pre), 1 if r["source"] == "ruling" else 0)
+            key = (len(pre), 1 if r["provenance"] == "decided" else 0)
             if best is None or key > best[0]:
                 best = (key, r["kind"])
     return best[1] if best else None

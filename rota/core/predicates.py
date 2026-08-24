@@ -948,6 +948,15 @@ def constraint_zero(conn) -> list[Wake]:
         Wake(SCHEDULER, "tick:constraint_zero", refs=tuple(sorted(bound - want)))]
 
 
+@predicate("frame", wakes="architect", band="start")
+def frame(conn) -> list[Wake]:
+    """Onboarding, zeroth: the tree is classified before anything reads it.
+    The partition decides what every later session can see; judging it is
+    one session, and the attest re-pins."""
+    from .scheduler import tick_frame
+    return tick_frame(conn)
+
+
 @predicate("orient", wakes="vision_keeper", band="start")
 def orient(conn) -> list[Wake]:
     """
@@ -1028,7 +1037,7 @@ REGISTER_ENTRIES = frozenset({
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
-    "orient", "define", "boundary",
+    "orient", "define", "boundary", "frame",
 })
 
 

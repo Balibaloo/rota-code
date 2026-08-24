@@ -635,9 +635,13 @@ CREATE TABLE IF NOT EXISTS runtime_processes (
 -- ruling writes source='ruling' (decided) and outranks the judge. v2's
 -- first stage; probes/partition_judge.py is the measurement that earned it.
 CREATE TABLE IF NOT EXISTS frame_rulings (
-    prefix   TEXT PRIMARY KEY,               -- a path or directory prefix
-    kind     TEXT NOT NULL CHECK (kind IN ('program','attached','ignore','boundary')),
-    source   TEXT NOT NULL CHECK (source IN ('judge','ruling')),
+    id       TEXT PRIMARY KEY,               -- a path or directory prefix
+    -- `surface` is the class the boundary phase surveys; the value shares
+    -- the @surface: prefix's word on purpose.
+    kind     TEXT NOT NULL CHECK (kind IN ('program','attached','ignore','surface')),
+    -- Law 11's words: the judge's classification is observed -- found, not
+    -- chosen; a principal's ruling is decided, and outranks.
+    provenance TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
     reason   TEXT NOT NULL DEFAULT '',
     version  INTEGER NOT NULL DEFAULT 1
 );

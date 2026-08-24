@@ -132,8 +132,11 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "comparison runs.",
             values=("on", "off")),
 
-    Setting("onboarding_phases", "orient,reconcile,define,survey,boundaries",
-            "Which understanding phases an onboarding runs, in order: orient "
+    Setting("onboarding_phases",
+            "frame,orient,reconcile,define,survey,boundaries",
+            "Which understanding phases an onboarding runs, in order: frame "
+            "(Architect judges the partition -- program, attached, ignore, "
+            "boundary -- before anything reads it), orient "
             "(Vision Keeper, the whole program, from code alone), reconcile "
             "(Vision Keeper, the README read against the account, differences "
             "to the ledger), define "

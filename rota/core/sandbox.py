@@ -72,6 +72,11 @@ ENUMS: dict[str, tuple[str, ...]] = {
 # rule guarding a door nobody can walk through, which is how the duplicate got
 # in unnoticed in the first place.
 ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
+    # The frame's kinds are not the backlog's: a classification of the tree,
+    # not an item's scope.
+    ("frame", "assign"): {"kind": ("program", "attached", "attach",
+                                   "ignore", "ignored", "boundary",
+                                   "surface")},
     ("findings", "find"): {"status": ("satisfied", "violated")},
 }
 

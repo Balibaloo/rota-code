@@ -130,6 +130,27 @@
 # Both `tick_unseedable`: the program and its lexicon come from onboarding a
 # checkout, which fixture rows cannot produce.
 
+- id: L1-AR-judge-the-frame
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: frame
+  # The frame wake exists the moment an index does; the tree it judges
+  # comes from onboarding a real checkout.
+  tick_unseedable: the tree comes from repo onboarding
+  refs: ["@frame"]
+  repo:
+    onboard: true
+  expect:
+    # The judgement is the attest; assignments are welcome but a
+    # conventionally-shaped sample repo may honestly attest none_found
+    # with every prior standing.
+    writes:
+      survey_records: {count: 1}
+  forbidden:
+    writes: [glossary_terms, items, constraints, model_areas]
+
 - id: L1-VK-orient-the-program
   tier: T1
   role: vision_keeper

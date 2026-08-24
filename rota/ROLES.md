@@ -21,7 +21,7 @@ below matches the graph, so this drifts loudly rather than quietly.
 
 ## Ownership, and the three exceptions
 
-Law 1 is single-writer, and thirteen artefacts have exactly one:
+Law 1 is single-writer, and fourteen artefacts have exactly one:
 
 | artefact | owner | | artefact | owner |
 |---|---|---|---|---|
@@ -31,7 +31,7 @@ Law 1 is single-writer, and thirteen artefacts have exactly one:
 | `criteria` | terminologist | | `code` | developer |
 | `brief` | liaison | | `tests` | tester |
 | `transcript` | liaison | | `verdicts` | critic |
-| `references` | researcher | | | |
+| `references` | researcher | | `frame` | architect |
 
 Four are shared, by ruling rather than by accident:
 
@@ -143,7 +143,7 @@ passing it to Liaison spends a rung of the ladder and answers nobody.
 **Reaches** developer (answer), vision_keeper (challenge, propose), liaison
 (answer, report), researcher (question), terminologist (question).
 
-**Woken by** annotate, boundary, grouping, structural_review.
+**Woken by** annotate, boundary, frame, grouping, structural_review.
 
 ## developer
 
