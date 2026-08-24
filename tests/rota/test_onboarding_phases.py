@@ -1503,6 +1503,11 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
                      "'frame_rulings'").fetchone()
     assert led and "docs" in led["default_taken"]
 
+    again = sb.call("frame.assign", path="docs", kind="program",
+                    reason="the docs are the product")
+    assert "already assigned" in again["note"], "the re-send loop breaks here"
+    assert sum(1 for w in sb.ctx.writes if w[0] == "frame_rulings") == 1
+
     with pytest.raises(Exception, match="manifest"):
         sb.call("frame.assign", path="manifest.json", kind="attached")
     db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
@@ -1548,3 +1553,27 @@ def test_the_repin_fires_once_after_the_frame_record(tmp_path):
     assert "docs" not in areas, "the ruled frame applied"
     flag = db.execute("SELECT value FROM config WHERE key = 'frame_repinned'").fetchone()
     assert flag["value"] == "1"
+
+
+def test_reorient_runs_after_survey_and_before_boundaries(tmp_path):
+    """The fixpoint iteration sits where it helps the most expensive
+    consumers: after the surveys, before the boundary sessions read the
+    account. No glossary, no wake -- there is nothing to revise with."""
+    from rota.core.scheduler import REORIENT, tick_reorient
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    config.set(db, "onboarding_phases", "reorient,boundaries")
+    _oriented(db)
+
+    assert tick_reorient(db) == [], "an empty glossary leaves nothing to revise"
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1', 'parser', 'converts schema entries', 'observed')")
+    wakes = tick_reorient(db)
+    assert [(w.role, w.refs) for w in wakes] == [("vision_keeper", (REORIENT,))]
+    assert onboarding_phase(db) == "reorient"
+
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "('vision_keeper:@reorient', '@reorient', 'found')")
+    assert tick_reorient(db) == []
+    assert onboarding_phase(db) == "boundaries"

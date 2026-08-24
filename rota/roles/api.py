@@ -3813,6 +3813,12 @@ def code_tree(ctx: Ctx) -> dict:
     tops: dict[str, list[str]] = {}
     for rel in paths:
         top = rel.split("/", 1)[0]
+        # A root dot-file's classification changes nothing -- .editorconfig
+        # is one file wherever it files -- and each one costs an assignment
+        # the attest needs the room for. Dot-directories stay: .github is a
+        # real call.
+        if "/" not in rel and top.startswith("."):
+            continue
         tops.setdefault(top, []).append(rel)
 
     def prior(top: str, members: list[str]) -> str:
@@ -3909,6 +3915,13 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
     if ruled and ruled["provenance"] == "decided":
         raise ValueError(f"{path} carries a principal's ruling, which "
                          f"outranks the judge; it stands")
+    # Re-sending the whole classification is the loop this session dies in
+    # -- measured: three identical turns, no attest, three sessions. A
+    # repeated assignment succeeds by pointing at the act that remains.
+    if any(t == "frame_rulings" and i == path for t, i, *_ in ctx.writes):
+        return {"id": path, "note": "already assigned this session. What "
+                "remains is the ending: surveys.attest(outcome=\"found\", "
+                "citations=[the entries you classified])."}
 
     ctx.writes.append(("frame_rulings", path,
                        {"kind": k, "provenance": "observed",

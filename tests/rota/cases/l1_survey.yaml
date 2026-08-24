@@ -151,6 +151,37 @@
   forbidden:
     writes: [glossary_terms, items, constraints, model_areas]
 
+- id: L1-VK-reorient-the-account
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 3
+  tick: reorient
+  tick_unseedable: needs an oriented, defined, surveyed repository state
+  refs: ["@reorient"]
+  repo:
+    onboard: true
+  fixture:
+    survey_records:
+      - {id: "architect:@frame", area: "@frame", outcome: none_found}
+      - {id: "vision_keeper:@program", area: "@program", outcome: found}
+    items:
+      - {id: how_it_works, kind: in_scope, provenance: observed,
+         text: "The program manages billing data and does various things with accounts."}
+    glossary_terms:
+      - {id: g1, term: invoice, provenance: observed,
+         sense_short: "a charge issued against a billing account"}
+      - {id: g2, term: account, provenance: observed,
+         sense_short: "the billing entity that owes money"}
+  expect:
+    # The vague draft item and the precise glossary are the setup; revising
+    # is welcome, but the honest none_found also passes. The record is the
+    # requirement.
+    writes:
+      survey_records: {count: 1}
+  forbidden:
+    writes: [glossary_terms, constraints, model_areas]
+
 - id: L1-VK-orient-the-program
   tier: T1
   role: vision_keeper

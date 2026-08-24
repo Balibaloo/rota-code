@@ -10,6 +10,8 @@
   :root{--bg:#0e1014;--panel:#161a21;--line:#262c36;
         --sunk:#11151b;      /* recessed: content you read inside something */
         --raise:#1c222c;     /* raised: a band you can click */
+        --hair:#1d222b;      /* hairline inside a surface; --line separates surfaces */
+        --on:#18202e;        /* the one background an active control wears */
         --ink:#e6e9ef;       /* content */
         --label:#b9c2d0;     /* a heading you read */
         --dim:#8b94a3;       /* supporting */
@@ -21,14 +23,14 @@
   header{display:flex;align-items:center;gap:14px;padding:9px 16px;
          border-bottom:1px solid var(--line);height:46px}
   h1{font-size:13px;margin:0;letter-spacing:.09em;text-transform:uppercase}
-  .state{padding:2px 10px;border-radius:999px;font-weight:600}
+  .state{padding:2px 10px;border-radius:3px;font-weight:600}
   .state.idle{background:#1d2a20;color:var(--ok)}
   .state.busy{background:#2a2418;color:var(--warn)}
   .state.stuck{background:#2d1c1a;color:var(--stop)}
   nav{margin-left:auto;display:flex;gap:4px}
   .tab,button,select{background:transparent;border:1px solid var(--line);color:var(--dim);
-       padding:3px 11px;border-radius:5px;cursor:pointer;font:inherit}
-  .tab.on{color:var(--ink);border-color:var(--accent);background:#18202e}
+       padding:3px 11px;border-radius:3px;cursor:pointer;font:inherit}
+  .tab.on{color:var(--ink);border-color:var(--accent);background:var(--on)}
   select{color:var(--ink)}
   main{position:absolute;top:46px;bottom:0;left:0;right:0;display:none}
   main.on{display:block}
@@ -40,7 +42,7 @@
   #gsvg:active{cursor:grabbing}
   #gctl{position:absolute;top:10px;left:12px;display:flex;gap:6px;align-items:center;
         /* the settings popover hangs from here */
-        background:rgba(255,255,255,.94);padding:6px 8px;border-radius:7px;
+        background:rgba(255,255,255,.94);padding:6px 8px;border-radius:4px;
         border:1px solid #cbd5e1;z-index:2;color:#334155;
         box-shadow:0 1px 3px rgba(15,23,42,.08)}
   #gctl button,#gctl select{border-color:#cbd5e1;color:#475569}
@@ -48,7 +50,7 @@
     text-align:left;font-size:12px}
   #gprefs .prow{display:block;padding:2px 0 8px}
   #gprefs button{margin-right:4px;font-size:11px}
-  #gprefs button.on{color:var(--ink);border-color:var(--accent);background:#18202e}
+  #gprefs button.on{color:var(--ink);border-color:var(--accent);background:var(--on)}
   #gprefs .sig{display:block;margin:0 0 10px;font-size:11px;line-height:1.45}
   /* The fold threshold. A live readout of the current zoom sits beside it,
      because a number like 0.62x means nothing until you can see where you are
@@ -61,11 +63,51 @@
   #gfarnote b{color:var(--ink);font-weight:600}
   #gctl button.on{background:#e0ecfb;border-color:#3b6ea5;color:#12325a}
   #gctl .sep{background:#cbd5e1}
-  /* Top left, under the controls: the key is read before the picture, not
-     after it, so it belongs where the eye starts rather than in the corner
-     it ends up in. */
-  #glegend{position:absolute;left:12px;top:56px;background:rgba(255,255,255,.95);
-        border:1px solid #cbd5e1;border-radius:7px;padding:8px 10px;z-index:2;
+  /* Control captions. Two selects side by side are two anonymous dropdowns;
+     a word in front of each is what makes them different controls. */
+  #gctl .cap{color:#94a3b8;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase}
+  button:disabled{opacity:.4;cursor:default}
+  /* Dropdowns, hand-rolled like the graph: a native select cannot carry a
+     delete button on a row or an action row at the bottom, and the moment one
+     list needs those, every list changes species so the chrome stays one
+     thing. Light by default (they live on the toolbar); the sidebar variant
+     re-tones them for the dark panel. */
+  .dd{position:relative;display:inline-block}
+  .dd>.ddbtn{display:flex;align-items:center;gap:7px;max-width:220px}
+  .dd .ddcur{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dd .ddcaret{font-size:9px;opacity:.7}
+  .dd .ddmenu{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;
+      background:#fff;border:1px solid #cbd5e1;border-radius:4px;padding:4px;
+      box-shadow:0 6px 20px rgba(15,23,42,.18);z-index:30;display:none;
+      max-height:60vh;overflow:auto}
+  .dd.open .ddmenu{display:block}
+  .ddrow{display:flex;align-items:center;gap:8px;padding:4px 9px;border-radius:2px;
+      cursor:pointer;color:#334155;font-size:12px;white-space:nowrap}
+  .ddrow:hover{background:#eef4fb}
+  .ddrow.on{background:#e0ecfb;color:#12325a}
+  .ddrow .ddx{margin-left:auto;padding:0 4px;border-radius:2px;color:#94a3b8}
+  .ddrow .ddx:hover{background:#fbe3e0;color:#b91c1c}
+  .ddrow.ddact{color:#3b6ea5;border-top:1px solid #e2e8f0;border-radius:0;
+      margin-top:4px;padding-top:7px}
+  .ddgrp{font-size:9.5px;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;
+      padding:5px 9px 2px}
+  #gpanel .dd{display:block}
+  #gpanel .ddbtn{width:100%;max-width:none;justify-content:space-between}
+  /* Dark-chrome variant, shared by the sidebar and the header: same control,
+     retoned for the surface it sits on. */
+  #gpanel .ddbtn,header .ddbtn{color:var(--ink)}
+  #gpanel .ddmenu,header .ddmenu{background:var(--panel);border-color:var(--line);
+      box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  #gpanel .ddmenu{right:0}
+  #gpanel .ddrow,header .ddrow{color:var(--dim)}
+  #gpanel .ddrow:hover,header .ddrow:hover{background:var(--raise);color:var(--ink)}
+  #gpanel .ddrow.on,header .ddrow.on{background:var(--on);color:var(--accent)}
+  header .ddbtn{font-size:12px;padding:2px 9px}
+  /* Bottom left, like a map's key: the top edge belongs to the controls and
+     to the canvas they act on, and the key is a reference you glance back at,
+     not a heading you read first. */
+  #glegend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.95);
+        border:1px solid #cbd5e1;border-radius:4px;padding:8px 10px;z-index:2;
         color:#475569;font-size:11px;display:flex;gap:16px;
         box-shadow:0 1px 3px rgba(15,23,42,.08)}
   #glegend .lgrp{display:flex;flex-direction:column;gap:2px}
@@ -74,14 +116,14 @@
   #glegend .lkey{display:flex;align-items:center;gap:6px;cursor:help;
         padding:1px 4px;margin:0 -4px;border-radius:4px}
   #glegend .lkey:hover{background:#e8eef6;color:#1e293b}
-  #glegend .ring{width:10px;height:10px;border-radius:3px;border:2px solid;display:block}
+  #glegend .ring{width:10px;height:10px;border-radius:2px;border:2px solid;display:block}
   /* One line, under the key, explaining whatever is hovered. Reserved rather
      than inserted, so the key does not jump as the pointer moves across it. */
   #lwhat{margin-top:7px;padding-top:6px;border-top:1px solid #e2e8f0;
         color:#64748b;font-size:10.5px;min-height:14px;max-width:430px;
         font-style:italic}
   .pop{position:absolute;top:52px;background:var(--panel);border:1px solid var(--line);
-       border-radius:7px;padding:10px 12px;z-index:20;min-width:280px;max-width:520px;
+       border-radius:4px;padding:10px 12px;z-index:20;min-width:280px;max-width:520px;
        max-height:70vh;overflow:auto;
        box-shadow:0 6px 20px rgba(0,0,0,.45);display:none}
   .pop.on{display:block}
@@ -89,7 +131,7 @@
           color:var(--dim)}
   .pop h4:not(:first-child){margin-top:11px}
   .pop .prow{display:flex;justify-content:space-between;gap:14px;padding:2px 0;
-             border-bottom:1px solid #1d222b}
+             border-bottom:1px solid var(--hair)}
   .pop .prow:last-child{border-bottom:0}
   .pop .prow em{color:var(--dim);font-style:normal}
   .pop .pnone{color:var(--idle)}
@@ -104,16 +146,29 @@
     background:var(--panel)}
   #ptabs button{font-size:11px;color:var(--dim)}
   #ptabs button:hover{color:var(--label)}
-  #ptabs button.on{color:var(--accent);border-color:var(--accent);background:#18202e}
+  #ptabs button.on{color:var(--accent);border-color:var(--accent);background:var(--on)}
+  #pcollapse{margin-left:auto;color:var(--dim)}
+  /* Collapsed: a rail, not an absence. The panel starts closed so the canvas
+     gets the whole width until something is asked of the inspector — and the
+     rail stays visible so there is a thing to open, labelled with what it is. */
+  #prail{display:none}
+  #gpanel.closed{cursor:pointer}
+  #gpanel.closed #pscroll{display:none}
+  #gpanel.closed #ptabs{flex-direction:column;align-items:center;gap:8px;
+    border-bottom:0;padding:8px 3px;height:100%}
+  #gpanel.closed #ptabs [data-ptab]{display:none}
+  #gpanel.closed #pcollapse{margin-left:0;padding:3px 6px}
+  #gpanel.closed #prail{display:block;writing-mode:vertical-rl;color:var(--dim);
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;margin-top:4px}
   #pscroll{overflow:auto;flex:1}
   .pacts{margin-top:6px}
   .grp{border-top:1px solid var(--line)}
   .grphead{padding:7px 14px;font-size:10px;letter-spacing:.14em;
            color:var(--label);background:var(--raise);font-weight:600;
            text-transform:uppercase}
-  .note{padding:10px 14px;color:var(--dim);border-bottom:1px solid #1d222b}
+  .note{padding:10px 14px;color:var(--dim);border-bottom:1px solid var(--hair)}
   .sub{margin-top:3px;font-size:11px}
-  .row{padding:5px 0;border-bottom:1px solid #1d222b}
+  .row{padding:5px 0;border-bottom:1px solid var(--hair)}
   .tw{overflow:auto;max-height:340px}
   /* A clickable row has to look clickable, or the path exists and nobody finds
      it -- which is the state the whole panel is fixing. */
@@ -121,8 +176,8 @@
   tr.prov:hover td{background:var(--hl,rgba(127,127,127,.18))}
   pre.brief{white-space:pre-wrap;word-break:break-word;max-height:340px;
             overflow:auto;margin:0;font-size:11px;line-height:1.45}
-  .step{padding:7px 10px;border-bottom:1px solid #1d222b;cursor:pointer}
-  .step.on{background:#18202e;border-left:2px solid var(--accent)}
+  .step{padding:7px 10px;border-bottom:1px solid var(--hair);cursor:pointer}
+  .step.on{background:var(--on);border-left:2px solid var(--accent)}
   .step:hover{background:#161d28}
   .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
   /* Fills come from the renderer's palette, not from here — these carry type
@@ -134,7 +189,6 @@
   .phead{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
          background:var(--panel);z-index:1}
   .phead h2{margin:0;font-size:15px;text-transform:none;letter-spacing:0;padding:0;border:0}
-  .sec{border-bottom:1px solid #1d222b}
   /* A fold is a control, not a colour statement. Marker carries "expandable";
      the raised band carries "clickable"; the body recedes because it is the
      thing you opened it to read. */
@@ -152,10 +206,10 @@
      color:var(--dim);border-bottom:1px solid var(--line)}
   table{width:100%;border-collapse:collapse;font-size:12px}
   td,th{text-align:left;padding:3px 8px 3px 0;vertical-align:top;
-        border-bottom:1px solid #1d222b;max-width:230px;overflow-wrap:anywhere}
+        border-bottom:1px solid var(--hair);max-width:230px;overflow-wrap:anywhere}
   th{color:var(--dim);font-weight:500;position:sticky;top:0;background:var(--panel)}
   pre{white-space:pre-wrap;margin:6px 0;background:var(--sunk);padding:9px;
-      border-radius:5px;border:1px solid var(--line);color:var(--dim);
+      border-radius:3px;border:1px solid var(--line);color:var(--dim);
       font-size:12px;max-height:340px;overflow:auto}
   .sig{color:var(--dim)}.pass{color:var(--ok)}.fail{color:var(--stop)}
   .muted{color:var(--dim)}.empty{color:var(--idle);font-style:italic}
@@ -179,13 +233,16 @@
   .gnode,.gedge{cursor:pointer}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;
         padding:12px;overflow:auto;height:100%}
-  section{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:show}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
   section>.body{padding:8px 12px 12px;max-height:330px;overflow:auto}
+  /* Progress sections scroll the page, not themselves: they are read top to
+     bottom, and a scrollbar inside a scrollbar is two positions to lose. */
+  section>.body.tall{max-height:none}
   .counts{display:flex;flex-wrap:wrap;gap:6px}
-  .counts span{background:#1a1f28;border-radius:4px;padding:2px 8px}
+  .counts span{background:#1a1f28;border-radius:2px;padding:2px 8px}
   .counts b{color:var(--accent)}
   .barwrap{display:flex;align-items:center;gap:10px;margin:4px 0}
-  .bar{flex:1;height:9px;background:#1d222b;border-radius:3px;overflow:hidden}
+  .bar{flex:1;height:9px;background:var(--hair);border-radius:2px;overflow:hidden}
   .bar i{display:block;height:100%;background:var(--ok)}
   .bar i.part{background:var(--accent)}
   #progress h4{color:var(--dim);font-weight:500;font-size:12px;
@@ -230,13 +287,17 @@
   #pbody h4:first-child{border-top:0}
   #pbody>div.row,#pbody>p{padding-left:14px;padding-right:14px}
   #pbody pre{margin:4px 14px}
-  .tag{font-size:11px;padding:1px 6px;border-radius:9px;border:1px solid var(--line)}
+  .tag{font-size:11px;padding:1px 6px;border-radius:3px;border:1px solid var(--line)}
   .tag.req{color:var(--ok);border-color:var(--ok)}
   .tag.forb{color:var(--stop);border-color:var(--stop)}
 </style>
 
 <header>
   <h1>rota</h1>
+  <!-- Which run this cockpit is about, and the door to its siblings. Beside
+       the title because the run is part of the cockpit's identity: every
+       number on the page is a claim about this database and no other. -->
+  <div class="dd" id="rundb"></div>
   <span id="state" class="state idle hoverable">…</span>
   <span class="muted hoverable" id="tick"></span>
   <div class="pop" id="pop-state"></div>
@@ -259,10 +320,15 @@
     <div id="phandle"></div>
     <div id="gpanel">
       <div id="ptabs">
+        <!-- "steps", not "story": the tab is the stepper for the story *and*
+             run lenses, and naming it after one of them made it read as a
+             third thing beside the lens select that says "story" too. -->
         <button data-ptab="detail" class="on">detail</button>
-        <button data-ptab="story">story</button>
+        <button data-ptab="story">steps</button>
         <button data-ptab="cases">cases</button>
         <button data-ptab="coverage">coverage</button>
+        <button id="pcollapse" title="collapse the panel">&raquo;</button>
+        <span id="prail">inspector</span>
       </div>
       <div id="pscroll">
         <div id="pdetail">
@@ -294,13 +360,13 @@
 
 <main id="progress"><div class="grid">
   <section style="grid-column:1/-1"><h2>Milestone</h2>
-    <div class="body" id="pg-milestone" style="max-height:none"></div></section>
+    <div class="body tall" id="pg-milestone"></div></section>
   <section><h2>Coverage — what has a case</h2>
-    <div class="body" id="pg-coverage" style="max-height:none"></div></section>
+    <div class="body tall" id="pg-coverage"></div></section>
   <section><h2>Onboarding</h2>
-    <div class="body" id="pg-onboarding" style="max-height:none"></div></section>
+    <div class="body tall" id="pg-onboarding"></div></section>
   <section style="grid-column:1/-1"><h2>L1 — against a real model</h2>
-    <div class="body" id="pg-l1" style="max-height:none"></div></section>
+    <div class="body tall" id="pg-l1"></div></section>
 </div></main>
 
 <script src="/graphview.js"></script>

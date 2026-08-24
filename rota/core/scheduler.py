@@ -291,8 +291,10 @@ PROGRAM = "@program"
 PROSE = "@prose"
 TERM_PREFIX = "@term:"
 FRAME = "@frame"
+REORIENT = "@reorient"
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
-                    "tick:define", "tick:survey", "tick:boundary")
+                    "tick:define", "tick:survey", "tick:reorient",
+                    "tick:boundary")
 
 
 def is_area(subject: str | None) -> bool:
@@ -570,6 +572,8 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
         return "define"
     if "survey" in phases and _survey_wakes(conn):
         return "survey"
+    if "reorient" in phases and _reorient_wakes(conn):
+        return "reorient"
     if "boundaries" in phases and _boundary_wakes(conn):
         return "boundaries"
     return "done"
@@ -721,6 +725,35 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     return [Wake("liaison", "tick:agenda", detail=f"ledger={open_ledger}")]
 
 
+def _reorient_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    The account has not been re-read with the vocabulary in hand.
+
+    The bootstrap runs feedforward, so the draft account -- written cold,
+    before a single word was defined -- seeds every later phase and is never
+    revisited. One session closes the loop: the Vision Keeper re-reads its
+    own items with the glossary and the model in front of it, after the
+    surveys and before the boundary sessions consume the account. Skipped
+    when there was no orientation to revise or no vocabulary to revise it
+    with.
+    """
+    if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (PROGRAM,)).fetchone():
+        return []
+    if not conn.execute("SELECT 1 FROM glossary_terms LIMIT 1").fetchone():
+        return []
+    if REORIENT in _abandoned(conn, "tick:reorient"):
+        return []
+    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (REORIENT,)).fetchone()
+    return [] if done else [Wake("vision_keeper", "tick:reorient",
+                                 refs=(REORIENT,))]
+
+
+def tick_reorient(conn: sqlite3.Connection) -> list[Wake]:
+    return _reorient_wakes(conn) if onboarding_phase(conn) == "reorient" else []
+
+
 def boundary_subjects(conn: sqlite3.Connection) -> list[str]:
     """
     The files an outside party touches, mechanically enumerated.
@@ -794,6 +827,7 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_reconcile,
     tick_define,
     tick_survey,
+    tick_reorient,
     tick_boundary,
 )
 

@@ -9,11 +9,20 @@
 // Styling keys off node *properties* rather than ids, so when the vocabulary
 // work reclassifies things the visual language already covers it.
 
+// One object owns every piece of graph state, and each piece has one writer:
+// the lens changes only through `setLens`, the mode only through `gvMode`, the
+// layout only through `applyLayout`. The tabs used to feel "overlapping"
+// because four call sites each set `source` directly and each remembered a
+// different subset of the cleanup — the case option stayed in the dropdown,
+// the cascade overlay outlived the panel that explained it, and picking any
+// lens threw you onto the story subtab whether or not it applied.
 const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             mode:'team', source:'design', storyIx:0, stepIx:0,
             focus:null, inhabit:null, blast:null, keyhl:null,
+            caseId:null, caseEdges:null, caseSituation:null,
+            layouts:['main'], wired:false,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false,
-            settings:{collapse:'auto', labels:'auto', far:0.62}};
+            settings:{collapse:'auto', labels:'auto', far:0.62, layout:'main'}};
 
 try {
   Object.assign(GV.settings, JSON.parse(localStorage.getItem('rota.gv') || '{}'));
@@ -165,7 +174,7 @@ const STATE = {
 
 const SHAPE = {
   principal:  {w:140, h:52, rx:26, fill:'#fdf1dc', stroke:'#b45309', dash:'', ink:'#7c2d12'},
-  role:    {w:152, h:50, rx:10, fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
+  role:    {w:152, h:50, rx:6,  fill:'#ffffff', stroke:'#3b6ea5', dash:'', ink:'#132a44'},
   record:  {w:152, h:42, rx:4,  fill:'#e4f3e8', stroke:'#2f855a', dash:'', ink:'#14532d'},
   journal: {w:152, h:42, rx:4,  fill:'#eef7f0', stroke:'#4b9e74', dash:'4 3', ink:'#166534'},
   derived: {w:152, h:42, rx:4,  fill:'#f1f5f2', stroke:'#94a3a0', dash:'2 4', ink:'#475569'},
@@ -294,15 +303,40 @@ function computeSpread() {
 }
 
 async function gvLoad() {
-  const [g,l,st,tr,ms] = await Promise.all([
+  const [g,l,st,tr,ms,ly] = await Promise.all([
     fetch('/graph.json').then(r=>r.json()),
     fetch('/layout.json').then(r=>r.json()),
     fetch('/stories.json').then(r=>r.json()),
     fetch('/trace.json').then(r=>r.json()),
     fetch('/messages.json').then(r=>r.json()),
+    // Older server, same page: a viewer that refuses to draw because a listing
+    // endpoint is missing has made the new feature a regression. `null` marks
+    // the server as predating named layouts, and saving under a name is then
+    // refused outright — the old POST handler ignores the name and would
+    // quietly overwrite main with whatever was on screen.
+    fetch('/layouts.json').then(r=>r.ok?r.json():null).catch(()=>null),
   ]);
   GV.graph=g; GV.layout=l; GV.stories=st; GV.trace=tr; GV.msgs=ms;
-  computeSpread(); gvControls(); gvFit(); gvDraw(); buildStoryTab();
+  GV.layoutApi = !!ly;
+  GV.layouts = (ly && ly.names && ly.names.length) ? ly.names : ['main'];
+
+  // The layout you were on survives the fingerprint reload, like the tab does.
+  // A generated one is regenerated; a saved one is fetched; a name that no
+  // longer exists falls back to main rather than to a blank canvas.
+  const want = GV.settings.layout || 'main';
+  if (AUTO_LAYOUTS[want]) GV.layout = AUTO_LAYOUTS[want]();
+  else if (want !== 'main') {
+    if (GV.layouts.includes(want)) {
+      try { GV.layout = await (await fetch(
+        `/layout.json?name=${encodeURIComponent(want)}`)).json(); }
+      catch { GV.settings.layout = 'main'; }
+    } else GV.settings.layout = 'main';
+  }
+  GV.layout = placeStrays(GV.layout);
+  computeSpread(); gvControls(); gvWireStage(); gvFit(); gvDraw(); buildStoryTab();
+  // The address bar names a view; honoured only once everything it can name
+  // (graph, layout, cases) is loadable.
+  if (typeof applyHash === 'function') applyHash();
 }
 
 const gvSteps = () =>
@@ -731,6 +765,9 @@ function gvDrawInner() {
   gvNarrate();
 }
 
+// The status slot names every piece of state that is currently shaping the
+// picture, each with its release beside it. State you can turn on but cannot
+// see is how the cascade overlay came to outlive the panel that explained it.
 function gvNarrate() {
   const box=document.getElementById('gstatus');
   if (!box) return;
@@ -740,27 +777,31 @@ function gvNarrate() {
       Object.keys(m.threads).length} threads · ${m.open.length} open`;
     return;
   }
+  const parts=[];
   if (GV.inhabit) {
-    box.innerHTML = `showing only what <b>${esc(GV.inhabit)}</b> can reach ·
-      <span class="link" onclick="gvInhabit(null)">release</span>`;
-    return;
-  }
-  if (GV.source==='design') {
+    parts.push(`showing only what <b>${esc(GV.inhabit)}</b> can reach ·
+      <span class="link" onclick="gvInhabit(null)">release</span>`);
+  } else if (GV.source==='design') {
     const g=GV.graph;
-    box.textContent = `${g.nodes.length} nodes · ${g.edges.length} edges · `
-      + `no lens — pick one above, or open a case`;
-    return;
-  }
-  if (GV.source==='coverage') {
+    parts.push(`${g.nodes.length} nodes · ${g.edges.length} edges · `
+      + `no lens — pick one above, or open a case`);
+  } else if (GV.source==='coverage') {
     const c=GV.trace.coverage;
-    box.textContent = `${c.covered.length}/${c.covered.length+c.missing.length}
-      edges covered · red has no test`;
-    return;
+    parts.push(`${c.covered.length}/${c.covered.length+c.missing.length}
+      edges covered · red has no test`);
+  } else if (GV.source==='case') {
+    parts.push(GV.caseId
+      ? `case <b>${esc(GV.caseId)}</b> — click a node for what the case put there`
+      : `no case open — pick one in the cases tab`);
+  } else {
+    const steps=gvSteps();
+    parts.push(steps.length
+      ? `step ${GV.stepIx+1}/${steps.length} — narration in the steps tab`
+      : 'no steps yet');
   }
-  const steps=gvSteps();
-  box.textContent = steps.length
-    ? `step ${GV.stepIx+1}/${steps.length} — narration in the story tab`
-    : 'no steps yet';
+  if (GV.blast) parts.push(`cascade from <b>${esc(GV.blast.root||'')}</b> ·
+      <span class="link" onclick="GV.blast=null;gvDraw()">clear</span>`);
+  box.innerHTML = parts.join(' · ');
 }
 
 // ---------------------------------------------------------------------------
@@ -1003,12 +1044,44 @@ function gvGoto(id) {
   showNode(id);
 }
 
-function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);}
+function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);
+  if (typeof syncHash==='function') syncHash();}
 function gvInhabit(id){GV.inhabit = GV.inhabit===id?null:id; GV.focus=null; gvDraw();
-  if(GV.inhabit) showNode(id);}
-function gvMode(m){GV.mode=m; GV.focus=null; GV.inhabit=null; gvFit(); gvDraw();
-  document.querySelectorAll('[data-gmode]').forEach(b=>
-    b.classList.toggle('on', b.dataset.gmode===m));}
+  if(GV.inhabit) showNode(id);
+  if (typeof syncHash==='function') syncHash();}
+function gvMode(m){GV.mode=m; GV.focus=null; GV.inhabit=null;
+  // The toolbar and the key both change shape with the mode, so both rebuild
+  // here rather than being patched — patching is how the lens select stayed
+  // visible over a chat graph it could not affect.
+  gvControls(); gvLegend(); gvFit(); gvDraw();}
+
+// The one door for the lens. Four call sites used to set `GV.source` directly
+// and each remembered a different subset of the cleanup: the injected case
+// option outlived its case, the cascade overlay outlived its panel, and every
+// lens change threw you onto the story subtab whether it applied or not.
+function setLens(src){
+  const wasCase = GV.source === 'case';
+  GV.source = src;
+  GV.stepIx = 0;
+  // A cascade overlay is an answer to a question asked under the old lens.
+  GV.blast = null;
+  if (wasCase && src !== 'case') {
+    GV.caseId = null; GV.caseEdges = null; GV.caseSituation = null;
+    if (typeof caseListSync === 'function') caseListSync();
+  }
+  // A lens is a claim about the team picture; picking one in chat means
+  // "show me the team picture under it".
+  if (GV.mode === 'chat') gvMode('team');
+  else { gvControls(); gvLegend(); gvDraw(); }
+  // A lens with a home subtab opens it: story and run live in the stepper,
+  // coverage's numbers live in its tab. Design and case force nothing.
+  if (typeof showTab === 'function') {
+    if (src === 'story' || src === 'run') showTab('story');
+    else if (src === 'coverage') showTab('coverage');
+    else if (typeof syncStoryTab === 'function') syncStoryTab();
+  }
+  if (typeof syncHash === 'function') syncHash();
+}
 
 function gvFit(){
   const pts = GV.mode==='chat' ? Object.values(chatLayout()) : Object.values(GV.layout);
@@ -1020,9 +1093,183 @@ function gvFit(){
            y:(stage.clientHeight-h*k)/2-(Math.min(...ys)-110)*k};
 }
 
+// ---------------------------------------------------------------- layouts
+// More than one arrangement of the same graph, because more than one question
+// is asked of it: the hand-tended map for daily reading, a layered flow when
+// you want "how far from the principal is this", a grid by kind when you want
+// the inventory, a force pass to untangle a layout you have half-dragged.
+//
+// Two kinds, deliberately distinct. A *saved* layout is a file the server
+// keeps (`layout.json` for main, `layouts/<name>.json` for the rest). A
+// *generated* one is computed here from the graph and owns no file — drag it
+// into shape and "save layout" asks for a name, which is the moment it stops
+// being generated and starts being yours.
+
+// A layout that omits a node used to make the node silently vanish from the
+// canvas — indistinguishable from the node not existing, which is the worst
+// thing a picture of the design can claim. Strays get parked in rows under
+// the drawing instead: visibly unplaced, waiting to be dragged home.
+function placeStrays(pos) {
+  const out = {};
+  for (const [id, p] of Object.entries(pos || {})) out[id] = {x:p.x, y:p.y};
+  const placed = GV.graph.nodes.filter(n => out[n.id]);
+  const strays = GV.graph.nodes.filter(n => !out[n.id]);
+  if (!strays.length) return out;
+  const x0 = placed.length ? Math.min(...placed.map(n => out[n.id].x)) : 0;
+  const y0 = placed.length ? Math.max(...placed.map(n => out[n.id].y)) + 180 : 0;
+  strays.forEach((n, i) => {
+    out[n.id] = {x: x0 + (i % 5) * 200, y: y0 + Math.floor(i / 5) * 90};
+  });
+  return out;
+}
+
+// Columns by kind, alphabetical within each: the inventory view. It answers
+// "what records exist" faster than any arrangement optimised for edges can.
+function autoGrid() {
+  const order = ['principal', 'role', 'record', 'journal', 'derived'];
+  const buckets = {};
+  for (const n of GV.graph.nodes) (buckets[kindOf(n)] ||= []).push(n);
+  const pos = {};
+  let col = 0;
+  for (const kind of order) {
+    const list = buckets[kind];
+    if (!list) continue;
+    list.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    list.forEach((n, i) =>
+      pos[n.id] = {x: col * 420, y: (i - (list.length - 1) / 2) * 110});
+    col++;
+  }
+  return pos;
+}
+
+// Layered by distance from the principal, breadth-first over everything but
+// refs: column = how many relationships stand between them and the person.
+// Within a column, each node sits at the average height of its neighbours in
+// the column before — one barycentre sweep, which is most of what a proper
+// layered layout buys at none of the cost.
+function autoFlow() {
+  const root = (GV.graph.nodes.find(n => n.type === 'principal')
+                || GV.graph.nodes[0]).id;
+  const adj = {};
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') continue;
+    (adj[e.s] ||= new Set()).add(e.t);
+    (adj[e.t] ||= new Set()).add(e.s);
+  }
+  const col = {[root]: 0};
+  const q = [root];
+  while (q.length) {
+    const v = q.shift();
+    for (const w of adj[v] || [])
+      if (!(w in col)) { col[w] = col[v] + 1; q.push(w); }
+  }
+  // Reached by nothing but refs, or by nothing at all: one column past the end,
+  // where being unreachable is what the position says.
+  let far = Math.max(0, ...Object.values(col)) + 1;
+  for (const n of GV.graph.nodes) if (!(n.id in col)) col[n.id] = far;
+
+  const byCol = {};
+  for (const n of GV.graph.nodes) (byCol[col[n.id]] ||= []).push(n);
+  const pos = {};
+  for (const c of Object.keys(byCol).map(Number).sort((a, b) => a - b)) {
+    const list = byCol[c];
+    const pull = n => {
+      const prev = [...(adj[n.id] || [])].filter(o => col[o] === c - 1 && pos[o]);
+      return prev.length ? prev.reduce((s, o) => s + pos[o].y, 0) / prev.length : 0;
+    };
+    list.sort((a, b) => pull(a) - pull(b)
+                        || String(a.label).localeCompare(String(b.label)));
+    list.forEach((n, i) =>
+      pos[n.id] = {x: c * 470, y: (i - (list.length - 1) / 2) * 130});
+  }
+  return pos;
+}
+
+// Fruchterman–Reingold, seeded from wherever the nodes are now — so it is a
+// tidy-up of the current arrangement, not a lottery. No randomness anywhere:
+// coincident nodes get a jitter derived from their indices, and the same
+// input always settles to the same picture.
+function autoForce() {
+  const ids = GV.graph.nodes.map(n => n.id);
+  const seed = Object.keys(GV.layout || {}).length ? GV.layout : autoGrid();
+  const grid = autoGrid();
+  const p = {};
+  ids.forEach((id, i) => {
+    const s = seed[id] || grid[id] || {x: (i % 6) * 180, y: Math.floor(i / 6) * 120};
+    p[id] = {x: s.x, y: s.y};
+  });
+  // One spring per connected pair. The multigraph draws every verb; letting
+  // every verb also *pull* would drag chatty pairs into each other.
+  const springs = [], seen = new Set();
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') continue;
+    const k = [e.s, e.t].sort().join('|');
+    if (seen.has(k)) continue;
+    seen.add(k);
+    springs.push([e.s, e.t]);
+  }
+  const L = 340;                                  // the length a lone edge settles at
+  let t = 90;                                     // max step, cooling each pass
+  for (let it = 0; it < 260; it++) {
+    const disp = {};
+    ids.forEach(id => disp[id] = {x: 0, y: 0});
+    for (let i = 0; i < ids.length; i++)
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = p[ids[i]], b = p[ids[j]];
+        let dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
+        if (d < 1) { dx = ((i * 7 + j) % 13) - 6; dy = ((i * 11 + j) % 7) - 3;
+                     d = Math.hypot(dx, dy) || 1; }
+        const f = (L * L) / (d * d);
+        disp[ids[i]].x += dx * f; disp[ids[i]].y += dy * f;
+        disp[ids[j]].x -= dx * f; disp[ids[j]].y -= dy * f;
+      }
+    for (const [s, tt] of springs) {
+      const a = p[s], b = p[tt];
+      const dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy) || 1;
+      const f = d / L;
+      disp[s].x -= dx * f; disp[s].y -= dy * f;
+      disp[tt].x += dx * f; disp[tt].y += dy * f;
+    }
+    for (const id of ids) {
+      const d = Math.hypot(disp[id].x, disp[id].y) || 1;
+      const step = Math.min(d, t);
+      p[id].x += disp[id].x / d * step;
+      p[id].y += disp[id].y / d * step;
+    }
+    t *= 0.985;
+  }
+  for (const id of ids) { p[id].x = Math.round(p[id].x); p[id].y = Math.round(p[id].y); }
+  return p;
+}
+
+const AUTO_LAYOUTS = {
+  'auto: flow':  autoFlow,
+  'auto: grid':  autoGrid,
+  'auto: force': autoForce,
+};
+
+const layoutUrl = name => '/layout.json'
+  + (name === 'main' ? '' : `?name=${encodeURIComponent(name)}`);
+
+async function applyLayout(name) {
+  if (AUTO_LAYOUTS[name]) {
+    GV.layout = placeStrays(AUTO_LAYOUTS[name]());
+  } else {
+    try { GV.layout = placeStrays(await (await fetch(layoutUrl(name))).json()); }
+    catch { return; }                       // the picture you had beats no picture
+  }
+  GV.settings.layout = name;
+  try { localStorage.setItem('rota.gv', JSON.stringify(GV.settings)); } catch {}
+  GV.dirty = false;
+  gvControls(); gvFit(); gvDraw();
+}
+
 async function saveLayout(){
-  if (!GV.dirty) return;
-  await fetch('/layout.json', {method:'POST', body:JSON.stringify(GV.layout, null, 2)});
+  const name = GV.settings.layout || 'main';
+  // A generated layout has no file to overwrite: saving it *is* naming it.
+  if (AUTO_LAYOUTS[name]) return saveLayoutAs();
+  await fetch(layoutUrl(name), {method:'POST',
+                                body:JSON.stringify(GV.layout, null, 2)});
   GV.dirty=false;
   // Into `gstatus`, the toolbar's status slot. It used to write to `gsaved`,
   // an element that does not exist and never did — so the save worked and the
@@ -1030,35 +1277,174 @@ async function saveLayout(){
   // every id a script writes to is an id something creates.
   const box=document.getElementById('gstatus');
   if (!box) return;
-  box.textContent='layout saved';
+  box.textContent=`layout saved — ${name}`;
   setTimeout(gvNarrate, 1600);
 }
 
+async function saveLayoutAs() {
+  if (!GV.layoutApi) {
+    alert('this cockpit server predates named layouts — restart it first');
+    return;
+  }
+  const name = (prompt('save this arrangement as (letters, digits, - and _):')
+                || '').trim();
+  if (!name) return;
+  if (name === 'main' || !/^[A-Za-z0-9_-]{1,40}$/.test(name)) {
+    alert('a layout name is letters, digits, - or _, and not "main"');
+    return;
+  }
+  await fetch(layoutUrl(name), {method:'POST',
+                                body:JSON.stringify(GV.layout, null, 2)});
+  if (!GV.layouts.includes(name)) { GV.layouts.push(name); GV.layouts.sort(); }
+  GV.settings.layout = name;
+  try { localStorage.setItem('rota.gv', JSON.stringify(GV.settings)); } catch {}
+  GV.dirty = false;
+  gvControls();
+  const box = document.getElementById('gstatus');
+  if (box) { box.textContent = `layout saved — ${name}`; setTimeout(gvNarrate, 1600); }
+}
+
+async function deleteLayout(name) {
+  name = name || GV.settings.layout;
+  if (!name || name === 'main' || AUTO_LAYOUTS[name]) return;  // nothing of theirs to delete
+  if (!confirm(`delete the saved layout “${name}”?`)) return;
+  await fetch(layoutUrl(name) + '&delete=1', {method: 'POST'});
+  GV.layouts = GV.layouts.filter(n => n !== name);
+  if (GV.settings.layout === name) applyLayout('main');
+  else {
+    // Deleting from the list is list-keeping, not switching: the picture
+    // stays, and the menu re-opens so a second delete is one click away.
+    gvControls();
+    const menu = document.getElementById('glay');
+    if (menu) menu.classList.add('open');
+  }
+}
+
+// ---------------------------------------------------------------- dropdowns
+// Hand-rolled, like everything else on this canvas. A native <select> cannot
+// carry a delete button on a row, a group caption, or an action row at the
+// bottom — and the moment one list needs those, every list changes species so
+// the chrome stays one vocabulary.
+//
+// Rows: {v, label, on} an option; {grp} a caption; {act:true} an action row
+// (never becomes the selection); {del:true} adds a per-row delete control.
+//
+// The caller writes the `<div class="dd" id="...">` wrapper itself, with the
+// id literal in its own source — the id lint reads source text, and an id
+// that only ever exists inside an interpolation is an id it cannot vouch for.
+function dd(id, rows) {
+  const cur = rows.find(r => r.on);
+  return `<button class="ddbtn" onclick="ddToggle(event,'${esc(id)}')">
+      <span class="ddcur">${esc(cur ? cur.label : '')}</span>
+      <span class="ddcaret">&#9662;</span></button>
+    <div class="ddmenu">${rows.map(r =>
+      r.grp ? `<div class="ddgrp">${esc(r.grp)}</div>`
+            : `<div class="ddrow${r.on?' on':''}${r.act?' ddact':''}"
+                 data-v="${esc(r.v)}"><span>${esc(r.label)}</span>${
+                 r.del ? `<span class="ddx" data-x="${esc(r.v)}"
+                   title="delete this layout">&times;</span>` : ''}</div>`
+    ).join('')}</div>`;
+}
+
+function ddToggle(ev, id) {
+  ev.stopPropagation();
+  const el = document.getElementById(id);
+  if (!el) return;
+  const was = el.classList.contains('open');
+  ddCloseAll();
+  if (!was) el.classList.add('open');
+}
+
+function ddCloseAll() {
+  document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+}
+
+// Picking updates the button in place, so a menu whose owner never rebuilds
+// (the story list) still shows what it holds. `onDel` gets the × clicks.
+function ddWire(id, onPick, onDel) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelectorAll('.ddrow').forEach(row => {
+    row.onclick = e => {
+      e.stopPropagation();
+      ddCloseAll();
+      if (!row.classList.contains('ddact')) {
+        el.querySelectorAll('.ddrow').forEach(r => r.classList.remove('on'));
+        row.classList.add('on');
+        const cur = el.querySelector('.ddcur');
+        if (cur) cur.textContent = row.querySelector('span').textContent;
+      }
+      onPick(row.dataset.v);
+    };
+  });
+  el.querySelectorAll('.ddx').forEach(x => {
+    x.onclick = e => { e.stopPropagation(); onDel && onDel(x.dataset.x); };
+  });
+}
+
 function gvControls(){
-  // Actions and status only. Everything about *stepping* moved to the story
+  // Actions and status only. Everything about *stepping* moved to the steps
   // subtab, which is where the steps themselves live — a control separated from
   // the thing it controls is how a toolbar stops making sense.
+  //
+  // Rebuilt on every mode or settings change, so nothing here may attach a
+  // listener to `window` or `document` — those accumulated once per rebuild,
+  // and wheel zoom compounded every time somebody touched a setting. The
+  // global wiring lives in `gvWireStage`, which runs exactly once. And the
+  // rebuild replaces the settings popover, so its open state is carried
+  // across — it used to snap shut on the click that changed a setting in it.
+  const hadPrefs = document.getElementById('gprefs');
+  const wasOpen = !!(hadPrefs && hadPrefs.classList.contains('on'));
+  // Lens and layout are claims about the *team* picture; the chat graph lays
+  // itself out and answers to no lens. Chrome that does nothing teaches that
+  // chrome here sometimes does nothing.
+  const team = GV.mode !== 'chat';
+  const curLens = GV.source, curLay = GV.settings.layout || 'main';
+  const lensRows = [
+    {v:'design',   label:'the design',     on:curLens==='design'},
+    {v:'coverage', label:'coverage',       on:curLens==='coverage'},
+    {v:'story',    label:'design stories', on:curLens==='story'},
+    {v:'run',      label:'this run',       on:curLens==='run'},
+  ];
+  if (GV.caseId) lensRows.push({v:'case', label:'this case', on:curLens==='case'});
+  // Saved layouts are the user's and each carries its delete; main is the one
+  // every fallback lands on, so it alone has none. The generated three are
+  // recomputed, not stored — nothing of theirs to delete either. The action
+  // row is how a new layout is born: it names whatever is on screen.
+  const layRows = [
+    {grp:'saved'},
+    ...GV.layouts.map(n=>({v:n, label:n, on:n===curLay, del:n!=='main'})),
+    {grp:'generated'},
+    ...Object.keys(AUTO_LAYOUTS).map(n=>({v:n, label:n, on:n===curLay})),
+    {v:'__add__', label:'+ add layout…', act:true},
+  ];
+
   document.getElementById('gctl').innerHTML=`
-    <button data-gmode="team" class="on" onclick="gvMode('team')">team</button>
-    <button data-gmode="chat" onclick="gvMode('chat')">chat</button>
+    <button data-gmode="team" class="${team?'on':''}" onclick="gvMode('team')">team</button>
+    <button data-gmode="chat" class="${team?'':'on'}" onclick="gvMode('chat')">chat</button>
+    <span class="sep"></span>` + (team ? `
+    <span class="cap">lens</span>
+    <div class="dd" id="gsrc">${dd('gsrc', lensRows)}</div>
+    <span class="cap">layout</span>
+    <div class="dd" id="glay">${dd('glay', layRows)}</div>
     <span class="sep"></span>
-    <select id="gsrc"><option value="design">the design</option>
-      <option value="coverage">coverage</option>
-      <option value="story">design stories</option>
-      <option value="run">this run</option></select>
-    <span class="sep"></span>
-    <button id="gfit">fit</button><button id="gsave">save layout</button>
+    <button id="gfit">fit</button><button id="gsave">save layout</button>` : `
+    <button id="gfit">fit</button>`) + `
     <span class="sep"></span>
     <button id="gcog" title="display settings">&#9881;</button>
     <span class="sig" id="gstatus"></span>
-    <div id="gprefs" class="pop"></div>`;
+    <div id="gprefs" class="pop${wasOpen?' on':''}"></div>`;
 
-  gsrc.onchange=e=>{GV.source=e.target.value; GV.stepIx=0; gvLegend(); gvMode('team');
-    showTab('story'); syncStoryTab();};
-  gfit.onclick=()=>{gvFit(); gvDraw();};
-  gsave.onclick=saveLayout;
+  const by = id => document.getElementById(id);
+  if (team) {
+    ddWire('gsrc', v => setLens(v));
+    ddWire('glay', v => v === '__add__' ? saveLayoutAs() : applyLayout(v),
+           n => deleteLayout(n));
+    by('gsave').onclick = saveLayout;
+  }
+  by('gfit').onclick = () => { gvFit(); gvDraw(); };
 
-  const prefs = document.getElementById('gprefs');
+  const prefs = by('gprefs');
   const choice = (key, value, label, why) =>
     `<button class="${GV.settings[key]===value?'on':''}"
        onclick="gvSet('${key}','${value}')" title="${why}">${label}</button>`;
@@ -1087,14 +1473,20 @@ function gvControls(){
       ${choice('labels','always','always','keep them at every zoom')}
       ${choice('labels','never','never','structure only')}
     </span></div>`;
-  document.getElementById('gcog').onclick = (e) => {
+  by('gcog').onclick = (e) => {
     e.stopPropagation();
     prefs.classList.toggle('on');
   };
   prefs.onclick = (e) => e.stopPropagation();
-  document.addEventListener('click', () => prefs.classList.remove('on'));
+}
 
+// The stage listeners, attached exactly once per page. They read everything
+// through `GV`, so nothing about them needs rebuilding when the chrome is.
+function gvWireStage(){
+  if (GV.wired) return;
+  GV.wired = true;
   const svg=document.getElementById('gsvg');
+  if (!svg) return;
   svg.onclick=()=>{if(!GV.dragged){GV.focus=null; gvDraw();}};
   let pan=null;
   svg.onmousedown=e=>{pan={x:e.clientX,y:e.clientY,vx:GV.view.x,vy:GV.view.y}; GV.dragged=false;};
@@ -1124,6 +1516,26 @@ function gvControls(){
     GV.view.k = k2;
     gvDraw();
   }, {passive:false});
+  // Closing popovers looks the elements up at event time, because every
+  // toolbar rebuild replaces them.
+  document.addEventListener('click', () => {
+    const p = document.getElementById('gprefs');
+    if (p) p.classList.remove('on');
+    ddCloseAll();
+  });
+  // Escape backs out one layer at a time: an open menu first, then the focus,
+  // then the reach filter — the same order the layers were put on.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const prefs = document.getElementById('gprefs');
+    const menus = document.querySelector('.dd.open');
+    if (menus || (prefs && prefs.classList.contains('on'))) {
+      ddCloseAll();
+      if (prefs) prefs.classList.remove('on');
+    }
+    else if (GV.focus) { GV.focus = null; gvDraw(); }
+    else if (GV.inhabit) gvInhabit(null);
+  });
 }
 
 // Every key row: how to draw it, what it *is*, and what it selects when hovered.
@@ -1278,6 +1690,35 @@ function caseGroup(name) {
 function LENS_KEY_FOR(src) { return (LENS_KEY_FOR.all || {})[src]; }
 
 function gvLegend() {
+  const holder = document.getElementById('glegend');
+  if (!holder) return;
+
+  // The chat graph draws its own vocabulary — message cards, not roles and
+  // records — so it gets its own key. The team key used to stay up over it,
+  // teaching five shapes the picture never draws.
+  if (GV.mode === 'chat') {
+    const card = (stroke, wide) => `<svg width="16" height="11"><rect x="1" y="1"
+      width="14" height="9" rx="3" fill="#ffffff" stroke="${stroke}"
+      stroke-width="${wide?2:1}"/></svg>`;
+    const rows = [
+      [`<svg width="16" height="11"><rect x="1" y="1" width="14" height="9" rx="3"
+         fill="${SHAPE.principal.fill}" stroke="${SHAPE.principal.stroke}"/></svg>`,
+       'from the principal'],
+      [card(STATE.ready, true), 'open — nothing has answered yet'],
+      [card(SHAPE.role.stroke), 'answered — a session committed'],
+      [card(STATE.faint), 'answered, but no session committed'],
+      [`<svg width="30" height="8"><line x1="1" y1="4" x2="21" y2="4"
+         stroke="${ESTYLE.refs.c}" stroke-width="1.6"/>
+         <path d="M20 1 L27 4 L20 7 z" fill="${ESTYLE.refs.c}"/></svg>`,
+       'caused by — every message refs its cause'],
+    ];
+    holder.innerHTML = `<div class="lgrp"><b>messages</b>` +
+      rows.map(([g, label]) =>
+        `<span class="lkey" style="cursor:default">${g} ${esc(label)}</span>`
+      ).join('') + `</div>`;
+    return;
+  }
+
   const swatch = (c,dash) => `<svg width="30" height="8">
     <line x1="1" y1="4" x2="21" y2="4" stroke="${c}" stroke-width="2"
       stroke-dasharray="${dash}"/>

@@ -1055,6 +1055,17 @@ def run_session(
             if any(w[0] == "survey_records" for w in sb.ctx.writes):
                 break
 
+            # A frame session ends when the tree is classified. The attest
+            # would be better -- and at both model sizes the judge assigned
+            # everything and never made it: llama 0/5 recording, qwen twice
+            # live, each re-sending the batch until the identical-turn rule
+            # fired. The record already follows the writes everywhere else,
+            # so here it is derived at the end of the turn that judged.
+            if wake.kind == "tick:frame" and any(
+                    w[0] == "frame_rulings" for w in sb.ctx.writes):
+                _derive_frame_record(conn, sb)
+                break
+
             # And a define session ends when its word has landed. It has no
             # attestation to end on -- the glossary row *is* the result -- and
             # without this the first run of the phase wrote `provider` on turn
@@ -1172,6 +1183,37 @@ def _param_sets(sb) -> dict:
         req = {n for n, prm in sig.parameters.items() if prm.default is inspect.Parameter.empty}
         out[name] = (req, set(sig.parameters))
     return out
+
+
+def _derive_frame_record(conn, sb) -> None:
+    """The frame session's attest, derived from its rulings.
+
+    Citations are the first indexed file each ruled prefix covers -- real
+    grains, so `check_survey_citations` holds -- and the record only lands
+    when the session did not write one itself."""
+    if any(w[0] == "survey_records" for w in sb.ctx.writes):
+        return                                              # pragma: no cover
+    ruled = [i for t, i, *_ in sb.ctx.writes if t == "frame_rulings"]
+    if not ruled:
+        return                                              # pragma: no cover
+    cites = []
+    for prefix in ruled:
+        row = conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' AND "
+            "(grain = ? OR grain LIKE ?) ORDER BY grain LIMIT 1",
+            (prefix, prefix + "/%")).fetchone()
+        if row:
+            cites.append(row["grain"])
+    at = conn.execute(
+        "SELECT value FROM config WHERE key = 'project_commit'").fetchone()
+    rid = f"{sb.ctx.role}:@frame"
+    sb.ctx.writes.append(("survey_records", rid, {
+        "area": "@frame", "outcome": "found",
+        "commit_sha": (at["value"] if at else "") or ""}))
+    for grain in dict.fromkeys(cites):
+        sb.ctx.writes.append(("survey_citations", f"{rid}:{grain}",
+                              {"survey_id": rid, "grain": grain,
+                               "resolves": 1}))
 
 
 def _as_write(staged: tuple) -> Write:

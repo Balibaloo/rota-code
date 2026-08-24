@@ -1015,6 +1015,15 @@ def survey(conn) -> list[Wake]:
 # The register, as a set the code holds rather than a list a document keeps.
 # ---------------------------------------------------------------------------
 
+@predicate("reorient", wakes="vision_keeper", band="start")
+def reorient(conn) -> list[Wake]:
+    """Onboarding, after the surveys: the draft account re-read with the
+    full glossary and model in hand, before the boundary sessions consume
+    it. One session; the fixpoint loop's single iteration."""
+    from .scheduler import tick_reorient
+    return tick_reorient(conn)
+
+
 @predicate("boundary", wakes="architect", band="start")
 def boundary(conn) -> list[Wake]:
     """
@@ -1037,7 +1046,7 @@ REGISTER_ENTRIES = frozenset({
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
-    "orient", "define", "boundary", "frame",
+    "orient", "define", "boundary", "frame", "reorient",
 })
 
 

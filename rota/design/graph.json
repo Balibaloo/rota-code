@@ -1819,6 +1819,26 @@
     },
     {
       "s": "vision_keeper",
+      "t": "glossary",
+      "type": "reads",
+      "v": "consult",
+      "n": "the words, defined",
+      "rows": "query",
+      "depth": "index",
+      "label": "reorient: the draft is re-read with the vocabulary in hand"
+    },
+    {
+      "s": "vision_keeper",
+      "t": "model",
+      "type": "reads",
+      "v": "consult",
+      "n": "areas and constraints",
+      "rows": "query",
+      "depth": "index",
+      "label": "reorient: and with the model in hand"
+    },
+    {
+      "s": "vision_keeper",
       "t": "problem",
       "type": "reads",
       "v": "baseline",

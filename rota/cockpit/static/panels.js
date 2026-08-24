@@ -13,18 +13,34 @@
 
 const P = () => document.getElementById('pbody');
 
+// A truth column reads as one glyph everywhere. `committed` arrived as ✓/✗ in
+// the role panel and as a raw 0/1 in the live tables — the same fact in two
+// notations, which reads as two facts. TEXT columns like `default_taken` stay
+// words: they carry which default, not whether.
+const FLAG_COLS = new Set(['committed', 'valid']);
+const flag = v => (v === null || v === undefined || v === '')
+  ? '<span class="empty">—</span>'
+  : (+v ? '<span class="pass">✓</span>' : '<span class="fail">✗</span>');
+
+const cell = (c, v) => {
+  const s = typeof v==='object' ? JSON.stringify(v) : String(v ?? '');
+  const body = FLAG_COLS.has(c) ? flag(v)
+    : esc(s.length>140 ? s.slice(0,140)+'…' : s);
+  return `<td title="${esc(s)}">${body}</td>`;
+};
+
 function table(rows, cols) {
   if (!rows || !rows.length) return '<div class="empty">none</div>';
   const use = cols || Object.keys(rows[0]);
   return `<div class="tw"><table><tr>${use.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${
-    rows.map(r=>`<tr>${use.map(c=>{
-      const v=r[c], s = typeof v==='object' ? JSON.stringify(v) : String(v ?? '');
-      return `<td title="${esc(s)}">${esc(s.length>140?s.slice(0,140)+'…':s)}</td>`;
-    }).join('')}</tr>`).join('')}</table></div>`;
+    rows.map(r=>`<tr>${use.map(c=>cell(c, r[c])).join('')}</tr>`).join('')}</table></div>`;
 }
 
 // A table whose rows ask "why is this here". Identical to `table` except each
 // row carries its table name and key, which is exactly what `provenance` wants.
+// The key travels as data attributes and is picked up by one delegated
+// listener: an id quoted into an inline onclick string is an id that breaks
+// the handler the day it contains a quote.
 function rowTable(tableName, rows, cols) {
   if (!rows || !rows.length) return '<div class="empty">none</div>';
   const use = cols || Object.keys(rows[0]);
@@ -32,13 +48,16 @@ function rowTable(tableName, rows, cols) {
   return `<div class="tw"><table><tr>${use.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${
     rows.map(r=>{
       const id = String(r[key] ?? '');
-      return `<tr class="prov" title="why is this here?" onclick="showProvenance('${
-        esc(tableName)}','${esc(id).replace(/'/g, "\'")}')">${use.map(c=>{
-        const v=r[c], s = typeof v==='object' ? JSON.stringify(v) : String(v ?? '');
-        return `<td title="${esc(s)}">${esc(s.length>140?s.slice(0,140)+'…':s)}</td>`;
-      }).join('')}</tr>`;
+      return `<tr class="prov" title="why is this here?" data-t="${
+        esc(tableName)}" data-r="${esc(id)}">${
+        use.map(c=>cell(c, r[c])).join('')}</tr>`;
     }).join('')}</table></div>`;
 }
+
+document.addEventListener('click', e => {
+  const tr = e.target && e.target.closest ? e.target.closest('tr.prov') : null;
+  if (tr) showProvenance(tr.dataset.t, tr.dataset.r);
+});
 
 const group = (title, body) =>
   `<div class="grp"><div class="grphead">${esc(title)}</div>${body}</div>`;
@@ -61,13 +80,13 @@ async function showNode(id) {
   // With a case open, clicking a node asks about *this case*, not about the
   // design in general. The design view is one click away and always was; what
   // was missing is the answer to "what did this case put here".
-  if (GV.source==='case' && CASE_ID) return showCaseNode(id, n);
+  if (GV.source==='case' && GV.caseId) return showCaseNode(id, n);
   return n.type==='role' ? showRole(id) : showArtefact(id);
 }
 
 function showCaseNode(id, n){
-  const c = CASES.find(x=>x.id===CASE_ID);
-  const back = `<div class="link" onclick="showCase('${CASE_ID}')">&larr; ${esc(c.id)}</div>`;
+  const c = CASES.find(x=>x.id===GV.caseId);
+  const back = `<div class="link" onclick="showCase('${GV.caseId}')">&larr; ${esc(c.id)}</div>`;
 
   if (n.type === 'role') {
     const mine = e => e[0]===id;
@@ -255,14 +274,15 @@ async function showMessage(id) {
     group('STATE', p
       ? sec(`${p.role} session`, p.committed?'committed':'failed',
           `<div class="sig">${esc(p.mode)} · ${esc(p.model||'—')}</div>
-           <b class="sig">calls</b><pre>${esc(p.calls.join('\\n')||'none')}</pre>
-           <b class="sig">writes</b><pre>${esc(p.writes.join('\\n')||'none')}</pre>`, true)
+           <b class="sig">calls</b><pre>${esc(p.calls.join('\n')||'none')}</pre>
+           <b class="sig">writes</b><pre>${esc(p.writes.join('\n')||'none')}</pre>`, true)
       : `<div class="empty">${m.status==='open'
           ? 'nothing has answered this yet' : 'no session recorded'}</div>`);
 }
 
 async function showBlast(id) {
   const b = await (await fetch(`/blast.json?id=${encodeURIComponent(id)}`)).json();
+  b.root = id;                  // the status line names what the cascade is from
   GV.blast=b; gvDraw(); showTab('detail');
   phead(`what changing ${id} wakes`, 'the cascade, in the order owners are summoned',
     `<span class="link" onclick="GV.blast=null;gvDraw();showArtefact('${id}')">clear</span>`);
@@ -276,9 +296,9 @@ async function showBlast(id) {
 // ---------------------------------------------------------------- story subtab
 function buildStoryTab() {
   const el = document.getElementById('storybody');
-  el.innerHTML = `<select id="ststory" style="width:100%;margin-bottom:6px">
-      ${GV.stories.map((s,i)=>`<option value="${i}">${esc(s.name)}</option>`).join('')}
-    </select>
+  el.innerHTML = `<div class="dd" id="ststory" style="margin-bottom:6px">${
+      dd('ststory', GV.stories.map((s,i)=>
+        ({v:String(i), label:s.name, on:i===GV.storyIx})))}</div>
     <div class="stnav"><button id="stprev">‹ prev</button>
       <span class="sig" id="stpos"></span>
       <button id="stnext">next ›</button></div>
@@ -287,14 +307,15 @@ function buildStoryTab() {
     GV.stepIx=Math.max(0,GV.stepIx-1); gvDraw(); syncStoryTab();};
   document.getElementById('stnext').onclick = ()=>{
     GV.stepIx=Math.min(gvSteps().length-1,GV.stepIx+1); gvDraw(); syncStoryTab();};
-  document.getElementById('ststory').onchange = e=>{
-    GV.storyIx=+e.target.value; GV.stepIx=0; GV.source='story';
-    document.getElementById('gsrc').value='story'; gvDraw(); syncStoryTab();
-  };
+  ddWire('ststory', v=>{ GV.storyIx=+v; setLens('story'); });
   syncStoryTab();
 }
 
 function syncStoryTab() {
+  // The subtab is restored from localStorage at parse time, before the first
+  // load has resolved — nothing to sync against yet, and the load ends by
+  // building this tab anyway.
+  if (!GV.stories || !GV.trace) return;
   const steps = GV.source==='run' ? (GV.trace.steps||[])
               : (GV.stories[GV.storyIx]?.steps||[]);
   const el = document.getElementById('ststeps');
@@ -313,14 +334,21 @@ function syncStoryTab() {
 }
 
 function jumpStep(i){
-  if (GV.source==='coverage'){GV.source='story'; document.getElementById('gsrc').value='story';}
+  // Clicking a step is asking to see it. Under any lens without steps — not
+  // just coverage, which was the only one handled — the click used to change
+  // the highlight and nothing else, which reads as a broken stepper.
+  if (GV.source!=='story' && GV.source!=='run') setLens('story');
   GV.stepIx=i; gvDraw(); syncStoryTab();
 }
 
 // ---------------------------------------------------------------- chrome
 let view='graph', ptab='detail', fingerprint=null, lastSig='', stalled=0;
 
-function showTab(t){
+function showTab(t, quiet){
+  // Showing a subtab is asking something of the inspector, so it opens the
+  // panel — except when restoring the remembered tab at load, where nothing
+  // was asked yet and the canvas keeps the whole width.
+  if (!quiet) panelOpen();
   ptab=t;
   document.querySelectorAll('[data-ptab]').forEach(b=>
     b.classList.toggle('on', b.dataset.ptab===t));
@@ -343,6 +371,8 @@ function selectView(v){
   // back to the graph.
   try{ localStorage.setItem('rota.view', v); }catch{}
   if (v==='progress') loadProgress();
+  if (v==='live') refresh();     // paint now, not at the next poll tick
+  if (typeof syncHash === 'function') syncHash();
 }
 
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectView(b.dataset.view));
@@ -351,7 +381,7 @@ try{
   const saved = localStorage.getItem('rota.view');
   if (saved && document.getElementById(saved)) selectView(saved);
   const savedTab = localStorage.getItem('rota.ptab');
-  if (savedTab && document.getElementById('p'+savedTab)) showTab(savedTab);
+  if (savedTab && document.getElementById('p'+savedTab)) showTab(savedTab, true);
 }catch{}
 
 async function refresh() {
@@ -393,6 +423,11 @@ async function refresh() {
     rows(Object.entries(s.counts).map(([k,v])=>
       `<div class="prow"><span>${esc(k)}</span><em>${v}</em></div>`));
 
+  // Everything above feeds the header, which is on every tab. Everything
+  // below paints the live grid, which is not — and painting a hidden grid is
+  // work spent making nothing different.
+  if (view !== 'live') return;
+
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
   set('tips', table(tips,['role','verb','message']));
   set('preds', Object.entries(s.predicate_status).map(([n,w])=>
@@ -428,12 +463,13 @@ for (const [el, pop] of [[st_, 'pop-state'], [tick_, 'pop-tick']]) {
 async function loadCoverage(){
   const c = await (await fetch('/coverage.json')).json();
   document.getElementById('coveragebody').innerHTML =
-    `<h3>${c.covered}/${c.total} edges (${c.percent.toFixed(0)}%)</h3>` +
-    Object.entries(c.by_role).map(([role,[cov,miss]])=>{
-      const pct=100*cov/(cov+miss);
-      return `<div class="barwrap"><span style="width:90px">${esc(role)}</span>
+    `<h3>${c.covered}/${c.total} edges (${c.percent.toFixed(0)}%)</h3>
+     <p class="sig"><span class="link" onclick="setLens('coverage')">paint this
+       on the graph &rarr;</span></p>` +
+    Object.entries(c.by_role).map(([role,[cov,miss]])=>
+      `<div class="barwrap"><span style="width:90px">${esc(role)}</span>
         <span class="sig" style="width:56px">${cov}/${cov+miss}</span>
-        <span class="bar"><i style="width:${pct}%"></i></span></div>`;}).join('') +
+        ${gbar(cov, cov+miss)}</div>`).join('') +
     `<p class="muted">Drawing an edge creates a red row. Coverage cannot drift
       from the design, because the design generates it.</p>
      <b>uncovered</b>${table(c.missing.map(m=>({edge:m})),['edge'])}`;
@@ -450,21 +486,165 @@ async function checkReload(){
   }catch{}
 }
 
-// resizable sidebar
+// ---------------------------------------------------------------- inspector
+// The right panel starts closed: until something is asked of it, the canvas
+// owns the width, and a rail stays on the edge saying what is folded there.
+// It opens when it is used — a subtab clicked, a node inspected, the handle
+// dragged out — and its width survives as the width it reopens to. The open
+// state itself is deliberately not persisted: "collapsed on load" is the
+// contract, not "however it was left".
+const PANEL = {open:false, w:430};
+try { const s = JSON.parse(localStorage.getItem('rota.panel')||'{}');
+      if (+s.w >= 280) PANEL.w = +s.w; } catch {}
+
+function panelApply(){
+  const wrap=document.getElementById('gwrap'), pan=document.getElementById('gpanel');
+  if(!wrap||!pan) return;
+  pan.classList.toggle('closed', !PANEL.open);
+  wrap.style.gridTemplateColumns = `1fr 6px ${PANEL.open?PANEL.w:34}px`;
+  const btn=document.getElementById('pcollapse');
+  if(btn){ btn.innerHTML = PANEL.open ? '&raquo;' : '&laquo;';
+           btn.setAttribute('title',
+             PANEL.open ? 'collapse the panel' : 'expand the panel'); }
+}
+function panelSave(){
+  try{ localStorage.setItem('rota.panel', JSON.stringify({w:PANEL.w})); }catch{}
+}
+function panelOpen(){
+  if (PANEL.open) return;
+  PANEL.open = true; panelApply();
+  if (window.gvDraw) gvDraw();          // the canvas width just changed
+}
+function panelToggle(){
+  PANEL.open = !PANEL.open; panelApply();
+  if (window.gvDraw) gvDraw();
+}
+
 (function(){
-  const h=document.getElementById('phandle'), wrap=document.getElementById('gwrap');
+  const h=document.getElementById('phandle');
+  const pan=document.getElementById('gpanel');
+  const btn=document.getElementById('pcollapse');
+  if (btn) btn.onclick = e=>{ e.stopPropagation(); panelToggle(); };
+  if (pan) pan.addEventListener('click', ()=>{ if(!PANEL.open) panelOpen(); });
   let d=null;
-  h.onmousedown=e=>{d={x:e.clientX,w:document.getElementById('gpanel').offsetWidth};
+  if (h) h.onmousedown=e=>{
+    d={x:e.clientX, w:PANEL.open?document.getElementById('gpanel').offsetWidth:34};
     e.preventDefault();};
   window.addEventListener('mousemove',e=>{ if(!d) return;
-    const w=Math.min(900,Math.max(280, d.w-(e.clientX-d.x)));
-    wrap.style.gridTemplateColumns=`1fr 6px ${w}px`; gvFit&&gvFit(); gvDraw&&gvDraw();});
-  window.addEventListener('mouseup',()=>{d=null;});
+    const raw = d.w-(e.clientX-d.x);
+    // Dragging the handle out of a closed panel is opening it by hand.
+    if (!PANEL.open) { if (raw < 60) return; PANEL.open = true; }
+    PANEL.w = Math.min(900, Math.max(280, raw));
+    panelApply(); gvFit&&gvFit(); gvDraw&&gvDraw();});
+  window.addEventListener('mouseup',()=>{ if(d) panelSave(); d=null;});
+  panelApply();
 })();
 
 document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>showTab(b.dataset.ptab));
 refresh();
-setInterval(()=>{if(view==='live') refresh();},1500);
+// The idle/busy/stuck pill is in the header, on every tab — so it is fed on
+// every tab: quickly while the live grid is visible, at a walk otherwise. It
+// used to update only while the live tab polled, which made QUIESCENT a claim
+// about whenever you last looked at live.
+let pillTick = 0;
+setInterval(()=>{if(view==='live' || ++pillTick % 4 === 0) refresh();},1500);
+
+// ------------------------------------------------------------- run selector
+// Which database this page is about, and the door to its siblings — without
+// restarting the server. The mtime shown is the one wall-clock fact a run
+// has: rows carry order, not time, by law, so recency lives on the file.
+const ago = s => {
+  const d = Date.now()/1000 - s;
+  return d < 90 ? 'just now' : d < 5400 ? Math.round(d/60)+'m ago'
+    : d < 129600 ? Math.round(d/3600)+'h ago' : Math.round(d/86400)+'d ago';
+};
+
+async function loadRuns(){
+  try {
+    const r = await (await fetch('/runs.json')).json();
+    const runs = r.runs || [];
+    const el = document.getElementById('rundb');
+    if (!el || !runs.length) return;
+    el.innerHTML = dd('rundb', runs.map(x =>
+      ({v:x.name, label:`${x.name} · ${ago(x.mtime)}`, on:!!x.current})));
+    ddWire('rundb', async name => {
+      const res = await fetch(`/run?name=${encodeURIComponent(name)}`,
+                              {method:'POST'});
+      // A full reload, not a repaint: every cache, signature and subscription
+      // on this page is a claim about the old database.
+      if (res.ok) location.reload();
+      else alert(`could not open ${name}: ` + (res.status === 409
+        ? 'behind schema — rebuild it or pick another run' : 'not found'));
+    });
+  } catch {}
+}
+loadRuns();
+
+// ---------------------------------------------------------------- url paths
+// The address bar is the query — #/graph?lens=coverage&node=critic names a
+// view completely enough to reopen it tomorrow or hand it to someone. Written
+// with replaceState so browsing does not pile up history entries; applied on
+// load once the graph exists, and again if the hash is edited by hand.
+function syncHash(){
+  if (typeof history === 'undefined' || typeof location === 'undefined') return;
+  if (!GV.graph) return;
+  let h = '#/' + view;
+  if (view === 'graph') {
+    const q = [];
+    if (GV.source !== 'design') q.push('lens=' + encodeURIComponent(GV.source));
+    if (GV.caseId) q.push('case=' + encodeURIComponent(GV.caseId));
+    if (GV.focus) q.push('node=' + encodeURIComponent(GV.focus));
+    if (GV.inhabit) q.push('reach=' + encodeURIComponent(GV.inhabit));
+    if (q.length) h += '?' + q.join('&');
+  }
+  if (location.hash !== h) history.replaceState(null, '', h);
+}
+
+async function applyHash(){
+  if (typeof location === 'undefined') return;
+  const m = (location.hash || '').match(/^#\/(graph|live|progress)(?:\?(.*))?$/);
+  if (!m) return;
+  selectView(m[1]);
+  if (m[1] !== 'graph' || !m[2]) { syncHash(); return; }
+  const q = new URLSearchParams(m[2]);
+  const caseId = q.get('case');
+  if (caseId) {
+    if (!CASES.length) {
+      try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+    }
+    if (CASES.some(c => c.id === caseId)) showCase(caseId);
+  } else if (q.get('lens')) setLens(q.get('lens'));
+  const node = q.get('node');
+  if (node && GV.layout && GV.layout[node]) {
+    GV.focus = node; gvDraw(); showNode(node);
+  }
+  const reach = q.get('reach');
+  if (reach && GV.layout && GV.layout[reach]) {
+    GV.inhabit = reach; GV.focus = null; gvDraw();
+  }
+  syncHash();
+}
+window.addEventListener('hashchange', applyHash);
+
+// The graph's "right now" rings — claims held, predicates firing — were a
+// snapshot from page load: the live tab watched the database move while the
+// picture beside it stood still. The overlay is re-fetched at a walk and the
+// canvas repainted only when it actually changed, so an idle system costs an
+// idle poll and nothing else.
+let _trSig = null;
+async function refreshTrace(){
+  if (view !== 'graph' || !GV.trace) return;
+  try {
+    const tr = await (await fetch('/trace.json')).json();
+    const sig = JSON.stringify(tr.overlay) + '|' + (tr.steps||[]).length;
+    if (sig === _trSig) return;
+    _trSig = sig;
+    GV.trace = tr;
+    gvLegend();                 // the "right now" key group comes and goes with it
+    gvDraw();
+  } catch {}
+}
+setInterval(refreshTrace, 5000);
 // Progress moves at the speed of a model run, not a session, so it polls
 // slowly. Left open during an L1 run it fills in as cases land.
 setInterval(()=>{if(view==='progress') loadProgress();},5000);
@@ -480,6 +660,25 @@ setInterval(checkReload,1000);
 function bar(done, total, cls){
   const pct = total ? 100*done/total : 0;
   return `<span class="bar"><i class="${cls||''}" style="width:${pct}%"></i></span>`;
+}
+
+// Progressive colour for a fraction that is a *judgement*, not just progress:
+// a coverage bar at 30% is mostly-untested, and mostly-untested is what red
+// already means on this cockpit. The ramp interpolates between the palette's
+// own three judgement colours — stop, warn, ok — so no bar invents a fourth
+// meaning. Milestone bars stay two-tone on purpose: being early in planned
+// work is not a fault, and painting it red would say it was.
+function gradeColor(f){
+  const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  const stop=[232,116,106], warn=[230,178,90], ok=[85,209,135];
+  f = Math.max(0, Math.min(1, f));
+  const c = f<=0.5 ? mix(stop,warn,f*2) : mix(warn,ok,(f-0.5)*2);
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+function gbar(done, total){
+  const pct = total ? 100*done/total : 0;
+  return `<span class="bar"><i style="width:${pct}%;background:${
+    gradeColor(total?done/total:0)}"></i></span>`;
 }
 
 let _pgSig = null;
@@ -518,14 +717,14 @@ async function loadProgress(){
     `<h3>${c.cases} cases written</h3>
      <div class="barwrap"><span style="width:110px">prompt modes</span>
        <span class="sig" style="width:56px">${c.modes.done}/${c.modes.total}</span>
-       ${bar(c.modes.done,c.modes.total)}</div>` +
+       ${gbar(c.modes.done,c.modes.total)}</div>` +
     (c.modes.missing.length
       ? `<div class="sig" style="margin:0 0 8px 118px">no case: ${
           c.modes.missing.map(esc).join(', ')}</div>` : '') +
     c.tiers.map(t=>`<div class="barwrap">
        <span style="width:110px">${t.tier} ${esc(t.label)}</span>
        <span class="sig" style="width:56px">${t.done}/${t.total}</span>
-       ${bar(t.done,t.total,'part')}
+       ${gbar(t.done,t.total)}
        ${t.touched===undefined?'':`<span class="sig muted" style="margin-left:8px"
          title="also credited if a case merely touched the artefact -- a softer question"
          >${t.touched} by implication</span>`}</div>`).join('') +
@@ -537,13 +736,15 @@ async function loadProgress(){
       touched; the gap is how much of L1 is covered by accident.</p>`;
 
   const o = p.onboarding;
+  // The same chips the live tab's artefact counts wear: one notation for
+  // "a label and its number", wherever it appears.
   document.getElementById('pg-onboarding').innerHTML = o.indexed
     ? `<div class="counts">
-        <div><b>${o.indexed}</b> grains indexed</div>
-        <div><b>${o.edges}</b> dependency edges</div>
-        <div><b>${o.areas}</b> areas</div>
-        <div><b>${o.surveyed}</b> surveyed</div>
-        <div><b>${o.under_zero}</b> still under constraint zero</div></div>`
+        <span>grains indexed <b>${o.indexed}</b></span>
+        <span>dependency edges <b>${o.edges}</b></span>
+        <span>areas <b>${o.areas}</b></span>
+        <span>surveyed <b>${o.surveyed}</b></span>
+        <span>still under constraint zero <b>${o.under_zero}</b></span></div>`
     : `<p class="muted">Nothing onboarded in this database. Constraint zero
         covers an area until somebody has looked at it -- including a survey
         that finds nothing, which is a result.</p>`;
@@ -551,8 +752,10 @@ async function loadProgress(){
   const rows = p.l1.cases, t = p.l1.tally||{};
   const chip = s => `<span class="sig">${s}</span>`;
   document.getElementById('pg-l1').innerHTML =
-    `<h3>${t.pass||0} passing · ${t.fail||0} failing · ${
-       t.stale||0} stale · ${t['never run']||0} never run
+    `<h3><span class="pass">${t.pass||0} passing</span> ·
+       <span class="fail">${t.fail||0} failing</span> ·
+       <span style="color:var(--accent)">${t.stale||0} stale</span> ·
+       <span class="muted">${t['never run']||0} never run</span>
        ${p.l1.model?chip(p.l1.model):''}</h3>
      <p class="muted">A result recorded against a prompt that has since been
        edited is not evidence about the prompt in the tree, so it shows as
@@ -578,7 +781,18 @@ async function loadProgress(){
 // repository to ask -- for the most discussable artefact here.
 // ---------------------------------------------------------------------------
 
-let CASES = [], CASE_ID = null;
+// The open case lives in `GV.caseId` with the rest of the graph state, so the
+// lens machinery can close it — as `CASE_ID`, a second owner over here, it
+// outlived every lens change and kept a case option in a dropdown whose case
+// was gone. `CASES` stays: it is a cache of data, not a piece of state.
+let CASES = [];
+
+// The list's highlight follows GV.caseId wherever it changes — including
+// setLens clearing it when the lens moves off the case.
+function caseListSync(){
+  document.querySelectorAll('.crow').forEach(
+    r => r.classList.toggle('on', r.dataset.case===GV.caseId));
+}
 
 function caseState(c){
   if(!c.history.length) return '';
@@ -608,14 +822,14 @@ async function loadCases(){
       const roles = Object.keys(tiers[tier]).sort().map(role => {
         const mine = tiers[tier][role];
         const ok = mine.filter(c => caseState(c)==='pass').length;
-        const holdsRole = mine.some(c => c.id === CASE_ID);
+        const holdsRole = mine.some(c => c.id === GV.caseId);
         return `<details class="crole" ${holdsRole?'open':''}>
           <summary>${esc(role)}<span class="sig">${ok}/${mine.length}</span></summary>` +
         mine.map(c => {
           const st = caseState(c);
           const score = c.history.length
             ? `${c.history.filter(h=>h.passed).length}/${c.history.length}` : '—';
-          return `<div class="crow ${c.id===CASE_ID?'on':''}" data-case="${esc(c.id)}">
+          return `<div class="crow ${c.id===GV.caseId?'on':''}" data-case="${esc(c.id)}">
             <span class="dot ${st}"></span>
             <span class="cid">${esc(c.id.replace(/^L\d-\w+-/,''))}</span>
             <span class="sig">${esc(c.mode)}</span>
@@ -624,7 +838,7 @@ async function loadCases(){
       // Collapsed by default, except the tier holding the open case — so
       // "← all cases" lands you where you left rather than at three shut
       // drawers.
-      const holds = all.some(c => c.id === CASE_ID);
+      const holds = all.some(c => c.id === GV.caseId);
       return `<details class="ctier" ${holds?'open':''}><summary>${name} · ${esc(what)}
         <span class="sig">${green}/${all.length}</span></summary>${roles}</details>`;
     }).join('');
@@ -641,33 +855,25 @@ function edgeList(edges, cls){
 
 function showCase(id){
   const c = CASES.find(x=>x.id===id); if(!c) return;
-  CASE_ID = id;
-  document.querySelectorAll('.crow').forEach(
-    r => r.classList.toggle('on', r.dataset.case===id));
+  GV.caseId = id;
+  caseListSync();
 
   // Light it on the graph. `offered` is the mode's whole world for this
   // waking; `required` and `forbidden` are what the case asserts on top, and
   // the distinction between those two is the readable one on a picture.
   GV.caseEdges = c.edges;
   GV.caseSituation = c.situation;
-  GV.source = 'case';
-  const sel = document.getElementById('gsrc');
-  if(sel && !sel.querySelector('option[value=case]'))
-    sel.insertAdjacentHTML('beforeend','<option value="case">case</option>');
-  if(sel) sel.value='case';
-  if(window.gvLegend) gvLegend();
-  if(window.gvDraw) gvDraw();
+  setLens('case');
 
-  const runRow = (h,i)=>`
-    <details class="sec"><summary>run ${h.run||i+1} — ${h.passed?'<span class="pass">pass</span>':'<span class="fail">fail</span>'}
-      <span class="sig">${esc((h.problems[0]||'').slice(0,70))}</span></summary>
-    <div class="body">
+  // The body of one run, filled into the summary row the history list already
+  // drew. It used to be a whole second <details> — same summary, same verdict —
+  // nested inside the first, so every run opened onto a copy of itself.
+  const runBody = h => `
       ${h.problems.length?`<h4>problems</h4><pre>${esc(h.problems.join('\n'))}</pre>`:''}
       ${h.transcript.map(t=>t.say!==undefined
           ? `<h4>said</h4><pre>${esc(String(t.say).slice(0,4000))}</pre>`
           : t.errors ? `<h4>errors</h4><pre>${esc(t.errors.join('\n'))}</pre>`
-          : `<h4>did</h4><pre>${esc(JSON.stringify(t,null,1))}</pre>`).join('')}
-    </div></details>`;
+          : `<h4>did</h4><pre>${esc(JSON.stringify(t,null,1))}</pre>`).join('')}`;
   const hist = c.history.length
     ? c.history.map((h,i)=>`<details class="sec"><summary>run ${h.run||i+1} — ${
         h.passed?'<span class="pass">pass</span>':'<span class="fail">fail</span>'}
@@ -734,7 +940,7 @@ function showCase(id){
       put('c-src', m.source);
       (m.runs || []).forEach((h, i) => {
         const el = document.getElementById(`run-${i}`);
-        if (el) el.innerHTML = runRow(h, i);
+        if (el) el.innerHTML = runBody(h);
       });
     }).catch(()=>{});
 }
@@ -796,13 +1002,28 @@ async function showProvenance(tableName, rowId) {
             table(d.history, ['session', 'role', 'wake', 'version']))
       : ''));
 
+  // Two shapes, and the recorded one wins. When the run kept `turns`, the
+  // exact context and the exact response are on file and there is nothing to
+  // rebuild — the panel used to ignore them and render an empty brief, which
+  // presented the best-evidenced sessions as the worst-documented ones. The
+  // rebuilt brief is the fallback for runs that recorded nothing, and it says
+  // so.
   const s = d.shown || {};
-  const shown = group('WHAT IT WAS SHOWN',
-    `<div class="note">${esc(s.note || '')}</div>` +
-    sec('brief', `${(s.brief || '').length} chars`,
-        `<pre class="brief">${esc(s.brief || '')}</pre>`) +
-    sec('toolkit', (s.tools || []).length,
-        `<pre class="brief">${esc((s.tools || []).join(String.fromCharCode(10)))}</pre>`));
+  const turns = s.turns || [];
+  const shown = group('WHAT IT WAS SHOWN', turns.length
+    ? `<div class="note">${turns.length} round-trip(s) recorded verbatim —
+         the exact context and the exact response, nothing rebuilt.</div>` +
+      turns.map((t, i) => sec(`turn ${t.seq ?? i + 1}`, t.ms ? `${t.ms} ms` : '',
+        (t.system ? `<b class="sig">system</b>
+           <pre class="brief">${esc(t.system)}</pre>` : '') +
+        `<b class="sig">user</b><pre class="brief">${esc(t.user || '')}</pre>
+         <b class="sig">completion</b><pre class="brief">${esc(t.completion || '')}</pre>`,
+        i === 0)).join('')
+    : `<div class="note">${esc(s.note || '')}</div>` +
+      sec('brief', `${(s.brief || '').length} chars`,
+          `<pre class="brief">${esc(s.brief || '')}</pre>`) +
+      sec('toolkit', (s.tools || []).length,
+          `<pre class="brief">${esc((s.tools || []).join(String.fromCharCode(10)))}</pre>`));
 
   phead(rowId, `${tableName} · why is this here`);
   P().innerHTML = what + woke + who + shown;

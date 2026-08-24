@@ -20,6 +20,7 @@ Run:  python -m rota.cockpit.server [project_root] [--port 8899]
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -45,6 +46,33 @@ from ..core.scheduler import (
 HERE = paths.PACKAGE
 VIEWER = paths.VIEWER
 STATIC = paths.STATIC
+
+# Layouts. `layout.json` is the main arrangement and keeps its name and place —
+# every reader of it predates the idea of there being more than one. The rest
+# live beside it as `layouts/<name>.json`, one file per arrangement, because a
+# layout is saved and deleted whole and never merged.
+LAYOUT_FILE = graph_mod.DESIGN_DIR / "layout.json"
+LAYOUTS_DIR = graph_mod.DESIGN_DIR / "layouts"
+
+# A layout name becomes a filename, so it is a filename-shaped token or it is
+# refused. Anything looser is a path traversal spelled politely.
+LAYOUT_NAME = re.compile(r"[A-Za-z0-9_-]{1,40}")
+
+
+def layout_path(name: str) -> Path:
+    if name in ("", "main"):
+        return LAYOUT_FILE
+    if not LAYOUT_NAME.fullmatch(name):
+        raise ValueError(f"not a layout name: {name!r}")
+    return LAYOUTS_DIR / f"{name}.json"
+
+
+def is_layout_file(p: Path) -> bool:
+    """Viewer geometry, not source. Saving a layout must not read as 'the
+    sources changed': the fingerprint would reload the page that just saved it,
+    and the watcher would restart the server under it — which is exactly what
+    happened, on every save, for as long as both watched everything."""
+    return p == LAYOUT_FILE or LAYOUTS_DIR in p.parents
 
 
 def snapshot(conn: sqlite3.Connection) -> dict:
@@ -157,7 +185,8 @@ def source_fingerprint() -> str:
         if not root.exists():
             continue
         for f in sorted(root.rglob("*")):
-            if f.is_file() and f.suffix in (".md", ".json", ".py", ".html"):
+            if (f.is_file() and f.suffix in (".md", ".json", ".py", ".html")
+                    and not is_layout_file(f)):
                 h.update(f"{f}:{f.stat().st_mtime_ns}".encode())
     return h.hexdigest()[:16]
 
@@ -204,6 +233,12 @@ def schema_drift(db_path: Path) -> list[str]:
 
 
 def make_handler(db_path: Path):
+    # One mutable slot, because the handler serves *a* run, not *the* run:
+    # POST /run swaps which database every later request reads, so the viewer
+    # can move between sibling runs without a restart. Everything below reads
+    # `state["db"]` at request time and nothing caches a connection.
+    state = {"db": Path(db_path)}
+
     class Handler(BaseHTTPRequestHandler):
         def _send(self, body: bytes, content_type: str) -> None:
             self.send_response(200)
@@ -235,8 +270,26 @@ def make_handler(db_path: Path):
                     self._send((graph_mod.DESIGN_DIR / "graph.json").read_bytes(),
                                "application/json")
                 elif path == "/layout.json":
-                    self._send((graph_mod.DESIGN_DIR / "layout.json").read_bytes(),
+                    self._send(layout_path(q.get("name", [""])[0]).read_bytes(),
                                "application/json")
+                elif path == "/layouts.json":
+                    names = ["main"] + (sorted(p.stem for p in
+                                               LAYOUTS_DIR.glob("*.json"))
+                                        if LAYOUTS_DIR.is_dir() else [])
+                    self._send(json.dumps({"names": names}).encode("utf-8"),
+                               "application/json")
+                elif path == "/runs.json":
+                    # The siblings of the run being served, newest first. The
+                    # mtime is the one wall-clock fact the system has about a
+                    # run — the rows themselves carry order, not time, by law.
+                    here = state["db"].parent
+                    runs = sorted((p for p in here.glob("*.db")),
+                                  key=lambda p: p.stat().st_mtime, reverse=True)
+                    body = json.dumps({"runs": [
+                        {"name": p.stem, "mtime": p.stat().st_mtime,
+                         "current": p.resolve() == state["db"].resolve()}
+                        for p in runs]}).encode("utf-8")
+                    self._send(body, "application/json")
                 elif path == "/stories.json":
                     self._send((graph_mod.DESIGN_DIR / "stories.json").read_bytes(),
                                "application/json")
@@ -245,7 +298,7 @@ def make_handler(db_path: Path):
                                "application/javascript; charset=utf-8")
                 elif path in ("/artefact.json", "/role.json", "/edge.json",
                               "/blast.json"):
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         if path == "/artefact.json":
                             data = inspect_api.artefact(conn, q.get("id", [""])[0])
@@ -262,7 +315,7 @@ def make_handler(db_path: Path):
                     self._send(json.dumps(data, default=str).encode("utf-8"),
                                "application/json")
                 elif path == "/provenance.json":
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         body = json.dumps(inspect_api.provenance(
                             conn, q.get("table", [""])[0],
@@ -271,7 +324,7 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(body, "application/json")
                 elif path == "/messages.json":
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         body = json.dumps(inspect_api.message_graph(conn),
                                           default=str).encode("utf-8")
@@ -279,7 +332,7 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(body, "application/json")
                 elif path == "/trace.json":
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         body = json.dumps({
                             "steps": steps_from_db(conn),
@@ -290,7 +343,7 @@ def make_handler(db_path: Path):
                         conn.close()
                     self._send(body, "application/json")
                 elif path == "/prompts.json":
-                    body = json.dumps(prompt_bundle(db_path), default=str).encode("utf-8")
+                    body = json.dumps(prompt_bundle(state["db"]), default=str).encode("utf-8")
                     self._send(body, "application/json")
                 elif path == "/coverage.json":
                     rep = coverage_report()
@@ -312,7 +365,7 @@ def make_handler(db_path: Path):
                                       default=str).encode("utf-8")
                     self._send(body, "application/json")
                 elif path == "/progress.json":
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         body = json.dumps(progress.report(conn),
                                           default=str).encode("utf-8")
@@ -322,7 +375,7 @@ def make_handler(db_path: Path):
                 elif path == "/fingerprint":
                     self._send(source_fingerprint().encode("utf-8"), "text/plain")
                 elif path == "/state.json":
-                    conn = connect_readonly(db_path)
+                    conn = connect_readonly(state["db"])
                     try:
                         body = json.dumps(snapshot(conn), default=str).encode("utf-8")
                     finally:
@@ -332,15 +385,42 @@ def make_handler(db_path: Path):
                     self.send_error(404)
             except FileNotFoundError:
                 self.send_error(404)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
             except Exception as exc:                       # pragma: no cover
                 self.send_error(500, str(exc))
 
         def do_POST(self):  # noqa: N802
-            """Persist a dragged layout. Positions are a viewer concern, kept out
-            of graph.json so editing what the graph *means* never touches
-            geometry — and out of git's way for the same reason."""
-            if urlparse(self.path).path != "/layout.json":
+            """Persist or delete a layout, or switch which run is served.
+            Positions are a viewer concern, kept out of graph.json so editing
+            what the graph *means* never touches geometry. `?name=` picks
+            which arrangement; none means main."""
+            parsed = urlparse(self.path)
+            if parsed.path == "/run":
+                self._switch_run(parse_qs(parsed.query))
+                return
+            if parsed.path != "/layout.json":
                 self.send_error(404)
+                return
+            q = parse_qs(parsed.query)
+            name = q.get("name", [""])[0]
+            try:
+                target = layout_path(name)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            if q.get("delete"):
+                # Main is the one arrangement every fallback lands on; a
+                # cockpit with no main is a cockpit that opens onto strays.
+                if target == LAYOUT_FILE:
+                    self.send_error(400, "main cannot be deleted")
+                    return
+                try:
+                    target.unlink()
+                except FileNotFoundError:
+                    self.send_error(404)
+                    return
+                self._send(b'{"ok":true}', "application/json")
                 return
             length = int(self.headers.get("Content-Length", 0))
             payload = self.rfile.read(length).decode("utf-8")
@@ -349,7 +429,33 @@ def make_handler(db_path: Path):
             except json.JSONDecodeError as exc:
                 self.send_error(400, str(exc))
                 return
-            (graph_mod.DESIGN_DIR / "layout.json").write_text(payload, encoding="utf-8")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(payload, encoding="utf-8")
+            self._send(b'{"ok":true}', "application/json")
+
+        def _switch_run(self, q) -> None:
+            """Point every later request at a sibling run.
+
+            Same gate as the way in: bring the file up to schema, refuse it if
+            that was not enough — a viewer that switches to a database it then
+            renders as nine empty boxes has answered "switch" with a lie. The
+            name is confined to siblings of the current run; a path here would
+            be the layout traversal problem with a second spelling.
+            """
+            name = q.get("name", [""])[0]
+            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", name) or ".." in name:
+                self.send_error(400, f"not a run name: {name!r}")
+                return
+            target = state["db"].parent / f"{name}.db"
+            if not target.exists():
+                self.send_error(404, f"no run named {name}")
+                return
+            init_db(target).close()
+            drift = schema_drift(target)
+            if drift:
+                self.send_error(409, "behind schema: " + "; ".join(drift[:4]))
+                return
+            state["db"] = target
             self._send(b'{"ok":true}', "application/json")
 
         def log_message(self, *args):                      # quiet
@@ -385,8 +491,20 @@ def prepare_db(project_root: str | Path | None = None,
                 f"create one.\n  rota ls           what runs exist\n"
                 f"  rota onboard <name> --root <checkout>")
     else:
-        db_path = state_dir(project_root or ".") / "rota.db"
-        if not db_path.exists():
+        # No run named: serve the newest one. The person opening a cockpit
+        # without naming a run almost always means "the run I was just
+        # working on", and mtime is the one honest signal of that. The
+        # in-page selector makes a wrong guess a two-click correction.
+        sdir = state_dir(project_root or ".")
+        siblings = sorted(sdir.glob("*.db"),
+                          key=lambda p: p.stat().st_mtime, reverse=True) \
+            if sdir.is_dir() else []
+        if siblings:
+            db_path = siblings[0]
+            print(f"serving the latest run: {db_path.stem}"
+                  f" (the selector in the page switches)")
+        else:
+            db_path = sdir / "rota.db"
             # Boot rather than refuse. This is a viewer; "no database" is not a
             # condition it should make somebody resolve by hand, and boot is
             # idempotent — it reconciles what is there and creates what is not.
@@ -495,7 +613,12 @@ def serve_reloading(project_root: str | Path | None = None, port: int = 8899,
 
     watch = [paths.PACKAGE]
     print(f"watching {watch[0]} for changes")
+    # Layout saves come *from* the viewer this server is serving. Restarting on
+    # them turned every "save layout" into a dead server under a live page —
+    # the same write also has to stay out of `source_fingerprint`, or the page
+    # reloads itself a second after saving.
     run_process(*watch, target=serve,
+                watch_filter=lambda change, p: not is_layout_file(Path(p)),
                 kwargs={"project_root": project_root, "port": port,
                         "open_browser": False, "db": db},
                 callback=lambda changes: print(

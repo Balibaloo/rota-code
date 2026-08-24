@@ -133,7 +133,7 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             values=("on", "off")),
 
     Setting("onboarding_phases",
-            "frame,orient,reconcile,define,survey,boundaries",
+            "frame,orient,reconcile,define,survey,reorient,boundaries",
             "Which understanding phases an onboarding runs, in order: frame "
             "(Architect judges the partition -- program, attached, ignore, "
             "boundary -- before anything reads it), orient "
@@ -142,6 +142,9 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "to the ledger), define "
             "(Terminologist, one word at a time from the project's own lexicon), "
             "survey (the per-area passes, Terminologist then Architect), "
+            "reorient (Vision Keeper, the draft account re-read with the "
+            "vocabulary and model in hand -- the first draft stops being "
+            "the final draft), "
             "boundaries (Architect, one session per file the outside touches "
             "-- authoring surfaces and manifests -- where the commitments "
             "actually live). Strict: "

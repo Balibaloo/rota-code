@@ -25,12 +25,11 @@ imports over the README — a page of badges says less than where the root
 file points. `code.source` any entry you need to open to be sure.
 
 One `frame.assign(path=..., kind=..., reason=<five words>)` per top-level
-entry you classify. Where you disagree with the shown prior, say so in the
-reason — the difference is recorded for the principal either way. An entry
-whose prior is already right still deserves its assignment: the frame
-should be judged, not inherited.
+entry, each entry once — and then, in the same turn, the ending:
 
-End with `surveys.attest(outcome="found", citations=[the entries you
-classified])` — or `outcome="none_found"` when every prior shown is right
-and the heuristic frame stands, which is the honest answer for a
-conventionally-shaped checkout.
+    surveys.attest(outcome="found", citations=[the entries you classified])
+
+The attest is the judgement; assignments without it are a session that
+never happened. `outcome="none_found"` when every prior shown is right and
+the heuristic frame stands — the honest answer for a conventionally-shaped
+checkout, and then the attest is the only call you make.

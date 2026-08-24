@@ -96,7 +96,7 @@ the difference is whose artefact changes.
 **Reaches** developer (answer, reopen), liaison (answer, report, submit),
 researcher (question), tester (answer).
 
-**Woken by** contested, orient, reconcile, signoff, slicing.
+**Woken by** contested, orient, reconcile, reorient, signoff, slicing.
 
 **Orient is its first session on any repository.** Before a word in the
 program has been named, it reads the front — manifest, README, the authoring

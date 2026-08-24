@@ -785,6 +785,26 @@ The stages, in order:
     are found, not at a scheduled stage; rulings naming dead paths surface
     as tripwires.
 
+### Stage 2, as built (2026-08-24)
+
+The deterministic half first: `frame_rulings` (id, kind, provenance) with
+the partition consulting it -- most specific prefix wins, decided outranks
+observed, unruled paths keep the heuristics' answer -- and `repin()`
+re-deriving partition, lexicon and constraint zero over the ruled table.
+Then the session: `tick:frame` wakes the Architect first, pushed
+`code.tree` and `frame.load`, writing through `frame.assign`, diffs to the
+ledger mechanically.
+
+Two measured lessons in the first live runs. The judge classified click's
+tree correctly in its first turn at both model sizes -- and never attested,
+re-sending the batch until the identical-turn rule ended the session,
+llama 0/5 at recording. The cure was already the house philosophy: the
+record follows what the session did, so a frame session that ends with
+rulings staged and no record has its attest derived, citations taken from
+the first indexed file each ruled prefix covers. And root dot-files left
+`code.tree`: .editorconfig received a classification, which changes
+nothing and costs the attention the ending needed.
+
 Validation plan: the challenge on/off twin (same repo, challenge off and
 sample -- the score diff is the measured value of the pass), the v1 baseline
 (v2 scores are not comparable to v1 scores by design; the twins bridge

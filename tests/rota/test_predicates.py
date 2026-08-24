@@ -671,7 +671,7 @@ def test_the_register_set_is_the_one_the_document_names():
     """
     assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
         "the register names a predicate that does not exist"
-    assert len(P.REGISTER_ENTRIES) == 21   # sixteen, plus the onboarding phases
+    assert len(P.REGISTER_ENTRIES) == 22   # sixteen, plus the onboarding phases
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
