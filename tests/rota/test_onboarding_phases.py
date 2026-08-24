@@ -1121,3 +1121,141 @@ def test_an_authoring_key_survives_whole_in_the_lexicon(project):
                "VALUES ('intents_to', 'intents_to', 'the recipe key', 'the frontmatter key "
                "a user writes recipes under', 'observed')")
     assert "intents_to" not in pending_terms(db)
+
+
+# ---------------------------------------------------------------------------
+# The prose's names
+# ---------------------------------------------------------------------------
+
+def _ledger_repo(tmp_path):
+    """A tree whose code declares `Invoice` and whose README leans on a word
+    the code never says. No git: `boot.onboard` reads the filesystem."""
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "invoices.ts").write_text(
+        "export type Invoice = { id: string };\n"
+        "export function issue(inv: Invoice): void {}\n", encoding="utf-8")
+    (root / "schema.yaml").write_text(
+        'invoice_kind: "draft|final"\n', encoding="utf-8")
+    (root / "README.md").write_text(
+        "# The ledgerbook\n"
+        "Every charge lands in the **ledgerbook** before an invoice exists.\n"
+        'A "ledgerbook" is obviously kept per month, and obviously the\n'
+        "ledgerbook survives restarts. Obviously an export walks the whole\n"
+        "ledgerbook, and obviously every invoice cites a ledgerbook line.\n"
+        "Obviously so.\n", encoding="utf-8")
+    return root
+
+
+def test_the_prose_nominates_its_own_names(tmp_path):
+    """A word the README leans on -- frequent, emphasised, absent from every
+    code word's family -- reaches the lexicon as the prose's. Grammar does
+    not, however frequent, and a code word gains nothing from being said in
+    prose too."""
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _ledger_repo(tmp_path))
+    rows = {r["word"]: r for r in lexicon.ranked(db)}
+
+    assert "ledgerbook" in rows, sorted(rows)
+    assert '"prose"' in rows["ledgerbook"]["sources"]
+    assert rows["ledgerbook"]["uses"] >= 4
+    assert "obviously" not in rows, "frequent but never emphasised"
+    assert '"prose"' not in rows["invoice"]["sources"], "the code's word stays the code's"
+
+
+def test_pending_terms_owe_the_prose_names_only_on_prose_runs(tmp_path):
+    """The define phase owes `ledgerbook` -- and stops owing it the moment
+    prose sources are withheld, because a --no-prose run has no README for
+    the word to be the name of."""
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _ledger_repo(tmp_path))
+    _oriented(db)
+    _reconciled(db)
+
+    assert "ledgerbook" in pending_terms(db)
+    config.set(db, "prose_sources", "off")
+    assert "ledgerbook" not in pending_terms(db)
+
+
+def test_the_concordance_gives_a_prose_only_word_its_evidence(tmp_path):
+    """For a word only the README says, the one-line prose cap would starve
+    the session that has to define it. The view says plainly whose word it is
+    and shows the README lines; a word the code speaks keeps the usual
+    sections."""
+    from rota.roles.api import Ctx, code_concordance
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _ledger_repo(tmp_path))
+
+    ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "ledgerbook",
+              wake_refs=(TERM_PREFIX + "ledgerbook",))
+    where = code_concordance(ctx)["where"]
+    assert "the code never says this word; the prose does:" in where, where
+    assert "README.md" in where
+    assert where.count("\n      ") >= 3, "several README lines, not the one-line cap"
+    assert "used:" not in where
+
+    ctx2 = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "invoice",
+               wake_refs=(TERM_PREFIX + "invoice",))
+    where2 = code_concordance(ctx2)["where"]
+    assert "the code never says this word" not in where2
+
+
+def test_onboard_names_the_assumptions_a_checkout_stresses(tmp_path):
+    """A tree of Swift and no README announces both at onboard time --
+    the two failures are silent downstream, and this is the one moment the
+    operator is looking."""
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    for i in range(3):
+        (root / "src" / f"view{i}.swift").write_text("struct V {}\n",
+                                                     encoding="utf-8")
+    (root / "src" / "main.ts").write_text("export const x = 1;\n",
+                                          encoding="utf-8")
+    db = init_db(tmp_path / "rota.db")
+    report = boot.onboard(db, root)
+    text = "\n".join(report.stresses)
+    assert ".swift" in text and "no parser" in text, text
+    assert "no root README" in text, text
+
+
+def test_a_well_shaped_checkout_trips_no_wires(tmp_path):
+    """The ledger repo -- parsed language, root README, few keys -- reports
+    its language mix and nothing else."""
+    db = init_db(tmp_path / "rota.db")
+    report = boot.onboard(db, _ledger_repo(tmp_path))
+    warnings = [l for l in report.stresses if not l.startswith("languages:")]
+    assert warnings == [], warnings
+
+
+def test_examples_attach_like_tests_and_docs_trip_the_wire(tmp_path):
+    """A click-shaped tree: a real package, demo apps under `examples/`, a fat
+    `docs/`. The examples are indexed and findable but form no area -- the
+    survey attention belongs to the program -- and the docs tripwire names
+    the prose reconcile will never read."""
+    root = tmp_path / "repo"
+    (root / "src" / "pkg").mkdir(parents=True)
+    for i in range(4):
+        (root / "src" / "pkg" / f"mod{i}.py").write_text(
+            f"def fn{i}():\n    return {i}\n", encoding="utf-8")
+    (root / "examples" / "demoapp").mkdir(parents=True)
+    for i in range(3):
+        (root / "examples" / "demoapp" / f"app{i}.py").write_text(
+            "from src.pkg import mod0\n", encoding="utf-8")
+    (root / "docs").mkdir()
+    for i in range(12):
+        (root / "docs" / f"page{i}.rst").write_text("some prose\n",
+                                                    encoding="utf-8")
+    (root / "README.md").write_text("# pkg\n", encoding="utf-8")
+
+    db = init_db(tmp_path / "rota.db")
+    report = boot.onboard(db, root)
+
+    areas = {r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
+    assert not any(a.startswith("examples") for a in areas), areas
+    got = db.execute("SELECT area FROM code_index WHERE grain = ?",
+                     ("examples/demoapp/app0.py",)).fetchone()
+    assert got is not None, "indexed and findable"
+    text = "\n".join(report.stresses)
+    assert "prose files under docs/" in text, text

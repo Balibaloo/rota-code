@@ -24,7 +24,7 @@ by it when somebody has looked, and only then.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import areas as areas_mod
@@ -51,6 +51,7 @@ class OnboardReport:
     unsurveyed: int
     leaky: list
     words: int = 0
+    stresses: list = field(default_factory=list)
 
 
 def checkout_of(root: str | Path) -> tuple[str, str]:
@@ -97,8 +98,89 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (key, value))
     unsurveyed = refresh_constraint_zero(conn)
-    return OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
-                         leaky=proposal.leaky(), words=words.words)
+    out = OnboardReport(index=report, areas=count, unsurveyed=unsurveyed,
+                        leaky=proposal.leaky(), words=words.words)
+    out.stresses = stresses(conn, out)
+    return out
+
+
+# Suffixes expected to carry no symbols: prose, config, styles, scripts-in-
+# passing. Everything else without a parser is code this system cannot read.
+_EXPECTED_UNPARSED = {".md", ".rst", ".txt", ".yaml", ".yml", ".toml", ".json",
+                      ".cfg", ".ini", ".css", ".scss", ".less", ".html",
+                      ".svg", ".xml", ".sql", ".sh", ".ps1", ".bat", ".env",
+                      ".editorconfig", ".gitignore", ".gitattributes", ""}
+
+
+def stresses(conn: sqlite3.Connection, report: OnboardReport) -> list[str]:
+    """
+    The assumptions this checkout is about to stress, said while the operator
+    is looking.
+
+    ASSUMPTIONS.md is the register; these are its mechanical tripwires, read
+    against one checkout at the one moment the numbers are fresh. Each breaks
+    *silently* downstream -- path-only grains survey as "almost nothing",
+    a missing README just never fires reconcile -- where nothing names the
+    cause. An info line for the language mix, a warning per tripped wire.
+    """
+    from collections import Counter
+
+    from .languages import BY_SUFFIX
+
+    out: list[str] = []
+    mix = ", ".join(f"{k} {v}" for k, v in sorted(
+        report.index.languages.items(), key=lambda kv: (-kv[1], kv[0])))
+    if mix:
+        out.append(f"languages: {mix}")
+
+    odd: Counter = Counter()
+    for r in conn.execute("SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        name = r["grain"].rsplit("/", 1)[-1]
+        suffix = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+        if suffix not in BY_SUFFIX and suffix not in _EXPECTED_UNPARSED:
+            odd[suffix or name] += 1
+    for suffix, n in odd.most_common():
+        if n >= 3:
+            out.append(f"{n} {suffix} files have no parser: their symbols, "
+                       f"imports and vocabulary are invisible (ASSUMPTIONS.md)")
+
+    keys = conn.execute("SELECT COUNT(*) FROM code_lexicon WHERE sources "
+                        "LIKE ?", ('%"key"%',)).fetchone()[0]
+    if keys > 60:
+        out.append(f"{keys} authoring keys, and the define phase owes every "
+                   f"one: expect that many sessions, or bring a triage rule")
+
+    if not conn.execute(
+            "SELECT 1 FROM code_index WHERE grain_kind = 'path' "
+            "AND grain LIKE 'readme%' AND grain NOT LIKE '%/%' "
+            "LIMIT 1").fetchone():
+        out.append("no root README: reconcile has nothing to check and the "
+                   "prose holds no names")
+
+    docs_prose = conn.execute(
+        "SELECT COUNT(*) FROM code_index WHERE grain_kind = 'path' "
+        "AND (grain LIKE 'docs/%' OR grain LIKE 'doc/%') "
+        "AND (grain LIKE '%.md' OR grain LIKE '%.rst' OR grain LIKE '%.txt')"
+    ).fetchone()[0]
+    if docs_prose >= 10:
+        out.append(f"{docs_prose} prose files under docs/: reconcile reads "
+                   f"only the root README, so the project's real prose goes "
+                   f"unchecked and nominates no names")
+
+    from .areas import is_attached
+    root_src = [r["grain"] for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' AND area = '.'")
+        if not is_attached(r["grain"])]
+    if len(root_src) > 20:
+        out.append(f"the root catch-all holds {len(root_src)} source files: "
+                   f"whatever did not fold anywhere else is what one survey "
+                   f"session will be asked to characterise")
+
+    if report.areas == 1 and report.index.files > 20:
+        out.append(f"one area holds all {report.index.files} files: a flat "
+                   f"tree asks each survey to characterise the whole program "
+                   f"from one window")
+    return out
 
 
 def refresh_constraint_zero(conn: sqlite3.Connection) -> int:

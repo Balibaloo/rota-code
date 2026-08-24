@@ -39,6 +39,10 @@ NARRATIVE = {
     "ANSWER_KEY.md": "grading data for onboarding runs, written before the "
                      "first session ran",
     "ANSWER_KEY_icalendar.md": "the same, for the second repository",
+    "ASSUMPTIONS.md": "the register of what the system assumes about a "
+                      "codebase -- law, tripwire or debt; its mechanical "
+                      "entries are asserted as onboard-time tripwires in "
+                      "test_onboarding_phases.py",
     "ONBOARDING.md": "the derivation of the onboarding phases and the measured "
                      "reasoning behind each; its structural claims -- phase "
                      "order, what drains each, what a session may write -- are "

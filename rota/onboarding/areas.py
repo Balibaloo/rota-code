@@ -42,6 +42,23 @@ TEST_FILE_PREFIXES = ("test_", "conftest")
 TEST_FILE_INFIXES = ("_test.", ".test.", ".spec.", "_spec.")
 
 
+# Directory names that mean "runnable documentation". Same treatment as
+# tests, for the same reason, measured on click before this existed: ten of
+# sixteen proposed areas were `examples/*` demo apps of three files each, and
+# the program itself -- `src/click`, eighteen files -- held one sixteenth of
+# the survey attention. An example exercises the package the way a test does:
+# authored, indexed, findable, never an area of its own.
+EXAMPLE_DIRS = {"example", "examples", "demo", "demos", "sample", "samples"}
+
+
+def is_attached(grain: str) -> bool:
+    """Tests and examples: indexed and attached to the area they exercise,
+    never counted when the partition decides what deserves a survey."""
+    if is_test(grain):
+        return True
+    return any(p.lower() in EXAMPLE_DIRS for p in grain.split("/")[:-1])
+
+
 def is_test(grain: str) -> bool:
     """
     A path is a test if a directory component says so, or the filename does.
@@ -110,8 +127,8 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     if not every:
         return Proposal()
 
-    paths = [p for p in every if not is_test(p)]
-    tests = [p for p in every if is_test(p)]
+    paths = [p for p in every if not is_attached(p)]
+    tests = [p for p in every if is_attached(p)]
     if not paths:                      # a repository of nothing but tests
         return Proposal()
 
@@ -153,7 +170,7 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     # about how the source is coupled, and counting it would make every area
     # look tightly bound to wherever its tests landed.
     for row in conn.execute("SELECT src, dst FROM code_edges"):
-        if is_test(row["src"]) or is_test(row["dst"]):
+        if is_attached(row["src"]) or is_attached(row["dst"]):
             continue
         a, b = assigned.get(row["src"]), assigned.get(row["dst"])
         if a is None or b is None:

@@ -382,6 +382,8 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     print(f"{args.name}: {report.areas} areas, {report.unsurveyed} under "
           f"constraint zero, {len(report.leaky)} leaky  ({path})"
           + ("  [prose withheld]" if getattr(args, "no_prose", False) else ""))
+    for line in getattr(report, "stresses", []):
+        print(f"  {line}")
     print(f"next: rota run {args.name}")
     return 0
 
@@ -439,7 +441,19 @@ def cmd_tui(args: argparse.Namespace) -> int:
 def cmd_cockpit(args: argparse.Namespace) -> int:
     from .cockpit import server
 
-    path = require(args.name)
+    if args.name is None:
+        # No name means the run you were just working on, and mtime is the one
+        # honest signal of that. Said aloud, because a guess acted on silently
+        # is how a cockpit ends up trusted about the wrong database.
+        runs = sorted(RUNS.glob("*.db"), key=lambda p: p.stat().st_mtime,
+                      reverse=True) if RUNS.is_dir() else []
+        if not runs:
+            raise SystemExit(
+                "no runs yet: rota onboard <name> --root <checkout>")
+        path = runs[0]
+        print(f"latest run: {path.stem}  (rota cockpit <name> picks another)")
+    else:
+        path = require(args.name)
     runner = server.serve if args.no_reload else server.serve_reloading
     runner(db=path, port=args.port, open_browser=args.open)
     return 0
@@ -505,7 +519,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_tui)
 
     p = sub.add_parser("cockpit", help="the rows, the graph and the trace")
-    p.add_argument("name")
+    p.add_argument("name", nargs="?",
+                   help="a run name; omitted, the most recently touched run")
     p.add_argument("--port", type=int, default=8899)
     p.add_argument("--open", action="store_true", help="open a browser tab")
     p.add_argument("--no-reload", action="store_true")
