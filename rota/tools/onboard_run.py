@@ -62,9 +62,16 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> Non
         # return. Every run ended "no survey wakes left" with the collisions
         # still unexamined, so the phase stopped one step before the step that
         # cleans up after it.
-        PHASE = {"tick:orient", "tick:reconcile", "tick:define", "tick:survey",
-                 "tick:term_collision", "message", "tick:observed_entries",
-                 "tick:quarantined", "tick:constraint_zero"}
+        # Derived from ONBOARDING_TICKS rather than listed again: this set
+        # was a hand-list, and when onboarding gained its boundaries phase
+        # the crank stopped at "no survey wakes left; frontier holds
+        # ['tick:boundary']" -- one step before the new step, which is the
+        # exact failure the paragraph above describes for term_collision.
+        from ..core.scheduler import ONBOARDING_TICKS as _PHASES
+
+        PHASE = set(_PHASES) | {
+            "tick:term_collision", "message", "tick:observed_entries",
+            "tick:quarantined", "tick:constraint_zero"}
         if survey_only and not any(w.kind in PHASE for w in ready):
             print(f"\nno survey wakes left; frontier holds "
                   f"{sorted({w.kind for w in ready})}")
