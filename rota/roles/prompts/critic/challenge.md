@@ -11,16 +11,18 @@ find the declaration — or the counterexample. If it names a consequence
 `code.source` anything the cited files point at; a claim is often defeated
 one import away from where it was written.
 
-Then exactly one verdict:
+Then exactly one verdict, and either way it carries a line from a file you
+opened — your opinion is not evidence, in either direction:
 
-- `challenge.uphold(why=<one clause>)` — the claim survived. This is the
-  common honest ending and it is cheap on purpose.
-- `challenge.break(citation=<the file you opened>, quote=<the line, in the
-  source's words>, why=<what it defeats>)` — the claim is falsified. The
-  citation must be a file you opened this session; a break without its line
-  is refused, because your opinion is not evidence.
+- `challenge.break(citation=..., quote=<the line that defeats it>, why=...)`
+  — the claim is falsified by that line.
+- `challenge.uphold(citation=..., quote=<the line that supports it>,
+  why=...)` — the claim survived because of that line. An uphold with no
+  line is refused: a claim nobody checked has not survived anything.
 
-Do not soften a break into an uphold with reservations: if the line defeats
-the claim, break it. Do not manufacture a break from wording you merely
-dislike: imprecision the source supports is an uphold. The verdict ends the
-session.
+The test of your verdict: put the quote beside the claim. If they cannot
+both be true, break. If the quote is what the claim is describing, uphold.
+If the quote is merely *near* the claim — same file, says nothing either
+way — you have not finished reading. Do not soften a break into an uphold
+with reservations, and do not manufacture one from wording you merely
+dislike. The verdict ends the session.

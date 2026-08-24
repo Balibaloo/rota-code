@@ -3922,12 +3922,33 @@ def challenge_load(ctx: Ctx) -> dict:
 
 
 @op("challenge", "uphold")
-def challenge_uphold(ctx: Ctx, why: str = "") -> dict:
-    """The claim survived the attempt. Cheap on purpose: honesty about a
-    sound claim must cost less than theatre about a broken one."""
+def challenge_uphold(ctx: Ctx, citation: str, quote: str,
+                     why: str = "") -> dict:
+    """
+    The claim survived -- because of this line, not because nobody looked.
+
+    Measured before the gate existed: a planted falsehood was upheld with an
+    empty why. The break always demanded its evidence; an uphold that
+    demands none is a free door, and a model at temperature zero takes the
+    free door. Symmetric now: either verdict carries the line it stands on,
+    from a file opened this session, and the Critic's judgement is which
+    side the line lands on.
+    """
+    import re as _re
+
     table, row = _claim_of(ctx)
-    ctx.writes.append(("challenges", f"{table}:{row}",
-                       {"verdict": "stands", "why": why or ""}))
+    citation = _re.sub(r"^(?:\./|/)+", "", (citation or "").strip())
+    if not (quote or "").strip():
+        raise ValueError("an uphold carries the line that supports the "
+                         "claim: quote= the source's words. A claim nobody "
+                         "checked has not survived anything.")
+    if _grain_path(citation) not in ctx.opened:
+        raise ValueError(f"{citation!r} was not opened this session: an "
+                         f"uphold stands on a line you read. code.source "
+                         f"it first.")
+    ctx.writes.append(("challenges", f"{table}:{row}", {
+        "verdict": "stands", "citation": citation,
+        "quote": quote.strip()[:300], "why": (why or "").strip()[:300]}))
     return {"id": f"{table}:{row}", "verdict": "stands"}
 
 

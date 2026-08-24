@@ -1644,7 +1644,12 @@ def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
     sb2 = sandbox_mod.build("critic", db, session_id="s2", mode="challenge",
                            area="@claim:constraints:k1")
     sb2.ctx.wake_refs = ("@claim:constraints:k1",)
-    up = sb2.call("challenge.uphold", why="the source supports it")
+    with pytest.raises(Exception, match="carries the line|not opened"):
+        sb2.call("challenge.uphold", citation="src/parser.ts", quote="",
+                 why="looks fine")
+    sb2.call("challenge.load")
+    up = sb2.call("challenge.uphold", citation="src/parser.ts",
+                  quote="export function parse", why="the parser is as claimed")
     assert up["verdict"] == "stands"
 
 
