@@ -163,8 +163,8 @@ def transcribed(conn) -> tuple[list[str], int]:
     return copied, len(terms)
 
 
-def score(db_path: str | Path) -> dict:
-    key = yaml.safe_load(KEY.read_text(encoding="utf-8"))
+def score(db_path: str | Path, key_path: str | Path | None = None) -> dict:
+    key = yaml.safe_load(Path(key_path or KEY).read_text(encoding="utf-8"))
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
 
@@ -365,7 +365,15 @@ def render(s: dict) -> None:
 
 
 if __name__ == "__main__":
-    paths = sys.argv[1:] or [".rota/cnt_new.db"]
+    # `--key probes/click/answer_key.yaml` scores another repository's run
+    # with the same machinery; the cnt key stays the default.
+    args = sys.argv[1:]
+    key_path = None
+    if "--key" in args:
+        i = args.index("--key")
+        key_path = args[i + 1]
+        args = args[:i] + args[i + 2:]
+    paths = args or [".rota/cnt_new.db"]
     for p in paths:
-        render(score(p))
+        render(score(p, key_path))
     print()
