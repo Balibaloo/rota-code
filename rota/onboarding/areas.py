@@ -52,11 +52,21 @@ EXAMPLE_DIRS = {"example", "examples", "demo", "demos", "sample", "samples"}
 
 
 def is_attached(grain: str) -> bool:
-    """Tests and examples: indexed and attached to the area they exercise,
-    never counted when the partition decides what deserves a survey."""
+    """Tests, examples and dot-directories: indexed and attached, never
+    counted when the partition decides what deserves a survey.
+
+    Dot-directories joined after two repositories measured the same thing:
+    surveyed as areas, .github/* produced five decoy constraints on click
+    and thirteen on icalendar -- six of them the identical workflow stamp --
+    plus a glossary of CI vocabulary. A tool's directory is the tool's, and
+    the commitments its files witness (publishing, review flow) are stated
+    in the root manifests, which are boundary subjects already."""
     if is_test(grain):
         return True
-    return any(p.lower() in EXAMPLE_DIRS for p in grain.split("/")[:-1])
+    parts = grain.split("/")[:-1]
+    if any(p.startswith(".") for p in parts):
+        return True
+    return any(p.lower() in EXAMPLE_DIRS for p in parts)
 
 
 def is_test(grain: str) -> bool:

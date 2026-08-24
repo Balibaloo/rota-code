@@ -1242,6 +1242,10 @@ def test_examples_attach_like_tests_and_docs_trip_the_wire(tmp_path):
     for i in range(3):
         (root / "examples" / "demoapp" / f"app{i}.py").write_text(
             "from src.pkg import mod0\n", encoding="utf-8")
+    (root / ".github" / "workflows").mkdir(parents=True)
+    for i in range(3):
+        (root / ".github" / "workflows" / f"ci{i}.yaml").write_text(
+            "name: ci\n", encoding="utf-8")
     (root / "docs").mkdir()
     for i in range(12):
         (root / "docs" / f"page{i}.rst").write_text("some prose\n",
@@ -1254,6 +1258,7 @@ def test_examples_attach_like_tests_and_docs_trip_the_wire(tmp_path):
     areas = {r["area"] for r in db.execute(
         "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
     assert not any(a.startswith("examples") for a in areas), areas
+    assert not any(a.startswith(".") and a != "." for a in areas),         "a dot-directory is a tool's, not an area"
     got = db.execute("SELECT area FROM code_index WHERE grain = ?",
                      ("examples/demoapp/app0.py",)).fetchone()
     assert got is not None, "indexed and findable"
