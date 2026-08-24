@@ -1850,7 +1850,11 @@ def surveys_attest(ctx: Ctx, outcome: str,
     from ..core.scheduler import FRAME as _FRAME
     from ..core.scheduler import PROSE as _PROSE
 
+    from ..core.scheduler import BLINDSPOTS as _BLIND
+
     if area == _PROSE:
+        owed = "ledger"
+    if area == _BLIND:
         owed = "ledger"
     if area == _FRAME:
         owed = "frame_rulings"
@@ -3785,6 +3789,61 @@ def code_concordance(ctx: Ctx, term: str = "", limit: int = 3) -> dict:
     if file_block:
         result["declaring_file"] = file_block
     return result
+
+
+@op("code", "gaps")
+def code_gaps(ctx: Ctx) -> dict:
+    """
+    The run's own gaps, recomputed from its record: what it could not read,
+    what it gave up on, what nobody checked. Facts for the blind-spot
+    session to weigh -- the numbers are mechanical, the judgement of which
+    matter is the session's.
+    """
+    from collections import Counter as _Counter
+
+    lines: list[str] = []
+    suf: _Counter = _Counter()
+    known = {".py", ".js", ".jsx", ".mjs", ".ts", ".tsx", ".go", ".rs",
+             ".java", ".rb"}
+    benign = {".md", ".rst", ".txt", ".yaml", ".yml", ".toml", ".json",
+              ".cfg", ".ini", ".css", ".scss", ".html", ".svg", ".xml", ""}
+    prose = 0
+    for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        name = r["grain"].rsplit("/", 1)[-1]
+        ext = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+        if ext in (".md", ".rst", ".txt"):
+            prose += 1
+        if ext not in known and ext not in benign:
+            suf[ext or name] += 1
+    for ext, n in suf.most_common(6):
+        if n >= 3:
+            lines.append(f"{n} {ext} files no parser reads: their contents "
+                         f"never reached a session")
+    quarantined = [r["tick_key"] for r in ctx.conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1")]
+    for q in quarantined[:6]:
+        lines.append(f"given up after the attempt bound: {q}")
+    checked = ctx.conn.execute(
+        "SELECT COUNT(*) FROM survey_records WHERE area = '@prose'").fetchone()[0]
+    if prose > 3 and checked:
+        lines.append(f"{prose} prose files indexed; reconcile checked the "
+                     f"root README and nothing else")
+    if prose > 3 and not checked:
+        lines.append(f"{prose} prose files indexed and none were checked "
+                     f"against the account")
+    off_terms = ctx.conn.execute(
+        "SELECT COUNT(*) FROM glossary_terms WHERE superseded_by IS NULL"
+    ).fetchone()[0]
+    lines.append(f"the glossary holds {off_terms} live terms; whether they "
+                 f"are the program's vocabulary or a directory's furniture "
+                 f"is visible in their areas")
+    falsified = ctx.conn.execute(
+        "SELECT COUNT(*) FROM challenges WHERE verdict = 'falsified'").fetchone()[0]
+    if falsified:
+        lines.append(f"{falsified} claim(s) stand falsified on the ledger, "
+                     f"awaiting a ruling")
+    return {"facts": lines}
 
 
 _CLAIM_TABLES = {

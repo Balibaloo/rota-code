@@ -1784,6 +1784,42 @@
       "label": "the frame judge's whole view; measured at 34/38 before it was built"
     },
     {
+      "s": "liaison",
+      "t": "surveys",
+      "type": "reads",
+      "v": "consult",
+      "n": "what has been attested",
+      "rows": "query",
+      "depth": "index"
+    },
+    {
+      "s": "liaison",
+      "t": "ledger",
+      "type": "writes",
+      "v": "log",
+      "n": "a gap the principal must know",
+      "rows": "delta",
+      "label": "blind spots: a gap named is a gap the principal can rule on"
+    },
+    {
+      "s": "liaison",
+      "t": "surveys",
+      "type": "writes",
+      "v": "attest",
+      "n": "the blind-spot pass, closed",
+      "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "code",
+      "type": "reads",
+      "v": "gaps",
+      "n": "what the run could not see",
+      "rows": "query",
+      "depth": "index",
+      "label": "blind spots: the numbers are mechanical, which matter is the session's"
+    },
+    {
       "s": "critic",
       "t": "challenge",
       "type": "reads",

@@ -1646,3 +1646,29 @@ def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
     sb2.ctx.wake_refs = ("@claim:constraints:k1",)
     up = sb2.call("challenge.uphold", why="the source supports it")
     assert up["verdict"] == "stands"
+
+
+def test_blindspots_run_last_and_the_facts_are_mechanical(tmp_path):
+    """The Liaison is woken once, after everything, with the run's own gaps
+    recomputed from its record; the attest retires it."""
+    from rota.core.scheduler import BLINDSPOTS, tick_blindspot
+    from rota.roles.api import Ctx, code_gaps
+
+    db = init_db(tmp_path / "rota.db")
+    root = _boundary_repo(tmp_path)
+    for i in range(4):
+        (root / f"data{i}.xyz").write_text("blob\n", encoding="utf-8")
+    boot.onboard(db, root)
+    config.set(db, "onboarding_phases", "blindspots")
+
+    assert tick_blindspot(db) == [], "not before the program is oriented"
+    _oriented(db)
+    wakes = tick_blindspot(db)
+    assert [(w.role, w.refs) for w in wakes] == [("liaison", (BLINDSPOTS,))]
+
+    facts = code_gaps(Ctx(conn=db, role="liaison"))["facts"]
+    assert any(".xyz" in f for f in facts), facts
+
+    db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
+               "('liaison:@blindspots', '@blindspots', 'found')")
+    assert tick_blindspot(db) == []

@@ -293,9 +293,10 @@ TERM_PREFIX = "@term:"
 FRAME = "@frame"
 REORIENT = "@reorient"
 CLAIM_PREFIX = "@claim:"
+BLINDSPOTS = "@blindspots"
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
                     "tick:define", "tick:survey", "tick:reorient",
-                    "tick:boundary", "tick:challenge")
+                    "tick:boundary", "tick:challenge", "tick:blindspot")
 
 
 def is_area(subject: str | None) -> bool:
@@ -579,6 +580,8 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
         return "boundaries"
     if "challenge" in phases and _challenge_wakes(conn):
         return "challenge"
+    if "blindspots" in phases and _blindspot_wakes(conn):
+        return "blindspots"
     return "done"
 
 
@@ -836,8 +839,12 @@ def challenge_subjects(conn: sqlite3.Connection) -> list[str]:
 
 
 def _challenge_wakes(conn: sqlite3.Connection) -> list[Wake]:
-    """One Critic session per unchallenged load-bearing claim."""
-    done = {r["id"] for r in conn.execute("SELECT id FROM challenges")}
+    """One Critic session per unchallenged load-bearing claim. A database
+    from before the table existed gets no wakes, not a crashed frontier."""
+    try:
+        done = {r["id"] for r in conn.execute("SELECT id FROM challenges")}
+    except sqlite3.OperationalError:
+        return []
     gone = _abandoned(conn, "tick:challenge")
     return [Wake("critic", "tick:challenge", refs=(CLAIM_PREFIX + ref,))
             for ref in challenge_subjects(conn)
@@ -847,6 +854,33 @@ def _challenge_wakes(conn: sqlite3.Connection) -> list[Wake]:
 def tick_challenge(conn: sqlite3.Connection) -> list[Wake]:
     return (_challenge_wakes(conn)
             if onboarding_phase(conn) == "challenge" else [])
+
+
+def _blindspot_wakes(conn: sqlite3.Connection) -> list[Wake]:
+    """
+    What the run could not see has not been said.
+
+    Static tripwires catch the assumptions somebody already named; this
+    session exists for the rest. The Liaison -- the role that relays to the
+    principal -- reads the run's own gaps (unparsed formats, quarantined
+    subjects, unchecked prose, glossary dilution) and writes the two or
+    three that matter to the ledger. Last, because the gaps of a run are
+    only known once the run has run.
+    """
+    if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (PROGRAM,)).fetchone():
+        return []
+    if BLINDSPOTS in _abandoned(conn, "tick:blindspot"):
+        return []
+    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
+                        (BLINDSPOTS,)).fetchone()
+    return [] if done else [Wake("liaison", "tick:blindspot",
+                                 refs=(BLINDSPOTS,))]
+
+
+def tick_blindspot(conn: sqlite3.Connection) -> list[Wake]:
+    return (_blindspot_wakes(conn)
+            if onboarding_phase(conn) == "blindspots" else [])
 
 
 def _boundary_wakes(conn: sqlite3.Connection) -> list[Wake]:
@@ -880,6 +914,7 @@ TICKS: tuple[Callable[[sqlite3.Connection], list[Wake]], ...] = (
     tick_reorient,
     tick_boundary,
     tick_challenge,
+    tick_blindspot,
 )
 
 

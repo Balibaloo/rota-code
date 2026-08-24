@@ -180,6 +180,29 @@
   forbidden:
     writes: [constraints, glossary_terms, items, model_areas]
 
+- id: L1-LI-say-what-the-run-could-not-see
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 3
+  tick: blindspot
+  tick_unseedable: the gaps come from an onboarded, run state
+  refs: ["@blindspots"]
+  repo:
+    onboard: true
+  fixture:
+    survey_records:
+      - {id: "architect:@frame", area: "@frame", outcome: none_found}
+      - {id: "vision_keeper:@program", area: "@program", outcome: found}
+    tick_attempts:
+      - {tick_key: "terminologist|tick:survey|src/store", attempts: 3,
+         quarantined: 1}
+  expect:
+    writes:
+      survey_records: {count: 1}
+  forbidden:
+    writes: [glossary_terms, items, constraints, model_areas, frame_rulings]
+
 - id: L1-VK-reorient-the-account
   tier: T1
   role: vision_keeper

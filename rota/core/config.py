@@ -134,23 +134,20 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
 
     Setting("onboarding_phases",
             "frame,orient,reconcile,define,survey,reorient,boundaries,"
-            "challenge",
+            "challenge,blindspots",
             "Which understanding phases an onboarding runs, in order: frame "
-            "(Architect judges the partition -- program, attached, ignore, "
-            "boundary -- before anything reads it), orient "
-            "(Vision Keeper, the whole program, from code alone), reconcile "
-            "(Vision Keeper, the README read against the account, differences "
-            "to the ledger), define "
-            "(Terminologist, one word at a time from the project's own lexicon), "
-            "survey (the per-area passes, Terminologist then Architect), "
-            "reorient (Vision Keeper, the draft account re-read with the "
-            "vocabulary and model in hand -- the first draft stops being "
-            "the final draft), boundaries, challenge (the Critic tries to "
-            "falsify the load-bearing claims against source), "
-            "boundaries (Architect, one session per file the outside touches "
-            "-- authoring surfaces and manifests -- where the commitments "
-            "actually live). Strict: "
-            "each phase is written with the previous one's artefact in front of "
+            "(Architect judges the partition before anything reads it), "
+            "orient (Vision Keeper, the whole program, from code alone), "
+            "reconcile (Vision Keeper, the README read against the account, "
+            "differences to the ledger), define (Terminologist, one word at "
+            "a time from the project's own lexicon), survey (the per-area "
+            "passes, Terminologist then Architect), reorient (Vision Keeper, "
+            "the draft account re-read with the vocabulary and model in "
+            "hand), boundaries (Architect, one session per file the outside "
+            "touches), challenge (the Critic tries to falsify the "
+            "load-bearing claims against source), blindspots (the Liaison "
+            "writes what the run could not see to the ledger). Strict: each "
+            "phase is written with the previous one's artefact in front of "
             "it. 'survey' alone is the pre-orientation design, kept for "
             "measuring one phase against another."),
 
@@ -160,7 +157,8 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "load-bearing claims -- constraints and items, capped at twelve, "
             "newest first; 'full' adds every glossary sense and model "
             "account; 'off' skips the pass. A break requires a citation the "
-            "session opened: models never adjudicate models."),
+            "session opened: models never adjudicate models.",
+            values=("off", "sample", "full")),
 
     Setting("define_terms", 20,
             "How many words the define phase owes, taken from the top of the "

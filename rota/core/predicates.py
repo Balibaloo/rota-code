@@ -1050,12 +1050,22 @@ def challenge(conn) -> list[Wake]:
     return tick_challenge(conn)
 
 
+@predicate("blindspot", wakes="liaison", band="start")
+def blindspot(conn) -> list[Wake]:
+    """Onboarding's last word: what this run could not see, said to the
+    ledger. Static tripwires catch the named assumptions; this session
+    exists for the rest."""
+    from .scheduler import tick_blindspot
+    return tick_blindspot(conn)
+
+
 REGISTER_ENTRIES = frozenset({
     "contradiction", "contested", "constraint_zero", "awaiting_confirm",
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
+    "blindspot",
 })
 
 

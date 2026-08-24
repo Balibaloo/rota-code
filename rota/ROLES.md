@@ -76,7 +76,7 @@ into a brief, the sentence belongs in a predicate.
 **Reaches** architect, vision_keeper, terminologist (ask, deliver), vision_keeper
 (relay), and the principal (clarify, confirm, present).
 
-**Woken by** agenda, awaiting_confirm, contradiction, observed_entries,
+**Woken by** agenda, awaiting_confirm, blindspot, contradiction, observed_entries,
 quarantined, round_close.
 
 **The principal is the one reader who cannot follow a ref**, so refs to them are
