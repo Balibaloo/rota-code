@@ -102,6 +102,20 @@ constraints_required:
   - the_frontmatter_schema_is_a_public_contract
   - the_filtered_opener_plugin_api
 
+# Content matching for the required two: a run's constraint counts when every
+# word-group below intersects its headline+text. Written so the identifier-
+# headlined party-list rows ("users who import getIntentsFromTFile") cannot
+# match, and a real statement of the contract in any wording can.
+constraints_required_match:
+  the_frontmatter_schema_is_a_public_contract:
+    - [frontmatter, yaml, intents_to]
+    - [schema, key, keys, property, properties]
+    - [user, users, notes, silently, silence]
+  the_filtered_opener_plugin_api:
+    - [filtered]
+    - [opener]
+    - [api, depends, dependency, installed, missing, required, notice]
+
 constraints_expected:
   - the_minimum_obsidian_version
   - the_plugin_manifest_is_the_registry_contract

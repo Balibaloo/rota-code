@@ -263,7 +263,22 @@ def score(db_path: str | Path) -> dict:
     for r in conn.execute("SELECT constraint_id, grain FROM constraint_bindings"):
         bound.setdefault(r["constraint_id"], set()).add(r["grain"])
     required = set(key["constraints_required"])
+    # The key's own matching_note says it for terms: identity is not `==`.
+    # A required constraint's id is a prediction slug; a run's id derives
+    # from whatever headline the session wrote. `constraints_required_match`
+    # gives each required commitment word-groups: one constraint matches when
+    # every group intersects its headline+text. The frontmatter contract was
+    # found -- "fails silently without providing an error message", the exact
+    # missing fact -- and scored 0 under id equality.
+    match = key.get("constraints_required_match") or {}
     found = {c["id"] for c in cons} & required
+    for rid, groups in match.items():
+        for c in cons:
+            toks = set(re.findall(r"[a-z0-9_]+",
+                                  f"{c['headline']} {c['text'] or ''}".lower()))
+            if all(toks & {w.lower() for w in g} for g in groups):
+                found.add(rid)
+                break
 
     # A constraint is a decoy when every grain it governs is one. Mixed
     # bindings are reported separately rather than scored: a commitment bound
