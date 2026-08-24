@@ -572,18 +572,23 @@ questions per moment (onboard-time, agenda-time), ranked by leverage, never
 the same question twice -- a re-touch must reframe or offer a new default.
 The onboard interview is five questions and two minutes, or it is wrong.
 
-**Selection over composition — buttons wherever they beat language.** A
-question is not ready to ask until its plausible answers are enumerated:
-the frame's four kinds are four keys, a ledger entry is [take the default]
-[overrule] [defer], a falsified claim is [accept the break] [the claim
-stands] [defer], and the seed interview's questions are choices before
-they are prompts ("is docs/ documentation or the product?" is two buttons
-and a skip, not a text box). If the system cannot enumerate the plausible
-answers, it has not finished preparing the question. Free text is the
-escape hatch -- always present, never the norm -- and earns its place only
-where the answer is genuinely generative: a name the system has never
-seen, a fact it could not know, the paragraph of intent. One keypress per
-ruling is the budget; typing is spending the principal's attention twice.
+**Conversation for substance, buttons for ratification.** (Revised from a
+buttons-first draft the same day: the principal leans conversational, and
+the two rules compose.) The substance of an answer is freetext, because
+real answers are lumpy -- "docs is mostly the product, except
+docs/internal" -- and a forced choice over a bad enumeration is worse than
+a sentence. Freetext is never parsed by mechanics: it goes to the Liaison,
+the conversational role the system already has, which interprets and
+proposes. Ratification is buttons: every ruling's closing act is [take the
+default] [overrule] [defer]; queue triage is tap-tap-tap; and every
+conversation terminates in a button, because when the Liaison shows the
+ruling it derived from what you said, confirming it is one keypress, never
+a typed "yes". The deterministic contract underneath: **a decided row
+enters the record only from a keypress** -- directly on a prepared choice,
+or confirming an interpretation. Conversation opens and reshapes
+decisions; buttons close them. A question still is not ready to ask until
+its default and its plausible choices are prepared -- the reply box sits
+beside them, not instead of them.
 
 **Answers are rulings, and rulings are revisable.** The same re-earn path
 that serves a changed frame serves a changed answer; the seat can show what
