@@ -3833,12 +3833,22 @@ def code_boundary(ctx: Ctx, path: str = "") -> dict:
         cut = " (first part only)" if len(body) > cap else ""
         parts.append(f"----- {p2}{cut} -----" + chr(10) + body[:cap])
         if cut:
-            hits = [f"      {n}: {l.strip()[:140]}"
-                    for n, l in enumerate(body.splitlines(), 1)
-                    if _FAILS.search(l)][:12]
+            # From the cut region only: the head already shows the top of
+            # the file, and on the first re-earn a top-first cap spent all
+            # twelve lines on hits the session could already see while the
+            # deciding branch at the end stayed dark.
+            shown_lines = body[:cap].count(chr(10))
+            all_hits = [f"      {n}: {l.strip()[:140]}"
+                        for n, l in enumerate(body.splitlines(), 1)
+                        if n > shown_lines and _FAILS.search(l)]
+            # Both ends of the cut region. A flat cap kept exhausting itself
+            # before the end of the file -- twice, measured -- and the
+            # deciding branch of a validator tends to sit exactly there.
+            hits = (all_hits if len(all_hits) <= 12
+                    else all_hits[:6] + all_hits[-6:])
             if hits:
-                parts.append(f"[{p2}: every line of failure vocabulary, "
-                             f"whole file -- the cut cannot hide a branch]"
+                parts.append(f"[{p2}: every failure-vocabulary line beyond "
+                             f"the cut -- the cut cannot hide a branch]"
                              + chr(10) + chr(10).join(hits))
                 for h in hits:
                     if getattr(ctx, "read_idents", None) is not None:

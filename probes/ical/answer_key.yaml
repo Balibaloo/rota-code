@@ -94,14 +94,19 @@ constraints_required:
 
 constraints_required_match:
   rfc_5545_conformance:
-    - [rfc, 5545, rfc5545, standard, spec, specification]
+    - [rfc, "5545", rfc5545, standard, spec, specification]
     - [ical, icalendar, ics, calendar, calendars]
     - [parse, parser, parsing, generate, generator, serialise, serialize,
        round, emit, format, files, compatible, conform, conformance]
+  # Tightened 2026-08-24: "import"/"imports" let `vInt -- ImportError:
+  # cannot import name ... from icalendar.prop.integer` match, an
+  # identifier-grain row gamed by its own error string. Registry-level words
+  # only, and a consequence-side group.
   the_pypi_package_and_import_surface:
-    - [pypi, registry, package, pip, install, import, imports, importers,
-       downstream, script, console, entry]
+    - [pypi, registry, publish, published, pip, install, distribution,
+       downstream, importers, "517", packaging]
     - [icalendar]
+    - [name, version, requires, floor, breaks, break, users, programs]
 
 constraints_expected:
   - tzdata_and_dateutil_are_load_bearing   # zoneinfo fallback on Windows; recur math
@@ -152,6 +157,44 @@ predictions:
       Same as click: the inside-party guard vetoes the true outside
       (importers). Counted here again so the two library runs measure the
       same entry from two shapes.
+
+# --- recorded run result (2026-08-24, .rota/ical_v0.db, qwen2.5:14b) -------
+# 105 sessions to quiescence (~3h). Written after the run, beside the
+# predictions it tested.
+
+recorded_run_result:
+  terms_required_present: 8 of 10   # absent: property (the lexicon's word was `prop`,
+                                    # whose sense is right-domain), uid (queue tail)
+  must_not_mean_hits: 0 of 7        # `parameter` held on a Python codebase --
+                                    # "A key-value pair for iCalendar properties"
+  copied_from_index: 7 of 110 (6%)
+  glossary_dilution: 98 of 110 off-key -- 37 from docs/styles/config/vocabularies,
+    a Vale prose-linter word list surveyed as an area (regexes became terms)
+  constraints_written: 50, roughly 44 of them furniture from dot-directory and
+    docs areas (six identical workflow stamps, maintainers' names as rows);
+    the tutorials area wrote DTSTART/DTEND/SUMMARY/ATTENDEE -- real RFC
+    vocabulary in furniture framing
+  constraints_required_found: 0 of 2 substantive -- the pyproject boundary
+    session attested found but described the file (PEP 517/518 metadata)
+    rather than committing to anything; an earlier 1-of-2 was a matcher
+    false positive (vInt's ImportError string), and the match groups were
+    tightened in response
+  consult: about 5.5 of 8 -- the round-trip answered by all three owners, the
+    rename question answered by the Architect from the model layer
+    ("AttributeError... discovered when running their applications"), the
+    vBroken round-trip design guessed wrong ("an exception is likely raised")
+  predictions:
+    rst_readme_nominates_nothing: confirmed (zero prose nominations; reconcile
+      still fired and logged two rst claims to the ledger)
+    ics_surface_invisible: confirmed (no RFC 5545 conformance constraint)
+    property_trap_is_live: dodged rather than passed -- no `property` session
+      existed to trap, because the lexicon's word is `prop`
+    scale_budgets_first_real_test: mixed -- granular src areas gave the
+      consult its strength, docs areas diluted everything else, one docs
+      area quarantined on the attempt bound
+    library_direction_veto: confirmed at the constraints artefact, falsified
+      at the consult -- the model layer holds importer-breakage even though
+      no constraint row does
 
 # --- 5. consult questions (probes/ical/questions.py mirrors this) -----------
 

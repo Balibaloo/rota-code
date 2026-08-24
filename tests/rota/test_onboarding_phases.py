@@ -1351,7 +1351,10 @@ def test_a_cut_reader_still_shows_its_failure_branches(tmp_path):
     root = tmp_path / "repo"
     (root / "src").mkdir(parents=True)
     (root / "schema.yaml").write_text('with_name: "text"\n', encoding="utf-8")
-    filler = "".join(f"const pad{i} = {i};\n" for i in range(400))
+    # Early failure lines too: the lens must spend its budget beyond the
+    # cut, not on hits the head already shows.
+    filler = "".join(f"const pad{i} = {i}; // may throw an error\n"
+                     for i in range(400))
     (root / "src" / "reader.ts").write_text(
         "import schema from '../schema.yaml';\n" + filler +
         "export function check(fm: object): void {\n"
@@ -1364,4 +1367,4 @@ def test_a_cut_reader_still_shows_its_failure_branches(tmp_path):
     view = code_boundary(ctx)["view"]
     assert "(first part only)" in view, "the reader was cut"
     assert "Unrecognized properties found" in view, "the branch survives the cut"
-    assert "failure vocabulary" in view
+    assert "failure-vocabulary" in view

@@ -276,7 +276,7 @@ def score(db_path: str | Path, key_path: str | Path | None = None) -> dict:
         for c in cons:
             toks = set(re.findall(r"[a-z0-9_]+",
                                   f"{c['headline']} {c['text'] or ''}".lower()))
-            if all(toks & {w.lower() for w in g} for g in groups):
+            if all(toks & {str(w).lower() for w in g} for g in groups):
                 found.add(rid)
                 break
 
