@@ -24,6 +24,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import config as config_mod
 from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
@@ -708,6 +709,10 @@ def run_session(
     g = g or graph_mod.load()
     backend = backend or llm.default_backend()
     pins = pins or llm.Pins()
+    routed = config_mod.routed_model(
+        config_mod.get(conn, "model_routing"), wake.kind)
+    if routed:
+        pins = llm.Pins(routed, pins.temperature, pins.num_ctx)
 
     # Instructions = base + the piece for whatever woke this session. A role's
     # modes are enumerable from the graph, so which piece loads is derived rather

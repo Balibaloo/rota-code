@@ -162,3 +162,52 @@ def test_the_sampled_suites_do_not_pin_a_smaller_window():
             assert int(pinned) >= DEFAULT_NUM_CTX, (
                 f"{name} pins num_ctx={pinned} below the default "
                 f"{DEFAULT_NUM_CTX}; prompts will be clipped at the front")
+
+
+def test_model_routing_names_ticks_and_only_ticks():
+    """
+    Routing is a measurement acted on -- the bench scores per capability so
+    the pairs come from a table, not a preference. It must also be inert by
+    default and per-tick: a wake that is not a tick carries conversation
+    built by whatever model is already driving, and swapping mid-flight is
+    the cross-model adjudication the challenge design forbids.
+    """
+    routing = "frame=gemma3:12b,challenge=llama3.1:8b"
+    assert config.routed_model(routing, "tick:frame") == "gemma3:12b"
+    assert config.routed_model(routing, "tick:challenge") == "llama3.1:8b"
+    assert config.routed_model(routing, "tick:define") is None
+    assert config.routed_model(routing, "verdict_failed") is None
+    assert config.routed_model("", "tick:frame") is None
+    # model names carry colons and dashes; the pair still splits on the
+    # first '=' and nothing else
+    long = "survey=qwen2.5:14b-instruct-q3_K_M"
+    assert config.routed_model(long, "tick:survey") == "qwen2.5:14b-instruct-q3_K_M"
+
+
+def test_a_routed_tick_runs_on_the_routed_model(db):
+    """
+    The setting has to reach the model, and the session row has to say which
+    model it was -- a routing that silently did nothing would be indis-
+    tinguishable from a routing that worked, and every recorded case would be
+    attributed to the wrong engine.
+    """
+    from rota.core.runner import run_session
+    from rota.core.scheduler import Wake
+
+    config.set(db, "model_routing", "frame=gemma3:12b")
+    wake = Wake(role="architect", kind="tick:frame", detail="@frame")
+    run_session(db, wake, backend=ScriptedBackend(["nothing to do"]),
+                pins=Pins(model="scripted"))
+    row = db.execute("SELECT model, wake_kind FROM sessions "
+                     "ORDER BY seq DESC").fetchone()
+    assert row["model"] == "gemma3:12b", (
+        f"the routed tick ran on {row['model']}, not the routed model")
+
+    # ...and a tick the routing does not name keeps the run's own model
+    config.set(db, "model_routing", "frame=gemma3:12b")
+    run_session(db, Wake(role="vision_keeper", kind="tick:orient"),
+                backend=ScriptedBackend(["nothing to do"]),
+                pins=Pins(model="scripted"))
+    row = db.execute("SELECT model FROM sessions ORDER BY seq DESC").fetchone()
+    assert row["model"] == "scripted", (
+        f"an unrouted tick was diverted to {row['model']}")

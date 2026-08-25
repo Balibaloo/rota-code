@@ -160,6 +160,16 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "session opened: models never adjudicate models.",
             values=("off", "sample", "full")),
 
+    Setting("model_routing", "",
+            "Which model drives which tick, as comma-joined `tick=model` "
+            "pairs: `frame=gemma3:12b,challenge=llama3.1:8b`. Empty routes "
+            "nothing and every session runs on the model the run was "
+            "started with. The bakeoff (probes/bench/) is where the pairs "
+            "come from -- per-capability scores exist so that per-task "
+            "routing is a measurement, not a preference. A tick the string "
+            "does not name is untouched, so a recorded case replays on the "
+            "model it was recorded with unless it sets this itself."),
+
     Setting("define_terms", 20,
             "How many words the define phase owes, taken from the top of the "
             "lexicon with the orientation's words promoted. A budget, not a "
@@ -194,6 +204,25 @@ def get(conn: sqlite3.Connection, key: str) -> Any:
         raise UnknownSetting(f"{key!r} is not a declared setting")
     row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
     return json.loads(row["value"]) if row else SETTINGS[key].default
+
+
+def routed_model(routing: str, wake_kind: str) -> str | None:
+    """The model `model_routing` names for this wake, or None for untouched.
+
+    Only ticks route: a wake like `verdict_failed` carries batch context that
+    was built by whatever model is already driving, and mid-conversation model
+    swaps are exactly the cross-model adjudication the challenge design
+    forbids. Model names contain colons, so pairs split on commas and only
+    the first `=` binds.
+    """
+    if not routing or not wake_kind.startswith("tick:"):
+        return None
+    tick = wake_kind[len("tick:"):]
+    for pair in routing.split(","):
+        name, _, model = pair.strip().partition("=")
+        if name == tick and model:
+            return model
+    return None
 
 
 def set(conn: sqlite3.Connection, key: str, value: Any) -> None:
