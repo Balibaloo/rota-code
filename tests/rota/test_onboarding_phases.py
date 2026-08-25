@@ -1677,3 +1677,31 @@ def test_blindspots_run_last_and_the_facts_are_mechanical(tmp_path):
     db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
                "('liaison:@blindspots', '@blindspots', 'found')")
     assert tick_blindspot(db) == []
+
+
+def test_unfounded_is_a_readings_verdict_for_empty_claims(tmp_path):
+    """No quote required -- the finding is that no quote can bear on it --
+    but the reading is: an unfounded verdict without opened files is
+    refused, and the drain is the ledger."""
+    import pytest
+
+    from rota.core import sandbox as sandbox_mod
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1', 'whoever imports parse breaks if it is renamed', "
+               "'users of this repository who import parse', 'observed')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
+               "VALUES ('k1', 'src/parser.ts', 'path')")
+
+    sb = sandbox_mod.build("critic", db, session_id="s1", mode="challenge",
+                           area="@claim:constraints:k1")
+    sb.ctx.wake_refs = ("@claim:constraints:k1",)
+    with pytest.raises(Exception, match="reading"):
+        sb.call("challenge.unfounded", why="commits to nothing")
+    sb.call("challenge.load")
+    got = sb.call("challenge.unfounded",
+                  why="true of every exported name; asserts nothing here")
+    assert got["verdict"] == "unfounded"
+    assert any(w[0] == "ledger" for w in sb.ctx.writes)

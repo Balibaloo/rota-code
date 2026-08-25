@@ -3967,12 +3967,17 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
     table, row = _claim_of(ctx)
     citation = _re.sub(r"^(?:\./|/)+", "", (citation or "").strip())
     if not (quote or "").strip() or not (why or "").strip():
-        raise ValueError("a break carries the line and the reason: "
-                         "quote= the source's words, why= what they defeat")
+        raise ValueError(
+            "a break carries the line and the reason: quote= the source's "
+            "words, why= what they defeat. A claim false by ABSENCE -- the "
+            "code simply does no such thing -- is broken by quoting the "
+            "line that shows what actually happens instead, from the file "
+            "you read. A claim no line could support or defeat commits to "
+            "nothing: that is challenge.unfounded(why=...).")
     if _grain_path(citation) not in ctx.opened:
-        raise ValueError(f"{citation!r} was not opened this session: a break "
-                         f"is a line you read, not one you remember. "
-                         f"code.source it first, or uphold.")
+        raise ValueError(f"{citation!r} was not opened this session: the "
+                         f"citation is a file path you read (not the "
+                         f"claim's ref). code.source it first, or uphold.")
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "falsified", "citation": citation,
         "quote": quote.strip()[:300], "why": why.strip()[:300]}))
@@ -3984,6 +3989,38 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
                           f"record until ruled."),
         "author": "critic"}))
     return {"id": f"{table}:{row}", "verdict": "falsified",
+            "note": "recorded, and on the principal's ledger"}
+
+
+@op("challenge", "unfounded")
+def challenge_unfounded(ctx: Ctx, why: str) -> dict:
+    """
+    The claim commits to nothing a line could support or defeat.
+
+    Measured: identifier tautologies churned three sessions each under the
+    two-verdict gate -- no supporting line exists because the claim asserts
+    nothing, no defeating line for the same reason. This verdict requires
+    the reading (files opened this session) but not a quote, because the
+    finding is precisely that no quote can bear on it. Drains to the
+    ledger: an empty claim in the record is the principal's to keep or cut.
+    """
+    table, row = _claim_of(ctx)
+    if not (why or "").strip():
+        raise ValueError("say what makes it empty: why= the reason no line "
+                         "could support or defeat this claim")
+    if not ctx.opened:
+        raise ValueError("unfounded is still a reading's verdict: open the "
+                         "claim's cited files first (challenge.load or "
+                         "code.source)")
+    ctx.writes.append(("challenges", f"{table}:{row}", {
+        "verdict": "unfounded", "why": why.strip()[:300]}))
+    ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
+        "about_ref": f"{table}:{row}", "about_table": table,
+        "default_taken": (f"the Critic found {table}:{row} unfounded: "
+                          f"{why.strip()[:200]}. An empty claim is kept in "
+                          f"the record until ruled."),
+        "author": "critic"}))
+    return {"id": f"{table}:{row}", "verdict": "unfounded",
             "note": "recorded, and on the principal's ledger"}
 
 

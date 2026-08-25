@@ -640,7 +640,11 @@ CREATE TABLE IF NOT EXISTS runtime_processes (
 -- Standing comes from surviving challenge, never from who wrote a row.
 CREATE TABLE IF NOT EXISTS challenges (
     id        TEXT PRIMARY KEY,              -- claim ref: <table>:<row id>
-    verdict   TEXT NOT NULL CHECK (verdict IN ('stands','falsified')),
+    -- stands: a line supports it. falsified: a line defeats it. unfounded:
+    -- no line could do either -- the claim commits to nothing, which is a
+    -- disease of its own (measured: identifier tautologies churned three
+    -- sessions each, unverdictable under the two-verdict gate).
+    verdict   TEXT NOT NULL CHECK (verdict IN ('stands','falsified','unfounded')),
     citation  TEXT NOT NULL DEFAULT '',      -- the grain that decided it
     quote     TEXT NOT NULL DEFAULT '',      -- the line, in the source's words
     why       TEXT NOT NULL DEFAULT '',

@@ -19,6 +19,15 @@ opened — your opinion is not evidence, in either direction:
 - `challenge.uphold(citation=..., quote=<the line that supports it>,
   why=...)` — the claim survived because of that line. An uphold with no
   line is refused: a claim nobody checked has not survived anything.
+- `challenge.unfounded(why=...)` — no line could support it and no line
+  could defeat it, because the claim commits to nothing: "who imports X
+  breaks if X is renamed" is true of every name in every program and says
+  nothing about this one. Read first; then this verdict needs no quote,
+  because the finding is that no quote can bear on it.
+
+A claim false by *absence* — the code simply does no such thing — is a
+`break`, and its quote is the line showing what actually happens instead:
+the claim says SQLite, the file shows YAML parsing, quote the YAML line.
 
 The test of your verdict: put the quote beside the claim. If they cannot
 both be true, break. If the quote is what the claim is describing, uphold.
