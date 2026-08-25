@@ -3966,21 +3966,38 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
 
     table, row = _claim_of(ctx)
     citation = _re.sub(r"^(?:\./|/)+", "", (citation or "").strip())
-    if not (quote or "").strip() or not (why or "").strip():
-        raise ValueError(
-            "a break carries the line and the reason: quote= the source's "
-            "words, why= what they defeat. A claim false by ABSENCE -- the "
-            "code simply does no such thing -- is broken by quoting the "
-            "line that shows what actually happens instead, from the file "
-            "you read. A claim no line could support or defeat commits to "
-            "nothing: that is challenge.unfounded(why=...).")
-    if _grain_path(citation) not in ctx.opened:
-        raise ValueError(f"{citation!r} was not opened this session: the "
-                         f"citation is a file path you read (not the "
-                         f"claim's ref). code.source it first, or uphold.")
+    prior = sum(1 for fn, _why in (getattr(ctx, "refusals", None) or [])
+                if fn == "challenge.break")
+    flagged = ""
+    bad_quote = not (quote or "").strip()
+    bad_cite = _grain_path(citation) not in ctx.opened
+    if (bad_quote or bad_cite) and not (why or "").strip():
+        raise ValueError("a break carries at least its reason: why= what "
+                         "defeats the claim")
+    if bad_quote or bad_cite:
+        if prior == 0:
+            # Once, with the teaching. Twice would be the loop the place
+            # guard documents: turn twelve of the same re-send, measured.
+            raise ValueError(
+                "a break carries the line and the reason: quote= the "
+                "source's words, citation= a file you opened (not the "
+                "claim's ref). A claim false by ABSENCE is broken by "
+                "quoting the line that shows what actually happens "
+                "instead. A claim no line could support or defeat is "
+                "challenge.unfounded(why=...). Send the break again with "
+                "its line -- or once more as it is, and it is recorded "
+                "flagged on the strength of your reading.")
+        if not ctx.opened:
+            raise ValueError("a break, even flagged, is a reading's act: "
+                             "open the claim's cited files first")
+        if bad_cite:
+            citation = sorted(ctx.opened)[0]
+        flagged = ("evidence-flagged: no line quoted; the verdict stands "
+                   "on the reader's account of what the source lacks")
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "falsified", "citation": citation,
-        "quote": quote.strip()[:300], "why": why.strip()[:300]}))
+        "quote": (quote or "").strip()[:300],
+        "why": (why.strip() + (f" [{flagged}]" if flagged else ""))[:460]}))
     ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic falsified {table}:{row} against "

@@ -1632,7 +1632,7 @@ def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
     loaded = sb.call("challenge.load")
     assert "src/parser.ts" in loaded["sources"]
 
-    with pytest.raises(Exception, match="opened this session"):
+    with pytest.raises(Exception, match="a file you opened"):
         sb.call("challenge.break", citation="schema.yaml",
                 quote="of_kind: a|b", why="a warning exists")
 
@@ -1640,6 +1640,25 @@ def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
                   quote="export function parse", why="the parser warns")
     assert got["verdict"] == "falsified"
     assert any(w[0] == "ledger" for w in sb.ctx.writes), "the drain is the ledger"
+
+    # Once-then-flagged: a second evidence-less break from a session that
+    # read is accepted with the gap on the record -- the alternative was
+    # measured at turn twelve of the same re-send.
+    sb3 = sandbox_mod.build("critic", db, session_id="s3", mode="challenge",
+                           area="@claim:constraints:k1")
+    sb3.ctx.wake_refs = ("@claim:constraints:k1",)
+    sb3.call("challenge.load")
+    with pytest.raises(Exception, match="quote= the source's words"):
+        sb3.call("challenge.break", citation="constraints:k1", quote="",
+                 why="no such behaviour exists in the file")
+    sb3.ctx.refusals = [("challenge.break", "refused once")]
+    got3 = sb3.call("challenge.break", citation="constraints:k1", quote="",
+                    why="no such behaviour exists in the file")
+    assert got3["verdict"] == "falsified"
+    row3 = [w for w in sb3.ctx.writes if w[0] == "challenges"][-1]
+    assert "evidence-flagged" in row3[2]["why"]
+    assert row3[2]["citation"] in ("src/parser.ts", "schema.yaml"), \
+        "the citation becomes a file actually opened"
 
     sb2 = sandbox_mod.build("critic", db, session_id="s2", mode="challenge",
                            area="@claim:constraints:k1")
