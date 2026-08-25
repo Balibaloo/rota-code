@@ -39,17 +39,20 @@ TURN_IN, TURN_OUT, TURNS_PER_SESSION = 4000, 300, 1.5
 SIZES = {"small (5 areas)": 60, "medium (23 areas)": 105, "large (100 areas)": 250}
 
 
-def measure_speed(backend, model: str) -> dict:
+def measure_speed(backend, model: str, nothink: str = "") -> dict:
     pins = Pins(model=model, temperature=0.0, num_ctx=12288)
+    # Warm the model first: the first call pays the load, which is not a
+    # property of the model's speed.
+    backend.complete(nothink + "Reply: ok", "ok?", pins)
     filler = ("The quick brown fox jumps over the lazy dog. " * 400)
     t0 = time.time()
-    backend.complete("Answer with the single word: done.", filler, pins)
+    backend.complete(nothink + "Answer with the single word: done.", filler, pins)
     prefill_s = time.time() - t0
     prefill_rate = (len(filler) / 4) / max(prefill_s, 0.01)
 
     t0 = time.time()
     got = backend.complete(
-        "You are a counting machine.",
+        nothink + "You are a counting machine.",
         "Count from 1 to 120 as plain comma-separated numbers, nothing else.",
         pins)
     decode_s = time.time() - t0
@@ -162,14 +165,36 @@ SCORERS = {"frame": score_frame, "define": score_define,
            "orient": score_orient}
 
 
+def evict_others(model: str) -> None:
+    """One candidate on the card at a time. Measured without this: granite
+    benched at 92% GPU because the previous model was still resident, and
+    every fit and speed column after the first was polluted."""
+    try:
+        ps = subprocess.run(["ollama", "ps"], capture_output=True, text=True,
+                            timeout=15).stdout
+        for line in ps.splitlines()[1:]:
+            name = (line.split() or [""])[0]
+            if name and name != model:
+                subprocess.run(["ollama", "stop", name], capture_output=True,
+                               timeout=30)
+    except Exception:
+        pass
+
+
 def run_model(backend, model: str) -> dict:
+    evict_others(model)
+    # qwen3-family models reason by default; the hidden tokens sank the 4b
+    # to 0.1 tok/s and unparseable answers. The bench measures the acting
+    # register, so thinking is disabled where the template understands it.
+    nothink = "/no_think\n" if model.startswith(("qwen3", "qwen3.5")) else ""
     pins = Pins(model=model, temperature=0.0, num_ctx=12288)
-    speed = measure_speed(backend, model)
+    speed = measure_speed(backend, model, nothink)
     fit = gpu_fit(model)
     per_kind: dict[str, list[int]] = {}
     for fxfile in sorted(HERE.glob("fixtures/*.json")):
         for fx in json.loads(fxfile.read_text(encoding="utf-8")):
-            got = backend.complete(fx["system"], fx["user"], pins).text
+            got = backend.complete(nothink + fx["system"], fx["user"],
+                                   pins).text
             hit, total = SCORERS[fx["kind"]](got, fx["truth"])
             per_kind.setdefault(fx["kind"], [0, 0])
             per_kind[fx["kind"]][0] += hit
