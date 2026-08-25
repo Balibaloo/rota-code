@@ -172,6 +172,19 @@ recorded_run_result_v2_qwen3:
     with better vocabulary coverage, and brings its own knife-edges -- the
     briefs were tuned against qwen2.5:14b, and a small qwen3 tuning pass is
     the predicted, bounded cost of migration
+  consult: 4 of 8 strict, 6 of 8 lenient, against v1's 2 of 8 on the same
+    preregistered questions. Clean -- option-vs-argument (named/optional vs
+    positional/required, exact), CliRunner for shell-less testing (exact),
+    ctx.obj as arbitrary data passed down the hierarchy via pass_context.
+    Partial -- echo rename (right mechanism and blast radius, wrong
+    exception class), Choice rejection (UsageError family named, no exit
+    code), tab completion (sourced scripts named, the _PROG_COMPLETE
+    protocol missing). Missed -- value-precedence order (invented "config
+    files") and group dispatch (no get_command, no NoSuchCommand). The
+    shape of the misses is one shape, not two -- both are *sequence*
+    questions, what-happens-in-what-order, and no artefact in the set
+    holds sequences. The glossary answers what-is-X well; the flows
+    artefact already in the v2 queue is where these two points live.
   break_precision_review:  # 2026-08-25, all 12 verdicts read against source
     the_claims: eleven of twelve sampled constraints are one template --
       "WHO BREAKS applications using click.X; WHAT HAPPENS NameError if X
