@@ -172,6 +172,29 @@ recorded_run_result_v2_qwen3:
     with better vocabulary coverage, and brings its own knife-edges -- the
     briefs were tuned against qwen2.5:14b, and a small qwen3 tuning pass is
     the predicted, bounded cost of migration
+  break_precision_review:  # 2026-08-25, all 12 verdicts read against source
+    the_claims: eleven of twelve sampled constraints are one template --
+      "WHO BREAKS applications using click.X; WHAT HAPPENS NameError if X
+      is not found" -- a conditional true of every Python name, binding
+      nothing. These are textbook vacuous claims, the exact shape the
+      'unfounded' verdict was built for. The twelfth (readthedocs) is
+      prose-sourced and sloppy but not vacuous.
+    the_verdicts: the identical template drew 7 falsified and 4 stands --
+      a coin flip, with self-contradictory whys on both sides ("is defined
+      ... and does not raise a NameError if not found" as a *stands*
+      reason). One falsification quotes the wrong function
+      (click_push_context cites get_current_context). Zero verdicts used
+      'unfounded'; the 14B never used it either.
+    what_this_means: the Critic's evidence gate held (every citation is a
+      real file, every quote a real line) but the verdict *ladder* failed --
+      vacuous claims should drain as unfounded, not split at random between
+      stands and falsified. Precision of the 8 breaks as breaks -- 0 clean;
+      as attacks on junk claims -- all 8 aimed at rows that deserved to die.
+    the_fixes: (1) upstream, the constraint over-production is the root --
+      31 symbol-grain template rows gave the Critic nothing worth judging;
+      (2) the challenge brief's unfounded arm must name the vacuous-
+      conditional shape; (3) the bench challenge battery's unfounded
+      fixture should use this exact live template.
 
 # --- 5. consult questions (probes/click/questions.py mirrors this) ----------
 # Expected answers are truths from the source, written before the run.
