@@ -190,15 +190,21 @@ def run_model(backend, model: str) -> dict:
     pins = Pins(model=model, temperature=0.0, num_ctx=12288)
     speed = measure_speed(backend, model, nothink)
     fit = gpu_fit(model)
+    cases = [fx for fxfile in sorted(HERE.glob("fixtures/*.json"))
+             for fx in json.loads(fxfile.read_text(encoding="utf-8"))]
+    print(f"  {fit}, ~{turn_seconds(speed):.0f}s a turn: "
+          f"{len(cases)} cases, roughly "
+          f"{len(cases) * turn_seconds(speed) / 60:.0f} min", flush=True)
     per_kind: dict[str, list[int]] = {}
-    for fxfile in sorted(HERE.glob("fixtures/*.json")):
-        for fx in json.loads(fxfile.read_text(encoding="utf-8")):
-            got = backend.complete(nothink + fx["system"], fx["user"],
-                                   pins).text
-            hit, total = SCORERS[fx["kind"]](got, fx["truth"])
-            per_kind.setdefault(fx["kind"], [0, 0])
-            per_kind[fx["kind"]][0] += hit
-            per_kind[fx["kind"]][1] += total
+    for n, fx in enumerate(cases, 1):
+        started = time.time()
+        got = backend.complete(nothink + fx["system"], fx["user"], pins).text
+        hit, total = SCORERS[fx["kind"]](got, fx["truth"])
+        per_kind.setdefault(fx["kind"], [0, 0])
+        per_kind[fx["kind"]][0] += hit
+        per_kind[fx["kind"]][1] += total
+        print(f"    {n:2d}/{len(cases)}  {fx['id']:32s} {hit}/{total}"
+              f"  {time.time() - started:5.1f}s", flush=True)
     ts = turn_seconds(speed)
     times = {name: round(n * TURNS_PER_SESSION * ts / 60)
              for name, n in SIZES.items()}
