@@ -805,6 +805,40 @@ the first indexed file each ruled prefix covers. And root dot-files left
 `code.tree`: .editorconfig received a classification, which changes
 nothing and costs the attention the ending needed.
 
+### Stages 7, 9 and 10, as built (2026-08-24)
+
+**Re-orient**: tick:reorient between survey and boundaries, Vision Keeper,
+pushed its own baseline plus glossary.consult and model.consult; items are
+revised by re-asserting their ids. Live on the finished cnt run: five of
+six items revised with the vocabulary in hand, honest attest, one session.
+Skipped when there is no glossary to revise with.
+
+**Challenge**: tick:challenge, Critic, one session per load-bearing claim
+(`challenge = off | sample | full`; sample is constraints and items, newest
+first, capped at twelve). challenge.load shows the claim with its cited
+sources opened; uphold is cheap on purpose; break demands a citation the
+session opened and the quoted line, or it is refused -- models never
+adjudicate models. A falsified claim goes to the ledger; standing changes
+only by ruling, so Law 1 holds. The spec's "supersedes the artefact and
+re-wakes its writer" is deferred to the ruling: as built, the drain is the
+agenda.
+
+**Blind spots**: tick:blindspot, Liaison, last; code.gaps recomputes the
+run's limits from its record and the session writes the two or three that
+could be hiding something to the ledger. The Researcher keeps its
+woken-by-nothing property; the relay role relays.
+
+**Challenge calibration, closed (2026-08-25):** the planted falsehood is
+falsified -- after three measured design turns. The free-door uphold
+rubber-stamped it; the symmetric gate left it unverdictable (a claim false
+by absence has no defeating line, and the model re-sent an empty quote
+into the gate for twelve turns); once-then-flagged converted the reading
+into the verdict, evidence gap stated on the row. Final table on cnt:
+eleven real claims stand, each with its supporting line; the plant
+falsified; zero false breaks. The vacuous tautologies stand-with-a-line
+rather than unfounded -- the third verdict is built and tested, and
+whether a model reaches for it is now a bench fixture.
+
 Validation plan: the challenge on/off twin (same repo, challenge off and
 sample -- the score diff is the measured value of the pass), the v1 baseline
 (v2 scores are not comparable to v1 scores by design; the twins bridge
