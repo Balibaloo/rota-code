@@ -1724,3 +1724,38 @@ def test_a_dismissal_is_a_readings_verdict_for_empty_claims(tmp_path):
                   why="true of every exported name; asserts nothing here")
     assert got["verdict"] == "unfounded"
     assert any(w[0] == "ledger" for w in sb.ctx.writes)
+
+
+def test_the_ledger_refuses_the_brief_read_back_to_it(project):
+    """
+    Measured on click, qwen3:8b: all three blindspot entries came back as
+    the brief's own slots -- "this run could not see boundary; what it
+    could hide; proceeding without it". Every pointer was real and every
+    sentence was furniture, and only the principal reading the ledger
+    would ever have found out.
+
+    A brief cannot fix this by wording alone, because the failure is the
+    brief being followed too literally. So the write refuses it, and the
+    entry that says something real still lands.
+    """
+    from rota.core.sandbox import build
+
+    db, repo = project
+    sb = build("liaison", db)
+
+    with pytest.raises(Exception, match="brief's example"):
+        sb.call("ledger.log", about_ref="src/click/globals.py",
+                about_table="items",
+                default_taken="this run could not see boundary; what it "
+                              "could hide; proceeding without it")
+    with pytest.raises(Exception, match="brief's example"):
+        sb.call("ledger.log", about_ref="src/click/globals.py",
+                about_table="items",
+                default_taken="could not read <the file>; proceeding")
+
+    got = sb.call("ledger.log", about_ref="src/click/globals.py",
+                  about_table="items",
+                  default_taken="the .ics fixtures went unparsed, so any "
+                                "claim about calendar round-tripping rests "
+                                "on the README alone")
+    assert got["id"].startswith("l_")

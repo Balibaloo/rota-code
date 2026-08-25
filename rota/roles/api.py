@@ -2510,6 +2510,23 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     """
     import hashlib
 
+    # A brief that shows the shape of an entry gets that shape back verbatim:
+    # measured on click, every blindspot entry read "this run could not see
+    # boundary; what it could hide; proceeding without it" -- the slot names,
+    # with the angle brackets stripped. The pointer was real and the sentence
+    # was furniture, and only the principal reading it would ever have known.
+    parroted = [slot for slot in ("what it could hide", "what that could hide",
+                                  "the reason", "what was chosen", "why it "
+                                  "matters")
+                if slot in default_taken.lower()]
+    if parroted or "<" in default_taken:
+        raise ValueError(
+            f"this reads as the brief's example rather than this entry: "
+            f"{parroted or ['<...>']}. Say the actual thing -- what was "
+            f"assumed here, about this ref, and what it would cost to be "
+            f"wrong. A reader who cannot see the brief must still learn "
+            f"something from the sentence.")
+
     digest = hashlib.sha256(
         f"{about_table}|{about_ref}|{default_taken}".encode()).hexdigest()[:10]
     id = f"l_{digest}"

@@ -15,10 +15,19 @@ files may witness the project's most important contract; one quarantined
 survey may be the area the next question lands on. A fact that hides
 nothing — a lockfile no parser reads — is not worth an entry.
 
-For each gap that matters, one entry:
-`ledger.log(about_ref=<the path or subject>, about_table="items",
-default_taken="this run could not see <what>; <what that could hide>;
-proceeding without it")` — two or three real entries beat six restatements
+For each gap that matters, one entry, `ledger.log(about_ref=<the path or
+subject>, about_table="items", default_taken=...)`. Written out, an entry
+from a real run reads:
+
+    about_ref="terminologist|tick:term_collision|context,context#src_click"
+    default_taken="two senses of `context` were written and never
+      reconciled, because the collision that would have merged them was
+      given up after three attempts; whichever a later question loads is
+      the one it will believe"
+
+Say the actual thing. Name what went unread, why it went unread, and what
+a reader would get wrong because of it — a sentence someone who cannot see
+this brief still learns from. Two or three of those beat six restatements
 of the same number.
 
 End with `surveys.attest(outcome="found", citations=[a path each entry
