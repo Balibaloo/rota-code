@@ -257,6 +257,11 @@ class OllamaBackend:
             # generated. The return value is unchanged: the chunks are joined
             # into the same `Completion` the non-streaming form produced.
             "stream": True,
+            # Reasoning-by-default models (the qwen3 family) burn invisible
+            # tokens at the acting register's expense -- measured at 0.1
+            # visible tok/s on the bench. The system speaks in acts, so
+            # thinking is off; a template that ignores the flag is unharmed.
+            "think": False,
             "options": {"temperature": pins.temperature, "num_ctx": pins.num_ctx,
                         "num_predict": self.max_tokens},
             "messages": [
