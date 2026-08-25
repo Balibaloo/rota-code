@@ -47,6 +47,22 @@ Sparsity buys generation, not comprehension, and onboarding is nearly all
 comprehension. The rule survives with a sharper edge: what matters is not
 whether a model fits, but whether its *prefill* fits.
 
+**A third caveat, and it is the one that bites: temperature zero is
+deterministic within a model load and not across two.** Measured on the
+challenge battery -- the identical prompt, byte for byte, the same model,
+the same pins -- llama3.1:8b answered 3 of 4 in one process and 1 of 4 in
+another an hour later, and three repeats inside each process were
+identical every time. So a score is a fact about a load, not only about a
+model.
+
+What survives that: differences measured back-to-back on one loaded model,
+and differences far larger than the drift. The frame column is safe --
+34/38 against 5/38 is not a load artefact. The narrow columns are not:
+challenge at four items moved two of them across loads, so a 2/3 against a
+3/3 there says nothing. Read the small batteries as ordering evidence only
+when the arms were interleaved in one process, and grow them before
+reading them any other way.
+
 Two caveats this table now carries, both found by using it:
 
 **The challenge column pre-dates a rename.** These scores were taken with

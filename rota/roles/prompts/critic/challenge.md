@@ -19,7 +19,7 @@ opened — your opinion is not evidence, in either direction:
 - `challenge.uphold(citation=..., quote=<the line that supports it>,
   why=...)` — the claim survived because of that line. An uphold with no
   line is refused: a claim nobody checked has not survived anything.
-- `challenge.dismiss(why=...)` — no line could support it and no line
+- `challenge.vacuous(why=...)` — no line could support it and no line
   could defeat it, because the claim commits to nothing: "who imports X
   breaks if X is renamed" is true of every name in every program and says
   nothing about this one. Read first; then this verdict needs no quote,

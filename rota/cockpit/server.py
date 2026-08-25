@@ -491,18 +491,37 @@ def prepare_db(project_root: str | Path | None = None,
                 f"create one.\n  rota ls           what runs exist\n"
                 f"  rota onboard <name> --root <checkout>")
     else:
-        # No run named: serve the newest one. The person opening a cockpit
-        # without naming a run almost always means "the run I was just
-        # working on", and mtime is the one honest signal of that. The
-        # in-page selector makes a wrong guess a two-click correction.
+        # No run named: serve the newest one *that will open*. The person
+        # opening a cockpit without naming a run means "the run I was just
+        # working on", and mtime is the one honest signal of that — but the
+        # newest file can be behind schema.sql while parallel work moves the
+        # schema, and refusing outright makes "just open the cockpit" fail
+        # on exactly the busiest days. Skipped runs are named, so a wrong
+        # guess is loud, and the in-page selector is the two-click correction.
         sdir = state_dir(project_root or ".")
         siblings = sorted(sdir.glob("*.db"),
                           key=lambda p: p.stat().st_mtime, reverse=True) \
             if sdir.is_dir() else []
-        if siblings:
-            db_path = siblings[0]
-            print(f"serving the latest run: {db_path.stem}"
+        db_path = None
+        for cand in siblings:
+            try:
+                drift = schema_drift(cand)
+            except sqlite3.Error as exc:
+                print(f"skipping {cand.stem}: {exc}")
+                continue
+            # Missing *tables* are what init_db adds at the gate below;
+            # missing columns are not, and that candidate would only be
+            # refused after the fact.
+            if not drift or all(d.startswith("missing table ") for d in drift):
+                db_path = cand
+                break
+            print(f"skipping {cand.stem}: {drift[0]}"
+                  + (f" (+{len(drift) - 1} more)" if len(drift) > 1 else ""))
+        if db_path is not None:
+            print(f"serving the latest openable run: {db_path.stem}"
                   f" (the selector in the page switches)")
+        elif siblings:
+            db_path = siblings[0]      # refused below, with the full story
         else:
             db_path = sdir / "rota.db"
             # Boot rather than refuse. This is a viewer; "no database" is not a

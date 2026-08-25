@@ -852,10 +852,30 @@ citations. Three things follow, in order of how far upstream they
 sit: the constraint over-production is the root cause (thirty-one
 symbol-grain rows gave the Critic nothing worth judging); the
 vacuity arm of the brief must name that exact shape; and the
-operation was renamed `challenge.dismiss`, because `unfounded` was a
-verb slot holding an adjective -- its siblings write differently
-named states (uphold -> stands, break -> falsified) and it wrote its
-own name.
+operation was renamed, because `unfounded` was an operation and a
+state at once where its siblings are not (uphold -> stands,
+break -> falsified).
+
+**Which name, measured (2026-08-26):** the rename was first made to
+`challenge.dismiss` on the law alone, and the law alone was not
+enough. Same four fixtures, same models, one word changed in the
+brief and nothing else:
+
+    operation             llama3.1:8b   qwen3:8b
+    challenge.unfounded      1-3/4         3/4
+    challenge.dismiss        0/4           2/4
+    challenge.vacuous        3/4           3/4
+
+`dismiss` was worst for both models in every run -- llama lost the
+whole ladder to it, upholding the plant and breaking the honest
+claim. The reason is not that `unfounded` matched its own verdict
+state: `vacuous` does not match either, and scores like it. What
+separates them is that `break`, `uphold` and `vacuous` all name what
+is true of the *claim*, while `dismiss` names what the Critic does
+to it. An operation renamed off a collision has to keep naming the
+finding, not the gesture -- and `vacuous` was the only one of the
+three that scored the same under every load, which is the second
+reason it is the one shipped.
 
 Validation plan: the challenge on/off twin (same repo, challenge off and
 sample -- the score diff is the measured value of the pass), the v1 baseline

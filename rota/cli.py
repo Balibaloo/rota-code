@@ -441,20 +441,15 @@ def cmd_tui(args: argparse.Namespace) -> int:
 def cmd_cockpit(args: argparse.Namespace) -> int:
     from .cockpit import server
 
-    if args.name is None:
-        # No name means the run you were just working on, and mtime is the one
-        # honest signal of that. Said aloud, because a guess acted on silently
-        # is how a cockpit ends up trusted about the wrong database.
-        runs = sorted(RUNS.glob("*.db"), key=lambda p: p.stat().st_mtime,
-                      reverse=True) if RUNS.is_dir() else []
-        if not runs:
-            raise SystemExit(
-                "no runs yet: rota onboard <name> --root <checkout>")
-        path = runs[0]
-        print(f"latest run: {path.stem}  (rota cockpit <name> picks another)")
-    else:
-        path = require(args.name)
     runner = server.serve if args.no_reload else server.serve_reloading
+    if args.name is None:
+        # No name means the run you were just working on. The server owns
+        # that guess — newest sibling that will actually open, said aloud —
+        # so there is one chooser, not two ideas of "latest".
+        runner(project_root=str(paths.REPO), port=args.port,
+               open_browser=args.open)
+        return 0
+    path = require(args.name)
     runner(db=path, port=args.port, open_browser=args.open)
     return 0
 

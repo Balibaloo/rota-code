@@ -46,7 +46,7 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
     assert artefact_fns == {
         "criteria.load", "tests.load", "code.read", "verdicts.emit",
         "challenge.load", "challenge.uphold", "challenge.break",
-        "challenge.dismiss", "code.source",
+        "challenge.vacuous", "code.source",
     }
     # Its only outbound channels are the two disputes it is entitled to raise.
     assert {f for f in sb.functions() if f.startswith("msg.")} == {

@@ -111,7 +111,7 @@ def score_define(completion: str, truth: dict) -> tuple[int, int]:
 def score_challenge(completion: str, truth: dict) -> tuple[int, int]:
     low = completion.lower()
     said = ("falsified" if "challenge.break" in low else
-            "unfounded" if "challenge.dismiss" in low else
+            "unfounded" if "challenge.vacuous" in low else
             "stands" if "challenge.uphold" in low else "none")
     return (1 if said == truth["expected_verdict"] else 0), 1
 

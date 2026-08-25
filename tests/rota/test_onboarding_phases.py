@@ -1698,7 +1698,7 @@ def test_blindspots_run_last_and_the_facts_are_mechanical(tmp_path):
     assert tick_blindspot(db) == []
 
 
-def test_a_dismissal_is_a_readings_verdict_for_empty_claims(tmp_path):
+def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
     """No quote required -- the finding is that no quote can bear on it --
     but the reading is: an unfounded verdict without opened files is
     refused, and the drain is the ledger."""
@@ -1718,9 +1718,9 @@ def test_a_dismissal_is_a_readings_verdict_for_empty_claims(tmp_path):
                            area="@claim:constraints:k1")
     sb.ctx.wake_refs = ("@claim:constraints:k1",)
     with pytest.raises(Exception, match="reading"):
-        sb.call("challenge.dismiss", why="commits to nothing")
+        sb.call("challenge.vacuous", why="commits to nothing")
     sb.call("challenge.load")
-    got = sb.call("challenge.dismiss",
+    got = sb.call("challenge.vacuous",
                   why="true of every exported name; asserts nothing here")
     assert got["verdict"] == "unfounded"
     assert any(w[0] == "ledger" for w in sb.ctx.writes)
