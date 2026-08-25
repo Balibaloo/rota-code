@@ -315,6 +315,54 @@ language about handling several of something.
 serialises itself, so onboarding will run on today's frontier and its failures
 are the specification for this work.
 
+### The ledger's prose field is named like a flag
+
+`ledger.log(about_ref, about_table, default_taken)` wants a sentence: what
+was assumed where the criteria were silent, and what it would cost to be
+wrong. `default_taken` reads as a yes/no question -- *was* a default taken?
+-- and models answer it as one. Measured over the recorded corpus,
+**1,052 of 1,209 calls (87%) pass `True` or `False`**, and it is not one
+case repeated: Developer across five modes, Vision Keeper across three,
+Terminologist, Tester.
+
+The corpus also contains the natural experiment. `developer/batch_start` is
+the only mode-brief that names what the field should contain -- "log the
+choice and the default you took" -- and it is the only mode above a fifth
+prose: 108 real sentences. The modes whose briefs say nothing about the
+ledger are unanimous the other way: `tests_failing` 139 bools and no
+strings, `verdict_failed` 163 and none, `exhausted` 75 and none. The name
+alone gets a flag; the name plus a sentence about its content gets prose
+two times in five.
+
+Three consequences, and the third is the one that is not obvious. The
+principal's agenda fills with entries reading "True". A milestone is
+quiescence with an *empty* ledger, so the pollution is load-bearing. And
+the row id is `sha256(about_table|about_ref|default_taken)`, derived so
+that a cold retry upserts instead of duplicating -- with the field
+constant at `True`, the id collapses to (table, ref), so two genuinely
+different assumptions about one ticket silently become one row. The
+deduplication built to protect the principal's attention is discarding
+evidence.
+
+**Not a guard.** Refusing non-strings was tried twice and reverted twice.
+The second attempt is why the cause is now known: it crashed on
+`default_taken=False` with an AttributeError, the session died mid-way,
+and every cassette recorded after that point stopped matching -- which is
+what made the first attempt look like it had no cause, since the composed
+prompt really was byte-identical and the divergence was in a later turn.
+Beyond the bug, a gate that refuses 87% of real calls is not a bounded
+refusal, it is an outage, and this system's own law says a gate the model
+cannot satisfy is a twelve-turn loop.
+
+**Open, because the fix has a cost and a cheaper rival.** Renaming the
+parameter -- `assumption=`, which cannot be answered `True` without
+absurdity -- changes a signature that appears in every brief's toolkit,
+and every cassette with it. Teaching it in the *base* brief instead costs
+one paragraph and invalidates only the roles that hold the operation. The
+corpus says the second works two times in five; nothing yet says what the
+first does. What decides it is the same bench A/B the challenge rename is
+waiting on: one situation, one model, one word changed in the signature.
+
 ### Re-surveying
 
 `tick_survey` fires on areas with no record. Nothing fires on an area whose code

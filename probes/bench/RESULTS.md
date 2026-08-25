@@ -16,6 +16,37 @@ telemetry; relative order holds). Full logs: the bakeoff logs of this date.
 | mistral-nemo:12b | 82% | 106s | 13/38 | 8/12 | 1/5 | 1/3 | 4/4 | out |
 | qwen3.5:9b | 73% | — | 0/38 | 9/12 | 3/5 | 2/3 | 3/4 | thinking-contaminated; retest someday |
 
+## The mixture-of-experts question, answered
+
+A sparse model breaks the rule the table above is built on -- "fits fully
+or decodes at a twentieth the speed" -- because only a few billion of its
+parameters are active per token, so the experts can sit in system RAM and
+be paid for only when used. If that held, a 10GB card could run 30B-class
+judgement. Measured, it does not.
+
+| model | fit | turn | frame | define | challenge | read | recover |
+|---|---|---|---|---|---|---|---|
+| qwen3:30b-a3b | 40% GPU | 79.6s | 17/38 | 13/14 | 2/4 | 4/5 | 3/4 |
+| qwen3:8b (think off) | full | 12.5s | 34/38 | 12/12 | 2/3 | 4/5 | 4/4 |
+
+Six times the turn and half the frame score. A small onboarding goes from
+nineteen minutes to two hours.
+
+The interesting half is *which* number died. Decode held up at 8.3 tok/s --
+the sparse trick works, and a model twice the size still writes at a usable
+rate. **Prefill collapsed to 92 tok/s**, against 4,165 for the dense 8B on
+the same card. Prefill is compute-bound rather than memory-bound, so the
+60% of the model sitting in RAM has to be walked for every one of the
+prompt's four thousand tokens before a single one comes back: forty-three
+seconds of reading before the thinking starts. This system's prompts are
+long by design -- the whole push architecture exists to put the right
+material in front of a session -- so it is precisely the wrong workload
+for a partially offloaded MoE.
+
+Sparsity buys generation, not comprehension, and onboarding is nearly all
+comprehension. The rule survives with a sharper edge: what matters is not
+whether a model fits, but whether its *prefill* fits.
+
 Two caveats this table now carries, both found by using it:
 
 **The challenge column pre-dates a rename.** These scores were taken with
