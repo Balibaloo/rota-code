@@ -600,3 +600,13 @@ falsified claims, blind spots. Inbound: what the principal volunteers at
 any moment -- a fact, a correction, a don't-bother. The TUI is that seat;
 a web seat, if it comes, is the same verbs over the same contract, because
 the seat was already a thin client over the run and its ops.
+
+**The model bench is a seat flow.** Pick candidates (sizes shown before any
+download), watch the batteries run, read the report -- fit, speed, what that
+equates to in onboarding minutes, judgement per capability -- and the
+recommendation ends in a button: [use this routing], which writes the
+routing config the way any ruling lands. `probes/bench/run.py` is the CLI
+form; its fixtures are snapshotted views with mechanical scoring, so a
+user's machine needs nothing but the local model server. The challenge
+battery contains a planted falsehood on purpose: a battery that cannot
+fail proves nothing.

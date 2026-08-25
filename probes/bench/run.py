@@ -1,0 +1,174 @@
+"""The model bench: speed, discipline and judgement, on anyone's machine.
+
+Every fixture is a snapshotted view with mechanical scoring -- no checkouts,
+no databases, no network beyond the local model server. The batteries can
+fail, on purpose: the challenge set contains a claim whose correct verdict
+is a break (the plant), and a harness whose scores cannot reach zero is a
+harness being trusted rather than used.
+
+    python -m probes.bench.run --models llama3.1:8b,qwen2.5:14b
+    python -m probes.bench.run --models qwen3:8b --pull
+
+The report, per model: does it fit the GPU (the single number that dominates
+everything -- a model 2GB over VRAM decodes at one twentieth the speed),
+prefill and decode rates, what those equate to in onboarding wall-time, a
+discipline score (did it act in the shapes the system parses), and judgement
+scores per capability (frame, senses, verdicts) so per-task routing falls
+out of the same table.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from probes.downstream import default_backend  # noqa: E402
+from rota.llm.llm import Pins  # noqa: E402
+
+HERE = Path(__file__).parent
+# The measured per-turn profile of a real onboarding: ~4k tokens in, ~300
+# out, ~1.5 turns per session; sessions ~= 5 + 2*areas + words + surfaces
+# + challenge cap. See ONBOARDING.md.
+TURN_IN, TURN_OUT, TURNS_PER_SESSION = 4000, 300, 1.5
+SIZES = {"small (5 areas)": 60, "medium (23 areas)": 105, "large (100 areas)": 250}
+
+
+def measure_speed(backend, model: str) -> dict:
+    pins = Pins(model=model, temperature=0.0, num_ctx=12288)
+    filler = ("The quick brown fox jumps over the lazy dog. " * 400)
+    t0 = time.time()
+    backend.complete("Answer with the single word: done.", filler, pins)
+    prefill_s = time.time() - t0
+    prefill_rate = (len(filler) / 4) / max(prefill_s, 0.01)
+
+    t0 = time.time()
+    got = backend.complete(
+        "You are a counting machine.",
+        "Count from 1 to 120 as plain comma-separated numbers, nothing else.",
+        pins)
+    decode_s = time.time() - t0
+    out_toks = max(len(got.text) / 4, 1)
+    decode_rate = out_toks / max(decode_s, 0.01)
+    return {"prefill_tok_s": round(prefill_rate),
+            "decode_tok_s": round(decode_rate, 1)}
+
+
+def gpu_fit(model: str) -> str:
+    try:
+        ps = subprocess.run(["ollama", "ps"], capture_output=True, text=True,
+                            timeout=15).stdout
+        for line in ps.splitlines():
+            if line.split() and model.split(":")[0] in line.split()[0]:
+                if "100% GPU" in line:
+                    return "fits fully"
+                m = re.search(r"(\d+)%/(\d+)% CPU/GPU", line)
+                if m:
+                    return f"partial offload ({m.group(2)}% GPU)"
+        return "unknown"
+    except Exception:
+        return "unknown"
+
+
+def turn_seconds(speed: dict) -> float:
+    return TURN_IN / max(speed["prefill_tok_s"], 1) \
+        + TURN_OUT / max(speed["decode_tok_s"], 0.1)
+
+
+def score_frame(completion: str, truth: dict) -> tuple[int, int]:
+    answers = {}
+    for line in completion.splitlines():
+        m = re.match(r"\s*(?:[-*\d.]+\s*)?`?([^\s:`]+?)`?\s*:\s*"
+                     r"\**(program|attached|attach|ignore|boundary|surface)\**",
+                     line, re.I)
+        if m:
+            k = m.group(2).lower()
+            answers[m.group(1).strip("`*-").rstrip("/")] = (
+                "attached" if k == "attach" else
+                "boundary" if k == "surface" else k)
+    hit = sum(1 for path, allowed in truth.items()
+              if answers.get(path) in allowed)
+    return hit, len(truth)
+
+
+def score_define(completion: str, truth: dict) -> tuple[int, int]:
+    low = completion.lower()
+    m = re.search(r"sense_short\s*=\s*[\"']([^\"']+)", completion)
+    sense = (m.group(1) if m else completion[-400:]).lower()
+    trapped = any(t.lower() in sense for t in truth["must_not_contain"])
+    disciplined = "glossary.amend" in low
+    return (0 if trapped else 1) + (1 if disciplined else 0), 2
+
+
+def score_challenge(completion: str, truth: dict) -> tuple[int, int]:
+    low = completion.lower()
+    said = ("falsified" if "challenge.break" in low else
+            "unfounded" if "challenge.unfounded" in low else
+            "stands" if "challenge.uphold" in low else "none")
+    return (1 if said == truth["expected_verdict"] else 0), 1
+
+
+SCORERS = {"frame": score_frame, "define": score_define,
+           "challenge": score_challenge}
+
+
+def run_model(backend, model: str) -> dict:
+    pins = Pins(model=model, temperature=0.0, num_ctx=12288)
+    speed = measure_speed(backend, model)
+    fit = gpu_fit(model)
+    per_kind: dict[str, list[int]] = {}
+    for fxfile in sorted(HERE.glob("fixtures/*.json")):
+        for fx in json.loads(fxfile.read_text(encoding="utf-8")):
+            got = backend.complete(fx["system"], fx["user"], pins).text
+            hit, total = SCORERS[fx["kind"]](got, fx["truth"])
+            per_kind.setdefault(fx["kind"], [0, 0])
+            per_kind[fx["kind"]][0] += hit
+            per_kind[fx["kind"]][1] += total
+    ts = turn_seconds(speed)
+    times = {name: round(n * TURNS_PER_SESSION * ts / 60)
+             for name, n in SIZES.items()}
+    return {"model": model, "fit": fit, **speed,
+            "turn_s": round(ts, 1), "onboarding_minutes": times,
+            "scores": {k: f"{v[0]}/{v[1]}" for k, v in per_kind.items()}}
+
+
+def render(results: list[dict]) -> None:
+    for r in results:
+        print(f"\n=== {r['model']}")
+        print(f"  fit: {r['fit']}   prefill {r['prefill_tok_s']} tok/s   "
+              f"decode {r['decode_tok_s']} tok/s   turn ~{r['turn_s']}s")
+        print("  onboarding: " + "   ".join(
+            f"{k}: ~{v}min" for k, v in r["onboarding_minutes"].items()))
+        print("  judgement: " + "   ".join(
+            f"{k} {v}" for k, v in sorted(r["scores"].items())))
+    print("\n(the challenge battery contains a planted falsehood; a model "
+          "that upholds everything scores low there BY DESIGN -- a battery "
+          "that cannot fail proves nothing)")
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--models", required=True,
+                    help="comma-separated ollama model names")
+    ap.add_argument("--pull", action="store_true",
+                    help="ollama pull models that are not local (asks sizes "
+                         "first is the seat's job; here it just pulls)")
+    args = ap.parse_args(argv)
+    backend = default_backend()
+    results = []
+    for model in [m.strip() for m in args.models.split(",") if m.strip()]:
+        if args.pull:
+            subprocess.run(["ollama", "pull", model], check=False)
+        print(f"benching {model} ...", flush=True)
+        results.append(run_model(backend, model))
+    render(results)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

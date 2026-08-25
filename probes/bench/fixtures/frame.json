@@ -1,0 +1,179 @@
+[
+ {
+  "id": "frame:repo",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.github/  (3 files: .md x2, .yml x1)\nassets/  (5 files: .gif x4, .png x1)\nsrc/  (18 files: .ts x18)\n.editorconfig  (166 bytes)\n.eslintignore  (26 bytes)\n.eslintrc  (649 bytes)\n.gitignore  (316 bytes)\n.npmrc  (21 bytes)\nesbuild.config.mjs  (1074 bytes)\nintentsSchema.yaml  (2028 bytes)\nLICENSE  (1089 bytes)\nmanifest.json  (344 bytes)\npackage-lock.json  (130054 bytes)\npackage.json  (754 bytes)\nREADME.md  (29401 bytes)\nstyles.css  (483 bytes)\ntsconfig.json  (488 bytes)\nversion-bump.mjs  (662 bytes)\nversions.json  (596 bytes)\n\n[the README's first lines]\n# Contextual Note Templating\nAn [Obsidian](https://obsidian.md) plugin for creating notes next to notes.\n<br>\n\n##### Table of contents\n- [Introduction](#introduction)\n- [Installing](#installing)\n- <details><summary>Basics</summary>\n\n    - [Change output note name](#change-output-note-name)",
+  "truth": {
+   "src": [
+    "program"
+   ],
+   "intentsSchema.yaml": [
+    "boundary"
+   ],
+   "manifest.json": [
+    "boundary"
+   ],
+   "assets": [
+    "attached",
+    "ignore"
+   ],
+   "README.md": [
+    "attached"
+   ],
+   "esbuild.config.mjs": [
+    "attached",
+    "ignore"
+   ]
+  }
+ },
+ {
+  "id": "frame:click",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.devcontainer/  (2 files: .json x1, .sh x1)\n.github/  (10 files: .yaml x6, .md x3, .yml x1)\ndocs/  (41 files: .md x37, .svg x3, .py x1)\nexamples/  (39 files: .py x14, (none) x12, .toml x10)\nsrc/  (18 files: .py x17, .typed x1)\ntests/  (47 files: .py x47)\n.editorconfig  (246 bytes)\n.gitignore  (90 bytes)\n.pre-commit-config.yaml  (949 bytes)\n.readthedocs.yaml  (521 bytes)\nCHANGES.md  (71826 bytes)\nLICENSE.txt  (1503 bytes)\npyproject.toml  (5555 bytes)\nREADME.md  (1840 bytes)\nuv.lock  (260101 bytes)\n\n[the README's first lines]\n<div align=\"center\"><img src=\"https://raw.githubusercontent.com/pallets/click/refs/heads/stable/docs/_static/click-name.svg\" alt=\"\" height=\"150\"></div>\n\n# Click\n\nClick is a Python package for creating beautiful command line interfaces\nin a composable way with as little code as necessary. It's the \"Command\nLine Interface Creation Kit\". It's highly configurable but comes with\nsensible defaults out of the box.\n\nIt aims to make the process of writing command line tools quick and fun",
+  "truth": {
+   "src": [
+    "program"
+   ],
+   "docs": [
+    "attached"
+   ],
+   "examples": [
+    "attached"
+   ],
+   "tests": [
+    "attached"
+   ],
+   "pyproject.toml": [
+    "boundary"
+   ],
+   ".github": [
+    "attached",
+    "ignore"
+   ]
+  }
+ },
+ {
+  "id": "frame:icalendar",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.github/  (17 files: .yml x10, .md x4, .py x2)\n.well-known/  (1 files: (none) x1)\ndocs/  (135 files: .rst x113, .inc x6, .txt x5)\nnews/  (71 files: .documentation x18, .internal x14, .bugfix x13)\nsrc/  (457 files: .py x254, .ics x194, .jcal x5)\n.coveragerc  (180 bytes)\n.gitignore  (410 bytes)\n.pre-commit-config.yaml  (740 bytes)\n.readthedocs.yml  (1301 bytes)\n.vale.ini  (424 bytes)\nCHANGES.rst  (94233 bytes)\nCODE_OF_CONDUCT.md  (244 bytes)\nCONTRIBUTING.md  (174 bytes)\nfunding.json  (4190 bytes)\ngenerate_windows_to_olson_mapping.py  (2939 bytes)\nLICENSE.rst  (1339 bytes)\nMakefile  (6255 bytes)\nMANIFEST.in  (191 bytes)\npyproject.toml  (12407 bytes)\nREADME.rst  (5465 bytes)\nSECURITY.md  (3340 bytes)\ntox.ini  (1263 bytes)\n\n[the README's first lines]\n==========================================================\nInternet Calendaring and Scheduling (iCalendar) for Python\n==========================================================\n\nThe `icalendar <https://pypi.org/project/icalendar/>`_ package is an :rfc:`5545` compatible parser and generator of iCalendar files.\n\nicalendar can create, inspect, and modify calendaring information with Python.\n\nicalendar supports multiple timezone implementations, including `zoneinfo <https://docs.python.org/3/library/zoneinfo.html>`_, `dateutil.tz <https://dateutil.readthedocs.io/en/latest/tz.html>`_, and `pytz <https://pypi.org/project/pytz/>`_.\n",
+  "truth": {
+   "src": [
+    "program"
+   ],
+   "docs": [
+    "attached"
+   ],
+   "news": [
+    "attached",
+    "ignore"
+   ],
+   "pyproject.toml": [
+    "boundary"
+   ],
+   ".pre-commit-config.yaml": [
+    "attached",
+    "ignore"
+   ]
+  }
+ },
+ {
+  "id": "frame:fzf",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.github/  (14 files: .yml x11, (none) x1, .md x1)\nbin/  (2 files: .sh x1, (none) x1)\ndoc/  (1 files: .txt x1)\nman/  (2 files: .1 x2)\nplugin/  (1 files: .vim x1)\nshell/  (11 files: .nu x3, .sh x2, .bash x2)\nsrc/  (92 files: .go x88, .s x2, (none) x1)\ntest/  (14 files: .rb x11, .fish x1, .sh x1)\n.editorconfig  (492 bytes)\n.gitignore  (111 bytes)\n.goreleaser.yml  (3145 bytes)\n.rubocop.yml  (836 bytes)\n.tool-versions  (35 bytes)\nADVANCED.md  (29831 bytes)\nBUILD.md  (1992 bytes)\nCHANGELOG.md  (146475 bytes)\nDockerfile  (939 bytes)\nGemfile  (188 bytes)\nGemfile.lock  (1142 bytes)\ngo.mod  (549 bytes)\ngo.sum  (5075 bytes)\ninstall  (14216 bytes)\ninstall.ps1  (1947 bytes)\nLICENSE  (1106 bytes)\nmain.go  (2423 bytes)\nMakefile  (6975 bytes)\nREADME-VIM.md  (18552 bytes)\nREADME.md  (42982 bytes)\nRELEASE.md  (1777 bytes)\nSECURITY.md  (1307 bytes)\ntypos.toml  (259 bytes)\nuninstall  (3123 bytes)\n\n[the README's first lines]\nFZF Vim integration\n===================\n\nInstallation\n------------\n\nOnce you have fzf installed, you can enable it inside Vim simply by adding the\ndirectory to `&runtimepath` in your Vim configuration file. The path may\ndiffer depending on the package manager.\n",
+  "truth": {
+   "src": [
+    "program"
+   ],
+   "main.go": [
+    "program"
+   ],
+   "shell": [
+    "boundary",
+    "program"
+   ],
+   "plugin": [
+    "attached",
+    "program"
+   ],
+   "man": [
+    "attached"
+   ],
+   "test": [
+    "attached"
+   ],
+   "Dockerfile": [
+    "attached",
+    "ignore"
+   ],
+   "go.mod": [
+    "boundary"
+   ]
+  }
+ },
+ {
+  "id": "frame:opensource.guide",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.devcontainer/  (1 files: .json x1)\n.github/  (7 files: .yml x6, .md x1)\n_articles/  (378 files: .md x350, .html x28)\n_data/  (30 files: .yml x30)\n_includes/  (5 files: .html x5)\n_layouts/  (4 files: .html x4)\nassets/  (66 files: .png x26, .svg x16, .js x9)\ndocs/  (4 files: .md x4)\nnode_modules/  (410 files: .scss x202, .md x89, .json x50)\nscript/  (5 files: (none) x5)\ntest/  (6 files: .rb x2, .txt x1, .json x1)\n.gitignore  (181 bytes)\n.node-version  (9 bytes)\n.ruby-version  (7 bytes)\n_config.yml  (947 bytes)\nCNAME  (18 bytes)\nCODE_OF_CONDUCT.md  (3490 bytes)\nCODEOWNERS  (196 bytes)\nCONTRIBUTING.md  (3695 bytes)\nfavicon.ico  (6518 bytes)\nGemfile  (175 bytes)\nGemfile.lock  (10111 bytes)\ngoogle19d329aaa468a71f.html  (53 bytes)\nindex.html  (35 bytes)\nLICENSE  (19041 bytes)\nnotices.md  (5666 bytes)\npackage-lock.json  (11849 bytes)\npackage.json  (241 bytes)\nRakefile  (187 bytes)\nREADME.md  (3271 bytes)\n\n[the README's first lines]\n# Open Source Guides\n[![Build Status](https://github.com/github/opensource.guide/workflows/GitHub%20Actions%20CI/badge.svg)](https://github.com/github/opensource.guide/actions)\n\nOpen Source Guides (https://opensource.guide/) are a collection of resources for individuals, communities, and companies who want to learn how to run and contribute to an open-source project.\n\n## Background\nOpen Source Guides were created and are curated by GitHub, along with input from outside community reviewers, but they are not exclusive to GitHub products. One reason we started this project is that we felt that there weren't enough resources for people creating open-source projects.\n\nOur goal was to aggregate community best practices, *not* what GitHub (or any other individual or entity) thinks is best. Therefore, we used examples and quotations from others to illustrate our points.\n",
+  "truth": {
+   "_articles": [
+    "program"
+   ],
+   "_layouts": [
+    "attached",
+    "program"
+   ],
+   "_config.yml": [
+    "attached",
+    "boundary",
+    "program"
+   ],
+   "node_modules": [
+    "ignore"
+   ],
+   "test": [
+    "attached"
+   ],
+   "script": [
+    "attached"
+   ],
+   "package.json": [
+    "attached",
+    "boundary"
+   ]
+  }
+ },
+ {
+  "id": "frame:swift-argument-parser",
+  "kind": "frame",
+  "system": "You classify the top level of a repository so that a survey of its meaning can be scheduled. Classes:\n  program  - the source of the thing this repository ships. If the shipped thing is documents, the documents are program.\n  attached - about the program, not of it: tests, examples, documentation describing the program, CI and tool configuration.\n  ignore   - vendored or generated: lockfiles, node_modules, build output.\n  boundary - a file whose other side is outside this repository: a package manifest a registry resolves (pyproject.toml, go.mod, Package.swift, manifest.json), a schema users write documents against. Build settings with no outside reader are attached, but a file that names the package to a registry is boundary, not program.\nAnswer with exactly one line per listed entry:\n<entry>: <class> - <reason, five words at most>\nThen one final line: programs: <what this repository ships, one clause>.",
+  "user": "[the repository's top level]\n.github/  (8 files: .md x4, .yml x3, .yaml x1)\ncmake/  (3 files: .in x1, .txt x1, .cmake x1)\nExamples/  (8 files: .swift x7, .txt x1)\nPlugins/  (7 files: .swift x5, (none) x2)\nScripts/  (2 files: .sh x2)\nSources/  (80 files: .swift x55, .md x20, .txt x4)\nTests/  (114 files: .swift x63, .mdoc x12, .json x11)\nTools/  (36 files: .swift x36)\n.editorconfig  (121 bytes)\n.gitignore  (110 bytes)\n.license_header_template  (455 bytes)\n.licenseignore  (391 bytes)\n.spi.yml  (81 bytes)\n.swift-format  (2578 bytes)\n.unacceptablelanguageignore  (117 bytes)\nCHANGELOG.md  (67677 bytes)\nCMakeLists.txt  (1075 bytes)\nCODE_OF_CONDUCT.md  (3384 bytes)\nCODEOWNERS  (25 bytes)\nCONTRIBUTING.md  (478 bytes)\nLICENSE.txt  (11962 bytes)\nPackage.swift  (4540 bytes)\nREADME.md  (5862 bytes)\n\n[the README's first lines]\n# Swift Argument Parser\n\n## Usage\n\nBegin by declaring a type that defines the information\nthat you need to collect from the command line.\nDecorate each stored property with one of `ArgumentParser`'s property wrappers,\nand then declare conformance to `ParsableCommand` and add the `@main` attribute.\n(Note, for `async` renditions of `run`, conform to `AsyncParsableCommand` rather\nthan `ParsableCommand`.)",
+  "truth": {
+   "Sources": [
+    "program"
+   ],
+   "Tests": [
+    "attached"
+   ],
+   "Examples": [
+    "attached"
+   ],
+   "Package.swift": [
+    "boundary"
+   ],
+   "Plugins": [
+    "attached",
+    "program"
+   ],
+   "CMakeLists.txt": [
+    "attached",
+    "boundary",
+    "ignore"
+   ]
+  }
+ }
+]
