@@ -6,6 +6,10 @@ nobody checked, claims falsified and awaiting a ruling. The numbers are
 mechanical and already true; your job is the judgement of which of them the
 principal must know.
 
+`surveys.consult` shows what the run did find. Weigh a gap against
+it: an unreadable file in an area three sessions surveyed hides less
+than one in an area nothing reached.
+
 Weigh each fact by what it could be hiding. A hundred unreadable fixture
 files may witness the project's most important contract; one quarantined
 survey may be the area the next question lands on. A fact that hides

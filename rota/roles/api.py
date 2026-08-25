@@ -3984,7 +3984,7 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
                 "claim's ref). A claim false by ABSENCE is broken by "
                 "quoting the line that shows what actually happens "
                 "instead. A claim no line could support or defeat is "
-                "challenge.unfounded(why=...). Send the break again with "
+                "challenge.dismiss(why=...). Send the break again with "
                 "its line -- or once more as it is, and it is recorded "
                 "flagged on the strength of your reading.")
         if not ctx.opened:
@@ -4009,8 +4009,8 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
             "note": "recorded, and on the principal's ledger"}
 
 
-@op("challenge", "unfounded")
-def challenge_unfounded(ctx: Ctx, why: str) -> dict:
+@op("challenge", "dismiss")
+def challenge_dismiss(ctx: Ctx, why: str) -> dict:
     """
     The claim commits to nothing a line could support or defeat.
 
@@ -4026,7 +4026,7 @@ def challenge_unfounded(ctx: Ctx, why: str) -> dict:
         raise ValueError("say what makes it empty: why= the reason no line "
                          "could support or defeat this claim")
     if not ctx.opened:
-        raise ValueError("unfounded is still a reading's verdict: open the "
+        raise ValueError("a dismissal is still a reading's verdict: open the "
                          "claim's cited files first (challenge.load or "
                          "code.source)")
     ctx.writes.append(("challenges", f"{table}:{row}", {
