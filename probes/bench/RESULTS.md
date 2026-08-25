@@ -16,6 +16,30 @@ telemetry; relative order holds). Full logs: the bakeoff logs of this date.
 | mistral-nemo:12b | 82% | 106s | 13/38 | 8/12 | 1/5 | 1/3 | 4/4 | out |
 | qwen3.5:9b | 73% | — | 0/38 | 9/12 | 3/5 | 2/3 | 3/4 | thinking-contaminated; retest someday |
 
+Two caveats this table now carries, both found by using it:
+
+**The challenge column pre-dates a rename.** These scores were taken with
+the third verdict named `challenge.unfounded`; it is `challenge.dismiss`
+now, because the vocabulary law caught an adjective in a verb slot. Whether
+the verb changes what models reach for is measured separately -- and the
+fixtures are re-snapshotted, so the next run of this table measures the
+brief production actually sends.
+
+**Half the battery snapshots a brief and half does not.** `challenge`,
+`define` and `orient` fixtures carry the composed production brief;
+`frame`, `read`, `recover` and `decline` carry compact hand-written
+probes. Both are deliberate -- the production frame brief asks for
+`frame.assign` tool calls, and parsing thirty-eight of those well enough
+to score would make the grader the thing under test -- but the mix was
+invisible until a brief edit aged four fixtures silently. Every fixture
+now declares its origin and a test holds the snapshots to their briefs.
+
+The re-bench worth running is not this one again. Nine candidates was the
+right shape for the question "what fits and what judges"; that question is
+answered. The next one is narrower and later: the three or four models
+that fit fully, against a battery that has grown more real cases, with
+every live failure since turned into a fixture.
+
 Post-run addendum (2026-08-25): the live click trap ("context" -> "the
 environment in which") was rebuilt as fixture `define:context-click` from the
 real concordance -- and both qwen3:8b and llama3.1:8b pass it single-shot,

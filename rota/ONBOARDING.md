@@ -839,6 +839,24 @@ falsified; zero false breaks. The vacuous tautologies stand-with-a-line
 rather than unfounded -- the third verdict is built and tested, and
 whether a model reaches for it is now a bench fixture.
 
+**The verdict ladder, reviewed against click (2026-08-25):** the
+challenge pass made its first production catches and the review of
+all twelve says the evidence gate held and the ladder did not. Every
+citation was a real file and every quote a real line. But eleven of
+the twelve sampled claims were one template -- "WHO BREAKS:
+applications using click.X; WHAT HAPPENS: a NameError if X is not
+found" -- a conditional true of every name in every program, and the
+identical shape drew seven falsified and four stands, with
+self-contradictory reasons on both sides. That is a coin flip wearing
+citations. Three things follow, in order of how far upstream they
+sit: the constraint over-production is the root cause (thirty-one
+symbol-grain rows gave the Critic nothing worth judging); the
+vacuity arm of the brief must name that exact shape; and the
+operation was renamed `challenge.dismiss`, because `unfounded` was a
+verb slot holding an adjective -- its siblings write differently
+named states (uphold -> stands, break -> falsified) and it wrote its
+own name.
+
 Validation plan: the challenge on/off twin (same repo, challenge off and
 sample -- the score diff is the measured value of the pass), the v1 baseline
 (v2 scores are not comparable to v1 scores by design; the twins bridge
