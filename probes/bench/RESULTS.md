@@ -16,6 +16,16 @@ telemetry; relative order holds). Full logs: the bakeoff logs of this date.
 | mistral-nemo:12b | 82% | 106s | 13/38 | 8/12 | 1/5 | 1/3 | 4/4 | out |
 | qwen3.5:9b | 73% | — | 0/38 | 9/12 | 3/5 | 2/3 | 3/4 | thinking-contaminated; retest someday |
 
+Post-run addendum (2026-08-25): the live click trap ("context" -> "the
+environment in which") was rebuilt as fixture `define:context-click` from the
+real concordance -- and both qwen3:8b and llama3.1:8b pass it single-shot,
+2/2. The live failure happened only on the collision path (the area-scoped
+`context#src_click` sense, left unreconciled because its term_collision tick
+was quarantined). So the bench-live gap is a *mode* gap: these batteries
+measure the model's judgement, not the session shapes; a model can score
+12/12 on define and still lose a trap to a quarantined tick. Session-loop
+discipline stays the live gate's job.
+
 Findings that outlast the table: the practical VRAM budget on a 10GB card
 with a desktop is ~8GB at 12k context, so only <=5.2GB models fit fully;
 no model declines gracefully (0-1/2 across the board -- every one defines
