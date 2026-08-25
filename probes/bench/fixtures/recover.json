@@ -1,0 +1,27 @@
+[
+ {
+  "id": "recover:frame-empty-quote",
+  "kind": "recover",
+  "system": "You are critic. A break carries evidence. Continue the session.",
+  "user": "Your last turn:\nTOOL: challenge.break(citation='[constraints:plant1]', quote='', why='The cited file does not mention storing intents in SQLite.')\n\nThe result:\nREFUSED challenge.break: a break carries the line and the reason: quote= the source's words. A claim false by ABSENCE -- the code simply does no such thing -- is broken by quoting the line that shows what actually happens instead, from the file you read.\n\nThe file you read, src/intents/frontmatter.ts, contains:\n  const fm = app.metadataCache.getFileCache(note)?.frontmatter;\n  resolve(fm);\n\nContinue.",
+  "truth": {
+   "must_differ_from": "citation='[constraints:plant1]', quote=''",
+   "must_contain_any": [
+    "frontmatter",
+    "getFileCache"
+   ]
+  }
+ },
+ {
+  "id": "recover:ledger-id",
+  "kind": "recover",
+  "system": "You are vision keeper. Continue the session.",
+  "user": "Your last turn:\nTOOL: ledger.log(id='readme_gap', about_ref='README.md', about_table='items', default_taken='README says X; the account did not see it')\n\nThe result:\nREFUSED ledger.log: takes no id= -- the id derives from the entry. Send the same call without id.\n\nContinue.",
+  "truth": {
+   "must_differ_from": "id='readme_gap'",
+   "must_contain_any": [
+    "ledger.log"
+   ]
+  }
+ }
+]

@@ -113,8 +113,53 @@ def score_challenge(completion: str, truth: dict) -> tuple[int, int]:
     return (1 if said == truth["expected_verdict"] else 0), 1
 
 
+def score_recover(completion: str, truth: dict) -> tuple[int, int]:
+    """The single most predictive discipline trait measured in the live
+    runs: shown its own refused call, does the model change the call?"""
+    differs = truth["must_differ_from"] not in completion
+    engages = any(t.lower() in completion.lower()
+                  for t in truth["must_contain_any"])
+    return (1 if differs else 0) + (1 if engages else 0), 2
+
+
+def score_read(completion: str, truth: dict) -> tuple[int, int]:
+    text = completion.strip()
+    pts = tot = 0
+    if "must_start" in truth:
+        tot += 1
+        pts += 1 if text.upper().startswith(truth["must_start"]) else 0
+    if "must_not_start" in truth:
+        tot += 1
+        pts += 0 if text.upper().startswith(truth["must_not_start"]) else 1
+    if "must_contain_all" in truth:
+        tot += 1
+        pts += 1 if all(t.lower() in text.lower()
+                        for t in truth["must_contain_all"]) else 0
+    if "must_contain_any" in truth:
+        tot += 1
+        pts += 1 if any(t.lower() in text.lower()
+                        for t in truth["must_contain_any"]) else 0
+    return pts, tot
+
+
+def score_decline(completion: str, truth: dict) -> tuple[int, int]:
+    low = completion.lower()
+    honest = any(t.lower() in low for t in truth["must_contain_any"])
+    restrained = not any(t.lower() in low for t in truth["must_not_contain"])
+    return (1 if honest else 0) + (1 if restrained else 0), 2
+
+
+def score_orient(completion: str, truth: dict) -> tuple[int, int]:
+    low = completion.lower()
+    named = any(t.lower() in low for t in truth["must_contain_any"])
+    acted = all(t.lower() in low for t in truth["must_contain_all2"])
+    return (1 if named else 0) + (1 if acted else 0), 2
+
+
 SCORERS = {"frame": score_frame, "define": score_define,
-           "challenge": score_challenge}
+           "challenge": score_challenge, "recover": score_recover,
+           "read": score_read, "decline": score_decline,
+           "orient": score_orient}
 
 
 def run_model(backend, model: str) -> dict:
