@@ -149,6 +149,30 @@ recorded_run_result:
     prose_nominations_empty; docs_area_surveys (worse than predicted, seven
     decoy-class constraints instead of none_found); decorator_surface_invisible.
 
+# --- recorded run result, v2 on qwen3:8b (2026-08-25, .rota/click_q3.db) ---
+
+recorded_run_result_v2_qwen3:
+  wall: 49 sessions, 641 seconds -- the full nine-stage spine in eleven
+    minutes, against two and a half hours for the v1 run on the 14B
+  terms_required_present: 8 of 10   # context, prompt, choice joined; echo and
+                                    # callback still never nominated (lexicon, not model)
+  must_not_mean_hits: 1 of 7        # context -> "the environment in which" --
+                                    # the first trap hit since v1.0.0; the streak
+                                    # ends at 22 and the briefs meet a new model
+  copied_from_index: 1 of 24 (4%)
+  constraints: 31 written, symbol-grain over-production (worse than the 14B's
+    ten); the live challenge pass then broke seven of its twelve sampled
+    claims with citations -- the immune system's first production catch,
+    though the breaks' precision needs its own review
+  constraints_required_found: 0 of 2  # the library-direction gap, unfixed by design
+  blindspot_regression: the session parroted the brief's template literally
+    ("this run could not see <boundary>; what it could hide") -- a discipline
+    knife-edge the 14B never showed; the brief needs qwen3-proofing
+  verdict: the engine switch holds discipline through the spine at 20x speed
+    with better vocabulary coverage, and brings its own knife-edges -- the
+    briefs were tuned against qwen2.5:14b, and a small qwen3 tuning pass is
+    the predicted, bounded cost of migration
+
 # --- 5. consult questions (probes/click/questions.py mirrors this) ----------
 # Expected answers are truths from the source, written before the run.
 
