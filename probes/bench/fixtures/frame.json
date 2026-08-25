@@ -25,7 +25,8 @@
     "attached",
     "ignore"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "frame:click",
@@ -52,7 +53,8 @@
     "attached",
     "ignore"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "frame:icalendar",
@@ -77,7 +79,8 @@
     "attached",
     "ignore"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "frame:fzf",
@@ -112,7 +115,8 @@
    "go.mod": [
     "boundary"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "frame:opensource.guide",
@@ -145,7 +149,8 @@
     "attached",
     "boundary"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "frame:swift-argument-parser",
@@ -174,6 +179,7 @@
     "boundary",
     "ignore"
    ]
-  }
+  },
+  "system_from": "hand"
  }
 ]

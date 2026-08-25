@@ -10,7 +10,8 @@
     "frontmatter",
     "getFileCache"
    ]
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "recover:ledger-id",
@@ -22,6 +23,7 @@
    "must_contain_any": [
     "ledger.log"
    ]
-  }
+  },
+  "system_from": "hand"
  }
 ]

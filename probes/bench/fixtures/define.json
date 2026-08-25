@@ -13,7 +13,8 @@
     "sequence of"
    ],
    "is_about": "a prompt type whose value is typed in, optionally matched against a regex"
-  }
+  },
+  "system_from": "terminologist/define"
  },
  {
   "id": "define:note",
@@ -29,7 +30,8 @@
     "data container"
    ],
    "is_about": "a prompt type whose value is a note chosen through the filtered-opener plugin, narrowed by a filter set"
-  }
+  },
+  "system_from": "terminologist/define"
  },
  {
   "id": "define:folder",
@@ -44,7 +46,8 @@
     "data type"
    ],
    "is_about": "a prompt type whose value is a folder chosen and validated against filters"
-  }
+  },
+  "system_from": "terminologist/define"
  },
  {
   "id": "define:intent",
@@ -60,7 +63,8 @@
     "a goal"
    ],
    "is_about": "a note-creation recipe declared in frontmatter"
-  }
+  },
+  "system_from": "terminologist/define"
  },
  {
   "id": "define:provider",
@@ -75,7 +79,8 @@
     "an API client"
    ],
    "is_about": "the module serving one prompt type"
-  }
+  },
+  "system_from": "terminologist/define"
  },
  {
   "id": "define:context-click",
@@ -89,6 +94,7 @@
     "special internal object"
    ],
    "is_about": "a per-invocation object holding state (params, parent, obj), pushed and popped on a stack, passed to callbacks via pass_context"
-  }
+  },
+  "system_from": "terminologist/define"
  }
 ]

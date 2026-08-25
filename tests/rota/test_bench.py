@@ -52,3 +52,41 @@ def test_every_grader_can_pass_and_can_fail():
         bhit, btot = scorer(bad, truth)
         assert ghit == gtot > 0, f"{scorer.__name__} cannot pass its good case"
         assert bhit < btot, f"{scorer.__name__} cannot fail its bad case"
+
+
+def test_a_snapshotted_brief_is_the_brief_production_sends():
+    """
+    Half the battery measures a model against the real composed brief and
+    half against a compact hand-written probe, and both are right: the
+    production frame brief asks for `frame.assign` tool calls, and parsing
+    thirty-eight of those well enough to score would make the grader the
+    thing under test.
+
+    What is not right is a snapshot silently ageing. Renaming one operation
+    left every `critic/challenge` fixture measuring models against a prompt
+    the system no longer sends -- invisibly, because a stale prompt still
+    scores. So each fixture says where its system half came from, and the
+    ones that say a brief must still be that brief.
+    """
+    import json
+    from pathlib import Path
+
+    from rota.roles import prompts
+
+    stale = []
+    fixtures = Path(__file__).resolve().parents[2] / "probes" / "bench" / "fixtures"
+    for path in sorted(fixtures.glob("*.json")):
+        for fx in json.loads(path.read_text(encoding="utf-8")):
+            origin = fx.get("system_from")
+            assert origin, f"{fx['id']} does not say where its system came from"
+            if origin == "hand":
+                continue
+            role, _, mode = origin.partition("/")
+            spoken = role.replace("_", " ")
+            want = "You are " + spoken + ".\n\n" + prompts.compose(role, mode)
+            if fx["system"] != want:
+                stale.append(f"{fx['id']} ({origin})")
+    assert not stale, (
+        "these fixtures snapshot a brief that has since changed, so the "
+        "bench is scoring models on a prompt production no longer sends: "
+        + ", ".join(stale))

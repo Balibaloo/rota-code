@@ -13,7 +13,8 @@
     "folder"
    ],
    "must_not_start": "NOT MINE"
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "read:rename",
@@ -28,7 +29,8 @@
     "console"
    ],
    "must_not_start": "NOT MINE"
-  }
+  },
+  "system_from": "hand"
  },
  {
   "id": "read:not-mine",
@@ -37,6 +39,7 @@
   "user": "[what the program does -- the Vision Keeper's observed items]\n- guides_with_prompts: Once a template is selected, the program guides the user through prompts based on the template's configuration to fill in necessary details before creating the note.\n- how_it_works: The program is a contextual note templating tool for Obsidian that allows users to create notes based on predefined templates and prompts. Users write the configuration in YAML frontmatter within their notes or globally through settings. The program reads these configurations, validates them against a schema, and provides an interface to select and apply templates when creating new notes.\n- merges_intents: When creating a new note, the program merges intents from both active notes' frontmatter and global settings if available.\n- presents_template_selection: The program presents a modal interface for users to select which template they want to use when creating a new note.\n- reads_user_config: The program reads user-defined intents from YAML frontmatter in Obsidian notes or global settings.\n- validates_against_schema: The program validates the read configurations against a predefined schema to ensure correctness and consistency.\n\nThe question: What colour is the settings tab?",
   "truth": {
    "must_start": "NOT MINE"
-  }
+  },
+  "system_from": "hand"
  }
 ]
