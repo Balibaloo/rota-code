@@ -804,14 +804,51 @@ eager present: those rows are not decided, not ledgered, and never
 re-offered. The put-once rule assumed a ruling always arrives. The lazy path
 has no such hole, which suggests the fix is that a deferral *is* an election.
 
-**The worktree skip is silent.** The harness livelock's root cause: the
-copied run had no `project_root`, so worktree creation skipped without a
-word and the batch ran headless until the drain caught the symptom. The
-skip is still silent -- the silent-success shape, one more time.
+**The worktree skip is silent, but bounded.** The harness livelock's root
+cause: the copied run had no `project_root`, so `lifecycle.start`'s
+`except WorktreeError: pass` skipped creation without a word. Chased: the
+comment's claim -- "boot reconciles a missing worktree" -- is true in
+production, where boot re-runs, and false only for copied databases that
+never re-boot, which is what every drive script makes. With the harness
+drain now converting the headless batch into error rows in one pass, the
+silence is bounded to one harness cycle. Left as-is knowingly; the entry
+stays because `batches.worktree = NULL` still cannot say *why*.
 
 **Rulings live in `config`.** A principal's verdict is a provenance-bearing
 decision record in a settings table: unversioned, unreceipted, outside every
 artefact law. Law 11 has never been asked about it.
+
+### A criterion, once written, cannot be repaired -- and the red cluster sits on top
+
+Found live on delivery rung one, watching the Tester and Terminologist loop.
+The parroting guard refuses an encode of a restated criterion and now names
+its exits; the Tester takes one -- questions the Terminologist -- and the
+question arrives in a mode built for "what does this word mean", which
+answers from the glossary and whose own brief rightly says "answering is not
+amending". The criterion row never changes; the encode meets the same
+sentence; the pair loops.
+
+Underneath is a structural fact: `criteria.specify` is offered in exactly one
+mode, the `criteria` tick, and that predicate fires per ticket **without**
+criteria. A ticket whose criterion exists and is bad never re-fires it, and
+no other mode in the system can write a criterion. Once written, wrong stays
+wrong.
+
+Read against the register's stable reds, this looks like the cluster's single
+upstream cause: `L1-TS-a-criterion-no-machine-could-check` is a role
+discovering a criterion is bad; `L1-TE-the-words-are-already-defined` is the
+owner being asked about one; `L3-a-failed-verdict-turns-into-a-fix` dithers
+in a batch whose criterion cannot anchor a fix; the encode loop is the
+discovery repeating. Every one is downstream of "discovered bad, no path to
+repair".
+
+*The sketch, using only machinery that exists:* the Tester already holds
+`schedule.reask` in these modes, and reask marks the question unresolved. A
+narrow predicate -- a criteria-ref question gone unresolved wakes the
+**owner in its writing mode**, Terminologist under `criteria` with the
+ticket, rather than climbing the generic ladder -- gives the criterion its
+one repair path, through the role that owns it, in the mode that already
+knows how to write one. The ladder stays for questions; this is a repair.
 
 ### The frontier, when several things are ready — the big one
 
