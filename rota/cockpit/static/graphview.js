@@ -761,7 +761,7 @@ function gvDrawInner() {
     el.onclick = ev=>{ev.stopPropagation(); if(!GV.dragged) gvFocus(el.dataset.n);};
     el.ondblclick = ev=>{ev.stopPropagation(); gvInhabit(el.dataset.n);};
     el.onmousedown = ev=>{
-      if (GV.mode!=='team') return;
+      if (GV.mode!=='team' || ev.button !== 0) return;
       ev.stopPropagation();
       GV.dragNode={id:el.dataset.n, sx:ev.clientX, sy:ev.clientY,
                    ox:GV.layout[el.dataset.n].x, oy:GV.layout[el.dataset.n].y};
@@ -1516,7 +1516,13 @@ function gvWireStage(){
   // fires where there is nothing else to mean.
   svg.ondblclick=()=>{if(!GV.dragged){gvFit(); gvDraw();}};
   let pan=null;
-  svg.onmousedown=e=>{pan={x:e.clientX,y:e.clientY,vx:GV.view.x,vy:GV.view.y}; GV.dragged=false;};
+  // Primary button only. The mouse's back/forward buttons also deliver a
+  // mousedown here — but their mouseup never arrives once navigation fires,
+  // so a pan started by them never ends and the graph rides the cursor.
+  // Those buttons belong to the history, which the hash routing serves.
+  svg.onmousedown=e=>{
+    if (e.button !== 0) return;
+    pan={x:e.clientX,y:e.clientY,vx:GV.view.x,vy:GV.view.y}; GV.dragged=false;};
   window.addEventListener('mousemove',e=>{
     if (GV.dragNode) {
       const d=GV.dragNode;
@@ -1528,6 +1534,9 @@ function gvWireStage(){
   });
   window.addEventListener('mouseup',()=>{pan=null; GV.dragNode=null;
     setTimeout(()=>{GV.dragged=false;},50);});
+  // A drag whose mouseup the page never sees — focus stolen mid-drag, a
+  // dialog, alt-tab — must still end, or the graph rides the cursor forever.
+  window.addEventListener('blur',()=>{pan=null; GV.dragNode=null; GV.dragged=false;});
   // Zoom about the cursor: the point under the pointer stays put, which is what
   // every map does and what the hand expects. Scaling about the origin makes the
   // thing you were looking at slide away, so you chase it with the pan.

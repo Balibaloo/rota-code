@@ -163,10 +163,11 @@ def test_every_predicate_is_either_spine_or_register():
     assert named == set(P.REGISTER_ENTRIES), (
         f"REGISTER.md and predicates.REGISTER_ENTRIES disagree: "
         f"{sorted(named ^ set(P.REGISTER_ENTRIES))}")
-    # 37 with `criterion_repair`, 2026-08-26 -- classified register, in
-    # REGISTER_ENTRIES and in the document, which is what this pin exists to
-    # force before the count moves.
-    assert len(every) == 37, (
+    # 37 with `criterion_repair` (register), 38 with `preempt` (spine: a
+    # scheduling act, not an open obligation -- law 9's reorder performed by
+    # the scheduler, drained the moment it fires). The pin forced both
+    # classifications before the count moved, which is its whole job.
+    assert len(every) == 38, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

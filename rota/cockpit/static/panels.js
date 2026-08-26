@@ -824,6 +824,7 @@ function panelToggle(){
   if (pan) pan.addEventListener('click', ()=>{ if(!PANEL.open) panelOpen(); });
   let d=null;
   if (h) h.onmousedown=e=>{
+    if (e.button !== 0) return;   // nav buttons must not start a resize
     d={x:e.clientX, w:PANEL.open?document.getElementById('gpanel').offsetWidth:34};
     e.preventDefault();};
   window.addEventListener('mousemove',e=>{ if(!d) return;
@@ -911,10 +912,9 @@ loadRuns();
 // hash is being *applied* (load, back, forward), writes are replaceState so
 // re-deriving the state never corrupts the trail being walked.
 let navApplying = false;
+let applySeq = 0;
 
-function syncHash(){
-  if (typeof history === 'undefined' || typeof location === 'undefined') return;
-  if (!GV.graph) return;
+function hashOf(){
   let h = '#/' + view;
   if (view === 'graph') {
     const q = [];
@@ -926,9 +926,21 @@ function syncHash(){
       `${GV.edgeSel.s}|${GV.edgeSel.t}|${GV.edgeSel.type}`));
     if (q.length) h += '?' + q.join('&');
   }
-  if (location.hash === h) return;
-  if (navApplying) history.replaceState(null, '', h);
-  else history.pushState(null, '', h);
+  return h;
+}
+
+function syncHash(){
+  if (typeof history === 'undefined' || typeof location === 'undefined') return;
+  if (!GV.graph) return;
+  // While a hash is being APPLIED, the address bar is the authority and this
+  // writes nothing. The first cut wrote replaceState here mid-apply — but
+  // selectView's sync fires before the new focus has landed, so it captured
+  // the state being *left* and stamped it over the entry being *visited*:
+  // going back through a, b, c rewrote b into c, and back bounced between
+  // two entries forever.
+  if (navApplying) return;
+  const h = hashOf();
+  if (location.hash !== h) history.pushState(null, '', h);
 }
 
 // Authoritative, both ways: state named in the hash is applied, state absent
@@ -938,35 +950,45 @@ async function applyHash(){
   if (typeof location === 'undefined') return;
   const m = (location.hash || '').match(/^#\/(graph|live|progress)(?:\?(.*))?$/);
   if (!m) return;
+  // Rapid back-back while an apply is mid-await: the newest application wins
+  // and only it may normalise the address or lift the write freeze.
+  const gen = ++applySeq;
   navApplying = true;
   try {
     selectView(m[1]);
-    if (m[1] !== 'graph') return;
-    const q = new URLSearchParams(m[2] || '');
-    const caseId = q.get('case');
-    if (caseId) {
-      if (!CASES.length) {
-        try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+    if (m[1] === 'graph') {
+      const q = new URLSearchParams(m[2] || '');
+      const caseId = q.get('case');
+      if (caseId) {
+        if (!CASES.length) {
+          try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+        }
+        if (CASES.some(c => c.id === caseId) && GV.caseId !== caseId)
+          showCase(caseId);
+      } else {
+        const lens = q.get('lens') || 'design';
+        if (GV.source !== lens) setLens(lens);
       }
-      if (CASES.some(c => c.id === caseId) && GV.caseId !== caseId)
-        showCase(caseId);
-    } else {
-      const lens = q.get('lens') || 'design';
-      if (GV.source !== lens) setLens(lens);
+      const node = q.get('node');
+      GV.focus = (node && GV.layout && GV.layout[node]) ? node : null;
+      const reach = q.get('reach');
+      GV.inhabit = (reach && GV.layout && GV.layout[reach]) ? reach : null;
+      const edge = q.get('edge');
+      GV.edgeSel = null;
+      gvDraw();
+      if (edge) await showEdge(edge);
+      else if (GV.focus) showNode(GV.focus);
     }
-    const node = q.get('node');
-    GV.focus = (node && GV.layout && GV.layout[node]) ? node : null;
-    const reach = q.get('reach');
-    GV.inhabit = (reach && GV.layout && GV.layout[reach]) ? reach : null;
-    const edge = q.get('edge');
-    GV.edgeSel = null;
-    gvDraw();
-    if (edge) await showEdge(edge);
-    else if (GV.focus) showNode(GV.focus);
   } finally {
-    navApplying = false;
+    if (gen === applySeq) {
+      // One replace, never a push: the entry being visited keeps its own
+      // address even when the applied state derives to a cosmetically
+      // different one.
+      const h = hashOf();
+      if (location.hash !== h) history.replaceState(null, '', h);
+      navApplying = false;
+    }
   }
-  syncHash();
 }
 window.addEventListener('hashchange', applyHash);
 

@@ -960,6 +960,39 @@ def verdict_failed(conn) -> list[Wake]:
     return [Wake("developer", "tick:verdict_failed", refs=(r["bid"],)) for r in rows]
 
 
+@predicate("preempt", wakes=SCHEDULER, band="fix",
+           drains=[("batches", "status", "running")])
+def preempt(conn) -> list[Wake]:
+    """
+    A schedulable batch whose item outranks the running one's.
+
+    Law 9's reorder, as a predicate: priority moves batches whole, and a
+    priority raised mid-flight was inert until the running batch happened to
+    finish, because `batch_start` refuses while anything runs. Strictly
+    greater -- a preemption discards a checkpoint, and equal urgency does not
+    pay for that. The scheduler performs the deferral itself: which batch
+    runs is a scheduling fact, and no session is woken to decide it.
+    """
+    running = conn.execute(
+        "SELECT b.id AS bid, i.priority AS pri FROM batches b "
+        "JOIN items i ON i.id = b.item_id WHERE b.status = 'running'"
+    ).fetchone()
+    if not running:
+        return []
+    challenger = conn.execute(
+        "SELECT b.id AS bid, i.priority AS pri FROM batches b "
+        "JOIN items i ON i.id = b.item_id "
+        "WHERE b.status IN ('pending','deferred') "
+        "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
+        "ORDER BY i.priority DESC, b.id LIMIT 1"
+    ).fetchone()
+    if not challenger or challenger["pri"] <= running["pri"]:
+        return []
+    return [Wake(SCHEDULER, "do:preempt",
+                 refs=(running["bid"], challenger["bid"]),
+                 detail=f"{challenger['bid']} outranks {running['bid']}")]
+
+
 @predicate("merge", wakes=SCHEDULER, band="gate",
            drains=[("verdicts", "result", "pass")])
 def merge(conn) -> list[Wake]:

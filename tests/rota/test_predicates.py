@@ -1432,3 +1432,69 @@ def test_an_answer_that_lands_stays_answered(db):
     assert db.execute("SELECT status FROM messages WHERE id='q1'"
                       ).fetchone()["status"] == "answered"
     assert criterion_repair(db) == []
+
+
+def _two_batches(db, running_pri=0, challenger_pri=5):
+    for iid, pri in (("i_low", running_pri), ("i_high", challenger_pri)):
+        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+                   "approval_ver, version, priority) VALUES (?, 'x', "
+                   "'in_scope', 'decided', 'approved', 1, 1, ?)", (iid, pri))
+    db.execute("INSERT INTO batches (id, item_id, status, worktree, "
+               "head_commit) VALUES ('b_low','i_low','running','wt/b_low',"
+               "'abc123')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('b_high','i_high','pending')")
+    # The checkpoint references a real session, per the schema's FK.
+    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) "
+               "VALUES ('s1','developer','normal',1,1)")
+    db.execute("INSERT INTO checkpoints (session_id, role, batch_id, "
+               "working_set) VALUES ('s1','developer','b_low','[]')")
+    db.commit()
+
+
+def test_a_reorder_that_outranks_the_running_batch_preempts_it(db):
+    """
+    Law 9's sentence, connected: "if a reorder bumps a batch ahead of the
+    running one, the scheduler kills the running batch's environment outright
+    ... The worktree and its commits persist as deferred work." The lever
+    (`problem.prioritize`), the mechanism (`lifecycle.defer`) and the ordering
+    (`batch_start`'s priority sort) all existed; a priority raised mid-flight
+    was inert anyway, because `batch_start` refuses while anything runs and
+    nothing else looked. One predicate and one scheduler action connect them,
+    and no session is woken to decide it -- which batch runs is a scheduling
+    fact.
+    """
+    from rota.core.loop import step
+    from rota.core.predicates import preempt
+    from rota.core.scheduler import tick_batch_start
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    _two_batches(db)
+    assert [(w.kind, w.refs) for w in preempt(db)] == \
+        [("do:preempt", ("b_low", "b_high"))]
+
+    s = step(db, backend=ScriptedBackend(["done"]),
+             pins=Pins(model="stub", temperature=0.0))
+    assert "outranks" in (s.note or "")
+
+    # Law 9's guarantees: deferred not dead, worktree and commits kept,
+    # checkpoint discarded.
+    row = db.execute("SELECT status, worktree, head_commit FROM batches "
+                     "WHERE id='b_low'").fetchone()
+    assert row["status"] == "deferred"
+    assert row["worktree"] == "wt/b_low" and row["head_commit"] == "abc123"
+    ck = db.execute("SELECT valid FROM checkpoints WHERE batch_id='b_low'"
+                    ).fetchone()
+    assert ck and ck["valid"] == 0,         "a deferred batch resumes cold: the checkpoint stays as a record, invalid"
+
+    # And the winner is the next thing offered.
+    assert [w.refs for w in tick_batch_start(db)] == [("b_high",)]
+
+
+def test_equal_priority_never_preempts(db):
+    """The bound: a preemption discards a checkpoint, and equal urgency does
+    not pay for that. Deferral costs something; ties stand."""
+    from rota.core.predicates import preempt
+
+    _two_batches(db, running_pri=5, challenger_pri=5)
+    assert preempt(db) == []

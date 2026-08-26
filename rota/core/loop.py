@@ -261,6 +261,16 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         for batch_id in wake.refs:
             lifecycle.merge(conn, batch_id)
         return f"merged {', '.join(wake.refs)}"
+    if action == "preempt":
+        # Law 9, performed: the environment dies with the checkpoint, the
+        # worktree and its commits persist as deferred work, and the next
+        # `batch_start` pass offers the batch that won the reorder. The
+        # deferral is `lifecycle.defer`, which owns every word of that split.
+        running_id = wake.refs[0]
+        lifecycle.defer(conn, running_id)
+        conn.commit()
+        return f"deferred {running_id}; {wake.refs[1]} outranks it"
+
     if action == "defer_baseline":
         # The lazy election's clerical half. Each observed row becomes an open
         # assumption in the row's own words -- "uncertainty the principal
