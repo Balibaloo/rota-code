@@ -67,9 +67,32 @@ def run(conn: sqlite3.Connection, batch_id: str,
     matters to every predicate downstream.
     """
     tests = tests_for(conn, batch_id)
-    worktree = worktree_of(conn, batch_id)
-    if not tests or not worktree or not Path(worktree).is_dir():
+    if not tests:
         return []
+    worktree = worktree_of(conn, batch_id)
+    if not worktree or not Path(worktree).is_dir():
+        # Could not run is a result, and it is recorded as one. This returned
+        # [] -- "a batch that has not started, not a batch whose tests all
+        # pass" -- which is the right distinction with the wrong consequence:
+        # the harness predicate fires on "this commit has no test_runs row",
+        # so a batch with tests and no worktree was re-offered every pass,
+        # forever. Measured live on cnt_v2r: forty harness actions printing
+        # "0 test(s)" while a 91-row ruling sat undispatched behind them.
+        #
+        # An error row per test is the drain the predicate already declares
+        # -- drains=[("test_runs", "result", "error")] -- and it flows into
+        # `tests_failing`, where a Developer is woken to a batch whose state
+        # says exactly what is wrong.
+        head = lifecycle.head_of(conn, batch_id)
+        attempt = lifecycle.next_attempt(conn, batch_id)
+        said = (f"the batch has no worktree at {worktree!r}; nothing can run. "
+                f"The tests exist and were not attempted")
+        results = [(t["id"], "error") for t in tests]
+        for test_id, result in results:
+            lifecycle.record_test_run(conn, new_id("tr", conn), batch_id,
+                                      test_id, result, attempt,
+                                      commit_sha=head, output=said)
+        return results
 
     root = Path(worktree)
     materialise(root, tests)

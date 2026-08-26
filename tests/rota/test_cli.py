@@ -315,3 +315,57 @@ def test_the_command_line_still_exits_rather_than_tracebacks(home, monkeypatch):
         cli.main(["wipe", "held", "--yes"])
 
     assert "open in another process" in str(exc.value)
+
+
+def test_agenda_and_sign_are_the_principals_seat(tmp_path, monkeypatch, capsys):
+    """
+    Loop 3 needs a principal present, and this is the seat that exists now:
+    `agenda` prints the open gates and the register's outstanding fold, and
+    `sign` answers one gate through the same `pump` every principal backend
+    goes through -- so the CLI cannot invent a second way of recording a
+    ruling. What lands is exactly what the scripted arc and the live drive
+    consume: the verdict message, and `verdict:<id>` in config.
+    """
+    import json
+
+    from rota import cli
+    from rota.core.db import init_db
+
+    monkeypatch.setattr(cli, "RUNS", tmp_path)
+    db = init_db(tmp_path / "run.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','intent','a config','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('p1','t1','liaison','principal',"
+               "'present','[\"g1\",\"g2\"]',1)")
+    db.commit()
+    db.close()
+
+    assert cli.main(["agenda", "run"]) == 0
+    out = capsys.readouterr().out
+    assert "[p1] present" in out and "recipe" in out
+
+    assert cli.main(["sign", "run", "p1", "--approve", "g1",
+                     "--contest", "g2"]) == 0
+    capsys.readouterr()
+
+    from rota.core.db import connect_readonly
+
+    conn = connect_readonly(tmp_path / "run.db")
+    assert conn.execute("SELECT status FROM messages WHERE id='p1'"
+                        ).fetchone()["status"] == "answered"
+    verdict = conn.execute("SELECT id FROM messages WHERE verb='verdict'"
+                           ).fetchone()["id"]
+    ruling = json.loads(conn.execute(
+        "SELECT value FROM config WHERE key=?",
+        (f"verdict:{verdict}",)).fetchone()["value"])
+    assert ruling == {"g1": "approve", "g2": "contest"}
+
+    # A ruling on rows the gate does not ask about is refused before anything
+    # is written.
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit, match="not an open gate"):
+        cli.main(["sign", "run", "p1", "--approve", "g1"])

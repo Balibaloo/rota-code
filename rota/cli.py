@@ -421,6 +421,75 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_agenda(args: argparse.Namespace) -> int:
+    """What is waiting on the principal, and what the system does not know."""
+    from .core.db import connect_readonly
+    from .core.predicates import outstanding
+    from .roles.principal import pending_asks
+
+    conn = connect_readonly(require(args.name))
+    asks = pending_asks(conn)
+    if not asks:
+        print("nothing is waiting on you")
+    for a in asks:
+        print(f"[{a.message_id}] {a.verb} · {len(a.refs)} refs")
+        if a.rendered:
+            for line in a.rendered.splitlines()[:args.limit]:
+                print(f"  {line}")
+            if len(a.rendered.splitlines()) > args.limit:
+                print(f"  ... {len(a.rendered.splitlines()) - args.limit} more")
+    rows = outstanding(conn)
+    if rows:
+        print("\noutstanding:")
+        for r in rows:
+            print(f"  {r['obligation']:22s} n={r['count']:<4} "
+                  f"owners={','.join(r['owners'])}")
+    return 0
+
+
+def cmd_sign(args: argparse.Namespace) -> int:
+    """
+    Answer one gate. Through `pump`, deliberately: every principal backend
+    records a ruling the same way, so the CLI cannot invent a second one.
+    """
+    from .core.db import connect
+    from .roles.principal import Answer, pump
+
+    approve = [x for x in (args.approve or "").split(",") if x]
+    contest = [x for x in (args.contest or "").split(",") if x]
+    if not (approve or contest or args.say):
+        raise SystemExit("say what you rule: --approve ids, --contest ids, "
+                         "or --say 'words'")
+
+    class OneShot:
+        name = "cli"
+
+        def respond(self, ask):
+            if ask.message_id != args.ask:
+                return None                       # defer everything else
+            if args.say:
+                return Answer(verb="converse", text=args.say)
+            per_item = {i: "approve" for i in approve}
+            per_item.update({i: "contest" for i in contest})
+            unknown = [i for i in per_item if i not in ask.refs]
+            if unknown:
+                raise SystemExit(f"{unknown} are not on this gate; it asks "
+                                 f"about {ask.refs}")
+            return Answer(verb="verdict", per_item=per_item)
+
+    conn = connect(require(args.name))
+    try:
+        created = pump(conn, OneShot())
+        conn.commit()
+    finally:
+        conn.close()
+    if not created:
+        raise SystemExit(f"{args.ask} is not an open gate; `rota agenda "
+                         f"{args.name}` lists them")
+    print(f"ruling recorded: {created[0]}  (next: rota run {args.name})")
+    return 0
+
+
 def cmd_tui(args: argparse.Namespace) -> int:
     from .cockpit.tui import main as tui_main
 
@@ -504,6 +573,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--until", choices=("terminologist", "architect", "vision_keeper"),
                    help="stop after this survey phase (debugging)")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("agenda", help="what is waiting on you")
+    p.add_argument("name")
+    p.add_argument("--limit", type=int, default=12,
+                   help="rendered lines per gate")
+    p.set_defaults(func=cmd_agenda)
+
+    p = sub.add_parser("sign", help="answer one gate from the agenda")
+    p.add_argument("name")
+    p.add_argument("ask", help="the gate's message id, from `rota agenda`")
+    p.add_argument("--approve", help="comma-separated row ids")
+    p.add_argument("--contest", help="comma-separated row ids")
+    p.add_argument("--say", help="answer a clarify in words instead")
+    p.set_defaults(func=cmd_sign)
 
     p = sub.add_parser("tui", help="talk to it, with the register beside you")
     p.add_argument("name", nargs="?", help="omit to open the run list")

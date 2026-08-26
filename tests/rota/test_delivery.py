@@ -256,15 +256,38 @@ def test_the_harness_records_what_the_tests_said(db, tmp_path):
     assert rows == {"tst_ok": "pass", "tst_no": "fail"}
 
 
-def test_a_batch_with_no_worktree_records_nothing(db):
+def test_a_batch_with_no_worktree_records_that_it_could_not_run(db):
     """
-    Not "all tests passed" — a batch that has not started. Every predicate
-    downstream reads that difference, and an empty result set that means "green"
-    is how a system ships untested code.
+    Not "all tests passed" — and not nothing, either. Recording nothing was
+    the right distinction with the wrong consequence: the harness predicate
+    fires on "this commit has no test_runs row", so a batch with tests and no
+    worktree was re-offered every pass, forever. Measured live on cnt_v2r --
+    forty harness actions printing "0 test(s)" while a 91-row ruling sat
+    undispatched behind them.
+
+    Could not run is a result. An error row per test is the drain the
+    predicate already declares, and it flows into `tests_failing`, where a
+    Developer is woken to a batch whose state says exactly what is wrong.
     """
+    from rota.core.predicates import harness as harness_pred
+
     committed(db)
     add_test(db, "tst1", "test_x.py", PASSES)
+    assert harness_pred(db), "the batch is offered"
 
+    results = harness.run(db, "b1")
+    assert results == [("tst1", "error")]
+    row = db.execute("SELECT result, output FROM test_runs").fetchone()
+    assert row["result"] == "error"
+    assert "no worktree" in row["output"]
+    assert harness_pred(db) == [], "recorded, so no longer offered"
+
+
+def test_a_batch_with_no_tests_still_records_nothing(db):
+    """The half that stays: no tests is a batch the harness has no business
+    with, and `tests_missing` owns that state. The predicate cannot offer it
+    either, so recording nothing livelocks nothing."""
+    committed(db)
     assert harness.run(db, "b1") == []
     assert db.execute("SELECT COUNT(*) n FROM test_runs").fetchone()["n"] == 0
 
