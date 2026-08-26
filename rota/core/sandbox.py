@@ -752,6 +752,34 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 refs += [r for r in given
                          if isinstance(r, str) and r and r not in refs]
 
+        # Chat and ratification are two answers to one message, and the
+        # session that sends both loses the one that mattered.
+        #
+        # `runner` has enforced the rule at commit since the chat path was
+        # added -- if Liaison chatted and segmented, the segmentation is
+        # dropped so the conversation does not stall on a confirm gate. The
+        # outcome is right and the casualty is wrong: segmenting is turn one,
+        # the chat reply is turn five, and turn five is the slip. Measured on
+        # `llama3.1:8b`: three statements segmented and confirmed by turn four,
+        # one stray `msg.converse_principal` after the harness had already said
+        # the session's work was complete, and a committed session holding no
+        # statements at all.
+        #
+        # Refused here the cost is a turn, which is what the duplicate guard
+        # below already charges for the same kind of mistake.
+        EXCLUSIVE = ({"converse"}, {"confirm"})
+        if recipient == "principal":
+            for side, other in (EXCLUSIVE, EXCLUSIVE[::-1]):
+                if verb in side and any(m["to_role"] == "principal"
+                                        and m["verb"] in other
+                                        for m in ctx.outbound):
+                    already = sorted(other)[0]
+                    raise ValueError(
+                        f"you have already sent {already} to the principal, "
+                        f"and {verb} is the other answer to the same message. "
+                        f"Sending both puts a reply and a gate in front of "
+                        f"them at once. Your work here is done")
+
         duplicate = any(m["to_role"] == recipient and m["verb"] == verb
                         for m in ctx.outbound)
         if duplicate:

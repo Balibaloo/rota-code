@@ -801,3 +801,55 @@ def test_the_empty_refs_guard_is_only_on_the_ask_channel(db):
     sb = build("liaison", db, mode="normal")
     sb.call("msg.converse_principal", refs=[], reply="Hello!")
     assert len(sb.ctx.outbound) == 1
+
+
+def test_chat_and_ratification_refuse_each_other(db):
+    """
+    Two answers to one message, and the session that sends both loses the one
+    that mattered.
+
+    `runner` has enforced this at commit since the chat path was added: if
+    Liaison chatted and segmented, drop the segmentation, so the conversation
+    does not stall on a confirm gate. Right about the outcome, backwards about
+    the casualty. Measured on `llama3.1:8b` handed "morning. we need SSO, but
+    only if it works with our LDAP" -- three statements segmented and confirmed
+    by turn four, one stray `msg.converse_principal` on turn five after the
+    harness had already said the session's work was complete, and a committed
+    session holding no statements at all. `L1-LI-segment` has been 0/5 against
+    exactly that.
+
+    Refused at the channel it costs a turn, which is what the duplicate guard
+    beside it charges for the same kind of mistake.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','let people export invoices',1)")
+
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    sb.call("brief.segment", id="s1", span_start=0, span_end=26,
+            text="let people export invoices")
+    sb.call("msg.confirm_principal", refs=["s1"])
+    with pytest.raises(ValueError, match="already sent confirm"):
+        sb.call("msg.converse_principal", refs=[], reply="all done!")
+    assert [w[0] for w in sb.ctx.writes] == ["statements"], \
+        "the segmentation must survive the refusal"
+
+    # And the other order, because the slip goes both ways: a greeting answered
+    # first does not stop the model reaching for a gate afterwards.
+    sb2 = build("liaison", db, mode="normal")
+    sb2.ctx.entry_id = "e_m1"
+    sb2.call("msg.converse_principal", refs=[], reply="Hello!")
+    with pytest.raises(ValueError, match="already sent converse"):
+        sb2.call("msg.confirm_principal", refs=["s1"])
+
+
+def test_clarify_is_not_exclusive_with_either(db):
+    """
+    The bound. `clarify` is what a session sends when it cannot tell what the
+    principal is asking *for*, and it is neither a reply nor a gate -- it is
+    the third thing, and pairing it with either is not the failure above.
+    """
+    sb = build("liaison", db, mode="normal")
+    sb.call("msg.converse_principal", refs=[], reply="Hello!")
+    sb.call("msg.clarify_principal", refs=[], question="which dashboard?")
+    assert len(sb.ctx.outbound) == 2
