@@ -193,11 +193,20 @@
       - {id: <g2>, term: account, sense_short: "the billing entity that owes money",
          provenance: decided}
   expect:
+    # `converse`, not `clarify`. The relay went out on the channel that asks
+    # the principal a question, whose words go in `question=`, and the model
+    # wrote a question -- on a live run the principal asked where a recipe is
+    # written and got back "what is the structure of the system?". The words
+    # go in `reply=` now, which is what a relayed answer is.
     messages:
-      - {to: principal, verb: clarify, count: 1, refs_include: [<g1>, <g2>]}
+      - {to: principal, verb: converse, count: 1, refs_include: [<g1>, <g2>]}
   forbidden:
     # Read-only, so nothing is revoked and no checkpoint is disturbed. Inquiry
     # is free and that is a property to preserve, not an opportunity to tidy
     # something up while here — and the answer travels as the owner wrote it.
     writes: [glossary_terms, statements, items, decisions]
     recipients: [vision_keeper, terminologist, architect, developer]
+    # The old channel, named so the regression cannot come back quietly: an
+    # answer relayed as a question is the failure this case now pins.
+    messages:
+      - {to: principal, verb: clarify}
