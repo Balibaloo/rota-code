@@ -883,14 +883,47 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"with different refs is a second answer to one question, and "
                 f"the recipient has to reconcile them. Your work here is done")
 
+        # An inquiry reaches every owner. Which one holds the answer is not
+        # the asker's to know -- that is the whole reason the question is
+        # routed rather than answered -- so there is no choice here to get
+        # wrong, and no way to ask only one.
+        #
+        # Measured before this: all eight maintainer questions went to exactly
+        # one owner. The one naming `intents_to` went to Architect and never to
+        # Terminologist, which holds the term. The brief has said "ask every
+        # owner that might hold part of the answer" since it shipped.
+        #
+        # The ladder still handles what it is for -- somebody new speaking when
+        # an answer did not land -- but it no longer has to carry the fan-out,
+        # which it only ever did when the non-answer was detectable. A
+        # confident wrong answer stopped it dead.
+        recipients = [recipient]
+        if verb == "ask":
+            g = graph_mod.load()
+            owners = sorted({e.t for e in g.of_type("messages")
+                             if e.s == ctx.role and e.v == "ask"})
+            already = {m["to_role"] for m in ctx.outbound if m["verb"] == "ask"}
+            recipients = [r for r in owners if r not in already]
+
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
-        ctx.outbound.append({
-            "id": msg_id, "to_role": recipient, "verb": verb,
-            "body_refs": list(refs or []), "body_text": text,
-            "round_no": round_no, "cause_id": ctx.trigger,
-        })
+        for n, to_role in enumerate(recipients):
+            ctx.outbound.append({
+                "id": msg_id if n == 0
+                else new_id("m", ctx.conn, offset=len(ctx.outbound)),
+                "to_role": to_role, "verb": verb,
+                "body_refs": list(refs or []), "body_text": text,
+                "round_no": round_no, "cause_id": ctx.trigger,
+            })
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
         out = {"id": msg_id, "to": recipient, "verb": verb}
+        if len(recipients) > 1:
+            # Said back, so the session knows it has finished asking. Left
+            # unsaid, the model reaches for the other two and meets the
+            # duplicate guard, which costs turns and reads as a refusal of
+            # something it was told to do.
+            out["to"] = recipients
+            out["note"] = ("asked every owner; which of them holds the answer "
+                           "is not yours to work out. Your work here is done")
         if withdrawn:
             out["note"] = (
                 f"the test you staged for that criterion ({', '.join(withdrawn)}) "

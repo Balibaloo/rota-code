@@ -1036,3 +1036,44 @@ def test_a_report_that_answers_nothing_still_tips(db):
                "'report','[]',1)")
     db.commit()
     assert [w.message_id for w in open_tips(db)] == ["m1"]
+
+
+def test_a_question_put_to_the_principal_stops_waking_the_ladder(db):
+    """
+    The end of the inquiry ladder needed a drain and had none.
+
+    `unresolved` wakes Liaison for its own question once every owner has
+    spoken. Nothing marked the question resolved afterwards, so the next pass
+    saw the same state and woke Liaison again -- three identical clarifications
+    to the principal, on seven of the eight maintainer questions.
+
+    The `answered` sweep skips messages from the asker's own role, which is
+    right for every role: an asker sending in its own thread is not somebody
+    picking the question up. Liaison sending to the *principal* is, because
+    the principal is the only party left. `predicates.unresolved` has said so
+    from the start -- "by then Liaison has sent, which means it is on the
+    principal's agenda, and that has a drain of its own" -- and the drain was
+    never written anywhere the code could read.
+    """
+    from rota.core.predicates import Wake, unresolved
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    _inquiry(db)
+    for n, role in ((7, "architect"), (8, "terminologist"), (9, "vision_keeper")):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq) VALUES "
+                   f"('m{n}','m6','m5','{role}','liaison','answer','[]',{n})")
+    db.commit()
+
+    assert [w.role for w in unresolved(db)] == ["liaison"], "the last rung"
+
+    out = run_session(
+        db, Wake("liaison", "tick:unresolved", refs=("m6",)),
+        backend=ScriptedBackend([
+            "TOOL: msg.clarify_principal(refs=['e_m5'], "
+            "question='nobody here knows where a recipe is written')", "done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="put it to them")
+    assert out.committed, out.errors
+
+    assert unresolved(db) == [], "asked once, and not again"

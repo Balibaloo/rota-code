@@ -616,8 +616,19 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             # the thing is what this function is for.
             ("tests", "id, criterion_id, path, body"),
             ("tickets", "id, item_id, text"),
-            ("constraints", "id, headline"),
-            ("glossary_terms", "id, term, sense_short"),
+            # Bodies, for the same reason `tests` above carries one: the ref
+            # is a pointer to the thing, and resolving a pointer to everything
+            # except the thing is what this function is for.
+            #
+            # These two are the artefacts the inquiry route runs on, and they
+            # were the two resolving to a summary. The owner reads the full
+            # sense, refs the term, and Liaison -- which writes the words the
+            # principal actually reads -- was handed one line. Measured on the
+            # eight maintainer questions: the owners consulted properly and the
+            # replies came out as strings of one-line definitions, because that
+            # is all that survived the hop.
+            ("constraints", "id, headline, text"),
+            ("glossary_terms", "id, term, sense_short, sense_body"),
             ("ledger", "id, about_ref, default_taken"),
             # The transcript, and it is the whole of the inquiry route.
             #

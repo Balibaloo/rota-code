@@ -405,6 +405,28 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 (result.trigger_msg,),
             )
 
+        # The question reached the person who asked it, which is what the end
+        # of the ladder is for.
+        #
+        # The sweep above skips messages from the asker's own role -- right for
+        # every role, because an asker sending in its own thread is not
+        # somebody picking the question up. Liaison is the exception: when it
+        # sends to the *principal*, the question has been picked up by the only
+        # party left, and `predicates.unresolved` has always said so -- "by then
+        # Liaison has sent, which means it is on the principal's agenda, and
+        # that has a drain of its own". The drain was never written anywhere the
+        # code could read, so the predicate saw the same state next pass and
+        # woke Liaison again: three identical clarifications to the principal,
+        # on seven of eight questions.
+        if any(m.to_role == "principal" for m in result.messages):
+            for thread in {_thread_of(conn, m) for m in result.messages}:
+                conn.execute(
+                    "UPDATE messages SET status = 'answered' "
+                    "WHERE status = 'unresolved' AND thread_id = ? "
+                    "  AND from_role = ?",
+                    (thread, result.role),
+                )
+
         # "Cannot determine" becomes a report, and a report answering an
         # `ask` is the asker's declaration made by the answerer.
         #

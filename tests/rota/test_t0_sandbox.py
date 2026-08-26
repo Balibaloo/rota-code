@@ -788,7 +788,9 @@ def test_an_ask_cannot_be_sent_with_empty_refs(db):
     db.execute("INSERT INTO entries (id, author, text, ts_order) "
                "VALUES ('e_m1','principal','what is an account here?',1)")
     sb.call("msg.ask_terminologist", refs=["e_m1"])
-    assert len(sb.ctx.outbound) == 1
+    # Three, because one ask reaches every owner. What this case is about is
+    # that the corrected call lands at all.
+    assert len(sb.ctx.outbound) == 3
 
 
 def test_the_empty_refs_guard_is_only_on_the_ask_channel(db):
@@ -887,22 +889,7 @@ def test_segmenting_and_routing_refuse_each_other(db):
     with pytest.raises(ValueError, match="already asked an owner"):
         sb2.call("brief.segment", id="s2", span_start=0, span_end=19,
                  text="add a delete button")
-    assert [m["verb"] for m in sb2.ctx.outbound] == ["ask"]
-
-
-def test_asking_several_owners_is_one_answer_not_several(db):
-    """
-    The bound that matters most here: the brief tells Liaison to ask *every*
-    owner that might hold part of the answer, so the three asks are one answer
-    to one question and must not refuse each other.
-    """
-    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
-               "('e_m1','principal','where does a user write a recipe?',1)")
-    sb = build("liaison", db, mode="normal")
-    sb.ctx.entry_id = "e_m1"
-    for owner in ("terminologist", "architect", "vision_keeper"):
-        sb.call(f"msg.ask_{owner}", refs=["e_m1"])
-    assert len(sb.ctx.outbound) == 3
+    assert {m["verb"] for m in sb2.ctx.outbound} == {"ask"}
 
 
 def test_routing_and_chatting_are_also_one_answer_each(db):
@@ -924,7 +911,7 @@ def test_routing_and_chatting_are_also_one_answer_each(db):
     sb.call("msg.ask_architect", refs=["e_m1"])
     with pytest.raises(ValueError, match="already asked an owner"):
         sb.call("msg.converse_principal", refs=[], reply="Let me look into it!")
-    assert [m["verb"] for m in sb.ctx.outbound] == ["ask"]
+    assert {m["verb"] for m in sb.ctx.outbound} == {"ask"}
 
     sb2 = build("liaison", db, mode="normal")
     sb2.ctx.entry_id = "e_m1"
@@ -1110,3 +1097,51 @@ def test_only_the_channel_that_reaches_a_person_must_cite_a_source(db):
     sb = build("vision_keeper", db, mode="normal")
     sb.call("msg.answer_tester", refs=[])
     assert len(sb.ctx.outbound) == 1
+
+
+def test_one_ask_reaches_every_owner(db):
+    """
+    Which owner holds the answer is not the asker's to know -- that is the
+    whole reason a question is routed rather than answered -- so there is no
+    choice here and no way to ask only one.
+
+    Measured before this: all eight maintainer questions went to exactly one
+    owner. The one naming `intents_to` went to Architect and never to
+    Terminologist, which holds the term. The brief has said "ask every owner
+    that might hold part of the answer" since it shipped, and three design
+    documents say the same; prose had its turn.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','where does a user write a recipe?',1)")
+    db.commit()
+
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    out = sb.call("msg.ask_architect", refs=["e_m1"])
+
+    assert sorted(m["to_role"] for m in sb.ctx.outbound) == [
+        "architect", "terminologist", "vision_keeper"]
+    assert all(m["body_refs"] == ["e_m1"] for m in sb.ctx.outbound)
+    assert len({m["id"] for m in sb.ctx.outbound}) == 3, "ids must not collide"
+    # Said back, or the model reaches for the other two and meets the duplicate
+    # guard, which costs turns and reads as a refusal of what it was told to do.
+    assert out["to"] == ["architect", "terminologist", "vision_keeper"]
+
+    with pytest.raises(ValueError, match="already sent ask"):
+        sb.call("msg.ask_terminologist", refs=["e_m1"])
+
+
+def test_the_fan_out_is_only_on_the_ask_channel(db):
+    """
+    The bound. Every other verb addresses the role it names -- Liaison
+    delivering a ratified statement to three roles is three calls and three
+    decisions, and a question to one owner is not.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e1','principal','a thing',1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,7,'a thing','ratified')")
+    db.commit()
+    sb = build("liaison", db, mode="normal")
+    sb.call("msg.deliver_architect", refs=["s1"])
+    assert [m["to_role"] for m in sb.ctx.outbound] == ["architect"]

@@ -277,16 +277,19 @@
   inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
             body_refs: []}
   expect:
-    # Which owner holds the answer is not Liaison's to know -- that is the whole
-    # reason the question is routed rather than answered. Asking the wrong one
-    # costs a read-only session and nothing else; asking nobody is the failure.
-    any_of:
-      - messages:
-          - {to: terminologist, verb: ask, count: 1, refs_include: [e_<m_in>]}
-      - messages:
-          - {to: architect, verb: ask, count: 1, refs_include: [e_<m_in>]}
-      - messages:
-          - {to: vision_keeper, verb: ask, count: 1, refs_include: [e_<m_in>]}
+    # All three, and that is now a property of the channel rather than a hope
+    # about the brief: one `msg.ask_*` call stages the ask to every owner.
+    #
+    # It was `any_of` over the three while Liaison chose, and the choice was
+    # measurably wrong -- all eight maintainer questions went to exactly one
+    # owner, and the one naming `intents_to` went to Architect and never to
+    # Terminologist, which holds the term. Which owner holds the answer is not
+    # Liaison's to know; that is the whole reason the question is routed rather
+    # than answered, and a role cannot be asked to know it and not to use it.
+    messages:
+      - {to: terminologist, verb: ask, count: 1, refs_include: [e_<m_in>]}
+      - {to: architect, verb: ask, count: 1, refs_include: [e_<m_in>]}
+      - {to: vision_keeper, verb: ask, count: 1, refs_include: [e_<m_in>]}
   forbidden:
     # A question is not a commitment. Segmenting one puts a statement in front of
     # the principal to ratify, and answering it from Liaison's own head is the

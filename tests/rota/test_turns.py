@@ -331,3 +331,44 @@ def test_the_question_matched_push_needs_both_glossary_reads(tmp_path):
     # happen is the question-matched form, which is keyed by term and needs the
     # index this mode cannot read.
     assert "template" not in (pushed.get("glossary.lookup") or {})
+
+
+def test_a_resolved_ref_carries_the_body_not_a_summary(tmp_path):
+    """
+    A ref is a pointer to the thing, and `_resolve_refs` exists to follow it.
+
+    `tests` has carried its body since a Tester was woken to defend a test it
+    was never shown -- "resolving a pointer to everything except the thing is
+    what this function is for". The two artefacts the inquiry route runs on
+    were still resolving to a summary: `glossary_terms` without `sense_body`,
+    `constraints` without `text`.
+
+    That is where the answers were being lost. The owner reads the full sense,
+    refs the term, and Liaison -- which writes the words the principal actually
+    reads -- was handed one line. Measured on the eight maintainer questions:
+    every reply came out as a string of one-line definitions, because that is
+    all that survived the hop.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
+               "provenance) VALUES ('g1','template','a seed note',"
+               "'a note whose contents seed the new note, named by an intent',"
+               "'observed')")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1','the vault is the store',"
+               "'every note lives in the user vault and nowhere else','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','t1','terminologist','liaison',"
+               "'answer',?,1)", (json.dumps(["g1", "k1"]),))
+    db.commit()
+
+    out = resolve_inbound(db, Wake("liaison", "message", message_id="m1",
+                                   detail="answer"))
+    assert "seed the new note" in out["resolved_refs"]["g1"]["sense_body"]
+    assert "nowhere else" in out["resolved_refs"]["k1"]["text"]
