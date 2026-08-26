@@ -103,3 +103,26 @@ no model declines gracefully (0-1/2 across the board -- every one defines
 "the"); and llama3.1:8b broke the plant 3/3 in single-shot, a reminder
 that single-shot verdicts and multi-turn session discipline are different
 capabilities -- which is why the winner still faces the live gate.
+
+## A battery this bench cannot carry, and why
+
+An `encode` battery was built and retired the same day (2026-08-26). Rung one
+of the live delivery loop stalled on test-writing, and the battery was to
+measure the behaviour at bench prices: given a checkable criterion, does the
+model author an assertion or write the criterion back as the test body?
+
+Three iterations of instrument error later, the answer was about the
+instrument. In a bare completion both models fail every fixture -- and the raw
+text shows both *authoring correctly*, in markdown fences and pseudo-calls,
+never as a parseable `tests.encode(...)`. Production does not get its tool
+calls from prompt discipline: it gets them from **native function calling**,
+which this bench's `backend.complete` bypasses by design. No signature block
+in the prompt substitutes for the API enforcing the format, and a battery that
+bypasses the protocol layer measures a frame production never runs.
+
+The behaviour has a proper instrument already: the L1 tier, which runs real
+sessions with native tools and records them -- `L1-TS-apply-a-term-and-write-
+the-test` is that measurement, green at 5/5. The boundary this leaves for the
+bench: **one-shot completions can rank judgement expressed in prose (verdicts,
+readings, declines) and cannot rank behaviour that only exists through the
+tool channel.** Batteries on this bench stay on the prose side of that line.

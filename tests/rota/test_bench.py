@@ -90,3 +90,4 @@ def test_a_snapshotted_brief_is_the_brief_production_sends():
         "these fixtures snapshot a brief that has since changed, so the "
         "bench is scoring models on a prompt production no longer sends: "
         + ", ".join(stale))
+
