@@ -1077,3 +1077,40 @@ def test_a_question_put_to_the_principal_stops_waking_the_ladder(db):
     assert out.committed, out.errors
 
     assert unresolved(db) == [], "asked once, and not again"
+
+
+def test_the_observed_offer_names_its_rows(db):
+    """
+    Live on cnt_v2r, `observed_entries` woke Liaison with counts alone --
+    "glossary_terms:72, constraints:13, model_areas:6" -- and the mode's whole
+    toolset is `msg.present_principal`: no read enumerates those tables. Asked
+    to name 91 rows it cannot see, the session invented a dict ref, was
+    refused at the channel, and the present never went out.
+
+    The predicate counted the rows, so the predicate names them; and the
+    present carries its wake's refs, added never substituted, the same rule as
+    the report's trigger and the relay's ruling.
+    """
+    from rota.core.predicates import Wake, observed_entries
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1','schema','must match','observed')")
+    db.commit()
+
+    wakes = observed_entries(db)
+    assert wakes and sorted(wakes[0].refs) == ["g1", "k1"]
+
+    # The session presents with empty refs; the wake's rows travel anyway.
+    out = run_session(
+        db, wakes[0],
+        backend=ScriptedBackend(["TOOL: msg.present_principal(refs=[])", "done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="present them")
+    assert out.committed, out.errors
+    import json as _json
+
+    sent = db.execute("SELECT body_refs FROM messages WHERE verb='present'").fetchone()
+    assert sorted(_json.loads(sent["body_refs"])) == ["g1", "k1"]

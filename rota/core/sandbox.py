@@ -807,6 +807,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # role has to supply correctly. Added, never substituted -- what it
         # found is still its own to report.
         refs = list(refs or [])
+        # A present of the wake's rows carries the wake's rows. Same rule as
+        # the report's trigger refs and the relay's ruling refs -- added,
+        # never substituted -- and for the same reason at one remove: the
+        # `observed_entries` mode cannot read the tables whose rows it
+        # presents, so what it cannot enumerate must arrive enumerated.
+        if verb == "present" and getattr(ctx, "wake_refs", None):
+            refs += [r for r in ctx.wake_refs
+                     if isinstance(r, str) and r and r not in refs]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

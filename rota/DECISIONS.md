@@ -668,6 +668,29 @@ should flow into work without the principal saying so again; the answer is
 almost certainly no, because "that sounds fine" is not a commitment, and the
 whole ratification gate exists to keep those apart.
 
+### The election is a real choice, and the lazy half is blocked on the ledger
+
+The stories define it exactly: at the end of onboarding's harvest, Liaison adds
+"the two questions only onboarding has: what changes next (which steers survey
+depth), and the election: confirm the whole baseline up front, or lazily as
+work first touches each area. The principal's call, not the system's."
+
+What exists after the observed exit landed: the eager half. `observed_entries`
+presents, the ruling comes back, the owners adopt -- the baseline confirmed up
+front is a working path end to end. What does not exist: the question itself
+(nothing ever *asks* eager-or-lazy; eager is assumed), the "what changes next"
+question, and the lazy path -- "everything under the lazy election is logged to
+the ledger: assumptions awaiting their first touch", drained at the gates work
+already passes through.
+
+**And the lazy path is blocked on a decision already open.** It writes an
+assumption row per unconfirmed observation -- dozens at once -- and the
+ledger's one prose field is answered `True` 87% of the time, with the row id
+hashing that field so distinct assumptions silently merge. Mass-logging through
+that field would fill the agenda with a page of `True` and collapse the very
+rows the election exists to keep apart. The `default_taken` decision stops
+being a cheap cleanup and becomes the election's prerequisite.
+
 ### The frontier, when several things are ready — the big one
 
 Wakes are ordered by band, then **alphabetically by predicate name**. The loop

@@ -492,20 +492,27 @@ def observed_entries(conn) -> list[Wake]:
         except (TypeError, ValueError):
             continue
 
-    counts = []
+    counts, offered = [], []
     for table in ("glossary_terms", "constraints", "model_areas", "items"):
         rows = [r["id"] for r in conn.execute(
-            f"SELECT id FROM {table} WHERE provenance = 'observed'")]
-        n = len([i for i in rows if i not in presented])
-        if n:
-            counts.append(f"{table}:{n}")
+            f"SELECT id FROM {table} WHERE provenance = 'observed' ORDER BY id")]
+        fresh = [i for i in rows if i not in presented]
+        if fresh:
+            counts.append(f"{table}:{len(fresh)}")
+            offered += fresh
     if not counts:
         return []
     asked = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
         "AND verb='present'").fetchone()["n"]
+    # The ids ride the wake. Liaison's `observed_entries` mode holds one send
+    # and no read that could enumerate these tables -- live, woken with counts
+    # alone, it was asked to name 91 rows it cannot see, invented a dict ref,
+    # and the present never went out. The predicate counted the rows; it names
+    # them.
     return [] if asked else [
-        Wake("liaison", "tick:observed_entries", detail=", ".join(counts))]
+        Wake("liaison", "tick:observed_entries", refs=tuple(offered),
+             detail=", ".join(counts))]
 
 
 # ---------------------------------------------------------------------------
