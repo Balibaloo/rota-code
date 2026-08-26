@@ -778,6 +778,15 @@ like the cassettes rather than an artefact, and therefore outside the law.
 Asked outright what was odd and too deep to chase, 2026-08-26. Each of these
 was noticed and stepped over; none has an owner yet.
 
+**qwen copies sentences where llama writes artefacts.** The ledger was the
+first sighting and rung one found the general form: with the criterion
+repaired into checkable prose, qwen's Tester encodes it by writing the
+sentence back as the test body -- the parroting guard's exact target -- where
+llama's recorded Tester cases write assertions. One model authors, the other
+transcribes, and every wall rung one has hit on qwen (the ledger, the empty
+tickets, the test bodies) is the transcription shape. The production-model
+question this raises is larger than any single guard.
+
 **qwen never writes the ledger.** In the rename A/B it never reached
 `ledger.log` in either arm -- scored "no-op, not hurt", correctly, for that
 decision. The unchased half: qwen is the production model, and cnt_v2r's
