@@ -167,3 +167,45 @@
     calls: [code.write, code.commit]
   forbidden:
     writes: [criteria, verdicts, items]
+
+- id: L3-a-maintainers-question-reaches-the-owner
+  tier: T3
+  runs: 5
+  pass: 3
+  # Validation 2's first hop, run as a hop rather than as two cases.
+  #
+  # `probes/consult.py` measured the routing idea against a hand-written charter
+  # and its own dump of each artefact, and it beat the monolithic dump 4-8 to
+  # 2-8. None of that touched the system: the route was drawn in the graph, had
+  # a brief at both ends, and had never carried a message. Here it carries one,
+  # and the second session is woken by the first session's own outbound row.
+  #
+  # What is under test is narrower than "did it answer well". The ask channel
+  # takes refs and nothing else, so the whole of how the principal's words reach
+  # the owner is the entry id Liaison chose to put in them. A leg one that asks
+  # with empty refs produces a leg two woken to answer nothing, and it looks
+  # from the outside exactly like a leg one that worked.
+  first: {role: liaison, prompt: converse, verb: converse, inbound: <m1>}
+  then:  {role: terminologist}
+  fixture:
+    entries:
+      - {id: e_<m1>, author: principal, ts_order: 1,
+         text: "what do we mean by an account here?"}
+    messages:
+      - {id: <m1>, thread_id: <t1>, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["e_<m1>"]', seq: 1, status: open}
+    glossary_terms:
+      - {id: <g1>, term: account, provenance: observed,
+         sense_short: "the login identity"}
+      - {id: <g2>, term: account, provenance: observed,
+         sense_short: "the billing entity that owes money"}
+  expect:
+    # Two live senses is the answer, and saying one of them would be resolving a
+    # collision, which is a decision, which is a write this session does not
+    # have. The refs are what carry it back.
+    messages:
+      - {to: liaison, verb: answer, count: 1}
+  forbidden:
+    # Read-only means read-only: law 10's guarantee is that the writers were
+    # never built, so a breach here is a breach of the mode and not of a rule.
+    writes: [glossary_terms, statements, items, decisions]

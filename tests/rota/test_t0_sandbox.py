@@ -829,7 +829,7 @@ def test_chat_and_ratification_refuse_each_other(db):
     sb.call("brief.segment", id="s1", span_start=0, span_end=26,
             text="let people export invoices")
     sb.call("msg.confirm_principal", refs=["s1"])
-    with pytest.raises(ValueError, match="already sent confirm"):
+    with pytest.raises(ValueError, match="already segmented"):
         sb.call("msg.converse_principal", refs=[], reply="all done!")
     assert [w[0] for w in sb.ctx.writes] == ["statements"], \
         "the segmentation must survive the refusal"
@@ -839,7 +839,7 @@ def test_chat_and_ratification_refuse_each_other(db):
     sb2 = build("liaison", db, mode="normal")
     sb2.ctx.entry_id = "e_m1"
     sb2.call("msg.converse_principal", refs=[], reply="Hello!")
-    with pytest.raises(ValueError, match="already sent converse"):
+    with pytest.raises(ValueError, match="already replied to the principal"):
         sb2.call("msg.confirm_principal", refs=["s1"])
 
 
@@ -853,3 +853,81 @@ def test_clarify_is_not_exclusive_with_either(db):
     sb.call("msg.converse_principal", refs=[], reply="Hello!")
     sb.call("msg.clarify_principal", refs=[], question="which dashboard?")
     assert len(sb.ctx.outbound) == 2
+
+
+def test_segmenting_and_routing_refuse_each_other(db):
+    """
+    The third member of the exclusive set, and the one still costing cases.
+
+    A session that segments the principal's request *and* asks the owners about
+    it has answered them twice, which is why `L1-LI-segment` forbids those
+    recipients. Which call loses is not a judgement here: across 42 recorded
+    sessions that did both -- every arm of the intake measurement, both work
+    fixtures -- `brief.segment` was turn one in all 42 and the ask arrived on a
+    wind-down turn afterwards. The first judgement is the classification; the
+    ask is the afterthought.
+
+    Symmetric anyway. The inverse has never been observed and that is not the
+    same as impossible.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','add a delete button and fix the timeout',1)")
+
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    sb.call("brief.segment", id="s1", span_start=0, span_end=19,
+            text="add a delete button")
+    with pytest.raises(ValueError, match="already segmented"):
+        sb.call("msg.ask_architect", refs=["e_m1"])
+    assert [w[0] for w in sb.ctx.writes] == ["statements"]
+
+    sb2 = build("liaison", db, mode="normal")
+    sb2.ctx.entry_id = "e_m1"
+    sb2.call("msg.ask_architect", refs=["e_m1"])
+    with pytest.raises(ValueError, match="already asked an owner"):
+        sb2.call("brief.segment", id="s2", span_start=0, span_end=19,
+                 text="add a delete button")
+    assert [m["verb"] for m in sb2.ctx.outbound] == ["ask"]
+
+
+def test_asking_several_owners_is_one_answer_not_several(db):
+    """
+    The bound that matters most here: the brief tells Liaison to ask *every*
+    owner that might hold part of the answer, so the three asks are one answer
+    to one question and must not refuse each other.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','where does a user write a recipe?',1)")
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    for owner in ("terminologist", "architect", "vision_keeper"):
+        sb.call(f"msg.ask_{owner}", refs=["e_m1"])
+    assert len(sb.ctx.outbound) == 3
+
+
+def test_routing_and_chatting_are_also_one_answer_each(db):
+    """
+    The pair no guard covered, and the one that showed the rule had to be one
+    rule rather than three.
+
+    `L1-LI-a-question-about-the-program-goes-to-its-owners` failed 0/5 with
+    "forbidden message converse to principal": Liaison routed the question to
+    its owners *and* chatted about it, in every run. Chat/ratification and
+    segmenting/routing were each guarded by then; routing/chat was not, because
+    the guards had been written per pair.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','where do recipes go?',1)")
+
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    sb.call("msg.ask_architect", refs=["e_m1"])
+    with pytest.raises(ValueError, match="already asked an owner"):
+        sb.call("msg.converse_principal", refs=[], reply="Let me look into it!")
+    assert [m["verb"] for m in sb.ctx.outbound] == ["ask"]
+
+    sb2 = build("liaison", db, mode="normal")
+    sb2.ctx.entry_id = "e_m1"
+    sb2.call("msg.converse_principal", refs=[], reply="Hello!")
+    with pytest.raises(ValueError, match="already replied"):
+        sb2.call("msg.ask_architect", refs=["e_m1"])

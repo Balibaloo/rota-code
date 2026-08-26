@@ -693,6 +693,79 @@ for cnt is the right answer.
 Each of the four is a multi-role sequence; none is validated by its parts
 passing. The first is the one the runs above are the start of.
 
+### Validation 2's first hop, and why the route had never carried a message
+
+The read-only route was complete on paper and had never run. It is drawn three
+times in the graph (`liaison -> vision_keeper | terminologist | architect: ask`,
+with `answer` back), each owner has an `ask` brief and an `ask.tools` file, the
+mode exists in `sandbox.build`, and `probes/consult.py` measured the idea and
+beat the monolithic dump 4-8 to 2-8. Driven through the real loop against the
+click run on `qwen3:8b` -- one maintainer question, `python -m rota` intake,
+nothing hand-fed -- Liaison replied to the principal asking them to clarify the
+question, and the system went quiescent.
+
+Three faults, each of which hid the next.
+
+**The mode was never reachable.** `loop.run` calls `run_session` without a
+mode, and the default was `"normal"`, so no session this system ever dispatched
+was read-only. Law 10's guarantee -- the writers are not built, so there is
+nothing to resist -- held only in the six tests that passed the mode by hand.
+It looked fine because the three `ask.tools` files narrow to reads anyway,
+which is the law being kept by three hand-maintained lists agreeing with it.
+Derived from the wake now, beside the `provenance` derivation that already
+works that way.
+
+**Every ask was empty.** The channel takes refs and nothing else, so on this
+route the refs *are* the question: the resolver expands the entry id into
+`principal_said`, and that is the whole of how the principal's words reach the
+owner. Measured on `llama3.1:8b`, four asks out of four carried `refs=[]`, in
+both passes -- because the only worked example of the route in the system was
+`msg.ask_terminologist(refs=[], question='...')`, which is refused for the
+argument and, corrected the obvious way, sends the empty one. An owner woken
+with an empty working set answers from nothing and looks, afterwards, exactly
+like one that worked.
+
+Refused at the channel rather than explained again. That is what
+`l1_unresolved.yaml` predicted after prose failed to arbitrate refs six times:
+"the fix will be structural -- a channel whose refs the sandbox will not let go
+empty". It is satisfiable, which is the test a refusal has to pass here:
+`entry_id` is in the session's own prompt and the message names it. Measured
+across the guard: inquiry went **0 of 4 to 4 of 4** on the same brief, both
+models, both passes.
+
+**Intake had two branches and needed three.** `converse.md` asked "is this chat
+or work?" and settled ties twice -- "Default to chat", "When in doubt, chat" --
+so a question about the onboarded program, which is neither, fell to the
+tiebreaker. So did everything else: `chat` was the answer to five of six
+fixtures. Replaced by an ordered test, three questions asked in order, stopping
+at the first yes. See the intake entry in `DECISIONS.md` for the arms; the
+short version is that naming the third branch in prose moved almost nothing and
+replacing the tiebreaker moved all of it.
+
+**And the session could answer twice, with the right answer losing.** Chat and
+ratification were already declared mutually exclusive, enforced at commit by
+dropping the segmentation when a chat reply was also sent -- right about the
+outcome, backwards about the casualty. Read whole, `llama3.1:8b` segmented
+"morning. we need SSO, but only if it works with our LDAP" correctly on turn
+one, confirmed it on turn four, emitted one stray `msg.converse_principal` on
+turn five after the harness had told it its work was done, and committed a
+session with an empty `statements` table. `L1-LI-segment` has been 0/5 against
+exactly that, and its own diagnosis -- "a brief that can only be tuned in one
+direction gets tuned until the other direction breaks" -- was right about the
+cause and one layer above the mechanism.
+
+Which call loses is not a judgement call: across 42 recorded sessions that gave
+two answers, the first was the right one in **all 42** and the second arrived
+on a wind-down turn. So the first answer stands and the second is refused,
+where a refusal costs a turn instead of a session's work.
+
+It is one rule rather than three, and that was not the first attempt. Guarding
+the pairs one at a time -- chat against ratification, then segmenting against
+routing -- left routing against chat uncovered, and the new inquiry case failed
+0/5 on exactly it: Liaison routed the question to its owners *and* chatted
+about it, five runs out of five. `api.refuse_second_answer` names the three
+answers once and each channel declares which one it is.
+
 ## The boundaries phase (added after validation 2)
 
 The severity read of validation 2 found the one class of fact both

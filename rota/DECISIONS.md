@@ -266,6 +266,60 @@ every brief that names the role changed, so the recordings made against the
 old briefs are invalid and were re-earned; old run databases keep
 `gatekeeper` in their session rows and are re-onboarded rather than migrated.
 
+### Intake has three answers and its brief offered two
+
+`liaison/converse` decides what the principal just said. Its brief asked one
+question -- "is this **chat** or **work**?" -- and answered ties twice over:
+"Default to chat", and "When in doubt, chat." A question *about the onboarded
+program* is neither, so it fell to the tiebreaker, and so did everything else.
+Measured on the shipped brief, four maintainer questions and two work requests
+against two models: `chat` was the answer to five of six, and the two controls
+that pass are the two the tiebreaker happens to be right about.
+
+That is the whole of why validation 2 had never run. The read-only route is
+drawn three times in the graph, has a brief and a `.tools` file at each end,
+and a probe that beat the monolithic dump 4-8 to 2-8 -- and driven through the
+real loop against the click run with the model onboarding uses, Liaison
+answered a maintainer's question by asking the principal to clarify it.
+
+It also explains a failure nobody had connected to it. `L1-LI-segment` hands
+Liaison "morning. we need SSO, but only if it works with our LDAP" and expects
+statements; it has been 0/5 for a long time and its diagnosis in
+`l1_liaison.yaml` was already right -- "a brief that can only be tuned in one
+direction gets tuned until the other direction breaks". The direction it was
+tuned in was chat, after a greeting regression, and the tiebreaker is where the
+tuning ended up.
+
+**Decided: an ordered test, not a default.** Three questions asked in order,
+stopping at the first yes -- does it ask for something the program does not do
+yet; is it a question about the program as it already is; otherwise chat --
+with the first test given the discriminator that separates the two hard cases:
+work is *told* to you, a question is *asked* of you.
+
+*Consequence:* inquiry went from 0-1 of 4 to **4 of 4 on both models, in both
+passes**, chat held at its existing rate, and llama's work column recovered
+from 0-1 of 2 to 2 of 2. Naming the third branch in prose without touching the
+tiebreaker -- the obvious fix, measured first -- moved inquiry to 2-3 of 4 on
+one model, nothing on the other, and cost work on both. The branch was never
+the missing thing; the tiebreaker was.
+
+*And the cost, which turned out to be mostly something else:* the ordered test
+looked like it overshot -- work requests coming back as questions -- and most
+of that was the session giving two answers rather than choosing the wrong one.
+A stray chat reply was voiding whole segmentations at commit; a session that
+segmented was free to route the same message as well; and a session that routed
+was free to chat about it. All three are the same fault, and guarding them
+pair by pair missed the third until a case caught it 0/5. `answers_given` names
+the three answers once and each channel declares which one it is. What is left
+of the overshoot is one fixture, below.
+
+Worth keeping separately: **two of my own edits to this brief caused
+regressions that only the recording caught.** "Clarify only when you cannot
+tell what they are asking *for*" reads as a narrowing and licensed exactly the
+clarification `L1-LI-no-report-no-question` forbids -- a vague request is still
+a request. The measurement that chose the ordered test had no vague-request
+fixture in it, so nothing could have found this before the case ran.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value
@@ -293,6 +347,81 @@ like the cassettes rather than an artefact, and therefore outside the law.
 ---
 
 ## Open
+
+### The greeting that precedes a request
+
+"morning. we need SSO, but only if it works with our LDAP" is a greeting and a
+commitment in one sentence, and it was the fixture no arm of the intake
+measurement made stable. Most of that turned out not to be classification at
+all: `llama3.1:8b` segmented it correctly on turn one in every arm of the
+ordered test, and the commit-time chat guard threw the segmentation away
+because of a stray reply on turn five. That is fixed at the channel now, and
+what the fixture measures from here is genuinely the classifier.
+
+What is left, and worth measuring before anything is changed. Whether the
+leading greeting is what does the remainder -- the same sentence without
+"morning." is one fixture's worth of evidence and costs nothing. And why
+`qwen3:8b` commits nothing at all on it, which is a wasted turn rather than a
+wrong answer, and which the entry below turns out to be part of.
+
+Not open as a brief question. Six prose attempts have now been spent on
+Liaison's classification and the one that worked replaced a rule rather than
+adding one, so the next attempt should be structural or should not be made.
+
+### The worked example decided it, and one example was the answer
+
+Worth keeping because the obvious reading was wrong twice.
+
+The brief's example of the inquiry route was
+`msg.ask_terminologist(refs=[], question='...')`, refused twice over -- there
+is no `question` parameter, and empty refs are now refused at the channel. So
+correcting it was not optional. It was also not free: with the examples
+corrected *and* a three-owner example added, `llama3.1:8b` routed a **greeting**
+to an owner and lost its work column, while `qwen3:8b` improved on chat. Two
+models disagreeing about one edit, for the first time in this measurement.
+
+What separated them was not the correction but the *salience*: every arm that
+gave asking more room in the examples pushed llama to over-route, and the
+broken example had been suppressing asks by failing. One corrected example and
+no three-owner block scores at least as well as the shipped brief on both
+models in both passes, and strictly better on `qwen3:8b`'s chat column. That is
+what shipped.
+
+Recorded because it nearly went the other way: a brief whose score depends on
+one of its examples not working would have passed every check this project has,
+and the only thing that caught it was scoring an ask with empty refs
+separately from an ask.
+
+### A confirmation can name a statement nobody wrote
+
+Found while reading the sessions that scored as doing nothing. Handed
+"morning. we need SSO, but only if it works with our LDAP", `qwen3:8b` sent
+`msg.confirm_principal(refs=['s1'])` three turns running without ever calling
+`brief.segment`. The message went out. `receipts` is empty. The principal is
+now holding a gate on a statement that does not exist, and the ratification
+that answers it will refer to nothing.
+
+The channel checks the *shape* of a ref and deliberately not the row --
+"checking the shape rather than the row keeps this honest for ids written in
+this same session, which are not in any table yet". That reasoning is right and
+the conclusion is one step short: a row written in this session is in
+`ctx.writes`, so the honest check is *exists in a table **or** was staged
+here*, which refuses exactly this and nothing else.
+
+Open rather than done, for one reason worth stating: a new refusal changes what
+a session does on its *next* turn, and every cassette recorded past that point
+stops matching. That is how the ledger guard's cause stayed hidden for a week.
+The guard is cheap; re-earning eleven L1 cases is not, so it goes in with a
+re-record and not beside one.
+
+`L1-LI-a-question-the-roles-could-not-answer` is the third member of this
+family and the oldest -- `clarify` reaches the principal five runs out of five
+carrying no refs, and its case says outright that prose has been tried and the
+fix will have to be structural. It is not the same guard: `clarify` has a
+`question` field, so an empty refs list is thin rather than empty, and the
+refusal would have to be situational -- refs are obligatory *when the wake
+carried some* -- which is `sandbox.situational`'s shape and not `stage`'s. The
+`ask` guard is the precedent that makes it tractable, not the fix.
 
 ### The frontier, when several things are ready — the big one
 

@@ -231,6 +231,56 @@ def transcript_quote(ctx: Ctx, entry_id: str) -> dict:
     return dict(row) if row else {}
 
 
+# ---------------------------------------------------------------------------
+# Intake gives one answer.
+#
+# The principal says one thing and Liaison decides what it is: chat, a question
+# about the program as it already is, or work. Three answers, exclusive by the
+# brief and until now by nothing -- chat and ratification were reconciled at
+# commit by discarding the segmentation, and routing sat outside the rule
+# entirely, so a session could route a question and chat about it in the same
+# breath. It did, five runs out of five.
+#
+# Which call loses is not a judgement. Across 42 recorded sessions that gave
+# two answers, the first was the right one in all 42 and the second came on a
+# wind-down turn, after the harness had already said the work was done. So the
+# first answer stands and the second is refused, which costs a turn instead of
+# a session's work.
+# ---------------------------------------------------------------------------
+
+ANSWER_NAMES = {
+    "chat": "replied to the principal",
+    "inquiry": "asked an owner about this",
+    "work": "segmented this into statements",
+}
+
+
+def answers_given(ctx: Ctx) -> set[str]:
+    """Which of the three intake answers this session has already given."""
+    given = set()
+    for m in ctx.outbound:
+        if m["verb"] == "converse" and m["to_role"] == "principal":
+            given.add("chat")
+        elif m["verb"] == "ask":
+            given.add("inquiry")
+        elif m["verb"] == "confirm" and m["to_role"] == "principal":
+            given.add("work")
+    if any(w[0] == "statements" for w in ctx.writes):
+        given.add("work")
+    return given
+
+
+def refuse_second_answer(ctx: Ctx, answer: str) -> None:
+    """Raise if this session has already answered the principal another way."""
+    others = answers_given(ctx) - {answer}
+    if others:
+        was = ANSWER_NAMES[sorted(others)[0]]
+        raise ValueError(
+            f"you have already {was}, which is one answer to what the "
+            f"principal said. This is a different one, and sending both "
+            f"leaves them holding two. Your work here is done")
+
+
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_entry: str | None = None) -> dict:
@@ -248,6 +298,8 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
     target = span_entry or ctx.entry_id
     if not target:
         raise ValueError("no entry to segment against")
+    refuse_second_answer(ctx, "work")
+
 
     # The same span twice is the same statement twice, whatever id it is given.
     #

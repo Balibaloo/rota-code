@@ -245,3 +245,55 @@
 # Both removals are the same mistake found twice: grading a role on a
 # situation the frontier cannot hand it.
 
+- id: L1-LI-a-question-about-the-program-goes-to-its-owners
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 3
+  # The first hop of the read-only route, which had no case at all.
+  #
+  # The route is drawn three times in the graph, has a brief and a `.tools` file
+  # at each end, and has never fired. Driven through the real loop against the
+  # click run with the model onboarding uses, Liaison answered a maintainer's
+  # question by asking the principal to clarify it.
+  #
+  # Two faults, both found by measurement. The brief's taxonomy was binary --
+  # "decide whether the current message is chat or work", "default to chat",
+  # "when in doubt, chat" -- and a question about the onboarded program is
+  # neither, so it fell through to the tiebreaker, which is also what
+  # `L1-LI-segment` was falling through to. And the only worked example of the
+  # route in the system called `msg.ask_terminologist(refs=[], question='...')`,
+  # which is refused: there is no `question` parameter, and an ask with empty
+  # refs wakes an owner with an empty inbox.
+  #
+  # `refs_include` is the sharp half. The entry id is the whole of how the
+  # principal's words reach the owner -- the resolver expands it into
+  # `principal_said` -- so an ask that carries no refs is a role woken to answer
+  # nothing, and it scores as an ask unless the refs are checked.
+  fixture:
+    entries:
+      - {id: e_<m_in>, author: principal, ts_order: 1,
+         text: "what does a provider do in this codebase?"}
+  inbound: {id: <m_in>, from: principal, to: liaison, verb: converse,
+            body_refs: []}
+  expect:
+    # Which owner holds the answer is not Liaison's to know -- that is the whole
+    # reason the question is routed rather than answered. Asking the wrong one
+    # costs a read-only session and nothing else; asking nobody is the failure.
+    any_of:
+      - messages:
+          - {to: terminologist, verb: ask, count: 1, refs_include: [e_<m_in>]}
+      - messages:
+          - {to: architect, verb: ask, count: 1, refs_include: [e_<m_in>]}
+      - messages:
+          - {to: vision_keeper, verb: ask, count: 1, refs_include: [e_<m_in>]}
+  forbidden:
+    # A question is not a commitment. Segmenting one puts a statement in front of
+    # the principal to ratify, and answering it from Liaison's own head is the
+    # role deciding something it does not own.
+    writes: [statements, items, glossary_terms, decisions]
+    # Not the recipient: `clarify` to the principal is the honest answer when
+    # the question really is unintelligible, and forbidding the recipient would
+    # forbid that too. `converse` is the tiebreaker firing.
+    messages:
+      - {to: principal, verb: converse}

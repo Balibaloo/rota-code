@@ -13,8 +13,11 @@ questions. The glossary is consulted the way its owner would consult it: the
 index of short senses whole (a page), and full bodies only for the terms the
 question's words name -- `glossary.lookup`, mechanically. An owner whose
 artefact does not carry the answer says so and is dropped; what remains,
-labelled, is the reply. No writes anywhere; this is the measurement for
-validation 2 before the wiring.
+labelled, is the reply. No writes anywhere; this was the measurement for
+validation 2 before the wiring, and it stays the quality baseline after it.
+The system routes a principal's question itself now -- Liaison decides, the
+three owners answer in read-only sessions -- but nothing yet compares *those*
+answers against the maintainer's key. This probe is what they have to beat.
 
     python probes/consult.py .rota/<run>.db [--model qwen2.5:14b]
 """
