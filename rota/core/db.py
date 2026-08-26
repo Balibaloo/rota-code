@@ -404,6 +404,21 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 "UPDATE messages SET status = 'answered' WHERE id = ?",
                 (result.trigger_msg,),
             )
+            # And a compose wake answers its whole round: the trigger was the
+            # harvest's carrier, and its siblings were never addressed to a
+            # session of their own. Left open they would tip one by one after
+            # the reply went out, and Liaison would relay a round it had
+            # already relayed.
+            conn.execute(
+                "UPDATE messages SET status = 'answered' "
+                "WHERE status = 'open' AND verb = 'answer' "
+                "  AND thread_id = (SELECT thread_id FROM messages WHERE id = ?) "
+                "  AND EXISTS (SELECT 1 FROM messages q "
+                "              WHERE q.id = (SELECT cause_id FROM messages "
+                "                            WHERE id = ?) AND q.verb = 'ask') "
+                "  AND cause_id IN (SELECT id FROM messages WHERE verb = 'ask')",
+                (result.trigger_msg, result.trigger_msg),
+            )
 
         # The question reached the person who asked it, which is what the end
         # of the ladder is for.

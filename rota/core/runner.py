@@ -558,6 +558,39 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # of band is still worth showing, and `thread_id` is what keeps it to the
     # same conversation. Without that filter it pulled in every report the
     # system had ever sent.
+    # The compose wake: an answer whose cause is an ask carries its round.
+    # Sibling answers travel like sibling reports do, and their refs resolve
+    # with the trigger's -- one session, every owner's answer, full bodies.
+    # The ask's own refs resolve too, which is what puts `principal_said` in
+    # front of the composer: the question is the entry the ask carries.
+    if row["verb"] == "answer":
+        cause = conn.execute(
+            "SELECT verb, body_refs FROM messages WHERE id = "
+            "(SELECT cause_id FROM messages WHERE id = ?)", (trigger,)).fetchone()
+        if cause and cause["verb"] == "ask":
+            extra: list[str] = json.loads(cause["body_refs"] or "[]")
+            siblings = [dict(r) for r in conn.execute(
+                "SELECT a.id, a.from_role, a.body_refs FROM messages a "
+                "JOIN messages q ON q.id = a.cause_id "
+                "WHERE a.thread_id = (SELECT thread_id FROM messages WHERE id = ?) "
+                "  AND a.verb = 'answer' AND q.verb = 'ask' AND a.id != ? "
+                "ORDER BY a.seq", (trigger, trigger))]
+            if siblings:
+                out["other_answers"] = siblings
+                for sib in siblings:
+                    extra += json.loads(sib["body_refs"] or "[]")
+            more = _resolve_refs(conn, [r for r in extra
+                                        if r not in out.get("resolved_refs", {})])
+            if more:
+                out.setdefault("resolved_refs", {}).update(more)
+                if "principal_said" not in out:
+                    said = next((r for r in more.values()
+                                 if r.get("author") == "principal"
+                                 and r.get("text")), None)
+                    if said:
+                        out["principal_said"] = said["text"]
+                        out["entry_id"] = said["id"]
+
     if row["verb"] == "report":
         siblings = [dict(r) for r in conn.execute(
             "SELECT id, from_role, body_refs FROM messages "

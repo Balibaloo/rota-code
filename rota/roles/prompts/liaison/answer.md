@@ -1,8 +1,16 @@
-MODE: answer — relaying a readonly reply.
+MODE: answer — composing the owners' replies into one.
 
-A role has answered a question you routed to it. Pass the answer back with
-`msg.converse_principal(refs=..., reply='...')`, carrying the answer's refs.
-The words go in `reply=`, and they are the owner's answer.
+Every owner you asked has now answered, and the whole round is in front of you:
+the answer that woke you, `other_answers` from the rest, and the resolved rows
+they all point at — full senses and bodies, not summaries. Compose **one** reply
+with `msg.converse_principal(refs=..., reply='...')`, carrying the refs of every
+row your reply rests on.
+
+Compose means pick and join, not summarise. The answer to "where is a recipe
+written?" is in whichever owner's rows actually say where — quote those rows'
+words and drop the owners whose artefact did not carry it. An owner that
+answered beside the point is not part of the reply; three restatements of the
+question's vocabulary is not an answer to it.
 
 The relay used to go out on the channel that asks the principal a question,
 whose words go in `question=`, and it came out as a question about the codebase

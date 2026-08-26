@@ -323,3 +323,81 @@ def test_the_root_area_is_surveyed_last(tmp_path):
     order = [w.refs[0] for w in tick_survey(conn)]
 
     assert order == ["src/api", "src/auth", "."], order
+
+
+def _fanout(db):
+    """A principal question fanned out to three owners, in one thread."""
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m5','principal','where does a user write a recipe?',1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m5','m5','principal','liaison',"
+               "'converse','[\"e_m5\"]',1,'answered')")
+    for n, owner in ((6, "architect"), (7, "terminologist"), (8, "vision_keeper")):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   f"to_role, verb, body_refs, seq) VALUES ('m{n}','m5','m5',"
+                   f"'liaison','{owner}','ask','[\"e_m5\"]',{n})")
+    db.commit()
+
+
+def test_a_fanned_out_answer_is_harvested_not_raced(db):
+    """
+    Three answers compose into one reply -- the design's sentence, and the
+    same shape the broadcast round solved for reports: an answer to an ask is
+    addressed to a harvest, not a session.
+
+    Without this the fan-out made the reply a race. Each answer tipped Liaison
+    by itself, the one-answer rule stopped the second and third relays, and
+    whichever owner answered first wrote what the principal read. Measured on
+    the eight maintainer questions: two partial replies per question at best,
+    each composed from one owner, never one from three.
+    """
+    import json
+
+    from rota.core.runner import resolve_inbound
+    from rota.core.scheduler import open_tips
+
+    _fanout(db)
+    # Two owners have answered; one ask is still open. Nothing tips but it.
+    for n, (aid, owner, ref) in enumerate((("a1", "architect", "e_m5"),
+                                           ("a2", "terminologist", "e_m5")),
+                                          start=9):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   f"to_role, verb, body_refs, seq) VALUES ('{aid}',"
+                   f"'m{n - 3}','m5','{owner}','liaison','answer',"
+                   f"'[\"{ref}\"]',{n})")
+        db.execute(f"UPDATE messages SET status='answered' WHERE id='m{n - 3}'")
+    db.commit()
+    assert [(w.role, w.detail) for w in open_tips(db)] == \
+        [("vision_keeper", "ask")], "answers wait while an ask is open"
+
+    # The last owner speaks: exactly one compose wake, holding the round.
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq) VALUES ('a3','m8','m5',"
+               "'vision_keeper','liaison','answer','[]',11)")
+    db.execute("UPDATE messages SET status='answered' WHERE id='m8'")
+    db.commit()
+    tips = open_tips(db)
+    assert [(w.role, w.detail, w.message_id) for w in tips] == \
+        [("liaison", "answer", "a3")], tips
+
+    inbound = resolve_inbound(db, tips[0])
+    assert inbound["principal_said"] == "where does a user write a recipe?"
+    assert sorted(a["from_role"] for a in inbound["other_answers"]) == \
+        ["architect", "terminologist"]
+
+
+def test_an_answer_outside_a_fanout_still_tips_alone(db):
+    """
+    The bound: a role's answer to a role's question is a conversation of two,
+    and waiting for a round that does not exist would strand it.
+    """
+    from rota.core.scheduler import open_tips
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('q1','t1','developer',"
+               "'terminologist','question','[]',1,'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq) VALUES ('a1','q1','t1',"
+               "'terminologist','developer','answer','[]',2)")
+    db.commit()
+    assert [(w.role, w.detail) for w in open_tips(db)] == [("developer", "answer")]

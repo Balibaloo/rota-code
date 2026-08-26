@@ -81,6 +81,23 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
         "  AND NOT (verb = 'report' AND EXISTS ("
         "    SELECT 1 FROM messages a WHERE a.id = m.cause_id "
         "      AND a.verb = 'ask')) "
+        # Three answers compose into one reply -- the design's sentence, and
+        # the same shape the broadcast round solved for reports: an answer to
+        # an ask is addressed to a harvest, not a session. It does not tip
+        # while a sibling ask in the thread is still open, and when the last
+        # owner has spoken only the latest answer tips, carrying the round.
+        # Without this the fan-out made the reply a race: whichever owner
+        # answered first wrote what the principal read.
+        "  AND NOT (verb = 'answer' AND EXISTS ("
+        "    SELECT 1 FROM messages q WHERE q.id = m.cause_id "
+        "      AND q.verb = 'ask') "
+        "   AND (EXISTS (SELECT 1 FROM messages o WHERE o.thread_id = m.thread_id "
+        "                  AND o.verb = 'ask' AND o.status = 'open') "
+        "    OR m.seq < (SELECT MAX(a2.seq) FROM messages a2 "
+        "                JOIN messages q2 ON q2.id = a2.cause_id "
+        "                WHERE a2.thread_id = m.thread_id "
+        "                  AND a2.verb = 'answer' AND a2.status = 'open' "
+        "                  AND q2.verb = 'ask'))) "
         "ORDER BY seq"
     ).fetchall()
     return [
