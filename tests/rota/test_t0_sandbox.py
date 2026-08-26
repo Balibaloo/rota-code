@@ -837,12 +837,19 @@ def test_chat_and_ratification_refuse_each_other(db):
         "the segmentation must survive the refusal"
 
     # And the other order, because the slip goes both ways: a greeting answered
-    # first does not stop the model reaching for a gate afterwards.
+    # first does not stop the model reaching for a gate afterwards. The
+    # statement is on file here rather than staged, or the confirmation is
+    # refused for naming a row that does not exist and this case never reaches
+    # the rule it is about.
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s_prior','e_m1',0,26,"
+               "'let people export invoices','proposed')")
+    db.commit()
     sb2 = build("liaison", db, mode="normal")
     sb2.ctx.entry_id = "e_m1"
     sb2.call("msg.converse_principal", refs=[], reply="Hello!")
     with pytest.raises(ValueError, match="already replied to the principal"):
-        sb2.call("msg.confirm_principal", refs=["s1"])
+        sb2.call("msg.confirm_principal", refs=["s_prior"])
 
 
 def test_clarify_is_not_exclusive_with_either(db):
@@ -1145,3 +1152,63 @@ def test_the_fan_out_is_only_on_the_ask_channel(db):
     sb = build("liaison", db, mode="normal")
     sb.call("msg.deliver_architect", refs=["s1"])
     assert [m["to_role"] for m in sb.ctx.outbound] == ["architect"]
+
+
+def test_a_confirmation_names_a_statement(db):
+    """
+    A ratification gate points at what is being ratified, and the only thing
+    that can be is a statement.
+
+    The last intake fixture failing, and the fault was already on the open list
+    -- "a confirmation can name a statement nobody wrote" -- caught in the act.
+    Handed "morning. we need SSO, but only if it works with our LDAP",
+    `qwen3:8b` sent `msg.confirm_principal(refs=['e_m_in'])` on turn one, before
+    segmenting anything. `e_m_in` is the transcript entry: the principal's own
+    words. So they were asked to ratify the sentence they had just said, no
+    statement existed to ratify, and the session committed nothing. Both passes.
+
+    Staged counts as stored. `brief.segment` writes into `ctx.writes` and the
+    row reaches no table until commit, which is the same reason the refs checks
+    above look at shape rather than existence.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','we need SSO if it works with our LDAP',1)")
+    db.commit()
+
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.entry_id = "e_m1"
+    with pytest.raises(ValueError, match="is not a statement"):
+        sb.call("msg.confirm_principal", refs=["e_m1"])
+    assert sb.ctx.outbound == []
+
+    # Satisfiable, and the refusal names the way back.
+    sb.call("brief.segment", id="s1", span_start=0, span_end=37,
+            text="we need SSO if it works with our LDAP")
+    sb.call("msg.confirm_principal", refs=["s1"])
+    assert [m["body_refs"] for m in sb.ctx.outbound] == [["s1"]]
+
+
+def test_the_one_answer_refusal_says_what_the_session_did(db):
+    """
+    Work has two ways of being given -- segmenting, or asking the principal to
+    confirm -- and the refusal named only the first.
+
+    A session that had sent a confirm and nothing else was told it "had already
+    segmented this into statements". It had not, and a model told it did
+    something it did not do has no way back to the thing it should have done.
+    That is what stood between the fixture above and its diagnosis.
+    """
+    sb = build("liaison", db, mode="normal")
+    sb.call("msg.confirm_principal", refs=[])
+    with pytest.raises(ValueError, match="asked the principal to confirm"):
+        sb.call("msg.converse_principal", refs=[], reply="hi")
+
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m2','principal','let people export invoices',1)")
+    db.commit()
+    sb2 = build("liaison", db, mode="normal")
+    sb2.ctx.entry_id = "e_m2"
+    sb2.call("brief.segment", id="s2", span_start=0, span_end=26,
+             text="let people export invoices")
+    with pytest.raises(ValueError, match="segmented this into statements"):
+        sb2.call("msg.converse_principal", refs=[], reply="hi")

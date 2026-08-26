@@ -865,6 +865,35 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "on. If your artefact does not hold it, that is a report and "
                 "not an answer")
 
+        # A confirmation points at what is being ratified, and the only
+        # thing that can be is a statement.
+        #
+        # Handed "morning. we need SSO, but only if it works with our LDAP",
+        # `qwen3:8b` sent `msg.confirm_principal(refs=['e_m_in'])` on turn one,
+        # before segmenting anything -- so the principal was asked to ratify
+        # the sentence they had just said, no statement existed to ratify, and
+        # the session committed nothing. Both passes, and it was the last
+        # intake fixture failing.
+        #
+        # Staged counts as well as stored: `brief.segment` writes into
+        # `ctx.writes` and the row is not in any table until the commit, which
+        # is the whole reason the refs check elsewhere in this function looks at
+        # shape rather than existence.
+        if recipient == "principal" and verb == "confirm":
+            staged = {w[1] for w in ctx.writes if w[0] == "statements"}
+            for ref in refs or ():
+                if ref in staged:
+                    continue
+                if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
+                                    (ref,)).fetchone():
+                    continue
+                raise ValueError(
+                    f"{ref!r} is not a statement, and a confirmation asks the "
+                    f"principal to ratify one. Cut what they said into "
+                    f"statements with brief.segment first, and confirm those "
+                    f"ids -- the entry is what they said, not what you read "
+                    f"in it")
+
         # One message gets one answer. `api.refuse_second_answer` holds the
         # rule and says why; the three channels that carry an intake answer
         # declare which one they are, and the second is refused rather than

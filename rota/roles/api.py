@@ -248,33 +248,34 @@ def transcript_quote(ctx: Ctx, entry_id: str) -> dict:
 # a session's work.
 # ---------------------------------------------------------------------------
 
-ANSWER_NAMES = {
-    "chat": "replied to the principal",
-    "inquiry": "asked an owner about this",
-    "work": "segmented this into statements",
-}
+def answers_given(ctx: Ctx) -> dict[str, str]:
+    """
+    Which of the three intake answers this session has given, and what it did.
 
-
-def answers_given(ctx: Ctx) -> set[str]:
-    """Which of the three intake answers this session has already given."""
-    given = set()
+    The description is carried rather than looked up because one answer has two
+    ways of being given: work is segmenting *or* asking the principal to
+    confirm. Named from a table, the refusal told a session that had only sent
+    a confirm that it "had already segmented this into statements" -- work it
+    had not done, which leaves it no way back to the work it should have.
+    """
+    given: dict[str, str] = {}
     for m in ctx.outbound:
         if m["verb"] == "converse" and m["to_role"] == "principal":
-            given.add("chat")
+            given["chat"] = "replied to the principal"
         elif m["verb"] == "ask":
-            given.add("inquiry")
+            given["inquiry"] = "asked an owner about this"
         elif m["verb"] == "confirm" and m["to_role"] == "principal":
-            given.add("work")
+            given["work"] = "asked the principal to confirm a segmentation"
     if any(w[0] == "statements" for w in ctx.writes):
-        given.add("work")
+        given["work"] = "segmented this into statements"
     return given
 
 
 def refuse_second_answer(ctx: Ctx, answer: str) -> None:
     """Raise if this session has already answered the principal another way."""
-    others = answers_given(ctx) - {answer}
+    others = {k: v for k, v in answers_given(ctx).items() if k != answer}
     if others:
-        was = ANSWER_NAMES[sorted(others)[0]]
+        was = others[sorted(others)[0]]
         raise ValueError(
             f"you have already {was}, which is one answer to what the "
             f"principal said. This is a different one, and sending both "
