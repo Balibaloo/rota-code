@@ -669,7 +669,14 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             area=wake.refs[0] if spec.get("tick") in ("survey", "orient", "define") else None)
         return out, capture(conn, out.session_id, versions, messages_before=seen)
 
-    a_out, a_delta = _one(first, None)
+    # A first leg may name a message the fixture seeded, and one kind of chain
+    # cannot start without it. Liaison's `converse` reads the principal's words
+    # through the *message*: the entry is found as `e_{message_id}` and expanded
+    # into `principal_said`. Woken with no message, the mode that turns a
+    # sentence into work or a question is handed no sentence, and the chain that
+    # begins at intake -- which is every chain the principal starts -- could not
+    # be written here at all.
+    a_out, a_delta = _one(first, first.get("inbound"))
     if not a_out.committed:
         problems.append(f"{first['role']} did not commit: {a_out.errors}")
 

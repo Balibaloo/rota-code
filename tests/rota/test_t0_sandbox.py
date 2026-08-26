@@ -757,3 +757,47 @@ def test_grouping_infers_the_item_the_tickets_share(db):
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk3', 'i2', 'x')")
     with pytest.raises(Exception, match="exactly one approved item"):
         sb.call("batches.group", id="b2", ticket_ids=["tk1", "tk3"])
+
+
+def test_an_ask_cannot_be_sent_with_empty_refs(db):
+    """
+    On the inquiry route the refs are the question, not a citation.
+
+    `msg.ask_*` has no prose field -- law 2 -- so the entry id is the whole of
+    how the principal's words reach the owner: the resolver expands it into
+    `principal_said`. An ask without it wakes a role to answer nothing and
+    looks, from every angle available afterwards, exactly like the route
+    working.
+
+    That is what it was doing. Measured on `llama3.1:8b` before this guard:
+    four asks out of four carried `refs=[]`, in both passes, because the only
+    worked example of the route in the system was
+    `msg.ask_terminologist(refs=[], question='...')` -- refused for the
+    argument, and correct-looking once the argument is dropped.
+
+    Satisfiable, which is the test a refusal has to pass here: `entry_id` is in
+    the session's own prompt, and the message names it.
+    """
+    sb = build("liaison", db, mode="normal")
+
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.ask_terminologist", refs=[])
+    assert "entry_id" in str(exc.value)
+    assert sb.ctx.outbound == [], "a refused ask must stage nothing"
+
+    db.execute("INSERT INTO entries (id, author, text, ts_order) "
+               "VALUES ('e_m1','principal','what is an account here?',1)")
+    sb.call("msg.ask_terminologist", refs=["e_m1"])
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_the_empty_refs_guard_is_only_on_the_ask_channel(db):
+    """
+    The bound. Most verbs may legitimately carry no refs -- a Liaison replying
+    to a greeting refs nothing, and should not have to invent something to
+    point at. `ask` is singular because it is the one channel whose refs are
+    the payload rather than a pointer to one.
+    """
+    sb = build("liaison", db, mode="normal")
+    sb.call("msg.converse_principal", refs=[], reply="Hello!")
+    assert len(sb.ctx.outbound) == 1

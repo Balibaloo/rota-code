@@ -602,6 +602,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"words they used, which is the only thing they can "
                     f"recognise at their end")
 
+        # On the inquiry route refs are not a citation, they are the
+        # question. `msg.ask_*` has no prose field -- law 2 -- so the entry id
+        # is the whole of how the principal's words reach the owner: the
+        # resolver expands it into `principal_said`, and an ask without it
+        # wakes a role to answer nothing, which looks from every angle like the
+        # route working.
+        #
+        # It went unseen because the brief's only worked example of the route
+        # was `msg.ask_terminologist(refs=[], question=...)` -- a call that is
+        # refused for the argument and, corrected the obvious way, sends the
+        # empty one. Measured on `llama3.1:8b`: four asks out of four carried no
+        # refs, twice over.
+        #
+        # Satisfiable, which is what separates this from a gate: `entry_id` is
+        # in the session's prompt and the message says so.
+        if verb == "ask" and not refs:
+            raise ValueError(
+                "an ask carries the question in its refs and you sent none. "
+                "This channel has no words of its own -- put `entry_id`, the "
+                "transcript entry holding what the principal said, in refs, "
+                "and the owner reads it as `principal_said`")
+
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a
         # Developer's question correctly, then sent the same answer again with
