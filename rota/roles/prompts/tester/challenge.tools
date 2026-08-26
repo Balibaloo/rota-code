@@ -2,3 +2,5 @@ criteria.load
 tests.consult
 tests.encode
 msg.answer_developer
+msg.question_terminologist
+msg.question_vision_keeper

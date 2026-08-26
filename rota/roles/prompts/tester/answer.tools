@@ -5,3 +5,5 @@ tests.consult
 tests.encode
 ledger.log
 schedule.reask
+msg.question_terminologist
+msg.question_vision_keeper

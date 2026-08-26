@@ -551,3 +551,25 @@ def test_a_mode_that_answers_liaison_can_also_say_it_cannot():
                 problems.append(f"{role}/{mode} answers liaison and cannot "
                                 f"report that it has nothing")
     assert not problems, "\n".join(problems)
+
+
+def test_a_mode_that_encodes_holds_the_exits_the_guard_names():
+    """
+    The parroting guard refuses a restated criterion and names the way out:
+    question the Terminologist if the words cannot become an assertion, the
+    Vision Keeper if no machine could check the promise. Live on the delivery
+    rung, the Tester took the named exit at last -- and was told
+    "'msg.question_terminologist' is not in this role's working set", because
+    `tester/answer` held `tests.encode` without the channels its own refusal
+    points to. A guard is only fair when the escape it assumes is reachable in
+    the mode, and this derives it for every mode that can meet the guard.
+    """
+    problems = []
+    for mode in prompts.available("tester"):
+        tools = prompts.mode_tools("tester", mode)
+        if tools is None or "tests.encode" not in tools:
+            continue
+        for exit_ in ("msg.question_terminologist", "msg.question_vision_keeper"):
+            if exit_ not in tools:
+                problems.append(f"tester/{mode} encodes and lacks {exit_}")
+    assert not problems, "\n".join(problems)

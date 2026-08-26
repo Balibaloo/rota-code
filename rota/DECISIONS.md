@@ -773,6 +773,46 @@ like the cassettes rather than an artefact, and therefore outside the law.
 
 ## Open
 
+### Six things filed past at speed, written down before they vanish
+
+Asked outright what was odd and too deep to chase, 2026-08-26. Each of these
+was noticed and stepped over; none has an owner yet.
+
+**qwen never writes the ledger.** In the rename A/B it never reached
+`ledger.log` in either arm -- scored "no-op, not hurt", correctly, for that
+decision. The unchased half: qwen is the production model, and cnt_v2r's
+ledger held one row after 134 sessions. The register cannot distinguish "no
+assumptions were made" from "the model never says". If the second is true,
+the assumption-capture layer is silent exactly where it matters.
+
+**Green-by-load is banked as green-by-design.** Two long-standing reds
+greened under the rename's new prompt bytes and were counted as wins; the
+determinism finding says a marginal case moving across loads is exactly what
+cannot be trusted. The register does not distinguish the two kinds of green.
+A case could carry "greened by: <commit>" and be re-earned across two loads
+before counting; nothing does that.
+
+**Over-production is one disease with three confirmed organs.** Statements
+(twenty-four from one sentence, historically), tickets (nine, measured
+yesterday), and batches -- both delivery runs made b2 and b3, pending, from
+one sentence, and nobody has looked at why. No one has asked what single
+upstream cause produces all three.
+
+**Deferred-eager rows are in limbo.** `observed_entries` offers a row once,
+ever -- right when a ruling comes, and a hole when the principal defers an
+eager present: those rows are not decided, not ledgered, and never
+re-offered. The put-once rule assumed a ruling always arrives. The lazy path
+has no such hole, which suggests the fix is that a deferral *is* an election.
+
+**The worktree skip is silent.** The harness livelock's root cause: the
+copied run had no `project_root`, so worktree creation skipped without a
+word and the batch ran headless until the drain caught the symptom. The
+skip is still silent -- the silent-success shape, one more time.
+
+**Rulings live in `config`.** A principal's verdict is a provenance-bearing
+decision record in a settings table: unversioned, unreceipted, outside every
+artefact law. Law 11 has never been asked about it.
+
 ### The frontier, when several things are ready — the big one
 
 Wakes are ordered by band, then **alphabetically by predicate name**. The loop
