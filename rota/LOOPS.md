@@ -17,9 +17,15 @@ recording it moves a pinned count.
 | **G3 endures** | survives being hurt: sessions killed mid-flight, messages corrupted, work concurrent | the loop's named chaos tests pass |
 | **G4 lived** | zero-intervention gauntlet scenarios, on repositories not authored for the test | the gauntlet log |
 
-Nothing is at G3 yet, and that is the honest headline of this file: no loop
-has ever been hurt on purpose, and the scheduler's "stateless, disposable,
-killable at any moment" is still a docstring rather than a test outcome.
+Nothing is at G3 yet, and that is the honest headline of this file — though
+the *core* has now been hurt three ways and held (`test_chaos.py`): a model
+dying mid-session leaves the world exactly as it was, with the death counted
+and the wake re-offered; the scheduler killed between steps re-derives the
+identical frontier, because there is nothing a scheduler is except a fresh
+call; and a backend speaking garbage burns turns without writing a world.
+The scheduler's "stateless, disposable" is an outcome now. What G3 still
+means per loop is the *specific* injuries below — the core surviving is the
+floor, not the grade.
 
 ## The ledger
 
