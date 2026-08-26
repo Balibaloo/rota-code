@@ -2355,6 +2355,30 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     # the transaction and takes the session with it -- recoverable one level
     # up, so it is refused here, like `batches.group` already does.
     _must_exist(ctx, "items", item_id)
+    # A ticket is its text. Recorded after the ledger rename: Vision Keeper
+    # sliced six tickets of which five were `text=''` -- work orders saying
+    # nothing, which the criteria phase would then be woken to define "done"
+    # for. Same family as the ask that carried no refs, and the same shape of
+    # refusal: satisfiable, with the way back named.
+    if not (text or "").strip():
+        raise ValueError(
+            "a ticket is its text, and this one says nothing. Slice the "
+            "item into a piece of work someone could pick up and write that "
+            "piece as the text")
+    # The same words are the same ticket, whatever id they are given --
+    # `brief.segment`'s rule, one artefact along, and the same measured
+    # shape: nine tickets from a one-line item, of which the last five were
+    # two sentences elaborating each other. Reported rather than refused, on
+    # the same precedent: arriving at the same slice is not a fault, and an
+    # error would invite a differently-worded copy.
+    norm = " ".join(text.lower().split())
+    same = [w for w in ctx.writes
+            if w[0] == "tickets"
+            and " ".join(str(w[2].get("text", "")).lower().split()) == norm]
+    if same:
+        return {"id": same[0][1], "unchanged": True,
+                "note": f"this slice already exists as {same[0][1]}; "
+                        f"nothing was written"}
     ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text}))
     return {"id": id}
 
@@ -2647,7 +2671,7 @@ def tests_consult(ctx: Ctx) -> list[dict]:
 
 @op("ledger", "log")
 def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
-               default_taken: str) -> dict:
+               assumption: str) -> dict:
     """
     A choice made where the criteria were silent. Logged with the diff, in the
     same session — the silent default is the failure this exists to prevent.
@@ -2662,11 +2686,11 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     import hashlib
 
     digest = hashlib.sha256(
-        f"{about_table}|{about_ref}|{default_taken}".encode()).hexdigest()[:10]
+        f"{about_table}|{about_ref}|{assumption}".encode()).hexdigest()[:10]
     id = f"l_{digest}"
     ctx.writes.append(("ledger", id, {
         "about_ref": about_ref, "about_table": about_table,
-        "default_taken": default_taken, "status": "open", "author": ctx.role}))
+        "default_taken": assumption, "status": "open", "author": ctx.role}))
     return {"id": id}
 
 
@@ -4761,7 +4785,17 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     tree = _worktree_of(ctx)
     sha = worktrees.commit(tree, message)
     if sha is None:
-        return {"committed": False, "why": "nothing changed"}
+        # Not an error -- the docstring says why -- but the bare result read
+        # as completion. Recorded after the ledger rename: the Developer
+        # probed, loaded criteria, called commit on an untouched tree, logged
+        # a real assumption, and ended -- five runs of five, twice, with
+        # `code.write` never called. The result now carries the fork the
+        # session is actually at.
+        return {"committed": False, "why": "nothing changed",
+                "note": ("the tree is exactly as you found it. If the "
+                         "criteria are already met, say so and finish; if "
+                         "you were going to change the code, the change "
+                         "comes first: code.write, then commit")}
 
     ctx.writes.append(("batches", ctx.batch_id, {"head_commit": sha}, False))
     return {"committed": True, "head_commit": sha,

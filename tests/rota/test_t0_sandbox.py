@@ -1267,3 +1267,27 @@ def test_the_relay_split_matches_the_graph():
                      if e.s == "liaison" and e.v == "relay"}
     assert set(RULED_TABLES.values()) <= relay_targets, (
         set(RULED_TABLES.values()) - relay_targets)
+
+
+def test_a_ticket_is_its_text(db):
+    """
+    Recorded after the ledger rename: Vision Keeper sliced six tickets of
+    which five were `text=''` -- work orders saying nothing, which `criteria`
+    would then wake Terminologist to define "done" for. Same family as the
+    ask that carried no refs: the channel's payload left empty, invisible
+    afterwards because a row exists either way.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','users can delete their "
+               "account','in_scope','decided','approved',1,1)")
+    db.commit()
+    sb = build("vision_keeper", db, mode="slicing")
+    with pytest.raises(ValueError, match="a ticket is its text"):
+        sb.call("tickets.slice", id="t1", item_id="i1", text="")
+    with pytest.raises(ValueError, match="a ticket is its text"):
+        sb.call("tickets.slice", id="t1", item_id="i1", text="   ")
+    assert sb.ctx.writes == []
+
+    sb.call("tickets.slice", id="t1", item_id="i1",
+            text="add the delete-account endpoint")
+    assert [w[1] for w in sb.ctx.writes] == ["t1"]

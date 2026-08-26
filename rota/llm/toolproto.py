@@ -184,6 +184,59 @@ def _scan_name(text: str, i: int) -> tuple[str, int]:
     return text[start:i], i
 
 
+_BLOCK_ARG = None  # compiled on first use; the module avoids import-time regex
+
+
+def _inline_blocks(text: str) -> str:
+    """
+    `key=[key]` + a following raw block, rewritten as the quoted value it is.
+
+    The prompt renders long text results as `[text]` + raw lines, and models
+    mirror the shape back when *sending* long text: `code.write(path=...,
+    text=[text]` with the source following in the open. The paren scan cannot
+    survive arbitrary code, so the call was a ToolError every time -- while
+    the model, shown its own turns, reasonably believed it had used the
+    house style.
+
+    Narrow on purpose: only `name=[name]` (the label matching the argument),
+    only as the last thing on its call line, and the block runs to the next
+    `TOOL:` line or the end of the completion. A lone `refs=[...]` list never
+    matches -- the sentinel is the *name in brackets*, nothing else.
+    """
+    import re
+
+    global _BLOCK_ARG
+    if _BLOCK_ARG is None:
+        _BLOCK_ARG = re.compile(
+            r"^(?P<head>\s*TOOL:[^\n]*?(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+            r"=)\[(?P=name)\]\s*\)?\s*$",
+            re.MULTILINE)
+
+    out = []
+    pos = 0
+    for m in _BLOCK_ARG.finditer(text):
+        block_start = m.end()
+        nxt = text.find("\nTOOL:", block_start)
+        block_end = nxt if nxt != -1 else len(text)
+        block = text[block_start:block_end].strip("\n")
+        if not block:
+            continue
+        # Trailing lone parenthesis lines belong to the call, not the value.
+        lines = block.split("\n")
+        while lines and lines[-1].strip() in (")", "')", '")'):
+            lines.pop()
+        value = "\n".join(lines)
+        quoted = "'" + value.replace("\\", "\\\\").replace(
+            "'", "\\'").replace("\n", "\\n") + "'"
+        out.append(text[pos:m.start()])
+        out.append(m.group("head") + quoted + ")")
+        pos = block_end
+    if not out:
+        return text
+    out.append(text[pos:])
+    return "".join(out)
+
+
 def extract(text: str) -> list[ToolCall | ToolError]:
     """
     Find every `TOOL:` call in a completion, in order.
@@ -193,6 +246,7 @@ def extract(text: str) -> list[ToolCall | ToolError]:
     carrying the raw text — the model sees its own mistake.
     """
     results: list[ToolCall | ToolError] = []
+    text = _inline_blocks(text)
     cursor = 0
 
     while True:

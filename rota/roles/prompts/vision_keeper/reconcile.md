@@ -12,7 +12,7 @@ it. For each claim, one of three things is true:
   account — that is a finding, and you cannot rule on it: "the README is
   stale" and "the code has a bug" are both possible, and only the principal
   can say which. Log it: `ledger.log(about_ref=<the item id it touches, or
-  the README's path>, about_table="items", default_taken="README says <X>;
+  the README's path>, about_table="items", assumption="README says <X>;
   the code shows <Y>")` — one call per disagreement, the two sides in it,
   in the words each source uses;
 - the README names a thing the account never mentions — same call: the code

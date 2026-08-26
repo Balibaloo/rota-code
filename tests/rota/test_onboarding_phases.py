@@ -1039,7 +1039,7 @@ def test_a_reconcile_session_logs_the_disagreement_and_attests(project):
     wake = next(w for w in frontier(db) if w.kind == "tick:reconcile")
     out = run_session(db, wake, backend=ScriptedBackend([
         'TOOL: ledger.log(about_ref="README.md", about_table="items", '
-        'default_taken="README says accounts can be merged; the code shows no merge path")\n'
+        'assumption="README says accounts can be merged; the code shows no merge path")\n'
         'TOOL: surveys.attest(outcome="found", citations=["README.md"])',
         "done", "done",
     ]))

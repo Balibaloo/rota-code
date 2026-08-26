@@ -632,3 +632,46 @@ def test_a_label_token_followed_by_a_comma_still_binds():
     assert [g.name for g in got] == ["glossary.amend"], got
     assert got[0].pos == ("is_under",)
     assert got[0].args["sense_short"].startswith("A less-than")
+
+
+def test_the_block_form_the_prompt_teaches_is_accepted():
+    """
+    `_as_block` renders every long text result as `[text]` + raw lines, and
+    the Developer mirrored the shape back when *sending* long text:
+    `code.write(path=..., text=[text]` with the source following in the open.
+    The paren scan cannot survive arbitrary code, so the call was a ToolError
+    every time -- five runs of five, twice, with the model saying on its own
+    turn that its write had been rejected and retrying the identical shape,
+    while the session ended committing an untouched tree.
+
+    Same lineage as the square-bracket acceptance, whose comment already says
+    "the brackets come from the prompt itself".
+    """
+    from rota.llm.toolproto import extract
+
+    completion = (
+        "TOOL: code.write(path='src/notify/formatting.py', text=[text]\n"
+        "ELLIPSIS = chr(8230)\n\n\n"
+        "def money(cents):\n"
+        "    dollars = cents / 100\n"
+        "    return f\"${dollars:,.2f}\"\n"
+    )
+    call = extract(completion)[0]
+    assert call.name == "code.write"
+    assert call.args["path"] == "src/notify/formatting.py"
+    assert "def money" in call.args["text"]
+    assert call.args["text"].count("\n") >= 4, "real newlines, not escapes"
+
+    # A following call bounds the block.
+    two = extract(completion + "\nTOOL: code.commit(message='add money')\n")
+    assert [c.name for c in two] == ["code.write", "code.commit"]
+
+
+def test_the_block_sentinel_is_the_name_in_brackets_and_nothing_else():
+    """The bound: `refs=[...]` is a list, `x=[y]` is not a sentinel, and both
+    parse exactly as they always have."""
+    from rota.llm.toolproto import extract
+
+    assert extract("TOOL: msg.answer_liaison(refs=['g1'])")[0].args["refs"] == ["g1"]
+    call = extract("TOOL: model.load(ids=['a'])\nplain prose after")[0]
+    assert call.args["ids"] == ["a"]

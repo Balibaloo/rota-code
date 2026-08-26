@@ -16,11 +16,11 @@ survey may be the area the next question lands on. A fact that hides
 nothing — a lockfile no parser reads — is not worth an entry.
 
 For each gap that matters, one entry, `ledger.log(about_ref=<the path or
-subject>, about_table="items", default_taken=...)`. Written out, an entry
+subject>, about_table="items", assumption=...)`. Written out, an entry
 from a real run reads:
 
     about_ref="terminologist|tick:term_collision|context,context#src_click"
-    default_taken="two senses of `context` were written and never
+    assumption="two senses of `context` were written and never
       reconciled, because the collision that would have merged them was
       given up after three attempts; whichever a later question loads is
       the one it will believe"

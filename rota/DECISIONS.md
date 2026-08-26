@@ -671,6 +671,80 @@ that field would fill the agenda with a page of `True` and collapse the very
 rows the election exists to keep apart. The `default_taken` decision stops
 being a cheap cleanup and becomes the election's prerequisite.
 
+### The ledger's prose field is named like a flag
+
+`ledger.log(about_ref, about_table, default_taken)` wants a sentence: what
+was assumed where the criteria were silent, and what it would cost to be
+wrong. `default_taken` reads as a yes/no question -- *was* a default taken?
+-- and models answer it as one. Measured over the recorded corpus,
+**1,052 of 1,209 calls (87%) pass `True` or `False`**, and it is not one
+case repeated: Developer across five modes, Vision Keeper across three,
+Terminologist, Tester.
+
+The corpus also contains the natural experiment. `developer/batch_start` is
+the only mode-brief that names what the field should contain -- "log the
+choice and the default you took" -- and it is the only mode above a fifth
+prose: 108 real sentences. The modes whose briefs say nothing about the
+ledger are unanimous the other way: `tests_failing` 139 bools and no
+strings, `verdict_failed` 163 and none, `exhausted` 75 and none. The name
+alone gets a flag; the name plus a sentence about its content gets prose
+two times in five.
+
+Three consequences, and the third is the one that is not obvious. The
+principal's agenda fills with entries reading "True". A milestone is
+quiescence with an *empty* ledger, so the pollution is load-bearing. And
+the row id is `sha256(about_table|about_ref|default_taken)`, derived so
+that a cold retry upserts instead of duplicating -- with the field
+constant at `True`, the id collapses to (table, ref), so two genuinely
+different assumptions about one ticket silently become one row. The
+deduplication built to protect the principal's attention is discarding
+evidence.
+
+**Not a guard.** Refusing non-strings was tried twice and reverted twice.
+The second attempt is why the cause is now known: it crashed on
+`default_taken=False` with an AttributeError, the session died mid-way,
+and every cassette recorded after that point stopped matching -- which is
+what made the first attempt look like it had no cause, since the composed
+prompt really was byte-identical and the divergence was in a later turn.
+Beyond the bug, a gate that refuses 87% of real calls is not a bounded
+refusal, it is an outage, and this system's own law says a gate the model
+cannot satisfy is a twelve-turn loop.
+
+**Open, because the fix has a cost and a cheaper rival.** Renaming the
+parameter -- `assumption=`, which cannot be answered `True` without
+absurdity -- changes a signature that appears in every brief's toolkit,
+and every cassette with it. Teaching it in the *base* brief instead costs
+one paragraph and invalidates only the roles that hold the operation. The
+corpus says the second works two times in five; nothing yet says what the
+first does. What decides it is the same bench A/B the challenge rename is
+waiting on: one situation, one model, one word changed in the signature.
+
+**Decided 2026-08-26: the parameter is `assumption`.** The bench A/B the entry
+asked for -- one situation, `L1-DV-log-the-choice-the-criteria-did-not-make`
+unmodified, one word changed in the signature, arms interleaved on one loaded
+model, twice:
+
+    arm                llama3.1:8b (p1, p2)          qwen3:8b (p1, p2)
+    default_taken      empty (case FAIL) · `True`    never logs · never logs
+    assumption         the real sentence · the same  never logs · never logs
+
+Arm A reproduced the corpus's finding live: an empty ledger or the word
+`True`. Arm B wrote "Assumed that cent amounts should be formatted as
+'$X.XX'" -- the actual choice, byte-identical across passes. qwen never
+reaches the call in either arm, which is a no-op rather than a hurt, and the
+veto is helps-one-hurts-other.
+
+The parameter is the model-facing surface and the only thing renamed: the
+schema column stays `default_taken`, so old run databases stay readable. The
+id still hashes the field's value; with real sentences in it the collapse the
+entry describes stops happening in practice, and whether the hash should name
+the field at all stays open below. Cost paid: 33 recorded cases stale, every
+mode whose signature block holds `ledger.log`, re-earned in one pass.
+
+This also unblocks the lazy election, which mass-writes the ledger and was
+blocked on exactly this field.
+
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value
@@ -720,53 +794,24 @@ language about handling several of something.
 serialises itself, so onboarding will run on today's frontier and its failures
 are the specification for this work.
 
-### The ledger's prose field is named like a flag
+### Over-production has a ticket flavour, and no guard can tell it from work
 
-`ledger.log(about_ref, about_table, default_taken)` wants a sentence: what
-was assumed where the criteria were silent, and what it would cost to be
-wrong. `default_taken` reads as a yes/no question -- *was* a default taken?
--- and models answer it as one. Measured over the recorded corpus,
-**1,052 of 1,209 calls (87%) pass `True` or `False`**, and it is not one
-case repeated: Developer across five modes, Vision Keeper across three,
-Terminologist, Tester.
+`L1-VK-slice` was green and went red across the ledger rename's re-record: the
+same one-line item -- "users can delete their account" -- sliced into nine
+tickets, five of them empty, the rest inventing requirements the item never
+made ("users should be warned before", "the warning should be displayed
+prominently on the deletion page"). Two guards came out of it and both stay:
+a ticket is its text (five of the nine said nothing), and the same words are
+the same ticket (`brief.segment`'s rule, one artefact along). They took nine
+to four.
 
-The corpus also contains the natural experiment. `developer/batch_start` is
-the only mode-brief that names what the field should contain -- "log the
-choice and the default you took" -- and it is the only mode above a fifth
-prose: 108 real sentences. The modes whose briefs say nothing about the
-ledger are unanimous the other way: `tests_failing` 139 bools and no
-strings, `verdict_failed` 163 and none, `exhausted` 75 and none. The name
-alone gets a flag; the name plus a sentence about its content gets prose
-two times in five.
-
-Three consequences, and the third is the one that is not obvious. The
-principal's agenda fills with entries reading "True". A milestone is
-quiescence with an *empty* ledger, so the pollution is load-bearing. And
-the row id is `sha256(about_table|about_ref|default_taken)`, derived so
-that a cold retry upserts instead of duplicating -- with the field
-constant at `True`, the id collapses to (table, ref), so two genuinely
-different assumptions about one ticket silently become one row. The
-deduplication built to protect the principal's attention is discarding
-evidence.
-
-**Not a guard.** Refusing non-strings was tried twice and reverted twice.
-The second attempt is why the cause is now known: it crashed on
-`default_taken=False` with an AttributeError, the session died mid-way,
-and every cassette recorded after that point stopped matching -- which is
-what made the first attempt look like it had no cause, since the composed
-prompt really was byte-identical and the divergence was in a later turn.
-Beyond the bug, a gate that refuses 87% of real calls is not a bounded
-refusal, it is an outage, and this system's own law says a gate the model
-cannot satisfy is a twelve-turn loop.
-
-**Open, because the fix has a cost and a cheaper rival.** Renaming the
-parameter -- `assumption=`, which cannot be answered `True` without
-absurdity -- changes a signature that appears in every brief's toolkit,
-and every cassette with it. Teaching it in the *base* brief instead costs
-one paragraph and invalidates only the roles that hold the operation. The
-corpus says the second works two times in five; nothing yet says what the
-first does. What decides it is the same bench A/B the challenge rename is
-waiting on: one situation, one model, one word changed in the signature.
+The remaining four are the disease the constraint entry already describes,
+wearing tickets: scope authored where decomposition was asked for. No
+mechanical guard separates an invented requirement from a legitimate
+implementation slice -- "add the delete endpoint" shares no words with the
+item either -- so the case stays red as the register's record of it, at 4
+against a measured bar of 1..2, rather than the fixture being tuned until it
+looks better.
 
 ### Re-surveying
 

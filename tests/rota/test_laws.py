@@ -245,17 +245,17 @@ def test_logging_the_same_assumption_twice_is_one_entry(db):
     """
     first = build("developer", db).call(
         "ledger.log", about_ref="i1", about_table="items",
-        default_taken="assumed soft delete")
+        assumption="assumed soft delete")
     again = build("terminologist", db).call(
         "ledger.log", about_ref="i1", about_table="items",
-        default_taken="assumed soft delete")
+        assumption="assumed soft delete")
 
     assert first["id"] == again["id"], \
         "the same assumption reached twice must be one entry"
 
     different = build("developer", db).call(
         "ledger.log", about_ref="i1", about_table="items",
-        default_taken="assumed hard delete")
+        assumption="assumed hard delete")
     assert different["id"] != first["id"]
 
 
