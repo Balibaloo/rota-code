@@ -500,6 +500,37 @@ def observed_entries(conn) -> list[Wake]:
         if fresh:
             counts.append(f"{table}:{len(fresh)}")
             offered += fresh
+    # A deferral is an election. A present answered without a ruling -- the
+    # principal read it and moved on -- left its rows in limbo: not decided,
+    # not ledgered, and never re-offered, because a row is put to them once.
+    # The put-once rule assumed a ruling always comes. It does not, and the
+    # lazy path is what deferral *means*: those rows become assumptions
+    # awaiting first touch, exactly as if the election had said so, without
+    # re-spending the attention that was already declined.
+    limbo = []
+    for r in conn.execute(
+            "SELECT m.body_refs FROM messages m WHERE m.verb='present' "
+            "AND m.status='answered' AND NOT EXISTS ("
+            "  SELECT 1 FROM messages v WHERE v.cause_id = m.id "
+            "    AND v.verb = 'verdict')"):
+        try:
+            limbo += [x for x in json.loads(r["body_refs"] or "[]")
+                      if isinstance(x, str)]
+        except (TypeError, ValueError):
+            continue
+    if limbo:
+        deferred = {r["about_ref"] for r in conn.execute(
+            "SELECT about_ref FROM ledger")}
+        still = [i for i in dict.fromkeys(limbo)
+                 if i in presented and i not in deferred and any(
+                     conn.execute(f"SELECT 1 FROM {t} WHERE id = ? AND "
+                                  f"provenance='observed'", (i,)).fetchone()
+                     for t in ("glossary_terms", "constraints",
+                               "model_areas", "items"))]
+        if still:
+            return [Wake(SCHEDULER, "do:defer_baseline", refs=tuple(still),
+                         detail=f"deferred without ruling: {len(still)}")]
+
     if not counts:
         return []
     # The election. "Confirm the whole baseline up front, or lazily as work
@@ -761,36 +792,13 @@ def unresolved(conn) -> list[Wake]:
 
     wakes = []
     for r in rows:
-        # A question whose refs name a criterion is not climbing toward a
-        # ruling -- it is a defect report about an artefact with one writer,
-        # and it routes to that writer in a mode that can rewrite. Found live
-        # on delivery rung one: the Tester took the parroting guard's exit,
-        # the question landed in a mode whose own brief says "answering is
-        # not amending", and the pair looped to the budget. Once per
-        # question: a repair session that leaves it unresolved has said the
-        # criterion is not the problem, and the ladder takes it from there.
-        refs = _refs_of(conn.execute(
-            "SELECT body_refs FROM messages WHERE id = ?",
-            (r["id"],)).fetchone()["body_refs"])
-        crits = [ref for ref in refs if conn.execute(
-            "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()]
-        # The Tester's, specifically. A Developer's criterion question is
-        # about what done *means* -- "does a partially reconciled order
-        # count?" -- which is scope, and the ladder's ruling territory. The
-        # Tester's is about whether the words can become an assertion, which
-        # is the writer's to fix. The reachability lint caught the wider
-        # claim hijacking `L1-AR-a-dead-answer` before it ever ran.
-        if crits and r["from_role"] == "tester":
-            repaired = conn.execute(
-                "SELECT 1 FROM sessions WHERE wake_kind = "
-                "'tick:criterion_repair' AND wake_refs LIKE ?",
-                (f'%"{r["id"]}"%',)).fetchone()
-            if not repaired:
-                wakes.append(Wake("terminologist", "tick:criterion_repair",
-                                  refs=(r["id"],),
-                                  detail=r["unresolved_note"] or ""))
+        # The Tester's criteria-ref questions belong to `criterion_repair`,
+        # which wakes the criterion's writer in a mode that can rewrite it.
+        # Ceded here rather than raced: two predicates offering one question
+        # would dispatch whichever band sorts first and starve the other.
+        if r["from_role"] == "tester" and _names_a_criterion(conn, r["id"]):
+            if not _repair_attempted(conn, r["id"]):
                 continue
-
         spoken = {m["from_role"] for m in conn.execute(
             "SELECT DISTINCT from_role FROM messages WHERE thread_id = ?",
             (r["thread_id"],))}
@@ -838,6 +846,52 @@ def unresolved(conn) -> list[Wake]:
                 wakes.append(Wake("liaison", "tick:unresolved", refs=(r["id"],),
                                   detail=r["unresolved_note"] or ""))
     return wakes
+
+
+def _names_a_criterion(conn, message_id: str) -> bool:
+    refs = _refs_of(conn.execute(
+        "SELECT body_refs FROM messages WHERE id = ?",
+        (message_id,)).fetchone()["body_refs"])
+    return any(conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                            (ref,)).fetchone() for ref in refs)
+
+
+def _repair_attempted(conn, message_id: str) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM sessions WHERE wake_kind = 'tick:criterion_repair' "
+        "AND wake_refs LIKE ?", (f'%"{message_id}"%',)).fetchone())
+
+
+@predicate("criterion_repair", wakes="terminologist", band="fix",
+           drains=[("messages", "status", "unresolved")])
+def criterion_repair(conn) -> list[Wake]:
+    """
+    A Tester's unresolved question that names a criterion wakes the
+    criterion's writer, in a mode that can rewrite it.
+
+    Not a ladder rung. A question whose refs name a criterion, asked by the
+    role whose job is turning criteria into assertions, is a defect report
+    about an artefact with one writer -- found live on delivery rung one,
+    where the Tester took the parroting guard's exit, the question landed in
+    a mode whose own brief says "answering is not amending", and the pair
+    looped to the budget. `criteria.specify` inserts and its predicate fires
+    per ticket *without* criteria, so once written, wrong stayed wrong.
+
+    A Developer's criterion question stays with the ladder: theirs is about
+    what done *means*, which is ruling territory. Once per question -- a
+    repair session that leaves it unresolved has said the criterion is not
+    the problem, and the ladder resumes.
+    """
+    return [
+        Wake("terminologist", "tick:criterion_repair", refs=(r["id"],),
+             detail=r["unresolved_note"] or "")
+        for r in conn.execute(
+            "SELECT id, unresolved_note FROM messages "
+            "WHERE status = 'unresolved' AND from_role = 'tester' "
+            "ORDER BY seq")
+        if _names_a_criterion(conn, r["id"])
+        and not _repair_attempted(conn, r["id"])
+    ]
 
 
 @predicate("review", wakes="critic", band="gate")
@@ -1169,7 +1223,7 @@ REGISTER_ENTRIES = frozenset({
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
-    "blindspot",
+    "blindspot", "criterion_repair",
 })
 
 

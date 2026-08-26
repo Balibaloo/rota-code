@@ -204,6 +204,27 @@
   .phead{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
          background:var(--panel);z-index:1}
   .phead h2{margin:0;font-size:15px;text-transform:none;letter-spacing:0;padding:0;border:0}
+  /* The kind rides in the title — "Architect ROLE" — so the header answers
+     what-is-this in one line instead of a title plus a caption under it. */
+  .phead .kind{font-size:10px;color:var(--dim);letter-spacing:.1em;
+      text-transform:uppercase;font-weight:500;margin-left:3px}
+  .phrow{display:flex;align-items:center;gap:8px}
+  .phact{margin-left:auto;color:var(--dim);cursor:pointer;border:1px solid var(--line);
+      border-radius:3px;padding:3px 5px;display:flex;align-items:center}
+  .phact:hover{color:var(--accent);border-color:var(--accent)}
+  /* Tools as chips: the name is the list, the signature is the hover. A wall
+     of TOOL: lines answered "what exactly" before anyone asked "what at all". */
+  .tools{display:flex;flex-wrap:wrap;gap:5px;padding:2px 0}
+  .tool{border:1px solid var(--line);border-radius:2px;padding:1px 7px;font-size:11px;
+      color:var(--label);cursor:help;background:var(--sunk)}
+  .tool:hover{border-color:var(--accent);color:var(--ink)}
+  /* Contact grammar: the connective words recede, the parties and verbs carry. */
+  .lnk{color:var(--idle);font-size:10.5px}
+  .vchip{border:1px solid var(--line);border-radius:2px;padding:0 6px;font-size:11px;
+      color:var(--label)}
+  .srow{display:grid;grid-template-columns:16px minmax(0,1.2fr) minmax(0,1fr) 62px 70px;
+      gap:8px;padding:4px 0;border-bottom:1px solid var(--hair);font-size:12px;
+      align-items:baseline}
   /* A fold is a control, not a colour statement. Marker carries "expandable";
      the raised band carries "clickable"; the body recedes because it is the
      thing you opened it to read. */

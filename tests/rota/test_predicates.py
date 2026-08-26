@@ -671,7 +671,8 @@ def test_the_register_set_is_the_one_the_document_names():
     """
     assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
         "the register names a predicate that does not exist"
-    assert len(P.REGISTER_ENTRIES) == 24   # sixteen, plus the onboarding phases
+    # Sixteen, plus the onboarding phases, plus `criterion_repair` 2026-08-26.
+    assert len(P.REGISTER_ENTRIES) == 25
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
@@ -1209,9 +1210,12 @@ def test_a_criteria_ref_reask_routes_to_the_owner_in_repair_mode(db):
     from rota.roles import prompts
 
     _bad_criterion(db)
-    wakes = unresolved(db)
+    from rota.core.predicates import criterion_repair
+
+    wakes = criterion_repair(db)
     assert [(w.role, w.kind, w.refs) for w in wakes] == \
         [("terminologist", "tick:criterion_repair", ("q1",))]
+    assert unresolved(db) == [], "ceded, not raced"
 
     out = run_session(
         db, wakes[0],
@@ -1243,8 +1247,10 @@ def test_a_repair_that_declines_hands_the_question_to_the_ladder(db):
     from rota.roles import prompts
 
     _bad_criterion(db)
+    from rota.core.predicates import criterion_repair
+
     out = run_session(
-        db, unresolved(db)[0],
+        db, criterion_repair(db)[0],
         backend=ScriptedBackend(["TOOL: msg.challenge_vision_keeper(refs=['c1'])",
                                  "done"]),
         pins=Pins(model="stub", temperature=0.0),
@@ -1257,7 +1263,7 @@ def test_a_repair_that_declines_hands_the_question_to_the_ladder(db):
 
     tips = [(w.role, w.detail) for w in open_tips(db)]
     assert ("vision_keeper", "challenge") in tips
-    assert not any(w.kind == "tick:criterion_repair" for w in unresolved(db))
+    assert criterion_repair(db) == [], "once per question"
 
 
 def test_a_barren_repair_leaves_the_question_to_the_ladder(db):
@@ -1274,8 +1280,10 @@ def test_a_barren_repair_leaves_the_question_to_the_ladder(db):
     from rota.roles import prompts
 
     _bad_criterion(db)
+    from rota.core.predicates import criterion_repair
+
     out = run_session(
-        db, unresolved(db)[0],
+        db, criterion_repair(db)[0],
         backend=ScriptedBackend(["done"]),
         pins=Pins(model="stub", temperature=0.0),
         instructions=prompts.compose("terminologist", "criterion_repair"))
@@ -1284,3 +1292,59 @@ def test_a_barren_repair_leaves_the_question_to_the_ladder(db):
     after = unresolved(db)
     assert after and after[0].kind == "tick:unresolved", "the ladder, not silence"
     assert after[0].role != "terminologist"
+
+
+def test_a_present_deferred_without_ruling_takes_the_lazy_path(db):
+    """
+    The limbo the put-once rule made: a present answered without a verdict --
+    the principal read it and moved on -- left its rows not decided, not
+    ledgered, and never re-offered. The filed entry's own suggestion closes
+    it: a deferral *is* an election, and those rows become ledger assumptions
+    awaiting first touch, without re-spending the attention that was already
+    declined.
+    """
+    import json as _json
+
+    from rota.core.loop import step
+    from rota.core.predicates import observed_entries
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('p1','t1','liaison',"
+               "'principal','present',?, 1,'answered')",
+               (_json.dumps(["g1"]),))
+    db.commit()
+
+    offer = observed_entries(db)
+    assert [(w.kind, w.refs) for w in offer] == \
+        [("do:defer_baseline", ("g1",))]
+
+    s = step(db, backend=ScriptedBackend(["done"]),
+             pins=Pins(model="stub", temperature=0.0))
+    assert "deferred 1" in (s.note or "")
+    row = db.execute("SELECT default_taken, author FROM ledger").fetchone()
+    assert "a note that seeds another" in row["default_taken"]
+    assert row["author"] == "principal"
+    assert observed_entries(db) == []
+
+
+def test_a_ruled_present_is_not_limbo(db):
+    """The bound: a present with a verdict is the eager path working, and its
+    contested rows are on file as contested -- not assumptions."""
+    import json as _json
+
+    from rota.core.predicates import observed_entries
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('p1','t1','liaison',"
+               "'principal','present',?,1,'answered')", (_json.dumps(["g1"]),))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq, status) VALUES ('v1','p1','t1',"
+               "'principal','liaison','verdict',?,2,'answered')",
+               (_json.dumps(["g1"]),))
+    db.commit()
+    assert observed_entries(db) == []

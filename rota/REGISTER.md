@@ -28,7 +28,7 @@ the predicate exists to keep offering it until it is not.
     checkpoint_invalid               survey            term_collision
     unresolved      orient           reconcile         define
     boundary        frame            reorient          challenge
-    blindspot
+    blindspot       criterion_repair
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.
@@ -183,6 +183,10 @@ through the front door.
 answered question of its own left it where it was. It goes on `schedule`
 because it is scheduler-facing rather than about any artefact -- a role telling
 the system about its own state, which is the one thing the system cannot
+`criterion_repair` joined 2026-08-26 and is register-shaped by the same test:
+a Tester's unresolved question naming a criterion is a repair owed, offered
+until the criterion's writer rewrites it or declines it back to the ladder.
+
 derive. New message status `unresolved`; the row is no longer open, so the
 asker is not held by `waiting`, and no longer answered, so the register stops
 believing the obligation is discharged.

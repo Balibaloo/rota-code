@@ -177,7 +177,11 @@ def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
         "inbound_verbs": sorted(prompts_mod.inbound_verbs(role_id)),
         "modes": modes,
         "sessions": sessions,
+        # Both halves by name, not just a score: the tested list is what the
+        # viewer joins against the case files to answer "which case earns
+        # this edge its green".
         "coverage": {"covered": len(covered), "total": len(mine),
+                     "exercised": sorted(str(e) for e in covered),
                      "missing": [str(e) for e in mine if e not in covered]},
     }
 

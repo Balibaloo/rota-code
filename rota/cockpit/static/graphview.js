@@ -1046,7 +1046,16 @@ function gvGoto(id) {
 
 function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);
   if (typeof syncHash==='function') syncHash();}
-function gvInhabit(id){GV.inhabit = GV.inhabit===id?null:id; GV.focus=null; gvDraw();
+function gvInhabit(id){
+  if (id) {
+    const n = GV.graph.nodes.find(x => x.id === id);
+    // Reach is a statement about a namespace, and only roles have one. On an
+    // artefact the filter emptied the canvas to a single box — a blank claim.
+    // The click that precedes every double-click already focused it, and
+    // keeping that focus is the honest answer.
+    if (!n || n.type !== 'role') return;
+  }
+  GV.inhabit = GV.inhabit===id?null:id; GV.focus=null; gvDraw();
   if(GV.inhabit) showNode(id);
   if (typeof syncHash==='function') syncHash();}
 function gvMode(m){GV.mode=m; GV.focus=null; GV.inhabit=null;
@@ -1419,17 +1428,18 @@ function gvControls(){
     {v:'__add__', label:'+ add layout…', act:true},
   ];
 
+  // No fit button: double-clicking empty canvas refits (wired in
+  // gvWireStage), and every programmatic reason to refit — mode switch,
+  // layout change — already calls gvFit itself.
   document.getElementById('gctl').innerHTML=`
     <button data-gmode="team" class="${team?'on':''}" onclick="gvMode('team')">team</button>
-    <button data-gmode="chat" class="${team?'':'on'}" onclick="gvMode('chat')">chat</button>
-    <span class="sep"></span>` + (team ? `
+    <button data-gmode="chat" class="${team?'':'on'}" onclick="gvMode('chat')">chat</button>` + (team ? `
+    <span class="sep"></span>
     <span class="cap">lens</span>
     <div class="dd" id="gsrc">${dd('gsrc', lensRows)}</div>
     <span class="cap">layout</span>
     <div class="dd" id="glay">${dd('glay', layRows)}</div>
-    <span class="sep"></span>
-    <button id="gfit">fit</button><button id="gsave">save layout</button>` : `
-    <button id="gfit">fit</button>`) + `
+    <button id="gsave">save layout</button>` : '') + `
     <span class="sep"></span>
     <button id="gcog" title="display settings">&#9881;</button>
     <span class="sig" id="gstatus"></span>
@@ -1442,7 +1452,6 @@ function gvControls(){
            n => deleteLayout(n));
     by('gsave').onclick = saveLayout;
   }
-  by('gfit').onclick = () => { gvFit(); gvDraw(); };
 
   const prefs = by('gprefs');
   const choice = (key, value, label, why) =>
@@ -1488,6 +1497,10 @@ function gvWireStage(){
   const svg=document.getElementById('gsvg');
   if (!svg) return;
   svg.onclick=()=>{if(!GV.dragged){GV.focus=null; gvDraw();}};
+  // Fit lives on the canvas itself: double-click empty ground brings the
+  // whole picture back. Node double-clicks stop propagation, so this only
+  // fires where there is nothing else to mean.
+  svg.ondblclick=()=>{if(!GV.dragged){gvFit(); gvDraw();}};
   let pan=null;
   svg.onmousedown=e=>{pan={x:e.clientX,y:e.clientY,vx:GV.view.x,vy:GV.view.y}; GV.dragged=false;};
   window.addEventListener('mousemove',e=>{

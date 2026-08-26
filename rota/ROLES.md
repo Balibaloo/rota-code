@@ -117,7 +117,7 @@ two senses is a finding, not a failure to resolve.
 **Reaches** architect (answer), developer (answer), vision_keeper (challenge),
 liaison (answer, report), researcher (question), tester (answer).
 
-**Woken by** criteria, define, term_collision.
+**Woken by** criteria, criterion_repair, define, term_collision.
 
 **Define is one word at a time, over the whole program.** The lexicon — what the
 checkout declares: directories, files, types, authoring keys — says which words,

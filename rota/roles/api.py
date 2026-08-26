@@ -2610,8 +2610,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"be turned into an assertion, "
             f"msg.question_vision_keeper(refs=['{criterion_id}'], "
             f"question='what observable behaviour is promised here?') if no "
-            f"machine could check what it promises. Retrying the same sentence "
-            f"is the one move that cannot land")
+            f"machine could check what it promises. And if you already asked "
+            f"and the answer changed nothing, schedule.reask(what_is_missing="
+            f"'words a test can assert') -- that is what routes the criterion "
+            f"to its writer for repair. Retrying the same sentence is the one "
+            f"move that cannot land")
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:

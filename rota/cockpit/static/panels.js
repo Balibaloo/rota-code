@@ -18,6 +18,9 @@ const P = () => document.getElementById('pbody');
 // notations, which reads as two facts. TEXT columns like `default_taken` stay
 // words: they carry which default, not whether.
 const FLAG_COLS = new Set(['committed', 'valid']);
+
+// Into an attribute, so quotes must go too — `esc` only covers text nodes.
+const attr = v => esc(v).replace(/"/g, '&quot;');
 const flag = v => (v === null || v === undefined || v === '')
   ? '<span class="empty">—</span>'
   : (+v ? '<span class="pass">✓</span>' : '<span class="fail">✗</span>');
@@ -131,67 +134,134 @@ function showCaseNode(id, n){
 }
 
 // ---------------------------------------------------------------- roles
+
+// Tools as chips: the name is the list, the full signature is the hover.
+const toolChips = list => (list && list.length)
+  ? `<div class="tools">${list.map(sig => `<span class="tool" data-tip="${
+      attr(sig)}">${esc(String(sig).split('(')[0])}</span>`).join('')}</div>`
+  : '<div class="empty">none</div>';
+
+// `architect <- code (tree)` back into its parts, so a coverage row can be
+// joined against the case files' edge tuples.
+function parseEdge(s) {
+  const m = String(s).match(/^(\S+) (<-|->|=>) (\S+) \((.+)\)$/);
+  if (!m) return null;
+  return {role: m[1],
+          kind: m[2] === '<-' ? 'reads' : m[2] === '->' ? 'writes' : 'messages',
+          target: m[3], verb: m[4]};
+}
+
+async function openCase(id) {
+  if (!CASES.length) {
+    try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+  }
+  showCase(id);
+}
+
 async function showRole(id) {
   phead(id, 'loading…');
   const r = await (await fetch(`/role.json?id=${encodeURIComponent(id)}`)).json();
+  // The case files, for joining coverage rows to the cases that earn them.
+  if (!CASES.length) {
+    try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+  }
 
-  const contacts = r.contacts.map(c=>`
-    <div class="row"><span class="link" onclick="gvFocus('${c.role}')">${esc(c.role)}</span>
-      <span class="sig">${esc(c.verbs.join(', ')||'no verb')}</span>
-      <div class="sig sub">${c.clause==='ask'
-        ? `may ask — reads ${esc(c.because_reads.join(', '))}, which ${esc(c.role)} writes`
-        : `may inform — ${esc(c.role)} reads ${esc(c.because_writes.join(', '))}`}</div>
-    </div>`).join('');
+  // "Architect ROLE" — the kind rides in the title, and the one header action
+  // is an icon with its explanation on hover, not a sentence of chrome.
+  document.getElementById('phead').innerHTML = `<div class="phrow">
+    <h2>${esc(r.label)} <span class="kind">role</span></h2>
+    <span class="phact" onclick="gvInhabit('${esc(id)}')"
+      data-tip="show only what this role can reach — the namespace its sessions are actually handed">
+      <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5"
+        fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M7 0 L7 3 M7 11 L7 14 M0 7 L3 7 M11 7 L14 7"
+        stroke="currentColor" stroke-width="1.4"/></svg></span></div>`;
+
+  const roledef = group('ROLE DEFINITION',
+    sec('Core prompt', `${(r.base_prompt||'').length} chars`,
+        `<pre>${esc(r.base_prompt)}</pre>`) +
+    sec('Tool definitions', r.working_set.length, toolChips(r.working_set)));
+
+  const sessionTypes = group('SESSION TYPES',
+    Object.entries(r.modes).map(([m,v])=>sec(
+      m, `${v.tools.length} tools`,
+      `<b class="sig">Prompt</b>
+       <pre>${esc(v.piece)}</pre>
+       <b class="sig">Tool definitions</b>${toolChips(v.tools)}
+       <details><summary class="sig">full composed prompt</summary>
+         <pre>${esc(v.composed)}</pre></details>`)).join('')
+    || '<div class="note">none beyond the role definition</div>');
+
+  // Contact grammar: "to <role> it may <verbs>", connectives receding. The
+  // derivation — which artefact makes the contact lawful — is the hover.
+  const contacts = r.contacts.map(c=>{
+    const why = c.clause==='ask'
+      ? `lawful because ${r.label} reads ${c.because_reads.join(', ')}, which ${c.role} writes`
+      : `lawful because ${c.role} reads ${c.because_writes.join(', ')}, which ${r.label} writes`;
+    return `<div class="row" style="display:flex;align-items:baseline;gap:6px"
+        data-tip="${attr(why)}">
+      <span class="lnk">to</span>
+      <span class="link" onclick="gvFocus('${esc(c.role)}')">${esc(c.role)}</span>
+      <span class="lnk">it may</span>
+      ${(c.verbs.length?c.verbs:['—']).map(v=>
+        `<span class="vchip">${esc(v)}</span>`).join('')}
+    </div>`;
+  }).join('');
+
+  // Coverage in two drawers, and every tested edge names the case that earns
+  // its green — matched against the cases' own required edges.
+  const casesFor = e => !e ? [] : CASES.filter(c =>
+    (c.edges && c.edges.required || []).some(t =>
+      t[0]===e.role && t[1]===e.target && t[2]===e.kind && t[3]===e.verb));
+  const tested = (r.coverage.exercised||[]).map(s=>{
+    const linked = casesFor(parseEdge(s));
+    return `<div class="row" style="display:flex;gap:8px;align-items:baseline">
+      <span style="flex:1">${esc(s)}</span>
+      ${linked.slice(0,3).map(c=>`<span class="link" style="font-size:11px"
+         onclick="openCase('${attr(c.id)}')">${esc(c.id.replace(/^L\d+-\w+-/,''))}</span>`).join('')}
+      ${linked.length>3?`<span class="sig">+${linked.length-3}</span>`:''}
+    </div>`;
+  }).join('');
+  const untested = r.coverage.missing.map(s=>
+    `<div class="row">${esc(s)}</div>`).join('');
 
   const wiring = group('WIRING',
-    sec('working set', r.working_set.length,
-        `<pre>${r.working_set.map(s=>'TOOL: '+esc(s)).join('<br>')}</pre>`, true) +
-    sec('contacts', r.contacts.length, contacts||'<div class="empty">none</div>') +
+    sec('contacts', r.contacts.length, contacts||'<div class="empty">none</div>', true) +
     sec('reads / writes', `${r.reads.length}r ${r.writes.length}w`,
       `<b class="sig">reads</b><div>${r.reads.map(a=>
         `<span class="link" onclick="showArtefact('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>
        <b class="sig">writes</b><div>${r.writes.map(a=>
         `<span class="link" onclick="showArtefact('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>`) +
-    sec('coverage', `${r.coverage.covered}/${r.coverage.total}`,
-      r.coverage.missing.length
-        ? `<b class="fail">untested edges</b><pre>${r.coverage.missing.map(esc).join('<br>')}</pre>`
-        : '<span class="pass">every edge exercised</span>'));
+    sec('coverage — tested', `${r.coverage.covered}/${r.coverage.total}`,
+        tested || '<div class="empty">nothing exercised yet</div>') +
+    sec('coverage — untested',
+        r.coverage.missing.length
+          ? `<span class="fail">${r.coverage.missing.length}</span>` : '0',
+        untested || '<span class="pass">every edge exercised</span>',
+        r.coverage.missing.length > 0));
 
+  // Sessions as aligned rows: verdict, session type, model, then volume —
+  // with the actual calls and writes on hover rather than spilling under
+  // every row.
   const sessions = r.sessions.map(s=>`
-    <div class="row">${s.committed?'<span class="pass">✓</span>':'<span class="fail">✗</span>'}
-      <span class="sig">${esc(s.mode)} · ${esc(s.model||'—')}</span>
-      <div class="sig sub">${esc(s.calls.join(' ')||'no calls')}</div>
-      ${s.writes.length?`<div class="sig sub">wrote ${esc(
-        s.writes.map(w=>w.table_name+':'+w.row_id).join(', '))}</div>`:''}
+    <div class="srow" data-tip="${attr(s.calls.join('  ')||'no calls')}"
+      data-tipmeta="${attr(s.writes.length
+        ? 'wrote ' + s.writes.map(w=>w.table_name+':'+w.row_id).join(', ')
+        : 'wrote nothing')}">
+      <span class="${s.committed?'pass':'fail'}">${s.committed?'✓':'✗'}</span>
+      <span>${esc(s.mode)}</span>
+      <span class="sig">${esc(s.model||'—')}</span>
+      <span class="sig" style="text-align:right">${s.calls.length} calls</span>
+      <span class="sig" style="text-align:right">${s.writes.length
+        ? `${s.writes.length} writes` : '—'}</span>
     </div>`).join('') || '<div class="empty">no sessions yet</div>';
 
   const state = group('STATE', sec('sessions', r.sessions.length, sessions, true));
 
-  // Mode first. A mode is the unit a session actually runs in — it decides the
-  // prompt *and* the tools, and the two only make sense read together. Grouping
-  // by artefact kind and listing modes underneath had it backwards.
-  // The base is the mode a session runs in when nothing more specific applies,
-  // so it belongs in the list rather than beside it — collapsed, because it is
-  // the one you read least often.
-  const modes = group('MODES',
-    sec('base — when no mode applies', `${r.working_set.length} tools`,
-      `<b class="sig">full working set</b>
-       <pre>${r.working_set.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>
-       <b class="sig">what it is told</b>
-       <pre>${esc(r.base_prompt)}</pre>`) +
-    Object.entries(r.modes).map(([m,v])=>sec(
-      m, `${v.tools.length} tools`,
-      `<b class="sig">tools in this mode</b>
-       <pre>${v.tools.map(t=>'TOOL: '+esc(t)).join('<br>')}</pre>
-       <b class="sig">what it is told</b>
-       <pre>${esc(v.piece)}</pre>
-       <details><summary class="sig">full composed prompt</summary>
-         <pre>${esc(v.composed)}</pre></details>`)).join('')
-    );
-
-  phead(r.label, `role · woken by ${esc(r.inbound_verbs.join(', ')||'ticks only')}`,
-    `<span class="link" onclick="gvInhabit('${id}')">show only what it reaches</span>`);
-  P().innerHTML = `<div class="note">${esc(r.note)}</div>${modes}${wiring}${state}`;
+  // One sentence per line: the notes are declarative sentences, and a
+  // paragraph block made them read as one run-on claim.
+  P().innerHTML = `<div class="note">${esc(r.note).replace(/\.\s+/g,'.<br>')}</div>`
+    + roledef + sessionTypes + wiring + state;
 }
 
 // ---------------------------------------------------------------- artefacts
@@ -433,8 +503,6 @@ async function refresh() {
   // arrive structured: role plus the refs that tripped it, so a firing row
   // says not just that term_collision fires but *about which rows*.
   const pmeta = s.predicate_meta || {};
-  // Into an attribute, so quotes must go too — `esc` only covers text nodes.
-  const attr = v => esc(v).replace(/"/g, '&quot;');
   const wakesOf = w => (w||[]).map(x =>
     typeof x === 'string' ? {role:x, refs:[], detail:''} : x);
   const wakeLabel = x => {
@@ -476,10 +544,39 @@ async function refresh() {
         ${esc(n)}</span><em>${wk.map(wakeLabel).join(' · ')}</em></div>`;
     }));
 
+  // The pill's hover justifies the pill: what makes the verdict true right
+  // now, and what would change it. The row counts that used to live here
+  // answered a question nobody was asking of a *status* pill.
+  const verdict = st_.textContent;
+  const whySentence =
+      stuck ? `Work is pending and nothing has been written for ${fmt(quiet||0)},
+        while a claim is held — the session below is wedged mid-flight.
+        Its transcript is the place to look.`
+    : unrun ? `Work is pending, nothing has been written for ${fmt(quiet||0)},
+        and no claim is held: nothing is running this database.
+        Starting a runner (rota run) advances it.`
+    : busy  ? `Work is pending and being worked${claims.length
+                ? ' — a claim is held' : ''}${quiet!==null && quiet<30
+                ? `; last write ${fmt(quiet)} ago` : ''}.`
+    :         `The frontier is empty: no message tip, no predicate firing.
+        Nothing to do until something writes.`;
+  const pendingRows = [
+    ...tips.map(t => `${esc(t.role)} ← ${esc(t.verb)}`),
+    ...predEntries.filter(([,wk]) => wk.length).map(([n,wk]) =>
+      esc(n) + ((wk[0].refs||[]).length
+        ? ` ← ${esc(wk[0].refs.slice(0,2).join(', '))}` : '')),
+  ];
   document.getElementById('pop-state').innerHTML =
-    `<h4>rows on record</h4>` +
-    rows(Object.entries(s.counts).map(([k,v])=>
-      `<div class="prow"><span>${esc(k)}</span><em>${v}</em></div>`));
+    `<h4>why ${esc(verdict)}</h4>
+     <div style="max-width:300px;line-height:1.55">${whySentence}</div>` +
+    (pendingRows.length ? `<h4>pending</h4>` +
+      rows(pendingRows.map(b=>`<div class="prow"><span>${b}</span></div>`)) : '') +
+    (claims.length ? `<h4>claims held</h4>` +
+      rows(claims.map(c=>`<div class="prow"><span>${esc(c.role)}</span>
+        <em>${esc(c.session_id)}${c.message_id?` ← ${esc(c.message_id)}`:''}</em></div>`)) : '') +
+    (quiet !== null ? `<h4>last write</h4>
+      <div class="prow"><span>${fmt(quiet)} ago</span>
+        <em>off the file's own clock</em></div>` : '');
 
   // Everything above feeds the header, which is on every tab. Everything
   // below paints the live grid, which is not — and painting a hidden grid is
