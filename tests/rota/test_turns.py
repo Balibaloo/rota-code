@@ -282,3 +282,52 @@ def test_a_tick_carrying_artefact_ids_resolves_to_nothing(tmp_path):
     db.commit()
     assert resolve_inbound(db, Wake("vision_keeper", "tick:slicing",
                                     refs=("i1",))) == {}
+
+
+def test_the_question_matched_push_needs_both_glossary_reads(tmp_path):
+    """
+    The bodies are looked up by term and the terms are enumerated from the
+    index, so a mode holding one read and not the other cannot do it.
+
+    Architect's `unresolved` mode has `glossary.lookup` and no
+    `glossary.consult`. Enumerating unguarded raised `NotInWorkingSet` -- which
+    is raised rather than returned, and the push runs before the model sees
+    anything, so the whole session died before its first turn.
+    `L1-AR-a-dead-answer-is-a-question-about-the-model` went from green to 0/5,
+    with the failure reported as "none of the permitted answers was given".
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.sandbox import build
+    from rota.core.runner import push_working_set
+    from rota.design import graph as graph_mod
+    from rota.roles import prompts
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','what is a template here?',1)")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
+               "provenance) VALUES ('g1','template','a seed note','the body',"
+               "'observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','t1','developer','architect',"
+               "'question',?,1)", (json.dumps([]),))
+    db.commit()
+
+    g = graph_mod.load()
+    wake = Wake("architect", "tick:unresolved", refs=("m1",))
+    sb = build("architect", db, mode="normal", session_id="s1", g=g,
+               allow=prompts.mode_tools("architect", "unresolved"), wake=wake)
+    assert "glossary.lookup" in sb.functions()
+    assert "glossary.consult" not in sb.functions()
+
+    # The point: this must return rather than raise.
+    pushed = push_working_set("architect", sb, wake, g,
+                              asked="what is a template here?")
+    # `glossary.lookup` is still pushed by the no-argument rule -- as the miss
+    # for the empty term, which is what it has always been here. What must not
+    # happen is the question-matched form, which is keyed by term and needs the
+    # index this mode cannot read.
+    assert "template" not in (pushed.get("glossary.lookup") or {})

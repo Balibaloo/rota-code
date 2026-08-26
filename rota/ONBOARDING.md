@@ -889,6 +889,43 @@ it can be structural at all: in general "the answer did not land" is invisible
 to a query, and on this one route the owner says it by citing a row with a
 fixed id that means "not surveyed".
 
+**And with all of it working, the route answered worse than the probe it
+replaces.** That is the measurement that matters and it had never been taken:
+the same eight maintainer questions, the same answer key, through the wired
+system instead of through `probes/consult.py`. The probe scores 4 of 8 strict.
+The route scored none, two of the eight reaching the principal with nothing at
+all and two with confident wrong answers -- on the rename question it replied
+"the build passing indicates the change is compatible", which is the exact trap
+the question exists to set.
+
+One cause was in the push and is fixed. `push_working_set` offers every read
+that is *callable with no arguments*, which is the right rule and left
+`glossary.lookup` invoked with an empty term: the session arrived holding an
+index of one-line senses and the full sense of nothing. The probe does the
+opposite and says so in its own docstring -- "the index of short senses whole,
+and full bodies only for the terms the question's words name --
+`glossary.lookup`, mechanically" -- and that is the same rule as `area` for a
+survey. The subject belongs to the wake, not to the role, so the system
+supplies it rather than asking a cold session to think of it. Re-measured: one
+near-hit and three partials against none, and silence down from two to one.
+
+Two causes remain, and both are the design's own words.
+
+**There is no fan-out.** Every one of the eight questions went to exactly one
+owner. The story this route comes from says Liaison "opens readonly sessions"
+-- plural -- and "three answers compose into one reply", and
+`L1-LI-a-question-about-the-program-goes-to-its-owners` says in its own notes
+that "which owner holds the answer is not Liaison's to know -- that is the
+whole reason the question is routed rather than answered". It is choosing one
+anyway, and the ladder only reaches the others when an answer is *detectably*
+hollow. A confident wrong answer stops it, which is what the rename question
+produced.
+
+**And the relay degrades what it carries.** Asked which kinds of template
+variable exist, the reply to the principal ended with the owner's own question
+back to itself -- "What is the meaning of the term 'ReservedVariableName'?" --
+because Liaison is summarising an answer rather than passing it through.
+
 **Intake had two branches and needed three.** `converse.md` asked "is this chat
 or work?" and settled ties twice -- "Default to chat", "When in doubt, chat" --
 so a question about the onboarded program, which is neither, fell to the

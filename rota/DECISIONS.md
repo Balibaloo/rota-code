@@ -526,6 +526,39 @@ should flow into work without the principal saying so again; the answer is
 almost certainly no, because "that sounds fine" is not a commitment, and the
 whole ratification gate exists to keep those apart.
 
+### Liaison chooses which owner holds the answer, and that is not its to know
+
+Measured, not suspected: the eight maintainer questions through the wired route
+each went to **exactly one** owner. The question naming `intents_to` went to
+Architect and never to Terminologist, which holds the term. The question about
+global versus local intents went to Terminologist and never to Vision Keeper,
+which holds what the program promises.
+
+Three places say it should not work that way. The design story this route comes
+from: Liaison "opens readonly sessions" -- plural -- and "three answers compose
+into one reply". `converse.md`, in the brief that shipped: "Ask **every** owner
+that might hold part of the answer, not just the likeliest one." And the case's
+own notes: "which owner holds the answer is not Liaison's to know -- that is the
+whole reason the question is routed rather than answered."
+
+It asks one anyway, and the prose has now had its turn. The ladder covers some
+of it -- an owner that cannot answer sends the question on -- but only when the
+non-answer is *detectable*, and a confident wrong answer is not. That is what
+the rename question produced: a fluent paragraph advising the reader to update
+their references, missing the entire user-facing consequence the question was
+built around, with nothing in the state to say it had missed.
+
+**Open, because the shape of the fix is a real choice.** The narrow reading is
+that fanning out is not Liaison's decision at all and the three asks are one
+act -- one call that stages all three, so there is nothing to choose and the
+absence does the instructing, which is the only thing that has held in this
+route. The wider reading is that three read-only sessions per question is the
+right *default* and the brief should still allow one when the question names a
+word and nothing else. What decides it is what three answers cost: they are
+free in the sense law 10 means -- no writes, no checkpoint disturbed -- and not
+free in turns, and the composition problem gets harder with three inputs when
+the relay already degrades one.
+
 ### The frontier, when several things are ready — the big one
 
 Wakes are ordered by band, then **alphabetically by predicate name**. The loop

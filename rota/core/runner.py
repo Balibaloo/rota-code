@@ -732,7 +732,8 @@ def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
 
 
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
-                     g: graph_mod.Graph | None = None) -> dict[str, Any]:
+                     g: graph_mod.Graph | None = None,
+                     asked: str = "") -> dict[str, Any]:
     """
     What arrives in the prompt without being asked for.
 
@@ -765,7 +766,73 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed[name] = sb.call(name)
         except (TypeError, sandbox_mod.ArgumentError):
             continue     # needs to be told something; leave it to the model
+
+    # One read needs an argument the *wake* already knows, and leaving it to
+    # the model cost the whole inquiry route.
+    #
+    # `glossary.lookup` takes a term. Callable-with-no-arguments invoked it with
+    # none, which returns the miss for the empty string, and the session then
+    # had the index of short senses and no full sense of anything. Measured on
+    # the eight maintainer questions: `probes/consult.py` pushes exactly this --
+    # "the index of short senses whole, and full bodies only for the terms the
+    # question's words name -- `glossary.lookup`, mechanically" -- and scored
+    # 4 of 8 where the wired route scored none.
+    #
+    # It is the same rule as `area` for a survey: the subject is the wake's, not
+    # the role's, so the system supplies it rather than asking a cold session to
+    # think of it.
+    # Both, not just the lookup: the terms are enumerated from the index,
+    # and a mode can hold one without the other. Architect's `unresolved`
+    # has `glossary.lookup` and no `glossary.consult`, so an unguarded
+    # enumeration killed the session outright -- `NotInWorkingSet` is
+    # raised, not returned, and the push runs before the model sees
+    # anything. 0/5 on a case that had been green.
+    have = set(sb.functions())
+    if asked and {"glossary.lookup", "glossary.consult"} <= have:
+        bodies = {}
+        for term in _terms_named_in(sb, asked):
+            try:
+                bodies[term] = sb.call("glossary.lookup", term=term)
+            except Exception:                              # noqa: BLE001
+                continue
+        if bodies:
+            pushed["glossary.lookup"] = bodies
     return pushed
+
+
+def _terms_named_in(sb: sandbox_mod.Sandbox, asked: str) -> list[str]:
+    """
+    The glossary terms whose words appear in the question.
+
+    Mechanical, and deliberately generous about word shape: the question says
+    "recipes" and the glossary says "recipe", the question says "template
+    variable" and the term is `TemplateVariable`. Matching on the term's own
+    tokens rather than the phrase means a multi-word term is found by any of
+    its words, which is the direction to err in -- a body pushed and not needed
+    costs characters, and a body missing costs the answer.
+    """
+    words = set()
+    for w in asked.split():
+        w = w.strip("`'\".,?:;()[]").lower()
+        if len(w) >= 3:
+            words.add(w)
+            words.add(w.rstrip("s"))
+            words.update(p for p in w.replace("_", " ").split() if len(p) >= 3)
+
+    found = []
+    for row in sb.call("glossary.consult") or []:
+        term = (row.get("term") if isinstance(row, dict) else None) or ""
+        tokens = {term.lower()}
+        tokens.update(t for t in term.lower().replace("_", " ").split())
+        tokens.update(t.rstrip("s") for t in set(tokens))
+        # CamelCase, which is most of a TypeScript glossary: the question
+        # says "template variable" and the term is `TemplateVariable`.
+        split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", term)
+        tokens.update(re.findall(r"[a-z]+", split.lower()))
+        tokens.update(t.rstrip("s") for t in set(tokens))
+        if tokens & words:
+            found.append(term)
+    return found
 
 
 def run_session(
@@ -855,8 +922,10 @@ def run_session(
     outcome = RunOutcome(session_id=session_id, committed=False, iterations=0)
 
     try:
-        pushed = push_working_set(wake.role, sb, wake, g)
         inbound = resolve_inbound(conn, wake)
+        pushed = push_working_set(
+            wake.role, sb, wake, g,
+            asked=inbound.get("principal_said") or inbound.get("asks") or "")
         system, user = build_prompt(wake.role, sb, wake, pushed, instructions, inbound)
         outcome.system, outcome.user = system, user
         pins = pins.with_prompt(system + user)
