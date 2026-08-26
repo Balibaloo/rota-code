@@ -761,6 +761,36 @@ def unresolved(conn) -> list[Wake]:
 
     wakes = []
     for r in rows:
+        # A question whose refs name a criterion is not climbing toward a
+        # ruling -- it is a defect report about an artefact with one writer,
+        # and it routes to that writer in a mode that can rewrite. Found live
+        # on delivery rung one: the Tester took the parroting guard's exit,
+        # the question landed in a mode whose own brief says "answering is
+        # not amending", and the pair looped to the budget. Once per
+        # question: a repair session that leaves it unresolved has said the
+        # criterion is not the problem, and the ladder takes it from there.
+        refs = _refs_of(conn.execute(
+            "SELECT body_refs FROM messages WHERE id = ?",
+            (r["id"],)).fetchone()["body_refs"])
+        crits = [ref for ref in refs if conn.execute(
+            "SELECT 1 FROM criteria WHERE id = ?", (ref,)).fetchone()]
+        # The Tester's, specifically. A Developer's criterion question is
+        # about what done *means* -- "does a partially reconciled order
+        # count?" -- which is scope, and the ladder's ruling territory. The
+        # Tester's is about whether the words can become an assertion, which
+        # is the writer's to fix. The reachability lint caught the wider
+        # claim hijacking `L1-AR-a-dead-answer` before it ever ran.
+        if crits and r["from_role"] == "tester":
+            repaired = conn.execute(
+                "SELECT 1 FROM sessions WHERE wake_kind = "
+                "'tick:criterion_repair' AND wake_refs LIKE ?",
+                (f'%"{r["id"]}"%',)).fetchone()
+            if not repaired:
+                wakes.append(Wake("terminologist", "tick:criterion_repair",
+                                  refs=(r["id"],),
+                                  detail=r["unresolved_note"] or ""))
+                continue
+
         spoken = {m["from_role"] for m in conn.execute(
             "SELECT DISTINCT from_role FROM messages WHERE thread_id = ?",
             (r["thread_id"],))}

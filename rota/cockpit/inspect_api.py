@@ -81,8 +81,22 @@ def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> di
             version = conn.execute(
                 "SELECT version FROM artefact_versions WHERE table_name = ?",
                 (table,)).fetchone()
+            # Writes per *row*, counted off the receipts. The table-level
+            # version is a whole-table odometer — useful arithmetic for
+            # revocation, a strange thing to read next to a row. "This row
+            # was written three times" is the statistic a reader can use,
+            # and it is one click from provenance's "by whom".
+            touched = {r["row_id"]: r["n"] for r in conn.execute(
+                "SELECT row_id, COUNT(*) n FROM receipts "
+                "WHERE table_name = ? GROUP BY row_id", (table,))}
+            key = "id" if "id" in cols else (cols[0] if cols else None)
+            if touched and key:
+                for r in rows:
+                    r["writes"] = touched.get(str(r.get(key)), "")
             out["tables"].append({
-                "name": table, "columns": cols, "rows": rows,
+                "name": table,
+                "columns": cols + (["writes"] if touched and key else []),
+                "rows": rows,
                 "version": version["version"] if version else 0,
                 "count": conn.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()["n"],
             })

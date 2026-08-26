@@ -206,14 +206,14 @@ async function showArtefact(id) {
     // Rows are clickable now. Everything needed to answer "why is this here"
     // was already served and there was no path through it, so the path is the
     // row itself: click it and you get the session, the wake, and the cause.
-    : sec(t.name, `${t.count} rows · v${t.version}`,
+    : sec(t.name, `${t.count} rows`,
           rowTable(t.name, t.rows, t.columns), t.count>0 && t.count<50)).join('');
 
   const state = group('STATE',
     (tables || '<div class="empty">no rows yet</div>') +
     ((a.receipts||[]).length
       ? sec('recent writes', a.receipts.length,
-            table(a.receipts, ['role','table_name','row_id','new_version']))
+            table(a.receipts, ['role','table_name','row_id']))
       : ''));
 
   const wiring = group('WIRING',
@@ -389,13 +389,35 @@ async function refresh() {
   catch{ st_.textContent='server gone'; st_.className='state stuck'; return; }
 
   const tips=s.frontier.tips, preds=s.frontier.predicates;
+  const claims=s.claims||[];
   const sig=JSON.stringify([tips,preds,s.versions]);
   if (sig===lastSig) stalled++; else {stalled=0; lastSig=sig;}
-  const busy=tips.length+preds.length>0, stuck=busy&&stalled>6;
-  st_.textContent = stuck?'STUCK':busy?'WORK PENDING':'QUIESCENT';
+  // Stillness is the server's fact, not this page's. The old counter tallied
+  // polls with an unchanged snapshot — a number that reset to zero on every
+  // reload (the fingerprint reloads this page on every source edit), changed
+  // meaning with the poll cadence, and read "moving" for a session busy
+  // writing tool calls. `quiet_secs` is seconds since anything was written to
+  // the run, off the file's own clock; the poll counter remains only as the
+  // fallback against a server that predates it.
+  const quiet = typeof s.quiet_secs === 'number' ? s.quiet_secs : null;
+  // Three kinds of "nothing is moving", and only one is a fault. Work pending
+  // and changing is a system in motion. Work pending, still, with a claim
+  // held is a session wedged mid-flight — stuck, and red; a slow local turn
+  // is 40–90s of legitimate silence, so STUCK waits out two of them. Work
+  // pending, still, with NO claim held is not stuck at all: nothing is
+  // running this database, and the fix is a runner, not a debugger.
+  const busy=tips.length+preds.length>0;
+  const stuck=busy&&claims.length>0&&(quiet!==null?quiet>180:stalled>6);
+  const unrun=busy&&!claims.length&&(quiet!==null?quiet>30:stalled>6);
+  st_.textContent = stuck?'STUCK':unrun?'NO RUNNER'
+                   :busy?'WORK PENDING':'QUIESCENT';
   st_.className='state '+(stuck?'stuck':busy?'busy':'idle');
+  const fmt = se => se>=5400?Math.round(se/3600)+'h':se>=90?Math.round(se/60)+'m'
+                   :Math.round(se)+'s';
   tick_.textContent = `${tips.length} tip · ${preds.length} predicate`
-    + (stalled?` · still for ${stalled}`:'');
+    + (quiet!==null ? (quiet>=30?` · last write ${fmt(quiet)} ago`:'')
+                    : (stalled?` · still for ${stalled}`:''))
+    + (unrun?' · no claim held — start a runner to advance it':'');
 
   // Header hover: the detail without the real estate.
   //
@@ -406,17 +428,53 @@ async function refresh() {
   // native tooltip is the one that cannot be laid out, coloured or clicked.
   const rows = xs => xs.length ? xs.join('') : '<div class="pnone">none</div>';
 
+  // Each predicate explains itself on hover, off the registry's own
+  // docstring — served, never restated here where it could drift. Wakes
+  // arrive structured: role plus the refs that tripped it, so a firing row
+  // says not just that term_collision fires but *about which rows*.
+  const pmeta = s.predicate_meta || {};
+  // Into an attribute, so quotes must go too — `esc` only covers text nodes.
+  const attr = v => esc(v).replace(/"/g, '&quot;');
+  const wakesOf = w => (w||[]).map(x =>
+    typeof x === 'string' ? {role:x, refs:[], detail:''} : x);
+  const wakeLabel = x => {
+    const refs = (x.refs||[]).length ? x.refs
+               : (x.detail ? [x.detail] : []);
+    return esc(x.role) + (refs.length
+      ? ` ← ${esc(refs.slice(0,3).join(', '))}${refs.length>3?` +${refs.length-3}`:''}`
+      : '');
+  };
+  // One predicate list from two sources. The per-tick sweep names the tick
+  // functions, mostly quiet; the frontier's wakes come from the wider
+  // registry — term_collision fires through the frontier and was never in
+  // the tick list, so the pill counted a predicate the popover could not
+  // show. Merged and deduped (a tick that fires appears in both), firing
+  // rows first.
+  const predRows = {};
+  for (const [n, w] of Object.entries(s.predicate_status))
+    predRows[n] = wakesOf(w);
+  for (const p of preds) {
+    const n = String(p.kind || '').replace(/^tick:/, '') || 'frontier';
+    const list = (predRows[n] = predRows[n] || []);
+    const key = p.role + '|' + (p.refs || []).join(',');
+    if (!list.some(x => x.role + '|' + (x.refs || []).join(',') === key))
+      list.push({role: p.role, refs: p.refs || [], detail: p.detail || ''});
+  }
+  const predEntries = Object.entries(predRows)
+    .sort((a, b) => (b[1].length ? 1 : 0) - (a[1].length ? 1 : 0));
+
   document.getElementById('pop-tick').innerHTML =
     `<h4>frontier tips</h4>` +
     rows(tips.map(t=>`<div class="prow"><span>${esc(t.role)}</span>
       <em>← ${esc(t.verb)}</em></div>`)) +
     `<h4>predicates</h4>` +
-    rows(Object.entries(s.predicate_status).map(([n,w])=>
-      `<div class="prow"><span class="${w.length?'pon':'poff'}">${w.length?'●':'○'}
-        ${esc(n)}</span><em>${esc(w.join(', '))}</em></div>`)) +
-    `<h4>versions</h4>` +
-    rows(s.versions.map(v=>`<div class="prow"><span>${esc(v.table_name)}</span>
-      <em>v${v.version}</em></div>`));
+    rows(predEntries.map(([n,wk])=>{
+      const m = pmeta[n];
+      return `<div class="prow" data-tip="${attr(m ? m.why : '')}"
+        data-tipmeta="${attr(m ? `wakes ${m.wakes} · band ${m.band}` : '')}">
+        <span class="${wk.length?'pon':'poff'}">${wk.length?'●':'○'}
+        ${esc(n)}</span><em>${wk.map(wakeLabel).join(' · ')}</em></div>`;
+    }));
 
   document.getElementById('pop-state').innerHTML =
     `<h4>rows on record</h4>` +
@@ -430,11 +488,18 @@ async function refresh() {
 
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
   set('tips', table(tips,['role','verb','message']));
-  set('preds', Object.entries(s.predicate_status).map(([n,w])=>
-    `<div class="${w.length?'':'muted'}">${w.length?'●':'○'} ${esc(n)}
-      <span class="sig">${esc(w.join(', '))}</span></div>`).join(''));
+  set('preds', predEntries.map(([n,wk])=>{
+    const m = pmeta[n];
+    const firing = wk.map(x =>
+      `<div class="sub" style="margin-left:16px">${wakeLabel(x)}</div>`).join('');
+    return `<div class="${wk.length?'':'muted'}" style="margin-bottom:7px">${
+        wk.length?'●':'○'} ${esc(n)}
+      ${firing}
+      ${m?`<div class="sig sub">${esc(m.why)}${m.wakes
+        ?` <span class="empty">— wakes ${esc(m.wakes)}</span>`:''}</div>`:''}</div>`;
+  }).join(''));
   set('sessions', table(s.sessions,['id','role','mode','committed','model']));
-  set('receipts', table(s.receipts,['role','table_name','row_id','new_version']));
+  set('receipts', table(s.receipts,['role','table_name','row_id']));
   set('messages', table(s.messages,['from_role','to_role','verb','status','attempts']));
   set('calls', table(s.tool_calls,['fn','args_summary']));
   set('items', table(s.items,['id','kind','approval','approval_ver','version','headline']));
@@ -447,17 +512,43 @@ async function refresh() {
 
 const st_=document.getElementById('state'), tick_=document.getElementById('tick');
 
-for (const [el, pop] of [[st_, 'pop-state'], [tick_, 'pop-tick']]) {
+// A popover you can enter, not just glimpse. The panel opens ~20px below its
+// trigger, and the old wiring closed it the moment the pointer left the
+// trigger — the gap was a moat, and `matches(':hover')` at mouseleave time
+// races the event order, so the predicate list closed under the cursor on
+// the way to it. Closing now waits a beat, and entering the panel cancels
+// it; a transparent bridge in the CSS spans the gap so the wait is rarely
+// even needed.
+const POPS = [[st_, 'pop-state'], [tick_, 'pop-tick']];
+for (const [el, pop] of POPS) {
   const box = document.getElementById(pop);
-  const place = () => {
+  let hide = null;
+  const open = () => {
+    clearTimeout(hide); hide = null;
+    // One popover at a time: moving from the pill to the counter swaps
+    // panels in the same instant, instead of two lingering side by side.
+    for (const [, other] of POPS)
+      if (other !== pop) document.getElementById(other).classList.remove('on');
     const r = el.getBoundingClientRect();
     box.style.left = Math.max(8, r.left) + 'px';
+    box.classList.add('on');
   };
-  el.addEventListener('mouseenter', () => {place(); box.classList.add('on');});
-  el.addEventListener('mouseleave', e => {
-    if (!box.matches(':hover')) box.classList.remove('on');
-  });
-  box.addEventListener('mouseleave', () => box.classList.remove('on'));
+  const close = () => {
+    clearTimeout(hide);
+    // One breath, not a grace period. A synchronous close hides the panel
+    // before its own mouseenter can fire (the original bug), and inside the
+    // trigger's mouseleave handler `:hover` lies — but by the time a timer
+    // runs, every event from that one pointer move has landed and `:hover`
+    // answers truthfully. The bridge does the real work of keeping the
+    // crossing unbroken; 60ms is below what a hand can feel.
+    hide = setTimeout(() => {
+      if (!box.matches(':hover') && !el.matches(':hover'))
+        box.classList.remove('on');
+    }, 60);
+  };
+  el.addEventListener('mouseenter', open);
+  el.addEventListener('mouseleave', close);
+  box.addEventListener('mouseleave', close);
 }
 
 async function loadCoverage(){
@@ -579,6 +670,32 @@ async function loadRuns(){
   } catch {}
 }
 loadRuns();
+
+// ----------------------------------------------------------------- tooltip
+// The house tooltip. A native `title` waits half a second, paints in the
+// OS's style, and cannot carry structure — this one is instant, set in the
+// cockpit's own type, and there is exactly one of it, fed by whatever
+// element under the pointer carries `data-tip` (with `data-tipmeta` as a
+// dimmer second line). It never traps the pointer: pointer-events is off.
+(function(){
+  const tip = document.getElementById('tip');
+  if (!tip) return;
+  document.addEventListener('mouseover', e => {
+    const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (!t || !t.dataset.tip) { tip.style.display = 'none'; return; }
+    tip.innerHTML = esc(t.dataset.tip) + (t.dataset.tipmeta
+      ? `<div class="tipmeta">${esc(t.dataset.tipmeta)}</div>` : '');
+    tip.style.display = 'block';
+    // Below the row, clamped to the viewport; above it when there is no room.
+    const r = t.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    const x = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    let y = r.bottom + 6;
+    if (y + h > window.innerHeight - 8) y = r.top - h - 6;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  });
+})();
 
 // ---------------------------------------------------------------- url paths
 // The address bar is the query — #/graph?lens=coverage&node=critic names a

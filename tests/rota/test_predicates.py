@@ -1174,3 +1174,113 @@ def test_the_eager_default_is_unchanged(db):
     offer = observed_entries(db)
     assert [(w.role, w.kind) for w in offer] == \
         [("liaison", "tick:observed_entries")]
+
+
+def _bad_criterion(db):
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','emails are stored "
+               "lowercased','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('t1','i1','store the email lowercased on registration')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','t1','store the email lowercased on registration','[]')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status, unresolved_note) VALUES "
+               "('q1','th1','tester','terminologist','question','[\"c1\"]',"
+               "'what would make this checkable?',1,'unresolved',"
+               "'encoding it is parroting')")
+    db.commit()
+
+
+def test_a_criteria_ref_reask_routes_to_the_owner_in_repair_mode(db):
+    """
+    A question whose refs name a criterion is not climbing toward a ruling --
+    it is a defect report about an artefact with one writer. Found live on
+    delivery rung one: the Tester took the parroting guard's exit, the
+    question landed in a mode whose own brief says "answering is not
+    amending", and the pair looped to the budget, because `criteria.specify`
+    is offered in one mode whose predicate fires per ticket *without*
+    criteria. Once written, wrong stayed wrong -- and the delivery cluster's
+    stable reds all sit downstream of that.
+    """
+    from rota.core.predicates import unresolved
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles import prompts
+
+    _bad_criterion(db)
+    wakes = unresolved(db)
+    assert [(w.role, w.kind, w.refs) for w in wakes] == \
+        [("terminologist", "tick:criterion_repair", ("q1",))]
+
+    out = run_session(
+        db, wakes[0],
+        backend=ScriptedBackend([
+            "TOOL: criteria.respecify(id='c1', text=\"register stores "
+            "'a@b.com' for input 'A@B.com'\")",
+            "TOOL: msg.answer_tester(refs=['c1'])", "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts.compose("terminologist", "criterion_repair"))
+    assert out.committed, out.errors
+
+    assert "a@b.com" in db.execute(
+        "SELECT text FROM criteria WHERE id='c1'").fetchone()["text"]
+    assert db.execute("SELECT status FROM messages WHERE id='q1'"
+                      ).fetchone()["status"] == "answered"
+    assert unresolved(db) == []
+
+
+def test_a_repair_that_declines_hands_the_question_to_the_ladder(db):
+    """
+    The bound, and the escape the mode's brief names: a repair session that
+    ends without respecifying has said the criterion is not what is wrong.
+    Once per question -- the session row is the record -- and the ladder
+    takes it from there instead of the repair re-firing forever.
+    """
+    from rota.core.predicates import unresolved
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles import prompts
+
+    _bad_criterion(db)
+    out = run_session(
+        db, unresolved(db)[0],
+        backend=ScriptedBackend(["TOOL: msg.challenge_vision_keeper(refs=['c1'])",
+                                 "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts.compose("terminologist", "criterion_repair"))
+    assert out.committed, out.errors
+
+    # The decline-by-challenge carries the problem itself: Vision Keeper holds
+    # a live tip naming the criterion, and the repair does not re-fire.
+    from rota.core.scheduler import open_tips
+
+    tips = [(w.role, w.detail) for w in open_tips(db)]
+    assert ("vision_keeper", "challenge") in tips
+    assert not any(w.kind == "tick:criterion_repair" for w in unresolved(db))
+
+
+def test_a_barren_repair_leaves_the_question_to_the_ladder(db):
+    """
+    The hole the auto-answer line had: any committed session answered its
+    trigger, so a repair that declined with *nothing* -- no rewrite, no
+    challenge, no answer -- closed the question silently, and the once-guard
+    then stopped the repair re-firing. Dead thread, no record. A barren
+    session leaves an unresolved trigger unresolved, and the ladder resumes.
+    """
+    from rota.core.predicates import unresolved
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles import prompts
+
+    _bad_criterion(db)
+    out = run_session(
+        db, unresolved(db)[0],
+        backend=ScriptedBackend(["done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts.compose("terminologist", "criterion_repair"))
+    assert out.committed, out.errors
+
+    after = unresolved(db)
+    assert after and after[0].kind == "tick:unresolved", "the ladder, not silence"
+    assert after[0].role != "terminologist"

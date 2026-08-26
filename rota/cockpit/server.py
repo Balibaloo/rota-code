@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +40,7 @@ from ..core.sandbox import build as build_sandbox
 from .traceview import (
     coverage_edges, frontier_overlay, steps_from_db,
 )
+from ..core.predicates import REGISTRY
 from ..core.scheduler import (
     TICKS, is_quiescent_readonly, open_tips, predicate_wakes, tick_agenda,
 )
@@ -80,14 +82,22 @@ def snapshot(conn: sqlite3.Connection) -> dict:
     tips = open_tips(conn)
     preds = predicate_wakes(conn, principal_present=True)
 
+    # Structured, not stringified: a firing predicate's `refs` name the exact
+    # rows that tripped it, which is the difference between "term_collision is
+    # firing" and "term_collision is firing about `context`". Flattening to
+    # str(w) threw that away at the door.
+    def wake_row(w) -> dict:
+        return {"role": w.role, "refs": list(w.refs), "detail": w.detail}
+
     per_tick = {}
     for tick in TICKS:
         name = tick.__name__.replace("tick_", "")
         try:
-            per_tick[name] = [str(w) for w in tick(conn)]
+            per_tick[name] = [wake_row(w) for w in tick(conn)]
         except Exception as exc:
-            per_tick[name] = [f"ERROR {exc}"]
-    per_tick["agenda"] = [str(w) for w in tick_agenda(conn, principal_present=True)]
+            per_tick[name] = [{"role": f"ERROR {exc}", "refs": [], "detail": ""}]
+    per_tick["agenda"] = [wake_row(w)
+                         for w in tick_agenda(conn, principal_present=True)]
 
     def rows(sql, *args):
         return [dict(r) for r in conn.execute(sql, args)]
@@ -101,6 +111,15 @@ def snapshot(conn: sqlite3.Connection) -> dict:
                             "detail": w.detail} for w in preds],
         },
         "predicate_status": per_tick,
+        # What each predicate is *for*, straight off the registry — the same
+        # docstring the decorator captured, never a second copy in the viewer
+        # that could drift from the function it describes. First paragraph
+        # only: the rest is implementation talk.
+        "predicate_meta": {
+            name: {"why": " ".join((p.why or "").split("\n\n")[0].split()),
+                   "wakes": p.wakes, "band": p.band}
+            for name, p in REGISTRY.items()
+        },
         "versions": rows("SELECT table_name, version FROM artefact_versions ORDER BY table_name"),
         "sessions": rows(
             "SELECT id, role, trigger_msg, mode, committed, model, prompt_hash "
@@ -377,10 +396,23 @@ def make_handler(db_path: Path):
                 elif path == "/state.json":
                     conn = connect_readonly(state["db"])
                     try:
-                        body = json.dumps(snapshot(conn), default=str).encode("utf-8")
+                        snap = snapshot(conn)
                     finally:
                         conn.close()
-                    self._send(body, "application/json")
+                    # How long the run has been still, measured where it
+                    # cannot be lost: the file. WAL carries every write, so
+                    # the newer of db and -wal is the last time anything was
+                    # recorded — it survives page reloads and server restarts,
+                    # which the viewer's old poll counter did not. `-shm` is
+                    # deliberately excluded: readers touch it, and a stillness
+                    # clock the cockpit's own polling resets measures nothing.
+                    stamps = [p.stat().st_mtime for p in
+                              (state["db"], Path(str(state["db"]) + "-wal"))
+                              if p.exists()]
+                    snap["quiet_secs"] = (max(0.0, time.time() - max(stamps))
+                                          if stamps else None)
+                    self._send(json.dumps(snap, default=str).encode("utf-8"),
+                               "application/json")
                 else:
                     self.send_error(404)
             except FileNotFoundError:
@@ -450,8 +482,12 @@ def make_handler(db_path: Path):
             if not target.exists():
                 self.send_error(404, f"no run named {name}")
                 return
-            init_db(target).close()
+            # Same write-only-when-needed gate as `prepare_db`: switching to a
+            # run must not stamp it as freshly written.
             drift = schema_drift(target)
+            if drift:
+                init_db(target).close()
+                drift = schema_drift(target)
             if drift:
                 self.send_error(409, "behind schema: " + "; ".join(drift[:4]))
                 return
@@ -545,8 +581,16 @@ def prepare_db(project_root: str | Path | None = None,
     # It sits on the way in rather than in the request path on purpose: a
     # *viewer* that migrates per request is a viewer with side effects, and the
     # one thing this tool must never do is change what it is showing you.
-    init_db(db_path).close()
+    # Up to schema — but only opening a write connection when the read-only
+    # check says something is actually missing. `init_db` on a healthy file
+    # refreshes the WAL's mtime, and that mtime is now the stillness clock
+    # `/state.json` serves: a viewer that touches the thing it measures reads
+    # its own restart as activity, and the watcher restarts on every source
+    # edit.
     drift = schema_drift(db_path)
+    if drift:
+        init_db(db_path).close()
+        drift = schema_drift(db_path)
     if drift:
         raise SystemExit(
             f"{db_path} is behind schema.sql:\n" +

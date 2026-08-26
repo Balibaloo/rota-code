@@ -127,6 +127,21 @@
        max-height:70vh;overflow:auto;
        box-shadow:0 6px 20px rgba(0,0,0,.45);display:none}
   .pop.on{display:block}
+  /* The bridge across the moat: the header popovers sit below their triggers,
+     and the pointer must cross the gap without "leaving". Only these two —
+     a bridge on the settings popover would sit over the toolbar's buttons
+     and swallow their clicks. */
+  #pop-state::before,#pop-tick::before{content:"";position:absolute;
+      top:-22px;left:0;right:0;height:22px}
+  /* House tooltip: instant, in the cockpit's own type, and exactly one of
+     it. Anything carrying data-tip gets it on hover. pointer-events:none so
+     it can never trap the pointer the way the popovers once did, and fixed
+     positioning so it escapes any scrolling container it was summoned from. */
+  #tip{position:fixed;display:none;background:var(--panel);color:var(--ink);
+      border:1px solid var(--line);border-radius:3px;padding:7px 10px;
+      max-width:360px;z-index:40;font-size:11.5px;line-height:1.5;
+      pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  #tip .tipmeta{color:var(--dim);margin-top:4px}
   .pop h4{margin:0 0 6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
           color:var(--dim)}
   .pop h4:not(:first-child){margin-top:11px}
@@ -216,7 +231,7 @@
   .link{color:var(--accent);cursor:pointer}.link:hover{text-decoration:underline}
   .nlabel{font:12px ui-monospace,monospace;text-anchor:middle;
           dominant-baseline:middle;pointer-events:none}
-  .nvol{fill:#64748b;font:9.5px ui-monospace,monospace;text-anchor:end;pointer-events:none}
+  .nvol{fill:#334155;font:9.5px ui-monospace,monospace;text-anchor:end;pointer-events:none}
   /* Edge labels sit on top of edges, so they need a halo in the canvas colour
      to stay readable where lines cross. */
   /* Stand-ins for destinations that ran off the canvas. Drawn as small nodes,
@@ -368,6 +383,8 @@
   <section style="grid-column:1/-1"><h2>L1 — against a real model</h2>
     <div class="body tall" id="pg-l1"></div></section>
 </div></main>
+
+<div id="tip"></div>
 
 <script src="/graphview.js"></script>
 <script src="/panels.js"></script>

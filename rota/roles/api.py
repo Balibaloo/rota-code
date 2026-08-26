@@ -2419,6 +2419,32 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     return {"id": id}
 
 
+@op("criteria", "respecify")
+def criteria_respecify(ctx: Ctx, id: str, text: str,
+                       term_refs: list[str] | None = None) -> dict:
+    """
+    Rewrite a criterion that was discovered unencodable or wrong.
+
+    `specify` inserts, so a second specify of the same id dies on the primary
+    key inside the transaction -- and that was the whole of why a criterion,
+    once written, stayed wrong: the writing mode's predicate fires per ticket
+    *without* criteria, and no other mode could touch one. Every stable red in
+    the delivery cluster sat downstream of "discovered bad, no path to
+    repair".
+
+    The ticket is not a parameter. Respecifying is rewording what done means
+    for the same piece of work; moving a criterion to another ticket would be
+    a different act with different consequences, and the id already knows
+    where it lives.
+    """
+    _must_exist(ctx, "criteria", id)
+    payload: dict = {"text": text}
+    if term_refs is not None:
+        payload["term_refs"] = json.dumps(term_refs)
+    ctx.writes.append(("criteria", id, payload, False))
+    return {"id": id, "respecified": True}
+
+
 @op("criteria", "load")
 def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id

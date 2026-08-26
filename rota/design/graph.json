@@ -297,6 +297,14 @@
       "s": "terminologist",
       "t": "criteria",
       "type": "writes",
+      "v": "respecify",
+      "n": "a criterion discovered bad",
+      "rows": "delta"
+    },
+    {
+      "s": "terminologist",
+      "t": "criteria",
+      "type": "writes",
       "v": "specify",
       "n": "criteria",
       "label": "contested",

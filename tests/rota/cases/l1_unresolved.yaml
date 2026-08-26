@@ -277,3 +277,50 @@
   forbidden:
     writes: [glossary_terms, items, decisions, model_areas]
     recipients: [principal, vision_keeper, developer]
+
+- id: L1-TE-repair-the-criterion-the-tester-cannot-encode
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  # The repair path, at the owner's end. The Tester hit the parroting guard --
+  # the criterion is the ticket's sentence, and encoding it writes the
+  # sentence back -- took the guard's named exit, and said the answer did not
+  # land. That routes here: not a ladder rung, a defect report about an
+  # artefact with one writer, in the mode that can rewrite it.
+  tick: criterion_repair
+  refs: [<q1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "emails are stored lowercased", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <t1>, item_id: <i1>,
+         text: "store the email lowercased on registration"}
+    criteria:
+      # The defect: the criterion is the ticket's own sentence, so a test
+      # "encoding" it can only parrot.
+      - {id: <c1>, ticket_id: <t1>,
+         text: "store the email lowercased on registration", term_refs: '[]'}
+    messages:
+      - {id: <q1>, thread_id: <th1>, from_role: tester, to_role: terminologist,
+         verb: question, body_refs: '["<c1>"]', seq: 1, status: unresolved,
+         body_text: "what would make this checkable?",
+         unresolved_note: "the criterion is the ticket sentence; encoding it
+           is parroting"}
+      - {id: <a1>, cause_id: <q1>, thread_id: <th1>, from_role: terminologist,
+         to_role: tester, verb: answer, body_refs: '["<c1>"]', seq: 2,
+         status: answered}
+  expect:
+    # The rewrite, and the asker told -- so the question closes and the next
+    # encode meets the new words. Or the honest decline: the criterion is
+    # right and the promise is the problem, said to the role that owns
+    # promises.
+    any_of:
+      - writes: {criteria: {count: 1}}
+      - messages: [{to: vision_keeper, verb: challenge, count: 1}]
+  forbidden:
+    # Repair is rewording what done means. It is not re-deciding scope, not
+    # redefining terms on the way past, and not inventing a second criterion
+    # beside the broken one.
+    writes: [items, tickets, glossary_terms, statements, decisions]

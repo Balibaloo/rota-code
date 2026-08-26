@@ -398,12 +398,23 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # A completed session releases its claim; a suspended one keeps it.
             conn.execute("DELETE FROM claims WHERE session_id = ?", (result.session_id,))
 
-        # The trigger message is answered once its session commits.
+        # The trigger message is answered once its session commits -- unless
+        # the trigger was already declared unresolved and the session produced
+        # nothing. An unresolved question is somebody saying they are stuck;
+        # a barren session has not unstuck them, and answering it anyway is
+        # how a repair that declined silently killed the thread: the question
+        # closed, the once-guard stopped the repair re-firing, and nothing
+        # remained to carry it. Left unresolved, the ladder resumes.
         if result.trigger_msg:
-            conn.execute(
-                "UPDATE messages SET status = 'answered' WHERE id = ?",
-                (result.trigger_msg,),
-            )
+            barren = not result.writes and not result.messages
+            was_unresolved = conn.execute(
+                "SELECT 1 FROM messages WHERE id = ? AND status = 'unresolved'",
+                (result.trigger_msg,)).fetchone()
+            if not (barren and was_unresolved):
+                conn.execute(
+                    "UPDATE messages SET status = 'answered' WHERE id = ?",
+                    (result.trigger_msg,),
+                )
             # And a compose wake answers its whole round: the trigger was the
             # harvest's carrier, and its siblings were never addressed to a
             # session of their own. Left open they would tip one by one after
