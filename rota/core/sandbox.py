@@ -522,7 +522,8 @@ def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
     """
     Whether the answer this session was woken by cited nothing of substance.
 
-    `None` when the wake was not an answer or there is nothing to read.
+    False when the wake was not an answer at all, or there is nothing to read:
+    both are "no reason to refuse a relay" rather than a finding about it.
     """
     import json
 

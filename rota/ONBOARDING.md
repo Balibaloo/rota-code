@@ -704,7 +704,24 @@ click run on `qwen3:8b` -- one maintainer question, `python -m rota` intake,
 nothing hand-fed -- Liaison replied to the principal asking them to clarify the
 question, and the system went quiescent.
 
-Three faults, each of which hid the next.
+**Twelve faults, each of which hid the next**, in a route that was designed,
+briefed at both ends, drawn three times in the graph and measured by a probe.
+They are grouped below by where they sat -- the mode, the ask, the ladder, the
+intake -- rather than by the order they were found, because the order they were
+found is simply the order each one stopped concealing the one behind it.
+
+Four of them are one shape: a hand-written `.tools` file or brief that had
+fallen behind the graph, with nothing to notice. Three more are the other
+shape, and it is the one worth remembering -- **the failure and the success
+produce the same observable output.** An owner answering from an empty inbox
+still sends a well-formed `answer`. A session whose writes were discarded still
+reports `committed = 1`. Only the per-turn transcript distinguishes them, which
+is why the route had to be *run* before any of them appeared. Once run, a check
+written against one of them found two more by itself -- the rung-capability
+lint caught Architect and Vision Keeper before either was reached. That is the
+argument for writing the check at the moment the fault is understood rather
+than after the fix: the second instance is free, and there is almost always a
+second instance.
 
 **The mode was never reachable.** `loop.run` calls `run_session` without a
 mode, and the default was `"normal"`, so no session this system ever dispatched

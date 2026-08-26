@@ -320,6 +320,30 @@ clarification `L1-LI-no-report-no-question` forbids -- a vague request is still
 a request. The measurement that chose the ordered test had no vague-request
 fixture in it, so nothing could have found this before the case ran.
 
+### The worked example decided it, and one example was the answer
+
+Worth keeping because the obvious reading was wrong twice.
+
+The brief's example of the inquiry route was
+`msg.ask_terminologist(refs=[], question='...')`, refused twice over -- there
+is no `question` parameter, and empty refs are now refused at the channel. So
+correcting it was not optional. It was also not free: with the examples
+corrected *and* a three-owner example added, `llama3.1:8b` routed a **greeting**
+to an owner and lost its work column, while `qwen3:8b` improved on chat. Two
+models disagreeing about one edit, for the first time in this measurement.
+
+What separated them was not the correction but the *salience*: every arm that
+gave asking more room in the examples pushed llama to over-route, and the
+broken example had been suppressing asks by failing. One corrected example and
+no three-owner block scores at least as well as the shipped brief on both
+models in both passes, and strictly better on `qwen3:8b`'s chat column. That is
+what shipped.
+
+Recorded because it nearly went the other way: a brief whose score depends on
+one of its examples not working would have passed every check this project has,
+and the only thing that caught it was scoring an ask with empty refs
+separately from an ask.
+
 ### Two models disagreeing is a diagnostic, not a portability problem
 
 The question that prompted this was the right one: prompts should not be model
@@ -437,30 +461,6 @@ wrong answer, and which the entry below turns out to be part of.
 Not open as a brief question. Six prose attempts have now been spent on
 Liaison's classification and the one that worked replaced a rule rather than
 adding one, so the next attempt should be structural or should not be made.
-
-### The worked example decided it, and one example was the answer
-
-Worth keeping because the obvious reading was wrong twice.
-
-The brief's example of the inquiry route was
-`msg.ask_terminologist(refs=[], question='...')`, refused twice over -- there
-is no `question` parameter, and empty refs are now refused at the channel. So
-correcting it was not optional. It was also not free: with the examples
-corrected *and* a three-owner example added, `llama3.1:8b` routed a **greeting**
-to an owner and lost its work column, while `qwen3:8b` improved on chat. Two
-models disagreeing about one edit, for the first time in this measurement.
-
-What separated them was not the correction but the *salience*: every arm that
-gave asking more room in the examples pushed llama to over-route, and the
-broken example had been suppressing asks by failing. One corrected example and
-no three-owner block scores at least as well as the shipped brief on both
-models in both passes, and strictly better on `qwen3:8b`'s chat column. That is
-what shipped.
-
-Recorded because it nearly went the other way: a brief whose score depends on
-one of its examples not working would have passed every check this project has,
-and the only thing that caught it was scoring an ask with empty refs
-separately from an ask.
 
 ### A confirmation can name a statement nobody wrote
 
