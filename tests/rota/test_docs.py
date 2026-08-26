@@ -65,6 +65,8 @@ LOAD_BEARING = {
     "MILESTONE.md": "cockpit/progress.py reads it at runtime",
     "ENVIRONMENT.md": "the 3Bd proposal; its claims about what exists are "
                       "asserted below and go red when the stage is built",
+    "LOOPS.md": "test_roles_doc.py -- the grade ledger; its gates are "
+                "propositions and its headline claim is pinned",
 }
 
 

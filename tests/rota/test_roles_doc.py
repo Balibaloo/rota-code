@@ -225,3 +225,37 @@ def test_no_section_names_a_function_its_role_lacks():
             if fn not in have:
                 problems.append(f"{role}'s section names {fn}, not in its namespace")
     assert not problems, "\n".join(problems)
+
+
+def test_the_loop_ledger_claims_only_what_the_build_can_check():
+    """
+    `LOOPS.md` is the third checked document, after `ROLES.md` and
+    `REGISTER.md`, and it exists because "are the loops production grade?"
+    had no answer the suite could defend. The grades are propositions:
+
+      * every loop is graded, and no grade names a gate that does not exist;
+      * a loop at G0 or better names machinery that is actually registered --
+        spot-checked here for the newest loops, the way the ownership table
+        is spot-checked against the graph;
+      * the headline claim -- nothing is at G3 -- stays true until chaos
+        tests exist, at which point this test must be extended rather than
+        deleted, because the claim it guards will have changed.
+    """
+    doc = (paths.PACKAGE / "LOOPS.md").read_text(encoding="utf-8")
+
+    import re as _re
+
+    rows = _re.findall(r"^\| \d \| ([a-z /]+?) \| \*\*(G\d)\*\* \|", doc,
+                       _re.MULTILINE)
+    assert len(rows) == 6, f"six loops, graded: {rows}"
+    assert all(g in {"G0", "G1", "G2", "G3", "G4"} for _, g in rows)
+
+    # The graded machinery exists: the newest loops' named pieces.
+    assert "criterion_repair" in P.REGISTRY, "loop 4's repair predicate"
+    assert "preempt" in P.REGISTRY, "loop 6's reorder predicate"
+
+    # The headline: no loop claims G3 or G4 while no chaos test exists.
+    claimed = {g for _, g in rows}
+    assert not ({"G3", "G4"} & claimed), (
+        "a loop claims endurance; write the chaos tests and extend this "
+        "check before moving the grade")

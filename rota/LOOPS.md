@@ -1,0 +1,59 @@
+# The loops, and what each has earned
+
+Six loops carry the claim; this ledger says how far each can be trusted, and
+the suite checks every claim it makes. The precedent is `REGISTER.md`: a
+document describing reality is worth having only while it is true, so the
+grades below are propositions the build evaluates, not status prose. Claiming
+a gate a loop has not earned is a failing test; building past a gate without
+recording it moves a pinned count.
+
+## The gates
+
+| gate | the claim | who checks it |
+|---|---|---|
+| **G0 wired** | every link exists and has fired live at least once | the loop's named predicates and modes are registered; its arc test passes |
+| **G1 pinned** | deterministic tests, and an L1 case for every mode the loop added | `every_mode_has_a_case`, scoped by the rows below |
+| **G2 earned** | the loop's cases green in the recorded corpus — **on two separate recording passes**, because a score is a fact about a load | `case_runs`, by the case ids below |
+| **G3 endures** | survives being hurt: sessions killed mid-flight, messages corrupted, work concurrent | the loop's named chaos tests pass |
+| **G4 lived** | zero-intervention gauntlet scenarios, on repositories not authored for the test | the gauntlet log |
+
+Nothing is at G3 yet, and that is the honest headline of this file: no loop
+has ever been hurt on purpose, and the scheduler's "stateless, disposable,
+killable at any moment" is still a docstring rather than a test outcome.
+
+## The ledger
+
+| # | loop | grade | evidence |
+|---|---|---|---|
+| 1 | understanding | **G2** | onboarding arc on click and cnt against preregistered keys; survey/orient/define cases green |
+| 2 | inquiry | **G2** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key |
+| 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
+| 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
+| 5 | stay true | **G1** | a changed file reopens exactly its area; `rota refresh` |
+| 6 | steering | **G0** | preemption predicate and act, law 9's guarantees pinned; interrupt and cancel unbuilt |
+
+## What each loop still owes, by gate
+
+- **1 → G3**: kill a survey mid-area; corrupt an attest; onboard two runs
+  concurrently against one checkout.
+- **2 → G3**: kill an owner mid-round and assert the harvest still composes;
+  a corrupted answer message must not reach the principal.
+- **3 → G3**: two principals ruling at once; a verdict for a present that was
+  re-presented meanwhile; kill the adopt session after the relay.
+- **4 → G1**: the criteria-surface build, then cases for the delivery modes
+  that have none. The one-fault-per-pass curve reaching zero *is* this loop's
+  path through the gates.
+- **5 → G2**: record the re-survey sessions; a refresh under a running batch.
+- **6 → G1**: interrupt (a principal's stop, mid-batch) and cancel (a batch
+  abandoned by ruling), then cases. The preemption already has its
+  deterministic pins.
+
+## The gauntlet (G4's data source)
+
+The stories in `design/stories.json` are the scenarios; a gauntlet run is one
+story driven end to end on a foreign repository against a preregistered key,
+scored on the artefact trail — every criterion traced to a term, every test to
+a criterion, every assumption a sentence, every decision a reason — with
+planted traps the trail must surface. Only zero-intervention runs count, and
+each passing run is simultaneously the test record and the story the tool's
+capability is told in.
