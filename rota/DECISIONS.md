@@ -481,6 +481,49 @@ and not free in turns. `L1-LI-a-question-about-the-program-goes-to-its-owners`
 asserts all three now, because it is a property of the channel rather than a
 hope about the brief.
 
+### The hedge was carrying the answer
+
+The relays that reached the principal kept ending in a question -- "Is there
+anything else you'd like to know?", "Could you confirm if these types are
+exhaustive?", one asking whether error handling was "planned", which is a
+question for whoever builds the thing sent to whoever asked about it. The
+`answer` mode has nothing to ask with: no `clarify`, no `ask`, one channel and
+it goes to the principal.
+
+They correlated with the misses, and the reading was that a session which
+cannot answer hedges into a question instead of saying so -- with
+`schedule.reask` sitting in the same namespace to say so with. Refusing a relay
+that ends in a question mark should have forced the choice.
+
+**It forced the wrong half.** Measured on the same eight:
+
+    question   before the guard                       after
+    Q1         "recipe refers to an Intent, defined    "Could you clarify where
+                in src/intents/index.ts ..."            exactly a user should
+                                                        write a recipe?"
+    Q5         "the TemplateVariableType enum          "Could you clarify what
+                includes text, number, natural_date,    you mean by 'template'
+                note, folder"                           in this context?"
+
+Both replies had real content with a hedge attached. Refused, the session did
+not commit to the content -- it produced nothing, the ask went unresolved, the
+ladder ran to its end, and Liaison put the principal's own question back to
+them. Two informative partial answers became two content-free clarifications,
+and the one hit was untouched either way.
+
+**So the trailing question was not the disease.** It was the model shipping a
+partial answer with a caveat, which is the honest thing to do with a partial
+answer, and the caveat was the only part the guard could see. Reverted.
+
+*What this leaves.* The relay is still the largest quality gap on this route and
+its cause is unchanged: the answer channel carries refs and no words, so Liaison
+writes prose from resolved rows rather than passing anybody's sentences on, and
+it does that on `converse`, whose field is named `reply`. The next attempt
+should give the relay something better to say rather than forbidding it a way of
+saying it -- and by the evidence here, forbidding is the family that does not
+work when the thing being forbidden is a symptom of the session knowing less
+than it needs to.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value
