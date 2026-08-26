@@ -527,13 +527,35 @@ head, and wrongly. It states a fact and *then* asks about it -- the same
 structure as "morning. we need SSO", which states a greeting and then asks for
 something.
 
-Two fixtures, both resistant to every arm, both opening with something that is
-not the message. The hypothesis that fits: **the classifier reads the opening
-clause.** If a mechanical cue -- ends in a question mark, whatever it opens
-with -- moves the second, that is evidence the failure is positional rather
-than semantic, and it explains the first as well. Being measured; and if it
-moves neither, the hypothesis is wrong and the shared shape is a coincidence
-between two hard sentences.
+The hypothesis was that **the classifier reads the opening clause**, and a
+mechanical cue -- ends in a question mark, whatever it opens with -- would move
+both. Measured on both models, both passes, and **it is wrong**:
+
+    intake card              llama3.1:8b        qwen3:8b
+    shipped                  5/5 2/2 2/2        4-5/5 2/2 1/2
+    + question-mark cue      4/5 2/2 2/2        4/5   2/2 2/2
+
+The shipped brief already classifies the preamble question correctly on llama,
+twice out of twice, and the cue *breaks* it -- `ask` becomes `segment`. On qwen
+the shipped brief gets it in one pass of two, so it is borderline rather than
+blind. There is no positional blind spot; there is one sentence qwen finds
+hard, and the live route happened to draw the bad half.
+
+The cue does not ship for the reason this project settled earlier: it helps one
+model and hurts the other, which makes it emphasis rather than a fix.
+
+**What the same run showed is better news than the hypothesis was.** The intake
+card is now perfect on llama -- and `w-sso`, "morning. we need SSO, but only if
+it works with our LDAP", is green there. That fixture resisted eight arms of
+brief-tuning in one session and was fixed by none of them. What fixed it was
+the structural work: one answer per message, the exclusivity guards, and the
+removal of the commit-time discard that was throwing correct segmentations
+away. The brief that ships is the one measured back when `w-sso` was still
+failing, unchanged.
+
+Still open, and now the only intake fixture that is: `w-sso` on `qwen3:8b`
+commits **nothing at all**, in both passes. A wasted turn rather than a wrong
+answer, and it is the last thing in this set that no arm has moved.
 
 Not open as a brief question. Six prose attempts have now been spent on
 Liaison's classification and the one that worked replaced a rule rather than
