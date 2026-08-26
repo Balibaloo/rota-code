@@ -778,6 +778,15 @@ like the cassettes rather than an artefact, and therefore outside the law.
 Asked outright what was odd and too deep to chase, 2026-08-26. Each of these
 was noticed and stepped over; none has an owner yet.
 
+**Corrected same day, by the retired encode battery's raw text: the
+authorship gap was never a model constant.** In a bare one-shot frame both
+models transcribe; with source read and the protocol enforced natively, both
+can author -- qwen wrote a correct `def test_format_money()` in a fence the
+instrument could not see. What differs between the models is how much frame
+each needs before authorship appears, and the live loop is the only
+instrument that measures it. The original observation stands as an
+observation about the *live* runs at their actual frames.
+
 **qwen copies sentences where llama writes artefacts.** The ledger was the
 first sighting and rung one found the general form: with the criterion
 repaired into checkable prose, qwen's Tester encodes it by writing the
