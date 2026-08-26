@@ -562,8 +562,14 @@ def test_a_collision_session_ends_on_its_synthesis(project):
         if not pending:
             break
         for w in pending:
-            db.execute("INSERT OR IGNORE INTO survey_records (id, area, outcome) "
-                       "VALUES (?, ?, 'none_found')", (f"terminologist:{w.refs[0]}", w.refs[0]))
+            # Stamped as a real attest stamps, or the freshness view reads the
+            # record as a survey of a tree that is gone and re-offers the area.
+            from rota.roles.api import area_content_hash
+
+            db.execute("INSERT OR IGNORE INTO survey_records (id, area, outcome, "
+                       "area_hash) VALUES (?, ?, 'none_found', ?)",
+                       (f"terminologist:{w.refs[0]}", w.refs[0],
+                        area_content_hash(db, w.refs[0])))
     for id_, area in (("billing", ""), ("billing#src", "src")):
         db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
                    "provenance, area) VALUES (?, 'billing', ?, ?, 'observed', ?)",

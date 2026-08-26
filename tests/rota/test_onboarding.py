@@ -809,6 +809,20 @@ def test_the_survey_ledger_is_one_row_per_area(project):
     assert sorted(rows[0]["surveyed_by"]) == ["architect", "terminologist", "vision_keeper"]
 
 
+def _stamped(db, sid, area, outcome="none_found"):
+    """Seed a record the way attest writes one: carrying the area's view.
+
+    A record with no `area_hash` in a hash-bearing index is the
+    refresh-after-old-survey shape and re-fires the area -- correctly, and
+    not what a fixture that says "this area is closed" means to say.
+    """
+    from rota.roles.api import area_content_hash
+
+    db.execute("INSERT INTO survey_records (id, area, outcome, area_hash) "
+               "VALUES (?,?,?,?)", (sid, area, outcome,
+                                    area_content_hash(db, area)))
+
+
 def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
     """
     Quiescence that meant abandonment, which is the one failure this design is
@@ -840,8 +854,7 @@ def test_abandoning_an_area_does_not_end_onboarding_in_the_same_breath(project):
     # Close every area for the first role but one, then stall that one past the
     # bound so it is quarantined on the very next frontier call.
     for area in areas[1:]:
-        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
-                   (f"{first}:{area}", area, "none_found"))
+        _stamped(db, f"{first}:{area}", area)
     stuck = next(w for w in frontier(db) if w.kind == "tick:survey")
     assert stuck.role == first
     for _ in range(config.get(db, "tick_attempt_cap")):
@@ -886,8 +899,7 @@ def test_quarantine_does_not_erase_its_own_evidence(project):
     areas = [r["area"] for r in db.execute(
         "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area")]
     for area in areas[1:]:
-        db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
-                   (f"{first}:{area}", area, "none_found"))
+        _stamped(db, f"{first}:{area}", area)
 
     stuck = next(w for w in frontier(db) if w.kind == "tick:survey")
     for _ in range(config.get(db, "tick_attempt_cap")):
@@ -918,8 +930,7 @@ def test_a_genuinely_finished_onboarding_is_still_quiescent(project):
         "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL")]
     for role in SURVEY_ORDER:
         for area in areas:
-            db.execute("INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",
-                       (f"{role}:{area}", area, "none_found"))
+            _stamped(db, f"{role}:{area}", area)
 
     assert [w for w in frontier(db) if w.kind == "tick:survey"] == []
 
@@ -1281,3 +1292,53 @@ def test_without_an_index_a_binding_is_a_file_the_session_read(tmp_path):
                            "reordering the columns breaks them silently.",
                       bindings=["src/billing/invoices.py"])
     assert got["id"]
+
+
+def test_a_changed_file_reopens_exactly_its_area(project):
+    """
+    Loop "stay true", first breath. The DECISIONS entry said it for months:
+    "`tick_survey` fires on areas with no record. Nothing fires on an area
+    whose code changed since its record. Over a project's lifetime this is
+    what decides whether the model of the codebase stays true."
+
+    Every record here is stamped with the area's aggregate content as the
+    index described it; a file changes; the index is rebuilt; and the survey
+    machinery re-offers exactly the area whose view is gone -- through the
+    same predicate, briefs and bounds as the first read, because staleness is
+    expressed as the one thing that machinery already understands.
+    """
+    from rota.core import config
+    from rota.core.scheduler import SURVEY_ORDER, tick_survey
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    config.set(db, "onboarding_phases", "survey")
+
+    areas = [r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL "
+        "ORDER BY area")]
+    assert len(areas) >= 2
+    for role in SURVEY_ORDER:
+        for area in areas:
+            _stamped(db, f"{role}:{area}", area)
+    db.commit()
+    assert tick_survey(db) == [], "every view is current; nothing re-fires"
+
+    # A commit lands in one area.
+    victim = db.execute(
+        "SELECT grain, area FROM code_index WHERE grain_kind='path' "
+        "AND area IS NOT NULL ORDER BY grain").fetchone()
+    target = repo.root / victim["grain"]
+    target.write_text(target.read_text(encoding="utf-8") +
+                      "\n# a change the survey has not seen\n",
+                      encoding="utf-8")
+    # The refresh pair: a new tree's index, then the partition and
+    # constraint zero re-derived over it. `rota refresh` is this.
+    indexer.build(db, repo.root)
+    boot.repin(db, repo.root)
+    db.commit()
+
+    reopened = {(w.role, w.refs[0]) for w in tick_survey(db)}
+    assert reopened, "the changed area must come back"
+    assert {a for _, a in reopened} == {victim["area"]}, \
+        "and only the changed area"

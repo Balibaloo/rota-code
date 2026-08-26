@@ -157,6 +157,11 @@ CREATE TABLE IF NOT EXISTS survey_records (
     area        TEXT NOT NULL,
     outcome     TEXT NOT NULL CHECK (outcome IN ('found','none_found')),
     refs        TEXT NOT NULL DEFAULT '[]',
+    -- The area's aggregate content as this survey saw it, stamped at attest
+    -- time from the index rows the session read. The latest record whose
+    -- area_hash no longer matches the area's current aggregate is a survey
+    -- of a tree that is gone, and the area counts as unread again.
+    area_hash   TEXT NOT NULL DEFAULT '',
     -- Which tree this was a survey *of*. DECISIONS.md names this as the one
     -- blocker on re-surveying: `tick_survey` fires on areas with no record and
     -- nothing fires on an area whose code changed since its record, and the
@@ -259,7 +264,12 @@ CREATE TABLE IF NOT EXISTS code_index (
     grain_kind  TEXT NOT NULL CHECK (grain_kind IN ('path','symbol','table','route')),
     area        TEXT,                        -- partition assignment, pinned by decision
     fan_in      INTEGER NOT NULL DEFAULT 0,
-    sym_kind    TEXT NOT NULL DEFAULT ''     -- for symbols: function|class|interface|type|enum|struct|trait|module
+    sym_kind    TEXT NOT NULL DEFAULT '',    -- for symbols: function|class|interface|type|enum|struct|trait|module
+    -- What the file held when the index was built; path grains only, '' for
+    -- the rest. The freshness predicate compares aggregates of this column,
+    -- which is what keeps it a pure query -- the filesystem was consulted
+    -- once, by the indexer, and the database remembers.
+    content_hash TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to partitioning

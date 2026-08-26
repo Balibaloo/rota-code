@@ -421,6 +421,45 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_refresh(args: argparse.Namespace) -> int:
+    """
+    Stay true: re-index the checkout and reopen what changed.
+
+    The index is rebuilt at the tree as it stands, the partition and
+    constraint zero re-derived over it, and every survey record whose stamped
+    view no longer matches its area's content stops counting -- the same
+    machinery that surveyed re-surveys, and an unchanged area stays closed.
+    """
+    from .core.db import connect
+    from .core.scheduler import tick_survey
+    from .onboarding import boot, indexer
+
+    path = require(args.name)
+    conn = connect(path)
+    try:
+        root = args.root or _root_of(path)
+        if not root:
+            raise SystemExit("this run records no project root; pass --root")
+        branch, commit = checkout_of(root)
+        report = indexer.build(conn, root)
+        boot.repin(conn, root)
+        if commit:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                         "('project_commit', ?)", (commit,))
+        conn.commit()
+        reopened = sorted({w.refs[0] for w in tick_survey(conn)})
+    finally:
+        conn.close()
+    print(f"{args.name}: {report.files} files re-indexed"
+          + (f" at {branch}@{commit[:7]}" if commit else ""))
+    if reopened:
+        print(f"reopened: {', '.join(reopened)}")
+        print(f"next: rota run {args.name}")
+    else:
+        print("nothing changed since the last survey")
+    return 0
+
+
 def cmd_agenda(args: argparse.Namespace) -> int:
     """What is waiting on the principal, and what the system does not know."""
     from .core.db import connect_readonly
@@ -594,6 +633,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--until", choices=("terminologist", "architect", "vision_keeper"),
                    help="stop after this survey phase (debugging)")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("refresh", help="re-index the checkout; reopen what changed")
+    p.add_argument("name")
+    p.add_argument("--root", help="override the project recorded in the run")
+    p.set_defaults(func=cmd_refresh)
 
     p = sub.add_parser("agenda", help="what is waiting on you")
     p.add_argument("name")

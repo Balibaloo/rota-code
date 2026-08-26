@@ -1910,6 +1910,26 @@ def _re_split_paths(val: str) -> list[str]:
     return [t.strip("'\"[]") for t in _re.split(r"[\s,]+", val.strip()) if t.strip("'\"[]")]
 
 
+def area_content_hash(conn, area: str) -> str:
+    """
+    The area's aggregate content, from the index the sessions read.
+
+    Path grains only, sorted, so the value is a function of (files, contents)
+    and nothing else. Empty when the area holds no path grains or the index
+    predates content hashes -- and empty never matches a real digest, so an
+    old record reads as "view unknown" rather than "still fresh".
+    """
+    import hashlib
+
+    rows = [f"{r['grain']}={r['content_hash']}" for r in conn.execute(
+        "SELECT grain, content_hash FROM code_index "
+        "WHERE grain_kind = 'path' AND area = ? AND content_hash != '' "
+        "ORDER BY grain", (area,))]
+    if not rows:
+        return ""
+    return hashlib.sha256("|".join(rows).encode()).hexdigest()[:16]
+
+
 @op("surveys", "attest")
 def surveys_attest(ctx: Ctx, outcome: str,
                    citations: list[str] | None = None) -> dict:
@@ -2290,7 +2310,12 @@ def surveys_attest(ctx: Ctx, outcome: str,
         "SELECT value FROM config WHERE key = 'project_commit'").fetchone()
     ctx.writes.append(("survey_records", id, {
         "area": area, "outcome": outcome,
-        "commit_sha": (at["value"] if at else "") or ""}))
+        "commit_sha": (at["value"] if at else "") or "",
+        # What the area held, as the index the session read describes it. The
+        # freshness view compares this against the same aggregate later; a
+        # record whose view is gone counts as no record, and the survey
+        # machinery re-fires unchanged.
+        "area_hash": area_content_hash(ctx.conn, area)}))
     # The record stores what the citation *resolved to*, not what was typed.
     # Storing the bare symbol with `resolves=1` would assert that a grain named
     # `TokenStore` is in the index, and none is -- a citation nobody can follow

@@ -581,6 +581,22 @@ async function refresh() {
                     : (stalled?` · still for ${stalled}`:''))
     + (unrun?' · no claim held — start a runner to advance it':'');
 
+  // A run behind schema.sql is served, not refused — so the fact is worn
+  // here, with the missing pieces on hover, instead of surfacing later as
+  // one inexplicably empty panel.
+  const dr = s.drift || [];
+  const rd = document.getElementById('rundrift');
+  if (rd) {
+    rd.style.display = dr.length ? 'inline-block' : 'none';
+    if (dr.length) {
+      rd.textContent = 'behind schema';
+      rd.setAttribute('data-tip', dr.slice(0,6).join(' · ')
+        + (dr.length>6 ? ` · +${dr.length-6} more` : ''));
+      rd.setAttribute('data-tipmeta',
+        'written before the schema moved; panels reading the new pieces may be empty');
+    }
+  }
+
   // Header hover: the detail without the real estate.
   //
   // These populate the `.pop` panels. They used to *also* set `title`, which is
@@ -846,7 +862,8 @@ async function loadRuns(){
     const el = document.getElementById('rundb');
     if (!el || !runs.length) return;
     el.innerHTML = dd('rundb', runs.map(x =>
-      ({v:x.name, label:`${x.name} · ${ago(x.mtime)}`, on:!!x.current})));
+      ({v:x.name, label:`${x.name} · ${ago(x.mtime)}${x.behind?' · behind':''}`,
+        on:!!x.current})));
     ddWire('rundb', async name => {
       const res = await fetch(`/run?name=${encodeURIComponent(name)}`,
                               {method:'POST'});

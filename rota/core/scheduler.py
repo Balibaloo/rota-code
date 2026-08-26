@@ -709,14 +709,30 @@ def _survey_wakes(conn: sqlite3.Connection) -> list[Wake]:
             "AND tick_key LIKE '%|tick:survey|%'")
     }
 
+    # A record of a tree that is gone is not a record. The survey stamped the
+    # area's aggregate content at attest time; when the index no longer
+    # aggregates to the same value, the area counts as unread and the same
+    # machinery re-fires -- roles, order, bounds, constraint zero's shrink,
+    # none of it knows the difference between first read and re-read, which is
+    # the point. An empty current aggregate means the index predates content
+    # hashes; unknown matches everything, so legacy runs stay quiet until a
+    # refresh rebuilds the index and the views have to be re-earned.
+    from ..roles.api import area_content_hash
+
+    current = {area: area_content_hash(conn, area) for area in areas}
+
+    def surveyed(area: str, role: str) -> bool:
+        row = conn.execute(
+            "SELECT area_hash FROM survey_records WHERE area = ? AND id LIKE ? "
+            "ORDER BY rowid DESC LIMIT 1", (area, f"{role}:%")).fetchone()
+        if row is None:
+            return False
+        return current[area] == "" or row["area_hash"] == current[area]
+
     for role in survey_order():
         outstanding = [
             area for area in areas
-            if abandoned.get(area) != role
-            and not conn.execute(
-                "SELECT COUNT(*) AS n FROM survey_records WHERE area = ? AND id LIKE ?",
-                (area, f"{role}:%"),
-            ).fetchone()["n"]
+            if abandoned.get(area) != role and not surveyed(area, role)
         ]
         if outstanding:
             # One role at a time, still: Terminologist finishes every area before

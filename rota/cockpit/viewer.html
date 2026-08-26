@@ -27,6 +27,8 @@
   .state.idle{background:#1d2a20;color:var(--ok)}
   .state.busy{background:#2a2418;color:var(--warn)}
   .state.stuck{background:#2d1c1a;color:var(--stop)}
+  #rundrift{padding:1px 8px;border-radius:3px;background:#2a2418;color:var(--warn);
+      font-size:11px;cursor:help}
   nav{margin-left:auto;display:flex;gap:4px}
   .tab,button,select{background:transparent;border:1px solid var(--line);color:var(--dim);
        padding:3px 11px;border-radius:3px;cursor:pointer;font:inherit}
@@ -360,6 +362,9 @@
        the title because the run is part of the cockpit's identity: every
        number on the page is a claim about this database and no other. -->
   <div class="dd" id="rundb"></div>
+  <!-- Worn, not hidden: when the served run is behind schema.sql, the header
+       says so, with the missing pieces on hover. -->
+  <span id="rundrift" style="display:none" class="hoverable"></span>
   <span id="state" class="state idle hoverable">…</span>
   <span class="muted hoverable" id="tick"></span>
   <div class="pop" id="pop-state"></div>

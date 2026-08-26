@@ -217,22 +217,28 @@ def schema_drift(db_path: Path) -> list[str]:
     Read off the DDL rather than a hand-kept list, so it cannot fall behind the
     thing it is checking — which is the failure it exists to catch.
     """
-    import re
+    # Parsed once per process: the runs listing asks this question of sixty
+    # databases in a row, and the DDL does not change under a process whose
+    # watcher restarts it when it does.
+    declared = getattr(schema_drift, "_declared", None)
+    if declared is None:
+        import re
 
-    from ..core.db import SCHEMA_PATH
+        from ..core.db import SCHEMA_PATH
 
-    ddl = SCHEMA_PATH.read_text(encoding="utf-8")
-    declared: dict[str, set[str]] = {}
-    for block in re.finditer(
-            r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*?)\n\);", ddl, re.S):
-        table, body = block.group(1), block.group(2)
-        cols = set()
-        for line in body.splitlines():
-            line = line.strip()
-            m = re.match(r"(\w+)\s+(TEXT|INTEGER|REAL|BLOB)", line)
-            if m:
-                cols.add(m.group(1))
-        declared[table] = cols
+        ddl = SCHEMA_PATH.read_text(encoding="utf-8")
+        declared = {}
+        for block in re.finditer(
+                r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*?)\n\);", ddl, re.S):
+            table, body = block.group(1), block.group(2)
+            cols = set()
+            for line in body.splitlines():
+                line = line.strip()
+                m = re.match(r"(\w+)\s+(TEXT|INTEGER|REAL|BLOB)", line)
+                if m:
+                    cols.add(m.group(1))
+            declared[table] = cols
+        schema_drift._declared = declared
 
     problems = []
     conn = connect_readonly(db_path)
@@ -255,8 +261,14 @@ def make_handler(db_path: Path):
     # One mutable slot, because the handler serves *a* run, not *the* run:
     # POST /run swaps which database every later request reads, so the viewer
     # can move between sibling runs without a restart. Everything below reads
-    # `state["db"]` at request time and nothing caches a connection.
-    state = {"db": Path(db_path)}
+    # `state["db"]` at request time and nothing caches a connection. `drift`
+    # rides along: what schema.sql declares that this file lacks, worn in the
+    # page's header rather than silently rendered as empty panels.
+    state = {"db": Path(db_path), "drift": []}
+    try:
+        state["drift"] = schema_drift(Path(db_path))
+    except sqlite3.Error:
+        pass
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, body: bytes, content_type: str) -> None:
@@ -304,11 +316,18 @@ def make_handler(db_path: Path):
                     here = state["db"].parent
                     runs = sorted((p for p in here.glob("*.db")),
                                   key=lambda p: p.stat().st_mtime, reverse=True)
-                    body = json.dumps({"runs": [
-                        {"name": p.stem, "mtime": p.stat().st_mtime,
-                         "current": p.resolve() == state["db"].resolve()}
-                        for p in runs]}).encode("utf-8")
-                    self._send(body, "application/json")
+                    rows_out = []
+                    for p in runs:
+                        try:
+                            behind = bool(schema_drift(p))
+                        except sqlite3.Error:
+                            behind = True
+                        rows_out.append(
+                            {"name": p.stem, "mtime": p.stat().st_mtime,
+                             "behind": behind,
+                             "current": p.resolve() == state["db"].resolve()})
+                    self._send(json.dumps({"runs": rows_out}).encode("utf-8"),
+                               "application/json")
                 elif path == "/stories.json":
                     self._send((graph_mod.DESIGN_DIR / "stories.json").read_bytes(),
                                "application/json")
@@ -413,6 +432,7 @@ def make_handler(db_path: Path):
                               if p.exists()]
                     snap["quiet_secs"] = (max(0.0, time.time() - max(stamps))
                                           if stamps else None)
+                    snap["drift"] = state.get("drift") or []
                     self._send(json.dumps(snap, default=str).encode("utf-8"),
                                "application/json")
                 else:
@@ -484,16 +504,21 @@ def make_handler(db_path: Path):
             if not target.exists():
                 self.send_error(404, f"no run named {name}")
                 return
-            # Same write-only-when-needed gate as `prepare_db`: switching to a
-            # run must not stamp it as freshly written.
-            drift = schema_drift(target)
-            if drift:
-                init_db(target).close()
+            # Same write-only-when-needed gate as `prepare_db`, and the same
+            # tolerance: after init_db the only drift left is columns, and a
+            # column-behind run is served wearing its drift rather than
+            # refused — refusal made every run unreachable the day a schema
+            # edit landed. An unreadable file still refuses.
+            try:
                 drift = schema_drift(target)
-            if drift:
-                self.send_error(409, "behind schema: " + "; ".join(drift[:4]))
+                if drift:
+                    init_db(target).close()
+                    drift = schema_drift(target)
+            except sqlite3.Error as exc:
+                self.send_error(409, f"cannot open {name}: {exc}")
                 return
             state["db"] = target
+            state["drift"] = drift
             self._send(b'{"ok":true}', "application/json")
 
         def log_message(self, *args):                      # quiet
@@ -540,26 +565,36 @@ def prepare_db(project_root: str | Path | None = None,
         siblings = sorted(sdir.glob("*.db"),
                           key=lambda p: p.stat().st_mtime, reverse=True) \
             if sdir.is_dir() else []
+        # A clean run is preferred; a run behind by *columns* is served with
+        # the drift said out loud rather than refused. The morning this
+        # changed, a schema edit had put all sixty-one runs behind at once
+        # and the cockpit refused to start at all — a gate meant to stop one
+        # stale file from lying had turned every schema change into a dead
+        # viewer. Missing tables stay fatal (the viewer's own queries throw);
+        # missing columns are a warning the header wears.
         db_path = None
+        behind = None
         for cand in siblings:
             try:
                 drift = schema_drift(cand)
             except sqlite3.Error as exc:
                 print(f"skipping {cand.stem}: {exc}")
                 continue
-            # Missing *tables* are what init_db adds at the gate below;
-            # missing columns are not, and that candidate would only be
-            # refused after the fact.
             if not drift or all(d.startswith("missing table ") for d in drift):
                 db_path = cand
                 break
+            if behind is None:
+                behind = cand              # newest column-drifted, the fallback
             print(f"skipping {cand.stem}: {drift[0]}"
                   + (f" (+{len(drift) - 1} more)" if len(drift) > 1 else ""))
+        if db_path is None and behind is not None:
+            db_path = behind
+            print(f"every run is behind schema.sql; serving the newest anyway "
+                  f"({db_path.stem}) with the drift shown in the page")
         if db_path is not None:
-            print(f"serving the latest openable run: {db_path.stem}"
-                  f" (the selector in the page switches)")
+            print(f"serving: {db_path.stem} (the selector in the page switches)")
         elif siblings:
-            db_path = siblings[0]      # refused below, with the full story
+            db_path = siblings[0]      # unreadable everywhere; refused below
         else:
             db_path = sdir / "rota.db"
             # Boot rather than refuse. This is a viewer; "no database" is not a
@@ -589,10 +624,20 @@ def prepare_db(project_root: str | Path | None = None,
     # `/state.json` serves: a viewer that touches the thing it measures reads
     # its own restart as activity, and the watcher restarts on every source
     # edit.
+    #
+    # After init_db the only drift left is columns. A run *named* on the
+    # command line is refused for it — you asked for that file, and it cannot
+    # honestly answer. A run the chooser fell back to is served with the
+    # drift worn in the page's header instead: on a schema-moving day that
+    # fallback is every run there is.
     drift = schema_drift(db_path)
     if drift:
         init_db(db_path).close()
         drift = schema_drift(db_path)
+    if drift and db is None:
+        print(f"{db_path.stem} is behind schema.sql "
+              f"({len(drift)} column(s)); serving it anyway, drift shown")
+        drift = []
     if drift:
         raise SystemExit(
             f"{db_path} is behind schema.sql:\n" +

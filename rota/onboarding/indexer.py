@@ -21,6 +21,7 @@ from __future__ import annotations
 import posixpath
 import sqlite3
 from dataclasses import dataclass, field
+import hashlib
 from pathlib import Path
 
 from .languages import Language, for_path
@@ -65,6 +66,8 @@ class FileFacts:
     path: str
     symbols: list[tuple[str, str]] = field(default_factory=list)   # (name, kind)
     imports: list[str] = field(default_factory=list)
+    # What the file held, so the index can say later whether it still does.
+    content_hash: str = ""
 
 
 def _text(node, source: bytes) -> str:
@@ -358,6 +361,7 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
             report.skipped.append(path.relative_to(root).as_posix())
             continue
         rel = path.relative_to(root).as_posix()
+        digest = hashlib.sha256(source).hexdigest()[:16]
         lang = for_path(path.name)
         if lang is None:
             # No parser, so no symbols and no imports -- but a path, which is
@@ -370,10 +374,12 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
             except UnicodeDecodeError:
                 report.skipped.append(rel)
                 continue
-            facts.append(FileFacts(path=rel))
+            facts.append(FileFacts(path=rel, content_hash=digest))
             report.languages["text"] = report.languages.get("text", 0) + 1
             continue
-        facts.append(parse_file(rel, source, lang))
+        parsed = parse_file(rel, source, lang)
+        parsed.content_hash = digest
+        facts.append(parsed)
         report.languages[lang.name] = report.languages.get(lang.name, 0) + 1
 
     known = {f.path for f in facts}
@@ -395,8 +401,9 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     conn.execute("DELETE FROM code_index")
     for f in facts:
         conn.execute(
-            "INSERT INTO code_index (grain, grain_kind, fan_in) VALUES (?, 'path', ?)",
-            (f.path, fan_in.get(f.path, 0)))
+            "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
+            "VALUES (?, 'path', ?, ?)",
+            (f.path, fan_in.get(f.path, 0), f.content_hash))
         for symbol, kind in f.symbols:
             conn.execute(
                 "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in, sym_kind) "
