@@ -708,6 +708,16 @@ for cnt is the right answer.
    that collapses ids), and "what changes next".
 4. **Stay true** (18): a commit to a surveyed file regrows what it invalidated.
 
+   *Status (2026-08-26): the first breath runs.* Grains carry content hashes,
+   attest stamps each record with the area's view, and `tick_survey` treats a
+   record whose view is gone as no record -- the machinery that surveyed
+   re-surveys, unchanged. `rota refresh <run>` is the arrival of a commit as
+   a command, and `test_a_changed_file_reopens_exactly_its_area` is the
+   sentence made checkable: one file changed, one area back, only that one.
+   Still open: refresh on a watcher rather than a command, and what a
+   reopened area's stale *constraints and terms* owe downstream (the cascade
+   knows; nothing connects a re-survey to it yet).
+
    *Rung one of validation "the delivery loop, live" (2026-08-26):* eight
    passes on the synthetic repo, one sentence -- "the email on a new
    registration should be stored lowercased" -- and one fault advanced per
