@@ -590,7 +590,10 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
                           area=wake.refs[0] if case.get("tick") in ("survey", "orient", "define") else None,
-                          mode=case.get("mode", "normal"))
+                          # None, not "normal": a case that does not declare a
+                          # mode gets the one the wake derives, which is what
+                          # production would give it.
+                          mode=case.get("mode"))
     delta = capture(conn, outcome.session_id, before, messages_before=seeded)
 
     # `runner` records a thrown-out call as f"{call.name}: {exc}", so the

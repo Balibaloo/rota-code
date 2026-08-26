@@ -87,6 +87,38 @@ def new_id(prefix: str, conn: sqlite3.Connection | None = None,
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 
+# Law 10 -- inquiry is free. The verb an inquiry arrives on, so the session's
+# mode is derived from the wake rather than chosen by whoever dispatches it.
+#
+# `ask` is the only one: it is drawn three times in the graph, all from Liaison
+# to an artefact's owner, and it is the whole of the read-only route. `answer`
+# is deliberately not here even though it is the same conversation -- a
+# Developer woken by a Terminologist's answer writes code with it, so the verb
+# says nothing about whether the session may write.
+READONLY_VERBS = {"ask"}
+
+
+def session_mode(wake: Wake) -> str:
+    """
+    Whether this session may write, decided by what woke it.
+
+    Law 10 says every principal message is handled read-only first, and the law
+    table says the guarantee is `sandbox.build(mode="readonly")` building no
+    write functions at all. Nothing derived it: `loop.run` called `run_session`
+    without a mode and took the `"normal"` default, so the only readonly
+    sessions this system had ever run were in tests.
+
+    It was not visible because the three `ask` modes narrow to reads in their
+    `.tools` files anyway -- so the law held by three hand-maintained lists
+    agreeing with it, which is exactly the arrangement law 10 was written to
+    replace. A `.tools` file that gains a writer is a silent breach; a mode
+    derived here cannot be.
+    """
+    if wake.kind == "message" and (wake.detail or "") in READONLY_VERBS:
+        return "readonly"
+    return "normal"
+
+
 def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
     """
     Which prompt piece this wake selects.
@@ -692,7 +724,7 @@ def run_session(
     backend: llm.Backend | None = None,
     pins: llm.Pins | None = None,
     instructions: str = "",
-    mode: str = "normal",
+    mode: str | None = None,
     batch_id: str | None = None,
     area: str | None = None,
     max_iterations: int = MAX_ITERATIONS,
@@ -709,6 +741,9 @@ def run_session(
     g = g or graph_mod.load()
     backend = backend or llm.default_backend()
     pins = pins or llm.Pins()
+    # Passed only by tests that are testing the mode itself; every real caller
+    # leaves it to the wake.
+    mode = mode or session_mode(wake)
     routed = config_mod.routed_model(
         config_mod.get(conn, "model_routing"), wake.kind)
     if routed:

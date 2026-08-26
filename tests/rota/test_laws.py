@@ -313,3 +313,59 @@ def test_every_answer_replies_to_something(g):
         for (s, t), verbs in inbound.items()
         if "answer" in verbs and not (inbound.get((t, s), set()) & ASKING_VERBS))
     assert not orphans, orphans
+
+
+# ---------------------------------------------------------------------------
+# Law 10 -- inquiry is free
+# ---------------------------------------------------------------------------
+
+def test_an_ask_wakes_a_session_that_cannot_write(g):
+    """
+    The law's guarantee is structural: a readonly sandbox is built without
+    writers, so a model reaching for one gets an ordinary tool error rather
+    than a refusal at commit time. Nothing derived the mode, so no session the
+    loop ever dispatched was readonly -- `loop.run` takes the `run_session`
+    default and the default was `"normal"`.
+
+    Asserted on the wake rather than on the sandbox, because the sandbox was
+    never the part that was wrong.
+    """
+    from rota.core.predicates import Wake
+    from rota.core.runner import session_mode
+
+    for edge in g.of_type("messages"):
+        if edge.v != "ask":
+            continue
+        wake = Wake(role=edge.t, kind="message", message_id="m1", detail="ask")
+        assert session_mode(wake) == "readonly", f"{edge.s} -> {edge.t}"
+
+
+def test_a_readonly_owner_is_built_with_no_writers(db, g):
+    """
+    The other half, on the sandbox itself: the three owners an inquiry reaches
+    hold no write function at all in the mode the ask puts them in.
+
+    `ask.tools` narrows each of them to reads already, which is why the missing
+    derivation was invisible -- the law held because three hand-maintained
+    lists agreed with it. This asserts it without them.
+    """
+    for role in ("vision_keeper", "terminologist", "architect"):
+        sb = build(role, db, mode="readonly", g=g)
+        writes = {f"{e.t}.{e.v}" for e in g.edges
+                  if e.s == role and e.type == "writes" and e.model_callable}
+        assert writes, f"{role} writes nothing even in normal mode"
+        assert not (set(sb.functions()) & writes), sb.functions()
+
+
+def test_an_answer_is_not_read_only(g):
+    """
+    The verb names the conversation, not the permission. A Developer woken by
+    a Terminologist's answer writes code with it, so `answer` is deliberately
+    outside `READONLY_VERBS` even though it is the reply half of the route
+    whose asking half is inside it.
+    """
+    from rota.core.predicates import Wake
+    from rota.core.runner import session_mode
+
+    wake = Wake(role="developer", kind="message", message_id="m1", detail="answer")
+    assert session_mode(wake) == "normal"
