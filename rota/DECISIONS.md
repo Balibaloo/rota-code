@@ -449,6 +449,38 @@ interleaved, and the determinism finding says a narrow column moves between
 loads. What is settled is that it does not pay for itself yet, and shipping it
 would have cost a re-record of eighteen cases for a score that did not move.
 
+### An inquiry reaches every owner, because choosing one is not Liaison's to do
+
+Measured, not suspected: the eight maintainer questions through the wired route
+each went to **exactly one** owner. The question naming `intents_to` went to
+Architect and never to Terminologist, which holds the term. The question about
+global versus local intents went to Terminologist and never to Vision Keeper,
+which holds what the program promises.
+
+Three places already said otherwise. The design story: Liaison "opens readonly
+sessions" -- plural -- and "three answers compose into one reply". The shipped
+brief: "Ask **every** owner that might hold part of the answer, not just the
+likeliest one." And the case's own notes: "which owner holds the answer is not
+Liaison's to know -- that is the whole reason the question is routed rather
+than answered."
+
+**Decided: it is not a choice, so the choice is gone.** One `msg.ask_*` call
+stages the ask to every owner the graph allows this role to ask. A role cannot
+be asked to know that which owner holds the answer is unknowable to it, and
+then be asked to pick one.
+
+*Consequence:* three owners on seven of the eight, against one on eight of
+eight. The ladder keeps the job it is good at -- somebody new speaking when an
+answer did not land -- and no longer carries the fan-out, which it could only
+do when a non-answer was *detectable*. A confident wrong answer stopped it
+dead, and that is what the rename question produced.
+
+*And the cost, paid knowingly:* three read-only sessions per question instead
+of one. Free in the sense law 10 means -- no writes, no checkpoint disturbed --
+and not free in turns. `L1-LI-a-question-about-the-program-goes-to-its-owners`
+asserts all three now, because it is a property of the channel rather than a
+hope about the brief.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value
@@ -477,7 +509,7 @@ like the cassettes rather than an artefact, and therefore outside the law.
 
 ## Open
 
-### The greeting that precedes a request
+### The message that opens with something other than itself
 
 "morning. we need SSO, but only if it works with our LDAP" is a greeting and a
 commitment in one sentence, and it was the fixture no arm of the intake
@@ -487,11 +519,21 @@ ordered test, and the commit-time chat guard threw the segmentation away
 because of a stray reply on turn five. That is fixed at the channel now, and
 what the fixture measures from here is genuinely the classifier.
 
-What is left, and worth measuring before anything is changed. Whether the
-leading greeting is what does the remainder -- the same sentence without
-"morning." is one fixture's worth of evidence and costs nothing. And why
-`qwen3:8b` commits nothing at all on it, which is a wasted turn rather than a
-wrong answer, and which the entry below turns out to be part of.
+**A second fixture now has the same shape, and it came from the live route.**
+Of the eight maintainer questions, exactly one is never routed to anybody:
+"An intent declares a prompt with `of_type: note`. When the intent runs, what
+is the user asked for, and what answers it?" Liaison answers it from its own
+head, and wrongly. It states a fact and *then* asks about it -- the same
+structure as "morning. we need SSO", which states a greeting and then asks for
+something.
+
+Two fixtures, both resistant to every arm, both opening with something that is
+not the message. The hypothesis that fits: **the classifier reads the opening
+clause.** If a mechanical cue -- ends in a question mark, whatever it opens
+with -- moves the second, that is evidence the failure is positional rather
+than semantic, and it explains the first as well. Being measured; and if it
+moves neither, the hypothesis is wrong and the shared shape is a coincidence
+between two hard sentences.
 
 Not open as a brief question. Six prose attempts have now been spent on
 Liaison's classification and the one that worked replaced a rule rather than
@@ -560,39 +602,6 @@ waits for a decision that may never come. And whether a favourable appraisal
 should flow into work without the principal saying so again; the answer is
 almost certainly no, because "that sounds fine" is not a commitment, and the
 whole ratification gate exists to keep those apart.
-
-### Liaison chooses which owner holds the answer, and that is not its to know
-
-Measured, not suspected: the eight maintainer questions through the wired route
-each went to **exactly one** owner. The question naming `intents_to` went to
-Architect and never to Terminologist, which holds the term. The question about
-global versus local intents went to Terminologist and never to Vision Keeper,
-which holds what the program promises.
-
-Three places say it should not work that way. The design story this route comes
-from: Liaison "opens readonly sessions" -- plural -- and "three answers compose
-into one reply". `converse.md`, in the brief that shipped: "Ask **every** owner
-that might hold part of the answer, not just the likeliest one." And the case's
-own notes: "which owner holds the answer is not Liaison's to know -- that is the
-whole reason the question is routed rather than answered."
-
-It asks one anyway, and the prose has now had its turn. The ladder covers some
-of it -- an owner that cannot answer sends the question on -- but only when the
-non-answer is *detectable*, and a confident wrong answer is not. That is what
-the rename question produced: a fluent paragraph advising the reader to update
-their references, missing the entire user-facing consequence the question was
-built around, with nothing in the state to say it had missed.
-
-**Open, because the shape of the fix is a real choice.** The narrow reading is
-that fanning out is not Liaison's decision at all and the three asks are one
-act -- one call that stages all three, so there is nothing to choose and the
-absence does the instructing, which is the only thing that has held in this
-route. The wider reading is that three read-only sessions per question is the
-right *default* and the brief should still allow one when the question names a
-word and nothing else. What decides it is what three answers cost: they are
-free in the sense law 10 means -- no writes, no checkpoint disturbed -- and not
-free in turns, and the composition problem gets harder with three inputs when
-the relay already degrades one.
 
 ### The frontier, when several things are ready — the big one
 
