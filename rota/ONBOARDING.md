@@ -916,8 +916,17 @@ Three more followed, each measured on the same eight before the next was made.
     glossary bodies the question names             0       3        1
     fan-out to every owner, and a drain            0       2        0
     ref resolution carries the body                1       2        0
+    three answers compose into one reply           1       4        0
 
-The first hit arrived with the last of them, and it is the whole key verbatim:
+The composition row is the design's own sentence -- "three answers compose
+into one reply" -- built at last on the broadcast round's pattern: answers to a
+fan-out are harvested, not raced, and one session holds the whole round with
+every body resolved. It recovered the rename trap's crux through the full route
+for the first time ("the system silently fails for invalid frontmatter"), and
+the hedging that two guards failed to forbid stopped by itself once the
+session had enough to answer with.
+
+The first hit arrived with the body row, and it is the whole key verbatim:
 asked which kinds of template variable an intent can declare and where the set
 is declared, the reply named the five kinds and the enum's file. What had been
 stopping it was that `_resolve_refs` carried `sense_short` and not
