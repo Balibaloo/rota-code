@@ -819,6 +819,50 @@ The rule was satisfiable -- the item id was in front of it -- and it did not
 satisfy it, which is the whole of what law 4 means by a gate becoming a loop.
 Narrowed to the channel that reaches a person, both directions hold.
 
+And then the same guard produced the same failure again, one route along, for a
+reason worth stating separately: **it was unsatisfiable in `ask` mode.**
+`architect/ask.tools` offered `msg.answer_liaison` and no report, so an owner
+asked about an unsurveyed area could neither cite a source nor say it had none.
+It reached for `answer` four times, was refused four times, and the thread died
+with the principal still waiting -- a worse outcome than the hollow answer the
+guard exists to stop.
+
+This route's description has said the missing half from the beginning: "owners
+answer from artefacts, drill to source when they cannot, and write back;
+**'cannot determine' becomes a report**." The report channel was in the graph
+and in no `ask.tools` file. A guard is only fair when the escape it assumes is
+actually built, and
+`test_a_mode_that_answers_liaison_can_also_say_it_cannot` now derives that
+rather than trusting four hand-written lists to agree with it -- the fourth
+time in this route that a hand-maintained list fell behind the graph and the
+failure was silent.
+
+Opening the escape then needed somewhere for it to go. `liaison/report.md` was
+written when the only reports in the system came from an exhausted escalation
+ladder -- it opens "a role has run out of rungs ... everyone below has already
+looked, and the only step left is a person" -- and on this route nobody below
+has looked, because the other two owners have not been asked. So a report
+answering an `ask` marks that ask unresolved and the ladder carries it, rather
+than tipping Liaison into a mode that believes the ladder is spent. It is the
+`schedule.reask` declaration derived, for the same reason the constraint-zero
+case was derivable: in general only the asker knows an answer did not land, and
+here the *answerer* said so, in a verb that means it.
+
+That write has to be the last one in the commit, which is the point rather than
+an ordering detail. Two earlier writes mark a question settled -- the sweep, for
+somebody new speaking in the thread, and the trigger line, for the session
+committing at all. A report saying "not mine" trips both and contradicts both.
+
+And the ladder needed an end. `unresolved` skips the asker, which is right for
+every role -- the asker is blocked and cannot answer itself. Liaison is the
+exception the rule was never asked about: it is the asker *and* the only way
+back to the person who asked, so a principal's question that no owner could
+answer stopped in silence, which from their side is indistinguishable from the
+system losing it. `liaison/unresolved.md` already said the right thing for that
+wake and had no way to be reached for it: "every role that could have taken it
+next has already spoken in this thread ... this is the strongest kind of
+question you can put to the principal".
+
 And the branch itself did not arbitrate. `liaison/answer.md` gained a paragraph
 saying to reask rather than relay when an owner cites constraint zero; both
 models relayed anyway, both passes, four times out of four. Eighth time. The

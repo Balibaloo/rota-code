@@ -5,3 +5,4 @@ msg.answer_developer
 msg.answer_liaison
 msg.answer_tester
 msg.submit_liaison
+msg.report_liaison

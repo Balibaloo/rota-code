@@ -357,6 +357,39 @@ second model is what detects the tuning while it is happening.
 prompt and re-earning the corpus buys nothing here; `qwen3:8b` stays the second
 detector, which is the job it was already doing.
 
+### A guard is only fair when the escape it assumes is built
+
+Three refusals were added to the intake and inquiry channels in one session and
+two of them had to be walked back, both for the same reason and neither for
+being wrong about the behaviour.
+
+**"An answer must name the rows it came from"** is right: `refs` are the whole
+payload, and an answer citing only the question tells the asker nothing they can
+follow. Applied to every channel it made Vision Keeper spend all twelve turns of
+`L1-VK-the-last-rung-rules-or-sends-it-up` re-reading its artefacts and
+re-sending an empty answer -- five runs of five, nothing committed, the item id
+in front of it the whole time. Narrowed to answers *to Liaison*, where the
+principal genuinely cannot resolve a message id, it holds.
+
+It then produced the same failure one route along, because in `ask` mode the
+escape did not exist: `architect/ask.tools` offered `msg.answer_liaison` and no
+`msg.report_liaison`, so an owner asked about an unsurveyed area could neither
+cite a source nor say it had none. Four refusals, no message, thread dead, the
+principal still waiting -- worse than the hollow answer the guard exists to
+prevent.
+
+*The rule this leaves:* a refusal is bounded only if the session can satisfy it
+**or say why it cannot**, and both have to be reachable in the mode, not merely
+in the graph. Law 4 already says a gate the model cannot satisfy becomes a loop;
+what this adds is that "satisfiable" is a property of the *narrowed namespace*,
+which is where four hand-written `.tools` files decide what exists.
+
+*Consequence:* the escapes are derived now.
+`test_a_mode_that_answers_liaison_can_also_say_it_cannot` and
+`test_an_unresolved_rung_can_answer_every_asker_that_reaches_it` both read the
+graph and check the mode, because every one of these faults was a list falling
+behind the graph with nothing to notice.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value

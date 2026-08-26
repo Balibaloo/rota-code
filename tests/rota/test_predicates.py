@@ -913,3 +913,126 @@ def test_a_chain_that_is_going_somewhere_is_left_alone(db):
     ])
     assert scheduler.edge_repeats(db, last) == 1
     assert scheduler.quarantine_looping(db) == []
+
+
+def _inquiry(conn):
+    """A principal question routed to one owner, in one thread."""
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+                 "('e_m5','principal','where does a user write a recipe?',1)")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq, status) VALUES ('m5','m5','principal',"
+                 "'liaison','converse','[\"e_m5\"]',1,'answered')")
+    conn.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                 "to_role, verb, body_refs, seq, status) VALUES "
+                 "('m6','m5','m5','liaison','architect','ask','[\"e_m5\"]',2,"
+                 "'unresolved')")
+    conn.commit()
+
+
+def test_the_inquiry_ladder_ends_at_the_principal(db):
+    """
+    `unresolved` skips the asker, which is right for every role: the asker is
+    blocked and cannot answer itself. Liaison is the exception the rule was
+    never asked about -- it is the asker *and* the only way back to the person
+    who asked -- so a principal's question that no owner could answer stopped in
+    silence, which from their side is indistinguishable from the system losing
+    it.
+
+    `liaison/unresolved.md` already says the right thing for this wake and had
+    no way to be reached for it: "every role that could have taken it next has
+    already spoken in this thread ... this is the strongest kind of question you
+    can put to the principal".
+    """
+    from rota.core.predicates import unresolved
+
+    _inquiry(db)
+    # Architect has answered; two owners left, so the ladder is still climbing.
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq) VALUES "
+               "('m7','m6','m5','architect','liaison','answer','[\"e_m5\"]',3)")
+    db.commit()
+    assert [w.role for w in unresolved(db)] == ["terminologist"]
+
+    for n, role in ((8, "terminologist"), (9, "vision_keeper")):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq) VALUES "
+                   f"('m{n}','m6','m5','{role}','liaison','answer','[]',{n})")
+    db.commit()
+
+    # Everyone who could hold it has spoken. The person who asked is next.
+    assert [w.role for w in unresolved(db)] == ["liaison"]
+
+
+def test_a_role_asked_question_still_stops_when_the_ladder_runs_out(db):
+    """
+    The bound. A *role's* blocked question ends with Liaison as an ordinary
+    rung, and once Liaison has spoken the thread is on the principal's agenda
+    and has a drain of its own. Waking the asker there would be waking somebody
+    to answer their own question.
+    """
+    from rota.core.predicates import unresolved
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','t1','developer',"
+               "'vision_keeper','question','[]',1,'unresolved')")
+    for n, role in ((2, "vision_keeper"), (3, "architect"), (4, "liaison")):
+        db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+                   "to_role, verb, body_refs, seq) VALUES "
+                   f"('m{n}','m1','t1','{role}','developer','answer','[]',{n})")
+    db.commit()
+    assert unresolved(db) == []
+
+
+def test_a_report_answering_an_ask_marks_it_unresolved(db):
+    """
+    "Cannot determine" becomes a report, and a report answering an `ask` is the
+    asker's declaration made by the answerer.
+
+    `schedule.reask` has to be *declared* in general because the evidence
+    disagrees with the truth -- the question's row says answered, a reply is on
+    file, and only the asker knows it did not land. Here the answerer said so
+    outright, in a verb that means it, so the transition is derived.
+
+    Without this an owner saying "not mine" reached Liaison in `report` mode,
+    whose brief opens "a role has run out of rungs ... everyone below has
+    already looked", and the principal was asked about a question two untouched
+    owners might have answered for free.
+    """
+    from rota.core.runner import run_session
+    from rota.core.predicates import Wake
+    from rota.core.scheduler import open_tips
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    _inquiry(db)
+    db.execute("UPDATE messages SET status = 'open' WHERE id = 'm6'")
+    db.commit()
+
+    out = run_session(
+        db, Wake("architect", kind="message", message_id="m6", detail="ask"),
+        backend=ScriptedBackend(["TOOL: msg.report_liaison(refs=[])", "done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="not mine")
+    assert out.committed, out.errors
+
+    row = db.execute("SELECT status, unresolved_note FROM messages "
+                     "WHERE id = 'm6'").fetchone()
+    assert row["status"] == "unresolved"
+    assert "architect" in row["unresolved_note"]
+
+    # And it does not also tip: the ladder carries it from here, and Liaison
+    # hearing about the same question twice is how the `report` brief ends up
+    # telling it the ladder is exhausted when it has barely started.
+    assert [w.message_id for w in open_tips(db)] == []
+
+
+def test_a_report_that_answers_nothing_still_tips(db):
+    """
+    The bound. A report outside any thread is the top of the escalation ladder,
+    which is the whole of what `report` mode is for.
+    """
+    from rota.core.scheduler import open_tips
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','t1','architect','liaison',"
+               "'report','[]',1)")
+    db.commit()
+    assert [w.message_id for w in open_tips(db)] == ["m1"]

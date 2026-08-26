@@ -750,6 +750,23 @@ def unresolved(conn) -> list[Wake]:
             wakes.append(Wake(role, "tick:unresolved", refs=(r["id"],),
                               detail=r["unresolved_note"] or ""))
             break
+        else:
+            # Nobody left, and for a principal's question that is not the end.
+            #
+            # The asker is skipped above because it is blocked and cannot answer
+            # itself -- true of every role. Liaison is the exception that the
+            # rule was never asked about: it is the asker *and* the only way
+            # back to the person who asked. Without this the thread stops in
+            # silence, which from the principal's side is indistinguishable
+            # from the system losing the question.
+            #
+            # `liaison/unresolved.md` already says the right thing for this
+            # wake and had no way to be reached for it: "every role that could
+            # have taken it next has already spoken in this thread ... this is
+            # the strongest kind of question you can put to the principal".
+            if r["from_role"] == "liaison":
+                wakes.append(Wake("liaison", "tick:unresolved", refs=(r["id"],),
+                                  detail=r["unresolved_note"] or ""))
     return wakes
 
 

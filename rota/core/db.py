@@ -370,6 +370,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 (thread, result.role),
             )
 
+
         for turn in result.turns:
             conn.execute(
                 "INSERT INTO turns (session_id, seq, system, user, completion, "
@@ -403,6 +404,34 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 "UPDATE messages SET status = 'answered' WHERE id = ?",
                 (result.trigger_msg,),
             )
+
+        # "Cannot determine" becomes a report, and a report answering an
+        # `ask` is the asker's declaration made by the answerer.
+        #
+        # Last, and that is the point rather than an ordering detail. Two
+        # writes above mark a question settled -- the sweep, for somebody
+        # new speaking in the thread, and the line directly above, for the
+        # session committing at all. A report saying "not mine" trips both
+        # and contradicts both, so it is the one reply that has to survive
+        # them.
+        #
+        # `schedule.reask` has to be declared in general because the evidence
+        # disagrees with the truth -- the row says answered and only the asker
+        # knows it did not land. Here the *answerer* said so, in a verb that
+        # means it, so the transition is derived. Without this an owner saying
+        # "not mine" reached Liaison in `report` mode, whose brief opens "a role
+        # has run out of rungs", and the principal was asked about a question
+        # two untouched owners might have answered for free.
+        for m in result.messages:
+            if m.verb != "report" or not m.cause_id:
+                continue
+            conn.execute(
+                "UPDATE messages SET status = 'unresolved', "
+                "  unresolved_note = COALESCE(unresolved_note, ?) "
+                "WHERE id = ? AND verb = 'ask' AND status != 'unresolved'",
+                (f"{result.role} reported that its artefact does not hold this",
+                 m.cause_id))
+
 
         conn.execute("COMMIT")
     except Exception:

@@ -522,3 +522,32 @@ def test_an_unresolved_rung_can_answer_every_asker_that_reaches_it():
                     f"{rung} is a rung for {asker} and its unresolved mode "
                     f"cannot answer them")
     assert not problems, "\n".join(problems)
+
+
+def test_a_mode_that_answers_liaison_can_also_say_it_cannot():
+    """
+    The guard that requires an answer to Liaison to name a row is only fair if
+    the session has somewhere else to put "my artefact does not hold this".
+
+    It did not. `architect/ask.tools` offered `msg.answer_liaison` and no
+    report, so an owner asked about an unsurveyed area could neither answer
+    with a source nor say it had none: it reached for `answer` four times, was
+    refused four times, and the thread died with the principal still waiting.
+    Measured on the click run, which is also where the guard was added -- the
+    two together made a gate the model could not satisfy, which is exactly what
+    law 4 says produces a loop.
+
+    ONBOARDING's own description of this route has said so from the start:
+    "owners answer from artefacts, drill to source when they cannot, and write
+    back; **'cannot determine' becomes a report**."
+    """
+    problems = []
+    for role in ("architect", "terminologist", "vision_keeper"):
+        for mode in prompts.available(role):
+            tools = prompts.mode_tools(role, mode)
+            if tools is None or "msg.answer_liaison" not in tools:
+                continue
+            if "msg.report_liaison" not in tools:
+                problems.append(f"{role}/{mode} answers liaison and cannot "
+                                f"report that it has nothing")
+    assert not problems, "\n".join(problems)

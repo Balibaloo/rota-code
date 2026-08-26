@@ -73,6 +73,14 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
         "  AND NOT (verb = 'report' AND to_role = 'liaison' AND EXISTS ("
         "    SELECT 1 FROM messages d WHERE d.thread_id = m.thread_id "
         "      AND d.verb = 'deliver' AND d.from_role = 'liaison')) "
+        # A report answering an `ask` is not addressed to a session either. It
+        # marks the ask unresolved, and the ladder carries it from there; left
+        # tipping as well, Liaison hears about the same question twice and the
+        # `report` brief tells it the ladder is exhausted when it has barely
+        # started.
+        "  AND NOT (verb = 'report' AND EXISTS ("
+        "    SELECT 1 FROM messages a WHERE a.id = m.cause_id "
+        "      AND a.verb = 'ask')) "
         "ORDER BY seq"
     ).fetchall()
     return [
