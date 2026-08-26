@@ -688,6 +688,18 @@ for cnt is the right answer.
    scripted one first, a person second -- the questions arrive deduped and
    ordered, the election lands, the page is signed, `observed` becomes decided
    where they said so and ledger where they deferred.
+
+   *Status (2026-08-26):* the signoff spine runs. `observed` has its exit --
+   `glossary.adopt` / `model.adopt`, the split relay, a row put to the
+   principal once -- proven as a scripted arc
+   (`test_observed_becomes_decided_where_they_said_so`) and cased at L1; the
+   items half ran **live** on cnt_v2r with a scripted principal: submit,
+   present, ruling, relay, approvals applied, and the delivery loop took over
+   by itself. The observed offer now rides the wake's refs, because the mode
+   that presents it holds no read that could enumerate it. Still missing: the
+   election question itself (eager is assumed; the lazy half is blocked on the
+   `default_taken` decision, since it mass-writes the ledger through the field
+   that collapses ids), and "what changes next".
 4. **Stay true** (18): a commit to a surveyed file regrows what it invalidated.
 
 Each of the four is a multi-role sequence; none is validated by its parts
