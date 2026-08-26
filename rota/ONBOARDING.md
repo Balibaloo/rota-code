@@ -708,6 +708,29 @@ for cnt is the right answer.
    that collapses ids), and "what changes next".
 4. **Stay true** (18): a commit to a surveyed file regrows what it invalidated.
 
+   *Rung one of validation "the delivery loop, live" (2026-08-26):* eight
+   passes on the synthetic repo, one sentence -- "the email on a new
+   registration should be stored lowercased" -- and one fault advanced per
+   pass, which is what the progressive-rung design was for. In order: the
+   headless-batch livelock (drained as error rows); the parroting guard's
+   exits unnamed, then named-but-unreachable, then reachable-but-undeclared;
+   the reask derived from demonstrated evidence -- asked, answered, tried,
+   same wall -- so the repair fires with no declaration the model does not
+   make; the repair respecifying live, twice, with real term_refs; and the
+   first-answer-wrong intake counterexample, recovered the way a real
+   principal recovers it, by saying it again.
+
+   What remains is model judgement, and the two models' walls are mapped and
+   complementary. **qwen structures and transcribes**: clean intake, clean
+   routing, and every authored artefact -- ledger sentences, ticket texts,
+   test bodies -- is the input sentence written back. **llama authors and
+   wobbles**: real committed code on three passes, and on pass eight the
+   first authored tests of any live run -- three files, thirty-two lines --
+   with intake misreads and invented ids as the cost. The merge line is
+   uncrossed; the wall in front of it is the bench's business, not a guard's.
+
+   Every structural link now exists and has fired live at least once.
+
 Each of the four is a multi-role sequence; none is validated by its parts
 passing. The first is the one the runs above are the start of.
 
