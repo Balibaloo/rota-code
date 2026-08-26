@@ -502,6 +502,23 @@ def observed_entries(conn) -> list[Wake]:
             offered += fresh
     if not counts:
         return []
+    # The election. "Confirm the whole baseline up front, or lazily as work
+    # first touches each area" -- the principal's call, and recorded as
+    # config by the seat because it is literally theirs: no session decides
+    # it, interprets it, or writes it. Under `lazy`, the offer becomes
+    # clerical deferral -- a scheduler action, like constraint zero's
+    # bindings, because logging "this observation is unconfirmed" has no
+    # judgement in it for a session to get wrong. Rows already deferred are
+    # excluded the same way presented ones are: the ledger row is the record.
+    election = conn.execute(
+        "SELECT value FROM config WHERE key = 'baseline_election'").fetchone()
+    if election and election["value"].strip('"') == "lazy":
+        deferred = {r["about_ref"] for r in conn.execute(
+            "SELECT about_ref FROM ledger")}
+        fresh = [i for i in offered if i not in deferred]
+        return [Wake(SCHEDULER, "do:defer_baseline", refs=tuple(fresh),
+                     detail=", ".join(counts))] if fresh else []
+
     asked = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
         "AND verb='present'").fetchone()["n"]

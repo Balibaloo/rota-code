@@ -2577,8 +2577,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         raise ValueError(
             f"that is {criterion_id}'s own sentence written back, so nothing has "
             f"been encoded and a test that reports as coverage would exist. If "
-            f"there is nothing you can add to it, the criterion is what is wrong "
-            f"and saying so is the work of this session")
+            f"there is nothing you can add to it, the criterion is what is "
+            f"wrong, and saying so is the work of this session: "
+            f"msg.question_terminologist(refs=['{criterion_id}']) if its words "
+            f"cannot be turned into an assertion, "
+            f"msg.question_vision_keeper(refs=['{criterion_id}']) if no machine "
+            f"could check what it promises. Retrying the same sentence is the "
+            f"one move that cannot land")
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:

@@ -1114,3 +1114,63 @@ def test_the_observed_offer_names_its_rows(db):
 
     sent = db.execute("SELECT body_refs FROM messages WHERE verb='present'").fetchone()
     assert sorted(_json.loads(sent["body_refs"])) == ["g1", "k1"]
+
+
+def test_the_lazy_election_defers_the_baseline_to_the_ledger(db):
+    """
+    The election, from the stories: "confirm the whole baseline up front, or
+    lazily as work first touches each area. The principal's call, not the
+    system's." Literally here -- no model is in the path. The seat records the
+    choice as config; under `lazy` the offer becomes a scheduler action; each
+    observed row is logged in its own words as an assumption awaiting first
+    touch, authored by the principal because the deferral is their election.
+
+    Blocked until the ledger rename, and the block was real: mass-logging
+    through a field answered `True` 87% of the time would have filled the
+    agenda with a page of `True` and collapsed the ids that keep assumptions
+    apart.
+    """
+    from rota.core.loop import step
+    from rota.core.predicates import observed_entries
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1','frontmatter must match the schema','x','observed')")
+    db.execute("INSERT INTO config (key, value) VALUES "
+               "('baseline_election','lazy')")
+    db.commit()
+
+    offer = observed_entries(db)
+    assert [(w.kind, sorted(w.refs)) for w in offer] == \
+        [("do:defer_baseline", ["g1", "k1"])]
+
+    s = step(db, backend=ScriptedBackend(["done"]),
+             pins=Pins(model="stub", temperature=0.0))
+    assert "deferred 2" in (s.note or "")
+
+    rows = {r["about_ref"]: r for r in db.execute(
+        "SELECT about_ref, default_taken, author, status FROM ledger")}
+    assert set(rows) == {"g1", "k1"}
+    assert all(r["author"] == "principal" and r["status"] == "open"
+               for r in rows.values())
+    assert "a note that seeds another" in rows["g1"]["default_taken"], \
+        "the assumption is the row's own words, not a flag"
+
+    # Deferred once: the offer is quiet, and the agenda -- which drains open
+    # ledger rows -- is what carries them from here.
+    assert observed_entries(db) == []
+
+
+def test_the_eager_default_is_unchanged(db):
+    """The bound: with no election on file, the offer is the present it has
+    always been."""
+    from rota.core.predicates import observed_entries
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a seed note','observed')")
+    db.commit()
+    offer = observed_entries(db)
+    assert [(w.role, w.kind) for w in offer] == \
+        [("liaison", "tick:observed_entries")]

@@ -261,6 +261,42 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         for batch_id in wake.refs:
             lifecycle.merge(conn, batch_id)
         return f"merged {', '.join(wake.refs)}"
+    if action == "defer_baseline":
+        # The lazy election's clerical half. Each observed row becomes an open
+        # assumption in the row's own words -- "uncertainty the principal
+        # chose to defer, written down rather than forgotten, drained through
+        # the same gates as everything else." The id is `ledger.log`'s own
+        # derivation, so a cold retry upserts rather than duplicating, and the
+        # author is the principal because the deferral is their election.
+        import hashlib
+
+        n = 0
+        for ref in wake.refs or ():
+            words, table = None, None
+            for t, col in (("glossary_terms", "sense_short"),
+                           ("constraints", "headline"),
+                           ("model_areas", "account"),
+                           ("items", "text")):
+                row = conn.execute(
+                    f"SELECT {col} AS words FROM {t} WHERE id = ?",
+                    (ref,)).fetchone()
+                if row:
+                    words, table = row["words"], t
+                    break
+            if table is None:
+                continue
+            assumption = (f"observed and unconfirmed under the lazy election: "
+                          f"{words}")
+            lid = "l_" + hashlib.sha256(
+                f"{table}|{ref}|{assumption}".encode()).hexdigest()[:10]
+            conn.execute(
+                "INSERT OR IGNORE INTO ledger (id, about_ref, about_table, "
+                "default_taken, status, author) VALUES (?,?,?,?, 'open', "
+                "'principal')", (lid, ref, table, assumption))
+            n += 1
+        conn.commit()
+        return f"deferred {n} observed rows to the ledger"
+
     if action == "harness":
         from . import harness
 

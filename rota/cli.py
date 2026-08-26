@@ -447,6 +447,27 @@ def cmd_agenda(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_elect(args: argparse.Namespace) -> int:
+    """
+    The election, recorded verbatim. It is the principal's call and nothing
+    else's -- no session decides it, interprets it, or writes it -- so the
+    seat writes the config row directly and the register does the rest:
+    `eager` presents the baseline for signoff, `lazy` defers every observed
+    row to the ledger in its own words, awaiting first touch.
+    """
+    from .core.db import connect
+
+    conn = connect(require(args.name))
+    try:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                     "('baseline_election', ?)", (args.choice,))
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"baseline election: {args.choice}  (next: rota run {args.name})")
+    return 0
+
+
 def cmd_sign(args: argparse.Namespace) -> int:
     """
     Answer one gate. Through `pump`, deliberately: every principal backend
@@ -579,6 +600,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=12,
                    help="rendered lines per gate")
     p.set_defaults(func=cmd_agenda)
+
+    p = sub.add_parser("elect", help="baseline up front, or lazily on touch")
+    p.add_argument("name")
+    p.add_argument("choice", choices=("eager", "lazy"))
+    p.set_defaults(func=cmd_elect)
 
     p = sub.add_parser("sign", help="answer one gate from the agenda")
     p.add_argument("name")
