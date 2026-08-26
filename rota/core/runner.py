@@ -516,6 +516,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     resolved = _resolve_refs(conn, out["refs"])
     if resolved:
         out["resolved_refs"] = resolved
+    # One name for one thing. Intake already calls the principal's words
+    # `principal_said`, and an owner reached through the inquiry route is
+    # holding the same words for the same reason -- so it is not a differently
+    # named ref there. The briefs say "principal_said" and mean it either way.
+    if "principal_said" not in out:
+        said = next((r for r in resolved.values()
+                     if r.get("author") == "principal" and r.get("text")), None)
+        if said:
+            out["principal_said"] = said["text"]
+            out["entry_id"] = said["id"]
 
     # Sibling reports in the same thread: harvest cannot dedupe what it cannot
     # see. This is the ladder's single report now -- in-round reports are
@@ -584,6 +594,22 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             ("constraints", "id, headline"),
             ("glossary_terms", "id, term, sense_short"),
             ("ledger", "id, about_ref, default_taken"),
+            # The transcript, and it is the whole of the inquiry route.
+            #
+            # An `ask` carries refs and no words, so the entry id *is* the
+            # question -- and this list had no `entries` row, so it resolved to
+            # nothing and the owner was woken with a ref it could not follow.
+            # Measured on a live run against the click database: Architect saw
+            # `refs: ["e_m5"]`, no question, and answered with a description of
+            # a three-layer architecture that click does not have. Answering
+            # from memory is what a role does when handed nothing, and it is
+            # indistinguishable afterwards from answering from the artefact.
+            #
+            # Entries were reachable before only through `entry_for`, which
+            # looks up `e_{waking message id}` -- true on the intake hop, where
+            # Liaison is woken by the very message the entry belongs to, and
+            # false on every hop after it.
+            ("entries", "id, author, text"),
         ):
             hit = conn.execute(
                 f"SELECT {cols} FROM {table} WHERE id = ?", (ref,)).fetchone()

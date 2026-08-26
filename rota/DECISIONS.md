@@ -320,6 +320,43 @@ clarification `L1-LI-no-report-no-question` forbids -- a vague request is still
 a request. The measurement that chose the ordered test had no vague-request
 fixture in it, so nothing could have found this before the case ran.
 
+### Two models disagreeing is a diagnostic, not a portability problem
+
+The question that prompted this was the right one: prompts should not be model
+dependent, and capability should just be capability. Eight arms of the intake
+measurement, run interleaved on `llama3.1:8b` and `qwen3:8b`, say it almost
+exactly.
+
+    change                                  llama3.1:8b   qwen3:8b
+    `vacuous` over `unfounded` / `dismiss`     best          best
+    ordered test replacing the tiebreaker      0-1/4 -> 4/4  0-1/4 -> 4/4
+    refusing an ask with empty refs            0/4 -> 4/4    fixed
+    one answer per message, at the channel     fixed         fixed
+    adding a three-owner worked example        worse         better
+
+**Every edit that corrected a defect helped both models. The only edit they
+disagreed about was one that added emphasis rather than correcting anything.**
+
+So the rule is a check rather than a policy, and it costs nothing because both
+models are already run:
+
+- helps both -> ship it
+- helps one, hurts the other -> do not ship. It is emphasis, not a fix, and the
+  structural form has not been found yet
+- helps neither -> the diagnosis was wrong
+
+That third arm is the one that matters historically. The refs *paragraph* is
+what llama disliked; replacing it with the refs *guard* in `sandbox.py` made
+both models agree, and the paragraph came back out. `l1_liaison.yaml` has been
+warning about this since the chat path landed -- "a brief that can only be
+tuned in one direction gets tuned until the other direction breaks" -- and the
+second model is what detects the tuning while it is happening.
+
+*Consequence:* no per-model brief mechanism is needed and none should be built.
+`llama3.1:8b` stays the recording model, because cassettes are evidence about a
+prompt and re-earning the corpus buys nothing here; `qwen3:8b` stays the second
+detector, which is the job it was already doing.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value

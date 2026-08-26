@@ -203,8 +203,17 @@
     # Two live senses is the answer, and saying one of them would be resolving a
     # collision, which is a decision, which is a write this session does not
     # have. The refs are what carry it back.
+    #
+    # `refs_include` is what makes this case worth running. Without it the case
+    # passed while the route was broken: the ask reached Terminologist with a
+    # ref it could not follow -- `_resolve_refs` had no `entries` row, so the
+    # question resolved to nothing -- and an owner handed nothing still sends
+    # an answer, from memory. On the live click run the same fault had Architect
+    # describe a three-layer architecture click does not have. Requiring the
+    # answer to name rows from the artefact it owns is the difference between
+    # "it replied" and "it replied from somewhere".
     messages:
-      - {to: liaison, verb: answer, count: 1}
+      - {to: liaison, verb: answer, count: 1, refs_include: [<g1>, <g2>]}
   forbidden:
     # Read-only means read-only: law 10's guarantee is that the writers were
     # never built, so a breach here is a breach of the mode and not of a rule.

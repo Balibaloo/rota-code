@@ -733,6 +733,29 @@ empty". It is satisfiable, which is the test a refusal has to pass here:
 across the guard: inquiry went **0 of 4 to 4 of 4** on the same brief, both
 models, both passes.
 
+**And the refs did not resolve, so the owner answered from memory.** The guard
+above makes an ask carry the entry id; nothing followed it. `_resolve_refs`
+turns a message's refs into the rows they name and its table list had no
+`entries` row, because entries had only ever been reached through `entry_for`,
+which looks up `e_{waking message id}` -- true on the intake hop, where Liaison
+is woken by the message the entry belongs to, and false on every hop after it.
+
+What that looked like on the live click run, with everything above already
+fixed: Liaison routed the question, Architect woke with `refs: ["e_m5"]` and no
+question in front of it, and answered with a description of a three-layer
+architecture -- data, business logic, interface -- that click does not have.
+Answering from memory is what a role does when handed nothing, and it is the
+third fault in this route that is invisible from the outside: a well-formed
+`answer` message comes back either way.
+
+The L3 chain case passed straight through it, and the reason is worth keeping.
+It asserted that Terminologist sent an answer, not that the answer named
+anything. It now requires the answer's refs to include the glossary rows the
+question is about, which is the difference between "it replied" and "it replied
+from somewhere". Its first fixture also gave the ask message and the entry the
+same id, which made `entry_for` match by accident; they are deliberately
+unequal now.
+
 **Intake had two branches and needed three.** `converse.md` asked "is this chat
 or work?" and settled ties twice -- "Default to chat", "When in doubt, chat" --
 so a question about the onboarded program, which is neither, fell to the

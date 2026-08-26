@@ -116,3 +116,44 @@ def test_a_session_recorded_before_turns_existed_still_explains_itself(db):
     assert shown["turns"] == []
     assert shown["brief"], "the rebuilt brief is the fallback"
     assert "not retained" in shown["note"].lower()
+
+
+def test_an_ask_reaches_the_owner_with_the_question_in_it(tmp_path):
+    """
+    The refs on an ask *are* the question, so they have to resolve.
+
+    `msg.ask_*` carries no words -- law 2 -- and the entry id is the whole of
+    how the principal's sentence reaches the owner. `_resolve_refs` had no
+    `entries` row, so it resolved to nothing, and the owner woke holding a ref
+    it could not follow. Entries were reachable only through `entry_for`, which
+    looks up `e_{waking message id}`: true on the intake hop, where Liaison is
+    woken by the message the entry belongs to, and false on every hop after it.
+
+    Measured on the click database before this: Architect was woken by `m6` for
+    entry `e_m5`, saw `refs: ["e_m5"]` and no question, and answered with a
+    description of a three-layer architecture that click does not have.
+    Answering from memory is what a role does when handed nothing, and from the
+    outside it is indistinguishable from answering from the artefact.
+
+    The message ids are deliberately unequal here. They were equal in the first
+    fixture written for this and the bug hid behind that.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m5','principal','where does a user write a recipe?',1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m6','t1','liaison','architect','ask',?,1)",
+               (json.dumps(["e_m5"]),))
+    db.commit()
+
+    out = resolve_inbound(db, Wake(role="architect", kind="message",
+                                   message_id="m6", detail="ask"))
+    assert out["principal_said"] == "where does a user write a recipe?"
+    assert out["entry_id"] == "e_m5"
+    assert out["resolved_refs"]["e_m5"]["author"] == "principal"
