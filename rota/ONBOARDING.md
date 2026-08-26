@@ -696,7 +696,13 @@ for cnt is the right answer.
    items half ran **live** on cnt_v2r with a scripted principal: submit,
    present, ruling, relay, approvals applied, and the delivery loop took over
    by itself. The observed offer now rides the wake's refs, because the mode
-   that presents it holds no read that could enumerate it. Still missing: the
+   that presents it holds no read that could enumerate it -- and with that in,
+   the observed half ran live at scale: the 91-row offer went out carrying its
+   rows, the scripted principal ruled, and **81 rows moved to `decided`
+   through the owners' own sessions**, the contested and unruled remainder
+   staying observed, on file. The drive also found and drained a delivery-loop
+   livelock on the way -- a batch with tests and no worktree re-offered itself
+   forever, because "could not run" recorded nothing. Still missing: the
    election question itself (eager is assumed; the lazy half is blocked on the
    `default_taken` decision, since it mass-writes the ledger through the field
    that collapses ids), and "what changes next".
