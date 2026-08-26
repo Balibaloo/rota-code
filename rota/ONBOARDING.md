@@ -786,6 +786,39 @@ until a question actually travelled three hops:
   a mode narrowed by hand. `test_an_unresolved_rung_can_answer_every_asker_that_
   reaches_it` derives it now.
 
+Two more surfaced once the ladder actually moved, and they are the same fault
+as the ask's refs, one layer along. A rung is woken by a *tick* carrying the
+question in `refs`, and `resolve_inbound` returned `{}` for any wake without a
+`message_id` -- so the rung saw a message id and nothing else: no question, no
+resolved rows. Terminologist and Vision Keeper each answered with
+`refs: ["m6"]`, the id of the question itself, because it was the only thing in
+front of them. And nothing linked that answer back to the question, so
+`schedule.reask` refused and the asker could not report that the second answer
+missed either. `trigger_message` is now the one definition of what a session is
+replying to, used by the prompt and by the outbound cause, so the two cannot
+disagree.
+
+With those in, the ladder completes: Architect, then Terminologist, then Vision
+Keeper, each once, and quiescent -- against three identical answers and a
+quarantine before.
+
+What the rungs then answered was still hollow. Shown the question at last, they
+read their artefacts properly -- three glossary lookups deep -- and replied
+citing the *question*, which is the same nothing as citing the message. An
+answer to Liaison has to name a row, because Liaison relays to the principal and
+the principal has never seen one they cannot resolve; the channel already
+refuses a message id for that reason, so a hollow answer hands Liaison something
+it is forbidden to pass on.
+
+The bound on that rule was found by measuring the wider version, and it is the
+clearest example this session produced of a guard being too strict. Held to
+citing a source on *every* channel, Vision Keeper spent all twelve turns of
+`L1-VK-the-last-rung-rules-or-sends-it-up` re-reading its artefacts and
+re-sending an empty answer, five runs out of five, committing nothing at all.
+The rule was satisfiable -- the item id was in front of it -- and it did not
+satisfy it, which is the whole of what law 4 means by a gate becoming a loop.
+Narrowed to the channel that reaches a person, both directions hold.
+
 And the branch itself did not arbitrate. `liaison/answer.md` gained a paragraph
 saying to reask rather than relay when an owner cites constraint zero; both
 models relayed anyway, both passes, four times out of four. Eighth time. The

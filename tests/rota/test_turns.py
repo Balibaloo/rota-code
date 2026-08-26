@@ -230,3 +230,55 @@ def test_a_tick_carrying_artefact_ids_gains_no_cause(tmp_path):
     assert out.committed, out.errors
     assert db.execute(
         "SELECT COUNT(*) n FROM messages").fetchone()["n"] == 0
+
+
+def test_a_tick_woken_rung_is_shown_the_question(tmp_path):
+    """
+    The other half of the same fault: the rung could not *read* what it was
+    woken to answer.
+
+    `resolve_inbound` returned `{}` for any wake with no `message_id`, so a rung
+    on the `unresolved` ladder saw the message id in `refs` and nothing else --
+    no `principal_said`, no resolved rows, no text. Measured on the click run:
+    Terminologist and Vision Keeper each answered with `refs: ["m6"]`, the id of
+    the question itself, because it was the only thing in front of them. An
+    answer naming a message names nothing the asker can relay, and Liaison
+    rightly refused to put it in front of the principal.
+
+    Same `trigger_message` the outbound cause uses, so the prompt and the
+    causal chain cannot disagree about what this session is replying to.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m5','principal','where does a user write a recipe?',1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m6','t1','liaison','architect',"
+               "'ask',?,1,'unresolved')", (json.dumps(["e_m5"]),))
+    db.commit()
+
+    out = resolve_inbound(db, Wake("terminologist", "tick:unresolved",
+                                   refs=("m6",)))
+    assert out["principal_said"] == "where does a user write a recipe?"
+    assert out["from"] == "liaison" and out["verb"] == "ask"
+    assert out["refs"] == ["e_m5"], "the question's refs, not the question's id"
+
+
+def test_a_tick_carrying_artefact_ids_resolves_to_nothing(tmp_path):
+    """The bound, on the prompt side: a survey tick is not replying to anyone."""
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','close an account',"
+               "'in_scope','decided','approved',1,1)")
+    db.commit()
+    assert resolve_inbound(db, Wake("vision_keeper", "tick:slicing",
+                                    refs=("i1",))) == {}

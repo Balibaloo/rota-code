@@ -1020,3 +1020,93 @@ def test_the_hollow_guard_only_looks_at_an_answer(db):
     sb.ctx.trigger = "m1"
     sb.call("msg.converse_principal", refs=[], reply="Morning!")
     assert len(sb.ctx.outbound) == 1
+
+
+def test_an_answer_names_what_it_came_from(db):
+    """
+    `refs` are the whole payload on an answer -- law 2 keeps the reasoning at
+    home -- so an answer citing only the question, the thread, or constraint
+    zero has told the asker nothing they can follow.
+
+    Measured on the click run: a rung woken by the `unresolved` ladder read its
+    glossary properly, three lookups deep, and answered `refs: ["e_m5"]` -- the
+    question, handed back. Before that it answered `refs: ["m6"]`, the id of the
+    message asking it. Liaison could relay neither, and rightly refused to put
+    either in front of the principal.
+
+    Saying "not mine" stays available and is a different verb: `msg.report_*` is
+    what a rung sends when its artefact does not hold the answer.
+    """
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','what is a recipe here?',1)")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k0','not yet surveyed','everything no survey has reached',"
+               "'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m6','t1','liaison','terminologist',"
+               "'ask','[\"e_m1\"]',1)")
+    db.commit()
+
+    for echo in (["e_m1"], ["m6"], ["k0"], ["e_m1", "k0"], []):
+        sb = build("terminologist", db, mode="readonly")
+        with pytest.raises(ValueError, match="names the rows it came from"):
+            sb.call("msg.answer_liaison", refs=echo)
+
+    sb = build("terminologist", db, mode="readonly")
+    sb.call("msg.answer_liaison", refs=["g1"])
+    assert len(sb.ctx.outbound) == 1
+
+    # The question may travel *beside* a source; it is the only-echo case that
+    # is refused, not the presence of an echo.
+    sb = build("terminologist", db, mode="readonly")
+    sb.call("msg.answer_liaison", refs=["e_m1", "g1"])
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_a_report_may_say_nothing_was_found(db):
+    """
+    The bound, and the escape the guard depends on being open: a rung whose
+    artefact does not hold the answer says so upward, and that carries no
+    source because there is none.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m6','t1','liaison','terminologist',"
+               "'ask','[]',1)")
+    db.commit()
+    sb = build("terminologist", db, mode="readonly")
+    sb.call("msg.report_liaison", refs=[])
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_only_the_channel_that_reaches_a_person_must_cite_a_source(db):
+    """
+    The bound on "an answer names what it came from", and it was found by
+    measuring the wider version.
+
+    Held to citing a source on every channel, Vision Keeper spent all twelve
+    turns of `L1-VK-the-last-rung-rules-or-sends-it-up` re-reading its
+    artefacts and re-sending an empty answer, five runs out of five, and
+    committed nothing. Satisfiable in principle is not satisfiable, and this
+    system's own law says a gate the model cannot satisfy becomes a loop.
+
+    Liaison is the channel where it is not a matter of taste: it relays to the
+    principal, who has never seen a row and cannot be shown one they cannot
+    resolve. An answer to Liaison citing only the question hands it something it
+    is *forbidden* to pass on. Every other answer stays between roles that share
+    a database.
+    """
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq) VALUES ('m1','t1','developer',"
+               "'researcher','question','[]','does the API return 409?',1)")
+    db.commit()
+
+    # No source, and no complaint: the recipient shares the database.
+    sb = build("researcher", db, mode="normal")
+    sb.call("msg.answer_developer", refs=[])
+    assert len(sb.ctx.outbound) == 1
+
+    sb = build("vision_keeper", db, mode="normal")
+    sb.call("msg.answer_tester", refs=[])
+    assert len(sb.ctx.outbound) == 1

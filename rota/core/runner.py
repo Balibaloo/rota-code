@@ -455,6 +455,23 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
     return text[:limit] + "\n" + note
 
 
+def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
+    """
+    The message this session is replying to, which is not always a message wake.
+
+    A rung on the `unresolved` ladder is woken by a *tick* carrying the question
+    in its refs. Narrow on purpose: only a ref that resolves to a message
+    counts, and every other tick carries artefact ids, so a session woken by one
+    is replying to nothing and gets None.
+    """
+    if wake.message_id:
+        return wake.message_id
+    for ref in getattr(wake, "refs", ()) or ():
+        if conn.execute("SELECT 1 FROM messages WHERE id = ?", (ref,)).fetchone():
+            return ref
+    return None
+
+
 def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     The content of the triggering message, resolved one hop.
@@ -477,12 +494,20 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     if wake.kind == "tick:round_close":
         return _resolve_round(conn, wake)
-    if not wake.message_id:
+    # A tick can name a message too, and one kind does. The `unresolved`
+    # ladder's rung was woken with the question in `refs` and shown nothing but
+    # the id: no `principal_said`, no resolved rows, no text. Measured on the
+    # click run -- Terminologist and Vision Keeper each answered with
+    # `refs: ["m6"]`, the message id itself, because it was the only thing in
+    # front of them. An answer naming a message names nothing the asker can
+    # relay, and Liaison rightly refused to put it in front of the principal.
+    trigger = trigger_message(conn, wake)
+    if not trigger:
         return {}
 
     row = conn.execute(
         "SELECT id, from_role, to_role, verb, body_refs, body_text, round_no "
-        "FROM messages WHERE id = ?", (wake.message_id,)).fetchone()
+        "FROM messages WHERE id = ?", (trigger,)).fetchone()
     if not row:
         return {}
 
@@ -498,18 +523,18 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
 
     from ..roles.principal import entry_for, verdict_for
 
-    text = entry_for(conn, wake.message_id)
+    text = entry_for(conn, trigger)
     if text:
         out["principal_said"] = text
         # Already in the transcript, recorded mechanically. The role is told its
         # id so it can segment against it rather than re-appending it.
         recorded = conn.execute(
             "SELECT id FROM entries WHERE id = ?",
-            (f"e_{wake.message_id}",)).fetchone()
+            (f"e_{trigger}",)).fetchone()
         if recorded:
             out["entry_id"] = recorded["id"]
             out["already_recorded"] = True
-    ruling = verdict_for(conn, wake.message_id)
+    ruling = verdict_for(conn, trigger)
     if ruling:
         out["principal_verdict"] = ruling
 
@@ -538,7 +563,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             "SELECT id, from_role, body_refs FROM messages "
             "WHERE verb = 'report' AND thread_id = ("
             "  SELECT thread_id FROM messages WHERE id = ?) "
-            "  AND id != ? ORDER BY seq", (wake.message_id, wake.message_id))]
+            "  AND id != ? ORDER BY seq", (trigger, trigger))]
         if siblings:
             out["other_reports"] = siblings
 
@@ -547,7 +572,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # where a role is deliberately given history; the no-memory rule still
     # holds for every other mode.
     if row["to_role"] == "liaison" and row["verb"] == "converse":
-        out["recent_chat"] = _recent_chat(conn, wake.message_id)
+        out["recent_chat"] = _recent_chat(conn, trigger)
 
     return out
 
@@ -820,13 +845,7 @@ def run_session(
     #
     # Narrow on purpose: only a ref that actually resolves to a message counts.
     # Every other tick carries artefact ids in `refs` and is unaffected.
-    sb.ctx.trigger = wake.message_id
-    if not sb.ctx.trigger:
-        for ref in wake.refs or ():
-            if conn.execute("SELECT 1 FROM messages WHERE id = ?",
-                            (ref,)).fetchone():
-                sb.ctx.trigger = ref
-                break
+    sb.ctx.trigger = trigger_message(conn, wake)
 
     claim(conn, wake.role, session_id, wake.message_id)
     if wake.message_id:

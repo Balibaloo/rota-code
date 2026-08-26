@@ -493,40 +493,49 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     return Sandbox(role, ctx, artefacts)
 
 
-def _relaying_a_non_answer(ctx: api.Ctx) -> str | None:
+def _names_no_source(conn, refs) -> bool:
     """
-    Constraint zero's id, if the answer this session was woken by cites it and
-    nothing else of substance. `None` when the answer named a real row, when
-    the wake was not an answer, or when there is nothing to read.
+    Whether these refs cite nothing an answer could have come *from*.
 
-    Entries do not count as substance on this route: the entry is the question,
-    and an owner echoing the question back has not answered it either.
+    Three kinds of ref are echoes rather than sources. A **message** is the
+    conversation, and the recipient was already in it. An **entry** is the
+    principal's own words -- on the inquiry route it is the question itself. And
+    **constraint zero** is the row bound to everything no survey has reached, so
+    citing it is a role saying it has not looked, which is a fact about the run.
+
+    Anything else is a row somebody owns, wrote, and can be held to.
+    """
+    from ..onboarding.boot import ZERO
+
+    for ref in refs or ():
+        if not isinstance(ref, str) or ref == ZERO:
+            continue
+        if conn.execute("SELECT 1 FROM messages WHERE id = ?", (ref,)).fetchone():
+            continue
+        if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
+            continue
+        return False
+    return True
+
+
+def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
+    """
+    Whether the answer this session was woken by cited nothing of substance.
+
+    `None` when the wake was not an answer or there is nothing to read.
     """
     import json
-
-    from ..onboarding.boot import ZERO
 
     row = ctx.conn.execute(
         "SELECT verb, body_refs FROM messages WHERE id = ?",
         (ctx.trigger,)).fetchone()
     if row is None or row["verb"] != "answer":
-        return None
+        return False
     try:
         refs = json.loads(row["body_refs"] or "[]")
     except (TypeError, ValueError):
-        return None
-    cited = None
-    for ref in refs:
-        if not isinstance(ref, str):
-            continue
-        if ref == ZERO:
-            cited = ref
-            continue
-        if ctx.conn.execute("SELECT 1 FROM entries WHERE id = ?",
-                            (ref,)).fetchone():
-            continue
-        return None                      # something real was named
-    return cited
+        return False
+    return _names_no_source(ctx.conn, refs)
 
 
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
@@ -806,16 +815,54 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # is visible, because the owner cites the row that means it.
         if (recipient == "principal" and verb == "converse"
                 and getattr(ctx, "trigger", None)):
-            hollow = _relaying_a_non_answer(ctx)
-            if hollow:
+            if _relaying_a_non_answer(ctx):
                 raise ValueError(
-                    f"the answer you are relaying names nothing but the "
-                    f"question and {hollow} -- constraint zero, which is the "
-                    f"row for everything no survey has reached. That is the "
-                    f"owner saying it does not know, and the other owners have "
-                    f"not been asked. Say what is still missing with "
-                    f"schedule.reask; asking them is free and the principal's "
-                    f"attention is not")
+                    "the answer you are relaying cites nothing it came from -- "
+                    "only the question, the thread, or constraint zero, which "
+                    "is the row for everything no survey has reached. That is "
+                    "an owner saying it does not know, and the other owners "
+                    "have not been asked. Say what is still missing with "
+                    "schedule.reask; asking them is free and the principal's "
+                    "attention is not")
+
+        # An answer names what it came from.
+        #
+        # `refs` are the whole payload -- law 2, conclusions travel and
+        # reasoning stays home -- so an answer citing only the question, the
+        # thread, or constraint zero has told the asker nothing they can
+        # follow. Measured on the click run: a rung woken by the `unresolved`
+        # ladder read its glossary properly, three lookups deep, and answered
+        # `refs: ["e_m5"]` -- the question, handed back. The asker cannot relay
+        # that and cannot act on it.
+        #
+        # Bounded to the one channel where it is not a matter of taste.
+        #
+        # Liaison relays to the principal, who has never seen a row and cannot
+        # be shown one they cannot resolve -- the guard above refuses a message
+        # id on that channel for exactly that reason. So an answer to Liaison
+        # citing only the question or the thread hands it something it is
+        # forbidden to pass on and cannot act on. Every other answer stays
+        # between roles that share a database, where the recipient can look
+        # around for itself.
+        #
+        # Narrowed after measuring the wider version. Held to citing a source on
+        # *every* channel, Vision Keeper spent all twelve turns of
+        # `L1-VK-the-last-rung-rules-or-sends-it-up` re-reading its artefacts
+        # and re-sending an empty answer, five runs out of five, and committed
+        # nothing at all. Satisfiable in principle is not satisfiable, and this
+        # system's own law says a gate the model cannot satisfy is a loop.
+        #
+        # The escape stays open where it is needed: `msg.report_liaison` is how
+        # an owner says its artefact does not hold the answer, and the three
+        # roles that can be asked by Liaison are exactly the three that have one.
+        if (verb == "answer" and recipient == "liaison"
+                and _names_no_source(ctx.conn, refs)):
+            raise ValueError(
+                "an answer names the rows it came from, and these name none -- "
+                "only the question, the thread, or constraint zero. Cite what "
+                "you read: the terms, items or constraints your answer rests "
+                "on. If your artefact does not hold it, that is a report and "
+                "not an answer")
 
         # One message gets one answer. `api.refuse_second_answer` holds the
         # rule and says why; the three channels that carry an intake answer
