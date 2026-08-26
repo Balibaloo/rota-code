@@ -524,33 +524,44 @@ saying it -- and by the evidence here, forbidding is the family that does not
 work when the thing being forbidden is a symptom of the session knowing less
 than it needs to.
 
-## Amendments the settled column forces on LAWS.md
+### A confirmation names a statement, or it is refused
 
-### Law 11 — provenance gains a third value
+Found while reading the sessions that scored as doing nothing. Handed
+"morning. we need SSO, but only if it works with our LDAP", `qwen3:8b` sent
+`msg.confirm_principal(refs=['s1'])` three turns running without ever calling
+`brief.segment`. The message went out. `receipts` is empty. The principal is
+now holding a gate on a statement that does not exist, and the ratification
+that answers it will refer to nothing.
 
-`decided` is the reason on file, written by the decider. `observed` is extracted
-from an onboarded codebase: found, not chosen. External knowledge is neither.
+The channel checks the *shape* of a ref and deliberately not the row --
+"checking the shape rather than the row keeps this honest for ids written in
+this same session, which are not in any table yet". That reasoning is right and
+the conclusion is one step short: a row written in this session is in
+`ctx.writes`, so the honest check is *exists in a table **or** was staged
+here*, which refuses exactly this and nothing else.
 
-Proposed: **`cited`** — found outside the repository, attributable to a source,
-and the only kind of claim that can become false without anyone touching the
-project. `provenance` is a `NOT NULL CHECK` on every artefact that has one, so
-this is a schema change, not a convention.
+Open rather than done, for one reason worth stating: a new refusal changes what
+a session does on its *next* turn, and every cassette recorded past that point
+stops matching. That is how the ledger guard's cause stayed hidden for a week.
+The guard is cheap; re-earning eleven L1 cases is not, so it goes in with a
+re-record and not beside one.
 
-### Law 13 — the retrieval date
+`L1-LI-a-question-the-roles-could-not-answer` is the third member of this
+family and the oldest -- `clarify` reaches the principal five runs out of five
+carrying no refs, and its case says outright that prose has been tried and the
+fix will have to be structural. It is not the same guard: `clarify` has a
+`question` field, so an empty refs list is thin rather than empty, and the
+refusal would have to be situational -- refs are obligatory *when the wake
+carried some* -- which is `sandbox.situational`'s shape and not `stage`'s. The
+`ask` guard is the precedent that makes it tractable, not the fix.
 
-Law 13 forbids it: *"no date, duration or timestamp column exists in
-`schema.sql`"*, enforced as a build check.
-
-Resolution without amending the law: **the date is for a human, not the system.**
-Nothing the system does with staleness needs one — "the page changed" is a hash
-comparison, and "it has been a year" is a time judgement law 13 says the system
-does not get to make. So `references` carries `content_hash` and a retrieval
-sequence, and the real timestamp lives in the **fetch cache**, which is evidence
-like the cassettes rather than an artefact, and therefore outside the law.
-
----
-
-## Open
+**Resolved by the channel.** `msg.confirm_principal` refuses any ref that is
+not a statement -- on file or staged this session -- with the way back named:
+segment first, confirm the ids. Caught live doing exactly what this entry
+predicted (`qwen3:8b` confirming the transcript entry on turn one), and the
+one-answer refusal that had been misdescribing the session's work now carries
+what was actually done. `w-sso` went from committing nothing to segmenting,
+both models, both passes.
 
 ### The message that opens with something other than itself
 
@@ -603,37 +614,6 @@ answer, and it is the last thing in this set that no arm has moved.
 Not open as a brief question. Six prose attempts have now been spent on
 Liaison's classification and the one that worked replaced a rule rather than
 adding one, so the next attempt should be structural or should not be made.
-
-### A confirmation can name a statement nobody wrote
-
-Found while reading the sessions that scored as doing nothing. Handed
-"morning. we need SSO, but only if it works with our LDAP", `qwen3:8b` sent
-`msg.confirm_principal(refs=['s1'])` three turns running without ever calling
-`brief.segment`. The message went out. `receipts` is empty. The principal is
-now holding a gate on a statement that does not exist, and the ratification
-that answers it will refer to nothing.
-
-The channel checks the *shape* of a ref and deliberately not the row --
-"checking the shape rather than the row keeps this honest for ids written in
-this same session, which are not in any table yet". That reasoning is right and
-the conclusion is one step short: a row written in this session is in
-`ctx.writes`, so the honest check is *exists in a table **or** was staged
-here*, which refuses exactly this and nothing else.
-
-Open rather than done, for one reason worth stating: a new refusal changes what
-a session does on its *next* turn, and every cassette recorded past that point
-stops matching. That is how the ledger guard's cause stayed hidden for a week.
-The guard is cheap; re-earning eleven L1 cases is not, so it goes in with a
-re-record and not beside one.
-
-`L1-LI-a-question-the-roles-could-not-answer` is the third member of this
-family and the oldest -- `clarify` reaches the principal five runs out of five
-carrying no refs, and its case says outright that prose has been tried and the
-fix will have to be structural. It is not the same guard: `clarify` has a
-`question` field, so an empty refs list is thin rather than empty, and the
-refusal would have to be situational -- refs are obligatory *when the wake
-carried some* -- which is `sandbox.situational`'s shape and not `stage`'s. The
-`ask` guard is the precedent that makes it tractable, not the fix.
 
 ### "Should we build this?" is a fourth kind of intake, and there is no branch for it
 
@@ -690,6 +670,34 @@ hashing that field so distinct assumptions silently merge. Mass-logging through
 that field would fill the agenda with a page of `True` and collapse the very
 rows the election exists to keep apart. The `default_taken` decision stops
 being a cheap cleanup and becomes the election's prerequisite.
+
+## Amendments the settled column forces on LAWS.md
+
+### Law 11 — provenance gains a third value
+
+`decided` is the reason on file, written by the decider. `observed` is extracted
+from an onboarded codebase: found, not chosen. External knowledge is neither.
+
+Proposed: **`cited`** — found outside the repository, attributable to a source,
+and the only kind of claim that can become false without anyone touching the
+project. `provenance` is a `NOT NULL CHECK` on every artefact that has one, so
+this is a schema change, not a convention.
+
+### Law 13 — the retrieval date
+
+Law 13 forbids it: *"no date, duration or timestamp column exists in
+`schema.sql`"*, enforced as a build check.
+
+Resolution without amending the law: **the date is for a human, not the system.**
+Nothing the system does with staleness needs one — "the page changed" is a hash
+comparison, and "it has been a year" is a time judgement law 13 says the system
+does not get to make. So `references` carries `content_hash` and a retrieval
+sequence, and the real timestamp lives in the **fetch cache**, which is evidence
+like the cassettes rather than an artefact, and therefore outside the law.
+
+---
+
+## Open
 
 ### The frontier, when several things are ready — the big one
 
