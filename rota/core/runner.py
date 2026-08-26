@@ -808,7 +808,25 @@ def run_session(
                                  if wake.kind in ONBOARDING_TICKS and wake.refs else None),
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
                            wake=wake)
+    # What this session is replying to, which is not always a message wake.
+    #
+    # A rung on the `unresolved` ladder is woken by a *tick* carrying the
+    # question in its refs, so `message_id` is None and everything the session
+    # sent came out with no cause. The chain then breaks exactly where it is
+    # needed: `schedule.reask` finds the answer by its cause and refuses --
+    # "the message that woke you is not a reply to a question you asked" -- so
+    # the asker cannot say the second answer missed either, and the ladder
+    # loops on one rung until quarantine. Measured on the click run, twice.
+    #
+    # Narrow on purpose: only a ref that actually resolves to a message counts.
+    # Every other tick carries artefact ids in `refs` and is unaffected.
     sb.ctx.trigger = wake.message_id
+    if not sb.ctx.trigger:
+        for ref in wake.refs or ():
+            if conn.execute("SELECT 1 FROM messages WHERE id = ?",
+                            (ref,)).fetchone():
+                sb.ctx.trigger = ref
+                break
 
     claim(conn, wake.role, session_id, wake.message_id)
     if wake.message_id:

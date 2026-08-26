@@ -157,3 +157,76 @@ def test_an_ask_reaches_the_owner_with_the_question_in_it(tmp_path):
     assert out["principal_said"] == "where does a user write a recipe?"
     assert out["entry_id"] == "e_m5"
     assert out["resolved_refs"]["e_m5"]["author"] == "principal"
+
+
+def test_a_tick_woken_rung_replies_to_the_question_it_was_woken_for(tmp_path):
+    """
+    The `unresolved` ladder wakes a rung with a *tick*, not a message, and the
+    question rides in `refs`. `ctx.trigger` was `wake.message_id` and nothing
+    else, so every message that rung sent came out with no cause -- and the
+    chain broke exactly where the register needs it. `schedule.reask` finds the
+    question by following the answer's cause; with no cause it refuses ("the
+    message that woke you is not a reply to a question you asked"), so the
+    asker cannot say the second answer missed either and the ladder loops on
+    one rung until quarantine.
+
+    Measured on the click run twice: Vision Keeper, then Terminologist, each
+    answering three times into a thread nobody could advance.
+
+    Narrow on purpose -- only a ref that resolves to a message counts, and
+    every other tick carries artefact ids.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','what is a recipe here?',1)")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m6','t1','liaison','architect',"
+               "'ask',?,1,'unresolved')", (json.dumps(["e_m1"]),))
+    db.commit()
+
+    out = run_session(
+        db, Wake("terminologist", "tick:unresolved", refs=("m6",)),
+        backend=ScriptedBackend(["TOOL: msg.answer_liaison(refs=['g1'])", "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions="answer it")
+    assert out.committed, out.errors
+
+    row = db.execute("SELECT cause_id, thread_id FROM messages "
+                     "WHERE from_role = 'terminologist'").fetchone()
+    assert row["cause_id"] == "m6", "the rung's answer must name the question"
+    assert row["thread_id"] == "t1", "and stay in the thread it was woken for"
+
+
+def test_a_tick_carrying_artefact_ids_gains_no_cause(tmp_path):
+    """
+    The bound. Every other tick carries artefact ids in `refs`, and a session
+    woken by one is not replying to anything -- giving it a cause would invent
+    a conversation that did not happen.
+    """
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','close an account',"
+               "'in_scope','decided','approved',1,1)")
+    db.commit()
+
+    out = run_session(
+        db, Wake("vision_keeper", "tick:slicing", refs=("i1",)),
+        backend=ScriptedBackend(["done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="do nothing")
+    assert out.committed, out.errors
+    assert db.execute(
+        "SELECT COUNT(*) n FROM messages").fetchone()["n"] == 0
