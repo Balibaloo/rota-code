@@ -414,6 +414,41 @@ which is where four hand-written `.tools` files decide what exists.
 graph and check the mode, because every one of these faults was a list falling
 behind the graph with nothing to notice.
 
+### Pushing more of the artefact is not the same as pushing the right part
+
+Four changes were made to what an inquiry session holds, measured one at a time
+on the same eight maintainer questions. Three helped and one did not, and the
+one that did not is the interesting one because its argument was identical to
+the one that helped most.
+
+    change                                       hits  partials  silent
+    (as wired)                                     0       0        2
+    glossary bodies the question names             0       3        1
+    fan-out to every owner, and a drain            0       2        0
+    ref resolution carries the body                1       2        0
+    constraint bodies the question names           1       2        0
+
+`glossary.consult`/`lookup` and `model.consult`/`load` are the same shape: an
+index-depth read paired with a body read. The glossary half was measurably
+starving the session -- `glossary.lookup` was being invoked with an empty term,
+so the owner held an index of one-liners and the full sense of nothing. Fixing
+the constraint half by the same argument moved the score not at all, and cost
+the rename question the one thing it had gained: with the constraint body in
+front of it, Architect stopped saying "the system fails silently if the
+frontmatter does not match the schema" and started asking the principal to
+confirm whether error handling was planned.
+
+So it was reverted. The rule this leaves is narrower than "push more": **a
+session starved of the thing it is being asked about answers from nothing, and
+a session given more of what it already had answers from the extra.** The
+glossary was the artefact the questions were about; the constraints were
+context, and context arrived as more to talk about.
+
+Not settled as "never push constraint bodies" -- one measurement, not
+interleaved, and the determinism finding says a narrow column moves between
+loads. What is settled is that it does not pay for itself yet, and shipping it
+would have cost a re-record of eighteen cases for a score that did not move.
+
 ## Amendments the settled column forces on LAWS.md
 
 ### Law 11 — provenance gains a third value

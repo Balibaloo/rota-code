@@ -909,22 +909,52 @@ survey. The subject belongs to the wake, not to the role, so the system
 supplies it rather than asking a cold session to think of it. Re-measured: one
 near-hit and three partials against none, and silence down from two to one.
 
-Two causes remain, and both are the design's own words.
+Three more followed, each measured on the same eight before the next was made.
 
-**There is no fan-out.** Every one of the eight questions went to exactly one
-owner. The story this route comes from says Liaison "opens readonly sessions"
--- plural -- and "three answers compose into one reply", and
-`L1-LI-a-question-about-the-program-goes-to-its-owners` says in its own notes
-that "which owner holds the answer is not Liaison's to know -- that is the
-whole reason the question is routed rather than answered". It is choosing one
-anyway, and the ladder only reaches the others when an answer is *detectably*
-hollow. A confident wrong answer stops it, which is what the rename question
-produced.
+    change                                       hits  partials  silent
+    (as wired)                                     0       0        2
+    glossary bodies the question names             0       3        1
+    fan-out to every owner, and a drain            0       2        0
+    ref resolution carries the body                1       2        0
 
-**And the relay degrades what it carries.** Asked which kinds of template
-variable exist, the reply to the principal ended with the owner's own question
-back to itself -- "What is the meaning of the term 'ReservedVariableName'?" --
-because Liaison is summarising an answer rather than passing it through.
+The first hit arrived with the last of them, and it is the whole key verbatim:
+asked which kinds of template variable an intent can declare and where the set
+is declared, the reply named the five kinds and the enum's file. What had been
+stopping it was that `_resolve_refs` carried `sense_short` and not
+`sense_body` -- the owner read the full sense, refed the term, and Liaison,
+which writes the words the principal reads, was handed one line.
+
+A fourth change was made by the same argument and reverted. `model.consult` /
+`model.load` is the same index-and-body split as the glossary's, so pushing the
+constraint bodies the question names should have helped identically. It moved
+the score not at all and cost the rename question the one thing it had gained.
+`DECISIONS.md` carries the table and the narrower rule it leaves: a session
+starved of the thing it is asked about answers from nothing, and a session
+given more of what it already had answers from the extra.
+
+**The fan-out was the second, and it is fixed.** Every one of the eight
+questions went to exactly one owner. The story this route comes from says
+Liaison "opens readonly sessions" -- plural -- and "three answers compose into
+one reply"; the shipped brief says "ask every owner that might hold part of the
+answer"; and the case's own notes say "which owner holds the answer is not
+Liaison's to know". A role cannot be asked to know that and not to act on it,
+so the choice is gone: one `msg.ask_*` call stages the ask to every owner. All
+three, on seven of the eight.
+
+**What remains is the relay.** It summarises rather than passes through, and
+it drifts into conversation with the owner in the principal's channel: "Thank
+you for the detailed explanation. To clarify ... Is there anything else you'd
+like to know?", and on one question a request back to the principal to confirm
+something the *owner* had been unsure of. The cause is known and the fix is
+not free -- the answer channel carries refs and no words, so Liaison is writing
+prose from resolved rows rather than relaying anybody's sentences, and the
+channel that carries its words to the principal is `converse`, whose field is
+named `reply`. The parameter name has won three times in this project already.
+
+**And one question in eight is never routed at all** -- "An intent declares a
+prompt with `of_type: note`. When the intent runs, what is the user asked for?"
+is answered by Liaison from its own head, which is the ordered test missing a
+question that does not look like one.
 
 **Intake had two branches and needed three.** `converse.md` asked "is this chat
 or work?" and settled ties twice -- "Default to chat", "When in doubt, chat" --
