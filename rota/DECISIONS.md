@@ -868,6 +868,34 @@ ticket, rather than climbing the generic ladder -- gives the criterion its
 one repair path, through the role that owns it, in the mode that already
 knows how to write one. The ladder stays for questions; this is a repair.
 
+### The delivery wall, named: a criterion must carry a callable surface
+
+Rung one's remaining wall looked like model judgement and is actually
+information content. The Tester's charter is explicit and right: "You write
+before the implementation exists and you never see it... You have no access
+to the codebase and this is not an oversight." A test written from a diff
+describes the diff; black-box is the design. Which means the criterion is the
+Tester's *only material* -- and nothing anywhere requires a criterion to name
+an entry point a test could call.
+
+Every observed failure lines up behind that. "The email address stored is
+lowercase" is true, checkable in principle, and untestable black-box: stored
+where, reached how? The parroting loops, the repaired-criterion-still-parroted
+passes, the question dances -- a blind role doing the only things a blind role
+can. And the single live repair that broke a loop wrote exactly the missing
+shape: "register('u1', 'A@B.com', 'pw', 1) stores email 'a@b.com'" -- the
+callable surface, in the criterion.
+
+*The sketch:* criteria carry their surface the way they already carry their
+terms. `term_refs` exists because "a criterion using an undefined word is a
+Developer guessing later"; the same sentence holds with "symbol" for "word"
+and "Tester" for "Developer". Where a code index exists, a specify/respecify
+whose text and refs touch no symbol grain can be told so -- the criteria
+brief's "name what done means" becoming checkable rather than hoped. Where
+the surface does not exist yet (greenfield), naming the *intended* surface is
+precisely the design decision a criterion is for. Not built tonight; the
+repair path is the corrective loop it would feed.
+
 ### The frontier, when several things are ready — the big one
 
 Wakes are ordered by band, then **alphabetically by predicate name**. The loop
