@@ -551,6 +551,104 @@ def _same_sense(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower()).strip(" .;:,")
 
 
+# ---------------------------------------------------------------------------
+# The observed exit. Law 11: an observed row is found, not chosen, and its
+# first decision is forced by a challenge -- or granted, here, by the
+# principal confirming it. Validation 3 calls this "`observed` becomes decided
+# where they said so", and until these existed it was true of items only:
+# the ruling path ended at `problem.set_approval` and the other three tables
+# had no operation anywhere that could write `provenance='decided'`. Once a
+# present was answered, `observed_entries` saw the same rows and fired again.
+#
+# Adoption is not authorship. The row's content is untouched -- what changes is
+# who stands behind it, which is exactly what provenance records. Only rows
+# the ruling names may move: the ruling is on the wake's cause chain, the same
+# place `principal_verdict` comes from, so the op can check rather than trust.
+# ---------------------------------------------------------------------------
+
+def _ruled_ids(ctx: Ctx) -> set[str] | None:
+    """The ids the principal's ruling approves, off this wake's cause chain.
+
+    None when the wake carries no ruling at all -- distinct from a ruling that
+    approves nothing, which is an empty set.
+    """
+    from .principal import verdict_for
+
+    trigger = getattr(ctx, "trigger", None)
+    if not trigger:
+        return None
+    seen = set()
+    mid = trigger
+    while mid and mid not in seen:
+        seen.add(mid)
+        verdict = verdict_for(ctx.conn, mid)
+        if verdict:
+            return {i for i, ruling in verdict.items()
+                    if ruling in ("approve", "approved", "confirm", "confirmed")}
+        row = ctx.conn.execute(
+            "SELECT cause_id FROM messages WHERE id = ?", (mid,)).fetchone()
+        mid = row["cause_id"] if row else None
+    return None
+
+
+def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
+    if not ids:
+        raise ValueError("adopt names the rows the principal approved, and "
+                         "you named none")
+    ruled = _ruled_ids(ctx)
+    out, skipped = [], []
+    for rid in ids:
+        row = ctx.conn.execute(
+            f"SELECT provenance FROM {table} WHERE id = ?", (rid,)).fetchone()
+        if row is None:
+            raise ValueError(f"{rid!r} is not a row of {table}; adopt what "
+                             f"the ruling names, from the refs you were given")
+        if ruled is not None and rid not in ruled:
+            # The ruling is on file and does not approve this row. Skipped
+            # rather than refused: the ruling names what it names, and a
+            # session listing one extra id should not lose the ones ruled on.
+            skipped.append(rid)
+            continue
+        if row["provenance"] != "observed":
+            skipped.append(rid)
+            continue
+        ctx.writes.append((table, rid, {"provenance": "decided"}, False))
+        out.append(rid)
+    result = {"adopted": out}
+    if skipped:
+        result["skipped"] = skipped
+        result["note"] = ("skipped rows are not observed, or the ruling does "
+                          "not approve them; they are unchanged")
+    return result
+
+
+@op("glossary", "adopt")
+def glossary_adopt(ctx: Ctx, ids: list[str]) -> dict:
+    """The principal approved these observed senses; the project adopts them."""
+    return _adopt_rows(ctx, "glossary_terms", ids)
+
+
+@op("model", "adopt")
+def model_adopt(ctx: Ctx, ids: list[str]) -> dict:
+    """The principal approved these observed constraints or areas."""
+    both = {"constraints": [], "model_areas": []}
+    for rid in ids:
+        table = ("constraints" if ctx.conn.execute(
+            "SELECT 1 FROM constraints WHERE id = ?", (rid,)).fetchone()
+            else "model_areas")
+        both[table].append(rid)
+    merged: dict = {"adopted": [], "skipped": []}
+    for table, tids in both.items():
+        if not tids:
+            continue
+        r = _adopt_rows(ctx, table, tids)
+        merged["adopted"] += r["adopted"]
+        merged["skipped"] += r.get("skipped", [])
+    if not merged["skipped"]:
+        merged.pop("skipped")
+    return merged
+
+
 @op("glossary", "amend")
 def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                    sense_short: str = "", sense: str = "") -> dict:

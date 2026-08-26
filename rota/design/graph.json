@@ -229,6 +229,20 @@
       "rows": "single"
     },
     {
+      "type": "writes",
+      "s": "architect",
+      "t": "model",
+      "v": "adopt",
+      "n": "the principal confirmed it"
+    },
+    {
+      "type": "writes",
+      "s": "terminologist",
+      "t": "glossary",
+      "v": "adopt",
+      "n": "the principal confirmed it"
+    },
+    {
       "s": "terminologist",
       "t": "glossary",
       "type": "writes",
@@ -822,6 +836,22 @@
       "type": "messages",
       "v": "verdict",
       "n": "per-item approve / contest / revise",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "terminologist",
+      "type": "messages",
+      "v": "relay",
+      "n": "verdicts",
+      "rows": "all"
+    },
+    {
+      "s": "liaison",
+      "t": "architect",
+      "type": "messages",
+      "v": "relay",
+      "n": "verdicts",
       "rows": "all"
     },
     {

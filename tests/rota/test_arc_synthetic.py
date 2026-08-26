@@ -23,6 +23,7 @@ from rota.roles.principal import record_entry
 from rota.core.db import init_db
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.core.runner import run_session
+from rota.roles import prompts as prompts_mod
 from rota.core.scheduler import (
     Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
 )
@@ -309,3 +310,96 @@ def test_arc_global_invariants_hold_over_the_finished_database(db):
 # now live there. `check_bindings_resolve` was wrong the whole time it had no
 # home: it rejected every binding of constraint zero, which is the one
 # constraint the system writes for itself.
+
+
+def test_observed_becomes_decided_where_they_said_so(tmp_path):
+    """
+    Validation 3's sentence, driven whole: onboarding found things nobody
+    chose, the principal rules on them, and the rows the ruling approves leave
+    `observed` -- by their owners' hands, because provenance is the owner's to
+    write.
+
+    Until this arc could run, the machinery existed for items only. The ruling
+    path ended at `problem.set_approval`; glossary terms, constraints and model
+    areas were presented and the ruling had nowhere to land -- no relay channel
+    to their owners, no operation anywhere that wrote `provenance='decided'`.
+    And once a present was answered, `observed_entries` saw the same observed
+    rows and fired again: a state with no exit, re-presented forever.
+
+    Canned completions, real scheduler, real commit path -- the same division
+    the module docstring draws.
+    """
+    import json as _json
+
+    from rota.core.predicates import observed_entries
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g2','intent','a note-creation config','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1','frontmatter must match the schema','validateFmSchema',"
+               "'observed')")
+    db.commit()
+
+    # 1. The register offers the observations to Liaison, once.
+    wakes = observed_entries(db)
+    assert [w.role for w in wakes] == ["liaison"]
+
+    out = run_session(
+        db, wakes[0],
+        backend=ScriptedBackend(
+            ["TOOL: msg.present_principal(refs=['g1','g2','k1'])", "done"]),
+        pins=Pins(model="stub", temperature=0.0), instructions="present them")
+    assert out.committed, out.errors
+    assert observed_entries(db) == [], "an open present suppresses the tick"
+
+    # 2. The principal rules: two approved, one contested. Recorded the way
+    #    `principal.py` records it -- the verdict message plus the config row.
+    present = db.execute("SELECT id FROM messages WHERE verb='present'").fetchone()["id"]
+    db.execute("INSERT INTO messages (id, cause_id, cause_kind, thread_id, "
+               "from_role, to_role, verb, body_refs, seq, status) "
+               "SELECT 'v1', ?, 'message', thread_id, 'principal', 'liaison', "
+               "'verdict', body_refs, 90, 'open' FROM messages WHERE id = ?",
+               (present, present))
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:v1', ?)",
+               (_json.dumps({"g1": "approve", "k1": "approve",
+                             "g2": "contest"}),))
+    db.execute("UPDATE messages SET status='answered' WHERE id = ?", (present,))
+    db.commit()
+
+    # 3. Liaison relays the ruling, split by owner.
+    out = run_session(
+        db, Wake(role="liaison", kind="message", message_id="v1", detail="verdict"),
+        backend=ScriptedBackend(
+            ["TOOL: msg.relay_terminologist(refs=['g1','g2'])\n"
+             "TOOL: msg.relay_architect(refs=['k1'])", "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts_mod.compose("liaison", "verdict_signoff"))
+    assert out.committed, out.errors
+
+    # 4. Each owner adopts what the ruling approves. The op checks the ruling
+    #    off the cause chain, so the contested sense cannot slip through even
+    #    though the relay names it.
+    for role, call in (
+            ("terminologist", "TOOL: glossary.adopt(ids=['g1','g2'])"),
+            ("architect", "TOOL: model.adopt(ids=['k1'])")):
+        relay = db.execute(
+            "SELECT id FROM messages WHERE verb='relay' AND to_role=? ",
+            (role,)).fetchone()["id"]
+        out = run_session(
+            db, Wake(role=role, kind="message", message_id=relay, detail="relay"),
+            backend=ScriptedBackend([call, "done"]),
+            pins=Pins(model="stub", temperature=0.0),
+            instructions=prompts_mod.compose(role, "relay"))
+        assert out.committed, out.errors
+
+    rows = {r["id"]: r["provenance"] for r in db.execute(
+        "SELECT id, provenance FROM glossary_terms "
+        "UNION ALL SELECT id, provenance FROM constraints")}
+    assert rows == {"g1": "decided", "k1": "decided", "g2": "observed"}, rows
+
+    # 5. And the register does not re-present what has been put to them: the
+    #    contested sense stays observed, on file, without waking anybody.
+    assert observed_entries(db) == []

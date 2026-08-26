@@ -208,3 +208,72 @@
     # Resolving a collision is a decision, and a decision is a write this
     # session does not have. Nor is it Terminologist's to rule on scope.
     writes: [glossary_terms, items, statements, decisions]
+
+- id: L1-TE-adopt-what-the-principal-approved
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  # The observed exit, at the owner's end. Onboarding found the senses, the
+  # principal ruled, Liaison relayed -- and the row the ruling approves is the
+  # only one that moves. `glossary.adopt` checks the ruling off the cause
+  # chain itself, so the contested sense cannot slip through even if named;
+  # what this case measures is that the session adopts at all, and does not
+  # start editing content while it is here.
+  prompt: relay
+  inbound: {id: <m_relay>, from: liaison, to: terminologist, verb: relay,
+            body_refs: [<g1>, <g2>], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<g1>": "approve", "<g2>": "contest"}'}
+    glossary_terms:
+      - {id: <g1>, term: recipe, provenance: observed,
+         sense_short: "a note whose contents seed a new note"}
+      - {id: <g2>, term: intent, provenance: observed,
+         sense_short: "a note-creation configuration"}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<g1>","<g2>"]', seq: 1}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<g1>"]', seq: 2, status: answered}
+  expect:
+    writes:
+      glossary_terms: {count: 1}
+  forbidden:
+    # Adoption is not authorship: the content is untouched, and the contested
+    # sense is not this session's to fix.
+    writes: [constraints, items, decisions, statements]
+    recipients: [principal, vision_keeper, developer]
+
+- id: L1-AR-adopt-what-the-principal-approved
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 4
+  # The same exit for the model's artefacts. One constraint approved, one
+  # area contested: one row moves.
+  prompt: relay
+  inbound: {id: <m_relay>, from: liaison, to: architect, verb: relay,
+            body_refs: [<k1>, <a1>], cause: <m_rule>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<k1>": "approve", "<a1>": "contest"}'}
+    constraints:
+      - {id: <k1>, headline: "frontmatter must match the schema",
+         text: "validateFmSchema warns in console", provenance: observed}
+    model_areas:
+      - {id: <a1>, account: "the variables area parses and provides values",
+         provenance: observed}
+    messages:
+      - {id: <m_present>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<k1>","<a1>"]', seq: 1}
+      - {id: <m_rule>, cause_id: <m_present>, thread_id: <t1>,
+         from_role: principal, to_role: liaison, verb: verdict,
+         body_refs: '["<k1>"]', seq: 2, status: answered}
+  expect:
+    writes:
+      constraints: {count: 1}
+  forbidden:
+    writes: [glossary_terms, items, decisions, model_areas]
+    recipients: [principal, vision_keeper, developer]

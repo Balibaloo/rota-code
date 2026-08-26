@@ -300,3 +300,37 @@
     # forbid that too. `converse` is the tiebreaker firing.
     messages:
       - {to: principal, verb: converse}
+
+- id: L1-LI-a-ruling-splits-by-owner
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 3
+  # The ruling on a mixed present. `verdict_signoff` relayed everything to
+  # Vision Keeper because items were the only thing a ruling could land on;
+  # with the observed exit built, glossary rows go to Terminologist and
+  # constraints to Architect, because provenance is the owner's to write.
+  prompt: verdict_signoff
+  inbound: {id: <m_rule>, from: principal, to: liaison, verb: verdict,
+            body_refs: [<g1>, <k1>], cause: <m_present>}
+  fixture:
+    config:
+      - {key: "verdict:<m_rule>", value: '{"<g1>": "approve", "<k1>": "approve"}'}
+    glossary_terms:
+      - {id: <g1>, term: recipe, provenance: observed,
+         sense_short: "a note whose contents seed a new note"}
+    constraints:
+      - {id: <k1>, headline: "frontmatter must match the schema",
+         text: "validateFmSchema warns in console", provenance: observed}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<g1>","<k1>"]', seq: 1}
+  expect:
+    messages:
+      - {to: terminologist, verb: relay, count: 1, refs_include: [<g1>]}
+      - {to: architect, verb: relay, count: 1, refs_include: [<k1>]}
+  forbidden:
+    # Provenance is the owners' to write, and there is no item here for
+    # Vision Keeper to hear about.
+    writes: [glossary_terms, constraints, items, decisions]
+    recipients: [vision_keeper]

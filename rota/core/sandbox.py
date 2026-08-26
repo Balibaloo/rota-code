@@ -539,6 +539,28 @@ def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
     return _names_no_source(ctx.conn, refs)
 
 
+# The tables a principal's ruling can name, each with its one writer. The
+# single-writer law is what makes the relay's destination a lookup rather than
+# a judgement, and `test_the_relay_split_matches_the_graph` keeps this map from
+# falling behind the graph the way four hand-written lists did on the inquiry
+# route.
+RULED_TABLES = {
+    "statements": "vision_keeper",
+    "items": "vision_keeper",
+    "glossary_terms": "terminologist",
+    "constraints": "architect",
+    "model_areas": "architect",
+}
+
+
+def _owner_of_ref(conn, ref: str) -> str | None:
+    """The role that writes the table holding `ref`, or None if no table does."""
+    for table, owner in RULED_TABLES.items():
+        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
+            return owner
+    return None
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -785,6 +807,23 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # role has to supply correctly. Added, never substituted -- what it
         # found is still its own to report.
         refs = list(refs or [])
+        # And the same for a ruling's relay, with a stronger warrant: the
+        # ruling's refs are the rows the principal ruled on, and the model
+        # was choosing among them -- relaying one of two, five runs of five,
+        # so half the ruling never reached its owner. Which rows a relay
+        # carries is a fact about the wake, not the session's to trim.
+        if verb == "relay" and ctx.trigger:
+            row = ctx.conn.execute(
+                "SELECT body_refs FROM messages WHERE id = ?",
+                (ctx.trigger,)).fetchone()
+            if row is not None:
+                import json as _json
+                try:
+                    given = _json.loads(row["body_refs"] or "[]")
+                except (TypeError, ValueError):
+                    given = []
+                refs += [r for r in given
+                         if isinstance(r, str) and r and r not in refs]
         if verb == "report" and ctx.trigger:
             row = ctx.conn.execute(
                 "SELECT body_refs FROM messages WHERE id = ?",
@@ -934,13 +973,36 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             already = {m["to_role"] for m in ctx.outbound if m["verb"] == "ask"}
             recipients = [r for r in owners if r not in already]
 
+        # A ruling's relay is routed by ownership, not by the recipient the
+        # model named. Told to split by table, Liaison broadcast an items-only
+        # ruling to all three owners and sent a mixed one wholly to Vision
+        # Keeper, five of five each way -- and unlike the ask, this is not
+        # even a judgement to remove: a row's table is in the database and the
+        # single-writer law gives each table one writer, so every ref's
+        # destination is a lookup. Refs whose table is unknown stay with the
+        # named recipient rather than being dropped.
+        split: dict[str, list[str]] = {}
+        if verb == "relay" and refs:
+            for ref in refs:
+                owner = _owner_of_ref(ctx.conn, ref) or recipient
+                split.setdefault(owner, []).append(ref)
+            already = {m["to_role"] for m in ctx.outbound if m["verb"] == "relay"}
+            split = {o: r for o, r in split.items() if o not in already}
+            if not split:
+                raise ValueError(
+                    "every owner these rows belong to has its relay already; "
+                    "saying it again is a second answer. Your work here is done")
+            recipients = sorted(split)
+
         msg_id = new_id("m", ctx.conn, offset=len(ctx.outbound))
         for n, to_role in enumerate(recipients):
             ctx.outbound.append({
                 "id": msg_id if n == 0
                 else new_id("m", ctx.conn, offset=len(ctx.outbound)),
                 "to_role": to_role, "verb": verb,
-                "body_refs": list(refs or []), "body_text": text,
+                "body_refs": split.get(to_role, list(refs or [])) if split
+                else list(refs or []),
+                "body_text": text,
                 "round_no": round_no, "cause_id": ctx.trigger,
             })
         _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
@@ -953,6 +1015,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             out["to"] = recipients
             out["note"] = ("asked every owner; which of them holds the answer "
                            "is not yours to work out. Your work here is done")
+        if split:
+            out["to"] = {o: split[o] for o in recipients}
+            out["note"] = ("routed each row to the owner of its table; there "
+                           "was nothing to choose. Your work here is done")
         if withdrawn:
             out["note"] = (
                 f"the test you staged for that criterion ({', '.join(withdrawn)}) "

@@ -1212,3 +1212,58 @@ def test_the_one_answer_refusal_says_what_the_session_did(db):
              text="let people export invoices")
     with pytest.raises(ValueError, match="segmented this into statements"):
         sb2.call("msg.converse_principal", refs=[], reply="hi")
+
+
+def test_a_rulings_relay_routes_each_row_to_its_owner(db):
+    """
+    Told in its brief to split a ruling by table, Liaison broadcast an
+    items-only ruling to all three owners and sent a mixed one wholly to
+    Vision Keeper -- five runs of five, each way. Unlike the ask fan-out this
+    is not even a judgement to remove: a row's table is in the database, and
+    the single-writer law gives each table one writer, so every ref's
+    destination is a lookup.
+
+    The recipient the model names is subsumed. There is nothing to choose and
+    no way to choose it.
+    """
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k1','schema','must match','observed')")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','close account','in_scope',"
+               "'decided','draft',1,1)")
+    db.commit()
+
+    sb = build("liaison", db, mode="normal")
+    out = sb.call("msg.relay_vision_keeper", refs=["g1", "k1", "i1"])
+    assert out["to"] == {"architect": ["k1"], "terminologist": ["g1"],
+                         "vision_keeper": ["i1"]}
+    assert sorted((m["to_role"], tuple(m["body_refs"]))
+                  for m in sb.ctx.outbound) == [
+        ("architect", ("k1",)), ("terminologist", ("g1",)),
+        ("vision_keeper", ("i1",))]
+
+    # An items-only ruling lands on Vision Keeper wherever it was addressed.
+    sb2 = build("liaison", db, mode="normal")
+    sb2.call("msg.relay_terminologist", refs=["i1"])
+    assert [(m["to_role"], m["body_refs"]) for m in sb2.ctx.outbound] == \
+        [("vision_keeper", ["i1"])]
+
+
+def test_the_relay_split_matches_the_graph():
+    """
+    `RULED_TABLES` is a map in one place, and four hand-written lists fell
+    behind the graph on the inquiry route with nothing to notice. Every owner
+    it names must be reachable by a Liaison relay edge, or the split would
+    stage a message the graph forbids and T0-S12's rejection-by-absence would
+    become a crash at the wire.
+    """
+    from rota.core.sandbox import RULED_TABLES
+    from rota.design import graph as graph_mod
+
+    g = graph_mod.load()
+    relay_targets = {e.t for e in g.of_type("messages")
+                     if e.s == "liaison" and e.v == "relay"}
+    assert set(RULED_TABLES.values()) <= relay_targets, (
+        set(RULED_TABLES.values()) - relay_targets)

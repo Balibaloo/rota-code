@@ -21,6 +21,8 @@ the build.
 """
 from __future__ import annotations
 
+import json
+
 import re
 import sqlite3
 from dataclasses import dataclass, field
@@ -476,11 +478,25 @@ def observed_entries(conn) -> list[Wake]:
     Onboarding produces these by the hundred and nothing was ever going to ask
     the principal to confirm them, so `observed` was a state with no exit.
     """
+    # Not re-presented. With the confirm path built, an approved row leaves
+    # `observed`; a contested one stays, and it is on file as contested --
+    # asking the principal about it again is spending their attention on a
+    # question they have answered. Presented is derived from the present
+    # messages themselves, so a row is put to them once, whatever came of it.
+    presented: set[str] = set()
+    for r in conn.execute(
+            "SELECT body_refs FROM messages WHERE verb = 'present'"):
+        try:
+            presented.update(x for x in json.loads(r["body_refs"] or "[]")
+                             if isinstance(x, str))
+        except (TypeError, ValueError):
+            continue
+
     counts = []
     for table in ("glossary_terms", "constraints", "model_areas", "items"):
-        n = conn.execute(
-            f"SELECT COUNT(*) n FROM {table} WHERE provenance = 'observed'"
-        ).fetchone()["n"]
+        rows = [r["id"] for r in conn.execute(
+            f"SELECT id FROM {table} WHERE provenance = 'observed'")]
+        n = len([i for i in rows if i not in presented])
         if n:
             counts.append(f"{table}:{n}")
     if not counts:
