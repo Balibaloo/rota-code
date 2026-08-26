@@ -162,7 +162,9 @@
   #ptabs button{font-size:11px;color:var(--dim)}
   #ptabs button:hover{color:var(--label)}
   #ptabs button.on{color:var(--accent);border-color:var(--accent);background:var(--on)}
-  #pcollapse{margin-left:auto;color:var(--dim)}
+  #pcollapse{color:var(--dim)}
+  .pnav{color:var(--dim);padding:3px 8px}
+  .psp{flex:1}
   /* Collapsed: a rail, not an absence. The panel starts closed so the canvas
      gets the whole width until something is asked of the inspector — and the
      rail stays visible so there is a thing to open, labelled with what it is. */
@@ -171,7 +173,8 @@
   #gpanel.closed #pscroll{display:none}
   #gpanel.closed #ptabs{flex-direction:column;align-items:center;gap:8px;
     border-bottom:0;padding:8px 3px;height:100%}
-  #gpanel.closed #ptabs [data-ptab]{display:none}
+  #gpanel.closed #ptabs [data-ptab],#gpanel.closed #ptabs .pnav,
+  #gpanel.closed #ptabs .psp{display:none}
   #gpanel.closed #pcollapse{margin-left:0;padding:3px 6px}
   #gpanel.closed #prail{display:block;writing-mode:vertical-rl;color:var(--dim);
     font-size:10px;letter-spacing:.16em;text-transform:uppercase;margin-top:4px}
@@ -212,12 +215,35 @@
   .phact{margin-left:auto;color:var(--dim);cursor:pointer;border:1px solid var(--line);
       border-radius:3px;padding:3px 5px;display:flex;align-items:center}
   .phact:hover{color:var(--accent);border-color:var(--accent)}
-  /* Tools as chips: the name is the list, the signature is the hover. A wall
-     of TOOL: lines answered "what exactly" before anyone asked "what at all". */
-  .tools{display:flex;flex-wrap:wrap;gap:5px;padding:2px 0}
-  .tool{border:1px solid var(--line);border-radius:2px;padding:1px 7px;font-size:11px;
-      color:var(--label);cursor:help;background:var(--sunk)}
-  .tool:hover{border-color:var(--accent);color:var(--ink)}
+  /* Tools: one line each — name and parameters in call shape, each parameter
+     explaining itself on hover, the docstring unfolding beneath. */
+  .tline{font-size:12px;border-bottom:1px solid var(--hair)}
+  .tline>summary{cursor:pointer;list-style:none;padding:4px 0 4px 14px;position:relative}
+  .tline>summary::-webkit-details-marker{display:none}
+  .tline>summary::before{content:"";position:absolute;left:2px;top:9px;
+      border:3.5px solid transparent;border-left-color:var(--idle);
+      transition:transform .12s;transform-origin:1.75px 3.5px}
+  .tline[open]>summary::before{transform:rotate(90deg)}
+  .tline.flat{padding:4px 0 4px 14px}
+  .tname{color:var(--ink)}
+  .tparam{color:var(--label);cursor:help;border-bottom:1px dotted var(--idle)}
+  .tdoc{color:var(--dim);font-size:11.5px;padding:4px 0 8px 14px;line-height:1.55;
+      white-space:pre-line}
+  /* Nested drawers inside a section body — coverage's tested/untested. */
+  .nsec{border-top:1px solid var(--hair)}
+  .nsec:first-child{border-top:0}
+  .nsec>summary{cursor:pointer;list-style:none;padding:5px 0 5px 14px;position:relative;
+      color:var(--label);font-size:12px}
+  .nsec>summary::-webkit-details-marker{display:none}
+  .nsec>summary::before{content:"";position:absolute;left:2px;top:10px;
+      border:3.5px solid transparent;border-left-color:var(--idle);
+      transition:transform .12s;transform-origin:1.75px 3.5px}
+  .nsec[open]>summary::before{transform:rotate(90deg)}
+  /* The composed prompt is its own drawer, ruled off so it never reads as
+     part of whatever heading came before it. */
+  .cfold{margin-top:10px;border-top:1px solid var(--hair);padding-top:6px}
+  .cfold>summary{cursor:pointer;list-style:none;color:var(--dim);font-size:11px}
+  .cfold>summary:hover{color:var(--label)}
   /* Contact grammar: the connective words recede, the parties and verbs carry. */
   .lnk{color:var(--idle);font-size:10.5px}
   .vchip{border:1px solid var(--line);border-radius:2px;padding:0 6px;font-size:11px;
@@ -358,7 +384,12 @@
       <div id="ptabs">
         <!-- "steps", not "story": the tab is the stepper for the story *and*
              run lenses, and naming it after one of them made it read as a
-             third thing beside the lens select that says "story" too. -->
+             third thing beside the lens select that says "story" too.
+             History left, views right: where you have been is a different
+             kind of control from where you can go. -->
+        <button id="pnavb" class="pnav" title="back">&lsaquo;</button>
+        <button id="pnavf" class="pnav" title="forward">&rsaquo;</button>
+        <span class="psp"></span>
         <button data-ptab="detail" class="on">detail</button>
         <button data-ptab="story">steps</button>
         <button data-ptab="cases">cases</button>

@@ -18,7 +18,7 @@
 // lens threw you onto the story subtab whether or not it applied.
 const GV = {graph:null, layout:null, stories:null, trace:null, msgs:null,
             mode:'team', source:'design', storyIx:0, stepIx:0,
-            focus:null, inhabit:null, blast:null, keyhl:null,
+            focus:null, inhabit:null, blast:null, keyhl:null, edgeSel:null,
             caseId:null, caseEdges:null, caseSituation:null,
             layouts:['main'], wired:false,
             view:{x:0,y:0,k:1}, dragNode:null, dirty:false,
@@ -509,6 +509,14 @@ function drawTeam() {
     else if (state==='past'){op=.45;w=1.8;}
     if (GV.focus) op = incident?Math.max(op,.95):.05;
     if (GV.inhabit) op = Math.max(op,.7);
+    // A selected edge is the whole subject: it and its two ends at full
+    // light, everything else near-gone.
+    if (GV.edgeSel) {
+      const hit = e.s===GV.edgeSel.s && e.t===GV.edgeSel.t
+                  && e.type===GV.edgeSel.type;
+      op = hit ? 1 : 0.04;
+      if (hit) w = Math.max(w, 2.2);
+    }
 
     // Hovering the key selects rather than annotates: everything else recedes,
     // so "what is a journal" is answered by the picture instead of by the
@@ -644,6 +652,7 @@ function drawTeam() {
     // Scaffolding is present and unreachable, and should look it: a ticket
     // needs an item to exist, and Developer cannot read `problem` at all.
     if (sit && scaff.has(n.id) && !watched.has(n.id)) dim = true;
+    if (GV.edgeSel) dim = !(n.id===GV.edgeSel.s || n.id===GV.edgeSel.t);
 
     const ring = sit && roles.has(n.id)    ? LENS.actor
       : sit && watched.has(n.id)           ? LENS.output
@@ -1040,11 +1049,14 @@ function gvGoto(id) {
     GV.view.y = svg.clientHeight / 2 - p.y * GV.view.k;
   }
   GV.focus = id;                       // set, never toggled: you came here to arrive
+  GV.edgeSel = null;
   gvDraw();
   showNode(id);
+  if (typeof syncHash==='function') syncHash();
 }
 
-function gvFocus(id){GV.focus = GV.focus===id?null:id; gvDraw(); if(GV.focus) showNode(id);
+function gvFocus(id){GV.focus = GV.focus===id?null:id; GV.edgeSel=null;
+  gvDraw(); if(GV.focus) showNode(id);
   if (typeof syncHash==='function') syncHash();}
 function gvInhabit(id){
   if (id) {
@@ -1055,7 +1067,7 @@ function gvInhabit(id){
     // keeping that focus is the honest answer.
     if (!n || n.type !== 'role') return;
   }
-  GV.inhabit = GV.inhabit===id?null:id; GV.focus=null; gvDraw();
+  GV.inhabit = GV.inhabit===id?null:id; GV.focus=null; GV.edgeSel=null; gvDraw();
   if(GV.inhabit) showNode(id);
   if (typeof syncHash==='function') syncHash();}
 function gvMode(m){GV.mode=m; GV.focus=null; GV.inhabit=null;
@@ -1074,6 +1086,7 @@ function setLens(src){
   GV.stepIx = 0;
   // A cascade overlay is an answer to a question asked under the old lens.
   GV.blast = null;
+  GV.edgeSel = null;
   if (wasCase && src !== 'case') {
     GV.caseId = null; GV.caseEdges = null; GV.caseSituation = null;
     if (typeof caseListSync === 'function') caseListSync();
@@ -1496,7 +1509,8 @@ function gvWireStage(){
   GV.wired = true;
   const svg=document.getElementById('gsvg');
   if (!svg) return;
-  svg.onclick=()=>{if(!GV.dragged){GV.focus=null; gvDraw();}};
+  svg.onclick=()=>{if(!GV.dragged){GV.focus=null; GV.edgeSel=null; gvDraw();
+    if (typeof syncHash==='function') syncHash();}};
   // Fit lives on the canvas itself: double-click empty ground brings the
   // whole picture back. Node double-clicks stop propagation, so this only
   // fires where there is nothing else to mean.

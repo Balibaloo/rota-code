@@ -1353,6 +1353,7 @@ def run_session(
             tool_calls=sandbox_mod.drain_calls(sb.ctx),
             turns=turns,
             pins=pins.as_dict(),
+            refusals=list(getattr(sb.ctx, "refusals", []) or []),
         )
         # Hard guard: a chat reply to the principal is mutually exclusive with
         # asking the principal to ratify statements. If Liaison both chatted and

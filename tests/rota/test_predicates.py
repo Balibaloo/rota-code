@@ -1348,3 +1348,87 @@ def test_a_ruled_present_is_not_limbo(db):
                (_json.dumps(["g1"]),))
     db.commit()
     assert observed_entries(db) == []
+
+
+def _answered_criteria_question(db):
+    import json as _json
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','emails lowercased',"
+               "'in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('t1','i1','store lowered')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('b1','i1','running')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('b1','t1')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','t1','store lowered','[]')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES ('q1','th1','tester',"
+               "'terminologist','question',?, 'make it checkable?',1,"
+               "'answered')", (_json.dumps(["c1"]),))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq) VALUES ('a1','q1','th1',"
+               "'terminologist','tester','answer',?,2)",
+               (_json.dumps(["c1"]),))
+    db.commit()
+
+
+def test_a_demonstrated_non_landing_is_a_reask_nobody_declares(db):
+    """
+    `schedule.reask` is a declaration because in general only the asker knows
+    an answer did not land. Three delivery passes running, the Tester took
+    every questioning exit the guard named and never the declaring one -- so
+    the repair sat unreachable behind a sentence the model does not say.
+
+    On this one shape the not-landing is demonstrated, not private: the
+    session was woken by the answer to its own criteria-question, reached for
+    `tests.encode` on that criterion, met the parroting refusal again, and
+    wrote no test. Asked, answered, tried, same wall -- every piece on the
+    session record. Derived at commit, the same move as the
+    report-answering-an-ask rule: the declaration exists for the general
+    case, and this case proves itself.
+    """
+    from rota.core.predicates import criterion_repair
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles import prompts
+
+    _answered_criteria_question(db)
+    out = run_session(
+        db, P.Wake("tester", "message", message_id="a1", detail="answer"),
+        backend=ScriptedBackend(["TOOL: tests.encode(id='tst1', "
+                                 "criterion_id='c1', path='t.py', "
+                                 "body='store lowered')", "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts.compose("tester", "answer"))
+    assert out.committed, out.errors
+
+    q = db.execute("SELECT status FROM messages WHERE id='q1'").fetchone()
+    assert q["status"] == "unresolved"
+    assert [(w.role, w.kind) for w in criterion_repair(db)] == \
+        [("terminologist", "tick:criterion_repair")]
+
+
+def test_an_answer_that_lands_stays_answered(db):
+    """The bound: the same wake writing a real test is the answer working,
+    and nothing reopens the question."""
+    from rota.core.predicates import criterion_repair
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    from rota.roles import prompts
+
+    _answered_criteria_question(db)
+    out = run_session(
+        db, P.Wake("tester", "message", message_id="a1", detail="answer"),
+        backend=ScriptedBackend(["TOOL: tests.encode(id='tst1', "
+                                 "criterion_id='c1', path='t.py', "
+                                 "body=\"assert register('A@B.com').email == "
+                                 "'a@b.com'\")", "done"]),
+        pins=Pins(model="stub", temperature=0.0),
+        instructions=prompts.compose("tester", "answer"))
+    assert out.committed, out.errors
+    assert db.execute("SELECT status FROM messages WHERE id='q1'"
+                      ).fetchone()["status"] == "answered"
+    assert criterion_repair(db) == []

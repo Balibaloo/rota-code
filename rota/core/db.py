@@ -186,6 +186,10 @@ class SessionResult:
     turns: list[Turn] = field(default_factory=list)
     checkpoint: dict | None = None
     pins: dict = field(default_factory=dict)
+    # (label, message) for every call a guard threw out. Evidence, not noise:
+    # the derived reask below turns on a refusal the session met after being
+    # answered, and the commit is the one place session and database meet.
+    refusals: list = field(default_factory=list)
 
 
 def _next_seq(conn: sqlite3.Connection, table: str) -> int:
@@ -452,6 +456,40 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "  AND from_role = ?",
                     (thread, result.role),
                 )
+
+        # A demonstrated non-landing is a reask nobody has to declare.
+        #
+        # `schedule.reask` is a declaration because in general only the asker
+        # knows the answer did not help. On one shape the evidence is complete
+        # and public: this session was woken by the answer to its own
+        # criteria-question, reached for `tests.encode` on that criterion, met
+        # the parroting refusal again, and wrote no test. Asked, answered,
+        # tried, same wall. Measured three delivery passes running: the Tester
+        # takes every questioning exit and never the declaring one, so the
+        # repair sat unreachable behind a sentence the model does not say.
+        if result.trigger_msg and not any(
+                w.table == "tests" for w in result.writes):
+            parroted = any("own sentence written back" in msg
+                           for _, msg in (result.refusals or []))
+            if parroted:
+                q = conn.execute(
+                    "SELECT q.id AS qid, q.body_refs AS refs FROM messages a "
+                    "JOIN messages q ON q.id = a.cause_id "
+                    "WHERE a.id = ? AND a.verb = 'answer' "
+                    "  AND q.verb IN ('question', 'ask') "
+                    "  AND q.from_role = ?",
+                    (result.trigger_msg, result.role)).fetchone()
+                if q and any(
+                        conn.execute("SELECT 1 FROM criteria WHERE id = ?",
+                                     (ref,)).fetchone()
+                        for ref in json.loads(q["refs"] or "[]")
+                        if isinstance(ref, str)):
+                    conn.execute(
+                        "UPDATE messages SET status = 'unresolved', "
+                        "  unresolved_note = COALESCE(unresolved_note, ?) "
+                        "WHERE id = ?",
+                        ("the answer did not change the criterion; encoding "
+                         "it still parrots", q["qid"]))
 
         # "Cannot determine" becomes a report, and a report answering an
         # `ask` is the asker's declaration made by the answerer.

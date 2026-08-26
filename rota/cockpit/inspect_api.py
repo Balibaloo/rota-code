@@ -112,6 +112,60 @@ def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> di
     return out
 
 
+def _tool_info(sb) -> list[dict[str, Any]]:
+    """
+    Structured tool metadata, off the same implementations the sandbox
+    dispatches to — name, parameters with their defaults, and the docstring.
+    The signature strings stay for the prompt; this is for a viewer that
+    wants to say *why* a parameter exists, which a flat string cannot.
+    """
+    import inspect as _inspect
+
+    out = []
+    for name in sb.functions():
+        artefact, fn = name.split(".", 1)
+        impl = getattr(sb[artefact], fn)
+        params = []
+        try:
+            for p in _inspect.signature(impl).parameters.values():
+                if p.name == "self":
+                    continue
+                params.append({
+                    "name": p.name,
+                    "default": (None if p.default is _inspect.Parameter.empty
+                                else repr(p.default)),
+                })
+        except (TypeError, ValueError):
+            pass
+        out.append({"name": name, "params": params,
+                    "doc": _inspect.getdoc(impl) or ""})
+    return out
+
+
+def session(conn: sqlite3.Connection, session_id: str) -> dict[str, Any]:
+    """
+    One session, whole: its row, every call in order, every write, and the
+    verbatim turns when the run recorded them. Served on demand — a role's
+    twenty-five sessions with transcripts attached is not a payload to ship
+    on every panel open.
+    """
+    row = conn.execute(
+        "SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+    if row is None:
+        return {"found": False, "id": session_id}
+    out: dict[str, Any] = {"found": True, **{k: row[k] for k in row.keys()}}
+    out["calls"] = [dict(r) for r in conn.execute(
+        "SELECT seq, fn, args_summary FROM tool_calls "
+        "WHERE session_id = ? ORDER BY seq", (session_id,))]
+    out["writes"] = [dict(r) for r in conn.execute(
+        "SELECT table_name, row_id FROM receipts WHERE session_id = ?",
+        (session_id,))]
+    out["turns"] = [dict(r) for r in conn.execute(
+        "SELECT seq, system, user, completion, ms FROM turns "
+        "WHERE session_id = ? ORDER BY seq", (session_id,))]
+    return out
+
+
 def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
     """
     What this role is, can do, is told, and has done.
@@ -147,6 +201,7 @@ def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
             "piece": prompts_mod.piece(role_id, mode),
             "composed": prompts_mod.compose(role_id, mode),
             "tools": scoped.signatures(),
+            "tools_info": _tool_info(scoped),
         }
 
     sessions = [dict(r) for r in conn.execute(
@@ -171,6 +226,7 @@ def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
         "note": node.note if node else "",
         "base_prompt": prompts_mod.base(role_id),
         "working_set": sb.signatures(),
+        "tools_info": _tool_info(sb),
         "reads": sorted(g.read_set(role_id)),
         "writes": sorted(g.write_set(role_id)),
         "contacts": contacts,

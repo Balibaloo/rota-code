@@ -316,13 +316,15 @@ def make_handler(db_path: Path):
                     self._send((STATIC / Path(path).name).read_bytes(),
                                "application/javascript; charset=utf-8")
                 elif path in ("/artefact.json", "/role.json", "/edge.json",
-                              "/blast.json"):
+                              "/blast.json", "/session.json"):
                     conn = connect_readonly(state["db"])
                     try:
                         if path == "/artefact.json":
                             data = inspect_api.artefact(conn, q.get("id", [""])[0])
                         elif path == "/role.json":
                             data = inspect_api.role(conn, q.get("id", [""])[0])
+                        elif path == "/session.json":
+                            data = inspect_api.session(conn, q.get("id", [""])[0])
                         elif path == "/blast.json":
                             data = inspect_api.blast_radius(q.get("id", [""])[0])
                         else:

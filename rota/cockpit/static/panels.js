@@ -135,11 +135,38 @@ function showCaseNode(id, n){
 
 // ---------------------------------------------------------------- roles
 
-// Tools as chips: the name is the list, the full signature is the hover.
-const toolChips = list => (list && list.length)
-  ? `<div class="tools">${list.map(sig => `<span class="tool" data-tip="${
-      attr(sig)}">${esc(String(sig).split('(')[0])}</span>`).join('')}</div>`
-  : '<div class="empty">none</div>';
+// Tools, one line each in call shape: `code.commit(msg, amend)`. Parameters
+// explain themselves on hover — required or optional-with-default — and the
+// line unfolds into the implementation's own docstring, served off the same
+// functions the sandbox dispatches to. A tool with nothing to say stays a
+// flat line rather than a drawer that opens onto nothing.
+function toolList(tools, sigs) {
+  // Older payloads carry only signature strings; parse enough to keep lines.
+  if ((!tools || !tools.length) && sigs && sigs.length)
+    tools = sigs.map(s => {
+      const m = String(s).match(/^([^(]+)\((.*)\)$/);
+      return {name: m ? m[1] : String(s), doc: '',
+              params: m && m[2] ? m[2].split(',').map(p =>
+                ({name: p.trim().split('=')[0], default:
+                  p.includes('=') ? p.split('=').slice(1).join('=').trim() : null}))
+              : []};
+    });
+  if (!tools || !tools.length) return '<div class="empty">none</div>';
+  return tools.map(t => {
+    const params = (t.params||[]).map(p =>
+      `<span class="tparam" data-tip="${attr(p.default != null
+        ? `${p.name} — optional, defaults to ${p.default}`
+        : `${p.name} — required`)}">${esc(p.name)}</span>`
+    ).join('<span class="lnk">, </span>');
+    const line = `<span class="tname">${esc(t.name)}</span><span class="lnk">(</span>${
+      params}<span class="lnk">)</span>`;
+    const doc = (t.doc||'').trim();
+    return doc
+      ? `<details class="tline"><summary>${line}</summary>
+         <div class="tdoc">${esc(doc)}</div></details>`
+      : `<div class="tline flat">${line}</div>`;
+  }).join('');
+}
 
 // `architect <- code (tree)` back into its parts, so a coverage row can be
 // joined against the case files' edge tuples.
@@ -180,15 +207,16 @@ async function showRole(id) {
   const roledef = group('ROLE DEFINITION',
     sec('Core prompt', `${(r.base_prompt||'').length} chars`,
         `<pre>${esc(r.base_prompt)}</pre>`) +
-    sec('Tool definitions', r.working_set.length, toolChips(r.working_set)));
+    sec('Tool definitions', r.working_set.length,
+        toolList(r.tools_info, r.working_set)));
 
   const sessionTypes = group('SESSION TYPES',
     Object.entries(r.modes).map(([m,v])=>sec(
       m, `${v.tools.length} tools`,
       `<b class="sig">Prompt</b>
        <pre>${esc(v.piece)}</pre>
-       <b class="sig">Tool definitions</b>${toolChips(v.tools)}
-       <details><summary class="sig">full composed prompt</summary>
+       <b class="sig">Tool definitions</b>${toolList(v.tools_info, v.tools)}
+       <details class="cfold"><summary>full composed prompt</summary>
          <pre>${esc(v.composed)}</pre></details>`)).join('')
     || '<div class="note">none beyond the role definition</div>');
 
@@ -201,10 +229,11 @@ async function showRole(id) {
     return `<div class="row" style="display:flex;align-items:baseline;gap:6px"
         data-tip="${attr(why)}">
       <span class="lnk">to</span>
-      <span class="link" onclick="gvFocus('${esc(c.role)}')">${esc(c.role)}</span>
+      <span class="link" onclick="gvGoto('${esc(c.role)}')">${esc(c.role)}</span>
       <span class="lnk">it may</span>
       ${(c.verbs.length?c.verbs:['—']).map(v=>
-        `<span class="vchip">${esc(v)}</span>`).join('')}
+        `<span class="vchip link" onclick="showEdge('${esc(id)}|${esc(c.role)}|messages')"
+         >${esc(v)}</span>`).join('')}
     </div>`;
   }).join('');
 
@@ -225,36 +254,37 @@ async function showRole(id) {
   const untested = r.coverage.missing.map(s=>
     `<div class="row">${esc(s)}</div>`).join('');
 
+  const miss = r.coverage.missing.length;
   const wiring = group('WIRING',
     sec('contacts', r.contacts.length, contacts||'<div class="empty">none</div>', true) +
     sec('reads / writes', `${r.reads.length}r ${r.writes.length}w`,
       `<b class="sig">reads</b><div>${r.reads.map(a=>
-        `<span class="link" onclick="showArtefact('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>
+        `<span class="link" onclick="gvGoto('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>
        <b class="sig">writes</b><div>${r.writes.map(a=>
-        `<span class="link" onclick="showArtefact('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>`) +
-    sec('coverage — tested', `${r.coverage.covered}/${r.coverage.total}`,
-        tested || '<div class="empty">nothing exercised yet</div>') +
-    sec('coverage — untested',
-        r.coverage.missing.length
-          ? `<span class="fail">${r.coverage.missing.length}</span>` : '0',
-        untested || '<span class="pass">every edge exercised</span>',
-        r.coverage.missing.length > 0));
+        `<span class="link" onclick="gvGoto('${a}')">${esc(a)}</span>`).join(' · ')||'—'}</div>`) +
+    sec('coverage', `${r.coverage.covered}/${r.coverage.total}`,
+      `<details class="nsec"${miss ? '' : ' open'}><summary>tested
+         <span class="sig">${r.coverage.covered}</span></summary>
+         ${tested || '<div class="empty">nothing exercised yet</div>'}</details>
+       <details class="nsec"${miss ? ' open' : ''}><summary>untested
+         <span class="${miss?'fail':'pass'}">${miss || 'none'}</span></summary>
+         ${untested || '<div class="pass" style="padding:4px 0">every edge exercised</div>'}
+       </details>`, true));
 
-  // Sessions as aligned rows: verdict, session type, model, then volume —
-  // with the actual calls and writes on hover rather than spilling under
-  // every row.
+  // Sessions: an aligned summary row that unfolds into the whole session —
+  // calls in order, writes, and the verbatim transcript — fetched only when
+  // opened, because twenty-five transcripts is not a panel payload.
   const sessions = r.sessions.map(s=>`
-    <div class="srow" data-tip="${attr(s.calls.join('  ')||'no calls')}"
-      data-tipmeta="${attr(s.writes.length
-        ? 'wrote ' + s.writes.map(w=>w.table_name+':'+w.row_id).join(', ')
-        : 'wrote nothing')}">
-      <span class="${s.committed?'pass':'fail'}">${s.committed?'✓':'✗'}</span>
-      <span>${esc(s.mode)}</span>
-      <span class="sig">${esc(s.model||'—')}</span>
-      <span class="sig" style="text-align:right">${s.calls.length} calls</span>
-      <span class="sig" style="text-align:right">${s.writes.length
-        ? `${s.writes.length} writes` : '—'}</span>
-    </div>`).join('') || '<div class="empty">no sessions yet</div>';
+    <details class="sec" data-sess="${attr(s.id)}">
+      <summary><span class="srow" style="border-bottom:0;padding:0">
+        <span class="${s.committed?'pass':'fail'}">${s.committed?'✓':'✗'}</span>
+        <span>${esc(s.mode)}</span>
+        <span class="sig">${esc(s.model||'—')}</span>
+        <span class="sig" style="text-align:right">${s.calls.length} calls</span>
+        <span class="sig" style="text-align:right">${s.writes.length
+          ? `${s.writes.length} writes` : '—'}</span></span></summary>
+      <div class="body"><p class="empty">loading…</p></div>
+    </details>`).join('') || '<div class="empty">no sessions yet</div>';
 
   const state = group('STATE', sec('sessions', r.sessions.length, sessions, true));
 
@@ -262,6 +292,53 @@ async function showRole(id) {
   // paragraph block made them read as one run-on claim.
   P().innerHTML = `<div class="note">${esc(r.note).replace(/\.\s+/g,'.<br>')}</div>`
     + roledef + sessionTypes + wiring + state;
+  wireSessionFolds();
+}
+
+// The full session on demand: opened, it fetches once and renders whole.
+function wireSessionFolds() {
+  P().querySelectorAll('details[data-sess]').forEach(d => {
+    d.addEventListener('toggle', async () => {
+      if (!d.open || d.dataset.loaded) return;
+      d.dataset.loaded = '1';
+      const body = d.querySelector('.body');
+      try {
+        const sx = await (await fetch(
+          `/session.json?id=${encodeURIComponent(d.dataset.sess)}`)).json();
+        body.innerHTML = sessionBody(sx);
+      } catch { body.innerHTML = '<div class="fail">could not load</div>'; }
+    });
+  });
+}
+
+function sessionBody(sx) {
+  if (!sx || !sx.found) return '<div class="empty">no record of this session</div>';
+  const calls = (sx.calls||[]).map(c=>`<div class="row" style="display:flex;gap:8px">
+      <span class="sig" style="width:24px;text-align:right">${c.seq}</span>
+      <span>${esc(c.fn)}</span>
+      <span class="sig" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        title="${attr(c.args_summary||'')}">${esc(c.args_summary||'')}</span>
+    </div>`).join('') || '<div class="empty">no calls</div>';
+  const writes = (sx.writes||[]).length
+    ? sx.writes.map(w=>`<span class="vchip">${esc(w.table_name)}:${esc(w.row_id)}</span>`).join(' ')
+    : '<span class="empty">nothing</span>';
+  const turns = (sx.turns||[]).map((t,i)=>`
+    <details class="nsec"${i===0?' open':''}><summary>turn ${t.seq ?? i+1}
+      <span class="sig">${t.ms ? `${t.ms} ms` : ''}</span></summary>
+      ${t.system?`<b class="sig">system</b><pre class="brief">${esc(t.system)}</pre>`:''}
+      <b class="sig">user</b><pre class="brief">${esc(t.user||'')}</pre>
+      <b class="sig">completion</b><pre class="brief">${esc(t.completion||'')}</pre>
+    </details>`).join('');
+  return `
+    <div class="row"><span class="lnk">woken by</span> ${esc(sx.trigger_msg||'a tick')}
+      <span class="lnk" style="margin-left:10px">prompt</span>
+      <span class="sig">${esc(String(sx.prompt_hash||'').slice(0,10) || '—')}</span></div>
+    <b class="sig">calls, in order</b>${calls}
+    <b class="sig" style="display:block;margin-top:8px">writes</b>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 0">${writes}</div>
+    <b class="sig" style="display:block;margin-top:8px">transcript${
+      (sx.turns||[]).length ? ` — ${sx.turns.length} round-trip(s), verbatim` : ''}</b>
+    ${turns || '<div class="empty">no transcript recorded for this session</div>'}`;
 }
 
 // ---------------------------------------------------------------- artefacts
@@ -295,10 +372,19 @@ async function showArtefact(id) {
            <b class="sig">pointed at by</b>${table(a.refs_in,['from','rel','card'])}`)
       : ''));
 
-  phead(a.label, `artefact · written by ${esc(a.written_by.join(', ')||'the system')}`,
-    `<span class="link" onclick="showBlast('${id}')">what this wakes</span>`);
+  // Same header grammar as roles: "Brief RECORD", the kind riding in the
+  // title, and the one action — the cascade — as an icon explained on hover.
+  const gnode = GV.graph.nodes.find(x=>x.id===id);
+  const kind = gnode ? kindOf(gnode) : 'record';
+  document.getElementById('phead').innerHTML = `<div class="phrow">
+    <h2>${esc(a.label)} <span class="kind">${esc(kind)}</span></h2>
+    <span class="phact" onclick="showBlast('${esc(id)}')"
+      data-tip="what changing this would wake — the cascade, in the order owners are summoned">
+      <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="3.5" cy="7" r="1.6"
+        fill="currentColor"/><path d="M7 3.5 a5 5 0 0 1 0 7 M9.8 1.8 a7.5 7.5 0 0 1 0 10.4"
+        fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span></div>`;
   P().innerHTML =
-    `<div class="note">${esc(a.note)}
+    `<div class="note">${esc(a.note).replace(/\.\s+/g,'.<br>')}
       ${isJournal?`<div class="sub sig"><b>Fact artefact.</b> ${esc(a.contact_why)}</div>`:''}
      </div>${state}${wiring}`;
 }
@@ -307,6 +393,12 @@ async function showArtefact(id) {
 async function showEdge(data) {
   showTab('detail');
   const [s,t,type]=data.split('|');
+  // Selecting an edge selects it on the map: the edge and its two ends at
+  // full light, everything else receded — the same contract a node click has.
+  GV.edgeSel = {s, t, type};
+  GV.focus = null;
+  gvDraw();
+  if (typeof syncHash === 'function') syncHash();
   const e = await (await fetch(
     `/edge.json?s=${encodeURIComponent(s)}&t=${encodeURIComponent(t)}&type=${type}`)).json();
   if (e.error){ phead('—', esc(e.error)); P().innerHTML=''; return; }
@@ -314,8 +406,8 @@ async function showEdge(data) {
   phead(`${s} → ${t}`, `${esc(type)} · ${e.covered
     ? '<span class="pass">covered by a test</span>'
     : '<span class="fail">no test exercises this</span>'}`,
-    `<span class="link" onclick="gvFocus('${s}')">focus ${esc(s)}</span> ·
-     <span class="link" onclick="gvFocus('${t}')">focus ${esc(t)}</span>`);
+    `<span class="link" onclick="gvGoto('${s}')">go to ${esc(s)}</span> ·
+     <span class="link" onclick="gvGoto('${t}')">go to ${esc(t)}</span>`);
 
   P().innerHTML =
     group('WIRING', sec('grammar', e.variants.length,
@@ -796,9 +888,13 @@ loadRuns();
 
 // ---------------------------------------------------------------- url paths
 // The address bar is the query — #/graph?lens=coverage&node=critic names a
-// view completely enough to reopen it tomorrow or hand it to someone. Written
-// with replaceState so browsing does not pile up history entries; applied on
-// load once the graph exists, and again if the hash is edited by hand.
+// view completely enough to reopen it tomorrow or hand to someone — and the
+// history is the trail: every selection change is an entry, so the browser's
+// back and forward walk your inspection the way they walk pages. While a
+// hash is being *applied* (load, back, forward), writes are replaceState so
+// re-deriving the state never corrupts the trail being walked.
+let navApplying = false;
+
 function syncHash(){
   if (typeof history === 'undefined' || typeof location === 'undefined') return;
   if (!GV.graph) return;
@@ -809,36 +905,60 @@ function syncHash(){
     if (GV.caseId) q.push('case=' + encodeURIComponent(GV.caseId));
     if (GV.focus) q.push('node=' + encodeURIComponent(GV.focus));
     if (GV.inhabit) q.push('reach=' + encodeURIComponent(GV.inhabit));
+    if (GV.edgeSel) q.push('edge=' + encodeURIComponent(
+      `${GV.edgeSel.s}|${GV.edgeSel.t}|${GV.edgeSel.type}`));
     if (q.length) h += '?' + q.join('&');
   }
-  if (location.hash !== h) history.replaceState(null, '', h);
+  if (location.hash === h) return;
+  if (navApplying) history.replaceState(null, '', h);
+  else history.pushState(null, '', h);
 }
 
+// Authoritative, both ways: state named in the hash is applied, state absent
+// from it is cleared — without that, back reaches an address the picture
+// refuses to match.
 async function applyHash(){
   if (typeof location === 'undefined') return;
   const m = (location.hash || '').match(/^#\/(graph|live|progress)(?:\?(.*))?$/);
   if (!m) return;
-  selectView(m[1]);
-  if (m[1] !== 'graph' || !m[2]) { syncHash(); return; }
-  const q = new URLSearchParams(m[2]);
-  const caseId = q.get('case');
-  if (caseId) {
-    if (!CASES.length) {
-      try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+  navApplying = true;
+  try {
+    selectView(m[1]);
+    if (m[1] !== 'graph') return;
+    const q = new URLSearchParams(m[2] || '');
+    const caseId = q.get('case');
+    if (caseId) {
+      if (!CASES.length) {
+        try { CASES = await (await fetch('/cases.json')).json(); } catch {}
+      }
+      if (CASES.some(c => c.id === caseId) && GV.caseId !== caseId)
+        showCase(caseId);
+    } else {
+      const lens = q.get('lens') || 'design';
+      if (GV.source !== lens) setLens(lens);
     }
-    if (CASES.some(c => c.id === caseId)) showCase(caseId);
-  } else if (q.get('lens')) setLens(q.get('lens'));
-  const node = q.get('node');
-  if (node && GV.layout && GV.layout[node]) {
-    GV.focus = node; gvDraw(); showNode(node);
-  }
-  const reach = q.get('reach');
-  if (reach && GV.layout && GV.layout[reach]) {
-    GV.inhabit = reach; GV.focus = null; gvDraw();
+    const node = q.get('node');
+    GV.focus = (node && GV.layout && GV.layout[node]) ? node : null;
+    const reach = q.get('reach');
+    GV.inhabit = (reach && GV.layout && GV.layout[reach]) ? reach : null;
+    const edge = q.get('edge');
+    GV.edgeSel = null;
+    gvDraw();
+    if (edge) await showEdge(edge);
+    else if (GV.focus) showNode(GV.focus);
+  } finally {
+    navApplying = false;
   }
   syncHash();
 }
 window.addEventListener('hashchange', applyHash);
+
+// The trail's buttons live where the trail is walked: in the inspector bar.
+(function(){
+  const b = document.getElementById('pnavb'), f = document.getElementById('pnavf');
+  if (b) b.onclick = () => history.back();
+  if (f) f.onclick = () => history.forward();
+})();
 
 // The graph's "right now" rings — claims held, predicates firing — were a
 // snapshot from page load: the live tab watched the database move while the
