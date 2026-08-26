@@ -17,9 +17,10 @@ sharper than the one they asked. Take it at face value. They are not confused
 about their own block, and treating the note as a misunderstanding to be
 corrected is how a second answer misses in the same way as the first.
 
-Answer it with `msg.answer_developer`, or record what you had to decide with
-`model.amend` first if the answer is a constraint that did not exist until now.
-An answer that only lives in a message binds nobody.
+Answer **whoever asked** — the channel to anyone else was not built into this
+session, so there is one to reach for and no choice to get wrong. Record what
+you had to decide with `model.amend` first if the answer is a constraint that
+did not exist until now: an answer that only lives in a message binds nobody.
 
 **If it is not yours either, say so upward** — `msg.report_liaison`. A rung that
 cannot answer and does not pass it on is where the thread dies, and the asker is

@@ -479,3 +479,46 @@ def test_a_brief_names_at_least_one_of_its_own_calls():
             silent.append(f"{brief_path.parent.name}/{brief_path.name} "
                           f"names none of its {len(tools)} tools")
     assert not silent, "\n  " + "\n  ".join(silent)
+
+
+def test_an_unresolved_rung_can_answer_every_asker_that_reaches_it():
+    """
+    The ladder picks a rung by the graph; the mode narrows by a hand-written
+    list; nothing checked that the two agree.
+
+    `predicates.unresolved` is careful about this and says why: it reads
+    reply-capability off the graph because "waking a rung that cannot speak to
+    the asker would produce a session with nothing it could do -- a silence
+    indistinguishable from the answer landing". It then hands the wake to a mode
+    whose `.tools` file decides what is actually built, and those files name one
+    asker each: `architect/unresolved.tools` offers `msg.answer_developer` and
+    nothing else, because Developer was the only asker when it was written.
+
+    Liaison became an asker when the inquiry route started working, and the
+    ladder for a Liaison question is exactly the three artefact owners. Every
+    one of them would have woken unable to reply.
+
+    Same shape as `situational`'s note about a brief that "names one instance
+    and parenthesises the rest" -- and the same fix: derive it, then a list that
+    falls behind the graph fails here instead of going quiet in production.
+    """
+    from rota.core.predicates import Wake
+    from rota.core.scheduler import ONBOARDING_TICKS  # noqa: F401  (import guard)
+
+    g = graph_mod.load()
+    can_answer: dict[str, set[str]] = {}
+    for e in g.of_type("messages"):
+        if e.v == "answer":
+            can_answer.setdefault(e.t, set()).add(e.s)
+
+    problems = []
+    for asker, rungs in sorted(can_answer.items()):
+        for rung in sorted(rungs):
+            tools = prompts.mode_tools(rung, "unresolved")
+            if tools is None:
+                continue          # un-narrowed: the role keeps everything
+            if f"msg.answer_{asker}" not in tools:
+                problems.append(
+                    f"{rung} is a rung for {asker} and its unresolved mode "
+                    f"cannot answer them")
+    assert not problems, "\n".join(problems)

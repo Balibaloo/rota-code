@@ -725,7 +725,24 @@ def unresolved(conn) -> list[Wake]:
             "SELECT DISTINCT from_role FROM messages WHERE thread_id = ?",
             (r["thread_id"],))}
         able = can_answer.get(r["from_role"], set())
-        for role in (*QUESTION_LADDER, "liaison"):
+        # Two shapes, because two things are being climbed.
+        #
+        # A role's blocked question climbs toward a *ruling*: structure, then
+        # scope, then a person. `QUESTION_LADDER` is that order and Terminologist
+        # is deliberately not in it -- it does not rule on anything.
+        #
+        # The principal's question is not an escalation. It is a question
+        # looking for whoever holds the answer, and the holders are the roles
+        # the graph says can answer Liaison: the three artefact owners. Ordering
+        # them by the ruling ladder put Terminologist nowhere, which is the one
+        # owner that holds what a word means -- and "what does this mean here?"
+        # is most of what a maintainer asks. Measured on the click run: the
+        # question named a `recipe`, Architect said the area was unsurveyed, and
+        # the ladder went to Vision Keeper while the glossary sat unread.
+        #
+        # Derived from the graph rather than named, so it cannot fall behind it.
+        ladder = (*QUESTION_LADDER, "liaison") if r["from_role"] != "liaison"             else (*sorted(able), "liaison")
+        for role in ladder:
             if role in spoken:
                 continue
             if role != "liaison" and role not in able:

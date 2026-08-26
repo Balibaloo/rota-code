@@ -756,6 +756,45 @@ from somewhere". Its first fixture also gave the ask message and the entry the
 same id, which made `entry_for` match by accident; they are deliberately
 unequal now.
 
+**And the ladder that was supposed to catch a non-answer had never run.**
+`schedule.reask` -- the register's one declared transition, "the answer came
+back and left you where you were" -- is offered to Architect, Developer,
+Terminologist, Tester and Vision Keeper. Not to Liaison, which is the one role
+that talks to the principal, so the only asker whose block costs a person's
+attention was the only asker that could not report one. The graph edge did not
+exist.
+
+Giving it the edge exposed three more, each pre-existing and each invisible
+until a question actually travelled three hops:
+
+- `schedule.reask` refused any wake whose cause was not a `question`. Liaison
+  asks with `ask`. Written when Developer was the only asker, in the same shape
+  as every other "names one instance" fault in this route.
+- **a reply started a new thread instead of joining its cause's.**
+  `thread_id = m.thread_id or m.cause_id or m.id` is right exactly one hop from
+  the root -- the first reply's cause *is* the thread root -- and wrong at every
+  hop after, where it names its parent and starts a thread of one. So
+  `unresolved` looked for who had spoken in the ask's thread, found nobody, and
+  woke the role that had just answered. Three times, then quarantine. Everything
+  keyed on `thread_id` read the same way: `report_is_settled`, `round_close`'s
+  harvest, `open_tips`' broadcast exclusion.
+- the rungs' briefs and `.tools` files named one asker each --
+  `msg.answer_developer`, because Developer was the only asker when they were
+  written. A rung woken for a Liaison question could not reply to it, which is
+  the silence `predicates.unresolved` explicitly says it avoids by reading
+  reply-capability off the graph. It reads the graph and then hands the wake to
+  a mode narrowed by hand. `test_an_unresolved_rung_can_answer_every_asker_that_
+  reaches_it` derives it now.
+
+And the branch itself did not arbitrate. `liaison/answer.md` gained a paragraph
+saying to reask rather than relay when an owner cites constraint zero; both
+models relayed anyway, both passes, four times out of four. Eighth time. The
+structural form -- refusing to relay an answer that names nothing but the
+question and `k0` -- takes it to 2/2 on both models in both passes. `k0` is why
+it can be structural at all: in general "the answer did not land" is invisible
+to a query, and on this one route the owner says it by citing a row with a
+fixed id that means "not surveyed".
+
 **Intake had two branches and needed three.** `converse.md` asked "is this chat
 or work?" and settled ties twice -- "Default to chat", "When in doubt, chat" --
 so a question about the onboarded program, which is neither, fell to the

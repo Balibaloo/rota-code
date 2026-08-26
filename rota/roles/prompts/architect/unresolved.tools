@@ -6,4 +6,5 @@ criteria.scan
 decisions.search
 ledger.log
 msg.answer_developer
+msg.answer_liaison
 msg.report_liaison

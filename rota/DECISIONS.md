@@ -460,6 +460,39 @@ refusal would have to be situational -- refs are obligatory *when the wake
 carried some* -- which is `sandbox.situational`'s shape and not `stage`'s. The
 `ask` guard is the precedent that makes it tractable, not the fix.
 
+### "Should we build this?" is a fourth kind of intake, and there is no branch for it
+
+Intake decides three things: chat, a question about the program as it already
+is, or work. A principal asking **"should we add xyz?"** or **"is this viable?"**
+is none of them. It is not chat. It is not a question about what exists -- it is
+about something that does not. And it is not work, because nothing has been
+decided and segmenting it would put a statement in front of the principal to
+ratify that they were asking about rather than asking for.
+
+Under the ordered test it falls to chat, which is the tiebreaker doing what
+tiebreakers do.
+
+The design stories do not cover it either. They have "how does deletion handle
+search results right now?" and "what happens after this batch?" -- both about
+what is, one about the present and one about the plan. Nothing about appraisal.
+So this is a gap in the spec and not only in the build.
+
+What it would be, if built: the same read-only fan-out as an inquiry, and a
+different shape coming back. Vision Keeper on whether it is in scope and what
+it would contradict, Architect on what would break and what outside things
+depend on the parts it touches, Terminologist on whether the words already mean
+something else here. Every one of those is a *judgement*, which is what
+separates it from an inquiry, and none of them is a commitment, which is what
+separates it from work.
+
+Two things to settle before building it. Whether an appraisal may write --
+`ledger.log` is the honest home for "we would be assuming X", and law 10 says
+inquiry writes nothing, so either appraisal is not inquiry or the ledger entry
+waits for a decision that may never come. And whether a favourable appraisal
+should flow into work without the principal saying so again; the answer is
+almost certainly no, because "that sounds fine" is not a commitment, and the
+whole ratification gate exists to keep those apart.
+
 ### The frontier, when several things are ready — the big one
 
 Wakes are ordered by band, then **alphabetically by predicate name**. The loop

@@ -493,6 +493,42 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     return Sandbox(role, ctx, artefacts)
 
 
+def _relaying_a_non_answer(ctx: api.Ctx) -> str | None:
+    """
+    Constraint zero's id, if the answer this session was woken by cites it and
+    nothing else of substance. `None` when the answer named a real row, when
+    the wake was not an answer, or when there is nothing to read.
+
+    Entries do not count as substance on this route: the entry is the question,
+    and an owner echoing the question back has not answered it either.
+    """
+    import json
+
+    from ..onboarding.boot import ZERO
+
+    row = ctx.conn.execute(
+        "SELECT verb, body_refs FROM messages WHERE id = ?",
+        (ctx.trigger,)).fetchone()
+    if row is None or row["verb"] != "answer":
+        return None
+    try:
+        refs = json.loads(row["body_refs"] or "[]")
+    except (TypeError, ValueError):
+        return None
+    cited = None
+    for ref in refs:
+        if not isinstance(ref, str):
+            continue
+        if ref == ZERO:
+            cited = ref
+            continue
+        if ctx.conn.execute("SELECT 1 FROM entries WHERE id = ?",
+                            (ref,)).fetchone():
+            continue
+        return None                      # something real was named
+    return cited
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -751,6 +787,35 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     given = []
                 refs += [r for r in given
                          if isinstance(r, str) and r and r not in refs]
+
+        # An owner that could not answer has not answered, and relaying that
+        # to the principal spends the one budget in this system that cannot be
+        # topped up while two owners who might know have not been asked.
+        #
+        # `k0` is constraint zero: the row bound to everything no survey has
+        # reached. An answer whose refs are the question and `k0` is an owner
+        # saying "not surveyed" -- a fact about the run, not the answer that
+        # was asked for. Measured on the click database: Architect answered
+        # `refs: ["e_m5", "k0"]` and the principal was told the area had not
+        # been surveyed while Terminologist, which held the term the question
+        # was about, was never asked.
+        #
+        # Derived rather than declared, and only here. `schedule.reask` exists
+        # because in general "the answer did not land" is invisible to a query
+        # -- the row says answered and only the asker knows. On this route it
+        # is visible, because the owner cites the row that means it.
+        if (recipient == "principal" and verb == "converse"
+                and getattr(ctx, "trigger", None)):
+            hollow = _relaying_a_non_answer(ctx)
+            if hollow:
+                raise ValueError(
+                    f"the answer you are relaying names nothing but the "
+                    f"question and {hollow} -- constraint zero, which is the "
+                    f"row for everything no survey has reached. That is the "
+                    f"owner saying it does not know, and the other owners have "
+                    f"not been asked. Say what is still missing with "
+                    f"schedule.reask; asking them is free and the principal's "
+                    f"attention is not")
 
         # One message gets one answer. `api.refuse_second_answer` holds the
         # rule and says why; the three channels that carry an intake answer

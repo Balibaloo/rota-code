@@ -10,13 +10,13 @@
       "id": "liaison",
       "label": "Liaison",
       "type": "role",
-      "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only \u2014 no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
+      "note": "Only role that sees the principal. Records and broadcasts; does not interpret. Fields every principal message as inquiry first: consult-mode sessions answer questions read-only — no writes, so nothing revokes and no checkpoint is disturbed. Only a ratified amendment to an approved item escalates an inquiry into change."
     },
     {
       "id": "vision_keeper",
       "label": "Vision Keeper",
       "type": "role",
-      "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals \u2014 including noticing when an old no has expired."
+      "note": "Identity and scope over time. Owns the out-of-scope items, the rejection log, and the check of every new statement against prior refusals — including noticing when an old no has expired."
     },
     {
       "id": "terminologist",
@@ -28,7 +28,7 @@
       "id": "architect",
       "label": "Architect",
       "type": "role",
-      "note": "Feasibility and constraints. Groups tickets into batches \u2014 a dependency-and-collision judgement that lives in the system model."
+      "note": "Feasibility and constraints. Groups tickets into batches — a dependency-and-collision judgement that lives in the system model."
     },
     {
       "id": "schedule",
@@ -67,13 +67,13 @@
       "id": "problem",
       "label": "Problem statement",
       "type": "artefact",
-      "note": "In-scope and out-of-scope items, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item\u2019s last amendment."
+      "note": "In-scope and out-of-scope items, each carrying its own approval state. No batch may be scheduled unless the item it satisfies is approved and that approval postdates the item’s last amendment."
     },
     {
       "id": "glossary",
       "label": "Glossary + rules",
       "type": "artefact",
-      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed \u2014 extracted from an onboarded codebase and awaiting confirmation."
+      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed — extracted from an onboarded codebase and awaiting confirmation."
     },
     {
       "id": "challenge",
@@ -91,13 +91,13 @@
       "id": "model",
       "label": "System model",
       "type": "artefact",
-      "note": "Constraints, and what is buildable here. Each constraint declares bindings \u2014 the modules it governs \u2014 so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase \u2014 found, not chosen). Challenging an observed entry forces its first decision."
+      "note": "Constraints, and what is buildable here. Each constraint declares bindings — the modules it governs — so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase — found, not chosen). Challenging an observed entry forces its first decision."
     },
     {
       "id": "decisions",
       "label": "Decision record",
       "type": "artefact",
-      "note": "Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state \u2014 which is why multi-writer is safe here and not on the backlog.",
+      "note": "Append-only journal, multiple writers: each decision is authored by whoever made it, at the moment they made it. One author per entry, no shared state — which is why multi-writer is safe here and not on the backlog.",
       "contact": false,
       "contact_why": "append-only journal; entries carry authors but are read as evidence"
     },
@@ -113,7 +113,7 @@
       "id": "code",
       "label": "Codebase + diffs",
       "type": "artefact",
-      "note": "One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch\u2019s runtime whole \u2014 processes and ports die with it, half-dead environments forbidden \u2014 while the worktree and its commits persist as deferred work (commit-first bounds the loss).",
+      "note": "One branch and worktree per batch, never reused. Restarting a revoked batch wipes its worktree. Preemption kills a batch’s runtime whole — processes and ports die with it, half-dead environments forbidden — while the worktree and its commits persist as deferred work (commit-first bounds the loss).",
       "contact": false,
       "contact_why": "self-describing; a question about the codebase is answered by probing it"
     },
@@ -139,7 +139,7 @@
       "id": "tickets",
       "label": "Tickets",
       "type": "artefact",
-      "note": "Sliced by Vision Keeper from approved items. One writer. Tickets (Vision Keeper), criteria (Terminologist), batches (Architect) \u2014 one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
+      "note": "Sliced by Vision Keeper from approved items. One writer. Tickets (Vision Keeper), criteria (Terminologist), batches (Architect) — one writer per table, which is what law 1 means by single writer: one writer per row. Batches are complete feature sets, immutable once formed: priority moves them whole; only a scope change may recompose one. One worktree and one PR per batch, tracing to exactly one approved item."
     },
     {
       "id": "criteria",
@@ -158,7 +158,7 @@
       "label": "Findings",
       "type": "artefact",
       "contact": false,
-      "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role \u2014 so there is nobody to ask about one.",
+      "contact_why": "Architect's structural verdict on one batch. Read by the merge gate, which is the scheduler, not a role — so there is nobody to ask about one.",
       "note": "Constraint id, satisfied or violated, and the grain that brought the constraint into range. No reasoning: law 2. One row per constraint checked, per commit."
     },
     {
@@ -267,7 +267,7 @@
       "type": "writes",
       "v": "slice",
       "n": "batches of tickets",
-      "label": "contested \u00b7 approved items only",
+      "label": "contested · approved items only",
       "rows": "single"
     },
     {
@@ -813,7 +813,7 @@
       "type": "messages",
       "v": "present",
       "n": "draft statement",
-      "label": "signoff \u00b7 reads as one document",
+      "label": "signoff · reads as one document",
       "rows": "all"
     },
     {
@@ -988,7 +988,7 @@
       "type": "reads",
       "v": "load",
       "n": "criteria for batch",
-      "label": "criteria only \u2014 no diff",
+      "label": "criteria only — no diff",
       "rows": "batch",
       "depth": "body"
     },
@@ -1576,7 +1576,7 @@
       "t": "terminologist",
       "type": "messages",
       "v": "answer",
-      "n": "the answer, with sources \u2014 or what was tried and failed",
+      "n": "the answer, with sources — or what was tried and failed",
       "rows": "single"
     },
     {
@@ -1602,7 +1602,7 @@
       "t": "architect",
       "type": "messages",
       "v": "answer",
-      "n": "the answer, with sources \u2014 or what was tried and failed",
+      "n": "the answer, with sources — or what was tried and failed",
       "rows": "single"
     },
     {
@@ -1628,7 +1628,7 @@
       "t": "vision_keeper",
       "type": "messages",
       "v": "answer",
-      "n": "the answer, with sources \u2014 or what was tried and failed",
+      "n": "the answer, with sources — or what was tried and failed",
       "rows": "single"
     },
     {
@@ -1654,7 +1654,7 @@
       "t": "developer",
       "type": "messages",
       "v": "answer",
-      "n": "the answer, with sources \u2014 or what was tried and failed",
+      "n": "the answer, with sources — or what was tried and failed",
       "rows": "single"
     },
     {
@@ -1680,8 +1680,14 @@
       "t": "tester",
       "type": "messages",
       "v": "answer",
-      "n": "the answer, with sources \u2014 or what was tried and failed",
+      "n": "the answer, with sources — or what was tried and failed",
       "rows": "single"
+    },
+    {
+      "s": "liaison",
+      "t": "schedule",
+      "type": "writes",
+      "v": "reask"
     },
     {
       "s": "architect",
@@ -1975,7 +1981,7 @@
     {
       "s": "critic",
       "t": "terminologist",
-      "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead \u2014 a completeness fix rather than a channel."
+      "why": "Open. A criterion Critic cannot judge has nowhere to go, and the resolution taken was to resolve term_refs into criteria.load instead — a completeness fix rather than a channel."
     }
   ]
 }

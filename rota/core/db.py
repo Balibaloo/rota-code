@@ -264,6 +264,37 @@ def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
 
 
+def _thread_of(conn: sqlite3.Connection, m) -> str:
+    """
+    The thread a message joins: its cause's thread, not its cause.
+
+    This was `m.thread_id or m.cause_id or m.id`, which is right exactly one hop
+    from the root and wrong at every hop after it. The first reply's cause *is*
+    the thread root, so it lands correctly and the bug is invisible; the second
+    reply names its parent and starts a thread of one.
+
+    Measured on the inquiry route, which was the first three-hop conversation
+    the system ever had. Liaison asked Architect (`m6`, thread `m5`, correct),
+    Architect answered (`m7`, thread `m6`, wrong), and when the asker said the
+    answer had not landed, `unresolved` looked for roles that had spoken in
+    `m6`'s thread, found none -- the answer was in a thread of its own -- and
+    woke Architect again. Three times, then quarantine.
+
+    Everything keyed on `thread_id` reads the same way: `report_is_settled`,
+    `round_close`'s harvest, `open_tips`' broadcast exclusion, and the
+    `answered` sweep below.
+    """
+    if m.thread_id:
+        return m.thread_id
+    if m.cause_id:
+        row = conn.execute("SELECT thread_id FROM messages WHERE id = ?",
+                           (m.cause_id,)).fetchone()
+        if row and row["thread_id"]:
+            return row["thread_id"]
+        return m.cause_id
+    return m.id
+
+
 def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
     """
     Commit a whole session atomically: session row, writes, receipts, version
@@ -314,7 +345,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     m.id, m.cause_id, m.cause_kind,
-                    m.thread_id or m.cause_id or m.id,
+                    _thread_of(conn, m),
                     result.role, m.to_role, m.verb,
                     json.dumps(m.body_refs), m.body_text,
                     m.round_no, _next_seq(conn, "messages"),
@@ -332,7 +363,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         #
         # Not messages this role sent itself: the asker can send in its own
         # thread while still blocked, and that is not somebody picking it up.
-        for thread in {m.thread_id or m.cause_id or m.id for m in result.messages}:
+        for thread in {_thread_of(conn, m) for m in result.messages}:
             conn.execute(
                 "UPDATE messages SET status = 'answered' "
                 "WHERE status = 'unresolved' AND thread_id = ? AND from_role != ?",

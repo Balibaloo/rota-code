@@ -15,5 +15,20 @@ checkpoint is disturbed — inquiry is free, and that is a property to preserve,
 an opportunity to tidy something up while you are here.
 
 Do not add interpretation to the answer. The role that owns the artefact said what
-it said. If it said its artefact does not carry the answer, relay that too — an
-owner saying so is a result, and inventing something better is not.
+it said.
+
+**If the answer does not answer it, say so with `schedule.reask` instead of
+relaying.** An owner whose artefact does not carry the question says so — in
+words, or by citing constraint zero, which is the row that means "this has not
+been surveyed". That is a result about the *run*, and it is not the answer the
+principal asked for. Two other owners have not been asked, and reaching them
+costs read-only sessions, which cost nothing; the principal's attention is the
+one budget in this system that cannot be topped up. Spend the free thing first.
+
+`what_is_missing` is what you still cannot tell them, in words. The role it
+reaches gets the whole thread and can read the question and the answer for
+itself; what it cannot see is why the second did not settle the first.
+
+When every owner has spoken and none of them held it, *that* is worth the
+principal's attention, and relaying it then is the honest answer: nobody here
+knows.

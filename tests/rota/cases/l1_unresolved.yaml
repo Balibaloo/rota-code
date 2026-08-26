@@ -153,3 +153,58 @@
     # something to organise and present as news.
     calls: [msg.present_principal]
     writes: [decisions, glossary_terms, items]
+
+- id: L1-TE-a-rung-for-a-question-the-principal-asked
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  tick: unresolved
+  refs: [<m1>]
+  # The ladder's newest rung, and the first one reached by a question the
+  # *principal* asked rather than a role.
+  #
+  # `unresolved` picks the next rung off the graph -- the first role that has
+  # not spoken in this thread and can reply to the asker -- and for a Liaison
+  # question that is the three artefact owners. Terminologist had no
+  # `unresolved` mode at all, so it woke with its whole namespace and its base
+  # brief, which is the arrangement every measured failure in this system has
+  # come out of.
+  #
+  # Architect answered from the model and cited constraint zero: true about the
+  # run, and not the answer. The question is about what a *word* means here,
+  # which is the distance between the question and the answer that this mode
+  # exists to notice.
+  fixture:
+    glossary_terms:
+      - {id: <g1>, term: recipe, provenance: observed,
+         sense_short: "a note whose contents seed a new note"}
+      - {id: <g2>, term: recipe, provenance: observed,
+         sense_short: "the frontmatter block that names one"}
+    constraints:
+      - {id: k0, headline: "not yet surveyed",
+         text: "everything in this repository no survey has reached",
+         provenance: observed}
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "where exactly does a user write a recipe -- which file, and under which key?"}
+    messages:
+      - {id: <m1>, thread_id: <t1>, from_role: liaison, to_role: architect,
+         verb: ask, body_refs: '["<e1>"]', seq: 1, status: unresolved,
+         unresolved_note: "the architect said the area is not surveyed; the
+           question is about what a recipe is and where it is written"}
+      - {id: <m2>, cause_id: <m1>, thread_id: <t1>, from_role: architect,
+         to_role: liaison, verb: answer, body_refs: '["<e1>", "k0"]', seq: 2,
+         status: answered}
+  expect:
+    # Two live senses is the answer, and the refs are what carry it. Saying
+    # neither is being a quiet rung, which is the failure the mode exists to
+    # prevent -- the asker is already blocked and the principal is waiting.
+    any_of:
+      - messages: [{to: liaison, verb: answer, count: 1, refs_include: [<g1>]}]
+      - messages: [{to: liaison, verb: answer, count: 1, refs_include: [<g2>]}]
+      - messages: [{to: liaison, verb: report, count: ">=1"}]
+  forbidden:
+    # Resolving a collision is a decision, and a decision is a write this
+    # session does not have. Nor is it Terminologist's to rule on scope.
+    writes: [glossary_terms, items, statements, decisions]

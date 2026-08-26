@@ -931,3 +931,92 @@ def test_routing_and_chatting_are_also_one_answer_each(db):
     sb2.call("msg.converse_principal", refs=[], reply="Hello!")
     with pytest.raises(ValueError, match="already replied"):
         sb2.call("msg.ask_architect", refs=["e_m1"])
+
+
+def _inquiry_db(db, answer_refs):
+    import json as _json
+
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','where does a user write a recipe?',1)")
+    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+               "('k0','not yet surveyed','everything no survey has reached',"
+               "'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g_recipe','recipe','a note that seeds another','observed')")
+    # The ask first: `schedule.reask` requires the answer to be a reply to a
+    # question this role asked, which is right -- the causal chain is how it
+    # knows which question it is talking about without being told an id.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m6','t1','liaison','architect',"
+               "'ask',?,1,'answered')", (_json.dumps(["e_m1"]),))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, "
+               "to_role, verb, body_refs, seq) VALUES ('m7','m6','t1',"
+               "'architect','liaison','answer',?,2)", (_json.dumps(answer_refs),))
+    db.commit()
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.trigger = "m7"
+    return sb
+
+
+def test_an_owner_that_could_not_answer_is_not_relayed(db):
+    """
+    An owner whose artefact does not carry the question says so by citing
+    constraint zero -- the row bound to everything no survey has reached. That
+    is a fact about the run, not the answer the principal asked for, and
+    relaying it spends the one budget in this system that cannot be topped up
+    while two owners who might know have not been asked.
+
+    Measured on the click database: Architect answered `refs: ["e_m5", "k0"]`
+    and the principal was told the area had not been surveyed, while
+    Terminologist -- which held the term the question was about -- was never
+    asked.
+
+    Prose did not arbitrate it. `liaison/answer.md` gained a paragraph saying
+    exactly this and both models relayed anyway, in both passes, four times out
+    of four. Eighth time in this system.
+
+    Derived rather than declared, and only here. `schedule.reask` exists
+    because in general "the answer did not land" is invisible to a query -- the
+    row says answered, and only the asker knows. On this route it is visible,
+    because the owner cites the row that means it.
+    """
+    sb = _inquiry_db(db, ["e_m1", "k0"])
+    with pytest.raises(ValueError, match="constraint zero"):
+        sb.call("msg.converse_principal", refs=["e_m1", "k0"],
+                reply="That area has not been surveyed.")
+    assert sb.ctx.outbound == []
+
+    # Satisfiable, which is what separates this from a gate.
+    sb.call("schedule.reask",
+            what_is_missing="which file holds the recipe, and under which key")
+
+
+def test_an_answer_that_names_a_real_row_is_relayed(db):
+    """
+    The bound, and the direction that matters more: an owner that answered must
+    reach the principal. A guard that swallowed real answers would be worse
+    than the fault it replaces.
+    """
+    sb = _inquiry_db(db, ["g_recipe"])
+    sb.call("msg.converse_principal", refs=["g_recipe"],
+            reply="A recipe is a note that seeds another.")
+    assert len(sb.ctx.outbound) == 1
+
+
+def test_the_hollow_guard_only_looks_at_an_answer(db):
+    """
+    Intake is woken by `converse`, not `answer`, and must not be caught by a
+    check about relaying. The trigger's verb is what separates them.
+    """
+    import json as _json
+
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m1','principal','hey, morning!',1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','t1','principal','liaison',"
+               "'converse',?,1)", (_json.dumps([]),))
+    db.commit()
+    sb = build("liaison", db, mode="normal")
+    sb.ctx.trigger = "m1"
+    sb.call("msg.converse_principal", refs=[], reply="Morning!")
+    assert len(sb.ctx.outbound) == 1

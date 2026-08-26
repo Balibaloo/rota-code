@@ -2,5 +2,6 @@ problem.consult
 tickets.consult
 decisions.search
 msg.answer_developer
+msg.answer_liaison
 msg.answer_tester
 msg.submit_liaison

@@ -2718,6 +2718,12 @@ def schedule_consult(ctx: Ctx) -> list[dict]:
         "SELECT before_batch, after_batch FROM schedule_deps ORDER BY before_batch"))
 
 
+# The verbs that open a question somebody is waiting on an answer to. `ask` is
+# the read-only inquiry route, `question` the escalation ladder; both leave the
+# asker blocked, which is the condition `reask` reports.
+ASKING_VERBS = ("question", "ask")
+
+
 @op("schedule", "reask")
 def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
     """
@@ -2768,7 +2774,14 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
         "FROM messages a JOIN messages q ON q.id = a.cause_id WHERE a.id = ?",
         (ctx.trigger,)).fetchone()
 
-    if row is None or row["verb"] != "question":
+    # Both asking verbs. This read `!= "question"` because Developer, Tester
+    # and Architect were the only askers when it was written, and they all use
+    # `question`. Liaison asks an artefact's owner with `ask` -- the read-only
+    # inquiry route -- so the one role that talks to the principal could not
+    # say an answer had not landed, which is the case where it matters most:
+    # the alternative is spending the principal's attention on "we don't know"
+    # while two owners who might know have not been asked.
+    if row is None or row["verb"] not in ASKING_VERBS:
         raise ValueError(
             "the message that woke you is not a reply to a question you asked")
     if row["asker"] != ctx.role:
