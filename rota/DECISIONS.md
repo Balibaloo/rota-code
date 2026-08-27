@@ -1102,6 +1102,33 @@ something statements do; it may need to be the main verb for everything.
 `brief.list` pushes statements into every Liaison prompt. Relevance filtering
 stops being an optimisation and becomes load-bearing.
 
+### What deterministic checks cannot catch, and what stands there instead
+
+The principal's correction, 2026-08-29, after the audit's first pass read as
+too much confidence: "deterministic checks can't catch all errors here."
+Right, and the boundary is worth drawing once. Form errors — dangling
+refs, twin rows, broken chains, illegal states — are the invariants' whole
+territory and they hold it. What no invariant can see: perfect form with
+wrong meaning; plausible-but-wrong judgement; drift that compounds across
+hops while every hop looks locally reasonable; the thing *not* done (audits
+see states that exist, never states that should have); and the instrument's
+own nature — a 4/5 case is a frequency claim, and extended use samples
+the tail.
+
+What stands in those gaps, in descending strength: preregistered ground
+truth (the keys, the gauntlet's trail-scoring — the only outright catch
+for semantic wrongness, and only where someone paid for a key);
+adversarial passes (the Critic against cited source — itself a model,
+so sampled and fallible); disagreement as signal (two models, cross-role
+challenges, the interview); the human made cheap (the trail's architecture
+exists so a spot-check costs minutes); and containment for the residue:
+nothing becomes scope without the seat's gate, everything wrong is
+attributable and traceable. The system's claim was never "no errors" —
+it is "no invisible, unattributable, irreversible errors", and the errors
+themselves are permanent residents. This is why the gauntlet outranks
+every lint: it is the one instrument that measures the composite against
+truth committed in advance.
+
 ### The world-audit, and what its first pass found
 
 Built 2026-08-29, from the principal's worry stated plainly: "bugs in this
@@ -1120,12 +1147,16 @@ clean across every era. One answered-with-no-answer. And 258 are a single
 genuine discovery: **the system's own composed messages violate the ref
 contract** — quarantine notices, agenda items and stall reports carry
 labels like `work_stalled`, `tick.quarantined`, `observed_terms` in
-`body_refs`, which resolve to nothing at the recipient. The house already
-has a convention for non-row subjects (the `@`-prefix: `@program`,
-`@term:x`); the system-side composers drifted from it, in every run ever
-made, invisibly — because nothing checked the world until today. The fix
-is mechanical (the composers adopt the prefix, or the labels are declared);
-the lesson is the audit's existence.
+`body_refs`, which resolve to nothing at the recipient. Chased to its
+composers, the finding got *better*: both are already fixed — the
+quarantine report carries the stalled work's real ids now ("the wake
+carries the payload, not the envelope") and the observed present rides
+artefact ids in its wake refs. The 258 rows are the historical footprint of
+two guards that work, which the audit declares as `LEGACY_LABELS` —
+history, not exemption: a new label joining that set is a regression that
+must argue its case. The lesson stands doubled: nothing checked the world
+until today, and the world turned out to hold the before-photos of every
+fix the transitions ever got.
 
 ### Conflicting sources
 

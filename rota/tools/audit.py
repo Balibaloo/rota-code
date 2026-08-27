@@ -23,6 +23,19 @@ from pathlib import Path
 
 # id-bearing tables, harvested once per db; every JSON ref column is checked
 # against the union, because a ref is a promise that a row exists somewhere.
+# Labels older composers wrote into body_refs before their fixes: the
+# quarantine report used to name the mechanism ('tick.quarantined',
+# 'work_stalled') and the observed-entries present used to name categories
+# ('observed_terms'). Both composers carry real artefact ids now -- the wake
+# carries the payload, not the envelope -- so these are declared as history,
+# not exempted as acceptable: a NEW label joining this set is a regression
+# and must argue its case here.
+LEGACY_LABELS = {
+    "tick.quarantined", "work_stalled", "observed_terms",
+    "observed_constraints", "observed_behaviours", "scope_term",
+    "constraints",
+}
+
 REF_COLUMNS = [
     ("messages", "body_refs"),
     ("criteria", "term_refs"),
@@ -76,6 +89,8 @@ def audit(conn: sqlite3.Connection) -> list[str]:
                     findings.append(
                         f"{table}.{col} rowid {r['rowid']}: non-string ref "
                         f"{ref!r}")
+                elif ref in LEGACY_LABELS:
+                    continue      # the before-photo of a fixed composer
                 elif ref not in ids and not ref.startswith(("@", "e_")):
                     findings.append(
                         f"{table}.{col} rowid {r['rowid']}: dangling {ref!r}")
