@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS batches (         -- Architect, sole writer
     worktree  TEXT,
     head_commit TEXT,                        -- last commit the DB has a receipt for
     status    TEXT NOT NULL DEFAULT 'pending'
-              CHECK (status IN ('pending','running','deferred','merged')),
+              CHECK (status IN ('pending','running','deferred','merged','abandoned')),
     -- The first port of this batch's reserved range, assigned by the scheduler
     -- at dispatch. Two batches must never reach each other's ports and a batch
     -- cannot guarantee that, because it cannot see the other one -- the same

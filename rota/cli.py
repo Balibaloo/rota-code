@@ -509,6 +509,30 @@ def cmd_elect(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_interrupt(args: argparse.Namespace) -> int:
+    """The principal stops the running batch. A pause, not a verdict: the
+    worktree and its commits survive, and `batch_start` re-offers the batch
+    the moment nothing outranks it. Cancelling is a ruling and goes through
+    scope; this is the brake pedal."""
+    from .core import lifecycle
+    from .core.db import connect
+
+    conn = connect(require(args.name))
+    try:
+        row = conn.execute(
+            "SELECT id FROM batches WHERE status = 'running'").fetchone()
+        if not row:
+            print("nothing is running")
+            return 0
+        lifecycle.defer(conn, row["id"])
+        conn.commit()
+        print(f"deferred {row['id']}: it resumes when scheduled again "
+              f"(rota run {args.name})")
+    finally:
+        conn.close()
+    return 0
+
+
 def cmd_sign(args: argparse.Namespace) -> int:
     """
     Answer one gate. Through `pump`, deliberately: every principal backend
@@ -646,6 +670,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=12,
                    help="rendered lines per gate")
     p.set_defaults(func=cmd_agenda)
+
+    p = sub.add_parser("interrupt",
+                       help="stop the running batch; it resumes when scheduled")
+    p.add_argument("name")
+    p.set_defaults(fn=cmd_interrupt)
 
     p = sub.add_parser("adopt", aliases=["elect"],
                    help="adopt the onboarded understanding as the baseline")

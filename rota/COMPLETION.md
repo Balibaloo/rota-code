@@ -14,12 +14,11 @@ attached, and when a pointer's target closes, the line comes out.
 
 ## Track A — every loop production-grade (the ledger's debt, in order)
 
-1. **Loop 6 → G1: interrupt and cancel.** The two steering acts that do not
-   exist. Interrupt is the principal stopping the running batch (the
-   machinery is `run_state` plus `lifecycle.defer` — what is missing is the
-   act and its pins); cancel is a batch abandoned by ruling (needs an
-   `abandoned` exit that is not deferral, because deferred work is offered
-   again and cancelled work must not be). Then cases. Preemption is done.
+1. ~~Loop 6 → G1~~ — built 2026-08-29: `rota interrupt` is the pause,
+   `cancel` is the terminal exit (a revoked approval ends the batch; the
+   worktree stays as evidence), `abandoned` is a declared-terminal state,
+   and `test_steering.py` pins all of it. Next for the loop: G2, the acts
+   observed in a recorded run.
 2. **Loop 5 → G2: earn the re-survey.** The freshness machinery is built and
    pinned (`test_a_changed_file_reopens_exactly_its_area`); what is owed is
    recorded re-survey sessions and a refresh under a running batch.

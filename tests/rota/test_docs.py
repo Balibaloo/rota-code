@@ -306,5 +306,5 @@ def test_the_completion_document_claims_only_what_holds():
     assert len(segs) == 4, "the segment count in Track B moved; update both"
 
     from rota.core import predicates as P
-    assert "preempt" in P.REGISTRY and "interrupt" not in P.REGISTRY, (
+    assert "preempt" in P.REGISTRY and "cancel" in P.REGISTRY, (
         "steering acts moved; COMPLETION.md Track A line 1 is stale")

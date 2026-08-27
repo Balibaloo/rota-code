@@ -36,7 +36,7 @@ floor, not the grade.
 | 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
 | 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
 | 5 | stay true | **G1** | a changed file reopens exactly its area; `rota refresh` |
-| 6 | steering | **G0** | preemption predicate and act, law 9's guarantees pinned; interrupt and cancel unbuilt |
+| 6 | steering | **G1** | preempt, interrupt (`rota interrupt`, a pause) and cancel (revoked approval ends the batch, terminal) all pinned deterministically; the loop adds no model modes |
 
 ## What each loop still owes, by gate
 
@@ -53,9 +53,8 @@ floor, not the grade.
   modes that have none. The one-fault-per-pass curve reaching zero *is* this
   loop's path through the gates.
 - **5 → G2**: record the re-survey sessions; a refresh under a running batch.
-- **6 → G1**: interrupt (a principal's stop, mid-batch) and cancel (a batch
-  abandoned by ruling), then cases. The preemption already has its
-  deterministic pins.
+- **6 → G2**: the steering acts on the recorded corpus — a preemption and
+  a cancellation observed in a recorded delivery run rather than a fixture.
 
 ## The gauntlet (G4's data source)
 

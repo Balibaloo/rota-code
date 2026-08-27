@@ -261,6 +261,14 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         for batch_id in wake.refs:
             lifecycle.merge(conn, batch_id)
         return f"merged {', '.join(wake.refs)}"
+    if action == "cancel":
+        # The ruling's end of law 9: the item was revoked, so the batch is
+        # out of the game -- terminal, never re-offered, worktree kept as
+        # evidence. `lifecycle.abandon` owns every word of that.
+        lifecycle.abandon(conn, wake.refs[0])
+        conn.commit()
+        return f"abandoned {wake.refs[0]}: its item is no longer schedulable"
+
     if action == "preempt":
         # Law 9, performed: the environment dies with the checkpoint, the
         # worktree and its commits persist as deferred work, and the next

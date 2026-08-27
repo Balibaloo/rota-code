@@ -165,9 +165,10 @@ def test_every_predicate_is_either_spine_or_register():
         f"{sorted(named ^ set(P.REGISTER_ENTRIES))}")
     # 37 with `criterion_repair` (register), 38 with `preempt` (spine: a
     # scheduling act, not an open obligation -- law 9's reorder performed by
-    # the scheduler, drained the moment it fires). The pin forced both
-    # classifications before the count moved, which is its whole job.
-    assert len(every) == 38, (
+    # the scheduler, drained the moment it fires), 39 with `cancel` (spine,
+    # the same authority ending a batch whose approval was withdrawn). The
+    # pin forced each classification before the count moved.
+    assert len(every) == 39, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

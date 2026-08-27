@@ -138,6 +138,9 @@ LIFECYCLE_COLUMNS = {
 # States that are ends, with the reason. A terminal state is a claim that nothing
 # further is owed — which is exactly the claim worth having to write down.
 TERMINAL: dict[tuple[str, str, str], str] = {
+    ("batches", "status", "abandoned"):
+        "cancelled by ruling: the item's approval was withdrawn and the work "
+        "did not happen. Never re-offered; the worktree stays as evidence",
     ("statements", "status", "ratified"):
         "the principal confirmed it; it is now material, not pending work",
     ("statements", "status", "superseded"):
@@ -966,6 +969,32 @@ def verdict_failed(conn) -> list[Wake]:
         "WHERE v.result = 'fail' AND b.status = 'running'"
     ).fetchall()
     return [Wake("developer", "tick:verdict_failed", refs=(r["bid"],)) for r in rows]
+
+
+@predicate("cancel", wakes=SCHEDULER, band="fix",
+           drains=[("batches", "status", "pending"),
+                   ("batches", "status", "running"),
+                   ("batches", "status", "deferred")])
+def cancel(conn) -> list[Wake]:
+    """
+    A live batch whose item is no longer schedulable.
+
+    The revocation predicate, given its missing exit: `batch_start` filters
+    unschedulable items, which stops the work but leaves the batch waiting in
+    the game forever -- pending, deferred, or worse, running while the
+    approval it delivers against has been withdrawn. Law 9 owns starting and
+    reordering; this is the same authority ending: the scheduler performs the
+    abandonment itself, because whether a batch may exist is a scheduling
+    fact, and no session is woken to decide it.
+    """
+    rows = conn.execute(
+        "SELECT b.id AS bid FROM batches b JOIN items i ON i.id = b.item_id "
+        "WHERE b.status IN ('pending','running','deferred') "
+        "  AND (i.approval != 'approved' OR i.approval_ver < i.version) "
+        "ORDER BY b.id").fetchall()
+    return [Wake(SCHEDULER, "do:cancel", refs=(r["bid"],),
+                 detail=f"{r['bid']}'s item is no longer schedulable")
+            for r in rows]
 
 
 @predicate("preempt", wakes=SCHEDULER, band="fix",

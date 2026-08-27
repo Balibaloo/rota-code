@@ -79,6 +79,29 @@ def defer(conn: sqlite3.Connection, batch_id: str) -> None:
     environments.teardown(conn, batch_id, release_ports=False)
 
 
+def abandon(conn: sqlite3.Connection, batch_id: str) -> None:
+    """
+    Cancelled by ruling. The other terminal state, and the work did not happen.
+
+    Deferral is a pause and this is not: an abandoned batch is never offered
+    again, which is the whole difference -- `batch_start` re-offers deferred
+    work the moment it is schedulable, so a batch whose item was revoked
+    needed a state that is out of the game rather than waiting in it.
+
+    The worktree stays. A ruling can be appealed, an abandoned diff is
+    evidence about what was attempted, and deleting it would make cancelled
+    work less inspectable than delivered work. The ports go: abandoned work
+    has no further claim on a number in a row.
+    """
+    from . import environments
+
+    conn.execute("UPDATE batches SET status = 'abandoned' WHERE id = ?",
+                 (batch_id,))
+    conn.execute("UPDATE checkpoints SET valid = 0 WHERE batch_id = ?",
+                 (batch_id,))
+    environments.teardown(conn, batch_id, release_ports=True)
+
+
 def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     """
     Delivered. The end of the line for a batch, and the only terminal state that

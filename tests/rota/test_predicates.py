@@ -41,13 +41,17 @@ def test_lint_catches_a_dead_end(monkeypatch):
 
 
 def test_lint_catches_a_new_state_with_no_exit(monkeypatch):
-    """Adding a state to the schema without a way out fails the build."""
+    """Adding a state to the schema without a way out fails the build.
+
+    'abandoned' was the fabricated no-exit example until the cancel build
+    made it a real, declared-terminal state -- the canary needs a state the
+    build genuinely does not know."""
     monkeypatch.setattr(
         P, "schema_states",
         lambda: {("batches", "status"): ["pending", "running", "deferred",
-                                         "merged", "abandoned"]})
+                                         "merged", "limbo"]})
     problems = P.check_terminal_states()
-    assert any("'abandoned'" in p for p in problems), problems
+    assert any("'limbo'" in p for p in problems), problems
 
 
 def test_every_predicate_wakes_a_real_role():
@@ -190,13 +194,15 @@ def test_the_reachability_check_distinguishes_reads_from_writes(monkeypatch):
     Nothing is unreachable now, so the case is made rather than observed: a
     state that appears only in queries must still be reported.
     """
+    # 'abandoned' was the fabricated example until `lifecycle.abandon`
+    # started really writing it -- the canary needs a state nothing writes.
     monkeypatch.setattr(
         P, "schema_states",
-        lambda: {("batches", "status"): ["pending", "running", "abandoned"]})
+        lambda: {("batches", "status"): ["pending", "running", "limbo"]})
     monkeypatch.setattr(P, "LIFECYCLE_COLUMNS", {("batches", "status")})
 
     found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
-    assert "batches.status = 'abandoned'" in found, found
+    assert "batches.status = 'limbo'" in found, found
 
 
 def test_the_reachability_check_understands_parameterised_writes():
