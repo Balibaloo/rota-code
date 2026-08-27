@@ -9,7 +9,8 @@ Then find which of these it is:
   with `msg.answer_developer`
 - **a criterion cannot be met without breaking a constraint** — the collision
   the Developer hit and could not resolve, because neither side is theirs to
-  move. The criterion is scope. `msg.challenge_vision_keeper`
+  move. The criterion is scope. `msg.challenge_vision_keeper`, `quotes=`
+  copying the disputed row's words verbatim
 - **the criteria do not mean what everyone assumed** — Terminologist's wording,
   Vision Keeper's scope. `msg.challenge_vision_keeper`
 - **the structure cannot carry what is being asked** — `msg.propose_vision_keeper`

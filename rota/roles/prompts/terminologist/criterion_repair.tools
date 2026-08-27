@@ -3,6 +3,7 @@ criteria.consult
 glossary.consult
 glossary.lookup
 tickets.scan
+code.callables
 ledger.log
 msg.answer_tester
 msg.answer_developer

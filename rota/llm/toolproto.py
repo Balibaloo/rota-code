@@ -75,6 +75,18 @@ def _literal(node: ast.AST) -> Any:
         if any(k is None for k in node.keys):
             raise ValueError("dict unpacking is not supported")
         return {_literal(k): _literal(v) for k, v in zip(node.keys, node.values)}
+    if isinstance(node, ast.Call):
+        # `surface_refs=[code.surface(hint='x')]` -- a call composed inline
+        # where a value goes. Measured killing L3-scope five runs straight:
+        # the model understood *where the data comes from* and not *that it
+        # must fetch first*, and the generic malformed-node error never told
+        # it. The docstring above always named this case; now the refusal
+        # teaches the sequence.
+        called = ast.unparse(node.func)
+        raise ValueError(
+            f"{called}(...) is a call, and arguments take values, not calls. "
+            f"Call {called} on its own line first, read what it returns, "
+            f"then pass those results as plain strings")
 
     value = ast.literal_eval(node)
     # `text=...` means "and so on", and `literal_eval` is delighted to hand back

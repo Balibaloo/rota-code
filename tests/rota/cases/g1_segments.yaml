@@ -1,0 +1,122 @@
+# G1 — seat-flow segments. The gauntlet's first rung.
+#
+# The refined spec (2026-08-28): the principal says one thing, and the case
+# pins the pipeline it must travel — verified against the tables, escalated to
+# the role that owns it, and *brought back to the seat*, never just accepted.
+# What is tested is the coherence of the parts, and both failure directions
+# are cases: silent overreach (deciding what needed the seat) and punting
+# (escalating what the session already had the material to handle).
+#
+# The principal's words stay bounded on purpose — plain requests, plainly
+# phrased. The complexity lives in the tables the words land on, which is why
+# these fixtures are the work: each one is a small realistic state with one
+# trap in it.
+#
+# Verification is distributed, by ruling (2026-08-28): Liaison stays
+# artefact-blind and *routes*; the owners verify against the tables they own;
+# what they find travels back to the seat. So no segment demands intake see a
+# table — a conflict is caught where the table's reader wakes, and the
+# question segments test the routing and the return, not a lookup.
+#
+# Grants are v0 here: nothing is pre-authorized, so overreach is encoded as
+# `forbidden: writes`. A story-level `grants:` key arrives with the composed
+# tier, where a run is long enough to be granted anything.
+
+- id: G1-a-ratified-conflict-is-caught-by-the-owner
+  tier: G1
+  role: architect
+  prompt: deliver
+  runs: 5
+  pass: 3
+  inbound: {from: liaison, to: architect, verb: deliver, body_refs: [<s1>]}
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "when an account is closed, delete its invoices too"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 48,
+         text: "closing an account deletes its invoices",
+         status: ratified}
+    constraints:
+      - {id: <c1>, provenance: decided,
+         headline: "invoices are kept seven years after account closure",
+         text: "retention law: every invoice is kept seven years after the
+                account that owns it closes, whatever happens to the account"}
+  expect:
+    # The trap, caught where the design says it is caught: intake routed the
+    # ratified statement to the owners, and the Architect is the role whose
+    # working set holds the constraints. Building on the conflict would
+    # launder it; the infeasibility challenge exists for exactly this, and
+    # since a challenge quotes what it disputes, the constraint's own words
+    # travel back up with it.
+    messages:
+      - {to: vision_keeper, verb: challenge, count: ">=1", refs_include: [<c1>]}
+  forbidden:
+    # Neither building on the conflict nor rewriting the law to fit it.
+    writes: [batches, constraints, items, tickets]
+
+- id: G1-scope-sounding-words-are-not-scope-yet
+  tier: G1
+  runs: 5
+  pass: 3
+  first: {role: liaison, prompt: converse, verb: converse, inbound: <m1>}
+  then:  {role: liaison, tick: awaiting_confirm, if_needed: true}
+  fixture:
+    entries:
+      - {id: e_<m1>, author: principal, ts_order: 1,
+         text: "people should be able to export their recipes as csv"}
+    messages:
+      - {id: <m1>, thread_id: <t1>, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["e_<m1>"]', seq: 1, status: open}
+  expect:
+    # The plain-request pipeline, whole: the words become a proposed statement,
+    # and the ratification comes back to the seat -- in the same session, or
+    # via the `awaiting_confirm` gate when the intake session went quiet.
+    # Both are production shapes (measured: one recording confirmed inline
+    # five of five, the next wrote the statement and sent nothing five of
+    # five), so the gate leg is `if_needed`: a stall-catcher runs only when
+    # something stalled. "Not just accepted" is literal -- nothing is scope
+    # until the principal has been shown the statement and said so.
+    writes:
+      statements: {count: "1..2"}
+    messages:
+      - {to: principal, verb: confirm, count: 1}
+  forbidden:
+    # Writing scope directly from intake is the silent-overreach direction:
+    # items are Vision Keeper's to slice after ratification, never Liaison's
+    # to conjure from a sentence.
+    writes: [items, tickets, criteria]
+
+- id: G1-an-owners-answer-reaches-the-seat
+  tier: G1
+  role: liaison
+  prompt: answer
+  runs: 5
+  pass: 3
+  inbound: {from: terminologist, to: liaison, verb: answer,
+            body_refs: [<g1>], cause: <q1>}
+  fixture:
+    entries:
+      - {id: e_<m0>, author: principal, ts_order: 1,
+         text: "what does 'tombstone' mean in this project?"}
+    messages:
+      - {id: <m0>, thread_id: <t1>, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["e_<m0>"]', seq: 1, status: answered}
+      - {id: <q1>, thread_id: <t1>, from_role: liaison, to_role: terminologist,
+         verb: ask, body_refs: '["e_<m0>"]', cause_id: <m0>, seq: 2,
+         status: answered}
+    glossary_terms:
+      - {id: <g1>, term: tombstone, provenance: decided,
+         sense_short: "a closed account kept as a row, never deleted"}
+  expect:
+    # The return leg of the routed design: intake asked the owner (that hop is
+    # the maintainer-question chain, already earned), and this segment pins
+    # what happens when the answer lands -- it reaches the seat, carrying the
+    # rows the owner answered with, in the thread the principal started.
+    messages:
+      - {to: principal, count: ">=1", refs_include: [<g1>]}
+  forbidden:
+    # Relaying is not authoring, and the answer answers -- re-asking the owner
+    # from here would be the route eating its own tail.
+    writes: [glossary_terms, statements, items, decisions]
+    recipients: [terminologist, vision_keeper, architect]

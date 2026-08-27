@@ -29,6 +29,7 @@ import sqlite3
 from pathlib import Path
 
 from .. import paths
+from ..llm.cassettes import trust
 from ..llm.llm import Pins
 
 from ..testkit import fixtures
@@ -42,8 +43,11 @@ def _cases() -> list[dict]:
 
 
 def status(model: str = "llama3.1:8b") -> list[dict]:
-    conn = sqlite3.connect(paths.DEV_DB)
-    conn.row_factory = sqlite3.Row
+    # Through the one opener that migrates: a raw connect here read the
+    # committed db from before `load_id` existed and died inside `trust`.
+    from ..llm.cassettes import open_dev_db
+
+    conn = open_dev_db(paths.DEV_DB)
 
     rows = []
     for case in _cases():
@@ -81,6 +85,12 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         else:
             passed = sum(r["passed"] for r in here)
             state = "green" if passed >= threshold else "FAIL"
+            # The ruling (2026-08-27): a green that flipped from red counts
+            # as fixed only after a second load confirms it. `trust` reads
+            # the same rows; a provisional green renders as its own state so
+            # a lucky load cannot be quoted as a fix.
+            if state == "green" and trust(conn, case["id"]) == "provisional":
+                state = "PROV"
 
         why = ""
         if state == "FAIL":
@@ -94,19 +104,23 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
 
 
 def render(rows: list[dict], red_only: bool = False) -> str:
-    order = {"FAIL": 0, "STALE": 1, "NEW": 2, "green": 3}
+    order = {"FAIL": 0, "PROV": 1, "STALE": 2, "NEW": 3, "green": 4}
     rows = sorted(rows, key=lambda r: (order[r["state"]], r["id"]))
     counts = {k: sum(1 for r in rows if r["state"] == k) for k in order}
 
-    out = [f"{counts['FAIL']} failing, {counts['STALE']} stale, "
-           f"{counts['NEW']} never measured, {counts['green']} green"]
+    out = [f"{counts['FAIL']} failing, {counts['PROV']} provisional, "
+           f"{counts['STALE']} stale, {counts['NEW']} never measured, "
+           f"{counts['green']} green"]
+    if counts["PROV"]:
+        out.append("  provisional greened on one load after being red: "
+                   "re-earn on a second load before quoting it as fixed")
     if counts["STALE"] or counts["NEW"]:
         out.append("  stale is unmeasured, not bad: "
                    "ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q")
     out.append("")
 
     for r in rows:
-        if red_only and r["state"] == "green":
+        if red_only and r["state"] in ("green", "PROV"):
             continue
         score = f"{r['passed']}/{r['of']}" if r["passed"] is not None else "  -"
         line = f"  {r['state']:<5} {score:>5} (need {r['need']})  {r['id']}"

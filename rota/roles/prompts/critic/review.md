@@ -18,4 +18,5 @@ verdict per batch.
 A fail names its criterion and stops. You are not writing a review; you are
 answering a question, and the Developer follows the ref from there. If what you
 want to say is about the *test* rather than the code, that is
-`msg.challenge_tester`, not a fail.
+`msg.challenge_tester`, not a fail — refs naming the criterion and the
+test, `quotes=` copying the exact span of each, verbatim.

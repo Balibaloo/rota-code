@@ -816,6 +816,35 @@ yesterday), and batches -- both delivery runs made b2 and b3, pending, from
 one sentence, and nobody has looked at why. No one has asked what single
 upstream cause produces all three.
 
+**A fourth organ, and its guard, 2026-08-28.** Criteria: eleven for one item
+the day the mode was handed candidate callables, two of them the identical
+sentence. The tickets' rule now holds here too — same ticket, same words,
+one row — which trims the copies and leaves the count question open like
+the ticket flavour above. And a second finding from the same transcripts: the
+challenge-evidence bar suppresses *legitimate* challenges at the 8B scale.
+`L3-a-challenge-reaches` went 0/5 with nothing sent once `quotes=` was
+required — the mode's imperative ("write criteria") outcompetes a door that
+now costs composing evidence. The guard stopped the noise-challenges it was
+built for (`fix-the-code` greened, then flipped on the next load — the
+marginal case the flip tracker exists for); what it costs the honest
+challenge at small scale is now a measured open question, not a hunch.
+
+**Third sighting, 2026-08-28, the strongest.** The gauntlet's conflict
+segment: a ratified statement contradicting a decided constraint reaches the
+Architect — the role whose working set holds the constraint, with the
+challenge in its tools and, by the end, named in its brief *and* in a
+refusal. Zero challenges in fifteen runs. What it did instead, escalating:
+recorded the conflict as a second constraint; invented an attribution
+("made by John Smith on 2022-01-01") to justify it; and finally hallucinated
+a `model.consult` result showing its desired constraint already ratified.
+The twin-guard on `model.amend` (same subject, two constraints — refused
+toward the challenge) holds the incoherence out of the artefact, but the
+finding stands: at the 8B scale a mode's imperative beats the dispute door
+every time, up to and including fabricating evidence rather than
+disagreeing upward. The segment stays red as the record; the next
+experiment is the same segment on the production model, which is the
+bench's to run.
+
 **Deferred-eager rows are in limbo.** `observed_entries` offers a row once,
 ever -- right when a ruling comes, and a hole when the principal defers an
 eager present: those rows are not decided, not ledgered, and never
@@ -836,7 +865,37 @@ stays because `batches.worktree = NULL` still cannot say *why*.
 decision record in a settings table: unversioned, unreceipted, outside every
 artefact law. Law 11 has never been asked about it.
 
+**Interview finding, 2026-08-27, on the adjacent question — may the system
+tune its own meta-config?** Three facts anchor it. Roles are config-blind and
+config-mute today: no op writes the table, none shows it, and the handful of
+reads (research allowlist and caps, prose_sources) are constraints applied
+*to* the role, never values it sees — so the self-widening danger describes a
+door that does not exist, and the design rule is to keep not building it.
+Second, the detection that would make tuning worthwhile ("qwen wrote one
+ledger row in 134 sessions") is visible only in aggregate across sessions,
+which no role can see by construction — so a detector, if built, is a SQL
+query over the trail, never a model's judgement. Third, the principal's
+floor, stated outright: approval is the minimum. Together: state may heal
+itself under caps (quarantine, deferral — already true); policy may at most
+be *proposed*, by mechanical detectors, as evidence-bearing trail rows that
+wait on a ruling.
+
+**Vocabulary ruling, same interview.** Human-facing surfaces say *proposed* /
+*preliminary* for what onboarding extracts, and *adopt* for the accepting act
+— `rota adopt` (elect kept as an alias), matching `glossary.adopt` and
+`model.adopt`. The internal stamp stays `provenance='observed'` because it
+records *origin* (found in the code) rather than status, which is law 11's
+question; the chat interfaces, when built, map it to the proposal words. And
+`config_history` shipped memo-free: the typed-cause field was designed and
+removed the same day on the principal's one-line review — "it will never be
+used". What is recorded is only what the machine knows for free.
+
 ### A criterion, once written, cannot be repaired -- and the red cluster sits on top
+
+**Built.** `criterion_repair` is register entry #25: a tester's unresolved
+criteria-ref question wakes the Terminologist in a writing mode, once per
+question; `criteria.respecify` is the door and it fires live — rung one
+watched it break the encode loop that named this entry.
 
 Found live on delivery rung one, watching the Tester and Terminologist loop.
 The parroting guard refuses an encode of a restated criterion and now names
@@ -869,6 +928,17 @@ one repair path, through the role that owns it, in the mode that already
 knows how to write one. The ladder stays for questions; this is a repair.
 
 ### The delivery wall, named: a criterion must carry a callable surface
+
+**Built, 2026-08-26.** `criteria.surface_refs`, vetted at both doors against
+the symbol index: a near-miss is refused with its neighbours named (fuzzy,
+because 'regster' is one dropped letter from real and LIKE cannot see it), a
+name with no neighbour is greenfield intent and kept, and the repair door
+requires a surface because words alone already failed there. `code.surface`
+is the candidate lens, pushed question-matched with the wake's subject —
+ticket headlines for a criteria pass, the asker's note for a repair — and
+`criteria.load` now hands the Tester the surface: the first code-shaped fact
+ever to legally reach the black-box role. `test_criteria_surface.py` pins the
+doors, the lens, the push and the delivery.
 
 Rung one's remaining wall looked like model judgement and is actually
 information content. The Tester's charter is explicit and right: "You write
@@ -1011,6 +1081,16 @@ test is right. The legitimate sibling survives easily: in
 on model time: tool signatures are in every system prompt, so changing one
 invalidates the recordings for **every** Developer case, not the two this
 targets — six cases at five runs each to re-earn, not two.
+
+**Ruled and built, 2026-08-26.** The principal's whole ruling: "why is this
+not obvious?" — it was; only the graph change and the re-record bill needed
+the seat. Built as proposed, generalised by the one-meaning-per-word lint:
+`challenge` carries `quotes=` on all five of its channels, the binder refuses
+a paraphrase (a contiguous span of the disputed row, verbatim,
+whitespace-normalised), and the developer—tester channel must name and quote
+*both* sides, the criterion batch-checked. `test_challenge_evidence.py` pins
+seven edges of it. The re-record bill was paid in the same pass as the
+surface build's, which had already staled the same cases.
 
 ---
 

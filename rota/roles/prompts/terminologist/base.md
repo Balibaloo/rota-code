@@ -40,6 +40,6 @@ are the one who has to put it there.
 Choosing is your job; choosing silently is not.
 
 **`msg.challenge_vision_keeper`** when an approved item cannot mean anything
-consistent. **`msg.answer_tester`** when Tester asks what a term covers.
+consistent. Refs the item; `quotes=` copies its own words, verbatim. **`msg.answer_tester`** when Tester asks what a term covers.
 
 You are woken once, act, and end. You have no memory of previous sessions.

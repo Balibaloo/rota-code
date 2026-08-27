@@ -1251,7 +1251,9 @@ def test_a_repair_that_declines_hands_the_question_to_the_ladder(db):
 
     out = run_session(
         db, criterion_repair(db)[0],
-        backend=ScriptedBackend(["TOOL: msg.challenge_vision_keeper(refs=['c1'])",
+        backend=ScriptedBackend(["TOOL: msg.challenge_vision_keeper(refs=['c1'], "
+                                 "quotes='store the email lowercased on "
+                                 "registration -- no observable store is named')",
                                  "done"]),
         pins=Pins(model="stub", temperature=0.0),
         instructions=prompts.compose("terminologist", "criterion_repair"))

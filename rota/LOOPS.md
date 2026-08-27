@@ -46,9 +46,12 @@ floor, not the grade.
   a corrupted answer message must not reach the principal.
 - **3 → G3**: two principals ruling at once; a verdict for a present that was
   re-presented meanwhile; kill the adopt session after the relay.
-- **4 → G1**: the criteria-surface build, then cases for the delivery modes
-  that have none. The one-fault-per-pass curve reaching zero *is* this loop's
-  path through the gates.
+- **4 → G1**: ~~the criteria-surface build~~ — built: criteria carry
+  `surface_refs`, vetted at both doors, pushed as candidates, delivered to the
+  Tester (`test_criteria_surface.py`); challenges now pay their reading up
+  front too (`test_challenge_evidence.py`). Still owed: cases for the delivery
+  modes that have none. The one-fault-per-pass curve reaching zero *is* this
+  loop's path through the gates.
 - **5 → G2**: record the re-survey sessions; a refresh under a running batch.
 - **6 → G1**: interrupt (a principal's stop, mid-batch) and cancel (a batch
   abandoned by ruling), then cases. The preemption already has its
@@ -63,3 +66,30 @@ a criterion, every assumption a sentence, every decision a reason — with
 planted traps the trail must surface. Only zero-intervention runs count, and
 each passing run is simultaneously the test record and the story the tool's
 capability is told in.
+
+Zero-intervention does not mean the principal surface goes untested — the
+principal's ruling (2026-08-27, refined 08-28): communicating with the
+principal in complicated situations is itself a system function, and the
+system's tables are where that complexity actually lives. The second class
+scripts the principal — scripted answers standing in for a human, the way
+`OneShot` already stands in on the signing path — and its cases are **flow
+segments, not stories**: the principal says one thing, and the case pins the
+pipeline it must travel — verified against the tables, escalated to the role
+that owns it, and *brought back to the seat*, never just accepted. What is
+tested is the coherence of the parts.
+
+The spec's settled points, each a case class rather than a rubric:
+
+  * **both failure directions are cases** — silent overreach (deciding what
+    needed the seat) and punting (escalating what the grant list already
+    authorized); the story key carries the grants so both are mechanical;
+  * **the hard work is the fixtures**: realistic, complex table states with
+    expectations of what the system should do. No generic present-shape
+    rubric — each case says what *this* situation demanded;
+  * **the principal's words stay bounded** in the main body — plain requests,
+    plainly phrased. What the seat says is not where the complexity lives;
+    what the tables hold is. Wild requests are an edge tier, not the corpus;
+  * **coverage builds across the scale** — segment cases first, composed
+    flows next (a ruling on one trap invalidating the work behind another),
+    full stories on foreign repositories last, tiered in `stories.json` the
+    way the register already tiers T1 against L3.

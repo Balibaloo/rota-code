@@ -19,6 +19,7 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+import difflib
 import json as _json
 
 import re
@@ -1598,6 +1599,33 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     slug = re.sub(r"[^a-z0-9]+", "_", headline.strip().lower()).strip("_")
     if not slug:
         raise ValueError("a constraint needs a headline with a word in it")
+
+    # A new constraint about a subject an existing constraint already governs
+    # is either the same commitment (the headline-derived id catches the exact
+    # words) or a *contradicting twin* -- and the second kind was written
+    # live: handed "closing an account deletes its invoices" against a
+    # decided seven-year retention constraint, the Architect spent five runs
+    # of five trying to record the conflict as a second constraint, once with
+    # an invented attribution to justify it. Two constraints about one
+    # subject saying different things is incoherence whatever the intent, so
+    # the door refuses and names the honest exits.
+    stop = {"the", "and", "for", "with", "after", "are", "is", "not", "its"}
+    def _stems(words: str) -> set[str]:
+        return {w.rstrip("s") for w in re.findall(r"[a-z]+", words.lower())
+                if len(w) >= 4 and w not in stop}
+    mine = _stems(headline + " " + (text or ""))
+    for row in ctx.conn.execute(
+            "SELECT id, headline FROM constraints WHERE id != ?",
+            (f"c_{slug[:40]}",)):
+        shared = mine & _stems(row["headline"])
+        if len(shared) >= 2:
+            raise ValueError(
+                f"{row['id']} already governs this subject: "
+                f"{row['headline']!r}. If both commitments hold together, "
+                f"say what distinguishes them in the headline; if they "
+                f"cannot both be true, that is not a second constraint, it "
+                f"is msg.challenge_vision_keeper with both rows in refs and "
+                f"quotes= copying the span of each")
     # A headline is what is promised, in the source's words. "commitment 1",
     # "constraint 2": a label, and five of them arrived in one session with
     # the orientation's items pasted under them. A headline with no word of
@@ -2433,20 +2461,102 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
     return tickets_scan(ctx)
 
 
+def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
+    """
+    The surface a criterion names, checked against the index that knows.
+
+    Greenfield is legal: when the index holds no symbols, or the named
+    surface does not exist *yet*, naming the intended callable is exactly the
+    design decision a criterion is for -- so an unknown name is refused only
+    when the index has symbols and none is a near match, with the near
+    matches named. `required` is the respecify door: the repair only exists
+    where words alone already failed, so words alone cannot be the fix.
+    """
+    refs = [r for r in (surface_refs or []) if isinstance(r, str) and r.strip()]
+    have_symbols = bool(ctx.conn.execute(
+        "SELECT 1 FROM code_index WHERE grain_kind = 'symbol' LIMIT 1"
+    ).fetchone())
+    if not refs:
+        if required and have_symbols:
+            raise ValueError(
+                "this rewrite names no surface, and the repair exists because "
+                "the words alone could not be tested. Name the callable a "
+                "test would exercise in surface_refs -- the symbols pushed "
+                "into this session are the candidates")
+        return []
+    if not have_symbols:
+        return refs                       # greenfield: intent is the surface
+    vetted = []
+    for ref in refs:
+        hit = ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
+            "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchone()
+        if hit:
+            vetted.append(hit["grain"])
+            continue
+        # Fuzzy, not substring: 'regster' is one dropped letter from a real
+        # symbol and LIKE cannot see that. The symbol index is bounded, so a
+        # real closeness scan is affordable at this write's frequency.
+        stems = {r["grain"].split("::")[-1]: r["grain"] for r in
+                 ctx.conn.execute("SELECT grain FROM code_index "
+                                  "WHERE grain_kind='symbol'")}
+        near = [stems[m] for m in difflib.get_close_matches(
+            ref.split("::")[-1], stems, n=5, cutoff=0.75)]
+        if near:
+            # A name one edit away from a real symbol is a typo, not a design.
+            raise ValueError(
+                f"{ref!r} is not a symbol the index knows. A surface is a "
+                f"callable a test would exercise; near matches: {near}")
+        # No neighbour anywhere in the index: this reads as a callable that
+        # does not exist *yet*, and naming the intended entry point is exactly
+        # the design decision a criterion is for. Kept as written.
+        vetted.append(ref)
+    return vetted
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
-                     term_refs: list[str] | None = None) -> dict:
-    """Criteria are written in glossary terms; term_refs is not decoration."""
+                     term_refs: list[str] | None = None,
+                     surface_refs: list[str] | None = None) -> dict:
+    """Criteria are written in glossary terms and name the surface a test
+    would exercise; neither list is decoration."""
     _must_exist(ctx, "tickets", ticket_id)
+    # The same words are the same criterion -- `brief.segment`'s rule, two
+    # artefacts along. The over-production disease grew a criteria organ the
+    # day the mode was handed candidate callables: eleven criteria for one
+    # item, two of them the identical sentence. Same ticket, same words, one
+    # row; a session that wants a second criterion writes a second sentence.
+    words = " ".join((text or "").lower().split())
+    twin = next((w[1] for w in ctx.writes
+                 if w[0] == "criteria" and isinstance(w[2], dict)
+                 and " ".join(w[2].get("text", "").lower().split()) == words
+                 and w[2].get("ticket_id") == ticket_id), None) or (
+        lambda r: r["id"] if r else None)(ctx.conn.execute(
+            "SELECT id FROM criteria WHERE ticket_id = ? AND "
+            "lower(trim(text)) = ?", (ticket_id, words)).fetchone())
+    if twin:
+        raise ValueError(
+            f"those are {twin}'s words already, on the same ticket. The same "
+            f"words are the same criterion; if the ticket needs a second "
+            f"criterion, it needs a second sentence")
+    surface = _vet_surface(ctx, surface_refs, required=False)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,
-        "term_refs": json.dumps(term_refs or [])}))
-    return {"id": id}
+        "term_refs": json.dumps(term_refs or []),
+        "surface_refs": json.dumps(surface)}))
+    out = {"id": id}
+    if not surface:
+        out["note"] = ("no surface named. The Tester is black-box: your words "
+                       "are the whole of what it gets, and a criterion that "
+                       "does not say what a test would *call* is one it can "
+                       "only restate")
+    return out
 
 
 @op("criteria", "respecify")
 def criteria_respecify(ctx: Ctx, id: str, text: str,
-                       term_refs: list[str] | None = None) -> dict:
+                       term_refs: list[str] | None = None,
+                       surface_refs: list[str] | None = None) -> dict:
     """
     Rewrite a criterion that was discovered unencodable or wrong.
 
@@ -2463,7 +2573,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     where it lives.
     """
     _must_exist(ctx, "criteria", id)
-    payload: dict = {"text": text}
+    payload: dict = {"text": text,
+                     "surface_refs": json.dumps(
+                         _vet_surface(ctx, surface_refs, required=True))}
     if term_refs is not None:
         payload["term_refs"] = json.dumps(term_refs)
     ctx.writes.append(("criteria", id, payload, False))
@@ -2475,9 +2587,17 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
     if not bid:
         return []
-    return _rows(ctx.conn.execute(
-        "SELECT c.id, c.ticket_id, c.text, c.term_refs FROM criteria c "
+    rows = _rows(ctx.conn.execute(
+        "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs FROM criteria c "
         "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,)))
+    # An empty surface is not a fact worth pushing: the readers of this row
+    # cannot write one, and a visible "[]" reads as an omission to chase --
+    # measured sending the Developer off to ask what a criterion meant
+    # instead of fixing what the verdict named.
+    for r in rows:
+        if r.get("surface_refs") in ("[]", "", None):
+            del r["surface_refs"]
+    return rows
 
 
 @op("criteria", "consult")
@@ -4539,6 +4659,45 @@ def code_survey(ctx: Ctx, area: str | None = None) -> list[dict]:
     return _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, fan_in FROM code_index WHERE area = ? "
         "ORDER BY fan_in DESC", (area or ctx.area,)))
+
+
+@op("code", "callables")
+def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
+    """
+    The symbols whose names share words with the hint: candidates for a
+    criterion's `surface_refs`.
+
+    The question-matched shape again -- glossary bodies are pushed for the
+    terms a question's words name, and this is the same rule pointed at the
+    code index. The hint is the wake's subject (ticket text, or the asker's
+    note), never the role's to choose; identifiers are split the way
+    `code.vocabulary` splits them, so "export the recipes" finds
+    `export_recipe_csv` and `RecipeExporter` both.
+    """
+    rows = _rows(ctx.conn.execute(
+        "SELECT grain, sym_kind, fan_in FROM code_index "
+        "WHERE grain_kind = 'symbol' ORDER BY fan_in DESC"))
+    if not rows:
+        return [{"note": "the index holds no symbols, so there is nothing to "
+                         "match; name the surface as you intend it and it is "
+                         "the design"}]
+    words = set()
+    for w in (hint or "").split():
+        w = w.strip("`'\".,?:;()[]").lower()
+        if len(w) >= 3:
+            words.add(w)
+            words.add(w.rstrip("s"))
+    if not words:
+        return rows[:20]
+    hits = []
+    for r in rows:
+        stem = r["grain"].split("::")[-1]
+        split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", stem)
+        tokens = {t for t in re.findall(r"[a-z]+", split.lower()) if len(t) >= 3}
+        tokens |= {t.rstrip("s") for t in tokens}
+        if tokens & words:
+            hits.append(r)
+    return hits[:40] or rows[:20]
 
 
 @op("code", "source")

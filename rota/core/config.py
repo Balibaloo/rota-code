@@ -187,6 +187,11 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "only unread.",
             values=("on", "off")),
 
+    Setting("baseline_election", "",
+            "The principal's ruling on which baseline the project adopts, "
+            "written by `rota elect` or a chat verdict. Empty means not yet "
+            "elected. A ruling, not plumbing: every change is history."),
+
     Setting("run_state", "running",
             "running dispatches; stopping finishes what is running and "
             "dispatches nothing more; halted stops now. Resume is explicit.",
@@ -225,16 +230,54 @@ def routed_model(routing: str, wake_kind: str) -> str | None:
     return None
 
 
-def set(conn: sqlite3.Connection, key: str, value: Any) -> None:
+def set(conn: sqlite3.Connection, key: str, value: Any, *,
+        author: str = "principal") -> None:
+    """
+    Write a declared setting, and remember what it displaced.
+
+    The history is the interview's ruling (2026-08-27): config stays the
+    principal's direct-edit space, but a knob that forgets its past turns
+    "why is this off?" into archaeology. Deliberately memo-free -- a typed
+    reason field was designed and removed the same day, on the principal's
+    one-line review: "it will never be used". What is recorded is only what
+    the machine knows for free. Roles remain config-blind and config-mute,
+    and this function is not a tool.
+    """
     if key not in SETTINGS:
         raise UnknownSetting(f"{key!r} is not a declared setting")
     problem = SETTINGS[key].validate(value)
     if problem:
         raise ValueError(problem)
+    encoded = json.dumps(value)
+    prior = conn.execute(
+        "SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+    if prior is not None and prior["value"] == encoded:
+        return                       # nothing moved; history records changes
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS config_history ("
+        "key TEXT NOT NULL, old_value TEXT, new_value TEXT NOT NULL, "
+        "author TEXT NOT NULL DEFAULT 'principal', "
+        "at TEXT NOT NULL DEFAULT (datetime('now')))")
+    conn.execute(
+        "INSERT INTO config_history (key, old_value, new_value, author) "
+        "VALUES (?, ?, ?, ?)",
+        (key, prior["value"] if prior else None, encoded, author))
     conn.execute(
         "INSERT INTO config(key, value) VALUES (?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (key, json.dumps(value)))
+        (key, encoded))
+
+
+def history(conn: sqlite3.Connection, key: str | None = None) -> list[dict]:
+    """Every change to declared settings, newest first."""
+    try:
+        rows = conn.execute(
+            "SELECT key, old_value, new_value, author, at "
+            "FROM config_history" + (" WHERE key = ?" if key else "")
+            + " ORDER BY rowid DESC", (key,) if key else ()).fetchall()
+    except sqlite3.OperationalError:
+        return []                    # a run from before the table existed
+    return [dict(r) for r in rows]
 
 
 def current(conn: sqlite3.Connection) -> dict[str, Any]:

@@ -3,7 +3,14 @@ MODE: deliver — new ratified statements.
 Statements the principal confirmed have arrived. Decide what they mean for the
 system: what must hold, and what it costs to make it hold.
 
-`model.consult` first — what you already committed to. Then, for each statement,
+`model.consult` first — what you already committed to. **If a statement
+contradicts a constraint you already hold** — the new words cannot be true
+while the old ones stand — that is not a commitment to record:
+`msg.challenge_vision_keeper` with the statement and the constraint in refs,
+`quotes=` copying the exact span of each. Amending the constraint to fit
+would be rewriting the law to match a request nobody has judged against it.
+
+Then, for each statement,
 ask whether it creates a new **external commitment**: something whose blast
 radius leaves the module. Persisted data, a published API, a high fan-in
 contract, a compliance obligation.

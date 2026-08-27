@@ -498,8 +498,10 @@ def cmd_elect(args: argparse.Namespace) -> int:
 
     conn = connect(require(args.name))
     try:
-        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
-                     "('baseline_election', ?)", (args.choice,))
+        from .core import config as config_mod
+
+        config_mod.set(conn, "baseline_election", args.choice,
+                       author="principal")
         conn.commit()
     finally:
         conn.close()
@@ -645,7 +647,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="rendered lines per gate")
     p.set_defaults(func=cmd_agenda)
 
-    p = sub.add_parser("elect", help="baseline up front, or lazily on touch")
+    p = sub.add_parser("adopt", aliases=["elect"],
+                   help="adopt the onboarded understanding as the baseline")
     p.add_argument("name")
     p.add_argument("choice", choices=("eager", "lazy"))
     p.set_defaults(func=cmd_elect)

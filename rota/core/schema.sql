@@ -310,6 +310,13 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     ticket_id  TEXT NOT NULL REFERENCES tickets(id),
     text       TEXT NOT NULL,
     term_refs  TEXT NOT NULL DEFAULT '[]',
+    -- The callables a test of this criterion would exercise: symbol grains
+    -- from the code index. The Tester is black-box by charter, so the
+    -- criterion is its only material, and a criterion naming no surface left
+    -- it structurally stuck -- every stable red in the delivery cluster sat
+    -- downstream of that. A name to call is intent's vocabulary, not
+    -- implementation, which is why this does not breach the charter.
+    surface_refs TEXT NOT NULL DEFAULT '[]',
     version    INTEGER NOT NULL DEFAULT 1
 );
 
@@ -676,4 +683,22 @@ CREATE TABLE IF NOT EXISTS frame_rulings (
 CREATE TABLE IF NOT EXISTS config (
     key    TEXT PRIMARY KEY,
     value  TEXT NOT NULL
+);
+
+-- What each declared setting used to be, and who moved it, and why.
+--
+-- `config` is deliberately the principal's direct-edit space -- the one store
+-- outside artefact law, so "humans do not edit artefacts" never comes under
+-- pressure -- but a knob that forgets its past turns "why is the challenge
+-- phase off on this run?" into archaeology. Append-only; written by
+-- `config.set` whenever a declared setting actually changes. Read by the
+-- principal months later, by an operator debugging a run, and by staleness
+-- checks that need to know whether a choice predates what it governs. Never
+-- read by roles.
+CREATE TABLE IF NOT EXISTS config_history (
+    key       TEXT NOT NULL,
+    old_value TEXT,           -- NULL on first set: there was nothing before
+    new_value TEXT NOT NULL,
+    author    TEXT NOT NULL DEFAULT 'principal',
+    at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

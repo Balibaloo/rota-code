@@ -703,6 +703,20 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
 
         woken = [w for w in predicate_wakes(conn)
                  if w.role == then["role"] and w.kind == f"tick:{wants_tick}"]
+        # A conditional leg: some ticks are stall-catchers, and the happy path
+        # never produces them. `awaiting_confirm` fires only when ratification
+        # stalled -- a leg one that already confirmed leaves it correctly
+        # silent, and demanding the wake anyway failed five runs of a chain
+        # whose first leg had done everything right. `if_needed` says: if the
+        # gate has nothing to catch, the chain is leg one alone, judged whole.
+        if not woken and then.get("if_needed"):
+            problems += check(case, a_delta, refused={}, notes=[])
+            if repo is not None:
+                from . import gitfixture as _gf
+                _gf.cleanup(repo)
+            return CaseResult(case_id=case.get("id", "?"), run=run_no,
+                              passed=not problems, problems=problems,
+                              delta=a_delta, outcome=a_out)
         if not woken:
             others = sorted({w.kind for w in predicate_wakes(conn)})
             problems.append(
@@ -740,7 +754,19 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         if "." in fn:
             b_refused[fn] = b_refused.get(fn, 0) + 1
     notes: list[str] = []
-    problems += check(case, b_delta, refused=b_refused, notes=notes)
+    scored = b_delta
+    if then.get("if_needed"):
+        # The conditional gate ran, so the pipeline's work is split across the
+        # legs -- the statement in one, the confirm in the other -- and judging
+        # leg two alone would fail a chain that succeeded. Judged merged.
+        scored = Delta(
+            session_id=b_delta.session_id, committed=b_delta.committed,
+            writes={t: a_delta.writes.get(t, []) + b_delta.writes.get(t, [])
+                    for t in {*a_delta.writes, *b_delta.writes}},
+            messages=a_delta.messages + b_delta.messages,
+            tool_calls=a_delta.tool_calls + b_delta.tool_calls,
+            versions_moved={**a_delta.versions_moved, **b_delta.versions_moved})
+    problems += check(case, scored, refused=b_refused, notes=notes)
     if repo is not None:
         from . import gitfixture
         gitfixture.cleanup(repo)

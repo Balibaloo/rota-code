@@ -561,6 +561,90 @@ def _owner_of_ref(conn, ref: str) -> str | None:
     return None
 
 
+# The rows a challenge can quote, and the column that holds their words.
+_QUOTABLE = (("criteria", "text"), ("tests", "body"), ("items", "text"),
+             ("tickets", "text"), ("glossary_terms", "sense_short"),
+             ("constraints", "text"))
+
+
+def _quotes_span(source: str, text: str, n: int = 12) -> bool:
+    """A contiguous span of the source appears verbatim in the message.
+
+    Whitespace-normalised on both sides, because a quote copied across a line
+    wrap is still a quote. Twelve characters is enough that matching by
+    accident stops happening and short enough that any honest quote clears it.
+    """
+    src = " ".join((source or "").split())
+    msg = " ".join((text or "").split())
+    if len(src) <= n:
+        return bool(src) and src in msg
+    return any(src[i:i + n] in msg for i in range(len(src) - n + 1))
+
+
+def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
+    """
+    A challenge quotes the thing it disputes.
+
+    Challenging costs one call carrying an id; fixing costs reading, writing
+    and committing. When two outcomes cost that differently, which one you get
+    is decided by noise -- so the challenge is made to pay the reading up
+    front. `quotes=` must copy the disputed rows' own words, and on the
+    tester channel both sides of the claimed conflict must be named and
+    quoted. None of this says the challenge is *right*; `challenge.uphold`
+    holds the same line one loop earlier -- either verdict carries the line
+    it stands on.
+    """
+    rows: dict[str, tuple[str, str]] = {}
+    for r in refs or []:
+        for table, col in _QUOTABLE:
+            hit = ctx.conn.execute(
+                f"SELECT {col} AS words FROM {table} WHERE id = ?",
+                (r,)).fetchone()
+            if hit:
+                rows[r] = (table, hit["words"] or "")
+                break
+
+    if recipient == "tester":
+        crit = [r for r, (t, _) in rows.items() if t == "criteria"]
+        test = [r for r, (t, _) in rows.items() if t == "tests"]
+        if not crit or not test:
+            missing = "no criterion" if not crit else "no test"
+            raise ValueError(
+                f"a challenge to the tester names both sides of the conflict "
+                f"in refs -- the criterion and the test -- and yours names "
+                f"{missing}. Both rows are in your working set")
+        if ctx.batch_id:
+            ok = ctx.conn.execute(
+                "SELECT 1 FROM batch_tickets bt "
+                "JOIN criteria c ON c.ticket_id = bt.ticket_id "
+                "WHERE bt.batch_id = ? AND c.id = ?",
+                (ctx.batch_id, crit[0])).fetchone()
+            if not ok:
+                raise ValueError(
+                    f"{crit[0]!r} is not a criterion of this batch. The "
+                    f"conflict you may challenge is between this batch's "
+                    f"test and this batch's criterion")
+        for r in (crit[0], test[0]):
+            if not _quotes_span(rows[r][1], text):
+                raise ValueError(
+                    f"quotes= must copy {r}'s exact words and what you sent "
+                    f"is not in the {rows[r][0]} row. Quote, not paraphrase: "
+                    f"the span of each side your challenge stands on, "
+                    f"verbatim -- both rows are in front of you")
+        return
+
+    # Every other channel: whatever text-bearing rows the refs name, at least
+    # one must actually be quoted. Vacuously legal when the refs carry no
+    # quotable row, because bounded strictness beats a guard with no exit.
+    if rows and not any(_quotes_span(words, text)
+                        for _, words in rows.values()):
+        some = next(iter(rows))
+        raise ValueError(
+            f"quotes= must contain the disputed row's own words and what you "
+            f"sent quotes none of your refs. Copy the span you dispute from "
+            f"{some} verbatim, not a paraphrase")
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -691,6 +775,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "This channel has no words of its own -- put `entry_id`, the "
                 "transcript entry holding what the principal said, in refs, "
                 "and the owner reads it as `principal_said`")
+
+        # A challenge pays its reading up front: quote both sides on the
+        # tester channel, quote the disputed row everywhere else.
+        if verb == "challenge":
+            _challenge_evidence(ctx, recipient, refs, text or "")
 
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a
@@ -1075,11 +1164,20 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         arg = prose if prose.isidentifier() else "question"
         ns: dict = {"_stage": stage, "_label": label, "_prose": prose}
         why = ("the words are the whole message here" if verb == "converse"
+               else "a challenge with no quote has not read what it disputes"
+               if verb == "challenge"
                else "refs say what you are asking about, and nothing says "
                     "what you are asking")
         ns["_why"] = why
+        # A plural-named field invites a list, and for quotes a list of
+        # spans is unambiguous -- join it. `question=` keeps the scalar
+        # annotation: two questions really are two messages, and refusing
+        # that ambiguity is validate_args doing its job.
+        ann = "str | list" if verb == "challenge" else "str"
         src = (
-            f"def send(refs: list[str], {arg}: str, round_no: int = 0):\n"
+            f"def send(refs: list[str], {arg}: {ann}, round_no: int = 0):\n"
+            f"    if isinstance({arg}, list):\n"
+            f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"
             "        raise ValueError(f'{_label} needs {_prose}=: {_why}')\n"
             f"    return _stage(refs, round_no, text={arg})\n"
@@ -1099,6 +1197,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         elif verb == "converse":
             doc = (f"Send a natural-language {verb!r} to {recipient}. "
                    f"`{prose}=` carries the words; refs may be empty.")
+        elif verb == "challenge":
+            doc = (f"Dispute a row {recipient} owns. refs name the disputed "
+                   f"rows; `quotes=` copies their exact words -- the span of "
+                   f"each row your challenge stands on, verbatim, not a "
+                   f"paraphrase.")
         else:
             doc = (f"Ask {recipient} a question. The refs say what it is about; "
                    f"`{prose}=` says what you need to know about them, which no "

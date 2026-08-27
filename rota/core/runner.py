@@ -841,6 +841,26 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 continue
         if bodies:
             pushed["glossary.lookup"] = bodies
+
+    # The same rule pointed at the code index. Criteria carry `surface_refs`,
+    # and demanding a callable's name from a session that has never seen the
+    # code is the guard-without-an-exit shape again -- so the candidates are
+    # supplied. The hint is the wake's subject: this item's ticket headlines
+    # for a criteria pass, the asker's note joined in for a repair. Matching
+    # is `code.surface`'s business; choosing the subject is never the role's.
+    if "code.callables" in have:
+        hint = asked
+        if wake is not None and wake.kind == "tick:criteria" and wake.refs:
+            try:
+                rows = sb.call("tickets.scan", item_id=wake.refs[0]) or []
+                hint += " " + " ".join(
+                    r.get("headline", "") for r in rows if isinstance(r, dict))
+            except Exception:                              # noqa: BLE001
+                pass
+        try:
+            pushed["code.callables"] = sb.call("code.callables", hint=hint)
+        except Exception:                                  # noqa: BLE001
+            pass
     return pushed
 
 

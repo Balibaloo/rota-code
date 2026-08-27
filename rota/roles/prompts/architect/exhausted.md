@@ -12,7 +12,8 @@ shapes and no others:
   `model.amend`, then say so with `msg.answer_developer`
 - **the structure cannot carry what is being asked** — `msg.propose_vision_keeper`
   with the seam. A refactor is scope, and scope is not yours to grant
-- **the criteria assume something nobody decided** — `msg.challenge_vision_keeper`
+- **the criteria assume something nobody decided** —
+  `msg.challenge_vision_keeper`, `quotes=` copying the assuming span verbatim
 
 If it is none of those, hand it on rather than sitting with it. Vision Keeper is
 the last rung that can be woken, and a batch stalled at your desk is a batch

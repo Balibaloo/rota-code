@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS case_runs (
     model        TEXT NOT NULL,
     prompt_hash  TEXT NOT NULL,
     run_no       INTEGER NOT NULL,
+    -- Which residency of the model produced this run: model @ two-hour
+    -- window. Ollama's determinism is per-load, so two recording passes
+    -- hours apart are different experiments and the register must be able
+    -- to say so. '' is a run from before the column existed.
+    load_id      TEXT NOT NULL DEFAULT '',
     passed       INTEGER NOT NULL,
     problems     TEXT NOT NULL DEFAULT '[]',
     -- What the model actually said and did, kept with the verdict on it.
@@ -80,6 +85,13 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     if "transcript" not in have:
         conn.execute("ALTER TABLE case_runs ADD COLUMN transcript TEXT "
                      "NOT NULL DEFAULT '[]'")
+    if "load_id" not in have:
+        # Which residency of the model produced the run. Temp-0 is stable
+        # within a model load and not across (measured), so a score is a fact
+        # about a load -- and the register could not say which. '' is every
+        # run recorded before the column existed: one indistinct old load.
+        conn.execute("ALTER TABLE case_runs ADD COLUMN load_id TEXT "
+                     "NOT NULL DEFAULT ''")
     return conn
 
 
@@ -310,7 +322,24 @@ def _is_unmeasured(problems: list[str], transcript: list | None) -> bool:
     session that hit it.
     """
     haystack = " ".join(problems) + json.dumps(transcript or [])
-    return "no cassette for" in haystack
+    # A model that could not be reached measured nothing either. Found when a
+    # recording pass ran against a stopped ollama and wrote ten hard-looking
+    # reds -- every one a connection refused, not a role getting it wrong.
+    return "no cassette for" in haystack or "LLMUnavailable" in haystack
+
+
+def current_load(pins: Pins) -> str:
+    """Model plus two-hour window: the coarse name of one residency.
+
+    Coarse on purpose. The true boundary is ollama unloading the model, which
+    nothing here can see; two passes inside one window very likely share a
+    residency (keep_alive holds the model warm between them), and passes
+    hours apart very likely do not. A pass straddling a window edge reads as
+    two loads, which errs toward demanding the extra confirmation.
+    """
+    import time
+
+    return f"{pins.model}@{int(time.time()) // 7200}"
 
 
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
@@ -322,10 +351,69 @@ def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
         "SELECT COALESCE(MAX(seq), 0) + 1 n FROM case_runs").fetchone()["n"]
     conn.execute(
         "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, passed, "
-        "problems, transcript, seq) VALUES (?,?,?,?,?,?,?,?)",
+        "problems, transcript, seq, load_id) VALUES (?,?,?,?,?,?,?,?,?)",
         (case_id, pins.model, pins.prompt_hash, run_no, int(passed),
-         json.dumps(problems), json.dumps(transcript or []), seq),
+         json.dumps(problems), json.dumps(transcript or []), seq,
+         current_load(pins)),
     )
+
+
+def flip_history(conn: sqlite3.Connection, case_id: str,
+                 bar: float = 0.8) -> list[dict]:
+    """
+    The case's verdict per (prompt, load) group, oldest first, with flips.
+
+    Derived, never stored -- the runs are the record and this is a reading of
+    them. A group's verdict is the register's own bar (4 of 5). A flip is a
+    verdict differing from the previous group's, whatever changed in between:
+    a prompt edit, a fresh load, or nothing visible at all -- the last kind
+    is the chronically marginal case this exists to make visible.
+    """
+    rows = conn.execute(
+        "SELECT prompt_hash, load_id, MIN(seq) AS first_seq, COUNT(*) AS n, "
+        "       SUM(passed) AS ok "
+        "FROM case_runs WHERE case_id = ? "
+        "GROUP BY prompt_hash, load_id ORDER BY first_seq", (case_id,)).fetchall()
+    out, prev = [], None
+    for r in rows:
+        verdict = (r["ok"] / r["n"]) >= bar
+        out.append({"prompt_hash": r["prompt_hash"], "load_id": r["load_id"],
+                    "runs": r["n"], "passed": r["ok"], "verdict": verdict,
+                    "flip": prev is not None and verdict != prev})
+        prev = verdict
+    return out
+
+
+def trust(conn: sqlite3.Connection, case_id: str) -> str:
+    """
+    'earned', 'provisional', 'red', or 'unmeasured' -- the ruling
+    (2026-08-27): a case that flips red to green counts as fixed only after
+    passing on two separate loads. A green that never flipped is earned on
+    one: it has no history of being wrong to live down.
+    """
+    groups = flip_history(conn, case_id)
+    if not groups:
+        return "unmeasured"
+    latest = groups[-1]
+    if not latest["verdict"]:
+        return "red"
+    if not latest["flip"]:
+        return "earned"
+    # Only the trailing green streak confirms: a green load from *before*
+    # the red is the flip-flop itself, not evidence the fix took.
+    confirming = set()
+    for g in reversed(groups):
+        if not g["verdict"]:
+            break
+        confirming.add(g["load_id"])
+    return "earned" if len(confirming) >= 2 else "provisional"
+
+
+def provisional_cases(conn: sqlite3.Connection) -> list[str]:
+    """The greens the register may not bank yet."""
+    ids = [r["case_id"] for r in conn.execute(
+        "SELECT DISTINCT case_id FROM case_runs ORDER BY case_id")]
+    return [c for c in ids if trust(conn, c) == "provisional"]
 
 
 def pass_rate_history(conn: sqlite3.Connection, case_id: str) -> list[dict]:
