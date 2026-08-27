@@ -77,7 +77,12 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     measure the product of two rates and report it as one.
     """
     passed, threshold, results = fixtures.run_sampled(
-        case, tmp_path, backend_factory, pins=PINS)
+        case, tmp_path, backend_factory,
+        # The ruling (2026-08-29): we are not locked to a model --
+        # one model carrying the capability is enough. A case that
+        # declares `model:` is held by that model; the default stays
+        # the recording reference.
+        pins=Pins(model=case.get("model", MODEL), temperature=0.0))
 
     # Both legs' briefs, because either one can be why the chain stopped
     # working. This tier recorded against bare pins with no prompt hash at all,
@@ -85,7 +90,7 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     # and nothing could tell -- the distinction `test_l1.py` calls out as the
     # difference between a green result and a green result about a prompt that
     # has since been edited, missing from the tier that most needs it.
-    stamp = PINS.with_prompt(fixtures.instructions_for(case))
+    stamp = Pins(model=case.get("model", MODEL), temperature=0.0).with_prompt(fixtures.instructions_for(case))
     for r in results:
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript())

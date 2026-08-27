@@ -22,13 +22,13 @@ attached, and when a pointer's target closes, the line comes out.
 2. **Loop 5 → G2: earn the re-survey.** The freshness machinery is built and
    pinned (`test_a_changed_file_reopens_exactly_its_area`); what is owed is
    recorded re-survey sessions and a refresh under a running batch.
-3. **Loop 4 → G2: the criterion cluster re-earns.** The stated G1 debt was
-   stale — `every_mode_has_a_case` is green. The real gap is the four
-   delivery reds (`TE-words-already-defined`, `TS-hold-a-test`,
-   `TS-criterion-no-machine`, `TS-outside-fact`) re-earning on the surface
-   machinery built for them, and the one-fault-per-pass curve reaching zero
-   on a live pass. (The obligation ledger's 162 open rows are a horizon
-   metric, mostly reads; not this milestone.)
+3. **Loop 4 → G2: three routing-judgment reds.** Attributed 2026-08-29:
+   `hold-a-test` is held (production model, declared). The remaining three
+   fail on both models — the role acts within its own artefact instead of
+   routing to the authority (amends instead of answering; asks the
+   word-owner instead of the scope-owner; encodes instead of asking the
+   Researcher). The measured lever is the escape-hatch cost asymmetry.
+   Plus the one-fault-per-pass curve reaching zero on a live pass.
 4. **Per-loop G3: the named chaos injuries.** The core has been hurt three
    ways and held; each loop's specific injuries are listed in `LOOPS.md`
    and none has been inflicted yet.
@@ -52,11 +52,12 @@ attached, and when a pointer's target closes, the line comes out.
 The principle, not a grab-bag: every red and every silence in the register
 must be attributed — design fault, missing guard, or model boundary —
 because each demands a different response (redesign, build, or accept with
-a caveat), and the production model is the arbiter for the third kind. The
-A/B is the method (5/5 vs 0/5, twice). Unattributed today: the four
-criterion-cluster reds (never run on the qwen arm) and the ledger silence
-(one assumption in 134 production-model sessions — if that is disposition,
-the "every assumption a sentence" claim is hollow in production).
+a caveat), and the production model is the arbiter for the third kind
+(ruled: one model carrying the capability is enough; cases declare their
+bar model). Every register red is attributed as of 2026-08-29 — three
+criterion-cluster reds are shared-model routing-judgment gaps and moved to
+Loop 4's debt. Unattributed still: the ledger silence (one assumption in
+134 production-model sessions).
 
 ## Track D — debts that are not loops
 

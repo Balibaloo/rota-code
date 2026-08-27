@@ -930,6 +930,20 @@ criteria-ref question wakes the Terminologist in a writing mode, once per
 question; `criteria.respecify` is the door and it fires live — rung one
 watched it break the encode loop that named this entry.
 
+**The cluster attributed, 2026-08-29, under the one-model ruling.** The
+production-model A/B splits the four reds cleanly. `hold-a-test-that-is-right`
+is held — qwen 5/5, the case now declares its bar model, and the recording
+model's red stays as its per-model record. The other three fail on *both*
+models, which removes the model-boundary excuse and names them what they
+are: routing-judgment gaps. Asked about words already defined, both models
+amend the glossary instead of only answering; handed an uncheckable promise,
+both question the word-owner where the ladder says the scope-owner; handed a
+criterion resting on an outside fact, both encode a test rather than ask the
+Researcher. Three shapes of the same miss — the role acts within its own
+artefact instead of routing to the authority — and they are Loop 4's real
+G2 debt now, with the escape-hatch cost asymmetry the register has already
+measured twice as the likely lever.
+
 Found live on delivery rung one, watching the Tester and Terminologist loop.
 The parroting guard refuses an encode of a restated criterion and now names
 its exits; the Tester takes one -- questions the Terminologist -- and the

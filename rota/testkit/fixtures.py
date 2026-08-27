@@ -417,6 +417,29 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
 
         boot.onboard(conn, repo.root)
 
+        # Loop 5's shape, requested by two keys. `surveyed:` stamps areas as
+        # surveyed at the tree onboarding just indexed -- a record the way
+        # attest writes one, hash and all, so the fixture means "this area
+        # was closed". `change:` then moves the tree: root edits, committed,
+        # re-indexed the way `rota refresh` does it -- so the freshness view
+        # reopens exactly the areas whose content moved, and a re-survey
+        # session can be recorded rather than hand-waved.
+        for role, area in (spec.get("surveyed") or []):
+            from ..roles.api import area_content_hash
+
+            conn.execute(
+                "INSERT INTO survey_records (id, area, outcome, area_hash) "
+                "VALUES (?, ?, 'found', ?)",
+                (f"{role}:{area}", area, area_content_hash(conn, area)))
+        if spec.get("change"):
+            from ..onboarding import indexer
+
+            for rel, body in spec["change"].items():
+                repo.edit(repo.root, rel, body)
+            repo.commit_in(repo.root, "the tree moved past the survey")
+            indexer.build(conn, repo.root)
+            boot.repin(conn, repo.root)
+
     batch_id = spec.get("batch") if isinstance(spec, dict) else None
     if batch_id:
         tree = repo.worktree(batch_id)

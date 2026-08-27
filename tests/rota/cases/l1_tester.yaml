@@ -5,6 +5,9 @@
 # to change it.
 
 - id: L1-TS-hold-a-test-that-is-right
+  # Held by the production model (5/5, 2026-08-29); the
+  # recording model's red stays in case_runs as its record.
+  model: qwen3:8b
   tier: T1
   role: tester
   runs: 5

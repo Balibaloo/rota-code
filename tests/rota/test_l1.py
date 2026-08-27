@@ -97,15 +97,19 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     """
     instructions = prompts.compose(case["role"], fixtures.mode_of(case))
 
+    # The ruling (2026-08-29): we are not locked to a model -- one model
+    # carrying the capability is enough. A case that declares `model:` is
+    # held by that model; the default stays the recording reference.
+    pins = Pins(model=case.get("model", MODEL), temperature=0.0)
     passed, threshold, results = fixtures.run_sampled(
-        case, tmp_path, backend_factory, pins=PINS, instructions=instructions)
+        case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 
     # Recorded against the instructions rather than the bare pins, so the
     # cockpit can tell a green result from a green result about a prompt that
     # has since been edited. Instructions only — the full prompt includes the
     # fixture, which would make every case's hash unique and staleness
     # meaningless.
-    stamp = PINS.with_prompt(instructions)
+    stamp = pins.with_prompt(instructions)
     for r in results:
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript())

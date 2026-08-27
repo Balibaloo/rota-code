@@ -24,6 +24,9 @@
 
 - id: G1-a-ratified-conflict-is-caught-by-the-owner
   tier: G1
+  # Held by the production model (5/5); the recording model's red
+  # stays in case_runs as its per-model record.
+  model: qwen3:8b
   role: architect
   prompt: deliver
   runs: 5
@@ -123,6 +126,9 @@
 
 - id: G1-what-the-brief-already-holds-is-answered-from-it
   tier: G1
+  # Held by the production model (5/5); the recording model's red
+  # stays in case_runs as its per-model record.
+  model: qwen3:8b
   role: liaison
   prompt: converse
   runs: 5

@@ -301,3 +301,39 @@
     # Reconciling is not merging: the README adds no items, no words, no
     # constraints -- a disagreement is the principal's to rule on.
     writes: [items, glossary_terms, constraints, criteria, tickets]
+
+- id: L1-TE-resurvey-an-area-that-moved
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  tick: survey
+  # Loop 5's case: the area was surveyed, the tree moved past the survey, and
+  # the freshness view reopens exactly that area. The wake firing at all is
+  # half the assertion -- a fixture where the hash still matched would leave
+  # the tick silent and the case reporting "never offered".
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/billing]
+  repo:
+    onboard: true
+    surveyed: [[terminologist, src/billing]]
+    change:
+      src/billing/proration.py: |
+        from .charges import Charge
+
+
+        def prorate(charge, days_used, days_in_period):
+            """A partial-period charge: the tenant pays for what they used."""
+            fraction = days_used / days_in_period
+            return Charge(charge.code, int(charge.amount_cents * fraction))
+  expect:
+    # A re-survey is a survey: read the area as it now is, attest what was
+    # found. The new file brings a word the glossary does not hold
+    # (proration), so a term is plausible but not owed -- the attest is.
+    calls: [code.source]
+    writes:
+      survey_records: {count: 1}
+      glossary_terms: {count: "0..3"}
+  forbidden:
+    writes: [constraints, items, criteria]
+    recipients: [architect, vision_keeper, liaison]

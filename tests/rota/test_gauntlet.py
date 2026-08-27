@@ -63,9 +63,14 @@ def backend_factory(dev_db):
 @pytest.mark.parametrize("case", _segments(), ids=[c["id"] for c in _segments()])
 def test_seat_flow_segment(case, tmp_path, backend_factory, dev_db):
     passed, threshold, results = fixtures.run_sampled(
-        case, tmp_path, backend_factory, pins=PINS)
+        case, tmp_path, backend_factory,
+        # The ruling (2026-08-29): we are not locked to a model --
+        # one model carrying the capability is enough. A case that
+        # declares `model:` is held by that model; the default stays
+        # the recording reference.
+        pins=Pins(model=case.get("model", MODEL), temperature=0.0))
 
-    stamp = PINS.with_prompt(fixtures.instructions_for(case))
+    stamp = Pins(model=case.get("model", MODEL), temperature=0.0).with_prompt(fixtures.instructions_for(case))
     for r in results:
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
                         r.problems, r.transcript())
