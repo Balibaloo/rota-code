@@ -43,11 +43,19 @@ GV.stepIx = Math.max(0, steps.findIndex(s => (s.edges || []).length));
 if (report('story @ step ' + GV.stepIx) === 0 && steps.some(s => s.edges.length))
   problems.push('story lights nothing');
 
-// An empty run is an empty database, not a broken lens.
+// An empty run is an empty database, not a broken lens. And a run recorded
+// before a vocabulary change produces keys that match nothing in today's
+// graph — the lens is fine, the data is from another era; only a lens that
+// produces NO keys from real steps is broken.
 GV.source = 'run';
 const runLit = report('run');
 if (!(GV.trace.steps || []).length) console.log('    (no sessions recorded)');
-else if (runLit === 0) problems.push('run lights nothing');
+else if (runLit === 0) {
+  if (gvLit().size > 0)
+    console.log('    (steps recorded against an older vocabulary — '
+                + 'no key matches today\'s graph)');
+  else problems.push('run lights nothing');
+}
 
 GV.source = 'design';
 if (report('design') !== 0) problems.push('design lights something and should not');
@@ -285,6 +293,64 @@ else if (gone.size && !chipCount) {
 }
 document.getElementById = realGet;
 GV.focus = null;
+
+// ---- the cable and the straight solo ----------------------------------------
+//
+// A pair carrying both a read and a write rides as one cable: exactly two
+// strands, one per kind, at every zoom — including collapse:never, which is
+// the setting that used to fan every verb out. And a pair carrying exactly
+// one line draws it straight: no Q command in its path.
+
+{
+  const both = {};
+  for (const e of GV.graph.edges)
+    if (e.type === 'reads' || e.type === 'writes')
+      (both[e.s + '|' + e.t] ||= new Set()).add(e.type);
+  // Only pairs the probe's raw layout can place — the page itself parks
+  // unplaced nodes via placeStrays, but DATA.layout here is the bare file.
+  const cablePairs = Object.keys(both).filter(k => both[k].size === 2
+    && k.split('|').every(id => GV.layout[id]));
+
+  const kWas2 = GV.view.k, setWas2 = Object.assign({}, GV.settings);
+  GV.mode = 'team'; GV.source = 'design'; GV.focus = null;
+  GV.settings.collapse = 'never'; GV.view = {k: 1, x: 0, y: 0};
+  const drawnE = drawTeam().edges;
+  GV.view.k = kWas2; Object.assign(GV.settings, setWas2);
+
+  const broken = [];
+  for (const pair of cablePairs) {
+    const [s, t] = pair.split('|');
+    const re = new RegExp('data-e="' + s + '\\|' + t + '\\|', 'g');
+    const strands = (drawnE.match(re) || []).length;
+    if (strands !== 2) broken.push(pair + ' -> ' + strands + ' strands');
+  }
+  console.log('\ncable: ' + cablePairs.length
+    + ' read+write pairs, two strands each even at collapse:never'
+    + (broken.length ? '  BROKEN: ' + broken.join(', ') : ''));
+  if (broken.length) problems.push('cable pairs not unified');
+
+  // Solo pairs: one line, straight. Find a pair with load 1 and assert its
+  // drawn path is M...L..., not a quadratic.
+  const load = {};
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') continue;
+    const k = [e.s, e.t].sort().join('|');
+    load[k] = (load[k] || 0) + 1;
+  }
+  let soloChecked = 0, soloCurved = 0;
+  for (const e of GV.graph.edges) {
+    if (e.type === 'refs') continue;
+    if (load[[e.s, e.t].sort().join('|')] !== 1) continue;
+    const m = drawnE.match(new RegExp(
+      '<path d="(M[^"]+)"[^>]*data-e="' + e.s + '\\|' + e.t + '\\|' + e.type));
+    if (!m) continue;
+    soloChecked++;
+    if (m[1].includes('Q')) soloCurved++;
+  }
+  console.log('solo lines: ' + soloChecked + ' checked, '
+    + (soloCurved ? soloCurved + ' STILL CURVED' : 'all straight'));
+  if (soloCurved) problems.push('solo pairs still bow');
+}
 
 // ---- the layout generators ---------------------------------------------------
 //

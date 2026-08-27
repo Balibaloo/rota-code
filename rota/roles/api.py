@@ -2677,6 +2677,33 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
                 f"approved item.")
     _must_exist(ctx, "items", item_id)
 
+    # One item's open work is one batch. The over-production investigation
+    # (2026-08-28) found the disease's dominant form is *re-issuance* -- a
+    # model re-emits an act it already performed, and any artefact whose id
+    # is model-invented turns each re-issue into a new row. Every organ that
+    # healed did so by deriving identity from content (constraint slug,
+    # statement span, ticket words, criteria words); batches were the last
+    # organ without a natural key, and both delivery runs duly made b2 and
+    # b3, pending, from one sentence. The item is the batch's identity:
+    # priority moves batches whole, and only a scope change may recompose
+    # one -- so a second open batch for the same item is the same batch,
+    # re-issued.
+    open_twin = ctx.conn.execute(
+        "SELECT id, status FROM batches WHERE item_id = ? "
+        "AND status IN ('pending', 'running', 'deferred')",
+        (item_id,)).fetchone()
+    staged_twin = next((w[1] for w in ctx.writes if w[0] == "batches"
+                        and isinstance(w[2], dict)
+                        and w[2].get("item_id") == item_id), None)
+    twin = staged_twin or (open_twin and open_twin["id"])
+    if twin:
+        raise ValueError(
+            f"{item_id}'s work is already batched as {twin}. A batch "
+            f"delivers exactly one approved item and an item's open work is "
+            f"one batch -- reorder it with problem.prioritize, or recompose "
+            f"it through a scope change; grouping it again would make a "
+            f"second gate for the same work")
+
     ctx.writes.append(("batches", id, {"item_id": item_id, "status": "pending"}))
     for tid in ticket_ids:
         ctx.writes.append(("batch_tickets", f"{id}:{tid}", {

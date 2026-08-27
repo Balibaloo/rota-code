@@ -816,6 +816,24 @@ yesterday), and batches -- both delivery runs made b2 and b3, pending, from
 one sentence, and nobody has looked at why. No one has asked what single
 upstream cause produces all three.
 
+**Root cause found, 2026-08-28, by ruling ("determine root causes
+instead of fixing"). The disease is re-issuance, and the cure was always
+identity.** Measured across the organs' transcripts: the segment organ is 18
+exact duplicates out of 21 attempts (three distinct statements, one issued
+eleven times); the ticket organ half duplicates, half invented facets; the
+criteria organ repeated the identical sentence; the batches organ made b2
+and b3 from one item. The dominant form is not decomposition — it is a
+model re-emitting an act it already performed, the same completion-blindness
+the repeat-message guard caught, and any artefact whose id is model-invented
+turns each re-issue into a *new row*. Every guard that healed an organ was
+rediscovering one law: **identity derives from content, never from a
+model-invented id** — constraint slug, statement span, ticket words,
+criteria words, and now the batch's item (one item's open work is one
+batch). The facet-enumeration remainder (scope authored where decomposition
+was asked) stays the register's honest red at its measured size. Proposed
+for the seat: write the identity rule into LAWS.md as a law, so the next
+artefact table cannot ship without a natural key.
+
 **A fourth organ, and its guard, 2026-08-28.** Criteria: eleven for one item
 the day the mode was handed candidate callables, two of them the identical
 sentence. The tickets' rule now holds here too — same ticket, same words,
@@ -1001,6 +1019,19 @@ language about handling several of something.
 *Blocked on:* nothing. *Gated by:* onboarding, deliberately — `tick_survey`
 serialises itself, so onboarding will run on today's frontier and its failures
 are the specification for this work.
+
+**Ruled and built, 2026-08-28.** The principal reversed the gating — "the
+frontier ordering should be logical, do before onboarding" — and the
+placeholder is gone: the rule is **band, then declared order, then age**.
+Bands stay (the design's priority classes); within a band, tick predicates
+are offered in the order the spine declares them, `Predicate.seq` stamped at
+registration, so position is a reviewable declaration where a name was an
+accident; messages were always FIFO by their global seq and stay so. No sort
+key anywhere in the scheduling path reads a predicate's name now, which
+makes the old failure structurally impossible rather than currently absent.
+`test_frontier_order.py` holds it, including the first tests ever to put
+three wakes on the frontier at once — the width this entry measured nothing
+had ever tested.
 
 ### Over-production has a ticket flavour, and no guard can tell it from work
 

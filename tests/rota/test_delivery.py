@@ -81,6 +81,12 @@ def test_dispatching_a_batch_marks_it_running(db):
     # touch set exists by the time there is a diff to compare it against.
     db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
                "VALUES ('b1','src/thing.py','path')")
+    # And the tests exist first: the frontier's declared order offers
+    # `tests_missing` ahead of `batch_start`, because the Tester writes
+    # before the Developer's diff exists -- its whole charter. The
+    # alphabetical placeholder happened to dispatch the batch first, this
+    # test encoded the accident, and the ordering fix surfaced it.
+    add_test(db, "tst1", "tests/test_it.py", PASSES)
 
     ready = [w for w in frontier(db) if w.kind == "tick:batch_start"]
     assert ready, "the batch was never offered"

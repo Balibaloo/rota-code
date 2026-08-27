@@ -78,6 +78,13 @@ class Predicate:
     fn: Callable[[sqlite3.Connection], list[Wake]]
     why: str = ""
     band: str = "start"
+    # Position in the file, stamped at registration. Within a band this is
+    # the offer order -- the frontier ruling (2026-08-28): ordering must be
+    # logical, and "alphabetically by predicate name" made the schedule a
+    # fact about naming accidents. The file is organised as the spine, so
+    # its order is a reviewable declaration where a name is not; messages
+    # were always FIFO by seq and stay so.
+    seq: int = 0
     needs_principal: bool = False   # only meaningful while they are here
     # Which roles a DERIVED predicate can actually wake. The role is computed
     # per row at runtime, which left it knowable only by reading the function —
@@ -97,11 +104,12 @@ def predicate(name: str, wakes: str, drains: tuple = (), why: str = "",
               band: str = "start", needs_principal: bool = False,
               derives: tuple = ()):
     def deco(fn):
+        seq = len(REGISTRY)
         REGISTRY[name] = Predicate(
             name=name, wakes=wakes, drains=tuple(drains), fn=fn,
             why=why or (fn.__doc__ or "").strip(),
             band=band, needs_principal=needs_principal,
-            derives=tuple(derives))
+            derives=tuple(derives), seq=seq)
         return fn
     return deco
 
@@ -1562,7 +1570,7 @@ def all_wakes(conn: sqlite3.Connection,
     should say so.
     """
     out: list[Wake] = []
-    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name)):
+    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.seq)):
         if p.needs_principal and not principal_present:
             continue
         out.extend(p.fn(conn))
@@ -1575,7 +1583,7 @@ if __name__ == "__main__":
     print(f"{len(REGISTRY)} predicates, in the order they are offered\n")
     labels = {DERIVED: "(per row)", SCHEDULER: "(scheduler)"}
     band = None
-    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name)):
+    for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.seq)):
         if p.band != band:
             band = p.band
             print(f"  --- {band}")

@@ -48,15 +48,16 @@ attached, and when a pointer's target closes, the line comes out.
    stories against preregistered keys** — the runs that are simultaneously
    the test record and the product's stories.
 
-## Track C — two models, one truth
+## Track C — every anomaly attributed
 
-The A/B is now a method: dispute-class behaviour (challenge upward, answer
-from the brief) exists on qwen3:8b and not on llama3.1:8b, measured 5/5 vs
-0/5 twice. llama remains the recording harness; capability boundaries get a
-production-model arm before they are called design faults. Still to run:
-the assumption-capture experiment (qwen wrote one ledger row in 134
-sessions — is the register's assumption layer silent exactly where it
-matters?), and the criterion-cluster reds on the qwen arm.
+The principle, not a grab-bag: every red and every silence in the register
+must be attributed — design fault, missing guard, or model boundary —
+because each demands a different response (redesign, build, or accept with
+a caveat), and the production model is the arbiter for the third kind. The
+A/B is the method (5/5 vs 0/5, twice). Unattributed today: the four
+criterion-cluster reds (never run on the qwen arm) and the ledger silence
+(one assumption in 134 production-model sessions — if that is disposition,
+the "every assumption a sentence" claim is hollow in production).
 
 ## Track D — debts that are not loops
 
@@ -65,12 +66,13 @@ matters?), and the criterion-cluster reds on the qwen arm.
   before a 50-item project relives the glossary incident.
 - **Statements relevance** (`brief.list`): becomes load-bearing the day the
   chat interfaces arrive; parked with its register entry until then.
-- **Over-production, the upstream cause**: four organs now (statements,
-  tickets, batches, criteria), each guarded, none explained. One
-  transcript-level investigation across all four is the open work.
-- **Frontier ordering** — the register's "big one". Deliberately gated:
-  onboarding runs on today's frontier and its failures are the
-  specification. Unblocks when we next onboard at scale.
+- **Over-production**: root cause found and filed (re-issuance against
+  model-invented ids; identity-from-content is the cure, now on all five
+  organs). Remaining: the seat's call on writing the identity rule into
+  LAWS.md.
+- ~~Frontier ordering~~ — ruled ("logical, before onboarding") and built
+  the same day: band, then declared order, then age; names retired from
+  scheduling; pinned at width in `test_frontier_order.py`.
 - **Amendment as the normal operation** and **conflicting sources**: design
   directions filed in the register, neither scheduled.
 
@@ -82,13 +84,11 @@ matters?), and the criterion-cluster reds on the qwen arm.
    toward G2 with the llama rows kept as records; if the bar is "both
    models", they stay red and the capability waits for a stronger recording
    model. This decides Loop 4's G2 date.
-2. **When does the frontier-ordering work run?** Before the gauntlet's
-   composed tier (its bugs will surface there anyway) or after the next
-   at-scale onboarding (the register's stated plan)?
-3. **Over-production: investigate now or keep guarding?** One analysis
-   across the four organs' transcripts, versus adding the fifth guard when
-   the fifth organ appears.
-4. **When do the chat interfaces enter the plan?** Everything is
-   CLI/table-backed by ruling; the interfaces pull statements-relevance,
-   vocabulary surfacing (proposed/preliminary/adopt), and the agenda into
-   scope the moment they start.
+2. ~~Frontier ordering~~ — ruled: before onboarding. Built; see Track D.
+3. ~~Over-production~~ — ruled ("root causes instead of fixing") and done:
+   the investigation ran the same day, the cause is filed in the register,
+   and the one open piece is whether identity-from-content becomes a law in
+   `LAWS.md`.
+4. ~~Chat interfaces~~ — ruled: they enter when the system is production
+   grade and trusted, i.e. after Tracks A and B. Their three parked debts
+   stay parked with them.

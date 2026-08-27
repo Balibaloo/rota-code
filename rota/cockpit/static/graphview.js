@@ -472,6 +472,33 @@ function drawTeam() {
   const plan = fold ? foldPlan() : null;
   const drawn = new Set();
 
+  // The cable. Where one pair carries both a read and a write, the two ride
+  // as ONE connection — two strands a couple of pixels apart, each keeping
+  // its kind's colour, dash, head and label, folded per strand at every
+  // zoom. The owner's call (2026-08-26): two bowed curves between every busy
+  // pair read as clutter, not as two facts — and the strands keep the law's
+  // spirit, because no single line ever claims two kinds at once.
+  const pairKinds = {};
+  for (const e2 of GV.graph.edges)
+    if (e2.type === 'reads' || e2.type === 'writes')
+      (pairKinds[`${e2.s}|${e2.t}`] ||= new Set()).add(e2.type);
+  const isCable = e2 => (e2.type === 'reads' || e2.type === 'writes')
+    && pairKinds[`${e2.s}|${e2.t}`].size === 2;
+  const cableKin = {};
+  for (const e2 of GV.graph.edges)
+    if (isCable(e2)) (cableKin[groupOf(e2)] ||= []).push(e2);
+
+  // How many drawn lines a pair carries, both directions together. A pair
+  // with exactly one has nothing to avoid, so its line runs straight — a bow
+  // with no sibling is decoration standing where a fact was. Both directions
+  // count, because two straight opposite arrows would ride one segment.
+  const pairLoad = {};
+  for (const e2 of GV.graph.edges) {
+    if (e2.type === 'refs') continue;
+    const k = [e2.s, e2.t].sort().join('|');
+    pairLoad[k] = (pairLoad[k] || 0) + 1;
+  }
+
   // Which neighbours have left the screen. Their edges are not drawn at all --
   // a line heading off the canvas tells you a relationship exists and then
   // abandons you, and at the zoom where that happens there are a dozen of them
@@ -484,13 +511,17 @@ function drawTeam() {
     if(!a||!b||!gvVisible(e.s)||!gvVisible(e.t)) continue;
     if (away.has(e.s) || away.has(e.t)) continue;
     const group = groupOf(e);
-    const p = fold ? plan[group] : null;
-    if (fold) {
+    const cable = isCable(e);
+    const p = (fold && !cable) ? plan[group] : null;
+    if (cable) {
+      if (drawn.has(group)) continue;   // one strand stands for the kind
+      drawn.add(group);
+    } else if (fold) {
       if (p.skip) continue;             // its opposite carries both directions
       if (drawn.has(group)) continue;   // one line stands for the whole group
       drawn.add(group);
     }
-    const kin = fold ? p.members : [e];
+    const kin = cable ? cableKin[group] : (fold ? p.members : [e]);
 
     const st=ESTYLE[e.type]||ESTYLE.refs, key=ek([e.s,e.t,e.type]), state=lit.get(key);
     const incident = GV.focus && (e.s===GV.focus||e.t===GV.focus);
@@ -535,6 +566,17 @@ function drawTeam() {
       if (!r) continue;
       d = r.d; lx = r.mid.x; ly = r.mid.y;
       markers = `marker-start="url(#${r.startMarker})" marker-end="url(#${r.endMarker})"`;
+    } else if (cable) {
+      // A strand: straight, shifted a hair to its kind's side of the cable.
+      // Writes ride one side, reads the other, close enough to read as one
+      // connection and far enough that colour, dash and head stay two facts.
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const o = e.type === 'writes' ? -2.2 : 2.2;
+      const nx = -dy / len * o, ny = dx / len * o;
+      const A = onBox(e.s, dx, dy), B = onBox(e.t, -dx, -dy);
+      d = `M${A.x + nx} ${A.y + ny} L${B.x + nx} ${B.y + ny}`;
+      lx = (A.x + B.x) / 2 + nx * 4.2;
+      ly = (A.y + B.y) / 2 + ny * 4.2;
     } else {
       // Spread parallel edges so a multigraph does not collapse onto one path.
       const key = `${e.s}|${e.t}|${e.type}|${e.v}`;
@@ -551,8 +593,11 @@ function drawTeam() {
       // opposite of what it should be. One negative sign fixes both directions
       // at once and gives a consistent rotation for vertical edges too.
       // A pair reduced to a single line has nothing to avoid, so it runs
-      // straight. Bowing it would be decoration standing where a fact was.
-      const bow = (fold && p.solo) ? 0 : -(Math.min(34, len*.11) + rank * 30);
+      // straight — folded or not. Bowing it would be decoration standing
+      // where a fact was.
+      const solo = (fold && p.solo)
+        || pairLoad[[e.s, e.t].sort().join('|')] === 1;
+      const bow = solo ? 0 : -(Math.min(34, len*.11) + rank * 30);
       const cx=mx-(dy/len)*bow, cy=my+(dx/len)*bow;
 
       // Start and end on the boxes, not in them. This drew centre to centre,
@@ -564,7 +609,10 @@ function drawTeam() {
       // it, so those are the directions to clip along.
       const A = onBox(e.s, cx-a.x, cy-a.y);
       const B = onBox(e.t, cx-b.x, cy-b.y);
-      d = `M${A.x} ${A.y} Q${cx} ${cy} ${B.x} ${B.y}`;
+      // A straight line is written as one, not as a curve whose control
+      // point happens to sit on it.
+      d = bow === 0 ? `M${A.x} ${A.y} L${B.x} ${B.y}`
+                    : `M${A.x} ${A.y} Q${cx} ${cy} ${B.x} ${B.y}`;
 
       // Slide each parallel edge's label to a different point *along* its
       // curve, instead of putting every one at the midpoint.
@@ -591,7 +639,7 @@ function drawTeam() {
     // was a grey smudge on a coloured line. A direction you have to zoom in to
     // read is a direction the picture is not carrying.
     const headId = markers ? ''
-      : (fold && p.bidir
+      : (fold && p && p.bidir
           ? `marker-start="url(#head-${e.type})" marker-end="url(#head-${e.type})"`
           : `marker-end="url(#head-${e.type})"`);
     // Wide and clearly tinted. The first version was five pixels at 22%
@@ -608,8 +656,12 @@ function drawTeam() {
     // Edge names on while they are readable — the grammar is the content, not
     // a hover reward, but at a distance a 10px label is texture rather than a
     // word and a dozen of them is a smudge over the structure.
-    const total = fold ? kin.length + (p.back || []).length : 1;
-    const label = total > 1 ? `${total} ${e.type}` : e.v;
+    const total = cable ? kin.length
+                : fold  ? kin.length + (p.back || []).length : 1;
+    // A strand's label carries its verbs while they fit; past two it counts.
+    const label = cable
+      ? (kin.length <= 2 ? kin.map(x=>x.v).join(' · ') : `${kin.length} ${e.type}`)
+      : (total > 1 ? `${total} ${e.type}` : e.v);
     if (label && op > 0.12 && labelling()) {
       const emph = state==='now'||incident;
       const lop = emph?1:Math.min(1,op+.35);
@@ -1487,8 +1539,9 @@ function gvControls(){
     </span></div>
     <p class="sig" id="gfarnote"></p>
     <p class="sig">Folded per source, target and *type* — never across types.
-      Seventeen pairs here carry both a read and a write, and one line for two
-      kinds of relationship is the one thing the colours must not say.</p>
+      Where one pair carries both a read and a write, the two ride as one
+      cable at every zoom: two strands, one per kind, so no single line ever
+      claims two kinds at once.</p>
     <h4>edge labels</h4>
     <div class="prow"><span>
       ${choice('labels','auto','when readable','hide below the same zoom')}

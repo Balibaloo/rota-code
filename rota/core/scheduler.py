@@ -969,7 +969,7 @@ def predicate_wakes(conn: sqlite3.Connection, principal_present: bool = False) -
 
     tips = {id(REGISTRY["message_tips"])}
     return [w for p, w in (
-        (p, w) for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.name))
+        (p, w) for p in sorted(REGISTRY.values(), key=lambda p: (p.order, p.seq))
         if id(p) not in tips and (principal_present or not p.needs_principal)
         for w in p.fn(conn))]
 
