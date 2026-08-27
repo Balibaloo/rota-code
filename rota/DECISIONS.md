@@ -1102,6 +1102,31 @@ something statements do; it may need to be the main verb for everything.
 `brief.list` pushes statements into every Liaison prompt. Relevance filtering
 stops being an optimisation and becomes load-bearing.
 
+### The world-audit, and what its first pass found
+
+Built 2026-08-29, from the principal's worry stated plainly: "bugs in this
+system will only show with extended use and be really hard to spot." The
+guards check transitions; a latent bug lives in what *accumulates*, where
+every individual write looked fine. So `rota.tools.audit` runs the laws as
+propositions over any run database, read-only — refs resolve, identity
+invariants hold as world-states, cardinality the scheduler assumes, chains
+close, answered means an answer exists — and the 58 historical runs are
+the extended-use corpus.
+
+First pass: 271 findings, and the classification is the payoff. Twelve are
+the dict-shaped refs the refs guard later fixed (the before-photo of a
+guard that works). Zero identity twins anywhere — the healed organs are
+clean across every era. One answered-with-no-answer. And 258 are a single
+genuine discovery: **the system's own composed messages violate the ref
+contract** — quarantine notices, agenda items and stall reports carry
+labels like `work_stalled`, `tick.quarantined`, `observed_terms` in
+`body_refs`, which resolve to nothing at the recipient. The house already
+has a convention for non-row subjects (the `@`-prefix: `@program`,
+`@term:x`); the system-side composers drifted from it, in every run ever
+made, invisibly — because nothing checked the world until today. The fix
+is mechanical (the composers adopt the prefix, or the labels are declared);
+the lesson is the audit's existence.
+
 ### Conflicting sources
 
 Two authorities disagreeing is the interesting case. The researcher reports the
