@@ -23,13 +23,18 @@ attached, and when a pointer's target closes, the line comes out.
    green; refresh-under-a-running-batch is pinned (and taught `rota refresh`
    to report orphaned grain refs). What remains is the earn-twice gate: the
    re-survey case confirming on a second recording load.
-3. **Loop 4 → G2: three routing-judgment reds.** Attributed 2026-08-29:
-   `hold-a-test` is held (production model, declared). The remaining three
-   fail on both models — the role acts within its own artefact instead of
-   routing to the authority (amends instead of answering; asks the
-   word-owner instead of the scope-owner; encodes instead of asking the
-   Researcher). The measured lever is the escape-hatch cost asymmetry.
-   Plus the one-fault-per-pass curve reaching zero on a live pass.
+3. **Loop 4 → G2: three routing-judgment reds, and the framing ruling.**
+   Attributed 2026-08-29: `hold-a-test` is held (production model,
+   declared). The remaining three fail on both models — the role acts
+   within its own artefact instead of routing to the authority. The
+   principal's question ("are we sure we framed the escalation correctly?")
+   set the experiment: every brief frames escalation as the exception under
+   a production headline, and headline-following is exactly what both
+   models do. The redesign to test: **the mandatory fork** — the mode's job
+   statement makes producing and routing *both* completions, and the first
+   required act is an explicit branch claim (assert-coherent-and-proceed,
+   or name the conflict), so the judgment stops being skippable. Plus the
+   one-fault-per-pass curve reaching zero on a live pass.
 4. **Per-loop G3: the named chaos injuries.** Loop 1's three are inflicted
    and held (`test_chaos_onboarding.py`) — first G3 in the ledger. Loops
    2 and 3 owe theirs; the injuries are listed in `LOOPS.md`.
@@ -84,12 +89,8 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 
 ## Questions for the seat
 
-1. **Does a production-model green count?** Three cases are red on the
-   recording model and 5/5 on the production model. If the register's bar
-   for dispute-class capabilities is the production model, they count
-   toward G2 with the llama rows kept as records; if the bar is "both
-   models", they stay red and the capability waits for a stronger recording
-   model. This decides Loop 4's G2 date.
+1. ~~Production-model green~~ — ruled: one model carrying the capability
+   is enough; cases declare their bar model. Mechanized and applied.
 2. ~~Frontier ordering~~ — ruled: before onboarding. Built; see Track D.
 3. ~~Over-production~~ — ruled ("root causes instead of fixing") and done:
    the investigation ran the same day, the cause is filed in the register,
@@ -98,3 +99,23 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 4. ~~Chat interfaces~~ — ruled: they enter when the system is production
    grade and trusted, i.e. after Tracks A and B. Their three parked debts
    stay parked with them.
+
+## The four answers that closed the road's open problems (2026-08-30)
+
+1. **Escalation framing**: not settled — reframed. The mandatory-fork
+   experiment (Track A item 3) is the test; "escape hatch under a
+   production headline" is the suspected disease, measured thrice.
+2. **The G4 bar**: there is none, by ruling. Build the best gauntlet we
+   can, run it, and the report is judged by the seat when it exists. The
+   stories and their keys are the spec.
+3. **Assumptions**: introspection is abandoned — an assumption is invisible
+   to its assumer, and 1 ledger row in 134 sessions is the measurement.
+   The design is **detected divergence**: mechanics locate the points where
+   the material underdetermined the output (invented test literals, diff
+   grains outside the predicted touch set, criterion words outside the
+   glossary, chosen defaults) and the sentence is demanded only there. The
+   trail's claim weakens honestly: every *detected divergence* a sentence.
+   First detector to build: invented literals in tests.
+4. **The consumer**: the principal and the sessions, a closed loop. The
+   environmental unknown shrinks to this machine; production-ready means
+   ready for daily dogfooding, which was always the ordering.
