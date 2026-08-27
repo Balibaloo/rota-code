@@ -39,9 +39,10 @@ attached, and when a pointer's target closes, the line comes out.
 1. **Segments** (rungs one and two standing: four cases, two green on the
    suite model, two green on the production model and red on the suite
    model as per-model records). Remaining segment classes: the
-   wrong-answer-from-the-seat intake (blocked on a small harness extension —
-   cases cannot yet assert "row X was *not* changed"), and one segment per
-   escalation verb that has none.
+   wrong-answer-from-the-seat intake (unblocked 2026-08-27: `forbidden:
+   rows: ["table:row_id"]` asserts a seeded row went untouched, off the
+   receipts — the cases themselves are still to write), and one segment
+   per escalation verb that has none.
 2. **Composed flows**: multi-segment stories where a ruling on one trap
    invalidates the work behind another; the `grants:` key arrives here.
 3. **Synthetic stories**, tiered in `stories.json`, then **foreign-repo

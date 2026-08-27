@@ -112,3 +112,23 @@ def test_every_case_seeds():
             fixtures.seed(conn, case.get("fixture") or {})
             seen += 1
     assert seen > 50
+
+
+def test_a_forbidden_row_fails_the_touch_and_only_the_touch():
+    """
+    The harness extension Track B's intake segments waited on. `forbidden:
+    writes: [items]` cannot serve the wrong-answer-from-the-seat cases,
+    because there the right action and the wrong action write to the same
+    table -- what separates them is *which row*. The assertion must be able
+    to fail (the seeded row was amended) and to pass (only new rows appeared),
+    the same both-ways rule the bench applies to its graders.
+    """
+    delta = fixtures.Delta(session_id="s", committed=True,
+                           writes={"items": ["i_seeded", "i_new"]})
+    hit = fixtures.check(
+        {"expect": {}, "forbidden": {"rows": ["items:i_seeded"]}}, delta)
+    assert hit == ["forbidden change to items:i_seeded"]
+    clean = fixtures.check(
+        {"expect": {}, "forbidden": {"rows": ["items:i_other",
+                                              "tickets:i_seeded"]}}, delta)
+    assert clean == []

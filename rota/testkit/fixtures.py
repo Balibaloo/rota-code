@@ -23,6 +23,7 @@ Case format (YAML, per TESTS.md §5):
       calls: [transcript.quote]
     forbidden:
       writes: [glossary_terms, constraints]
+      rows: ["items:i_seeded"]
       recipients: [principal, developer, critic]
       calls: [code.write]
     same_session: [items, decisions]
@@ -307,6 +308,17 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
     for table in forbidden.get("writes") or []:
         if table in delta.writes:
             problems.append(f"forbidden write to {table}: {delta.writes[table]}")
+
+    # Row-granular, because table-granular cannot say what the seat's
+    # wrong-answer intake needs: answering correctly *writes* to the table,
+    # and amending the seeded row is the failure. `receipts` records every
+    # artefact write with its row id -- inserts and updates alike -- so
+    # "this row, untouched" is a fact the committed database already holds.
+    # Spelled `table:row_id`, the same way a citation names a row.
+    for ref in forbidden.get("rows") or []:
+        table, _, row_id = ref.partition(":")
+        if row_id in delta.writes.get(table, []):
+            problems.append(f"forbidden change to {ref}")
 
     for role in forbidden.get("recipients") or []:
         if role in delta.recipients():
