@@ -62,9 +62,13 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 
 ## Track D — debts that are not loops
 
-- **Push scoping** (from the bloat audit): `tickets.scan` and
-  `criteria.consult` push all rows; scope both to the wake's item/batch
-  before a 50-item project relives the glossary incident.
+- ~~Push scoping~~ — built 2026-08-27: both reads now scope to the wake's
+  batch, then its item refs, and only a subjectless wake still reads the
+  world (`test_push_scope.py`). No recorded case composes differently —
+  every fixture's rows already sat inside its wake's scope, so no cassette
+  went stale. The graph still says `rows: all`, which stays true as the
+  upper bound; a `wake`-scoped rows value would be a vocabulary change and
+  is the seat's.
 - **Statements relevance** (`brief.list`): becomes load-bearing the day the
   chat interfaces arrive; parked with its register entry until then.
 - **Over-production**: root cause found, cure on all five organs, and the
