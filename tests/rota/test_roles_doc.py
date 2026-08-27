@@ -255,8 +255,16 @@ def test_the_loop_ledger_claims_only_what_the_build_can_check():
     assert "criterion_repair" in P.REGISTRY, "loop 4's repair predicate"
     assert "preempt" in P.REGISTRY, "loop 6's reorder predicate"
 
-    # The headline: no loop claims G3 or G4 while no chaos test exists.
+    # G3 is claimable only with the loop's own chaos file on disk -- the
+    # check extended exactly as its docstring demanded when loop 1 earned
+    # it. G4 stays unclaimable until the gauntlet's story log exists.
+    chaos_files = {"1": "test_chaos_onboarding.py"}
+    here = paths.PACKAGE.parent / "tests" / "rota"
+    for num, grade in _re.findall(r"^\| (\d) \| [a-z /]+? \| \*\*(G\d)\*\* \|",
+                                  doc, _re.MULTILINE):
+        if grade == "G3":
+            named = chaos_files.get(num)
+            assert named and (here / named).exists(), (
+                f"loop {num} claims G3 with no chaos file registered here")
     claimed = {g for _, g in rows}
-    assert not ({"G3", "G4"} & claimed), (
-        "a loop claims endurance; write the chaos tests and extend this "
-        "check before moving the grade")
+    assert "G4" not in claimed, "no loop has lived the gauntlet yet"

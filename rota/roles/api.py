@@ -2473,12 +2473,39 @@ def tickets_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     return []
 
 
+def _woken_items(ctx: Ctx) -> list[str]:
+    """The wake's refs, kept only where they name an item row."""
+    refs = [r for r in ctx.wake_refs if isinstance(r, str)]
+    if not refs:
+        return []
+    marks = ",".join("?" * len(refs))
+    return [r["id"] for r in ctx.conn.execute(
+        f"SELECT id FROM items WHERE id IN ({marks}) ORDER BY id", refs)]
+
+
 @op("tickets", "scan")
 def tickets_scan(ctx: Ctx, item_id: str | None = None) -> list[dict]:
     if item_id:
         return _rows(ctx.conn.execute(
             "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
             "WHERE item_id = ? ORDER BY id", (item_id,)))
+    # The push calls this with no arguments, and "no arguments" must not mean
+    # "every row": at fifty items that is the whole backlog in every prompt,
+    # the glossary incident again. The subject is the wake's, never the
+    # role's -- a delivery session reads its batch, a session woken about an
+    # item reads that item, and only a wake with no subject (a survey has no
+    # item to scope by) still reads the world.
+    if ctx.batch_id:
+        return _rows(ctx.conn.execute(
+            "SELECT t.id, t.item_id, substr(t.text,1,120) AS headline "
+            "FROM tickets t JOIN batch_tickets bt ON bt.ticket_id = t.id "
+            "WHERE bt.batch_id = ? ORDER BY t.id", (ctx.batch_id,)))
+    woken = _woken_items(ctx)
+    if woken:
+        marks = ",".join("?" * len(woken))
+        return _rows(ctx.conn.execute(
+            f"SELECT id, item_id, substr(text,1,120) AS headline FROM tickets "
+            f"WHERE item_id IN ({marks}) ORDER BY id", woken))
     return _rows(ctx.conn.execute(
         "SELECT id, item_id, substr(text,1,120) AS headline FROM tickets ORDER BY id"))
 
@@ -2669,6 +2696,20 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
 
 @op("criteria", "consult")
 def criteria_consult(ctx: Ctx) -> list[dict]:
+    # Same scope rule as `tickets.scan`: the wake's batch, then its items,
+    # and only a subjectless wake reads the world.
+    if ctx.batch_id:
+        return _rows(ctx.conn.execute(
+            "SELECT c.id, c.ticket_id, substr(c.text,1,120) AS headline "
+            "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ? ORDER BY c.id", (ctx.batch_id,)))
+    woken = _woken_items(ctx)
+    if woken:
+        marks = ",".join("?" * len(woken))
+        return _rows(ctx.conn.execute(
+            f"SELECT c.id, c.ticket_id, substr(c.text,1,120) AS headline "
+            f"FROM criteria c JOIN tickets t ON t.id = c.ticket_id "
+            f"WHERE t.item_id IN ({marks}) ORDER BY c.id", woken))
     return _rows(ctx.conn.execute(
         "SELECT id, ticket_id, substr(text,1,120) AS headline FROM criteria ORDER BY id"))
 

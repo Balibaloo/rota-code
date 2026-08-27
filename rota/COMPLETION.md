@@ -30,9 +30,9 @@ attached, and when a pointer's target closes, the line comes out.
    word-owner instead of the scope-owner; encodes instead of asking the
    Researcher). The measured lever is the escape-hatch cost asymmetry.
    Plus the one-fault-per-pass curve reaching zero on a live pass.
-4. **Per-loop G3: the named chaos injuries.** The core has been hurt three
-   ways and held; each loop's specific injuries are listed in `LOOPS.md`
-   and none has been inflicted yet.
+4. **Per-loop G3: the named chaos injuries.** Loop 1's three are inflicted
+   and held (`test_chaos_onboarding.py`) — first G3 in the ledger. Loops
+   2 and 3 owe theirs; the injuries are listed in `LOOPS.md`.
 
 ## Track B — the gauntlet ladder (G4's machinery)
 

@@ -17,21 +17,21 @@ recording it moves a pinned count.
 | **G3 endures** | survives being hurt: sessions killed mid-flight, messages corrupted, work concurrent | the loop's named chaos tests pass |
 | **G4 lived** | zero-intervention gauntlet scenarios, on repositories not authored for the test | the gauntlet log |
 
-Nothing is at G3 yet, and that is the honest headline of this file — though
-the *core* has now been hurt three ways and held (`test_chaos.py`): a model
+The first loop stands at G3 — understanding survived its own three
+injuries — and the *core* has been hurt three ways and held (`test_chaos.py`): a model
 dying mid-session leaves the world exactly as it was, with the death counted
 and the wake re-offered; the scheduler killed between steps re-derives the
 identical frontier, because there is nothing a scheduler is except a fresh
 call; and a backend speaking garbage burns turns without writing a world.
-The scheduler's "stateless, disposable" is an outcome now. What G3 still
-means per loop is the *specific* injuries below — the core surviving is the
-floor, not the grade.
+The scheduler's "stateless, disposable" is an outcome now. For the loops
+still below G3, the grade means the *specific* injuries listed below — the
+core surviving is the floor, not the grade.
 
 ## The ledger
 
 | # | loop | grade | evidence |
 |---|---|---|---|
-| 1 | understanding | **G2** | onboarding arc on click and cnt against preregistered keys; survey/orient/define cases green |
+| 1 | understanding | **G3** | earned on click and cnt against preregistered keys; and hurt its own three ways (`test_chaos_onboarding.py`): a survey killed mid-area never happened, a corrupted attest reopens rather than seals, two onboardings share a checkout without touching it |
 | 2 | inquiry | **G2** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key |
 | 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
 | 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
@@ -40,8 +40,7 @@ floor, not the grade.
 
 ## What each loop still owes, by gate
 
-- **1 → G3**: kill a survey mid-area; corrupt an attest; onboard two runs
-  concurrently against one checkout.
+- **1 → G4**: the gauntlet — its chaos debts are paid.
 - **2 → G3**: kill an owner mid-round and assert the harvest still composes;
   a corrupted answer message must not reach the principal.
 - **3 → G3**: two principals ruling at once; a verdict for a present that was
