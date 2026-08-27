@@ -135,6 +135,39 @@ def audit(conn: sqlite3.Connection) -> list[str]:
     return findings
 
 
+def orphaned_grain_refs(conn: sqlite3.Connection) -> list[str]:
+    """Rows that point at grains the index no longer holds.
+
+    The index is a function of a commit and rebuilds outright -- correct, and
+    it means a refresh can strand every reference to a grain that vanished
+    upstream: a constraint binding whose tripwire is gone, a batch touch set
+    predicting files that no longer exist, a criterion whose surface was
+    renamed. None of that is the refresh's to *fix* (rebinding is the owner's
+    judgement) but all of it is the refresh's to report, because a silently
+    disarmed tripwire is the extended-use bug class in its purest form.
+    """
+    grains = {r["grain"] for r in conn.execute("SELECT grain FROM code_index")}
+    out: list[str] = []
+    for r in _rows(conn, "SELECT constraint_id, grain FROM constraint_bindings"):
+        if r["grain"] not in grains:
+            out.append(f"constraint {r['constraint_id']}: bound grain "
+                       f"{r['grain']!r} is gone")
+    for r in _rows(conn, "SELECT batch_id, grain FROM batch_touch"):
+        if r["grain"] not in grains:
+            out.append(f"batch {r['batch_id']}: predicted touch "
+                       f"{r['grain']!r} is gone")
+    for r in _rows(conn, "SELECT id, surface_refs FROM criteria "
+                         "WHERE surface_refs != '[]'"):
+        try:
+            refs = json.loads(r["surface_refs"] or "[]")
+        except json.JSONDecodeError:
+            continue
+        for ref in refs:
+            if isinstance(ref, str) and "::" in ref and ref not in grains:
+                out.append(f"criterion {r['id']}: surface {ref!r} is gone")
+    return out
+
+
 def main(argv: list[str]) -> int:
     from ..cli import RUNS, require
     from ..core.db import connect_readonly

@@ -52,7 +52,12 @@ floor, not the grade.
   front too (`test_challenge_evidence.py`). Still owed: cases for the delivery
   modes that have none. The one-fault-per-pass curve reaching zero *is* this
   loop's path through the gates.
-- **5 → G2**: record the re-survey sessions; a refresh under a running batch.
+- **5 → G2**: ~~record the re-survey sessions~~ (recorded, green, one load
+  — the earn-twice gate wants a second); ~~a refresh under a running batch~~
+  — pinned four ways, and building it found the refresh silently disarming
+  tripwires: a rebuilt index strands references to vanished grains, so
+  `rota refresh` now reports every orphaned binding, touch prediction and
+  criterion surface instead of leaving them quietly dead.
 - **6 → G2**: the steering acts on the recorded corpus — a preemption and
   a cancellation observed in a recorded delivery run rather than a fixture.
 

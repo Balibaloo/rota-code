@@ -1342,3 +1342,83 @@ def test_a_changed_file_reopens_exactly_its_area(project):
     assert reopened, "the changed area must come back"
     assert {a for _, a in reopened} == {victim["area"]}, \
         "and only the changed area"
+
+
+def test_a_refresh_under_a_running_batch_disturbs_nothing_it_should_not(tmp_path):
+    """Loop 5's second half. The tree moves while a batch is mid-flight and
+    the operator refreshes. Four invariants, each a different way extended
+    use could rot: the running batch survives untouched (its worktree is a
+    different checkout and its head_commit is pinned history); freshness
+    reopens exactly the changed area; a binding to a surviving grain still
+    resolves; and a reference to a grain the rebuild dropped is *reported*,
+    never silently disarmed -- the constraint tripwire and the batch's touch
+    prediction are worthless precisely when nobody knows they are gone."""
+    from rota.core.db import init_db
+    from rota.core.scheduler import tick_survey
+    from rota.onboarding import boot, indexer
+    from rota.testkit import gitfixture
+    from rota.tools.audit import orphaned_grain_refs
+
+    db = init_db(tmp_path / "rota.db")
+    from rota.core import config as config_mod
+    config_mod.set(db, "onboarding_phases", "survey")
+    repo = gitfixture.make(tmp_path, name="refresh_under_batch")
+    boot.onboard(db, repo.root)
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','ship','in_scope',"
+               "'decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('t1','i1','do it')")
+    tree = repo.worktree("b1")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, "
+               "worktree) VALUES ('b1','i1','running','abc123',?)",
+               (str(tree),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
+               "('b1','t1')")
+    # A binding that survives, a binding that will not, and a touch that
+    # will not: the file behind the second two is about to vanish upstream.
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
+               "('cn1','auth stays reachable','decided')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+               "grain_kind) VALUES ('cn1','src/auth/login.py','path')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
+               "grain_kind) VALUES ('cn1','src/billing/charges.py','path')")
+    db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
+               "VALUES ('b1','src/billing/charges.py','path')")
+    # Every area gets a current-hash survey record so only the *edited* area
+    # reopens -- the same `_stamped` contract the freshness tests use.
+    areas = [r["area"] for r in db.execute(
+        "SELECT DISTINCT area FROM code_index WHERE area != ''")]
+    for a in areas:
+        _stamped(db, f"terminologist:{a}", a)
+        _stamped(db, f"architect:{a}", a)
+        _stamped(db, f"vision_keeper:{a}", a)
+    db.commit()
+    assert not [w for w in tick_survey(db)], "the world starts closed"
+
+    # The tree moves: one file edited, one deleted.
+    repo.edit(repo.root, "src/auth/login.py",
+              "def login(u, p):\n    return check(u, p) and audit(u)\n")
+    (repo.root / "src/billing/charges.py").unlink()
+    repo.commit_in(repo.root, "upstream moved")
+
+    indexer.build(db, repo.root)
+    boot.repin(db, repo.root)
+    db.commit()
+
+    row = db.execute("SELECT status, head_commit, worktree FROM batches "
+                     "WHERE id='b1'").fetchone()
+    assert (row["status"], row["head_commit"]) == ("running", "abc123"),         "the running batch is not the refresh's business"
+    assert row["worktree"] == str(tree)
+
+    reopened = {w.refs[0] for w in tick_survey(db)}
+    assert "src/auth" in reopened, "the edited area reopens"
+    assert "src/catalog" not in reopened, "an untouched area stays closed"
+
+    grains = {r["grain"] for r in db.execute("SELECT grain FROM code_index")}
+    assert "src/auth/login.py" in grains, "the surviving binding resolves"
+
+    orphans = orphaned_grain_refs(db)
+    assert any("cn1" in o and "charges.py" in o for o in orphans),         "the disarmed tripwire is reported"
+    assert any("b1" in o and "charges.py" in o for o in orphans),         "the stale touch prediction is reported"

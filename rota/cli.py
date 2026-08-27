@@ -448,6 +448,9 @@ def cmd_refresh(args: argparse.Namespace) -> int:
                          "('project_commit', ?)", (commit,))
         conn.commit()
         reopened = sorted({w.refs[0] for w in tick_survey(conn)})
+        from .tools.audit import orphaned_grain_refs
+
+        orphans = orphaned_grain_refs(conn)
     finally:
         conn.close()
     print(f"{args.name}: {report.files} files re-indexed"
@@ -457,6 +460,11 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         print(f"next: rota run {args.name}")
     else:
         print("nothing changed since the last survey")
+    # A rebuilt index can strand references to grains that vanished. Not the
+    # refresh's to fix -- rebinding is the owner's judgement -- but a silently
+    # disarmed tripwire must never be silent.
+    for line in orphans:
+        print(f"orphaned: {line}")
     return 0
 
 

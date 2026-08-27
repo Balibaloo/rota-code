@@ -2488,6 +2488,46 @@ def tickets_consult(ctx: Ctx) -> list[dict]:
     return tickets_scan(ctx)
 
 
+_REFFABLE_CACHE: dict[int, list] = {}
+
+
+def _id_tables(conn) -> list[str]:
+    """Every table with an id column, computed once per connection."""
+    key = id(conn)
+    if key not in _REFFABLE_CACHE:
+        out = []
+        for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+            cols = {c["name"] for c in conn.execute(f"PRAGMA table_info({r['name']})")}
+            if "id" in cols:
+                out.append(r["name"])
+        _REFFABLE_CACHE[key] = out
+    return _REFFABLE_CACHE[key]
+
+
+def ref_resolves(ctx: Ctx, ref: str) -> bool:
+    """A ref is a promise that a row exists somewhere -- kept, staged, or a
+    declared prefix. The world-audit found 258 broken promises in the
+    historical runs; this is the door that stops new ones."""
+    if ref.startswith("@") or ref.startswith("e_"):
+        return True
+    if any(w[1] == ref for w in ctx.writes):
+        return True
+    for m in getattr(ctx, "outbound", None) or []:
+        if isinstance(m, dict) and m.get("id") == ref:
+            return True
+    for table in _id_tables(ctx.conn):
+        if ctx.conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
+                            (ref,)).fetchone():
+            return True
+    if ctx.conn.execute("SELECT 1 FROM glossary_terms WHERE term = ?",
+                        (ref,)).fetchone():
+        return True
+    # Grains are rows too: constraint bindings, surface_refs and the
+    # reconcile ledger all point at what the index holds, by its own key.
+    return ctx.conn.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                            (ref,)).fetchone() is not None
+
+
 def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
     """
     The surface a criterion names, checked against the index that knows.
@@ -2918,6 +2958,16 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     Deriving the id makes a repeat an upsert instead. It also means the same
     assumption reached by two roles is one entry, which is the truth.
     """
+    # The world-audit found ledger rows about 'glossary' and 'problem.assert'
+    # -- table names and tool names where a row id belongs, unresolvable at
+    # read time. An assumption is about a row; the table half already has its
+    # own parameter.
+    if not ref_resolves(ctx, about_ref):
+        raise ValueError(
+            f"{about_ref!r} names no row. about_ref is the id of the row the "
+            f"assumption is about (about_table says which table); if it is "
+            f"about the whole area, use the @-prefixed area name")
+
     import hashlib
 
     digest = hashlib.sha256(

@@ -19,9 +19,10 @@ attached, and when a pointer's target closes, the line comes out.
    worktree stays as evidence), `abandoned` is a declared-terminal state,
    and `test_steering.py` pins all of it. Next for the loop: G2, the acts
    observed in a recorded run.
-2. **Loop 5 → G2: earn the re-survey.** The freshness machinery is built and
-   pinned (`test_a_changed_file_reopens_exactly_its_area`); what is owed is
-   recorded re-survey sessions and a refresh under a running batch.
+2. **Loop 5 → G2: one load short.** The re-survey session is recorded and
+   green; refresh-under-a-running-batch is pinned (and taught `rota refresh`
+   to report orphaned grain refs). What remains is the earn-twice gate: the
+   re-survey case confirming on a second recording load.
 3. **Loop 4 → G2: three routing-judgment reds.** Attributed 2026-08-29:
    `hold-a-test` is held (production model, declared). The remaining three
    fail on both models — the role acts within its own artefact instead of

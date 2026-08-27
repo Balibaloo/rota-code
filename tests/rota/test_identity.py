@@ -65,3 +65,64 @@ def test_the_lint_can_fail():
     tables = _schema_tables() | {"widgets"}
     missing = sorted(tables - set(NATURAL_KEYS))
     assert "widgets" in missing
+
+
+# --- the promise half: a ref must resolve ------------------------------------
+
+def test_a_ref_that_names_no_row_is_refused(tmp_path):
+    """The audit found 258 broken promises in the historical runs -- labels
+    like 'work_stalled' in body_refs, composed in good faith and meaningless
+    at the recipient. The door now demands resolution: a row that exists, a
+    row staged this session, an entry, or an @-prefixed non-row subject."""
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance)"
+               " VALUES ('g1','recipe','x','observed')")
+    db.commit()
+    sb = build("terminologist", db, mode="unresolved")
+    with _pytest.raises(ValueError, match="names no row"):
+        sb.call("msg.answer_liaison", refs=["work_stalled"])
+    sb.call("msg.answer_liaison", refs=["g1"])
+    assert sb.ctx.outbound
+
+
+def test_a_row_staged_this_session_is_a_legal_ref(tmp_path):
+    """Sends and writes commit together, so a ref to a row written moments
+    ago in the same session must pass -- refusing it would make the commonest
+    honest flow (write, then point at what you wrote) illegal."""
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_m_in','principal',1,'people can export recipes as csv')")
+    db.commit()
+    sb = build("liaison", db, mode="converse", entry_id="e_m_in")
+    sb.call("brief.segment", id="s_new1", span_start=0, span_end=33,
+            text="people can export recipes as csv")
+    sb.call("msg.confirm_principal", refs=["s_new1"])
+    assert sb.ctx.outbound
+
+
+def test_the_ledger_is_about_rows_not_tables(tmp_path):
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+               "'approved',1,1)")
+    db.commit()
+    sb = build("developer", db, mode="tests_failing")
+    with _pytest.raises(ValueError, match="names no row"):
+        sb.call("ledger.log", about_ref="glossary",
+                about_table="glossary_terms", assumption="terms lowercase")
+    out = sb.call("ledger.log", about_ref="i1", about_table="items",
+                  assumption="closure includes soft delete")
+    assert out["id"].startswith("l_")

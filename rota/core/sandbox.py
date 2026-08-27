@@ -732,6 +732,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 f"or the tools you called -- the words of the thing are not a "
                 f"handle on it")
 
+        # And an id is a promise that a row exists. The shape check above
+        # was `\S{1,64}` -- any word passed -- and the world-audit found the
+        # cost: 258 refs across the historical runs that resolve to nothing
+        # at the recipient, every one composed in good faith ('term_1',
+        # 'work_stalled') and every one silently meaningless at the far end.
+        # Legal is: a row that exists, a row this session staged, an entry,
+        # or an @-prefixed non-row subject. Refused here it costs a turn and
+        # the sender can trade the label for the id it actually holds.
+        dangling = [r for r in (refs or []) if not api.ref_resolves(ctx, r)]
+        if dangling:
+            raise ValueError(
+                f"{dangling[0][:40]!r} names no row -- not in any table, not "
+                f"written this session. Refs are ids from the rows you were "
+                f"given or the tools you called; if you mean a thing with no "
+                f"row, the thing to send is the row that talks about it")
+
         # The principal is the one recipient that does not share the database.
         # They have seen the transcript and whatever came out of it; they have
         # never seen a message, do not know the roles by name and cannot be

@@ -243,6 +243,11 @@ def test_logging_the_same_assumption_twice_is_one_entry(db):
     *empty* ledger, so duplicates make the principal resolve one assumption
     three times.
     """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+               "'approved',1,1)")
+    db.commit()
+
     first = build("developer", db).call(
         "ledger.log", about_ref="i1", about_table="items",
         assumption="assumed soft delete")
