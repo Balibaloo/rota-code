@@ -1038,6 +1038,14 @@ predicate can tell "surveyed at an unknown commit" from "surveyed at this one".
 changed since `commit_sha` needs re-surveying — and it was never hard, which is
 why it sat here behind a missing column.
 
+**Built, 2026-08-27, by content rather than commit.** `code_index` grains
+carry a content hash, survey records stamp the area hash they attested
+against, and the survey view re-offers exactly the areas whose content moved
+— `rota refresh` is the operator door and
+`test_a_changed_file_reopens_exactly_its_area` is the pin. Closed; the
+remaining Loop 5 debt (recorded re-survey sessions) is `COMPLETION.md`
+Track A.
+
 ### Amendment as the normal operation
 
 Every mode is optimised for writing something new. Over a project lifetime the

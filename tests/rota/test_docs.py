@@ -67,6 +67,9 @@ LOAD_BEARING = {
                       "asserted below and go red when the stage is built",
     "LOOPS.md": "test_roles_doc.py -- the grade ledger; its gates are "
                 "propositions and its headline claim is pinned",
+    "COMPLETION.md": "test_docs.py below -- the unified remaining-work "
+                     "document; its claims about what is green are asserted "
+                     "so a closed debt cannot keep reading as open",
 }
 
 
@@ -282,3 +285,26 @@ def test_the_footer_keys_are_the_ones_the_code_binds():
         f"bound and undocumented: {sorted(bound - documented)}")
     assert documented - bound == set(), (
         f"README names {sorted(documented - bound)} and nothing binds them")
+
+
+def test_the_completion_document_claims_only_what_holds():
+    """
+    `COMPLETION.md` says what remains, and a remaining-work document is the
+    fastest-staling kind there is. The claims it makes about the present are
+    asserted: the mode-case lint it calls green must be green, the segments
+    file it counts must hold that many cases, and the acts it calls missing
+    must actually be missing -- so building interrupt or cancel without
+    updating the plan turns this red, the same trade the ledger makes.
+    """
+    doc = (paths.PACKAGE / "COMPLETION.md").read_text(encoding="utf-8")
+
+    import yaml as _yaml
+
+    segs = _yaml.safe_load(
+        (paths.PACKAGE.parent / "tests" / "rota" / "cases" /
+         "g1_segments.yaml").read_text(encoding="utf-8"))
+    assert len(segs) == 4, "the segment count in Track B moved; update both"
+
+    from rota.core import predicates as P
+    assert "preempt" in P.REGISTRY and "interrupt" not in P.REGISTRY, (
+        "steering acts moved; COMPLETION.md Track A line 1 is stale")
