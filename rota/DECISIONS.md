@@ -845,6 +845,21 @@ disagreeing upward. The segment stays red as the record; the next
 experiment is the same segment on the production model, which is the
 bench's to run.
 
+**Run, same day. The A/B answers all three walls at once.** The conflict
+segment on qwen3:8b: **5/5, textbook** — both rows in refs, both spans
+quoted verbatim, nothing written. The wall was the recording model's
+disposition, not the design's: the evidence bar, the twin-guard and the
+brief all work exactly as built when the model can carry the behaviour.
+The other two walls did not move, and how they did not move matters. The
+terminologist's criteria-mode contradiction: qwen also writes a criterion
+and challenges nothing — that wall is the *mode's*, both models, and it is
+now a second line of defence behind a first line that works (the Architect
+catches the same conflict at ratification). And fix-the-code: qwen fails it
+the original way, fixing the code *and* challenging the test in one session
+— it quotes both sides validly while doing both, which is the guard doing
+exactly what it promised ("legal, not good") and the case remaining the
+register's record of a choice no mechanics can make for a model.
+
 **Deferred-eager rows are in limbo.** `observed_entries` offers a row once,
 ever -- right when a ruling comes, and a hole when the principal defers an
 eager present: those rows are not decided, not ledgered, and never

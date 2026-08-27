@@ -302,6 +302,31 @@ def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
         raise ValueError("no entry to segment against")
     refuse_second_answer(ctx, "work")
 
+    # You cannot ratify a question. Handed "remind me, what did we decide
+    # about invoice retention?", intake segmented it into three statements
+    # and sent the principal their own question back to confirm -- five runs
+    # of five. A statement is a claim the principal made; the sentence a span
+    # lands in ending in a question mark means they asked, and asking is
+    # answered or routed, never proposed back for ratification.
+    row = ctx.conn.execute("SELECT text FROM entries WHERE id = ?",
+                           (target,)).fetchone()
+    if row and row["text"]:
+        # The span's sentence is the one its start lands in: the first
+        # terminator at or after span_start closes it. Anchoring at the end
+        # misjudged a span that sloppily overshot its own full stop.
+        source = row["text"]
+        stop = len(source)
+        for mark in (".", "!", "?"):
+            k = source.find(mark, max(0, min(span_start, len(source))))
+            if k != -1:
+                stop = min(stop, k)
+        if stop < len(source) and source[stop] == "?":
+            raise ValueError(
+                "that span is a question, and a question is never a "
+                "statement to ratify. Answer it -- msg.converse_principal "
+                "with the rows that answer it in refs -- or ask the owner "
+                "whose artefact holds the answer")
+
 
     # The same span twice is the same statement twice, whatever id it is given.
     #
@@ -1600,32 +1625,6 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     if not slug:
         raise ValueError("a constraint needs a headline with a word in it")
 
-    # A new constraint about a subject an existing constraint already governs
-    # is either the same commitment (the headline-derived id catches the exact
-    # words) or a *contradicting twin* -- and the second kind was written
-    # live: handed "closing an account deletes its invoices" against a
-    # decided seven-year retention constraint, the Architect spent five runs
-    # of five trying to record the conflict as a second constraint, once with
-    # an invented attribution to justify it. Two constraints about one
-    # subject saying different things is incoherence whatever the intent, so
-    # the door refuses and names the honest exits.
-    stop = {"the", "and", "for", "with", "after", "are", "is", "not", "its"}
-    def _stems(words: str) -> set[str]:
-        return {w.rstrip("s") for w in re.findall(r"[a-z]+", words.lower())
-                if len(w) >= 4 and w not in stop}
-    mine = _stems(headline + " " + (text or ""))
-    for row in ctx.conn.execute(
-            "SELECT id, headline FROM constraints WHERE id != ?",
-            (f"c_{slug[:40]}",)):
-        shared = mine & _stems(row["headline"])
-        if len(shared) >= 2:
-            raise ValueError(
-                f"{row['id']} already governs this subject: "
-                f"{row['headline']!r}. If both commitments hold together, "
-                f"say what distinguishes them in the headline; if they "
-                f"cannot both be true, that is not a second constraint, it "
-                f"is msg.challenge_vision_keeper with both rows in refs and "
-                f"quotes= copying the span of each")
     # A headline is what is promised, in the source's words. "commitment 1",
     # "constraint 2": a label, and five of them arrived in one session with
     # the orientation's items pasted under them. A headline with no word of
@@ -1686,6 +1685,34 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"surveyed, and a survey record is what shrinks it. Write your own "
             f"constraint for what you found.")
 
+    # A new constraint about a subject an existing constraint already governs
+    # is either the same commitment (the headline-derived id catches the exact
+    # words) or a *contradicting twin* -- and the second kind was written
+    # live: handed "closing an account deletes its invoices" against a
+    # decided seven-year retention constraint, the Architect spent five runs
+    # of five trying to record the conflict as a second constraint, once with
+    # an invented attribution to justify it. Two constraints about one
+    # subject saying different things is incoherence whatever the intent, so
+    # the door refuses and names the honest exits.
+    stop = {"the", "and", "for", "with", "after", "are", "is", "not", "its"}
+    def _stems(words: str) -> set[str]:
+        return {w.rstrip("s") for w in re.findall(r"[a-z]+", words.lower())
+                if len(w) >= 4 and w not in stop}
+    mine = _stems(headline + " " + (text or ""))
+    from ..onboarding import boot as _boot
+
+    for row in ctx.conn.execute(
+            "SELECT id, headline FROM constraints WHERE id NOT IN (?, ?)",
+            (slug, _boot.ZERO)):
+        shared = mine & _stems(row["headline"])
+        if len(shared) >= 2:
+            raise ValueError(
+                f"{row['id']} already governs this subject: "
+                f"{row['headline']!r}. If both commitments hold together, "
+                f"say what distinguishes them in the headline; if they "
+                f"cannot both be true, that is not a second constraint, it "
+                f"is msg.challenge_vision_keeper with both rows in refs and "
+                f"quotes= copying the span of each")
     # You cannot have found a commitment in a file you did not open. The first
     # foreign repository produced constraints naming grains no session had read
     # -- the brief said to open them, the harness was cutting the result to a

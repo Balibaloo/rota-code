@@ -120,3 +120,33 @@
     # from here would be the route eating its own tail.
     writes: [glossary_terms, statements, items, decisions]
     recipients: [terminologist, vision_keeper, architect]
+
+- id: G1-what-the-brief-already-holds-is-answered-from-it
+  tier: G1
+  role: liaison
+  prompt: converse
+  runs: 5
+  pass: 3
+  inbound: {from: principal, to: liaison, verb: converse, body_refs: [e_m_in]}
+  fixture:
+    entries:
+      - {id: e_m_in, author: principal, ts_order: 1,
+         text: "remind me, what did we decide about invoice retention?"}
+      - {id: <e0>, author: principal, ts_order: 0,
+         text: "invoices have to be kept seven years after the account closes"}
+    statements:
+      - {id: <s1>, span_entry: <e0>, span_start: 0, span_end: 62,
+         text: "invoices are kept seven years after account closure",
+         status: ratified}
+  expect:
+    # The punting direction, measured honestly this time: the earlier draft of
+    # this segment forbade escalating a glossary question whose answer the
+    # session was never shown -- the routed design *wants* that escalation.
+    # Here the material genuinely is in hand: `brief.list` rides into every
+    # intake prompt, the ratified statement is the answer, and spending an
+    # owner's session to fetch what arrived pushed is the punt.
+    messages:
+      - {to: principal, count: ">=1", refs_include: [<s1>]}
+  forbidden:
+    writes: [statements, items, tickets, glossary_terms, decisions]
+    recipients: [vision_keeper, terminologist, architect]
