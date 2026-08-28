@@ -44,7 +44,11 @@ attached, and when a pointer's target closes, the line comes out.
 1. **Segments** (five standing: four measured — two held by each model —
    and the wrong-answer-from-the-seat case written 2026-08-28 on the
    `forbidden: rows:` harness, recording with the next pass). Remaining:
-   one segment per escalation verb that has none.
+   the ten uncovered message edges, pinned by name in
+   `test_edge_coverage.py` (the list must shrink in the same commit that
+   covers one). The two genuinely distinct flows go first: critic->tester
+   challenge and architect->liaison report; the rest are answer/question
+   flavours of covered machinery.
 2. **Composed flows**: multi-segment stories where a ruling on one trap
    invalidates the work behind another; the `grants:` key arrives here.
 3. **Synthetic stories**, tiered in `stories.json`, then **foreign-repo

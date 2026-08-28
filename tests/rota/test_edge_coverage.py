@@ -39,3 +39,54 @@ def test_every_declared_edge_is_enumerable():
 def test_edge_coverage_is_complete():
     rep = coverage.report()
     assert not rep.missing, "\n" + coverage.render(rep)
+
+
+def test_every_message_edge_is_exercised_or_on_the_backlog():
+    """
+    Ten edges no case touches, pinned by name (2026-08-28). The pin cuts both
+    ways: drawing a new message edge without a case fails here, and writing a
+    case for a backlog edge fails here too -- the list must shrink in the
+    same commit, so the backlog cannot silently rot in either direction.
+    Most are answer/question flavours of covered machinery; the two
+    genuinely distinct flows are critic->tester challenge and
+    architect->liaison report, queued in COMPLETION.md Track B.
+    """
+    import json
+    from pathlib import Path as _P
+
+    import yaml as _yaml
+
+    g = json.load(open(_P("rota/design/graph.json")))
+    edges = {(e["s"], e["t"], e["v"]) for e in g["edges"]
+             if e.get("type") == "messages"}
+
+    touched = set()
+    for path in _P("tests/rota/cases").glob("*.yaml"):
+        for c in _yaml.safe_load(path.read_text(encoding="utf-8")) or []:
+            inb = c.get("inbound") or {}
+            if isinstance(inb, dict) and inb.get("verb"):
+                touched.add((inb.get("from"), inb.get("to"), inb["verb"]))
+            first, then = c.get("first") or {}, c.get("then") or {}
+            if first.get("verb") and then.get("role"):
+                touched.add((first.get("role"), then["role"], first["verb"]))
+            actor = c.get("role") or first.get("role")
+            for m in ((c.get("expect") or {}).get("messages") or []):
+                if m.get("verb"):
+                    touched.add((actor, m.get("to"), m["verb"]))
+
+    BACKLOG = {
+        ("architect", "developer", "answer"),
+        ("researcher", "tester", "answer"),
+        ("terminologist", "architect", "answer"),
+        ("vision_keeper", "tester", "answer"),
+        ("critic", "tester", "challenge"),
+        ("architect", "terminologist", "question"),
+        ("terminologist", "researcher", "question"),
+        ("tester", "terminologist", "question"),
+        ("vision_keeper", "researcher", "question"),
+        ("architect", "liaison", "report"),
+    }
+    untouched = edges - touched
+    assert untouched == BACKLOG, (
+        f"newly uncovered: {sorted(untouched - BACKLOG)}; "
+        f"covered but still on the backlog: {sorted(BACKLOG - untouched)}")
