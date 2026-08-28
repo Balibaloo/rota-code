@@ -28,10 +28,19 @@ attached, and when a pointer's target closes, the line comes out.
    *perform* the triage act and both judge wrong — `encodable`, 5/5 each,
    on the uncheckable-sentence and outside-fact cases, with the taxonomy in
    view. After eliminating prose placement, headline framing and structural
-   forcing, these two are a **judgment boundary of the 8B tier**. One rung
-   left on the ladder: qwen2.5:14b on exactly these two cases (ten runs,
-   40-90s each). If 14B also fails, the cases stay red as tier records and
-   the composed gauntlet measures whether downstream repair compensates.
+   forcing, these two are a **judgment boundary of the 8B tier**. The 14B rung
+   ran the same day and completed the picture with a third shape: 14B
+   correctly judges *cannot* (a real step over 8B's `encodable`) but
+   collapses all three cannot-kinds into `ambiguous_word` and routes to
+   the Terminologist — the nearest desk, every model's attractor. Final
+   attribution: the can/cannot judgment arrives at 14B; the
+   word/sentence/fact taxonomy is beyond every local tier tested. The
+   design question this leaves for the seat: the ladder already exists to
+   climb a question that did not land — so the honest redesign may be to
+   stop demanding the right desk first time (accept any cannot at the
+   nearest desk, let `unresolved` climb it mechanically) and re-spec the
+   two cases to expect cannot-plus-ladder rather than perfect routing.
+   Until ruled, both stay red as tier records.
    Also awaiting attribution, found by the same pass: `LI-present`,
    `L2-AR-place-a-block`, `TS-hold` (nominally qwen-held), and the
    wrong-answer segment's first recording. Original framing note kept
