@@ -258,7 +258,8 @@ def test_the_loop_ledger_claims_only_what_the_build_can_check():
     # G3 is claimable only with the loop's own chaos file on disk -- the
     # check extended exactly as its docstring demanded when loop 1 earned
     # it. G4 stays unclaimable until the gauntlet's story log exists.
-    chaos_files = {"1": "test_chaos_onboarding.py"}
+    chaos_files = {"1": "test_chaos_onboarding.py",
+                   "5": "test_chaos_staytrue.py"}
     here = paths.PACKAGE.parent / "tests" / "rota"
     for num, grade in _re.findall(r"^\| (\d) \| [a-z /]+? \| \*\*(G\d)\*\* \|",
                                   doc, _re.MULTILINE):

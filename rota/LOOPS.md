@@ -35,7 +35,7 @@ core surviving is the floor, not the grade.
 | 2 | inquiry | **G2** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key |
 | 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
 | 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
-| 5 | stay true | **G2** | a changed file reopens exactly its area; the re-survey session earned across three recording loads (40/40); refresh under a running batch pinned |
+| 5 | stay true | **G3** | a changed file reopens exactly its area; the re-survey session earned across three recording loads (40/40); refresh under a running batch pinned |
 | 6 | steering | **G1** | preempt, interrupt (`rota interrupt`, a pause) and cancel (revoked approval ends the batch, terminal) all pinned deterministically; the loop adds no model modes |
 
 ## What each loop still owes, by gate
@@ -51,8 +51,11 @@ core surviving is the floor, not the grade.
   front too (`test_challenge_evidence.py`). Still owed: cases for the delivery
   modes that have none. The one-fault-per-pass curve reaching zero *is* this
   loop's path through the gates.
-- **5 → G3**: kill a refresh mid-reindex; a survey attested against a tree
-  that moved between its read and its attest.
+- ~~5 → G3~~ — both injuries inflicted and held (`test_chaos_staytrue.py`),
+  and both drew blood first: the index swap ran on autocommit (93 grains
+  before the kill, 3 after) and is a transaction now; an attest stamped the
+  moved tree over the one the session read, and now stamps the hash captured
+  at wake.
 - **6 → G2**: the steering acts on the recorded corpus — a preemption and
   a cancellation observed in a recorded delivery run rather than a fixture.
 

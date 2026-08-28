@@ -2370,7 +2370,8 @@ def surveys_attest(ctx: Ctx, outcome: str,
         # freshness view compares this against the same aggregate later; a
         # record whose view is gone counts as no record, and the survey
         # machinery re-fires unchanged.
-        "area_hash": area_content_hash(ctx.conn, area)}))
+        "area_hash": getattr(ctx, "area_hash_at_wake", None)
+                       or area_content_hash(ctx.conn, area)}))
     # The record stores what the citation *resolved to*, not what was typed.
     # Storing the bare symbol with `resolves=1` would assert that a grain named
     # `TokenStore` is in the index, and none is -- a citation nobody can follow

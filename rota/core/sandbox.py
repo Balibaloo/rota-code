@@ -498,6 +498,14 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     # only exists once somebody knocks.
     if "triage" in (grouped.get("tests") or {}):
         ctx.triaged = {}
+    # A survey stamps the tree it read, not the tree at attest time. The
+    # hash is captured here, when the session is built for its area -- a
+    # concurrent refresh mid-session must not let the record claim currency
+    # for content nobody surveyed.
+    if area:
+        from ..roles.api import area_content_hash
+
+        ctx.area_hash_at_wake = area_content_hash(conn, area)
     return Sandbox(role, ctx, artefacts)
 
 

@@ -397,20 +397,31 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     for _, dst in edges:
         fan_in[dst] = fan_in.get(dst, 0) + 1
 
-    conn.execute("DELETE FROM code_edges")
-    conn.execute("DELETE FROM code_index")
-    for f in facts:
-        conn.execute(
-            "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
-            "VALUES (?, 'path', ?, ?)",
-            (f.path, fan_in.get(f.path, 0), f.content_hash))
-        for symbol, kind in f.symbols:
+    # The swap is a transaction, not a hopeful sequence. The connection runs
+    # autocommit, so without the explicit BEGIN the DELETE landed instantly
+    # and a death during the inserts left a half-empty index -- a
+    # mostly-deleted tree that would reopen every area at once. Chaos found
+    # it: 93 grains before the kill, 3 after.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM code_edges")
+        conn.execute("DELETE FROM code_index")
+        for f in facts:
             conn.execute(
-                "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in, sym_kind) "
-                "VALUES (?, 'symbol', 0, ?)", (f"{f.path}::{symbol}", kind))
-            report.symbols += 1
-    conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
-                     sorted(edges))
+                "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
+                "VALUES (?, 'path', ?, ?)",
+                (f.path, fan_in.get(f.path, 0), f.content_hash))
+            for symbol, kind in f.symbols:
+                conn.execute(
+                    "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in, sym_kind) "
+                    "VALUES (?, 'symbol', 0, ?)", (f"{f.path}::{symbol}", kind))
+                report.symbols += 1
+        conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
+                         sorted(edges))
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
     report.files = len(facts)
     report.edges = len(edges)
