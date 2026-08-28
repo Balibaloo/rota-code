@@ -168,8 +168,11 @@
     entries:
       - {id: e_<m0>, author: principal, ts_order: 1,
          text: "people should be able to export their recipes as csv"}
+      # Declarative on purpose: the first draft phrased this as a question
+      # and the question-guard (correctly) refused to segment it, so the
+      # case could never pass -- a trap colliding with a newer guard.
       - {id: e_m_in, author: principal, ts_order: 2,
-         text: "oh also, can the exports include the recipe photos?"}
+         text: "oh also, the exports should include the recipe photos"}
     statements:
       - {id: <s1>, span_entry: e_<m0>, span_start: 0, span_end: 52,
          text: "people can export their recipes as csv",

@@ -41,9 +41,16 @@ attached, and when a pointer's target closes, the line comes out.
    nearest desk, let `unresolved` climb it mechanically) and re-spec the
    two cases to expect cannot-plus-ladder rather than perfect routing.
    Until ruled, both stay red as tier records.
-   Also awaiting attribution, found by the same pass: `LI-present`,
-   `L2-AR-place-a-block`, `TS-hold` (nominally qwen-held), and the
-   wrong-answer segment's first recording. Original framing note kept
+   The same pass's four new reds, attributed 2026-08-28:
+   `G1-a-reply` was my authoring bug {EM} the trap utterance was phrased as a
+   question and the question-guard rightly refused to segment it (fixture
+   now declarative; re-records next pass). `LI-present` is the resolution
+   guard converting a historically false green into an honest red: llama
+   invents label-refs for its present ('scope', 'terms' {EM} the audit's
+   dangling-ref class) and cannot find the legal ids in its wake refs;
+   qwen arm unprobed. `L2-AR-place-a-block` and `TS-hold` are the chronic-
+   marginal class {EM} judgment cases oscillating across loads, exactly what
+   the flip tracker marks provisional; watched, not chased. Original framing note kept
    below for the record.
    **(superseded)**
    Attributed 2026-08-29: `hold-a-test` is held (production model,
