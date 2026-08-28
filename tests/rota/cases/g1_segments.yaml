@@ -156,3 +156,40 @@
   forbidden:
     writes: [statements, items, tickets, glossary_terms, decisions]
     recipients: [vision_keeper, terminologist, architect]
+
+- id: G1-a-reply-that-answers-something-else-ratifies-nothing
+  tier: G1
+  role: liaison
+  prompt: converse
+  runs: 5
+  pass: 3
+  inbound: {from: principal, to: liaison, verb: converse, body_refs: [e_m_in]}
+  fixture:
+    entries:
+      - {id: e_<m0>, author: principal, ts_order: 1,
+         text: "people should be able to export their recipes as csv"}
+      - {id: e_m_in, author: principal, ts_order: 2,
+         text: "oh also, can the exports include the recipe photos?"}
+    statements:
+      - {id: <s1>, span_entry: e_<m0>, span_start: 0, span_end: 52,
+         text: "people can export their recipes as csv",
+         status: proposed}
+    messages:
+      - {id: <m0>, thread_id: <t1>, from_role: principal, to_role: liaison,
+         verb: converse, body_refs: '["e_<m0>"]', seq: 1, status: answered}
+      - {id: <mc>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: confirm, body_refs: '["<s1>"]', cause_id: <m0>, seq: 2,
+         status: open}
+  expect:
+    # The seat was asked to confirm s1 and replied with a different subject
+    # entirely -- the first-answer-wrong shape, seen live on delivery rung
+    # one. The new words get ordinary intake (their own proposed statement,
+    # their own confirmation); the outstanding confirm stays outstanding.
+    writes:
+      statements: {count: "1..2"}
+  forbidden:
+    # The line only the row can hold: a reply that does not answer the
+    # confirm must not touch the statement awaiting it. Ratifying s1 off
+    # this reply would launder "said something after" into "said yes".
+    rows: ["statements:<s1>"]
+    writes: [items, tickets, criteria]
