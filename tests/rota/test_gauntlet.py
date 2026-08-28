@@ -42,6 +42,9 @@ def _segments() -> list[dict]:
     out = []
     for path in sorted(CASES.glob("g*.yaml")):
         out.extend(fixtures.load_case(path) or [])
+    # Same-model cases stay contiguous: each alternation of the
+    # bar model is a full weight reload on a GPU that fits one.
+    out.sort(key=lambda c: c.get("model", ""))
     return out
 
 
