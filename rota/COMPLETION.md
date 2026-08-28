@@ -19,10 +19,9 @@ attached, and when a pointer's target closes, the line comes out.
    worktree stays as evidence), `abandoned` is a declared-terminal state,
    and `test_steering.py` pins all of it. Next for the loop: G2, the acts
    observed in a recorded run.
-2. **Loop 5 → G2: one load short.** The re-survey session is recorded and
-   green; refresh-under-a-running-batch is pinned (and taught `rota refresh`
-   to report orphaned grain refs). What remains is the earn-twice gate: the
-   re-survey case confirming on a second recording load.
+2. ~~Loop 5 → G2~~ — earned 2026-08-28: the re-survey case confirmed
+   across three distinct recording loads, 40/40, `trust: earned`. Next for
+   the loop: its G3 injuries (LOOPS.md).
 3. **Loop 4 → G2: the fork verdict is in (2026-08-28).** The mandatory
    fork worked as an instrument and failed as a cure: both models now
    *perform* the triage act and both judge wrong — `encodable`, 5/5 each,

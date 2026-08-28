@@ -35,7 +35,7 @@ core surviving is the floor, not the grade.
 | 2 | inquiry | **G2** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key |
 | 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
 | 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
-| 5 | stay true | **G1** | a changed file reopens exactly its area; `rota refresh` |
+| 5 | stay true | **G2** | a changed file reopens exactly its area; the re-survey session earned across three recording loads (40/40); refresh under a running batch pinned |
 | 6 | steering | **G1** | preempt, interrupt (`rota interrupt`, a pause) and cancel (revoked approval ends the batch, terminal) all pinned deterministically; the loop adds no model modes |
 
 ## What each loop still owes, by gate
@@ -51,12 +51,8 @@ core surviving is the floor, not the grade.
   front too (`test_challenge_evidence.py`). Still owed: cases for the delivery
   modes that have none. The one-fault-per-pass curve reaching zero *is* this
   loop's path through the gates.
-- **5 → G2**: ~~record the re-survey sessions~~ (recorded, green, one load
-  — the earn-twice gate wants a second); ~~a refresh under a running batch~~
-  — pinned four ways, and building it found the refresh silently disarming
-  tripwires: a rebuilt index strands references to vanished grains, so
-  `rota refresh` now reports every orphaned binding, touch prediction and
-  criterion surface instead of leaving them quietly dead.
+- **5 → G3**: kill a refresh mid-reindex; a survey attested against a tree
+  that moved between its read and its attest.
 - **6 → G2**: the steering acts on the recorded corpus — a preemption and
   a cancellation observed in a recorded delivery run rather than a fixture.
 
