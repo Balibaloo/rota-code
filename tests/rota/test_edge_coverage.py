@@ -47,9 +47,10 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
     ways: drawing a new message edge without a case fails here, and writing a
     case for a backlog edge fails here too -- the list must shrink in the
     same commit, so the backlog cannot silently rot in either direction.
-    Most are answer/question flavours of covered machinery; the two
-    genuinely distinct flows are critic->tester challenge and
-    architect->liaison report, queued in COMPLETION.md Track B.
+    The two genuinely distinct flows came off the list first
+    (critic->tester challenge; architect->liaison report -- the latter found
+    a door the graph drew and the exhausted mode never offered); the eight
+    remaining are answer/question flavours of covered machinery.
     """
     import json
     from pathlib import Path as _P
@@ -79,12 +80,10 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
         ("researcher", "tester", "answer"),
         ("terminologist", "architect", "answer"),
         ("vision_keeper", "tester", "answer"),
-        ("critic", "tester", "challenge"),
         ("architect", "terminologist", "question"),
         ("terminologist", "researcher", "question"),
         ("tester", "terminologist", "question"),
         ("vision_keeper", "researcher", "question"),
-        ("architect", "liaison", "report"),
     }
     untouched = edges - touched
     assert untouched == BACKLOG, (

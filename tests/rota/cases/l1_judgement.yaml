@@ -212,3 +212,107 @@
     # Grouping is composition. It does not write the criteria it groups by, and
     # it does not decide what is in scope.
     writes: [criteria, tickets, items]
+
+- id: L1-CR-a-test-that-encodes-nothing-is-a-challenge
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 3
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "close an account"
+    edit:
+      src/billing/accounts.py: |
+        from ..store import load, save
+
+
+        def close_account(account_id):
+            rec = load("billing_accounts", account_id)
+            if rec is None:
+                return False
+            rec.data["state"] = "tombstoned"
+            save(rec)
+            return True
+  fixture:
+    items:
+      - {id: <i1>, text: "closing tombstones the account", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "close an account"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "closing an account tombstones it and keeps its invoices",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_close.py,
+         body: "assert close_account('a1') is not None"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123,
+         result: pass}
+  expect:
+    # The diff satisfies the criterion; the test does not encode it -- it
+    # would pass whatever close_account did to the invoices. The review
+    # brief's own line: a test that does not encode its criterion is
+    # `msg.challenge_tester`, not a fail -- and not a pass either, because a
+    # green verdict here merges a batch whose safety net has a hole.
+    messages:
+      - {to: tester, verb: challenge, count: ">=1", refs_include: [<c1>, <tst1>]}
+  forbidden:
+    writes: [criteria, tests, verdicts]
+
+- id: L1-AR-a-dead-end-is-reported-not-sat-on
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: exhausted
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+  fixture:
+    items:
+      - {id: <i1>, text: "exports stream in constant memory", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "stream the export"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "export_csv('all') peaks under 64MB for a 1GB recipe set",
+         term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    constraints:
+      - {id: <cn1>, provenance: decided,
+         headline: "exports never buffer the whole set",
+         text: "memory stays flat however large the recipe set grows"}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_mem.py,
+         body: "assert peak_memory(export_csv, 'all') < 64 * 2**20"}
+    test_runs:
+      # At the loop cap: what makes the batch exhausted rather than bouncing.
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123,
+         result: fail, attempt: 10}
+    messages:
+      # The first rung already spoken for: Developer escalated and the answer
+      # did not unstick it, which is what puts Architect next on the ladder.
+      - {id: <me1>, thread_id: <te1>, from_role: developer, to_role: architect,
+         verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
+  expect:
+    # The second rung, and none of its three shapes fit: the constraints are
+    # coherent, the structure carries the ask, the criteria assume nothing
+    # undecided. The remaining honest act is the door the graph always drew
+    # and the mode never offered -- report the stall so it reaches the seat.
+    messages:
+      - {to: liaison, verb: report, count: 1, refs_include: [<b1>]}
+  forbidden:
+    # Reporting is not amending: a dead end you cannot name is not a licence
+    # to reshape the model until you can.
+    writes: [constraints, model_areas, items, tickets, criteria]

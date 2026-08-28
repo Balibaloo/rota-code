@@ -15,6 +15,9 @@ shapes and no others:
 - **the criteria assume something nobody decided** —
   `msg.challenge_vision_keeper`, `quotes=` copying the assuming span verbatim
 
-If it is none of those, hand it on rather than sitting with it. Vision Keeper is
-the last rung that can be woken, and a batch stalled at your desk is a batch
-nobody is told about.
+**If it is none of those, that is a verdict too**: `msg.report_liaison` with
+the batch, so the stall reaches the seat. The graph drew this door and the
+mode never offered it -- found when the coverage backlog asked which edges no
+case exercises. Reporting a dead end you cannot name is as much a completed
+rung as fixing one you can; a batch stalled silently at your desk is the only
+wrong answer.

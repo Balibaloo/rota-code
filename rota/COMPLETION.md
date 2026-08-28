@@ -23,7 +23,20 @@ attached, and when a pointer's target closes, the line comes out.
    green; refresh-under-a-running-batch is pinned (and taught `rota refresh`
    to report orphaned grain refs). What remains is the earn-twice gate: the
    re-survey case confirming on a second recording load.
-3. **Loop 4 → G2: three routing-judgment reds, and the framing ruling.**
+3. **Loop 4 → G2: the fork verdict is in (2026-08-28).** The mandatory
+   fork worked as an instrument and failed as a cure: both models now
+   *perform* the triage act and both judge wrong — `encodable`, 5/5 each,
+   on the uncheckable-sentence and outside-fact cases, with the taxonomy in
+   view. After eliminating prose placement, headline framing and structural
+   forcing, these two are a **judgment boundary of the 8B tier**. One rung
+   left on the ladder: qwen2.5:14b on exactly these two cases (ten runs,
+   40-90s each). If 14B also fails, the cases stay red as tier records and
+   the composed gauntlet measures whether downstream repair compensates.
+   Also awaiting attribution, found by the same pass: `LI-present`,
+   `L2-AR-place-a-block`, `TS-hold` (nominally qwen-held), and the
+   wrong-answer segment's first recording. Original framing note kept
+   below for the record.
+   **(superseded)**
    Attributed 2026-08-29: `hold-a-test` is held (production model,
    declared). The remaining three fail on both models — the role acts
    within its own artefact instead of routing to the authority. The

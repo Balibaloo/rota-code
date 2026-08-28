@@ -8,5 +8,6 @@ decisions.search
 decisions.author
 ledger.log
 msg.answer_developer
+msg.report_liaison
 msg.propose_vision_keeper
 msg.challenge_vision_keeper
