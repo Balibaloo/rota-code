@@ -37,8 +37,9 @@ from ..testkit import fixtures
 
 def _cases() -> list[dict]:
     out = []
-    for path in sorted(paths.CASES.glob("l*.yaml")):
-        out.extend(fixtures.load_case(path) or [])
+    for pattern in ("l*.yaml", "g*.yaml"):
+        for path in sorted(paths.CASES.glob(pattern)):
+            out.extend(fixtures.load_case(path) or [])
     return out
 
 
@@ -54,7 +55,11 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         role = case.get("role") or (case.get("then") or {}).get("role")
         if not role:
             continue
-        want = Pins(model=model, temperature=0.0).with_prompt(
+        # The one-model ruling: a case that declares `model:` is held by
+        # that model, and this report must read the same recordings the
+        # suite replays -- a qwen-held green rendering as a llama STALE
+        # would be the report contradicting the register it exists to show.
+        want = Pins(model=case.get("model", model), temperature=0.0).with_prompt(
             fixtures.instructions_for(case))
 
         # A run that died for want of a cassette is not a result, and until
@@ -69,11 +74,12 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         # that still looks current, and it reads as a hard red.
         here = list(conn.execute(
             "SELECT passed, problems FROM case_runs "
-            "WHERE case_id = ? AND prompt_hash = ? "
+            "WHERE case_id = ? AND prompt_hash = ? AND model = ? "
             "  AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
             "                        OR transcript LIKE '%no cassette for%')) "
             "ORDER BY seq DESC LIMIT ?",
-            (case["id"], want.prompt_hash, case.get("runs", 5))))
+            (case["id"], want.prompt_hash, want.model,
+             case.get("runs", 5))))
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
             (case["id"],)).fetchone()["n"]
