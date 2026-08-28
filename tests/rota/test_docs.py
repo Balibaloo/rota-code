@@ -303,7 +303,9 @@ def test_the_completion_document_claims_only_what_holds():
     segs = _yaml.safe_load(
         (paths.PACKAGE.parent / "tests" / "rota" / "cases" /
          "g1_segments.yaml").read_text(encoding="utf-8"))
-    assert len(segs) == 4, "the segment count in Track B moved; update both"
+    # Five with the wrong-answer segment (2026-08-28, on the forbidden-rows
+    # harness). The pin fired when it landed unpinned, which is its job.
+    assert len(segs) == 5, "the segment count in Track B moved; update both"
 
     from rota.core import predicates as P
     assert "preempt" in P.REGISTRY and "cancel" in P.REGISTRY, (
