@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS case_runs (
 def open_dev_db(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path), isolation_level=None)
     conn.row_factory = sqlite3.Row
+    # Autocommit with the default rollback journal cost a journal create and
+    # two fsyncs per recorded turn -- measured maxing out the spinning drive
+    # for a whole recording pass. WAL batches the syncs; NORMAL is safe here
+    # because this database is evidence, re-earnable by re-recording, not the
+    # artefact store the durability rules exist for.
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(DEV_SCHEMA)
     # `CREATE TABLE IF NOT EXISTS` will not add a column to a table that already
     # exists, and this database is committed — so a schema that grows has to say

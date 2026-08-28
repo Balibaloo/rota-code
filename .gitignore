@@ -20,3 +20,6 @@ env/
 .rota/
 .rota-coverage.json
 .rota-timings.json
+
+tests/rota/cassettes.db-wal
+tests/rota/cassettes.db-shm
