@@ -142,6 +142,7 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
 
     # --- tests before code, which is the whole point of the ordering ---------
     drive(db, tick(db, "tick:tests_missing"), [
+        "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
         "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
         "body='from seam import delete_account\n"
         "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
@@ -341,6 +342,7 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
     lifecycle.start(db, "b1")
 
     drive(db, tick(db, "tick:tests_missing"), [
+        "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
         "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
         "body='from seam import delete_account\n"
         "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",

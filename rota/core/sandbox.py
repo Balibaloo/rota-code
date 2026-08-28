@@ -78,6 +78,8 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
                                    "ignore", "ignored", "boundary",
                                    "surface")},
     ("findings", "find"): {"status": ("satisfied", "violated")},
+    ("tests", "triage"): {"verdict": ("encodable", "ambiguous_word",
+                                      "no_machine_check", "outside_fact")},
 }
 
 # What to say when a *particular* wrong argument is offered, where listing the
@@ -490,6 +492,12 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     artefacts = {
         name: _Artefact(name, fns, available[name]) for name, fns in grouped.items()
     }
+    # The mandatory fork arms with the mode, not with usage: a mode that
+    # offers `tests.triage` requires the branch claim before any encode --
+    # otherwise an encode with no triage at all would sail past a gate that
+    # only exists once somebody knocks.
+    if "triage" in (grouped.get("tests") or {}):
+        ctx.triaged = {}
     return Sandbox(role, ctx, artefacts)
 
 

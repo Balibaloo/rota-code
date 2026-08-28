@@ -2832,6 +2832,38 @@ def batches_consult(ctx: Ctx) -> list[dict]:
 # tests
 # ---------------------------------------------------------------------------
 
+@op("tests", "triage")
+def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
+    """
+    The branch claim: every criterion gets a verdict before it gets a test.
+
+    The mandatory-fork experiment, from the principal's question ("are we
+    sure we framed the escalation correctly?"). The three-way routing has
+    been in the brief the whole time, as prose under a production headline
+    -- and both models skip prose to follow headlines, measured across all
+    three routing reds. So the judgement stops being skippable: it is an
+    act, performed per criterion, and `tests.encode` refuses a criterion
+    that has not been claimed encodable. Both branches are completions; a
+    routed criterion is a job done.
+    """
+    _must_exist(ctx, "criteria", criterion_id)
+    if not hasattr(ctx, "triaged"):
+        ctx.triaged = {}
+    ctx.triaged[criterion_id] = verdict
+    nxt = {
+        "encodable": "encode it: tests.encode names this criterion",
+        "ambiguous_word": "a word could mean more than one thing: "
+                          "msg.question_terminologist with the criterion in "
+                          "refs and the word in the question",
+        "no_machine_check": "no machine could check the sentence however the "
+                            "words are read: msg.question_vision_keeper with "
+                            "the criterion in refs",
+        "outside_fact": "checking needs a fact this project does not hold: "
+                        "msg.question_researcher, saying what fact",
+    }[verdict]
+    return {"criterion": criterion_id, "verdict": verdict, "next": nxt}
+
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -2853,6 +2885,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     with it — the same shape as the invented item id, and recoverable for the
     same reason: the model can be told and try again.
     """
+    # The fork is mandatory where the mode offers it: an encode is only legal
+    # for a criterion this session has claimed encodable. The other three
+    # verdicts name their owner, and taking that door is equally a completion.
+    if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) != "encodable":
+        raise ValueError(
+            f"{criterion_id} has no branch claim. tests.triage it first -- "
+            f"verdict 'encodable' and then encode, or one of "
+            f"'ambiguous_word' / 'no_machine_check' / 'outside_fact', each "
+            f"of which names the owner the criterion goes to instead")
+
     # The criterion is checked *first*, because the batch is derived from it and
     # a derivation from a bad input fails in terms of the derived thing. An
     # invented `criterion_id` used to come back as "no batch in this session and

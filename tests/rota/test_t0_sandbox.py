@@ -286,6 +286,7 @@ def test_a_test_that_restates_its_criterion_is_not_an_encoding(db):
     sb.ctx.batch_id = "b1"
 
     with pytest.raises(ValueError) as exc:
+        sb.call("tests.triage", criterion_id="c1", verdict="encodable")
         sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/export.py",
                 body="The exported file is easy for the finance team to work with")
 
@@ -307,6 +308,7 @@ def test_the_check_is_on_substance_not_on_wording(db):
     sb = build("tester", db, mode="tests_missing")
     sb.ctx.batch_id = "b1"
 
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
             body="assert prorate(999, 1, 3) == 333")
     assert sb.ctx.writes, "an encoding that adds something must go through"
@@ -326,6 +328,7 @@ def test_punctuation_and_case_do_not_launder_a_copy(db):
     sb.ctx.batch_id = "b1"
 
     with pytest.raises(ValueError):
+        sb.call("tests.triage", criterion_id="c1", verdict="encodable")
         sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/hooks.py",
                 body="Each webhook carries a signature header in the format "
                      "the receiving spec requires.")
@@ -350,6 +353,7 @@ def test_one_criterion_gets_one_test_in_a_session(db):
     sb = build("tester", db, mode="tests_missing")
     sb.ctx.batch_id = "b1"
 
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
             body="assert prorate(999, 1, 3) == 333")
     again = sb.call("tests.encode", id="t2", criterion_id="c1",
@@ -369,8 +373,10 @@ def test_a_second_criterion_is_a_second_test(db):
     sb = build("tester", db, mode="tests_missing")
     sb.ctx.batch_id = "b1"
 
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="p",
             body="assert prorate(999, 1, 3) == 333")
+    sb.call("tests.triage", criterion_id="c2", verdict="encodable")
     sb.call("tests.encode", id="t2", criterion_id="c2", path="p",
             body="assert effective_from(downgrade) == next_period_start")
     assert [w[1] for w in sb.ctx.writes] == ["t1", "t2"]
@@ -459,6 +465,7 @@ def test_asking_about_a_criterion_does_not_destroy_a_test_already_written(db):
     sb = build("tester", db, mode="tests_missing")
     sb.ctx.batch_id = "b1"
 
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
             body="assert prorate(999, 1, 3) == 333")
     sb.call("msg.question_vision_keeper", refs=["c1"], question="is this in scope?")

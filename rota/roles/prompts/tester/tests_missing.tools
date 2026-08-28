@@ -1,6 +1,7 @@
 tickets.load
 criteria.load
 glossary.lookup
+tests.triage
 tests.encode
 tests.consult
 msg.question_vision_keeper

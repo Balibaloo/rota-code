@@ -1063,6 +1063,16 @@
       "depth": "index"
     },
     {
+      "s": "tester",
+      "t": "tests",
+      "type": "reads",
+      "v": "triage",
+      "n": "the branch claim",
+      "label": "the mandatory fork",
+      "rows": "single",
+      "depth": "index"
+    },
+    {
       "s": "developer",
       "t": "tests",
       "type": "reads",
