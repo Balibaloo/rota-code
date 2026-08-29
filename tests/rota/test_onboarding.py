@@ -297,6 +297,21 @@ def test_onboarding_puts_every_area_under_constraint_zero(project):
         "absence of information, not a ruling"
 
 
+def test_empty_project_does_not_seed_constraint_zero(tmp_path):
+    db = init_db(tmp_path / "rota.db")
+
+    report = boot.onboard(db, tmp_path)
+
+    assert report.areas == 0
+    assert report.unsurveyed == 0
+    assert db.execute(
+        "SELECT 1 FROM constraints WHERE id = ?",
+        (boot.ZERO,)).fetchone() is None
+    assert db.execute(
+        "SELECT 1 FROM constraint_bindings WHERE constraint_id = ?",
+        (boot.ZERO,)).fetchone() is None
+
+
 def test_a_survey_shrinks_it_by_exactly_one_area(project):
     db, repo = project
     boot.onboard(db, repo.root)

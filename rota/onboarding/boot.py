@@ -212,7 +212,15 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
     that exist rather than deleted one at a time as they arrive, so a survey
     that is rolled back with its session takes its shrinkage with it — the
     binding cannot drift from the evidence, because it is a function of it.
+
+    If the project has no indexed areas yet, there is no real project to survey,
+    so there is no meaningful `k0` to create or present.
     """
+    if not conn.execute("SELECT 1 FROM code_index WHERE area IS NOT NULL LIMIT 1").fetchone():
+        conn.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?", (ZERO,))
+        conn.execute("DELETE FROM constraints WHERE id = ?", (ZERO,))
+        return 0
+
     conn.execute(
         "INSERT OR IGNORE INTO constraints (id, headline, text, provenance, "
         "is_global) VALUES (?, ?, ?, 'observed', 0)",
