@@ -102,6 +102,13 @@ def test_compose_includes_base_and_piece():
     assert "MODE: converse" in composed
 
 
+def test_liaison_converse_prompt_prioritizes_work_over_greeting():
+    composed = prompts.compose("liaison", "converse")
+    assert "leading greeting" in composed.lower()
+    assert "work request" in composed.lower()
+    assert "ignore the greeting" in composed.lower()
+
+
 def test_compose_falls_back_to_base_for_unknown_mode():
     composed = prompts.compose("liaison", "not_a_verb")
     assert "You are Liaison" in composed

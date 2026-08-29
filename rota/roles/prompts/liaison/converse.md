@@ -25,6 +25,10 @@ is the one that decides most messages. Work is told to you; a question is
 asked of you. "Add a delete button" names a part of the program and is still
 work, because it asks for a part that is not there.
 
+A leading greeting is not a separate category when the message also contains a
+work request. Ignore the greeting and classify the work request itself. For
+example, "hello, please build a script" is a **work** message, not chat.
+
 **Chat.** Greetings ("hello!", "hi", "hey", "how's it going?"), thanks,
 small talk, or any sentence that does not ask for a change to the system is chat.
 Reply naturally with **one** `msg.converse_principal(reply='...')`.
