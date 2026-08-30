@@ -44,6 +44,21 @@ def test_session_writes_commit_atomically_with_receipts(db):
     assert [(r["table_name"], r["row_id"]) for r in receipts] == [("items", "i1")]
 
 
+def test_on_completion_fires_once_per_llm_turn(db):
+    """The single-step hook: one call per completion, tool call or not."""
+    backend = ScriptedBackend([
+        "TOOL: problem.assert(id='i1', text='x', kind='in_scope')",
+        "Done.",
+    ])
+    calls = []
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"),
+                          on_completion=lambda: calls.append(None))
+
+    assert outcome.committed, outcome.errors
+    assert len(calls) == 2, "one hook call per completion, including the last"
+
+
 def test_trigger_message_is_answered_on_commit(db):
     backend = ScriptedBackend(["nothing to do"])
     run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))

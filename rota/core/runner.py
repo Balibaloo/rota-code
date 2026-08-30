@@ -912,6 +912,7 @@ def run_session(
     max_iterations: int = MAX_ITERATIONS,
     native_tools: bool | None = None,
     g: graph_mod.Graph | None = None,
+    on_completion: Any | None = None,
 ) -> RunOutcome:
     """
     Wake one role with one message, run its tool loop, commit atomically.
@@ -1064,6 +1065,14 @@ def run_session(
             # is what every session that behaved oddly has turned out to need.
             turns.append(Turn(iteration, system, user, completion.text,
                               int((time.perf_counter() - _started) * 1000)))
+            # The single-step hook. Called for every completion, whether or
+            # not it carried a tool call — the seat's pause is "one model
+            # turn", not "one dispatched call". A blocking callback here holds
+            # the session mid-flight (nothing is committed yet, so nothing is
+            # observable until the ordinary atomic commit at the end), which
+            # is why the caller owns the decision to block at all.
+            if on_completion:
+                on_completion()
             if getattr(completion, "truncated", False):
                 outcome.errors.append(
                     f"prompt did not fit: {completion.prompt_tokens} tokens "

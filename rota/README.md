@@ -71,7 +71,8 @@ the cockpit renders; this is only ever the current call.
 | key | what it does |
 |---|---|
 | `ctrl+l` | the run list — open, make, fork, wipe, diff |
-| `alt+p` | run / pause |
+| `alt+p` | run / pause — or, while single-step is holding a completion open, let that one step go |
+| `alt+shift+p` | single-step: toggle on/off (on by default) |
 | `alt+o` | index the project this run is about |
 
 | `ctrl+alt+r` | wipe, then index the same project again |
@@ -84,6 +85,17 @@ thing a yes/no cannot: you have to know which run you are in. `alt+o` is on that
 list because `indexer.build` opens with `DELETE FROM code_index`; a run with
 nothing indexed yet does not ask, because arming everything is how
 confirmations stop being read.
+
+**Single-step is on by default.** After every completion — every model turn,
+whether or not it carried a tool call — the seat holds the worker thread open
+and shows `single-step: paused` in the sidebar until `alt+p` releases exactly
+that one step. `alt+shift+p` turns the mode off (and back on); turning it off
+while a step is held releases it immediately, on the reasoning that a mode a
+seat just disabled should not go on blocking anything on its behalf. This is
+why `alt+shift+p`, not `ctrl+shift+p`: unlike `ctrl+shift+`, an `alt+` chord on
+a plain letter carries the letter's own case even on the legacy encoding path
+— pressing shift changes which byte follows the escape — so Kitty's keyboard
+protocol was never needed to tell `alt+p` from `alt+shift+p` apart.
 
 Bindings are `alt+` and not `ctrl+` because the input has the focus and a widget
 binding beats an app one — `ctrl+w` is its delete-word, and a key the input eats

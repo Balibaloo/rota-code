@@ -228,3 +228,67 @@ async def test_every_binding_survives_the_input_having_focus(tmp_path, project):
 
     claimed = [a for _, a, _ in app.BINDINGS if a != "quit"]
     assert fired == claimed, f"swallowed: {sorted(set(claimed) - set(fired))}"
+
+
+# ---------------------------------------------------------------------------
+# Single-step
+# ---------------------------------------------------------------------------
+
+async def test_single_step_defaults_on_and_alt_shift_p_toggles_it(tmp_path, project):
+    """
+    On by default: a new seat shows its work one completion at a time until
+    told otherwise.
+    """
+    app = _app(tmp_path, project)
+    async with app.run_test() as pilot:
+        assert app.single_step_enabled is True
+        await pilot.press("alt+shift+p")
+        assert app.single_step_enabled is False
+        await pilot.press("alt+shift+p")
+        assert app.single_step_enabled is True
+
+
+async def test_alt_p_releases_a_held_step_instead_of_toggling_run_state(
+        tmp_path, project):
+    """
+    While a completion is paused, alt+p means "let this one step go", not
+    "stop the loop" -- the worker thread is blocked mid-session, not between
+    sessions, so play/pause does not apply to it yet.
+    """
+    import threading
+
+    app = _app(tmp_path, project)
+    async with app.run_test() as pilot:
+        held = threading.Thread(target=app._pause_for_single_step)
+        held.start()
+        for _ in range(200):
+            if app.single_step_paused:
+                break
+            await pilot.pause(0.01)
+        assert app.single_step_paused, "the hook never reported paused"
+
+        await pilot.press("alt+p")
+        held.join(timeout=2)
+        assert not held.is_alive(), "alt+p did not release the held step"
+        assert not app.single_step_paused
+        assert not app.driving, "releasing a step must not start the loop"
+
+
+async def test_turning_single_step_off_releases_a_held_step(tmp_path, project):
+    """A mode a seat just disabled should not go on blocking anything for it."""
+    import threading
+
+    app = _app(tmp_path, project)
+    async with app.run_test() as pilot:
+        held = threading.Thread(target=app._pause_for_single_step)
+        held.start()
+        for _ in range(200):
+            if app.single_step_paused:
+                break
+            await pilot.pause(0.01)
+        assert app.single_step_paused, "the hook never reported paused"
+
+        await pilot.press("alt+shift+p")
+        held.join(timeout=2)
+        assert not held.is_alive(), "turning single-step off did not release it"
+        assert app.single_step_enabled is False

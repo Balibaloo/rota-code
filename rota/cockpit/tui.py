@@ -220,6 +220,13 @@ class RotaApp(App):
         # sequence layer a real terminal does.
         ("alt+o", "onboard", "onboard"),
         ("alt+p", "toggle_run_state", "pause / resume"),
+        # Alt+Shift+P, not Ctrl+Shift+P: the case survives on the legacy
+        # encoding path because Alt only ever prefixes ESC onto whatever
+        # character Shift already produced, so `ESC P` still reads as shift
+        # even where the Kitty keyboard protocol never enters the picture —
+        # the same reasoning the `alt+o` comment above gives for avoiding
+        # `ctrl+shift+`, which collapses case and needs Kitty to recover it.
+        ("alt+shift+p", "toggle_single_step", "single-step: on/off"),
         # `alt+`, not `ctrl+`, and not by taste. The input has the focus
         # whenever you are sitting here, and a widget binding beats an app one:
         # `ctrl+w` is its delete-word and `ctrl+u`, `ctrl+k`, `ctrl+x` and
@@ -236,6 +243,14 @@ class RotaApp(App):
     def __init__(self, db_path: Path | None, model: str,
                  root: Path | None = None) -> None:
         super().__init__()
+        # Single-step is a preference about *this seat's window onto the
+        # loop*, not about the run it happens to be open on — unlike
+        # `driving` and the rest of `_init_seat_state`, it must survive a run
+        # switch. Defaults on: the safer thing for a new seat to do is show
+        # its work one completion at a time until told otherwise.
+        self.single_step_enabled = True
+        self.single_step_paused = False
+        self._single_step_release = threading.Event()
         # **A seat with no run is a legal state**, and it is the one you are in
         # the first time you ever start this. Without it the run list was
         # reachable only from inside a run, so creating your first one was a
@@ -453,8 +468,15 @@ class RotaApp(App):
             return
         state = config.get(self.conn, "run_state")
         here = "driving" if self.driving else "idle"
+        if self.single_step_paused:
+            step_label = "[yellow]paused — alt+p for one more step[/yellow]"
+        elif self.single_step_enabled:
+            step_label = "on"
+        else:
+            step_label = "off"
         self.query_one("#run_state", Static).update(
-            f"[b]run:[/b] {state}   [b]this seat:[/b] {here}")
+            f"[b]run:[/b] {state}   [b]this seat:[/b] {here}   "
+            f"[b]single-step:[/b] {step_label}")
 
     def refresh_owed(self) -> None:
         if self.conn is None:
@@ -519,7 +541,16 @@ class RotaApp(App):
         So it asks whether this window is driving. Stopping still sets the run's
         flag, because that is the only way to reach a loop already inside
         `loop.run`, and it is what the flag is for.
+
+        Overloaded a second way under single-step: if a completion is
+        currently held open waiting on this same key, alt+p means "let that
+        one step go" rather than "stop the loop" — the worker thread is
+        blocked mid-session, not between sessions, so play/pause does not
+        apply to it yet.
         """
+        if self.single_step_paused:
+            self._single_step_release.set()
+            return
         if not self._needs_run():
             return
         if self.driving:
@@ -531,6 +562,40 @@ class RotaApp(App):
             self.say("running", "system", "blue")
             self.run_worker(self._turn_the_crank, thread=True)
         self.refresh_run_state()
+
+    def action_toggle_single_step(self) -> None:
+        """
+        Alt+Shift+P. On by default: a new seat shows its work one completion
+        at a time until told to stop.
+
+        Turning it off while a completion is held open releases that hold
+        immediately — the mode no longer applies, so there is nothing left for
+        it to be waiting on alt+p *for*.
+        """
+        self.single_step_enabled = not self.single_step_enabled
+        self.say(f"single-step mode {'on' if self.single_step_enabled else 'off'}",
+                 "system", "blue")
+        if not self.single_step_enabled and self.single_step_paused:
+            self._single_step_release.set()
+        self.refresh_run_state()
+
+    def _pause_for_single_step(self) -> None:
+        """
+        Called from the worker thread after every LLM completion.
+
+        Blocks *that* thread, not the UI's — `_from_worker` round-trips
+        through `call_from_thread` to post the status update and returns, and
+        only then does this thread sit on the event, so the app stays
+        responsive to the alt+p that releases it.
+        """
+        if not self.single_step_enabled:
+            return
+        self.single_step_paused = True
+        self._from_worker(self.refresh_run_state)
+        self._single_step_release.wait()
+        self._single_step_release.clear()
+        self.single_step_paused = False
+        self._from_worker(self.refresh_run_state)
 
     # -- arming, and the one thing that fires ---------------------------------
 
@@ -1034,6 +1099,7 @@ class RotaApp(App):
                 principal=self.principal,
                 max_steps=40,
                 on_step=on_step,
+                on_completion=self._pause_for_single_step,
             )
         except Exception as exc:                            # noqa: BLE001
             self._from_worker(self.say, f"loop stopped: {exc}", "system", "red")

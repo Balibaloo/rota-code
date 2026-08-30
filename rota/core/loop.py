@@ -104,6 +104,7 @@ def step(
     principal: PrincipalBackend | None = None,
     principal_present: bool = True,
     max_iterations: int | None = None,
+    on_completion=None,
 ) -> Step:
     """
     One iteration: offer pending asks to the principal, then wake one role.
@@ -208,7 +209,8 @@ def step(
     try:
         result.outcome = run_session(
             conn, result.wake, backend=backend, pins=pins,
-            batch_id=batch_id, max_iterations=max_iterations)
+            batch_id=batch_id, max_iterations=max_iterations,
+            on_completion=on_completion)
     except RoleBusy as exc:
         result.note = str(exc)
         return result
@@ -342,6 +344,7 @@ def run(
     max_steps: int = 40,
     stop_on_failure: bool = False,
     on_step=None,
+    on_completion=None,
 ) -> Trace:
     """
     Turn the crank until quiescent or the budget runs out.
@@ -355,7 +358,7 @@ def run(
 
     for _ in range(max_steps):
         s = step(conn, backend=backend, pins=pins, principal=principal,
-                 principal_present=principal_present)
+                 principal_present=principal_present, on_completion=on_completion)
         trace.steps.append(s)
         if on_step:
             on_step(s)
