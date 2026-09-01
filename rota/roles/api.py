@@ -2948,6 +2948,33 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"'ambiguous_word' / 'no_machine_check' / 'outside_fact', each "
             f"of which names the owner the criterion goes to instead")
 
+    # A test is Python the harness can run. S0 measured the alternative: the
+    # criterion restated as an English sentence, path 'script', harness says
+    # "no tests ran", and the fix loop can never converge because there is
+    # nothing to fix. Mechanical on purpose -- ast.parse has no opinion about
+    # quality, only about whether pytest will collect anything at all.
+    import ast as _ast
+
+    if not path.endswith(".py"):
+        raise ValueError(
+            f"path {path!r} is not a Python file. The harness runs pytest; "
+            f"name the file test_<thing>.py")
+    try:
+        tree = _ast.parse(body)
+    except SyntaxError as exc:
+        raise ValueError(
+            f"the body is not Python ({exc.msg}, line {exc.lineno}). A test "
+            f"is code the harness can execute -- def test_...(): with "
+            f"assertions, not a description of one") from None
+    has_test = any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                   and n.name.startswith("test") for n in _ast.walk(tree))
+    has_assert = any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))
+    if not (has_test and has_assert):
+        raise ValueError(
+            "pytest will collect nothing from this body: it needs a "
+            "def test_...() containing at least one assert. A sentence about "
+            "the criterion is the criterion again, not a test of it")
+
     # The criterion is checked *first*, because the batch is derived from it and
     # a derivation from a bad input fails in terms of the derived thing. An
     # invented `criterion_id` used to come back as "no batch in this session and
