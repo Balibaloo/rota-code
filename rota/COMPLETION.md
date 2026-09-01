@@ -148,3 +148,29 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 4. **The consumer**: the principal and the sessions, a closed loop. The
    environmental unknown shrinks to this machine; production-ready means
    ready for daily dogfooding, which was always the ordering.
+
+
+## S0 — the first story, from an empty folder (opened 2026-08-28)
+
+The principal dogfooded: "Hello, Please build a python script that asks for
+the users name, and then shows 'Hellow User!'" — and it went nowhere. The
+walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
+
+1. **Intake chats instead of working — the blocker.** The converse session
+   ran first and correctly (ordering, trigger, cause chain all held), read
+   the sentence, replied to the greeting, wrote zero statements. The prior
+   brief patch ("Improove greeting handling") is prose and measured
+   insufficient — the fourth failure of the prose lever this month. The
+   structural candidates, in order: the reply channel requires either refs
+   (statements produced) or an explicit chat-only claim — the mandatory-
+   fork pattern at intake; or segmentation-before-reply as a gate. Design
+   note: the fork taxonomy lesson applies — keep the claim two-way
+   (work | chat), never three.
+2. **Onboarding invents scope from emptiness.** Orient wrote pseudo-items
+   from a one-line README three times (quarantined — the bound worked),
+   then the Critic looped challenging the invented claim. Phases need the
+   vacuous-signal degradation the code index already has: a near-empty
+   index means orient/challenge attest "nothing here" and close.
+3. **k0 bootstrap held** (the prior session's fix works), and the walk is
+   the story: it becomes `S0-hello-world`, the permanent floor of the
+   story tier, so this can never silently regress.
