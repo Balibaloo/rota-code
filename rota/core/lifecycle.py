@@ -53,6 +53,14 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
         # No git, or no project root: the batch still runs. Boot reconciles a
         # missing worktree the same way it reconciles a diverged one.
         pass
+    else:
+        # Greenfield gets its floor before anyone works: the pyproject that
+        # makes the harness's pytest invocation deterministic and the tests/
+        # directory the Tester's paths need. A repository with its own test
+        # configuration is left entirely alone.
+        from . import scaffold
+
+        scaffold.ensure_floor(conn, batch_id)
 
 
 def defer(conn: sqlite3.Connection, batch_id: str) -> None:

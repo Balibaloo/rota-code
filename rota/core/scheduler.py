@@ -574,6 +574,18 @@ def _define_wakes(conn: sqlite3.Connection) -> list[Wake]:
             for w in pending_terms(conn)]
 
 
+def _has_program(conn: sqlite3.Connection) -> bool:
+    """Any grain in a language the index parses. Prose is not a program."""
+    from ..onboarding.languages import for_path
+
+    for r in conn.execute("SELECT DISTINCT grain FROM code_index "
+                          "WHERE grain_kind = 'path'"):
+        name = r["grain"].rsplit("/", 1)[-1]
+        if for_path(name) is not None:
+            return True
+    return False
+
+
 def onboarding_phase(conn: sqlite3.Connection) -> str:
     """
     Which onboarding phase is current: orient, define, survey, done -- or
@@ -587,6 +599,18 @@ def onboarding_phase(conn: sqlite3.Connection) -> str:
     """
     if not conn.execute("SELECT 1 FROM code_index LIMIT 1").fetchone():
         return "none"
+    # A project with no program is a finished onboarding, not a small one.
+    # Walked live (S0): a one-line README put orient through three sessions
+    # of invented scope, the Critic challenged the invention, and one
+    # sentence became five items. The index already knows the difference --
+    # no grain in a language it parses means there is nothing to orient,
+    # define, survey or challenge -- so the phases close mechanically, and
+    # one visible record says so instead of a hundred sessions implying it.
+    if not _has_program(conn):
+        conn.execute(
+            "INSERT OR IGNORE INTO survey_records (id, area, outcome, "
+            "area_hash) VALUES ('system:@empty', '@empty', 'none_found', '')")
+        return "done"
     phases = onboarding_phases(conn)
     if "frame" in phases and _frame_wakes(conn):
         return "frame"
