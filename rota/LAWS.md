@@ -301,12 +301,47 @@ no plan and no prompt.
 
 ---
 
+### 14. Identity derives from content — never from an invented id
+
+*Law by trial, 2026-08-28: the registry and lint ran quietly first; this
+paragraph records an enforced fact rather than enabling anything.*
+
+Every stateful table declares what makes two of its rows the same one, and
+that sameness comes from the row's content or relationships — words, a
+span, a slug, a pair, a cardinality — never from an id a model supplies.
+The disease this cures was measured across five organs before it was named
+once: a model re-emits an act it already performed, and any table keyed by
+an invented id turns each re-issue into a new row. Twenty-four constraints
+carrying six headlines; a statement issued eleven times; two batches for
+one item.
+
+The sharp edges, stated so a future table cannot rediscover them:
+
+* **Identity stamps from birth content.** A constraint's id derives from
+  its original headline and survives text amendments — keying on current
+  content would make every edit fork the row.
+* **Exact match at the door; fuzzy behind named guards.** The keys compare
+  normalised content exactly. Anything looser (the twin-constraint stem
+  overlap) lives in a guard that names its threshold and owns its false
+  positives.
+* **Some keys are cardinality, not content.** One item's open work is one
+  batch; one pinned area, one row. The declaration is a uniqueness rule
+  over a relationship.
+* **Journals are exempt, by declaration.** The ledger, messages, decisions
+  record events; saying a thing twice is two events, and deduplication
+  would falsify history.
+
+`rota/core/identity.py` is the declaration; a table absent from it fails
+the build, and `unkeyed` is a legal answer that stays counted and must
+argue its case.
+
 ## How the laws are enforced
 
 Not by asking. Each of these is a check that fails the build:
 
 | law | check |
 |---|---|
+| 14 | `test_identity.py` — every schema table classified in `NATURAL_KEYS`; phantom entries refused; the unkeyed list pinned |
 | 1 | `graph.check_writers` — every artefact has a writer, and `batches` has exactly one |
 | 2 | `findings` has no `why` column; message bodies carry refs |
 | 3 | `graph.check_contacts` — derived set equals declared set, with zero exceptions |

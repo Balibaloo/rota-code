@@ -119,10 +119,9 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   is the seat's.
 - **Statements relevance** (`brief.list`): becomes load-bearing the day the
   chat interfaces arrive; parked with its register entry until then.
-- **Over-production**: root cause found, cure on all five organs, and the
-  identity rule now running as a trial (`identity.py` + `test_identity.py`:
-  every table declares its sameness rule, `unkeyed` legal but counted).
-  LAWS.md waits until the lint has lived quietly — the seat's ruling.
+- ~~Over-production~~ — closed whole: root cause found, cure on all five
+  organs, and the identity rule is **Law 14** (ruled "law, yes ok",
+  written 2026-08-28 as law-by-trial with the four sharp edges stated).
 - ~~Frontier ordering~~ — ruled ("logical, before onboarding") and built
   the same day: band, then declared order, then age; names retired from
   scheduling; pinned at width in `test_frontier_order.py`.
