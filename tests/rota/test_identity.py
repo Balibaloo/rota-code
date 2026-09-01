@@ -126,3 +126,28 @@ def test_the_ledger_is_about_rows_not_tables(tmp_path):
     out = sb.call("ledger.log", about_ref="i1", about_table="items",
                   assumption="closure includes soft delete")
     assert out["id"].startswith("l_")
+
+
+def test_an_artefact_id_is_unique_across_tables(tmp_path):
+    """Law 14 at the id level, walked live: tickets, criteria and tests all
+    shared t1/t2/t3 -- each role copying the table before it -- and a
+    challenge naming the test resolved to the criterion. Refused at birth."""
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('t1','i1','y')")
+    db.commit()
+    sb = build("terminologist", db, mode="criteria")
+    with _pytest.raises(ValueError, match="already a row of tickets"):
+        sb.call("criteria.specify", id="t1", ticket_id="t1", text="z",
+                surface_refs=["run"])
+    out = sb.call("criteria.specify", id="c1", ticket_id="t1", text="z",
+                  surface_refs=["run"])
+    assert out["id"] == "c1", "a distinct id lands"

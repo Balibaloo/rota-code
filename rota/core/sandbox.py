@@ -1287,6 +1287,17 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     return send
 
 
+# The artefact tables whose rows travel as refs; an id colliding across any
+# two of them makes every ref to it ambiguous.
+# Keyed by ARTEFACT name (what a label carries), valued by table: `problem`
+# writes items and `brief` writes statements, and the first version keyed
+# by table refused problem.prioritize(id='i1') for colliding with the very
+# row it updates.
+_ID_TABLES = {"brief": "statements", "problem": "items",
+              "tickets": "tickets", "criteria": "criteria",
+              "tests": "tests", "batches": "batches"}
+
+
 def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
     """Bind the session context away and record the call as evidence.
 
@@ -1298,6 +1309,24 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
     def wrapper(**kwargs):
         args_summary = ", ".join(f"{k}={v!r}"[:60] for k, v in sorted(kwargs.items()))
         _CALL_LOG.setdefault(id(ctx), []).append((label, args_summary))
+        # An artefact id is unique across artefact tables -- Law 14 at the id
+        # level. Walked live (S0 five): tickets, criteria and tests all ended
+        # up sharing t1/t2/t3, each role copying the table before it, and a
+        # challenge naming the test resolved to the criterion -- every ref in
+        # the system became ambiguous. Refused at birth, where it costs one
+        # turn and the message names a free shape.
+        if "id" in kwargs and isinstance(kwargs.get("id"), str):
+            own = _ID_TABLES.get(label.split(".", 1)[0])
+            for table in _ID_TABLES.values():
+                if table != own and ctx.conn.execute(
+                        f"SELECT 1 FROM {table} WHERE id = ?",
+                        (kwargs["id"],)).fetchone():
+                    raise ValueError(
+                        f"{kwargs['id']!r} is already a row of {table}; an "
+                        f"artefact id is unique across every artefact table, "
+                        f"or every ref to it is ambiguous. Prefix it with "
+                        f"what it is -- c_ for a criterion, tst_ for a test "
+                        f"-- and send again")
         try:
             return impl(ctx, **kwargs)
         except Exception as exc:
