@@ -53,10 +53,12 @@ def test_an_encode_with_no_branch_claim_is_refused(db):
 def test_a_claimed_criterion_encodes(db):
     sb = _tester(db)
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
-    out = sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
-                  body="from app import register\n"
-                       "register('u1','A@B.co')\n"
-                       "assert lookup('u1').email == 'a@b.co'")
+    out = sb.call("tests.encode", id="ts1", criterion_id="c1",
+                  path="test_register.py",
+                  body="def test_lowercase():\n"
+                       "    from app import register, lookup\n"
+                       "    register('u1','A@B.co')\n"
+                       "    assert lookup('u1').email == 'a@b.co'")
     assert out["id"] == "ts1"
 
 
