@@ -404,14 +404,16 @@ def test_a_read_already_answered_does_not_hold_the_action_again(db):
     assert sent == 1, "the action was held behind a read the session had already seen"
 
 
-def test_a_genuinely_new_read_still_holds_the_action(db):
+def test_a_new_read_holds_the_action_which_executes_if_stood_by(db):
     """
-    The boundary itself is not weakened. Acting on a read you have not seen was
-    the commonest fault in the suite — 309 of 598 multi-call completions — and a
-    first-time read must still stop the write behind it.
+    The boundary is a deferral, not a veto. Acting on a read you have not seen
+    was the commonest fault in the suite — 309 of 598 multi-call completions —
+    and a first-time read still stops the write behind it *that turn*. But S0
+    walk seven measured the other failure: four valid encodes held, the model
+    declaring the work done, the session ending clean, and nothing written. A
+    session that ends with the read's answer and the NOT RUN notice in view,
+    without revising, has said the plan stands — the held tail executes.
     """
-    # Genuinely new means genuinely not held already: a pushed read is in front
-    # of the model before it speaks, so re-asking for one holds nothing.
     db.execute("INSERT INTO decisions (id, author, text) "
                "VALUES ('d1','vision_keeper','scope ruling on closing an account')")
 
@@ -423,10 +425,34 @@ def test_a_genuinely_new_read_still_holds_the_action(db):
     outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="scripted"))
 
-    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0, \
-        "a write ran on the strength of a read the session had not seen"
     _, user = backend.calls[1]
-    assert "NOT RUN" in user
+    assert "NOT RUN" in user, \
+        "the write must not run in the same turn as an unseen read"
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, \
+        (f"ending without revising is standing by the plan: {outcome.errors}")
+
+
+def test_a_revising_turn_clears_the_held_tail(db):
+    """
+    The other half of standing by: any tool call in a later turn is the model's
+    revised will, and the held tail behind it is dead. Only the revision lands.
+    """
+    db.execute("INSERT INTO decisions (id, author, text) "
+               "VALUES ('d1','vision_keeper','scope ruling on closing an account')")
+
+    backend = ScriptedBackend([
+        "TOOL: decisions.search(query='scope')\n"
+        "TOOL: problem.assert(id='i1', text='premature', kind='in_scope')",
+        "TOOL: problem.assert(id='i1', text='the ruling says close it', "
+        "kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    rows = db.execute("SELECT text FROM items").fetchall()
+    assert [r["text"] for r in rows] == ["the ruling says close it"], \
+        (f"the held original must not also run: {outcome.errors}")
 
 
 def test_the_transcript_is_trimmed_from_the_middle_not_the_front(db):
