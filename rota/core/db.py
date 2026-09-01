@@ -469,8 +469,17 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # repair sat unreachable behind a sentence the model does not say.
         if result.trigger_msg and not any(
                 w.table == "tests" for w in result.writes):
-            parroted = any("own sentence written back" in msg
-                           for _, msg in (result.refusals or []))
+            # Both walls demonstrate the same thing. The semantic guard
+            # ("own sentence written back") catches a restatement that
+            # parses; the executable guard catches the commoner prose parrot
+            # before it -- a body that is the criterion in English is not
+            # Python, and pytest collects nothing from it. Either refusal on
+            # this wake, with no test written, is the answer not landing.
+            parroted = any(
+                ("own sentence written back" in msg
+                 or "not Python" in msg
+                 or "collect nothing" in msg)
+                for _, msg in (result.refusals or []))
             if parroted:
                 q = conn.execute(
                     "SELECT q.id AS qid, q.body_refs AS refs FROM messages a "
