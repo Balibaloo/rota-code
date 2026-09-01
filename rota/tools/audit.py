@@ -112,6 +112,20 @@ def audit(conn: sqlite3.Connection) -> list[str]:
                          "FROM tickets GROUP BY words HAVING n > 1"):
         findings.append(f"tickets: {r['n']} rows say {r['words'][:50]!r}")
 
+    # 2b. An artefact id is unique across artefact tables (Law 14 at the
+    #     id level). Walked live before the guard existed: tickets, criteria
+    #     and tests sharing t1/t2/t3 made every ref ambiguous, and a correct
+    #     challenge resolved its test to a criterion.
+    id_tables = ["statements", "items", "tickets", "criteria", "tests",
+                 "batches"]
+    seen: dict[str, str] = {}
+    for t in id_tables:
+        for r in _rows(conn, f"SELECT id FROM {t}"):
+            if r["id"] in seen and seen[r["id"]] != t:
+                findings.append(f"id {r['id']!r} lives in both "
+                                f"{seen[r['id']]} and {t}")
+            seen.setdefault(r["id"], t)
+
     # 3. Cardinality the scheduler assumes.
     running = _rows(conn, "SELECT id FROM batches WHERE status='running'")
     if len(running) > 1:

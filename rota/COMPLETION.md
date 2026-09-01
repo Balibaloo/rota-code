@@ -183,6 +183,18 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    then the Critic looped challenging the invented claim. Phases need the
    vacuous-signal degradation the code index already has: a near-empty
    index means orient/challenge attest "nothing here" and close.
+3.4. **Walks four and five (floor + fork + bar): one stall left, and it
+   named a law's blind spot.** Clean worlds now — one item, three real
+   collectable tests, genuine `fail` runs, the correct `script.py` written
+   by the Developer — and the Developer *correctly disputing* the bad
+   tests (right door, right quotes) while every ref in the world was
+   ambiguous: tickets, criteria and tests all shared t1/t2/t3, each role
+   copying the table before it. Law 14 at the id level; refused at birth
+   now (the sandbox binder), the audit carries the world-state form, and
+   the challenge refusal writes the exact repair out when a test's
+   criterion is derivable. Walk six measures whether the challenge lands
+   and the Tester's challenge mode gets its first live exercise.
+
 3.5. **Walk three (all guards, 2026-08-28): the guards exposed the next
    two floors.** Zero tests written — the executable bar refused prose and
    qwen produced no collectable pytest unaided (the conftest-helper option,
