@@ -73,11 +73,13 @@ attached, and when a pointer's target closes, the line comes out.
 1. **Segments** (five standing: four measured — two held by each model —
    and the wrong-answer-from-the-seat case written 2026-08-28 on the
    `forbidden: rows:` harness, recording with the next pass). Remaining:
-   the ten uncovered message edges, pinned by name in
+   the five uncovered message edges, pinned by name in
    `test_edge_coverage.py` (the list must shrink in the same commit that
-   covers one). The two genuinely distinct flows go first: critic->tester
-   challenge and architect->liaison report; the rest are answer/question
-   flavours of covered machinery.
+   covers one). The two genuinely distinct flows came off first
+   (critic->tester challenge, architect->liaison report); three more came
+   off 2026-09-01 (the collapsed triage's nearest desk, and two answer
+   edges `any_of` arms had covered all along); the five left are
+   answer/question flavours of covered machinery.
 2. **Composed flows**: multi-segment stories where a ruling on one trap
    invalidates the work behind another; the `grants:` key arrives here.
 3. **Synthetic stories**, tiered in `stories.json`, then **foreign-repo
@@ -206,6 +208,22 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    chain overrun fired twice but the pair resumed — its bound wants a
    look once the noise upstream is gone). The greenfield-floor menu (A-F)
    is with the seat; A+B+C are each demonstrated load-bearing.
+
+3.6. **Walks six and seven (2026-08-30 to 09-01): the example fought the
+   guard, then the hold swallowed the work.** Six: the Tester's worked
+   example carried `id='t1'`, the new id guard refused it three sessions
+   running, and the Terminologist self-corrected from the refusal alone;
+   the example became `tst_1` and a lint now demands every example id
+   carry its artefact's prefix. Seven: four valid encodes were parsed and
+   held behind fresh reads (by design), qwen declared "I have encoded
+   tests for all four criteria", and the session committed clean with
+   zero tests -- the model claiming work it never did. The hold is a
+   deferral now, not a veto: a session that ends without revising has
+   stood by its plan and the tail executes. And the trap under every walk
+   -- quarantine never lifting -- gained its "world moved" exit. Ruled the
+   same day: the triage collapses to can/cannot and the ladder does the
+   diagnosis (DECISIONS). Walk eight runs on the new floor; the harness
+   lives at `probes/s0_walk.py`.
 
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
