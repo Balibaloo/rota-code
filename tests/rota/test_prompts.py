@@ -580,3 +580,31 @@ def test_a_mode_that_encodes_holds_the_exits_the_guard_names():
             if exit_ not in tools:
                 problems.append(f"tester/{mode} encodes and lacks {exit_}")
     assert not problems, "\n".join(problems)
+
+
+def test_worked_example_ids_cannot_collide():
+    """A worked example is a stronger lever than a guard's refusal --
+    measured on walk six, where the Tester followed the brief's id='t1'
+    into the cross-table collision three sessions straight while the
+    Terminologist, taught only by the refusal, minted distinct ids the
+    same walk. So every id an example mints carries its artefact's own
+    unambiguous prefix, and an example that fights the binder fails here
+    before any model meets it."""
+    import re
+
+    PREFIX = {"brief": "s", "criteria": "c", "tests": "tst",
+              "tickets": "tk", "problem": "i", "batches": "b"}
+    problems = []
+    from rota import paths
+
+    for path in sorted((paths.PACKAGE / "roles" / "prompts").rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        for artefact, verb, ident in re.findall(
+                r"([a-z_]+)\.([a-z_]+)\(id='([a-z0-9_]+)'", text):
+            want = PREFIX.get(artefact)
+            if want and not re.match(rf"^{want}\d|^{want}_", ident):
+                problems.append(
+                    f"{path.parent.name}/{path.name}: {artefact}.{verb} "
+                    f"example mints id={ident!r}; the unambiguous prefix "
+                    f"for {artefact} is {want!r}")
+    assert not problems, "; ".join(problems)
