@@ -102,3 +102,34 @@ def test_a_running_batch_beats_a_pending_twin_to_the_cancellation(db):
     assert [w.refs[0] for w in wakes] == ["b1", "b2"]
     first = [str(w) for w in frontier_readonly(db)]
     assert first == [str(w) for w in frontier_readonly(db)]
+
+
+def test_a_quarantine_lifts_when_its_subject_moves(db):
+    """The never-delete rule had no "the world moved" case: a repaired
+    criterion could never wake the Tester that gave up on it, and every S0
+    walk died permanently at its first quarantine even after the cause was
+    fixed. A commit that writes a row a quarantined tick is about -- or
+    writes criteria/tests into the batch its refs name -- is the exit; an
+    unrelated quarantine survives."""
+    from rota.core.db import _lift_quarantines
+    from rota.core.scheduler import tick_key
+    from rota.core.predicates import Wake
+
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','t1','old words')")
+    key = tick_key(Wake("tester", "tick:tests_missing", refs=("b1",)))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES (?, 5, 1)", (key,))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('architect|tick:survey|src/other', 5, 1)")
+    db.commit()
+
+    class W:
+        table = "criteria"
+        row_id = "c1"
+
+    _lift_quarantines(db, W)
+    assert not db.execute("SELECT 1 FROM tick_attempts WHERE tick_key=?",
+                          (key,)).fetchone(), "the moved subject revives"
+    assert db.execute("SELECT 1 FROM tick_attempts WHERE tick_key LIKE "
+                      "'%other%'").fetchone(), "an unrelated debt survives"

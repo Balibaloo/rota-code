@@ -299,6 +299,40 @@ def _thread_of(conn: sqlite3.Connection, m) -> str:
     return m.id
 
 
+def _lift_quarantines(conn: sqlite3.Connection, w) -> None:
+    """
+    A quarantine holds while its subject is unchanged; a write that changes
+    the subject is the exit.
+
+    The never-delete rule is right for what it was written against -- a
+    quarantine erasing its own evidence put icalendar through 131 sessions
+    of one key -- but it had no "the world moved" case, so a repaired
+    criterion could never wake the Tester that gave up on it: every S0 walk
+    died permanently at its first quarantine even after the cause was
+    fixed. A quarantined tick revives when a commit writes a row its refs
+    name, or (for criteria and tests) writes into the batch its refs name,
+    because those tables are what the batch-keyed ticks are about.
+    """
+    conn.execute(
+        "DELETE FROM tick_attempts WHERE quarantined = 1 "
+        "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
+        (f"%|{w.row_id}", f"%|{w.row_id},%", f"%,{w.row_id}%"))
+    if w.table in ("criteria", "tests"):
+        if w.table == "criteria":
+            batches = [r["batch_id"] for r in conn.execute(
+                "SELECT DISTINCT bt.batch_id FROM batch_tickets bt "
+                "JOIN criteria c ON c.ticket_id = bt.ticket_id "
+                "WHERE c.id = ?", (w.row_id,))]
+        else:
+            batches = [r["batch_id"] for r in conn.execute(
+                "SELECT batch_id FROM tests WHERE id = ?", (w.row_id,))]
+        for b in batches:
+            if b:
+                conn.execute(
+                    "DELETE FROM tick_attempts WHERE quarantined = 1 "
+                    "AND tick_key LIKE ?", (f"%|{b}",))
+
+
 def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
     """
     Commit a whole session atomically: session row, writes, receipts, version
@@ -341,6 +375,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     "(session_id, table_name, row_id, new_version) VALUES (?, ?, ?, ?)",
                     (result.session_id, w.table, w.row_id, new_version),
                 )
+                _lift_quarantines(conn, w)
 
         for m in result.messages:
             conn.execute(

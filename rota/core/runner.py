@@ -1014,6 +1014,7 @@ def run_session(
         pins = pins.with_prompt(system + user)
 
         transcript = [user]
+        held_calls: list = []
         allowed = set(sb.functions())
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
@@ -1100,6 +1101,19 @@ def run_session(
             calls = toolproto.extract_lenient(completion.text, allowed,
                                               signatures=_param_sets(sb))
             if not calls:
+                # A session ending with held calls never superseded is the
+                # model standing by them. The hold exists so an act can be
+                # revised once the reads' answers are in view; a model that
+                # reads the answers and ends without revising has said the
+                # plan stands -- measured the other way on S0 walk seven,
+                # where four valid encodes were held, qwen declared "I have
+                # encoded tests for all four criteria", the session ended
+                # clean, and the work silently never happened.
+                for hc in held_calls:
+                    try:
+                        sb.call(hc.name, *hc.pos, **hc.args)
+                    except Exception as exc:           # noqa: BLE001
+                        outcome.errors.append(f"{hc.name} (held): {exc}")
                 break
 
             # A turn identical to the one before it is the session saying it
@@ -1121,6 +1135,10 @@ def run_session(
 
             feedback = []
             held = []
+            # Any tool call this turn supersedes last turn's held tail -- the
+            # model revised, and its new calls are its will. Cleared here,
+            # before this turn's calls run.
+            held_calls = []
             seen_read = False
 
             if FABRICATED_RESULT.search(completion.text):
@@ -1204,6 +1222,7 @@ def run_session(
                 if (seen_read and call.name not in read_fns
                         and call.name != "surveys.attest"):
                     held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
+                    held_calls = list(calls[i:])
                     break
                 seen_read = seen_read or fresh_read
 
