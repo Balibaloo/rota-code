@@ -17,7 +17,7 @@ which is precisely the failure Critic cannot catch.
 **A test is a file pytest can run.** The body is a `def test_...():` holding
 real assertions, and the path is `tests/test_<thing>.py`:
 
-    tests.encode(id='t1', criterion_id='c1', path='tests/test_prorate.py',
+    tests.encode(id='tst_1', criterion_id='c1', path='tests/test_prorate.py',
         body='def test_prorate():
     assert prorate(999, 1, 3) == 333')
 
