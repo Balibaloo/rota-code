@@ -14,6 +14,16 @@ which is precisely the failure Critic cannot catch.
 
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 
+**A test is a file pytest can run.** The body is a `def test_...():` holding
+real assertions, and the path is `tests/test_<thing>.py`:
+
+    tests.encode(id='t1', criterion_id='c1', path='tests/test_prorate.py',
+        body='def test_prorate():
+    assert prorate(999, 1, 3) == 333')
+
+A bare assertion with no function, or a sentence about the criterion, is
+refused -- pytest would collect nothing from either.
+
 **The three "cannot" verdicts are told apart by what is missing**, and they
 go to different people:
 

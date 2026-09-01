@@ -83,6 +83,19 @@ attached, and when a pointer's target closes, the line comes out.
    stories against preregistered keys** — the runs that are simultaneously
    the test record and the product's stories.
 
+### The re-record's twelve, first attribution pass (2026-08-28)
+
+The executable bar staled the encode family and the count re-earned to
+87/12. Attributed so far: `TS-encode-a-criterion` — llama writes bare
+asserts and never a `def test_`; the brief now shows the worked shape (the
+strongest measured lever), re-records next pass. `LI-present` — known
+resolution-guard honest red. Queued with notes: `CR-a-test-that-encodes-
+nothing` (the critic's challenge dies mid-flight at the quotes bar) and
+`AR-a-dead-end` (the architect gets pulled into the twin-guard/challenge
+dance and reports the constraint conflict instead of the dead-end batch
+— possibly a twin-guard over-fire on the fixture's legitimate amend).
+Both want fresh transcripts after the brief change re-records.
+
 ## Track C — every anomaly attributed
 
 The principle, not a grab-bag: every red and every silence in the register
