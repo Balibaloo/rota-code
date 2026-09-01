@@ -171,6 +171,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    then the Critic looped challenging the invented claim. Phases need the
    vacuous-signal degradation the code index already has: a near-empty
    index means orient/challenge attest "nothing here" and close.
+3.5. **Walk three (all guards, 2026-08-28): the guards exposed the next
+   two floors.** Zero tests written — the executable bar refused prose and
+   qwen produced no collectable pytest unaided (the conftest-helper option,
+   demonstrated). Onboarding noise multiplied to five items and seven
+   tickets from one sentence, and the tail was an elect-reopen livelock:
+   Developer elects t1-t3, Vision Keeper reopens them, twenty steps of
+   distinct-cause messages that the attempt cap cannot see (the causal-
+   chain overrun fired twice but the pair resumed — its bound wants a
+   look once the noise upstream is gone). The greenfield-floor menu (A-F)
+   is with the seat; A+B+C are each demonstrated load-bearing.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
