@@ -630,10 +630,25 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
         test = [r for r, (t, _) in rows.items() if t == "tests"]
         if not crit or not test:
             missing = "no criterion" if not crit else "no test"
+            # Name the exact repair when it is derivable: a test knows its
+            # own criterion. Measured (S0 walk four): the Developer chose
+            # the right door with the right quotes three sessions running
+            # and died on refs=['t1','t1'] every time -- the general
+            # sentence did not correct it, so the refusal now writes the
+            # call out.
+            hint = ""
+            if test and not crit:
+                row = ctx.conn.execute(
+                    "SELECT criterion_id FROM tests WHERE id = ?",
+                    (test[0],)).fetchone()
+                if row:
+                    hint = (f". {test[0]}'s criterion is "
+                            f"{row['criterion_id']}: send "
+                            f"refs=['{row['criterion_id']}', '{test[0]}']")
             raise ValueError(
                 f"a challenge to the tester names both sides of the conflict "
                 f"in refs -- the criterion and the test -- and yours names "
-                f"{missing}. Both rows are in your working set")
+                f"{missing}{hint}")
         if ctx.batch_id:
             ok = ctx.conn.execute(
                 "SELECT 1 FROM batch_tickets bt "

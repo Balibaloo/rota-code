@@ -137,3 +137,14 @@ def test_a_contradicting_twin_constraint_is_refused_toward_the_challenge(db):
     out = sb.call("model.amend", headline="exports stream in constant memory",
                   text="csv exports never buffer the whole set")
     assert out["id"] == "exports_stream_in_constant_memory",         "a genuinely distinct commitment still lands"
+
+
+def test_the_refusal_writes_the_repair_out_when_it_can(db):
+    """S0 walk four: the Developer chose the right door with the right
+    quotes three sessions running and died on refs=['t1','t1'] every time.
+    A test knows its own criterion, so the refusal names the exact call --
+    satisfiable by copying, the strongest refusal shape this repo has."""
+    sb = _dev(db)
+    with pytest.raises(ValueError, match=r"send refs=\['c1', 'ts1'\]"):
+        sb.call("msg.challenge_tester", refs=["ts1", "ts1"],
+                quotes="leaves its invoices in place ... invoices_for('a1')")
