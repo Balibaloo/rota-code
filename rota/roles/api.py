@@ -2898,6 +2898,15 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
     act, performed per criterion, and `tests.encode` refuses a criterion
     that has not been claimed encodable. Both branches are completions; a
     routed criterion is a job done.
+
+    The verdict is two-way, ruled 2026-09-01. The fork's own measurement:
+    the can/cannot judgment arrives at 14B, the word/sentence/fact taxonomy
+    is beyond every local tier tested -- and the taxonomy only ever existed
+    to pick a desk, which the `unresolved` ladder and `criterion_repair`
+    already pick mechanically. So `cannot` is a complete verdict: it goes to
+    the nearest desk and climbs on its own if the answer does not land. The
+    three named kinds stay accepted as sharper claims that route straight to
+    their owner, for a model that genuinely holds the distinction.
     """
     _must_exist(ctx, "criteria", criterion_id)
     if not hasattr(ctx, "triaged"):
@@ -2905,6 +2914,10 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
     ctx.triaged[criterion_id] = verdict
     nxt = {
         "encodable": "encode it: tests.encode names this criterion",
+        "cannot": "say what stops you: msg.question_terminologist with the "
+                  "criterion in refs and what you cannot do in the question. "
+                  "You do not have to know whose problem it is -- an answer "
+                  "that does not land climbs to the right desk on its own",
         "ambiguous_word": "a word could mean more than one thing: "
                           "msg.question_terminologist with the criterion in "
                           "refs and the word in the question",
@@ -2914,6 +2927,20 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
         "outside_fact": "checking needs a fact this project does not hold: "
                         "msg.question_researcher, saying what fact",
     }[verdict]
+    # A cannot re-judged is not a question re-owed. `tests_missing` fires per
+    # batch while *any* criterion lacks a test, so a batch with one routed
+    # criterion and three encodable ones wakes this mode again with the routed
+    # one still testless -- and the second session would ask the same question
+    # into the same open thread. The state says it is already travelling.
+    if verdict != "encodable":
+        open_q = ctx.conn.execute(
+            "SELECT id FROM messages WHERE from_role = 'tester' "
+            "AND verb = 'question' AND status IN ('open', 'unresolved') "
+            "AND body_refs LIKE ?", (f'%"{criterion_id}"%',)).fetchone()
+        if open_q:
+            nxt = (f"already asked -- {open_q['id']} is open about this "
+                   f"criterion and the answer will wake you. Encode the "
+                   f"others or end the session")
     return {"criterion": criterion_id, "verdict": verdict, "next": nxt}
 
 
@@ -2944,9 +2971,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) != "encodable":
         raise ValueError(
             f"{criterion_id} has no branch claim. tests.triage it first -- "
-            f"verdict 'encodable' and then encode, or one of "
-            f"'ambiguous_word' / 'no_machine_check' / 'outside_fact', each "
-            f"of which names the owner the criterion goes to instead")
+            f"verdict 'encodable' and then encode, or 'cannot', which routes "
+            f"the criterion to the desk that can repair it instead")
 
     # A test is Python the harness can run. S0 measured the alternative: the
     # criterion restated as an English sentence, path 'script', harness says

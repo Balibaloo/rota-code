@@ -78,7 +78,7 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
                                    "ignore", "ignored", "boundary",
                                    "surface")},
     ("findings", "find"): {"status": ("satisfied", "violated")},
-    ("tests", "triage"): {"verdict": ("encodable", "ambiguous_word",
+    ("tests", "triage"): {"verdict": ("encodable", "cannot", "ambiguous_word",
                                       "no_machine_check", "outside_fact")},
     ("brief", "intake"): {"verdict": ("work", "chat")},
 }
@@ -827,6 +827,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "This channel has no words of its own -- put `entry_id`, the "
                 "transcript entry holding what the principal said, in refs, "
                 "and the owner reads it as `principal_said`")
+
+        # One open question per criterion. `tests_missing` fires per batch
+        # while any criterion lacks a test, so the mode meets its own routed
+        # criteria again on the next wake -- and a re-asked question forks
+        # the thread the ladder is already climbing. The triage's next-step
+        # says this too; here it stops being skippable.
+        if verb == "question" and ctx.role == "tester":
+            for r in (refs or []):
+                if not ctx.conn.execute(
+                        "SELECT 1 FROM criteria WHERE id = ?", (r,)).fetchone():
+                    continue
+                prior = ctx.conn.execute(
+                    "SELECT id FROM messages WHERE from_role = 'tester' "
+                    "AND verb = 'question' AND status IN ('open', 'unresolved') "
+                    "AND body_refs LIKE ?", (f'%"{r}"%',)).fetchone()
+                if prior:
+                    raise ValueError(
+                        f"{r} already has your open question, {prior['id']}, "
+                        f"and the answer will wake you. Asking again forks the "
+                        f"thread -- encode the other criteria or end")
 
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.

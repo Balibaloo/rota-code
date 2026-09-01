@@ -6,10 +6,16 @@ escalation correctly to the roles?" We were not. The three-way routing had
 been in the Tester's brief the whole time, as prose under a production
 headline -- and headline-following is exactly what both models do, measured
 across all three routing reds. So the judgment becomes an act: every
-criterion gets a `tests.triage` verdict before it gets anything else, an
-encode is only legal for a criterion claimed `encodable`, and each of the
-three "cannot" verdicts names the owner the criterion goes to. Both doors
-are completions.
+criterion gets a `tests.triage` verdict before it gets anything else, and an
+encode is only legal for a criterion claimed `encodable`. Both doors are
+completions.
+
+The verdict collapsed to two-way 2026-09-01, on the fork's own measurement:
+can/cannot arrives at 14B, the word/sentence/fact taxonomy is beyond every
+local tier tested -- and the taxonomy only ever picked a desk, which the
+`unresolved` ladder and `criterion_repair` pick mechanically. `cannot` goes
+to the nearest desk and climbs; the three named kinds survive as sharper
+claims for a model that genuinely holds the distinction.
 """
 from __future__ import annotations
 
@@ -88,6 +94,52 @@ def test_the_verdict_vocabulary_is_closed(db):
     sb = _tester(db)
     with pytest.raises(ArgumentError, match="not one of"):
         sb.call("tests.triage", criterion_id="c1", verdict="maybe")
+
+
+def test_a_bare_cannot_is_a_complete_verdict_at_the_nearest_desk(db):
+    """The collapse: no diagnosis owed. The next-step names the Terminologist
+    and says the climb is mechanical, and the criterion is exactly as
+    encode-blocked as under any sharp verdict."""
+    sb = _tester(db)
+    out = sb.call("tests.triage", criterion_id="c1", verdict="cannot")
+    assert "terminologist" in out["next"], out
+    assert "climbs" in out["next"], "the promise is the point: no diagnosis owed"
+    with pytest.raises(ValueError, match="branch claim"):
+        sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
+                body="def test_x():\n    assert True")
+
+
+def test_a_criterion_already_questioned_is_not_asked_again(db):
+    """`tests_missing` fires per batch while any criterion lacks a test, so a
+    routed criterion meets the mode again on the next wake. The triage's
+    next-step deflects, and the send guard makes the deflection unskippable
+    -- one open question per criterion, in both statuses the ladder owns."""
+    for status in ("open", "unresolved"):
+        db.execute("DELETE FROM messages")
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+                   "verb, body_refs, seq, status) VALUES ('m1','th1','tester',"
+                   "'terminologist','question','[\"c1\"]',1,?)", (status,))
+        db.commit()
+        sb = _tester(db)
+        out = sb.call("tests.triage", criterion_id="c1", verdict="cannot")
+        assert "already asked" in out["next"], (status, out)
+        with pytest.raises(ValueError, match="already has your open question"):
+            sb.call("msg.question_terminologist", refs=["c1"],
+                    question="what does easy mean")
+
+
+def test_an_answered_question_frees_the_criterion(db):
+    """The guard reads the thread's state, not its history: an answered
+    question is a finished conversation, and a new one is legal."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES ('m1','th1','tester',"
+               "'terminologist','question','[\"c1\"]',1,'answered')")
+    db.commit()
+    sb = _tester(db)
+    out = sb.call("tests.triage", criterion_id="c1", verdict="cannot")
+    assert "already asked" not in out["next"], out
+    sb.call("msg.question_terminologist", refs=["c1"],
+            question="the answer did not cover the export format")
 
 
 def test_modes_without_the_fork_are_untouched(db):

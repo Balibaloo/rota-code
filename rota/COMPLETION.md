@@ -33,13 +33,14 @@ attached, and when a pointer's target closes, the line comes out.
    collapses all three cannot-kinds into `ambiguous_word` and routes to
    the Terminologist — the nearest desk, every model's attractor. Final
    attribution: the can/cannot judgment arrives at 14B; the
-   word/sentence/fact taxonomy is beyond every local tier tested. The
-   design question this leaves for the seat: the ladder already exists to
-   climb a question that did not land — so the honest redesign may be to
-   stop demanding the right desk first time (accept any cannot at the
-   nearest desk, let `unresolved` climb it mechanically) and re-spec the
-   two cases to expect cannot-plus-ladder rather than perfect routing.
-   Until ruled, both stay red as tier records.
+   word/sentence/fact taxonomy is beyond every local tier tested.
+   ~~The design question this leaves for the seat~~ — **ruled 2026-09-01**
+   ("a displacement of the difficulty, but worth trying") and built:
+   `cannot` is a complete verdict at the nearest desk, the ladder climbs
+   it, one-open-question-per-criterion guards the refire, and the two
+   cases now expect cannot-plus-ladder (nearest or sharp desk, same ids).
+   Next: re-record the tester family — the brief and the cases changed,
+   so the reds must be re-earned against the new bar, not assumed away.
    The same pass's four new reds, attributed 2026-08-28:
    `G1-a-reply` was my authoring bug {EM} the trap utterance was phrased as a
    question and the question-guard rightly refused to segment it (fixture

@@ -49,8 +49,11 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
     same commit, so the backlog cannot silently rot in either direction.
     The two genuinely distinct flows came off the list first
     (critic->tester challenge; architect->liaison report -- the latter found
-    a door the graph drew and the exhausted mode never offered); the eight
-    remaining are answer/question flavours of covered machinery.
+    a door the graph drew and the exhausted mode never offered). Three more
+    came off 2026-09-01: tester->terminologist question is the nearest desk
+    the collapsed triage routes to, and two answer edges had been covered by
+    `any_of` arms all along -- the counter was blind to arms until then. The
+    five remaining are answer/question flavours of covered machinery.
     """
     import json
     from pathlib import Path as _P
@@ -71,18 +74,21 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
             if first.get("verb") and then.get("role"):
                 touched.add((first.get("role"), then["role"], first["verb"]))
             actor = c.get("role") or first.get("role")
-            for m in ((c.get("expect") or {}).get("messages") or []):
-                if m.get("verb"):
-                    touched.add((actor, m.get("to"), m["verb"]))
+            # An `any_of` arm is an expectation the case can pass on, so it
+            # exercises its edge exactly as a flat expect does -- the two
+            # routing cases became any_of (nearest desk or sharp desk) on
+            # the 2026-09-01 collapse and would otherwise read as uncovered.
+            expect = c.get("expect") or {}
+            for body in (expect, *(expect.get("any_of") or [])):
+                for m in (body.get("messages") or []):
+                    if m.get("verb"):
+                        touched.add((actor, m.get("to"), m["verb"]))
 
     BACKLOG = {
-        ("architect", "developer", "answer"),
         ("researcher", "tester", "answer"),
         ("terminologist", "architect", "answer"),
-        ("vision_keeper", "tester", "answer"),
         ("architect", "terminologist", "question"),
         ("terminologist", "researcher", "question"),
-        ("tester", "terminologist", "question"),
         ("vision_keeper", "researcher", "question"),
     }
     untouched = edges - touched

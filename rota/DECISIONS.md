@@ -923,6 +923,33 @@ question; the chat interfaces, when built, map it to the proposal words. And
 removed the same day on the principal's one-line review — "it will never be
 used". What is recorded is only what the machine knows for free.
 
+### The triage collapses to can/cannot; the ladder does the diagnosis
+
+**Ruled 2026-09-01, built the same day.** The seat's words: the new ladder
+"is a displacement of the difficulty, but worth trying to see if it opens up
+more novel solutions." Accepted with the caveat intact -- the difficulty does
+not vanish, it moves from one cold model guessing a word/sentence/fact
+taxonomy to each desk ruling out its own kind with its own artefact in hand,
+and the chain of informed rule-outs is information no single session held.
+
+What the fork measured (2026-08-28) forced the shape: the can/cannot
+judgment arrives at 14B; the taxonomy is beyond every local tier tested; and
+14B's error was collapsing every kind to the nearest desk -- which is now
+the specified behaviour rather than a miss. `tests.triage` accepts `cannot`
+as a complete verdict routing to the Terminologist; `unresolved` and
+`criterion_repair` climb it mechanically when the answer does not land; the
+three named kinds survive as sharper claims for a model that holds the
+distinction. The two register cases keep their ids (the lineage -- same
+probe, lower demand -- stays visible in the history) and accept the nearest
+desk or the sharp one.
+
+The build requirement the walk surfaced, built with it: one open question
+per criterion. `tests_missing` fires per batch while any criterion lacks a
+test, so a routed criterion meets the mode again on the next wake -- the
+triage's next-step deflects to the open thread, and the send guard refuses
+the duplicate outright, in both statuses the ladder owns. An answered
+question frees the criterion; a follow-up is a new conversation, not a fork.
+
 ### A criterion, once written, cannot be repaired -- and the red cluster sits on top
 
 **Built.** `criterion_repair` is register entry #25: a tester's unresolved

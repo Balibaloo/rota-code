@@ -111,18 +111,21 @@
     recipients: [terminologist, architect, developer, tester]
 
 # ---------------------------------------------------------------------------
-# The three questions Tester can ask, one case each.
+# The cannot verdicts. One judgement, measured to its boundary and re-specced.
 #
-# All three edges were uncovered: `tester => vision_keeper`, `tester => researcher`
-# and `tester => terminologist` had no case at all, and until `question` carried
-# words they could not have had a meaningful one -- a question of refs alone
-# names its subject and never what is being asked, so the assertion could only
-# have been "a message went out".
+# These two cases spent a register generation demanding the right desk first
+# time -- vision_keeper for an uncheckable sentence, researcher for an outside
+# fact -- and the fork verdict (2026-08-28) showed what that bought: 8B says
+# `encodable` 5/5 on both, 14B correctly says cannot but collapses every kind
+# to the nearest desk. The taxonomy only existed to pick a desk, and the
+# `unresolved` ladder plus `criterion_repair` pick desks mechanically. Ruled
+# 2026-09-01: the bar is the honest cannot -- refuse to encode, route the
+# criterion with a question -- and the nearest desk is a pass, because the
+# climb is the system's job now. The sharp desk stays a pass too: a model
+# that holds the distinction routes direct.
 #
-# `tests_missing` is the mode in all three, and the discriminator is what kind
-# of thing is missing: a sense, a machine-checkable statement, or a fact about
-# the world. Each fixture has exactly one of those wrong and everything else
-# clean, so writing the test is the wrong move for a nameable reason.
+# The ids keep their old names on purpose; the register's history hangs off
+# them, and the lineage -- same probe, lower demand -- should stay visible.
 # ---------------------------------------------------------------------------
 
 - id: L1-TS-a-criterion-no-machine-could-check-is-vision_keepers
@@ -149,14 +152,19 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
-    messages:
-      - {to: vision_keeper, verb: question, count: 1, refs_include: [<c1>]}
+    # The judgement under test is the cannot, not the diagnosis. The nearest
+    # desk is what the brief teaches; the sharp desk is a model exceeding it.
+    any_of:
+      - messages: [{to: terminologist, verb: question, count: 1,
+                    refs_include: [<c1>]}]
+      - messages: [{to: vision_keeper, verb: question, count: 1,
+                    refs_include: [<c1>]}]
   forbidden:
     # A test that asserts the file is non-empty would pass forever and report as
     # coverage of a criterion nobody has actually pinned down. That is worse
     # than no test, which is what the brief says and what this measures.
     writes: [tests, criteria, items]
-    recipients: [terminologist, researcher]
+    recipients: [researcher]
 
 - id: L1-TS-an-outside-fact-is-the-researchers
   tier: T1
@@ -183,10 +191,13 @@
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
-    messages:
-      - {to: researcher, verb: question, count: 1}
+    any_of:
+      - messages: [{to: terminologist, verb: question, count: 1,
+                    refs_include: [<c1>]}]
+      - messages: [{to: researcher, verb: question, count: 1}]
   forbidden:
     # Encoding a remembered header name is the failure: the test passes, and it
-    # pins the wrong thing against a spec nobody read.
+    # pins the wrong thing against a spec nobody read. The scope owner has no
+    # header formats either way, so that desk stays forbidden under both specs.
     writes: [tests, criteria]
-    recipients: [vision_keeper, terminologist]
+    recipients: [vision_keeper]
