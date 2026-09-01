@@ -1430,6 +1430,16 @@
       "label": "so a second segmentation can see the first"
     },
     {
+      "s": "liaison",
+      "t": "brief",
+      "type": "reads",
+      "v": "intake",
+      "n": "the branch claim",
+      "label": "chat or work, never both silently",
+      "rows": "single",
+      "depth": "index"
+    },
+    {
       "s": "architect",
       "t": "decisions",
       "type": "reads",

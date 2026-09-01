@@ -80,6 +80,7 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
     ("findings", "find"): {"status": ("satisfied", "violated")},
     ("tests", "triage"): {"verdict": ("encodable", "ambiguous_word",
                                       "no_machine_check", "outside_fact")},
+    ("brief", "intake"): {"verdict": ("work", "chat")},
 }
 
 # What to say when a *particular* wrong argument is offered, where listing the
@@ -498,6 +499,10 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
     # only exists once somebody knocks.
     if "triage" in (grouped.get("tests") or {}):
         ctx.triaged = {}
+    # And the intake fork the same way: a converse mode that offers the
+    # claim requires it before a reply to the principal.
+    if "intake" in (grouped.get("brief") or {}):
+        ctx.intake = None
     # A survey stamps the tree it read, not the tree at attest time. The
     # hash is captured here, when the session is built for its area -- a
     # concurrent refresh mid-session must not let the record claim currency
@@ -812,6 +817,24 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
+
+        # The intake fork, armed by the mode: a converse to the principal is
+        # either the reply to work (refs carry what intake produced) or a
+        # declared chat. Undeclared-and-bare is the measured S0 failure --
+        # the greeting answered, the request gone.
+        if (verb == "converse" and recipient == "principal"
+                and getattr(ctx, "intake", "unarmed") != "unarmed"):
+            if ctx.intake is None:
+                raise ValueError(
+                    "claim the branch first: brief.intake(verdict='work') "
+                    "if they asked for anything at all, 'chat' if not. An "
+                    "unclaimed reply is how a request dies politely")
+            if ctx.intake == "work" and not refs:
+                raise ValueError(
+                    "you claimed work, so the reply carries refs -- the "
+                    "statements you segmented (brief.segment their words, "
+                    "then confirm). A bare reply would answer the greeting "
+                    "and lose the request")
 
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a

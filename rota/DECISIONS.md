@@ -1216,6 +1216,18 @@ whitespace-normalised), and the developer—tester channel must name and quote
 seven edges of it. The re-record bill was paid in the same pass as the
 surface build's, which had already staled the same cases.
 
+### `brief.segment`'s span is never checked against its own text
+
+`brief_segment` (`roles/api.py`) checks only that a statement's `text` appears
+somewhere in the entry being segmented — never that `text ==
+source[span_start:span_end]`, or even that `span_end - span_start` is close to
+`len(text)`. Found on a live empty-project smoke test against `llama3.1:8b`
+(2026-08-30): a statement landed with `span_start=0, span_end=53` while its
+`text` held the full 89-character request, and a second statement re-captured
+the same tail under its own id — both accepted, nothing flagged either as
+inconsistent. *Not yet fixed:* an added check that the span actually bounds
+the text it claims to.
+
 ---
 
 ## Assumptions

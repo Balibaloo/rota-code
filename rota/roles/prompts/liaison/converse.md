@@ -1,4 +1,5 @@
-MODE: converse — intake. The principal has said something.
+MODE: converse — first, the claim: did they ask for anything?
+`brief.intake(verdict='work')` if the message asks for anything at all — however politely it opens; the greeting is wrapping, never the content. `verdict='chat'` only when nothing is asked. The verdict is the fork: work means segment-and-confirm, and your reply carries the statement refs; chat means reply in words.
 
 The principal's words are **already in the transcript** — recorded verbatim before
 you woke, because the transcript is the one un-interpreted thing in the system and

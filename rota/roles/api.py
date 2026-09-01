@@ -283,6 +283,33 @@ def refuse_second_answer(ctx: Ctx, answer: str) -> None:
             f"leaves them holding two. Your work here is done")
 
 
+@op("brief", "intake")
+def brief_intake(ctx: Ctx, verdict: str) -> dict:
+    """
+    The branch claim at intake: chat or work, never both silently.
+
+    S0's blocker, measured live: handed "Hello, Please build a python
+    script...", the converse session answered the greeting and closed --
+    zero statements, the request gone. The greeting-handling brief patch was
+    prose and lost, prose's fourth loss this month. Same cure as the
+    Tester's fork: the judgment becomes an act. `work` means the reply must
+    carry refs to what intake produced; `chat` means a bare reply is legal.
+    Two verdicts only -- the taxonomy lesson says never three.
+    """
+    if not hasattr(ctx, "intake"):
+        ctx.intake = None
+    ctx.intake = verdict
+    nxt = {
+        "work": "they asked for something: brief.segment each thing asked "
+                "for (their words, spans of the entry), then "
+                "msg.confirm_principal with the statement ids. Your reply "
+                "carries refs; a bare reply is refused",
+        "chat": "no work was asked for: msg.converse_principal replies in "
+                "words, refs may be empty",
+    }[verdict]
+    return {"verdict": verdict, "next": nxt}
+
+
 @op("brief", "segment")
 def brief_segment(ctx: Ctx, id: str, span_start: int, span_end: int,
                   text: str, span_entry: str | None = None) -> dict:
@@ -457,7 +484,8 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # on turn two as `user_writes_intents`, `program_reads_intents`, ... --
     # ten items, five of them. Restating costs nothing and is not refused;
     # it is answered with the id the item already has.
-    norm = " ".join(_words_in(text))
+    words = _words_in(text)
+    norm = " ".join(words)
     if norm:
         for t, i, vals, *_ in ctx.writes:
             if t == "items" and i != id and " ".join(_words_in(vals.get("text") or "")) == norm:
@@ -465,6 +493,30 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         for r in ctx.conn.execute("SELECT id, text FROM items WHERE id <> ?", (id,)):
             if " ".join(_words_in(r["text"] or "")) == norm:
                 return {"id": r["id"], "note": f"already an item as {r['id']!r}; not written twice"}
+
+        # A restatement is not always a *repeat* of the words -- an item found
+        # on an empty project drifted round to round ("do not ask for X" ->
+        # "the software will not ask for X in any script") while staying the
+        # same claim, and the exact check above cannot see it: different
+        # words, same meaning, so it never once matched and the same claim
+        # landed under five separate ids. Word-set overlap catches the drift.
+        # `_prose_words`, not `_words_in`: the latter's stoplist drops "name"
+        # and "show" as identifier noise, which are the two words that
+        # separate "ask for a name" from "show a greeting" here. Scoped to
+        # the same `kind` -- overlapping vocabulary between an in-scope and
+        # an out-of-scope claim is evidence they share a subject, not that
+        # they are one claim.
+        prose = _prose_words(text)
+        for t, i, vals, *_ in ctx.writes:
+            if (t == "items" and i != id and vals.get("kind") == kind
+                    and _near_duplicate(prose, _prose_words(vals.get("text") or ""))):
+                return {"id": i, "note": f"close enough to {i!r} to be the same "
+                        f"item ({vals.get('text')!r}) -- not written twice"}
+        for r in ctx.conn.execute(
+                "SELECT id, text FROM items WHERE id <> ? AND kind = ?", (id, kind)):
+            if _near_duplicate(prose, _prose_words(r["text"] or "")):
+                return {"id": r["id"], "note": f"close enough to {r['id']!r} to be "
+                        f"the same item ({r['text']!r}) -- not written twice"}
 
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
@@ -3380,6 +3432,50 @@ def _words_in(text: str) -> list[str]:
                 w = w[:-1]
             out.append(w)
     return out
+
+
+_PROSE_STOPWORDS = frozenset("""
+    the a an and or but nor not for from with without into onto upon
+    is are was were be been being will would shall should can could may
+    might must have has had do does did done this that these those it its
+    they them their there here what which who whom when where how why
+    all any each every both either neither more most some such only own
+    same so than too very just also then once
+""".split())
+
+
+def _prose_words(text: str) -> list[str]:
+    """
+    Content words for comparing what two items *say*, not what they name.
+
+    `_words_in` exists for identifier text and its stoplist is tuned for
+    that: `get`, `set`, `show` and `name` are noise in `getIntentsFromFM`
+    but they are the content in "show the user's name", where reusing it
+    silently discarded the two words that actually distinguish one item
+    from another. This keeps everything but grammatical scaffolding --
+    articles, conjunctions, prepositions, auxiliaries, pronouns -- because
+    an item's text is an English sentence, not a name.
+    """
+    import re
+
+    return [w for w in re.findall(r"[a-z]+", text.lower())
+            if len(w) > 2 and w not in _PROSE_STOPWORDS]
+
+
+def _near_duplicate(a: list[str], b: list[str], *,
+                    min_shared: int = 4, min_ratio: float = 0.6) -> bool:
+    """Two word lists carrying the same claim, wording aside.
+
+    Both a floor on the count of shared words and on their share of the
+    larger side: ratio alone calls two four-word items half the same on a
+    two-word coincidence, and count alone lets two long, mostly-different
+    items through on a handful of words they both happen to use.
+    """
+    if not a or not b:
+        return False
+    sa, sb = set(a), set(b)
+    shared = len(sa & sb)
+    return shared >= min_shared and shared / max(len(sa), len(sb)) >= min_ratio
 
 
 def _tells_you_something(line: str) -> int:

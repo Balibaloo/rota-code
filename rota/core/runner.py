@@ -142,6 +142,24 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
                 (wake.message_id,)).fetchone()
             if row and row["cause_verb"] == "present":
                 return "verdict_signoff"
+        # Same shape as `verdict` above: `reopen` means two different things
+        # depending on what caused it. Vision Keeper's `challenge` mode sends
+        # it once, as a revocation notice -- elect amend or restart. Its
+        # `elect` mode then sends it *again*, on the same batch, to hand the
+        # now-amended item back -- "so their next session starts from the
+        # amended text", per that mode's own brief. Both land Developer in
+        # `reopen` mode, which offers nothing but `elect_vision_keeper`, so
+        # the second one relit the first one's question instead of the work
+        # it was meant to unblock: elect -> reopen -> elect -> reopen, ten
+        # rounds deep on one empty-project run, never once writing code. The
+        # cause distinguishes them exactly as it does for `verdict`.
+        if verb == "reopen" and conn is not None and wake.message_id:
+            row = conn.execute(
+                "SELECT c.verb AS cause_verb FROM messages m "
+                "LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+                (wake.message_id,)).fetchone()
+            if row and row["cause_verb"] == "elect":
+                return "batch_start"
         return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
@@ -1245,6 +1263,18 @@ def run_session(
                     "complete — emit no further tool calls."
                 )
             transcript.append("\n".join(feedback))
+
+            # Liaison's intake mode is documented as one answer per message --
+            # chat, an inquiry, or work, never two -- so once it has actually
+            # sent that answer, asking the model again can only solicit a
+            # second one. Scoped to this one role+mode: an unscoped version of
+            # this check broke Architect's escalation routing, which
+            # legitimately sends two messages (report, then challenge) in one
+            # session. See rota-loop-termination-fix memory for the two
+            # earlier attempts this replaced.
+            if (wake.role == "liaison" and _mode_key(wake, conn) == "converse"
+                    and sb.ctx.outbound):
+                break
 
             # And when saying so is not enough, stop.
             #
