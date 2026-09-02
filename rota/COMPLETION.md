@@ -335,6 +335,16 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    nothing is told once what it owes (fix, dispute with quotes, or
    escalate). Walk seventeen measures it.
 
+3.16. **Walk seventeen (2026-09-02): the loop converges and the cap
+   stops it.** Four, three, two tests failing across three commits -- the
+   Developer challenging, fixing, committing -- and the third session was
+   the quarantine, because `developer|tick:tests_failing|b1` never changed
+   and the counter could not see progress. A new head commit now resets
+   that tick's count. And the Tester held a test whose run said OSError
+   reading stdin (the test calls `prompt_for_name()`, which reads input);
+   a hold on a test whose last run reached stdin is refused as the harness
+   fact it is. Walk eighteen measures both.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

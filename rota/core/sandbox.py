@@ -845,6 +845,29 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "transcript entry holding what the principal said, in refs, "
                 "and the owner reads it as `principal_said`")
 
+        # A held test whose run reached stdin is not a hold, it is the
+        # harness fact again. Walk seventeen: the Developer challenged
+        # tst_1 with the OSError in the message, the Tester answered holding
+        # its ground, and the test cannot pass however the code is written
+        # -- `prompt_for_name()` reads input, and the test calls it bare.
+        # The fact was refused at encode when the test called input()
+        # itself; through a function it is only visible in the run, so the
+        # run is where it is refused.
+        if verb == "answer" and ctx.role == "tester":
+            for r in (refs or []):
+                run = ctx.conn.execute(
+                    "SELECT output FROM test_runs WHERE test_id = ? "
+                    "ORDER BY rowid DESC LIMIT 1", (r,)).fetchone()
+                if run and "reading from stdin while output is captured" in (run["output"] or ""):
+                    raise ValueError(
+                        f"{r}'s last run reached input() through the code it "
+                        f"calls -- pytest captures stdin, so this test cannot "
+                        f"pass against any implementation. That is not a "
+                        f"hold: re-encode it feeding the name in "
+                        f"(monkeypatch.setattr('builtins.input', lambda _='': "
+                        f"'Alice')) or asserting on the function that takes "
+                        f"the name as an argument")
+
         # One open question per criterion. `tests_missing` fires per batch
         # while any criterion lacks a test, so the mode meets its own routed
         # criteria again on the next wake -- and a re-asked question forks

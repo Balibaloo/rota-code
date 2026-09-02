@@ -245,6 +245,47 @@ def test_an_answer_met_with_the_same_wall_is_derived_unresolved(db):
     assert row["status"] == "unresolved", "the wall is the reask"
 
 
+def test_a_tester_cannot_hold_a_test_whose_run_reached_stdin(db):
+    """Walk seventeen: the challenge carried the OSError, the Tester held,
+    and the test cannot pass however the code is written."""
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,'E  OSError: pytest: reading from stdin while output "
+               "is captured!')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','developer','tester',"
+               "'challenge','[\"c1\", \"tst1\"]',1,'open')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("tester", db, batch_id="b1", mode="challenge",
+               allow=prompts.mode_tools("tester", "challenge"),
+               wake=Wake("tester", "message", message_id="m1", refs=("m1",)))
+    with pytest.raises(ValueError, match="cannot pass against any implementation"):
+        sb.call("msg.answer_developer", refs=["c1", "tst1"])
+
+
+def test_a_commit_resets_the_failing_ticks_attempts(db):
+    """Walk seventeen: four, three, two tests failing across three commits
+    and the third session was the quarantine -- progress counted as
+    dispatch without progress. A new head commit is the wake stopping
+    being produced, from the counter's point of view."""
+    from rota.core.db import _lift_quarantines
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('developer|tick:tests_failing|b1', 2, 0)")
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('tester|tick:tests_missing|b1', 2, 0)")
+    db.commit()
+
+    from rota.core.db import Write
+    W = Write(table="batches", row_id="b1", values={"head_commit": "def456"})
+
+    _lift_quarantines(db, W)
+    rows = {r["tick_key"]: r["attempts"] for r in db.execute(
+        "SELECT tick_key, attempts FROM tick_attempts")}
+    assert "developer|tick:tests_failing|b1" not in rows, "progress resets"
+    assert rows["tester|tick:tests_missing|b1"] == 2, "an unrelated debt keeps its count"
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

@@ -317,6 +317,15 @@ def _lift_quarantines(conn: sqlite3.Connection, w) -> None:
         "DELETE FROM tick_attempts WHERE quarantined = 1 "
         "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
         (f"%|{w.row_id}", f"%|{w.row_id},%", f"%,{w.row_id}%"))
+    # A new head commit is progress, and the bound is on dispatch *without*
+    # progress. Walk seventeen: four, three, two tests failing across three
+    # commits, and the third session was the quarantine -- the key
+    # `developer|tick:tests_failing|b1` never changed, so the counter never
+    # saw the loop working. The commit is the wake stopping being produced.
+    fields = getattr(w, "values", None) or {}
+    if w.table == "batches" and "head_commit" in fields:
+        conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
+                     (f"%|tick:tests_failing|{w.row_id}",))
     if w.table in ("criteria", "tests"):
         if w.table == "criteria":
             batches = [r["batch_id"] for r in conn.execute(
