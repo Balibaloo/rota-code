@@ -940,6 +940,16 @@ what makes it the door's business rather than a desk's. The line is kept
 deliberately: whether "display" means return or print is a judgement, and
 walk twelve climbed it to the seat as designed.
 
+The list grew through walk thirty, each entry a measured loop first: a
+fixture the harness lacks (`mocker`) errors every test at setup; a name
+used anywhere in a test and defined nowhere is a NameError; a module the
+tests import that does not exist is the name the first file has to have;
+a rewrite that drops a function the tests import is an ImportError; two
+tests on one path overwrite each other; a criterion whose subject is the
+tests names the Tester's job, not the program; and code written outside a
+batch lands outside every checkpoint. The line held: whether "123" is an
+invalid name is a judgement, and walk thirty climbed it to the seat.
+
 Two corollaries. The derived reask turns on every one of these walls
 when met with an answer in view, because meeting any of them after the
 answer is the answer not landing -- that is what wakes the criterion's
