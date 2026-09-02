@@ -415,10 +415,20 @@ def test_a_misplaced_quote_is_told_whose_words_it_quotes(db):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError, match=r"Those words are c1's, not c2's"):
-        sb.call("msg.challenge_tester", refs=["c2", "tst2"],
-                quotes=["closing an account leaves its invoices in place",
-                        "assert tombstone('a') == 'gone'"])
+    # Walks twenty-three to twenty-seven: told whose words they were, the
+    # Developer sent the identical call nine times a walk. The test's words
+    # are the bar; a criterion of the same batch, verbatim, goes through.
+    sb.call("msg.challenge_tester", refs=["c2", "tst2"],
+            quotes=["closing an account leaves its invoices in place",
+                    "assert tombstone('a') == 'gone'"])
+    assert sb.ctx.outbound[-1]["to_role"] == "tester"
+    # A paraphrase of any criterion is still refused.
+    sb2 = build("developer", db, batch_id="b1", mode="tests_failing",
+                allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="Quote, not paraphrase"):
+        sb2.call("msg.challenge_tester", refs=["c2", "tst2"],
+                 quotes=["the criterion wants the ledger balanced monthly",
+                         "assert tombstone('a') == 'gone'"])
 
 
 def test_an_undefined_name_anywhere_in_a_test_is_a_nameerror(db):
