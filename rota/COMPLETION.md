@@ -40,10 +40,17 @@ attached, and when a pointer's target closes, the line comes out.
    it, one-open-question-per-criterion guards the refire, and the two
    cases now expect cannot-plus-ladder (nearest or sharp desk, same ids).
    Measured the same day: both routing cases re-earned **5/5 on the
-   recording model** (0/5 the load before). The tester brief has changed
-   again since (walks eight and nine: harness facts, the worked example
-   importing what it calls, the assumptions line), so the family is owed
-   another re-record before the greens are banked.
+   recording model** (0/5 the load before). Re-recorded again after the
+   thirty walks (2026-09-02, 130 cassettes): the greens held, three more
+   reds re-earned (`VK-amend-a-contested-item`, `AR-a-dead-end`,
+   `TS-hold`), and two guards from the walks that overreached on the
+   register were found and removed the same pass (the post-send notice
+   must fire in build modes; a quoted test does not pick the challenge's
+   desk). Seven reds stand, all attributed: `TS-apply-a-term` (both
+   models, transcription), `DV-fix-the-code`, `VK-slice`, `LI-present`
+   (resolution guard), `TE-words-already-defined`, `CR-a-test-that-
+   encodes-nothing` and `L3-a-challenge-reaches-the-role` (judgment
+   reds -- the role addresses the wrong desk with the right evidence).
    The same pass's four new reds, attributed 2026-08-28:
    `G1-a-reply` was my authoring bug {EM} the trap utterance was phrased as a
    question and the question-guard rightly refused to segment it (fixture

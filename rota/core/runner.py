@@ -1384,12 +1384,13 @@ def run_session(
             # mode, finished. Without saying so the model keeps going and starts
             # inventing work — an Liaison intake session will happily fabricate
             # a second principal entry, which is the one thing it must never do.
-            # Not in a build mode: a Developer that has challenged a test
-            # still has code to write, and walk twenty-two measured the
-            # notice fighting the work -- told "emit no further tool calls"
-            # after its challenge, the model fenced its calls, fabricated
-            # their results, and only wrote the fix eight turns later.
-            if sb.ctx.outbound and "code.write" not in allowed:
+            # Everywhere, build modes included. Scoping this away from
+            # them (walk twenty-two) sent DV-challenge-a-test from 5/5 to
+            # 0/5 on the register: told nothing after its correct
+            # challenge, the Developer went on to write code against the
+            # very test it had put in dispute. A challenge sent is the
+            # session's last word on that test.
+            if sb.ctx.outbound:
                 feedback.append(
                     "You have sent your message. Your work for this session is "
                     "complete — emit no further tool calls."

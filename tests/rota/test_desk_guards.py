@@ -42,18 +42,6 @@ def db(tmp_path):
     return conn
 
 
-def test_a_quoted_test_is_the_testers_dispute(db):
-    sb = build("critic", db, batch_id="b1", mode="review")
-    with pytest.raises(ValueError, match=r"challenge_tester\(refs=\['c1', 'tst1'\]"):
-        sb.call("msg.challenge_developer", refs=["c1", "tst1"],
-                quotes=["closing an account leaves its invoices in place",
-                        "assert close_account('a1') is not None"])
-    # The same evidence on the right channel goes through.
-    sb.call("msg.challenge_tester", refs=["c1", "tst1"],
-            quotes=["closing an account leaves its invoices in place",
-                    "assert close_account('a1') is not None"])
-
-
 def test_a_challenge_is_the_sessions_verdict_until_it_lands(db):
     sb = build("critic", db, batch_id="b1", mode="review")
     sb.call("msg.challenge_tester", refs=["c1", "tst1"],
@@ -341,30 +329,6 @@ def test_a_branch_claim_does_not_hold_the_act_behind_it(db, tmp_path):
     _, user = backend.calls[1]
     assert "NOT RUN" not in user, "a claim is not a lookup; the encode ran"
     assert db.execute("SELECT 1 FROM tests WHERE id='tst_9'").fetchone(), out.errors
-
-
-def test_a_builder_is_not_told_to_stop_after_a_message(db, tmp_path):
-    """Walk twenty-two: told "emit no further tool calls" after its
-    challenge, the Developer fenced its calls, fabricated their results and
-    wrote the fix eight turns later. A message is not a builder's last act."""
-    from rota.core.runner import run_session
-    from rota.llm.llm import Pins, ScriptedBackend
-    root = tmp_path / "wt"; root.mkdir()
-    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
-    db.commit()
-    backend = ScriptedBackend([
-        "TOOL: msg.challenge_tester(refs=['c1', 'tst1'], quotes=['closing an "
-        "account leaves its invoices in place', \"assert close_account('a1') "
-        "is not None\"])",
-        "TOOL: code.write(path='script.py', text='def close_account(a):\\n"
-        "    return a\\n')",
-        "Done.",
-    ])
-    out = run_session(db, Wake("developer", "tick:tests_failing", refs=("b1",)),
-                      backend=backend, pins=Pins(model="scripted"), batch_id="b1")
-    _, user = backend.calls[1]
-    assert "emit no further tool calls" not in user
-    assert (root / "script.py").exists(), out.errors
 
 
 def test_code_is_written_in_a_batch_or_not_at_all(db, tmp_path):

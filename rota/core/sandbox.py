@@ -687,23 +687,12 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     f"verbatim -- both rows are in front of you{hint}")
         return
 
-    # A quoted test is the Tester's dispute, whoever the challenge names.
-    # Measured on the register (CR-a-test-that-encodes-nothing, 2026-09-01):
-    # the Critic saw the vacuous test, quoted its body verbatim beside the
-    # criterion -- exactly the tester channel's evidence -- and addressed the
-    # Developer, whose diff is not what the quote disputes. A test has one
-    # writer; the row the quote comes from names the desk.
-    quoted_tests = [r for r, (t, words) in rows.items()
-                    if t == "tests" and _quotes_span(words, text)]
-    if quoted_tests and recipient != "tester":
-        crit = [r for r, (t, _) in rows.items() if t == "criteria"]
-        pair = [*crit[:1], quoted_tests[0]]
-        raise ValueError(
-            f"you quoted {quoted_tests[0]}'s body, and a test is the Tester's "
-            f"to defend or rewrite -- the {recipient} did not write it. Send "
-            f"the same dispute on the tester channel: "
-            f"msg.challenge_tester(refs={pair!r}, quotes=...)")
-
+    # No redirect by who is quoted. A rule that sent a quoted test to the
+    # Tester (from CR-a-test-that-encodes-nothing's transcript) bought that
+    # case nothing and sent the L3 failed-verdict chain from 5/5 to 0/5:
+    # at review the tests are green by construction, so nothing mechanical
+    # separates "the test is vacuous" from "the diff is wrong", and the
+    # desk is the Critic's judgement to make.
     # Every other channel: whatever text-bearing rows the refs name, at least
     # one must actually be quoted. Vacuously legal when the refs carry no
     # quotable row, because bounded strictness beats a guard with no exit.
