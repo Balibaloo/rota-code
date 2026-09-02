@@ -106,6 +106,12 @@ def run(conn: sqlite3.Connection, batch_id: str,
         output[t["id"]] = said
 
     head = lifecycle.head_of(conn, batch_id)
+    # A run supersedes the run before it at the same commit: the tests may
+    # have changed under it (walk eighteen), and the `review` gate reads
+    # "no non-pass run at this commit", which stale fail rows kept false
+    # forever after the tests went green.
+    conn.execute("DELETE FROM test_runs WHERE batch_id = ? AND commit_sha = ?",
+                 (batch_id, head))
     for test_id, result in results:
         lifecycle.record_test_run(conn, new_id("tr", conn), batch_id, test_id,
                                   result, attempt, commit_sha=head,

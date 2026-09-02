@@ -9,6 +9,7 @@ with a scripted Yes-principal approving every confirm/present -> stop at the
 first merge, a quiet frontier, or the step cap. Prints the world's counts,
 the test-run results, the batches and the worktree's Python at the end.
 """
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,16 +18,18 @@ from pathlib import Path
 # Runnable from anywhere: the repo root is one up from probes/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-CAP = int(sys.argv[2]) if len(sys.argv) > 2 else 90
-MODEL = sys.argv[3] if len(sys.argv) > 3 else "qwen3:8b"
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+FLAGS = {a for a in sys.argv[1:] if a.startswith("--")}
+CAP = int(ARGS[1]) if len(ARGS) > 1 else 140
+MODEL = ARGS[2] if len(ARGS) > 2 else "qwen3:8b"
 
-root = Path(tempfile.mkdtemp(prefix="rota_s0g_")) / "proj"
-root.mkdir(parents=True)
-(root / "README.md").write_text("# greeter\n", encoding="utf-8")
-for cmd in (["git", "init", "-q"], ["git", "add", "-A"],
-            ["git", "-c", "user.email=t@t", "-c", "user.name=t",
-             "commit", "-qm", "init"]):
-    subprocess.run(cmd, cwd=root, check=True, capture_output=True)
+# The onboarding stretch is ~60 steps and reproduces step for step within
+# a model load; the delivery stretch is what the walks measure. `--snap`
+# saves the world at the first slicing tick (delivery about to start);
+# `--restore` starts the next walk from it, at the same absolute path so
+# every path the database holds still resolves. Onboarding code changes
+# invalidate the snapshot -- delete it and walk cold.
+SNAP = Path(tempfile.gettempdir()) / "rota_s0_snapshot"
 
 from rota.core.db import init_db          # noqa: E402
 from rota.onboarding import boot          # noqa: E402
@@ -34,16 +37,41 @@ from rota.core.loop import step           # noqa: E402
 from rota.roles.principal import pump, Answer   # noqa: E402
 from rota.llm.llm import Pins             # noqa: E402
 
-db = init_db(root.parent / "rota.db")
-boot.onboard(db, root)
-db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
-           "('e_m1','principal',1,?)",
-           ('Hello, Please build a python script that asks for the users '
-            'name, and then shows "Hellow User!"',))
-db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-           "body_refs, seq) VALUES ('m1','t1','principal','liaison',"
-           "'converse','[\"e_m1\"]',1)")
-db.commit()
+if "--restore" in FLAGS and (SNAP / "root.txt").exists():
+    base = Path((SNAP / "root.txt").read_text(encoding="utf-8").strip())
+    if base.exists():
+        shutil.rmtree(base)
+    shutil.copytree(SNAP / "tree", base)
+    root = base / "proj"
+    db = init_db(base / "rota.db")
+    print(f"restored snapshot into {base}", flush=True)
+else:
+    root = Path(tempfile.mkdtemp(prefix="rota_s0g_")) / "proj"
+    root.mkdir(parents=True)
+    (root / "README.md").write_text("# greeter\n", encoding="utf-8")
+    for cmd in (["git", "init", "-q"], ["git", "add", "-A"],
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                 "commit", "-qm", "init"]):
+        subprocess.run(cmd, cwd=root, check=True, capture_output=True)
+    db = init_db(root.parent / "rota.db")
+    boot.onboard(db, root)
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_m1','principal',1,?)",
+               ('Hello, Please build a python script that asks for the users '
+                'name, and then shows "Hellow User!"',))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','t1','principal','liaison',"
+               "'converse','[\"e_m1\"]',1)")
+    db.commit()
+
+
+def _snapshot():
+    db.execute("PRAGMA wal_checkpoint(FULL)")
+    if SNAP.exists():
+        shutil.rmtree(SNAP)
+    shutil.copytree(root.parent, SNAP / "tree")
+    (SNAP / "root.txt").write_text(str(root.parent), encoding="utf-8")
+    print(f"snapshot saved from {root.parent}", flush=True)
 
 
 class Yes:
@@ -79,6 +107,8 @@ for i in range(CAP):
           f"ok={bool(o and o.committed)} e={len(o.errors) if o else '-'} "
           f"{(s.note or '')[:44]}", flush=True)
     pump(db, seat)
+    if "--snap" in FLAGS and s.wake.kind == "tick:slicing":
+        _snapshot()
     b = db.execute("SELECT id FROM batches WHERE status='merged'").fetchone()
     if b:
         print(f"*** MERGED: {b['id']} ***", flush=True)

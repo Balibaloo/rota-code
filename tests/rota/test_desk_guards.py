@@ -303,6 +303,22 @@ def test_a_re_encoded_test_is_owed_a_fresh_run(db):
     assert [w.refs for w in harness(db)] == [("b1",)], "a run is owed again"
 
 
+def test_a_pass_supersedes_the_fail_before_it(db):
+    """Walk nineteen: all four tests green, and the Developer woken on a
+    fail row from an earlier run, rewrote working code and broke it."""
+    from rota.core.predicates import tests_failing, review
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,'boom')")
+    db.commit()
+    assert [w.refs for w in tests_failing(db)] == [("b1",)]
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r2','b1','tst1','abc123',"
+               "'pass',2,'.')")
+    db.commit()
+    assert tests_failing(db) == [], "the newest row is the result"
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

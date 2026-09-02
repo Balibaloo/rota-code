@@ -670,9 +670,16 @@ def tests_failing(conn) -> list[Wake]:
     from . import config
 
     cap = config.get(conn, "loop_cap")
+    # A test's *latest* run is its result. S0 walk nineteen: all four tests
+    # passed at step 84 and the Developer was woken anyway, on a fail row
+    # from an earlier run of the same batch, rewrote working code and broke
+    # it. A pass supersedes the fail before it; only the newest row per
+    # test says anything.
     rows = conn.execute(
         "SELECT DISTINCT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
-        "WHERE result IN ('fail','error') GROUP BY batch_id"
+        "WHERE result IN ('fail','error') "
+        "  AND rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
+        "GROUP BY batch_id"
     ).fetchall()
     return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
                  detail=f"attempt {r['att']}")

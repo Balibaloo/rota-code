@@ -354,6 +354,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    invalidates its runs, and the harness owes a run to any test without
    one at the head commit, whichever side moved. Walk nineteen measures it.
 
+3.18. **Walk nineteen (2026-09-02): all four tests green, then a stale
+   row undid it.** Four, three, two, one, then *zero* failing at step 84
+   -- the first fully green harness in the arc -- and the Developer was
+   woken on `tests_failing` anyway, on a fail row from an earlier run of
+   the batch, rewrote working code and broke it before the probe's cap.
+   Only a test's latest run says anything now, and a run supersedes the
+   run before it at the same commit (the `review` gate read "no non-pass
+   run at this commit", which stale rows kept false forever). The probe
+   gained a snapshot of the world at the first slicing tick, so later
+   walks can start at delivery; walk twenty saves it.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
