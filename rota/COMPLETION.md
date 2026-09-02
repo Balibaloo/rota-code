@@ -307,6 +307,16 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    bodies import what they call), and a sentence of intent naming a tool
    with no call is told once that a reply is not a call.
 
+3.13. **Walk fourteen (2026-09-02): the Tester converges inside one
+   session; the Developer narrates three times.** Seven refusals in one
+   `tests_missing` session -- stdin, print, two NameErrors, three chosen
+   strings -- and four importing tests behind ledger rows came out of it:
+   the door's refusals are a conversation the 8B model can finish. Then
+   three identical Developer sessions: correct diagnosis, "I will implement
+   `prompt_for_name`...", no call, quarantine. The intent nudge built on
+   walk thirteen was inert in this walk (a heredoc had put a backspace
+   byte in its regex; repaired); walk fifteen measures it live.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
