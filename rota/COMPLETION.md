@@ -482,6 +482,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    never reused now. Walk thirty-five runs on the parser leniency; the
    batch-id refusal lands for thirty-six.
 
+3.28. **Walk thirty-five (2026-09-02): the loop cap, and the seat holding
+   the ball.** Nine `tests_failing` sessions to `loop_cap` (10 attempts);
+   the ladder had already run in full earlier in the walk -- Developer,
+   Architect, Vision Keeper, a clarification to the principal, answered --
+   so at the cap `exhausted` had no rung left, and the walk went quiet
+   with an open Liaison reply to the principal on the table. Not a floor:
+   the design's end state when every desk has spoken and the seat has not
+   ruled. Thirty-five walks: S0's mechanical boundary is reached; what is
+   left is 8B judgment (identical refused calls at temperature zero) and
+   the seat's questions. Whether to walk a larger model is the seat's call.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
