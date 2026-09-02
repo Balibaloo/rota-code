@@ -530,15 +530,12 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # and asked again -- five answered questions, the criterion
             # untouched. Every encode refusal that can be met with the
             # answer in view is the answer not landing.
+            # Keyed on the refusal's class, not its wording: every wall
+            # `tests.encode` raises is an `api.Wall`, and the messages are
+            # rewritten freely.
             parroted = any(
-                ("own sentence written back" in msg
-                 or "not Python" in msg
-                 or "collect nothing" in msg
-                 or "on a constant" in msg
-                 or "captures stdin" in msg
-                 or "print returns None" in msg
-                 or "a test that exists nowhere" in msg)
-                for _, msg in (result.refusals or []))
+                (len(r) > 2 and r[2] == "Wall")
+                for r in (result.refusals or []))
             if parroted:
                 q = conn.execute(
                     "SELECT q.id AS qid, q.body_refs AS refs FROM messages a "

@@ -1472,7 +1472,7 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
             # from "the write was refused", which are different results.
             refusals = getattr(ctx, "refusals", None)
             if refusals is not None:
-                refusals.append((label, str(exc)))
+                refusals.append((label, str(exc), type(exc).__name__))
             raise
 
     wrapper.__name__ = label.replace(".", "_")

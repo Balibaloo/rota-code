@@ -161,6 +161,13 @@ def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     return rows[0]["id"] if len(rows) == 1 else None
 
 
+class Wall(ValueError):
+    """A refusal that is a fact about the harness, not a judgement about the
+    work: the thing refused could not pass against any code. The derived
+    reask keys on this class, not on the wording of the message -- the
+    messages are rewritten freely and the state machine must not care."""
+
+
 def _same_words(a: str, b: str) -> bool:
     """
     Two strings that say the same thing in the same order.
@@ -914,7 +921,7 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
                      if "/" in i or "." in i}
             placed = bool(set(_words_in(f"{sense_body} {sense_short}"))
                           & {w for st in stems for w in _words_in(st)} - set(_words_in(term)))
-        already = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+        already = sum(1 for fn, why, *_ in (getattr(ctx, "refusals", None) or [])
                       if fn == "glossary.amend" and "written down" in why)
         if not placed and not already:
             # Once. Measured: refused, the session opened the declaring file --
@@ -962,7 +969,7 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
             unkinded = not ((enum_words and enum_words <= said_words) or kin)
             ask = (f"say what it is one of -- the kind the code declares it a member "
                    f"of, and at least one of the other kinds beside it")
-        already_kind = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+        already_kind = sum(1 for fn, why, *_ in (getattr(ctx, "refusals", None) or [])
                            if fn == "glossary.amend" and "one of" in why)
         if unkinded and not already_kind:
             raise ValueError(
@@ -1360,7 +1367,7 @@ def glossary_synthesise(ctx: Ctx, ids: list[str], sense_short: str,
     summary_only = False
     if evidence:
         brought = set(_words_in(f"{sense_short} {sense_body}")) & (evidence - said)
-        asked = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+        asked = sum(1 for fn, why, *_ in (getattr(ctx, "refusals", None) or [])
                     if fn == "glossary.synthesise" and "nothing the readings" in why)
         # Once. Two collision sessions re-sent a summary twelve times each
         # against this refusal; the second attempt lands, flagged, like every
@@ -2168,8 +2175,8 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # subject on it would lose the word or the constraint the refusal was
     # asking the session to fix. That stays a refusal, with the reason.
     refusals = getattr(ctx, "refusals", None) or []
-    refused = [why for fn, why in refusals if fn == owed_fn]
-    held = sum(1 for fn, why in refusals
+    refused = [why for fn, why, *_ in refusals if fn == owed_fn]
+    held = sum(1 for fn, why, *_ in refusals
                if fn == "surveys.attest" and "was refused this session" in why)
     if not mine and refused and not held:
         # Either claim, after a refused write and nothing landed, closes the
@@ -2201,7 +2208,7 @@ def surveys_attest(ctx: Ctx, outcome: str,
         # `model.amend`. Deriving `none_found` there was true to the writes
         # and false to the session. Bounded, like the place guard, because a
         # refusal the model cannot act on is a loop.
-        asked = sum(1 for fn, why in (getattr(ctx, "refusals", None) or [])
+        asked = sum(1 for fn, why, *_ in (getattr(ctx, "refusals", None) or [])
                     if fn == "surveys.attest" and "then attest again" in why)
         if not asked:
             if area == PROGRAM:
@@ -3167,7 +3174,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     try:
         tree = _ast.parse(body)
     except SyntaxError as exc:
-        raise ValueError(
+        raise Wall(
             f"the body is not Python ({exc.msg}, line {exc.lineno}). A test "
             f"is code the harness can execute -- def test_...(): with "
             f"assertions, not a description of one") from None
@@ -3175,7 +3182,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                    and n.name.startswith("test") for n in _ast.walk(tree))
     has_assert = any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))
     if not (has_test and has_assert):
-        raise ValueError(
+        raise Wall(
             "pytest will collect nothing from this body: it needs a "
             "def test_...() containing at least one assert. A sentence about "
             "the criterion is the criterion again, not a test of it")
@@ -3191,7 +3198,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
     names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
     if "input" in names and "monkeypatch" not in body and "builtins" not in body:
-        raise ValueError(
+        raise Wall(
             "this test calls input(), and pytest captures stdin: the call "
             "raises OSError before any assertion runs, against any code. "
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
@@ -3256,7 +3263,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                        and c.func.value.id not in defined
                        and not hasattr(_builtins, c.func.value.id)})
     if unbound:
-        raise ValueError(
+        raise Wall(
             f"the test uses {unbound[0]} and never imports or defines it: a "
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
@@ -3317,7 +3324,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                    if a.arg not in builtin_fixtures and a.arg not in own
                    and a.arg != "self"]
         if unknown:
-            raise ValueError(
+            raise Wall(
                 f"{fn.name} takes {unknown[0]!r}, and the harness has no such "
                 f"fixture -- plain pytest, nothing installed on top -- so "
                 f"every run errors at setup before the first assertion. Use "
@@ -3329,7 +3336,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # Walk ten: `assert True` under "unit tests must validate the
         # script's behaviour" -- a criterion that is not a behaviour, met
         # with a test that is not a check. The honest verdict was `cannot`.
-        raise ValueError(
+        raise Wall(
             "every assertion here is on a constant, so the test checks "
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
@@ -3339,7 +3346,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # moved inside a comparison and the guard on the bare call missed it.
         if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
                and n.func.id == "print" for n in _ast.walk(a.test)):
-            raise ValueError(
+            raise Wall(
                 "`assert print(...)` is always False -- print returns None. "
                 "Capture what was printed (capsys.readouterr().out) and "
                 "assert on that, or assert on the value the function returns")
@@ -3371,7 +3378,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     text = ctx.conn.execute(
         "SELECT text FROM criteria WHERE id = ?", (criterion_id,)).fetchone()
     if text is not None and _same_words(body, text["text"]):
-        raise ValueError(
+        raise Wall(
             f"that is {criterion_id}'s own sentence written back, so nothing has "
             f"been encoded and a test that reports as coverage would exist. If "
             f"there is nothing you can add to it, the criterion is what is "
@@ -5079,7 +5086,7 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
 
     table, row = _claim_of(ctx)
     citation = _re.sub(r"^(?:\./|/)+", "", (citation or "").strip())
-    prior = sum(1 for fn, _why in (getattr(ctx, "refusals", None) or [])
+    prior = sum(1 for fn, _why, *_ in (getattr(ctx, "refusals", None) or [])
                 if fn == "challenge.break")
     flagged = ""
     bad_quote = not (quote or "").strip()

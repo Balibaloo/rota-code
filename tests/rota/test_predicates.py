@@ -1432,7 +1432,8 @@ def test_an_answer_that_lands_stays_answered(db):
         db, P.Wake("tester", "message", message_id="a1", detail="answer"),
         backend=ScriptedBackend(["TOOL: tests.encode(id='tst1', "
                                  "criterion_id='c1', path='test_reg.py', "
-                                 "body=\"def test_lower():\\n    assert "
+                                 "body=\"from app import register\\n"
+                                 "def test_lower():\\n    assert "
                                  "register('A@B.com').email == "
                                  "'a@b.com'\")", "done"]),
         pins=Pins(model="stub", temperature=0.0),
