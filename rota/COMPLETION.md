@@ -345,6 +345,15 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    a hold on a test whose last run reached stdin is refused as the harness
    fact it is. Walk eighteen measures both.
 
+3.17. **Walk eighteen (2026-09-02): the fix landed and never ran.** One
+   failing test after the first Developer session; the hold was refused
+   and the Tester re-encoded it with the input fed in -- and the new body
+   never ran, because the harness gate keyed on the batch having runs at
+   the head commit, so the Developer, the Tester and the hold guard all
+   read the old body's result until quarantine. A re-encoded test now
+   invalidates its runs, and the harness owes a run to any test without
+   one at the head commit, whichever side moved. Walk nineteen measures it.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

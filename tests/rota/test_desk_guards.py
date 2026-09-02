@@ -286,6 +286,23 @@ def test_a_commit_resets_the_failing_ticks_attempts(db):
     assert rows["tester|tick:tests_missing|b1"] == 2, "an unrelated debt keeps its count"
 
 
+def test_a_re_encoded_test_is_owed_a_fresh_run(db):
+    """Walk eighteen: the fixed test never ran, because the batch already
+    had runs at the head commit, and everyone read the stale result."""
+    from rota.core.db import Write, _lift_quarantines
+    from rota.core.predicates import harness
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,'E  OSError: reading from stdin while output is captured')")
+    db.commit()
+    assert harness(db) == [], "tested at this commit: nothing owed"
+    _lift_quarantines(db, Write(table="tests", row_id="tst1",
+                                values={"body": "def test_x():\n    assert 1"}))
+    assert not db.execute("SELECT 1 FROM test_runs WHERE test_id='tst1'").fetchone(), \
+        "the old body's runs are gone"
+    assert [w.refs for w in harness(db)] == [("b1",)], "a run is owed again"
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

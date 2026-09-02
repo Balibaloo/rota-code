@@ -323,6 +323,11 @@ def _lift_quarantines(conn: sqlite3.Connection, w) -> None:
     # `developer|tick:tests_failing|b1` never changed, so the counter never
     # saw the loop working. The commit is the wake stopping being produced.
     fields = getattr(w, "values", None) or {}
+    # A re-encoded test's runs describe a body that no longer exists. Walk
+    # eighteen: the hold guard, the Developer's wake and the harness gate
+    # all read the run of the old body after the new one landed.
+    if w.table == "tests" and "body" in fields:
+        conn.execute("DELETE FROM test_runs WHERE test_id = ?", (w.row_id,))
     if w.table == "batches" and "head_commit" in fields:
         conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                      (f"%|tick:tests_failing|{w.row_id}",))

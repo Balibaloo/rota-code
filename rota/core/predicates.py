@@ -616,12 +616,17 @@ def harness(conn) -> list[Wake]:
     what makes that true — the first version asked whether any run existed, so
     a batch was tested once and never again.
     """
+    # Per test, not per batch. S0 walk eighteen: the Tester re-encoded the
+    # one failing test with the input fed in, and it never ran -- the batch
+    # already had runs at this commit, so the gate was satisfied while every
+    # later session read the stale result. A test with no run at the head
+    # commit is owed one, whichever side moved.
     rows = conn.execute(
-        "SELECT b.id AS bid FROM batches b "
+        "SELECT DISTINCT b.id AS bid FROM batches b JOIN tests t ON t.batch_id = b.id "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
-        "  AND b.id IN (SELECT batch_id FROM tests) "
         "  AND NOT EXISTS (SELECT 1 FROM test_runs r "
-        "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit)"
+        "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
+        "                    AND r.test_id = t.id)"
     ).fetchall()
     return [Wake("", "do:harness", refs=(r["bid"],)) for r in rows]
 
