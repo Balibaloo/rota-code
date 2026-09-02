@@ -48,7 +48,7 @@ attached, and when a pointer's target closes, the line comes out.
    must fire in build modes; a quoted test does not pick the challenge's
    desk). Seven reds stand, all attributed: `TS-apply-a-term` (both
    models, transcription), `DV-fix-the-code`, `VK-slice`, `LI-present`
-   (resolution guard), `TE-words-already-defined`, `CR-a-test-that-
+   (resolution guard; probed on qwen3:8b 2026-09-02, red there too -- both models invent label refs), `TE-words-already-defined`, `CR-a-test-that-
    encodes-nothing` and `L3-a-challenge-reaches-the-role` (judgment
    reds -- the role addresses the wrong desk with the right evidence).
    The same pass's four new reds, attributed 2026-08-28:
@@ -80,9 +80,12 @@ attached, and when a pointer's target closes, the line comes out.
 
 ## Track B — the gauntlet ladder (G4's machinery)
 
-1. **Segments** (five standing: four measured — two held by each model —
-   and the wrong-answer-from-the-seat case written 2026-08-28 on the
-   `forbidden: rows:` harness, recording with the next pass). Remaining:
+1. **Segments** (six standing, all green on their declared models as of
+   2026-09-02: `G1-what-the-brief-already-holds` went red the day the
+   intake fork landed -- a chat reply answered from the brief word for
+   word and ref'd the entry -- and is green again by derivation: a chat
+   reply that restates exactly one statement carries its ref, the
+   system's knowledge of where the words came from). Remaining:
    the five uncovered message edges, pinned by name in
    `test_edge_coverage.py` (the list must shrink in the same commit that
    covers one). The two genuinely distinct flows came off first
