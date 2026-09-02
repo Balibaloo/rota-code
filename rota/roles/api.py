@@ -3162,9 +3162,16 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                       and c.func.id.startswith("test_")
                       and c.func.id not in defined
                       and not hasattr(_builtins, c.func.id)})
+    # Walk twelve: `script.run(valid_input)` with `script` imported nowhere.
+    # A module used as a name and never imported is the same certainty.
+    unbound += sorted({c.func.value.id for c in calls
+                       if isinstance(c.func, _ast.Attribute)
+                       and isinstance(c.func.value, _ast.Name)
+                       and c.func.value.id not in defined
+                       and not hasattr(_builtins, c.func.value.id)})
     if unbound:
         raise ValueError(
-            f"the test calls {unbound[0]}(), a test that exists nowhere: a "
+            f"the test uses {unbound[0]} and never imports or defines it: a "
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
             f"it returns")
@@ -3302,6 +3309,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         f"was written. If that test is wrong, this is not the "
                         f"session that discovers it."}
 
+    # One file per test. Walk twelve: two tests named tests/test_input_
+    # validation.py, the second overwrote the first on disk, and the harness
+    # ran a file that encoded one criterion under two ids.
+    clash = ctx.conn.execute(
+        "SELECT id FROM tests WHERE path = ? AND id != ? AND batch_id = ?",
+        (path, id, batch_id)).fetchone()
+    if clash is None:
+        clash = next((w for w in ctx.writes if w[0] == "tests" and w[1] != id
+                      and w[2].get("path") == path), None)
+        clash = {"id": clash[1]} if clash else None
+    if clash:
+        raise ValueError(
+            f"{path} is already {clash['id']}'s file; two tests in one file "
+            f"overwrite each other on disk. Name this one for its own "
+            f"criterion -- tests/test_<what it checks>.py")
     ctx.writes.append(("tests", id, {
         "batch_id": batch_id, "criterion_id": criterion_id,
         "path": path, "body": body}))

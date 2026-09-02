@@ -123,8 +123,26 @@ def test_a_name_the_test_never_imports_is_a_nameerror(db):
     name defined nowhere. The floor puts the project on the import path;
     the test says where the thing comes from."""
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    with pytest.raises(ValueError, match=r"calls test_valid_input\(\), a test"):
+    with pytest.raises(ValueError, match=r"uses test_valid_input and never"):
         _encode(sb, "def test_greet():\n    assert test_valid_input()")
+    # Walk twelve: a module used as a name and imported nowhere.
+    with pytest.raises(ValueError, match=r"uses script and never imports"):
+        _encode(sb, "def test_greet():\n    assert script.run('x') == 'closing x'")
+
+
+def test_two_tests_may_not_share_a_file(db):
+    """Walk twelve: two tests named tests/test_input_validation.py and the
+    second overwrote the first on disk."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','the account is tombstoned')")
+    db.commit()
+    with pytest.raises(ValueError, match="already tst1's file"):
+        sb.call("tests.triage", criterion_id="c2", verdict="encodable")
+        sb.call("tests.encode", id="tst_new", criterion_id="c2",
+                path="test_close.py",
+                body="from script import close_account\n"
+                     "def test_tomb():\n    assert close_account('a') == 'invoices'")
 
 
 def test_an_assert_on_a_constant_checks_nothing(db):

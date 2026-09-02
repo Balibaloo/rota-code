@@ -47,12 +47,22 @@ db.commit()
 
 
 class Yes:
+    """Approves everything, and answers a clarification the way a patient
+    principal would on walk twelve -- where the tests asserted that greet()
+    returns the greeting and the Developer made it print, and the dispute
+    climbed honestly to the seat. One canned answer, topic-agnostic on
+    purpose: it names a convention, not a fact about the program."""
     name = "scripted-yes"
 
     def respond(self, ask):
         if ask.verb in ("confirm", "present"):
             return Answer(verb="verdict",
                           per_item={r: "approve" for r in ask.refs})
+        if ask.verb == "clarify":
+            return Answer(verb="converse", text=(
+                "Keep it simple: functions return their result and the "
+                "script prints it only when run directly. Use whichever "
+                "wording you already have."))
         return None
 
 

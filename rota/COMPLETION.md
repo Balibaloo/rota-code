@@ -282,6 +282,19 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    `criterion_repair` never fired (the derived reask now covers every wall
    an encode can meet with the answer in view). Walk twelve runs on that.
 
+3.11. **Walk twelve (2026-09-02): the dispute reaches the seat, honestly.**
+   Four tests, three behind ledger rows; the tests assert that `greet()`
+   *returns* the greeting and the Developer made it *print* -- both
+   readings of "display", and the system climbed the dispute correctly:
+   challenge, held answer, escalation, report, a clarification put to the
+   principal twice, then quarantine. That is the assumptions design
+   working: a genuine underdetermination became the seat's question. The
+   scripted principal now answers a clarify with one convention ("functions
+   return their result; the script prints when run directly") so the walk
+   can measure the loop past the seat. Two floors under it: two tests on
+   one path overwrote each other on disk (refused), and `script.run()`
+   with `script` imported nowhere is the NameError fact at module level.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

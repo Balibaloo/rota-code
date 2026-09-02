@@ -381,7 +381,9 @@ def test_a_second_criterion_is_a_second_test(db):
     sb.call("tests.encode", id="t1", criterion_id="c1", path="test_p.py",
             body="def test_it():\n    assert prorate(999, 1, 3) == 333")
     sb.call("tests.triage", criterion_id="c2", verdict="encodable")
-    sb.call("tests.encode", id="t2", criterion_id="c2", path="test_p.py",
+    # Its own file: two rows on one path overwrite each other on disk
+    # (walk twelve), so a second test is a second file.
+    sb.call("tests.encode", id="t2", criterion_id="c2", path="test_q.py",
             body="def test_it():\n    assert effective_from(downgrade) == next_period_start")
     assert [w[1] for w in sb.ctx.writes] == ["t1", "t2"]
 
