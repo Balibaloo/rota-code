@@ -360,6 +360,9 @@ def test_the_written_module_is_told_what_the_tests_import(db, tmp_path):
     db.commit()
     with pytest.raises(ValueError, match="write script.py first, helpers after"):
         sb.call("code.write", path="greeting.py", text="def run():\n    return 1\n")
+    # The 14B walk: the right name in a folder `import script` cannot see.
+    with pytest.raises(ValueError, match="not where `import script` looks"):
+        sb.call("code.write", path="scripts/script.py", text="def run():\n    return 1\n")
     out = sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
     assert "note" not in out
     # Once the named module exists, a helper is legal.

@@ -5826,6 +5826,15 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             f"module exists yet; {path} is a name none of them use. The "
             f"name the tests import is the name the file has to have -- "
             f"write {missing[0]}.py first, helpers after")
+    # And at the root. The 14B walk wrote scripts/script.py: the right name
+    # in a folder `import script` cannot see, because the floor puts the
+    # worktree root on the import path and nothing else.
+    if (stem in missing and path.endswith(".py")
+            and _Path(path).parent != _Path(".") and _Path(path).name != "__init__.py"):
+        raise ValueError(
+            f"{path} is not where `import {stem}` looks: the import path is "
+            f"the worktree root, so the module is {stem}.py at the top level "
+            f"(or {stem}/__init__.py)")
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
     target.write_text(text, encoding="utf-8")
