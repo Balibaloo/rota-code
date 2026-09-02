@@ -2661,6 +2661,19 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
     return vetted
 
 
+def _about_the_tests(text: str) -> bool:
+    """A criterion whose subject is the tests names the Tester's job, not a
+    behaviour of the program. S0 walks eleven to twenty-eight: "Unit tests
+    must validate the script's behaviour..." was encoded as `assert True`,
+    as an invented dict API, as calls to tests that exist nowhere -- and
+    `criterion_repair` respecified the three good criteria around it with
+    identical words. Nothing a machine can check follows from a sentence
+    about checking."""
+    import re as _re
+    head = " ".join((text or "").lower().split())[:60]
+    return bool(_re.match(r"^(the\s+)?(unit\s+|automated\s+)?tests?\b", head))
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None,
@@ -2668,6 +2681,12 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     """Criteria are written in glossary terms and name the surface a test
     would exercise; neither list is decoration."""
     _must_exist(ctx, "tickets", ticket_id)
+    if _about_the_tests(text):
+        raise ValueError(
+            "a criterion names what the program does; this one names the "
+            "Tester's job. Say what the script does for a valid name and "
+            "for an empty or wrong one -- the tests that validate it are "
+            "the Tester's to write from that")
     # The same words are the same criterion -- `brief.segment`'s rule, two
     # artefacts along. The over-production disease grew a criteria organ the
     # day the mode was handed candidate callables: eleven criteria for one
@@ -2720,6 +2739,21 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     where it lives.
     """
     _must_exist(ctx, "criteria", id)
+    if _about_the_tests(text):
+        raise ValueError(
+            "a criterion names what the program does; this one names the "
+            "Tester's job. Rewrite it as what the script does for a valid "
+            "name and for an empty or wrong one")
+    # Rewording with the same words repairs nothing. The repair session on
+    # walk twenty-eight respecified three criteria with their own text and
+    # left the fourth, which was the one that could not be encoded.
+    cur = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?", (id,)).fetchone()
+    if cur and _same_words(text, cur["text"]):
+        return {"id": id, "unchanged": True,
+                "note": "those are the criterion's own words; a repair changes "
+                        "what a test can assert, and this did not. If this "
+                        "criterion is right as it stands, the one that cannot "
+                        "be encoded is a different row"}
     payload: dict = {"text": text,
                      "surface_refs": json.dumps(
                          _vet_surface(ctx, surface_refs, required=True))}
@@ -3047,8 +3081,11 @@ def _invented_literals(ctx: Ctx, criterion_id: str, tree) -> list[str]:
                 and id(n) not in docstrings and len(n.value) >= 3):
             # Code-shaped strings are addresses, not choices: a dotted or
             # slashed path with no spaces ('builtins.input', 'tests/x.py',
-            # 'utf-8') names something rather than saying something.
-            if " " not in n.value and _re.search(r"[./_:\-]", n.value):
+            # 'utf-8') names something rather than saying something. An
+            # underscored word is not one -- walk twenty-eight's
+            # 'valid_data' and 'expected_output' were placeholders the
+            # test chose, and the exemption let them through.
+            if " " not in n.value and _re.search(r"[./:\-]", n.value):
                 continue
             chosen = words(n.value) - material - _STOP
             if chosen and n.value not in out:

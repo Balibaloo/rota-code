@@ -471,6 +471,33 @@ def test_a_rewrite_may_not_delete_what_the_tests_import(db, tmp_path):
     assert out["bytes"]
 
 
+def test_a_criterion_about_the_tests_is_not_a_behaviour(db):
+    """Walks eleven to twenty-eight: "Unit tests must validate..." encoded
+    as assert True, as an invented dict API, as calls to tests that exist
+    nowhere; nothing a machine can check follows from a sentence about
+    checking."""
+    from rota.roles import prompts
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    with pytest.raises(ValueError, match="names the Tester's job"):
+        sb.call("criteria.specify", id="c9", ticket_id="tk1",
+                text="Unit tests must validate the script's behaviour with "
+                     "valid and invalid inputs")
+    sb.call("criteria.specify", id="c9", ticket_id="tk1",
+            text="an empty name is answered with 'Invalid input'")
+
+
+def test_a_respecify_with_the_same_words_repairs_nothing(db):
+    from rota.roles import prompts
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    out = sb.call("criteria.respecify", id="c1",
+                  text="Closing an account leaves its invoices in place.",
+                  surface_refs=["close_account"])
+    assert out.get("unchanged"), out
+    assert not any(w[0] == "criteria" for w in sb.ctx.writes)
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

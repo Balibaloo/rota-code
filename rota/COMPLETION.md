@@ -394,6 +394,23 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    the three imported functions, four green to zero. Every loaded name is
    judged now, and a rewrite may not drop a function the tests import.
 
+3.21. **Walks twenty-six to twenty-eight (2026-09-02): three of four green
+   and the fourth criterion is not a behaviour.** Twenty-six found both
+   import scans anchored at column zero while every test imported inside
+   its function (fixed). Twenty-seven wrote `script.py` under its right
+   name; twenty-eight held three tests green across ten rounds. What held
+   the fourth: the criterion "Unit tests must validate the script's
+   behaviour..." names the Tester's job, not the program, and every walk
+   since eleven encoded it as something invented -- `assert True`, a dict
+   API with placeholder strings the detector's underscore exemption let
+   through, calls to tests that exist nowhere -- while `criterion_repair`
+   respecified the three good criteria with their own words. The writing
+   door refuses a criterion about the tests, an unchanged respecify says
+   it repaired nothing, underscored placeholders are chosen strings, and
+   the Developer's misfiled criterion quote (nine identical sends a walk,
+   every walk, at temperature zero) is accepted as evidence when it is a
+   criterion of the batch verbatim. Walk twenty-nine runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
