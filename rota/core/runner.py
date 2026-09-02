@@ -337,6 +337,9 @@ PUSH_CHARS = 20000
 INTENT = re.compile(r"\b(?:I will|I'll|I am going to|I should|next step is to|"
                     r"let me|I need to)\b", re.IGNORECASE)
 
+# The mandatory forks: verdicts a session claims, not answers it looks up.
+CLAIMS = {"tests.triage", "brief.intake"}
+
 FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)",
                                re.MULTILINE)
 
@@ -1040,6 +1043,7 @@ def run_session(
         fence_warned = False
         intent_warned = False
         noop_warned = False
+        stoodby_retried = False
         allowed = set(sb.functions())
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
@@ -1189,11 +1193,29 @@ def run_session(
                 # where four valid encodes were held, qwen declared "I have
                 # encoded tests for all four criteria", the session ended
                 # clean, and the work silently never happened.
+                refused = []
                 for hc in held_calls:
                     try:
                         sb.call(hc.name, *hc.pos, **hc.args)
                     except Exception as exc:           # noqa: BLE001
                         outcome.errors.append(f"{hc.name} (held): {exc}")
+                        refused.append(f"ERROR {hc.name}: {exc}")
+                if refused and not stoodby_retried:
+                    # Walk twenty-one: seven encodes held behind seven
+                    # triage reads, the model declared them done, the
+                    # stood-by execution refused every one, and the session
+                    # was over before the refusals could be read. A refusal
+                    # is the door's half of a conversation; once, the model
+                    # gets to answer it.
+                    stoodby_retried = True
+                    held_calls = []
+                    transcript.append(completion.text)
+                    transcript.append(
+                        "The calls you stood by ran, and these were "
+                        "refused:\n" + "\n".join(refused)
+                        + "\nAnswer the refusals with corrected calls, "
+                        "or end.")
+                    continue
                 break
 
             # A turn identical to the one before it is the session saying it
@@ -1287,9 +1309,15 @@ def run_session(
                 # wake, so a call naming it asks nothing outstanding -- and a
                 # call naming something else still runs and is served; it just
                 # cannot hold the work the session has already decided on.
+                # A branch claim is not a lookup. `tests.triage` and
+                # `brief.intake` are graph reads, and holding the act
+                # behind them cost walk twenty-one every test: seven
+                # triages, seven encodes held, a prose turn, and the
+                # refusals arrived after the session could answer.
                 fresh_read = (call.name in read_fns and key not in already_run
                               and key not in pushed_keys
-                              and call.name not in pushed)
+                              and call.name not in pushed
+                              and call.name not in CLAIMS)
 
                 # The terminal act is never held. Attesting closes the subject
                 # and ends the session, and its evidence check already refuses
@@ -1356,7 +1384,12 @@ def run_session(
             # mode, finished. Without saying so the model keeps going and starts
             # inventing work — an Liaison intake session will happily fabricate
             # a second principal entry, which is the one thing it must never do.
-            if sb.ctx.outbound:
+            # Not in a build mode: a Developer that has challenged a test
+            # still has code to write, and walk twenty-two measured the
+            # notice fighting the work -- told "emit no further tool calls"
+            # after its challenge, the model fenced its calls, fabricated
+            # their results, and only wrote the fix eight turns later.
+            if sb.ctx.outbound and "code.write" not in allowed:
                 feedback.append(
                     "You have sent your message. Your work for this session is "
                     "complete — emit no further tool calls."

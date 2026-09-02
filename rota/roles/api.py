@@ -5580,6 +5580,16 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     writes and then dies leaves the worktree ahead of the database, and boot
     reconciles the two.
     """
+    # Code is written in a batch's worktree and nowhere else. Walk
+    # twenty-three: a Developer woken by a Vision Keeper's message, before
+    # any batch existed, wrote script.py into the project root and then
+    # met "no batch: a commit belongs to one" -- the write had already
+    # landed outside every checkpoint.
+    if not ctx.batch_id:
+        raise ValueError(
+            "no batch: code is written in a batch's worktree, and this "
+            "session was not woken for one. Answer the message you were "
+            "woken by; the build starts when the batch does")
     target = _within(_worktree_of(ctx), path)
     # A harness fact about modules, not a judgement about the code. S0 walk
     # ten: `script.py` was right in substance and ran `input()` at module
@@ -5614,8 +5624,28 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
     target.write_text(text, encoding="utf-8")
-    return {"path": path, "bytes": len(text.encode("utf-8")),
-            "created": not existed}
+    out = {"path": path, "bytes": len(text.encode("utf-8")),
+           "created": not existed}
+    # What the tests import is the name the module has to have. Walk
+    # twenty-three: the tests said `import script`, the Developer wrote
+    # greeting_script.py, and the harness said ModuleNotFoundError three
+    # sessions running. Said in the result, not refused: helpers are legal.
+    import re as _re
+    wanted = set()
+    for row in ctx.conn.execute(
+            "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
+        wanted |= set(_re.findall(r"^(?:import|from)\s+([A-Za-z_]\w*)",
+                                  row["body"] or "", _re.M))
+    wanted -= {"pytest", "unittest", "sys", "os", "re", "json", "io",
+               "typing", "pathlib", "math", "random", "collections"}
+    root = _worktree_of(ctx)
+    missing = sorted(m for m in wanted if not (root / f"{m}.py").exists()
+                     and not (root / m).is_dir())
+    if missing:
+        out["note"] = (f"the batch's tests import {', '.join(missing)} and no "
+                       f"such module exists in the worktree -- the name the "
+                       f"tests use is the name the file has to have")
+    return out
 
 
 @op("code", "commit")

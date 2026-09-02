@@ -99,10 +99,11 @@ class Yes:
             return Answer(verb="verdict",
                           per_item={r: "approve" for r in ask.refs})
         if ask.verb == "clarify":
+            # Non-directive on purpose: walk twenty-one segmented a
+            # convention-shaped reply into three new criteria.
             return Answer(verb="converse", text=(
-                "Keep it simple: functions return their result and the "
-                "script prints it only when run directly. Use whichever "
-                "wording you already have."))
+                "Either reading is fine by me -- go with whichever you "
+                "already have. Nothing new to add."))
         return None
 
 

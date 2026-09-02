@@ -432,6 +432,32 @@ def test_a_new_read_holds_the_action_which_executes_if_stood_by(db):
         (f"ending without revising is standing by the plan: {outcome.errors}")
 
 
+def test_stood_by_refusals_get_one_answering_turn(db):
+    """
+    Walk twenty-one: seven encodes held, the model declared them done, the
+    stood-by execution refused every one, and the session was over before
+    the refusals could be read. A refusal is the door's half of a
+    conversation; once, the model gets to answer it.
+    """
+    db.execute("INSERT INTO decisions (id, author, text) "
+               "VALUES ('d1','vision_keeper','scope ruling on closing an account')")
+
+    backend = ScriptedBackend([
+        "TOOL: decisions.search(query='scope')\n"
+        "TOOL: problem.assert(id='i1', text='premature', kind='nonsense')",
+        "Done.",
+        "TOOL: problem.assert(id='i1', text='premature', kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    _, user = backend.calls[2]
+    assert "these were refused" in user
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, \
+        outcome.errors
+
+
 def test_a_revising_turn_clears_the_held_tail(db):
     """
     The other half of standing by: any tool call in a later turn is the model's

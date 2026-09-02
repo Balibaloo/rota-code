@@ -662,11 +662,26 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     f"test and this batch's criterion")
         for r in (crit[0], test[0]):
             if not _quotes_span(rows[r][1], text):
+                # The quote may be another criterion's words. Walk
+                # twenty-three: the Developer quoted c_s1_t3's sentence
+                # under refs naming c_s1_t4, was told to quote verbatim,
+                # and sent the same call nine times across three sessions.
+                # The exact repair is derivable when the words match a row.
+                hint = ""
+                if r == crit[0]:
+                    other = next((o["id"] for o in ctx.conn.execute(
+                        "SELECT id, text FROM criteria WHERE id != ?", (r,))
+                        if _quotes_span(o["text"] or "", text)), None)
+                    if other:
+                        hint = (f". Those words are {other}'s, not {r}'s: if the "
+                                f"dispute is about {other}, send refs=['{other}', "
+                                f"'{test[0]}']; if it is about {r}, quote {r}'s "
+                                f"own sentence")
                 raise ValueError(
                     f"quotes= must copy {r}'s exact words and what you sent "
                     f"is not in the {rows[r][0]} row. Quote, not paraphrase: "
                     f"the span of each side your challenge stands on, "
-                    f"verbatim -- both rows are in front of you")
+                    f"verbatim -- both rows are in front of you{hint}")
         return
 
     # A quoted test is the Tester's dispute, whoever the challenge names.

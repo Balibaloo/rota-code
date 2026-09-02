@@ -365,6 +365,22 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    gained a snapshot of the world at the first slicing tick, so later
    walks can start at delivery; walk twenty saves it.
 
+3.19. **Walks twenty to twenty-three (2026-09-02): the probe's snapshot,
+   and four more floors.** Twenty-one: seven encodes held behind seven
+   triage reads, a prose turn, and the refusals arrived after the session
+   could answer -- a branch claim is not a lookup now, and stood-by
+   refusals get one answering turn. Twenty-two: told "emit no further
+   tool calls" after its challenge, the Developer fenced its calls and
+   fabricated their results; the notice skips build modes. Twenty-three
+   (cold, clean intake again): a Developer woken by a message before any
+   batch wrote into the project root (refused: no batch, no code); the
+   tests said `import script` and the Developer wrote `greeting_script.py`
+   (the write's result now names the module the tests import); and a
+   challenge quoting another criterion's words was refused nine times
+   with the same sentence (the refusal names whose words they are). The
+   probe's canned clarify reply is non-directive now -- the convention-
+   shaped one became three criteria on twenty-one.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
