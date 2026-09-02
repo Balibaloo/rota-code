@@ -507,6 +507,13 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    floor now lays the repository at batch start. Walk thirty-six runs the
    delivery stretch on `qwen2.5:14b-instruct-q3_K_M`.
 
+3.30. **Walk thirty-seven (2026-09-02): the first merge.** From the
+   delivery snapshot on qwen3:8b: four tests, two Developer sessions, four
+   green, the Critic's verdict landing (the bare-name leniency), and
+   `do:merge` -- forty-one steps from delivery start, the first batch the
+   story has ever delivered to the main branch. Whether what merged runs
+   as asked is measured next, on the merged tree itself.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
