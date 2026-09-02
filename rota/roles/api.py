@@ -2879,6 +2879,17 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
                 f"{owners or 'no items'} and a batch delivers exactly one "
                 f"approved item.")
     _must_exist(ctx, "items", item_id)
+    # A batch id is never reused. S0 walk thirty-four: after the cancel, the
+    # Architect grouped the same tickets under id="b1" and the upsert
+    # resurrected the abandoned batch -- its worktree, its regressed code,
+    # its head commit -- which "abandoned is terminal" exists to forbid.
+    prior = ctx.conn.execute("SELECT status FROM batches WHERE id = ?",
+                             (id,)).fetchone()
+    if prior:
+        raise ValueError(
+            f"{id} is already a batch ({prior['status']}), and a batch is never "
+            f"re-formed under its old id -- the abandoned one is the record of "
+            f"what happened to it. Give the new batch a new id")
 
     # One item's open work is one batch. The over-production investigation
     # (2026-08-28) found the disease's dominant form is *re-issuance* -- a

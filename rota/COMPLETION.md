@@ -472,6 +472,16 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    keyword `pass` outside quotes is the word. Walk thirty-four measures
    the review and, if it passes, the first merge.
 
+3.27. **Walk thirty-four (2026-09-02): the ladder's top revokes, and the
+   regroup resurrects.** Down to one failing test, a regression to four,
+   the ladder to the Vision Keeper, the cancel, re-approval -- and this
+   time the tickets *were* regrouped (walk thirty-one's fix): the
+   Architect grouped them under `id="b1"`, and the upsert resurrected the
+   abandoned batch with its worktree, its regressed code and its head
+   commit, which "abandoned is terminal" exists to forbid. A batch id is
+   never reused now. Walk thirty-five runs on the parser leniency; the
+   batch-id refusal lands for thirty-six.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

@@ -563,6 +563,22 @@ def test_module_level_input_through_a_local_function_is_refused(db, tmp_path):
                      "name = prompt()\nprint(name)\n")
 
 
+def test_a_batch_id_is_never_reused(db):
+    """Walk thirty-four: after the cancel, the Architect grouped the same
+    tickets under `id="b1"` and resurrected the abandoned batch, worktree
+    and regressed code included. An abandonment is terminal; the new work
+    is a new batch."""
+    db.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'b1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("architect", db, mode="grouping",
+               allow=prompts.mode_tools("architect", "grouping"))
+    with pytest.raises(ValueError, match="b1 is already a batch"):
+        sb.call("batches.group", id="b1", ticket_ids=["tk1"], item_id="i1")
+    out = sb.call("batches.group", id="b2", ticket_ids=["tk1"], item_id="i1")
+    assert out["id"] == "b2"
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion
