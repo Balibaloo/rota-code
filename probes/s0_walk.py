@@ -37,10 +37,22 @@ from rota.core.loop import step           # noqa: E402
 from rota.roles.principal import pump, Answer   # noqa: E402
 from rota.llm.llm import Pins             # noqa: E402
 
+def _rmtree(path):
+    """Git objects are read-only on Windows; clear the bit and retry."""
+    import os
+    import stat
+
+    def _onerror(fn, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        fn(p)
+    shutil.rmtree(path, onerror=_onerror)
+
+
+
 if "--restore" in FLAGS and (SNAP / "root.txt").exists():
     base = Path((SNAP / "root.txt").read_text(encoding="utf-8").strip())
     if base.exists():
-        shutil.rmtree(base)
+        _rmtree(base)
     shutil.copytree(SNAP / "tree", base)
     root = base / "proj"
     db = init_db(base / "rota.db")
@@ -68,7 +80,7 @@ else:
 def _snapshot():
     db.execute("PRAGMA wal_checkpoint(FULL)")
     if SNAP.exists():
-        shutil.rmtree(SNAP)
+        _rmtree(SNAP)
     shutil.copytree(root.parent, SNAP / "tree")
     (SNAP / "root.txt").write_text(str(root.parent), encoding="utf-8")
     print(f"snapshot saved from {root.parent}", flush=True)
