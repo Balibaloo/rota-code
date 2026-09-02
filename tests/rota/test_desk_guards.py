@@ -319,6 +319,27 @@ def test_a_named_act_left_undone_is_told_once(db, tmp_path):
     assert "a reply is not a call" in user
 
 
+def test_a_tick_session_that_does_nothing_is_told_once(db, tmp_path):
+    """Walk sixteen: "the test is wrong" and the session ended -- no fix, no
+    challenge, no escalation, no intent phrase to catch."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    backend = ScriptedBackend([
+        "The two-line check: does the test assert what its criterion asks "
+        "for? No. The test is incorrect.",
+        "Nothing is owed here.",
+    ])
+    out = run_session(db, Wake("developer", "tick:tests_failing", refs=("b1",)),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert "ended a tick with nothing done" in out.errors
+    _, user = backend.calls[1]
+    assert "written nothing and sent nothing" in user
+    assert len(backend.calls) == 2, "told once; the next prose turn stops"
+
+
 def test_an_intent_with_nothing_done_is_told_once_even_unnamed(db, tmp_path):
     """Walks fourteen and fifteen: "I will address these issues by
     implementing the required functions" -- no tool named, nothing staged,

@@ -324,6 +324,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    the sentence. It now fires on intent alone when the session has staged
    nothing and sent nothing. Walk sixteen measures it.
 
+3.15. **Walk sixteen (2026-09-02): the first passing tests.** Told once,
+   the Developer wrote and committed, and two of four tests passed -- the
+   first green harness rows in the arc. The other two are the Tester's:
+   one calls a function that reads stdin without feeding it, one asserts
+   that validation returns a greeting. The Developer's two-line check
+   concluded "the test is wrong" and the session ended with no act, twice
+   -- a conclusion with no phrase of intent to catch. The general rule
+   replaces the phrase: a tick session that stages nothing and sends
+   nothing is told once what it owes (fix, dispute with quotes, or
+   escalate). Walk seventeen measures it.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

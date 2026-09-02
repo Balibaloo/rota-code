@@ -1039,6 +1039,7 @@ def run_session(
         held_calls: list = []
         fence_warned = False
         intent_warned = False
+        noop_warned = False
         allowed = set(sb.functions())
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
@@ -1158,6 +1159,26 @@ def run_session(
                     "You said what you would do and did not do it -- a reply "
                     "is not a call. Send the call you named, as TOOL: ..., "
                     "or end by saying nothing is owed.")
+                continue
+            if (not calls and not noop_warned and not held_calls
+                    and wake.kind.startswith("tick:")
+                    and not (sb.ctx.writes or getattr(sb.ctx, "outbound", []))):
+                # Walk sixteen: the two-line check answered "No, the test is
+                # wrong" and the session ended -- no fix, no challenge, no
+                # escalation, two sessions to quarantine. A tick exists
+                # because state is owed; a session that touches nothing
+                # leaves the tick to fire again with the same material.
+                # Told once; the next prose turn is the real stop.
+                noop_warned = True
+                outcome.errors.append("ended a tick with nothing done")
+                transcript.append(completion.text)
+                transcript.append(
+                    "You were woken because something is owed here, and this "
+                    "session has written nothing and sent nothing -- the same "
+                    "wake will fire again with the same material. Act on your "
+                    "conclusion with a call: fix it, dispute it with the "
+                    "evidence quoted, or escalate it. If truly nothing is "
+                    "owed, say so and stop.")
                 continue
             if not calls:
                 # A session ending with held calls never superseded is the
