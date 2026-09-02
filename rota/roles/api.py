@@ -3166,10 +3166,29 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # shape that could define anything, and it exempts the file.
     star = any(isinstance(n, _ast.ImportFrom) and any(a.name == "*" for a in n.names)
                for n in _ast.walk(tree))
+    # Every binding form, so a loaded name is judged against all of them.
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Name) and isinstance(n.ctx, (_ast.Store, _ast.Del)):
+            defined.add(n.id)
+        elif isinstance(n, (_ast.Global, _ast.Nonlocal)):
+            defined |= set(n.names)
+        elif isinstance(n, _ast.ExceptHandler) and n.name:
+            defined.add(n.name)
+        elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Lambda)):
+            a = n.args
+            defined |= {x.arg for x in a.args + a.kwonlyargs + a.posonlyargs}
+            if a.vararg:
+                defined.add(a.vararg.arg)
+            if a.kwarg:
+                defined.add(a.kwarg.arg)
+    # Walk twenty-five: `assert script.run(valid_input) == expected_output`
+    # with neither name defined anywhere -- not a call, so the call-only
+    # check missed it, and the Developer eventually defined the names in
+    # script.py and deleted the three working functions to make it pass.
     unbound = [] if star else sorted({
-        c.func.id for c in calls if isinstance(c.func, _ast.Name)
-        and c.func.id not in defined
-        and not hasattr(_builtins, c.func.id)})
+        n.id for n in _ast.walk(tree)
+        if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Load)
+        and n.id not in defined and not hasattr(_builtins, n.id)})
     # Walk twelve: `script.run(valid_input)` with `script` imported nowhere.
     # A module used as a name and never imported is the same certainty.
     unbound += sorted({c.func.value.id for c in calls
@@ -5641,6 +5660,36 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                      and not (root / m).is_dir())
     from pathlib import Path as _Path
     stem = _Path(path).stem
+    # A rewrite that deletes a name the tests import breaks them with
+    # certainty. Walk twenty-five: three green tests, and the fourth's fix
+    # was a script.py with the three imported functions gone.
+    if path.endswith(".py") and target.exists():
+        try:
+            old_tree = _ast.parse(target.read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            old_tree = None
+        if old_tree is not None:
+            new_defs = {n.name for n in tree.body
+                        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                          _ast.ClassDef))}
+            old_defs = {n.name for n in old_tree.body
+                        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                          _ast.ClassDef))}
+            imported = set()
+            for row in ctx.conn.execute(
+                    "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
+                for m in _re.finditer(
+                        r"^from\s+" + _re.escape(stem) + r"\s+import\s+([^\r\n]+)",
+                        row["body"] or "", _re.M):
+                    imported |= {x.strip().split(" as ")[0]
+                                 for x in m.group(1).split(",")}
+            gone = sorted((old_defs - new_defs) & imported)
+            if gone:
+                raise ValueError(
+                    f"this rewrite of {path} drops {', '.join(gone)}, which the "
+                    f"batch's tests import -- an ImportError on every test that "
+                    f"does. Keep what the tests import; add to the file, do not "
+                    f"replace it")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "

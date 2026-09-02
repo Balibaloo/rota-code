@@ -414,6 +414,46 @@ def test_a_misplaced_quote_is_told_whose_words_it_quotes(db):
                         "assert tombstone('a') == 'gone'"])
 
 
+def test_an_undefined_name_anywhere_in_a_test_is_a_nameerror(db):
+    """Walk twenty-five: `assert script.run(valid_input) == expected_output`
+    with neither name defined -- not a call, so the call check missed it."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="uses expected_output and never"):
+        _encode(sb, "import script\ndef test_x():\n"
+                    "    assert script.run('a') == expected_output")
+    # Bound names of every shape are fine: args, with-as, loops, walrus.
+    sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb2.call("ledger.log", about_ref="c1", about_table="criteria",
+             assumption="the test assumes closing as a sample")
+    _encode(sb2, "from script import close_account\n"
+                 "def test_x(tmp_path):\n"
+                 "    for name in ['closing']:\n"
+                 "        with open(tmp_path / name, 'w') as fh:\n"
+                 "            assert close_account(name) == 'invoices'")
+
+
+def test_a_rewrite_may_not_delete_what_the_tests_import(db, tmp_path):
+    """Walk twenty-five: three green tests, and the fourth's fix was a
+    script.py with the three imported functions gone."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "script.py").write_text("def close_account(a):\n    return 'invoices'\n"
+                                    "def other():\n    return 1\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE tests SET body = 'from script import close_account\n"
+               "def test_x():\n    assert close_account(1) == \"invoices\"' "
+               "WHERE id = 'tst1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="drops close_account, which the batch's tests import"):
+        sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
+    # Dropping a function nobody imports is the Developer's business.
+    out = sb.call("code.write", path="script.py",
+                  text="def close_account(a):\n    return 'invoices'\n")
+    assert out["bytes"]
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

@@ -381,6 +381,19 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    probe's canned clarify reply is non-directive now -- the convention-
    shaped one became three criteria on twenty-one.
 
+3.20. **Walks twenty-four and twenty-five (2026-09-02): from the snapshot,
+   delivery in fifteen steps; `criterion_repair` fires live.** Twenty-four
+   reproduced twenty-three byte for byte (same load, temperature zero) and
+   showed the new refusals firing where they should; the Developer still
+   wrote `greeting_script.py` against tests importing `script` -- refused
+   now in the one certain case (a new module while the named one is
+   absent). Twenty-five: three of four tests green across four commits;
+   the fourth used names it never defined (`valid_input`,
+   `expected_output` -- not calls, so the call check missed them), and the
+   Developer's final fix defined those names in `script.py` and deleted
+   the three imported functions, four green to zero. Every loaded name is
+   judged now, and a rewrite may not drop a function the tests import.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
