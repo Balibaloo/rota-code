@@ -389,6 +389,13 @@ def test_the_written_module_is_told_what_the_tests_import(db, tmp_path):
                allow=prompts.mode_tools("developer", "tests_failing"))
     with pytest.raises(ValueError, match="write script.py first, helpers after"):
         sb.call("code.write", path="greeting.py", text="def run():\n    return 1\n")
+    # Walks twenty-four and twenty-six: the import inside the test function,
+    # indented -- a column-zero anchor saw no imports at all.
+    db.execute("UPDATE tests SET body = 'def test_x():\n    from script import run\n"
+               "    assert run() == 1' WHERE id = 'tst1'")
+    db.commit()
+    with pytest.raises(ValueError, match="write script.py first, helpers after"):
+        sb.call("code.write", path="greeting.py", text="def run():\n    return 1\n")
     out = sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
     assert "note" not in out
     # Once the named module exists, a helper is legal.

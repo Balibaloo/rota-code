@@ -5651,7 +5651,7 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     wanted = set()
     for row in ctx.conn.execute(
             "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
-        wanted |= set(_re.findall(r"^(?:import|from)\s+([A-Za-z_]\w*)",
+        wanted |= set(_re.findall(r"^\s*(?:import|from)\s+([A-Za-z_]\w*)",
                                   row["body"] or "", _re.M))
     wanted -= {"pytest", "unittest", "sys", "os", "re", "json", "io",
                "typing", "pathlib", "math", "random", "collections"}
@@ -5679,7 +5679,7 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             for row in ctx.conn.execute(
                     "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
                 for m in _re.finditer(
-                        r"^from\s+" + _re.escape(stem) + r"\s+import\s+([^\r\n]+)",
+                        r"^\s*from\s+" + _re.escape(stem) + r"\s+import\s+([^\r\n]+)",
                         row["body"] or "", _re.M):
                     imported |= {x.strip().split(" as ")[0]
                                  for x in m.group(1).split(",")}
