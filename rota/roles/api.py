@@ -2732,11 +2732,27 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
 @op("criteria", "load")
 def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
-    if not bid:
-        return []
-    rows = _rows(ctx.conn.execute(
-        "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs FROM criteria c "
-        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (bid,)))
+    if bid:
+        rows = _rows(ctx.conn.execute(
+            "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs "
+            "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ?", (bid,)))
+    else:
+        # No batch, but a subject: a Tester woken by an answer about a term
+        # is woken about the criteria that use it. Measured on the register
+        # (TS-apply-a-term, both models, 2026-09-01): with nothing running
+        # this returned [] and the mode had no criterion in view at all --
+        # llama invented `c_456`, qwen said "no criteria were mentioned" and
+        # waited. The wake's refs are the subject; a criterion named by
+        # them, or naming a term they name, is what the answer bears on.
+        rows = []
+        for ref in ctx.wake_refs or ():
+            rows.extend(_rows(ctx.conn.execute(
+                "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs "
+                "FROM criteria c WHERE c.id = ? OR c.term_refs LIKE ? "
+                "ORDER BY c.id", (ref, f'%"{ref}"%'))))
+        seen = set()
+        rows = [r for r in rows if not (r["id"] in seen or seen.add(r["id"]))]
     # An empty surface is not a fact worth pushing: the readers of this row
     # cannot write one, and a visible "[]" reads as an omission to chase --
     # measured sending the Developer off to ask what a criterion meant
@@ -3214,7 +3230,14 @@ def decisions_author(ctx: Ctx, id: str, text: str, refs: list[str] | None = None
     #
     # The subject is still caught, which is what the rule was for: the contested
     # session passed the *item's own id* as the decision id.
-    minuted = id if id in {i for t, i, *_ in ctx.writes if t == "items"} else None
+    #
+    # And an id *built from* the item's id is the same subject. Measured on
+    # the register (VK-amend-a-contested-item, 2026-09-01): the cross-table id
+    # guard fired first on the item's own id, its message said "prefix it with
+    # what it is", and the model did -- `c_` plus the item id -- and the minute
+    # landed. Two guards keyed on the same signal have to agree on it.
+    amended = {i for t, i, *_ in ctx.writes if t == "items"}
+    minuted = next((i for i in amended if i == id or i in id), None)
     if minuted:
         raise ValueError(
             f"you amended {minuted} this session, so a decision "
@@ -3286,6 +3309,19 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     on the record.
     """
     _must_exist(ctx, "batches", batch_id)
+    # A challenge and a verdict are two answers to one question, and only
+    # one can be this session's. Measured on the register (CR-a-test-that-
+    # encodes-nothing, 2026-09-01): the Critic challenged, then talked itself
+    # into "it's not necessary to challenge at this stage" and emitted a
+    # fail on top -- the dispute travelling and the batch judged, both.
+    # A challenge staged is the verdict deferred until it lands.
+    staged = [m for m in getattr(ctx, "outbound", []) if m.get("verb") == "challenge"]
+    if staged:
+        raise ValueError(
+            f"you have already challenged the {staged[0]['to_role']} this "
+            f"session, and that is your judgement of this commit until the "
+            f"challenge lands. A verdict on top of it would judge what you "
+            f"just said is in dispute -- end the session here")
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
     commit = _head_commit(ctx, batch_id)

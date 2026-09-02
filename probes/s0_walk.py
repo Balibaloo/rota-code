@@ -14,6 +14,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Runnable from anywhere: the repo root is one up from probes/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 CAP = int(sys.argv[2]) if len(sys.argv) > 2 else 90
 MODEL = sys.argv[3] if len(sys.argv) > 3 else "qwen3:8b"
 

@@ -669,6 +669,23 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     f"verbatim -- both rows are in front of you")
         return
 
+    # A quoted test is the Tester's dispute, whoever the challenge names.
+    # Measured on the register (CR-a-test-that-encodes-nothing, 2026-09-01):
+    # the Critic saw the vacuous test, quoted its body verbatim beside the
+    # criterion -- exactly the tester channel's evidence -- and addressed the
+    # Developer, whose diff is not what the quote disputes. A test has one
+    # writer; the row the quote comes from names the desk.
+    quoted_tests = [r for r, (t, words) in rows.items()
+                    if t == "tests" and _quotes_span(words, text)]
+    if quoted_tests and recipient != "tester":
+        crit = [r for r, (t, _) in rows.items() if t == "criteria"]
+        pair = [*crit[:1], quoted_tests[0]]
+        raise ValueError(
+            f"you quoted {quoted_tests[0]}'s body, and a test is the Tester's "
+            f"to defend or rewrite -- the {recipient} did not write it. Send "
+            f"the same dispute on the tester channel: "
+            f"msg.challenge_tester(refs={pair!r}, quotes=...)")
+
     # Every other channel: whatever text-bearing rows the refs name, at least
     # one must actually be quoted. Vacuously legal when the refs carry no
     # quotable row, because bounded strictness beats a guard with no exit.
@@ -847,6 +864,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         f"{r} already has your open question, {prior['id']}, "
                         f"and the answer will wake you. Asking again forks the "
                         f"thread -- encode the other criteria or end")
+
+        # A report from a batch's own wake names the batch. Measured on the
+        # register (AR-a-dead-end, 2026-09-01): the Architect found the right
+        # door on the ninth turn and sent it carrying the constraint it had
+        # been reading -- the *why* -- and not the batch, the *what*; the
+        # seat received a report about nothing it could act on. Only when
+        # the wake itself was the batch: a role woken for a batch and
+        # reporting is reporting on that batch.
+        if (verb == "report" and ctx.batch_id
+                and ctx.batch_id in (ctx.wake_refs or ())
+                and ctx.batch_id not in (refs or [])):
+            raise ValueError(
+                f"you were woken for batch {ctx.batch_id} and a report from "
+                f"here is about it: add '{ctx.batch_id}' to refs -- keep "
+                f"what you have, the batch is the subject and the rest is "
+                f"the reason")
 
         # A challenge pays its reading up front: quote both sides on the
         # tester channel, quote the disputed row everywhere else.
@@ -1341,6 +1374,15 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
                 if table != own and ctx.conn.execute(
                         f"SELECT 1 FROM {table} WHERE id = ?",
                         (kwargs["id"],)).fetchone():
+                    mine = any(t == table and rid == kwargs["id"]
+                               for t, rid, *_ in ctx.writes)
+                    if mine:
+                        raise ValueError(
+                            f"{kwargs['id']!r} is the {table} row you wrote "
+                            f"this session, and a {own} row is a different "
+                            f"thing from it -- if this one would only say "
+                            f"that you made that edit, the edit is already "
+                            f"the record and nothing more is owed")
                     raise ValueError(
                         f"{kwargs['id']!r} is already a row of {table}; an "
                         f"artefact id is unique across every artefact table, "
