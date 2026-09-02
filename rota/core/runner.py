@@ -17,6 +17,7 @@ iteration cap trips. Then commit everything at once, or nothing.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 import time
@@ -1039,6 +1040,12 @@ def run_session(
         pins = pins.with_prompt(system + user)
 
         transcript = [user]
+        # The one-wake-one-completion experiment (2026-09-02, unruled): the
+        # model's first reply is its whole plan; execute it in order and end.
+        # No holds -- there is no next turn to revise in -- and no nudges.
+        # Behind an env flag so the register can measure the shape against
+        # the default without touching it.
+        oneshot = bool(os.environ.get("ROTA_ONESHOT"))
         held_calls: list = []
         fence_warned = False
         intent_warned = False
@@ -1327,7 +1334,7 @@ def run_session(
                 # never ran: a survey session re-sent its reads and its attest
                 # every turn, each turn's reads were fresh, and the attest sat
                 # behind them for twelve turns until the area was abandoned.
-                if (seen_read and call.name not in read_fns
+                if (not oneshot and seen_read and call.name not in read_fns
                         and call.name != "surveys.attest"):
                     held = [c.raw or getattr(c, "name", "?") for c in calls[i:]]
                     held_calls = list(calls[i:])
@@ -1379,6 +1386,11 @@ def run_session(
                     "Send them again if they are still what you want.")
 
             transcript.append(completion.text)
+
+            # One wake, one completion: the reply has been executed as the
+            # model's whole plan; if more is owed the scheduler wakes again.
+            if oneshot:
+                break
 
             # A role that has sent its outbound message has, in almost every
             # mode, finished. Without saying so the model keeps going and starts
@@ -1478,6 +1490,17 @@ def run_session(
             # survey ending on its attest.
             if wake.kind == "tick:challenge" and any(
                     w[0] == "challenges" for w in sb.ctx.writes):
+                break
+
+            # A slicing session ends on the turn that slices. Measured three
+            # ways on L1-VK-slice: the first turn is right in every brief
+            # variant (one ticket, the item's own words) and every later
+            # turn, prompted again by the open loop, invents -- 4, 3 and 6
+            # tickets under three briefs, 1 and green when the session ends
+            # here. The judgement stays the model's: its one reply carries
+            # as many slices as it judges right.
+            if wake.kind == "tick:slicing" and any(
+                    w[0] == "tickets" for w in sb.ctx.writes):
                 break
 
             # And a define session ends when its word has landed. It has no

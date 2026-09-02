@@ -526,6 +526,26 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    loads (the fourth criterion's judgment dispute still climbs to the seat
    on some loads).
 
+3.32. **One wake, one completion (2026-09-02, evaluated, unruled).** The
+   seat's thesis -- the harness is not set up for how the model makes
+   sense -- holds against the whole record: roughly three-quarters of the
+   session-level fixes compensated for the open multi-turn loop (holds,
+   nudges, dedup, per-mode ends-on-its-act rules) or for the strict
+   protocol, and every parser leniency ever added was a pure win. The
+   candidate shape: the first reply is the model's whole plan, executed
+   in order; iteration lives in the scheduler. `ROTA_ONESHOT=1` exists as
+   an inert flag; truncating the *recorded* conversations under it is not
+   a fair test (62/93 red -- the cassettes were prompted as
+   conversations). The offline conversion map over 116 register cases: 65
+   first replies already carry the act; the 51 that do not are blocked on
+   a short list of reads -- code.source 12, decisions.search 12,
+   glossary.lookup 7, model.load 5, the rest single digits -- every one
+   except the Researcher's web.search mechanically derivable from the
+   wake's subject (the term_refs, the failing tests' imports, the
+   subject's words). The re-founding is therefore: derive those pushes,
+   reshape the briefs to one reply, re-record. Awaiting the seat's ruling
+   on the direction.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
