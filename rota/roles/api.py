@@ -3239,6 +3239,39 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
             f"it returns")
+    # A fixture the harness does not have fails every test at setup. Walk
+    # twenty-nine: four tests took `mocker` (pytest-mock, not installed),
+    # every run was an error before the first assertion, and the Developer
+    # diagnosed it exactly and had no door. The floor is plain pytest; its
+    # own fixtures are the set, plus any the file defines itself.
+    own = {n.name for n in _ast.walk(tree)
+           if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+           and any((isinstance(d, _ast.Attribute) and d.attr == "fixture")
+                   or (isinstance(d, _ast.Name) and d.id == "fixture")
+                   or (isinstance(d, _ast.Call) and (
+                       (isinstance(d.func, _ast.Attribute) and d.func.attr == "fixture")
+                       or (isinstance(d.func, _ast.Name) and d.func.id == "fixture")))
+                   for d in n.decorator_list)}
+    builtin_fixtures = {"monkeypatch", "capsys", "capfd", "capsysbinary",
+                        "capfdbinary", "caplog", "tmp_path", "tmp_path_factory",
+                        "tmpdir", "tmpdir_factory", "request", "recwarn",
+                        "pytestconfig", "cache", "record_property",
+                        "record_testsuite_property", "doctest_namespace",
+                        "testdir", "pytester", "monkeypatch_session"}
+    for fn in (n for n in _ast.walk(tree)
+               if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+               and n.name.startswith("test")):
+        unknown = [a.arg for a in fn.args.args
+                   if a.arg not in builtin_fixtures and a.arg not in own
+                   and a.arg != "self"]
+        if unknown:
+            raise ValueError(
+                f"{fn.name} takes {unknown[0]!r}, and the harness has no such "
+                f"fixture -- plain pytest, nothing installed on top -- so "
+                f"every run errors at setup before the first assertion. Use "
+                f"monkeypatch (monkeypatch.setattr('builtins.input', "
+                f"lambda _='': 'Alice')), capsys for printed output, or "
+                f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
     if asserts and all(isinstance(a.test, _ast.Constant) for a in asserts):
         # Walk ten: `assert True` under "unit tests must validate the

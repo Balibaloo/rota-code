@@ -411,6 +411,15 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    every walk, at temperature zero) is accepted as evidence when it is a
    criterion of the batch verbatim. Walk twenty-nine runs on that.
 
+3.22. **Walk twenty-nine (2026-09-02): the fourth criterion is a behaviour
+   now, and the tests all error at setup.** The writing-door refusal
+   changed the Terminologist's fourth criterion into a behaviour; the
+   Tester then wrote four tests taking `mocker` (pytest-mock, not in the
+   floor), every run errored before the first assertion, and the
+   Developer diagnosed it exactly and had no door. A test parameter that
+   is neither one of pytest's own fixtures nor one the file defines is
+   refused at encode with the monkeypatch shape. Walk thirty runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

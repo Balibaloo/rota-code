@@ -498,6 +498,23 @@ def test_a_respecify_with_the_same_words_repairs_nothing(db):
     assert not any(w[0] == "criteria" for w in sb.ctx.writes)
 
 
+def test_a_fixture_the_harness_lacks_errors_at_setup(db):
+    """Walk twenty-nine: four tests took `mocker` (pytest-mock, not
+    installed), every run an error before the first assertion."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="takes 'mocker', and the harness has no"):
+        _encode(sb, "from script import close_account\n"
+                    "def test_x(mocker):\n"
+                    "    mocker.patch('builtins.input', return_value='a')\n"
+                    "    assert close_account('a') == 'invoices'")
+    # pytest's own fixtures and one the file defines are fine.
+    sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
+    _encode(sb2, "import pytest\nfrom script import close_account\n"
+                 "@pytest.fixture\ndef acct():\n    return 'invoices'\n"
+                 "def test_x(monkeypatch, capsys, acct):\n"
+                 "    assert close_account(acct) == 'invoices'")
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion
