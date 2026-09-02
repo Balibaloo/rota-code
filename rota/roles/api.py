@@ -543,7 +543,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # any artefact back to the principal's words ended one hop from the
     # top, in every walk. Mechanical: the statements this session was woken
     # about are what this item reads.
-    for ref in ctx.wake_refs or ():
+    for ref in getattr(ctx, "wake_refs", ()) or ():
         if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
                             (ref,)).fetchone():
             ctx.writes.append(("item_statements", f"{id}:{ref}", {
