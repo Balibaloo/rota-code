@@ -39,8 +39,11 @@ attached, and when a pointer's target closes, the line comes out.
    `cannot` is a complete verdict at the nearest desk, the ladder climbs
    it, one-open-question-per-criterion guards the refire, and the two
    cases now expect cannot-plus-ladder (nearest or sharp desk, same ids).
-   Next: re-record the tester family — the brief and the cases changed,
-   so the reds must be re-earned against the new bar, not assumed away.
+   Measured the same day: both routing cases re-earned **5/5 on the
+   recording model** (0/5 the load before). The tester brief has changed
+   again since (walks eight and nine: harness facts, the worked example
+   importing what it calls, the assumptions line), so the family is owed
+   another re-record before the greens are banked.
    The same pass's four new reds, attributed 2026-08-28:
    `G1-a-reply` was my authoring bug {EM} the trap utterance was phrased as a
    question and the question-guard rightly refused to segment it (fixture
@@ -159,7 +162,11 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
    grains outside the predicted touch set, criterion words outside the
    glossary, chosen defaults) and the sentence is demanded only there. The
    trail's claim weakens honestly: every *detected divergence* a sentence.
-   First detector to build: invented literals in tests.
+   ~~First detector to build: invented literals in tests.~~ Built
+   2026-09-02 (`tests.encode`: a string the material never said is owed a
+   ledger row first; stemmed, code-shaped strings exempt). Next: diff
+   grains outside the predicted touch set; criterion words outside the
+   glossary.
 4. **The consumer**: the principal and the sessions, a closed loop. The
    environmental unknown shrinks to this machine; production-ready means
    ready for daily dogfooding, which was always the ordering.
