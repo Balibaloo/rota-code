@@ -724,3 +724,26 @@ def test_the_same_challenge_twice_is_refused_toward_the_door(db):
         sb.call("msg.challenge_tester", refs=["c1", "tst1"],
                 quotes=["closing an account leaves its invoices in place",
                         "assert close_account('a1') is not None"])
+
+
+def test_an_item_records_which_statement_it_reads(db):
+    """The intent thread's first link: item_statements had a reader, a
+    schema, and no writer, so the refs road from any artefact back to the
+    principal's words ended one hop from the top in every walk."""
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'closing keeps invoices')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,10,'closing an account keeps "
+               "its invoices','ratified')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("vision_keeper", db, mode="message",
+               allow=prompts.mode_tools("vision_keeper", "message"),
+               wake=Wake("vision_keeper", "message", refs=("s1",)))
+    sb.call("problem.assert", id="i9", text="closing an account keeps its "
+            "invoices for seven years", kind="in_scope")
+    pairs = [w for w in sb.ctx.writes if w[0] == "item_statements"]
+    assert pairs and pairs[0][2] == {"item_id": "i9", "statement_id": "s1"}
+    out = sb.call("problem.consult")
+    row = next(r for r in out if r["id"] == "i1")
+    assert row["from_statements"] == [], "existing items are untouched"

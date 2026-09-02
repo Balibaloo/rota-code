@@ -536,6 +536,18 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         return {"id": id, "unchanged": True,
                 "note": "those are the item's own words and its own kind; "
                         "nothing was written and no version moved"}
+    # The intent thread's first link. An item is a reading of something the
+    # principal said; the pair table that records *which* statement had a
+    # reader (`problem.consult` returns `from_statements`), a docstring
+    # quoting a role asking for it, and no writer -- so the refs road from
+    # any artefact back to the principal's words ended one hop from the
+    # top, in every walk. Mechanical: the statements this session was woken
+    # about are what this item reads.
+    for ref in ctx.wake_refs or ():
+        if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
+                            (ref,)).fetchone():
+            ctx.writes.append(("item_statements", f"{id}:{ref}", {
+                "item_id": id, "statement_id": ref}))
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
         "approval": "draft"}))
