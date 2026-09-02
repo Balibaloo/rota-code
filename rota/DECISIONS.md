@@ -923,6 +923,31 @@ question; the chat interfaces, when built, map it to the proposal words. And
 removed the same day on the principal's one-line review — "it will never be
 used". What is recorded is only what the machine knows for free.
 
+### Harness facts are refused at the door; judgement stays with the roles
+
+**Built across S0 walks eight to thirteen (2026-09-02).** A class of
+refusal that is not a judgement about the test or the code but a fact
+about the harness that runs them: under pytest stdin is captured, so a
+test that calls `input()` raises before any assertion; `print` returns
+None, so an assertion on it is always false; a bare name the test neither
+imports nor defines is a NameError against any code; two tests on one
+path overwrite each other on disk; a module the tests import that reads
+stdin at import dies at collection; an assertion on a constant checks
+nothing. Each was measured as a multi-session loop first -- nine rounds of
+challenge and hold on walk eight, five answered questions on walk eleven
+-- and each is certain independent of what the criterion means, which is
+what makes it the door's business rather than a desk's. The line is kept
+deliberately: whether "display" means return or print is a judgement, and
+walk twelve climbed it to the seat as designed.
+
+Two corollaries. The derived reask turns on every one of these walls
+when met with an answer in view, because meeting any of them after the
+answer is the answer not landing -- that is what wakes the criterion's
+writer in a mode that can rewrite it. And the walks' three silent shapes
+-- code in a fence, a named act left undone, a held plan never revised --
+are each told once, then the next prose turn is the real stop; a session
+is never looped by its own nudge.
+
 ### The triage collapses to can/cannot; the ladder does the diagnosis
 
 **Ruled 2026-09-01, built the same day.** The seat's words: the new ladder
