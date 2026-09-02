@@ -387,10 +387,13 @@ def test_the_written_module_is_told_what_the_tests_import(db, tmp_path):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    out = sb.call("code.write", path="greeting.py", text="def run():\n    return 1\n")
-    assert "import script" in out.get("note", "") or "script" in out.get("note", "")
+    with pytest.raises(ValueError, match="write script.py first, helpers after"):
+        sb.call("code.write", path="greeting.py", text="def run():\n    return 1\n")
     out = sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
     assert "note" not in out
+    # Once the named module exists, a helper is legal.
+    out = sb.call("code.write", path="greeting.py", text="def g():\n    return 1\n")
+    assert out["created"]
 
 
 def test_a_misplaced_quote_is_told_whose_words_it_quotes(db):

@@ -5621,15 +5621,13 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     f"test runs -- stdin is captured. Put the prompt under "
                     f"`if __name__ == \"__main__\":` and keep the functions "
                     f"the tests import at the top level")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    existed = target.exists()
-    target.write_text(text, encoding="utf-8")
-    out = {"path": path, "bytes": len(text.encode("utf-8")),
-           "created": not existed}
-    # What the tests import is the name the module has to have. Walk
-    # twenty-three: the tests said `import script`, the Developer wrote
-    # greeting_script.py, and the harness said ModuleNotFoundError three
-    # sessions running. Said in the result, not refused: helpers are legal.
+    # What the tests import is the name the module has to have. Walks
+    # twenty-three and twenty-four: the tests said `import script`, the
+    # Developer wrote greeting_script.py, the result said so, and the
+    # harness said ModuleNotFoundError three sessions running. Refused in
+    # the one certain case -- a new module, while the module every test
+    # names does not exist yet -- and said in the result otherwise, because
+    # helpers are legal once the named module is there.
     import re as _re
     wanted = set()
     for row in ctx.conn.execute(
@@ -5641,10 +5639,22 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     root = _worktree_of(ctx)
     missing = sorted(m for m in wanted if not (root / f"{m}.py").exists()
                      and not (root / m).is_dir())
-    if missing:
+    from pathlib import Path as _Path
+    stem = _Path(path).stem
+    if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
+        raise ValueError(
+            f"the batch's tests import {', '.join(missing)} and no such "
+            f"module exists yet; {path} is a name none of them use. The "
+            f"name the tests import is the name the file has to have -- "
+            f"write {missing[0]}.py first, helpers after")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    existed = target.exists()
+    target.write_text(text, encoding="utf-8")
+    out = {"path": path, "bytes": len(text.encode("utf-8")),
+           "created": not existed}
+    if missing and stem not in missing:
         out["note"] = (f"the batch's tests import {', '.join(missing)} and no "
-                       f"such module exists in the worktree -- the name the "
-                       f"tests use is the name the file has to have")
+                       f"such module exists in the worktree yet")
     return out
 
 
