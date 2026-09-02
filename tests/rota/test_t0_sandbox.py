@@ -314,7 +314,7 @@ def test_the_check_is_on_substance_not_on_wording(db):
 
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
-            body="def test_it():\n    assert prorate(999, 1, 3) == 333")
+            body="from billing import prorate\ndef test_it():\n    assert prorate(999, 1, 3) == 333")
     assert sb.ctx.writes, "an encoding that adds something must go through"
 
 
@@ -359,10 +359,10 @@ def test_one_criterion_gets_one_test_in_a_session(db):
 
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
-            body="def test_it():\n    assert prorate(999, 1, 3) == 333")
+            body="from billing import prorate\ndef test_it():\n    assert prorate(999, 1, 3) == 333")
     again = sb.call("tests.encode", id="t2", criterion_id="c1",
                     path="tests/prorate.py",
-                    body="def test_it():\n    assert prorate(999, 1, 3) == 333 # again")
+                    body="from billing import prorate\ndef test_it():\n    assert prorate(999, 1, 3) == 333 # again")
 
     assert again.get("unchanged") or "already" in str(again).lower(), again
     assert [w[1] for w in sb.ctx.writes] == ["t1"], \
@@ -379,12 +379,13 @@ def test_a_second_criterion_is_a_second_test(db):
 
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="test_p.py",
-            body="def test_it():\n    assert prorate(999, 1, 3) == 333")
+            body="from billing import prorate\ndef test_it():\n    assert prorate(999, 1, 3) == 333")
     sb.call("tests.triage", criterion_id="c2", verdict="encodable")
     # Its own file: two rows on one path overwrite each other on disk
     # (walk twelve), so a second test is a second file.
     sb.call("tests.encode", id="t2", criterion_id="c2", path="test_q.py",
-            body="def test_it():\n    assert effective_from(downgrade) == next_period_start")
+            body="from billing import effective_from, downgrade, next_period_start\n"
+                 "def test_it():\n    assert effective_from(downgrade) == next_period_start")
     assert [w[1] for w in sb.ctx.writes] == ["t1", "t2"]
 
 
@@ -473,7 +474,7 @@ def test_asking_about_a_criterion_does_not_destroy_a_test_already_written(db):
 
     sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     sb.call("tests.encode", id="t1", criterion_id="c1", path="tests/prorate.py",
-            body="def test_it():\n    assert prorate(999, 1, 3) == 333")
+            body="from billing import prorate\ndef test_it():\n    assert prorate(999, 1, 3) == 333")
     sb.call("msg.question_vision_keeper", refs=["c1"], question="is this in scope?")
 
     assert [w[1] for w in sb.ctx.writes if w[0] == "tests"] == ["t1"],         "a question must not withdraw work the session had already done"

@@ -295,6 +295,18 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    one path overwrote each other on disk (refused), and `script.run()`
    with `script` imported nowhere is the NameError fact at module level.
 
+3.12. **Walk thirteen (2026-09-02): the facts dodge by shape, and the
+   Developer narrates instead of acting.** `assert print(...) == "Hello
+   Alice!"` slipped the print guard by moving inside a comparison;
+   `validate_input("Alice")` slipped the NameError guard by not being
+   test-shaped; and the Developer read the four NameErrors correctly,
+   wrote "I will challenge the Tester to verify..." and ended the session
+   -- twice, three sessions to quarantine, nothing sent. The print guard
+   walks the whole assertion now, every bare call must be imported or
+   defined (a star import exempts the file; the register's scripted
+   bodies import what they call), and a sentence of intent naming a tool
+   with no call is told once that a reply is not a call.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

@@ -157,7 +157,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     drive(db, Wake("tester", "message", "m_test", detail="tick"), [
         "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
         "TOOL: tests.encode(id='t1', batch_id='b1', criterion_id='c1', "
-        "path='test_delete.py', body='def test_it():\n    assert tombstoned(account)')",
+        "path='test_delete.py', body='from seam import tombstoned, account\ndef test_it():\n    assert tombstoned(account)')",
     ], batch_id="b1")
 
     assert db.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"] == 1

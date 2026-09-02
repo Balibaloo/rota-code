@@ -331,6 +331,12 @@ PUSH_CHARS = 20000
 # takes `TOOL:` lines, so the fabrications never became calls -- but the session
 # went on believing them, which is worse than a refused call and looked like
 # nothing at all.
+# A sentence of intent naming a tool: "I will challenge the Tester",
+# "the next step is to run code.commit". Paired with a tool name from the
+# working set at the call site, so a passing mention is not an intent.
+INTENT = re.compile(r"\b(?:I will|I'll|I am going to|I should|next step is to|"
+                    r"let me|I need to)\b", re.IGNORECASE)
+
 FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)",
                                re.MULTILINE)
 
@@ -1032,6 +1038,7 @@ def run_session(
         transcript = [user]
         held_calls: list = []
         fence_warned = False
+        intent_warned = False
         allowed = set(sb.functions())
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
@@ -1130,6 +1137,21 @@ def run_session(
                     "You wrote code into your reply, and a reply is not a "
                     "file -- nothing landed. Send it as a call: "
                     "code.write(path='...', text='...') and then code.commit.")
+                continue
+            if (not calls and not intent_warned and INTENT.search(completion.text)
+                    and any(name in completion.text for name in allowed)):
+                # Walk thirteen: "I will challenge the Tester to verify..."
+                # and the session ended -- twice, three sessions to the
+                # quarantine, nothing sent. A named tool in a sentence of
+                # intent is a call the model owes; told once, and the next
+                # prose turn is the real stop.
+                intent_warned = True
+                outcome.errors.append("named an act and did not perform it")
+                transcript.append(completion.text)
+                transcript.append(
+                    "You said what you would do and did not do it -- a reply "
+                    "is not a call. Send the call you named, as TOOL: ..., "
+                    "or end by saying nothing is owed.")
                 continue
             if not calls:
                 # A session ending with held calls never superseded is the

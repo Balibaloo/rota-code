@@ -3158,10 +3158,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # be a conftest's doing and the register's own scripted bodies call it
     # unimported; `test_valid_input()` is a test calling a test that exists
     # nowhere, which is the measured shape and a certain NameError.
-    unbound = sorted({c.func.id for c in calls if isinstance(c.func, _ast.Name)
-                      and c.func.id.startswith("test_")
-                      and c.func.id not in defined
-                      and not hasattr(_builtins, c.func.id)})
+    # Widened on walk thirteen: `validate_input("Alice")` and
+    # `handle_input_error("")`, neither test-shaped, neither imported, four
+    # NameErrors the Developer read as "functions that do not exist in the
+    # code" and never fixed. Under the floor a bare name resolves through
+    # the module's own imports or not at all; a star import is the one
+    # shape that could define anything, and it exempts the file.
+    star = any(isinstance(n, _ast.ImportFrom) and any(a.name == "*" for a in n.names)
+               for n in _ast.walk(tree))
+    unbound = [] if star else sorted({
+        c.func.id for c in calls if isinstance(c.func, _ast.Name)
+        and c.func.id not in defined
+        and not hasattr(_builtins, c.func.id)})
     # Walk twelve: `script.run(valid_input)` with `script` imported nowhere.
     # A module used as a name and never imported is the same certainty.
     unbound += sorted({c.func.value.id for c in calls
@@ -3186,8 +3194,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
     for a in asserts:
-        t = a.test
-        if isinstance(t, _ast.Call) and isinstance(t.func, _ast.Name)                 and t.func.id == "print":
+        # Walk thirteen: `assert print(...) == "Hello Alice!"` -- the print
+        # moved inside a comparison and the guard on the bare call missed it.
+        if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+               and n.func.id == "print" for n in _ast.walk(a.test)):
             raise ValueError(
                 "`assert print(...)` is always False -- print returns None. "
                 "Capture what was printed (capsys.readouterr().out) and "

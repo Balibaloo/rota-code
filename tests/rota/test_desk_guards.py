@@ -268,7 +268,8 @@ def test_a_literal_the_material_never_said_is_an_assumption_first(db):
     owed a ledger row, and the encode goes through once it has one."""
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError, match="chooses 'Enter your name: '"):
-        _encode(sb, "def test_greet():\n"
+        _encode(sb, "from script import prompt_text\n"
+                    "def test_greet():\n"
                     "    assert prompt_text() == 'Enter your name: '")
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
             assumption="the prompt reads 'Enter your name: ' -- the material "
@@ -292,6 +293,30 @@ def test_asserting_on_print_is_always_false(db):
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError, match="print returns None"):
         _encode(sb, "def test_greet():\n    assert print('Hello Alice!')")
+    # Walk thirteen: the print moved inside a comparison.
+    with pytest.raises(ValueError, match="print returns None"):
+        _encode(sb, "def test_greet():\n"
+                    "    assert print('Hello Alice!') == 'Hello Alice!'")
+
+
+def test_a_named_act_left_undone_is_told_once(db, tmp_path):
+    """Walk thirteen: "I will challenge the Tester to verify..." and the
+    session ended, twice, three sessions to the quarantine."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    backend = ScriptedBackend([
+        "The tests assert functions that do not exist. I will challenge the "
+        "Tester with msg.challenge_tester to verify them.",
+        "Nothing more is owed.",
+    ])
+    out = run_session(db, Wake("developer", "tick:tests_failing", refs=("b1",)),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert "named an act and did not perform it" in out.errors
+    _, user = backend.calls[1]
+    assert "a reply is not a call" in user
 
 
 def test_a_disputed_test_travels_with_its_last_run(db):
