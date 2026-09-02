@@ -168,3 +168,30 @@ def touched(path: str | Path, against: str = "HEAD~1") -> list[str]:
         ["git", "-C", str(path), "diff", "--name-only", against, "HEAD"],
         capture_output=True, text=True)
     return [line for line in out.stdout.splitlines() if line.strip()]
+
+
+def integrate(conn: sqlite3.Connection, batch_id: str) -> str:
+    """
+    Merge the batch's branch into the branch the project is on.
+
+    S0 walk thirty-seven: the first batch the story ever delivered was
+    marked merged, its worktree removed, and the project's main branch still
+    held only the initial commit -- `merge` had never merged anything. The
+    branch is the record; the base branch is the deliverable. A clean merge
+    returns the new head. An unclean one is aborted and raised, because a
+    conflict is a wake, never a silent resolution.
+    """
+    root = project_root(conn)
+    branch = f"batch/{batch_id}"
+    if not _git(root, "branch", "--list", branch, check=False).strip():
+        raise WorktreeError(f"no branch {branch} to merge")
+    out = subprocess.run(
+        ["git", "-C", str(root), "-c", "user.email=rota@local", "-c", "user.name=rota",
+         "merge", "--no-ff", "--no-edit", "-m", f"rota: deliver {batch_id}", branch],
+        capture_output=True, text=True)
+    if out.returncode != 0:
+        subprocess.run(["git", "-C", str(root), "merge", "--abort"],
+                       capture_output=True, text=True)
+        raise WorktreeError(f"merge of {branch} is not clean: {out.stderr.strip()[:300]}")
+    return _git(root, "rev-parse", "HEAD").strip()
+

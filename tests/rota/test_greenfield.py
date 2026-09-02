@@ -103,6 +103,34 @@ def test_a_shaped_repository_is_left_alone(tmp_path):
     assert not (root / "pyproject.toml").exists()
 
 
+def test_a_merged_batch_lands_on_the_base_branch(tmp_path):
+    """Walk thirty-seven: the first batch the story ever delivered was
+    marked merged, its worktree removed, and the main branch still held
+    only the initial commit. The merge merges now."""
+    from rota.core import lifecycle, worktrees
+
+    root = _repo(tmp_path, {"README.md": "# greeter\n"})
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+               (str(root),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
+    db.commit()
+    lifecycle.start(db, "b1")
+    wt = Path(db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"])
+    (wt / "script.py").write_text("print('Hello User!')\n", encoding="utf-8")
+    worktrees.commit(wt, "the script")
+    lifecycle.merge(db, "b1")
+    assert (root / "script.py").exists(), "the deliverable is on the base branch"
+    assert (root / ".gitignore").exists(), "the floor ignores caches"
+    log = subprocess.run(["git", "log", "--oneline"], cwd=root,
+                         capture_output=True, text=True).stdout
+    assert "rota: deliver b1" in log
+    assert db.execute("SELECT status FROM batches WHERE id='b1'").fetchone()["status"] == "merged"
+
+
 def test_a_plain_folder_gets_a_repository_at_batch_start(tmp_path):
     """The principal's own first trial: a folder with no git repository.
     Onboarding tolerated it and batch start could not -- no worktree, no

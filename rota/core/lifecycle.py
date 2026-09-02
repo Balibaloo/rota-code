@@ -130,6 +130,18 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     """
     from . import environments, worktrees
 
+    # The merge merges. A conflict leaves the batch deferred -- paused, its
+    # worktree and commits intact -- rather than marked delivered.
+    try:
+        worktrees.integrate(conn, batch_id)
+    except worktrees.WorktreeError as exc:
+        if "not clean" in str(exc):
+            conn.execute("UPDATE batches SET status = 'deferred' WHERE id = ?",
+                         (batch_id,))
+            raise
+        # No git, no branch: the degraded mode the rest of the loop already
+        # tolerates -- the batch is still delivered as far as the database
+        # can know.
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
     environments.teardown(conn, batch_id, release_ports=True)
     try:

@@ -48,6 +48,13 @@ def _python_floor(root: Path) -> list[str]:
         (root / "pyproject.toml").write_text(
             _PYPROJECT.format(name=name), encoding="utf-8")
         made.append("pyproject.toml")
+    ignore = root / ".gitignore"
+    if not ignore.exists():
+        # Walk thirty-seven's delivered branch carried __pycache__: the
+        # harness runs pytest in the worktree and the Developer commits -A.
+        ignore.write_text(chr(10).join(["__pycache__/", "*.pyc", ".pytest_cache/", ""]),
+                          encoding="utf-8")
+        made.append(".gitignore")
     tests = root / "tests"
     if not tests.is_dir():
         tests.mkdir()
