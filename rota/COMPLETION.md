@@ -514,6 +514,18 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    story has ever delivered to the main branch. Whether what merged runs
    as asked is measured next, on the merged tree itself.
 
+3.31. **Walk thirty-eight (2026-09-02): hello world, delivered.** From the
+   delivery snapshot on qwen3:8b, forty-one steps: four tests, two
+   Developer sessions, four green, the Critic's verdict, and a real merge
+   -- `rota: deliver b1` on the project's main branch, `script.py` with a
+   `greet` function and a main guard, and `python script.py` answering
+   "Enter your name:" with "Hello Alice!". The story the seat asked for on
+   2026-08-28 is produced end to end from an empty folder. Left on the
+   table: a stray `test_script.py` the Developer wrote at the root, the
+   "Hellow" reading never logged, and the three-of-four variance across
+   loads (the fourth criterion's judgment dispute still climbs to the seat
+   on some loads).
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
