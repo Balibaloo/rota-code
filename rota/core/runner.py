@@ -1139,7 +1139,13 @@ def run_session(
                     "code.write(path='...', text='...') and then code.commit.")
                 continue
             if (not calls and not intent_warned and INTENT.search(completion.text)
-                    and any(name in completion.text for name in allowed)):
+                    and (any(name in completion.text for name in allowed)
+                         or not (sb.ctx.writes or getattr(sb.ctx, "outbound", [])))):
+                # Walks fourteen and fifteen: "I will address these issues by
+                # implementing the required functions" -- no tool named, no
+                # write staged, nothing sent, three sessions running. A
+                # session that has done nothing and announces it will is the
+                # same silence.
                 # Walk thirteen: "I will challenge the Tester to verify..."
                 # and the session ended -- twice, three sessions to the
                 # quarantine, nothing sent. A named tool in a sentence of

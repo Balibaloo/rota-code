@@ -317,6 +317,13 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    walk thirteen was inert in this walk (a heredoc had put a backspace
    byte in its regex; repaired); walk fifteen measures it live.
 
+3.14. **Walk fifteen (2026-09-02): the narration names no tool.** Same
+   three Developer sessions -- "the next step is to implement these
+   functions. I will proceed to write the necessary code" -- and the intent
+   nudge, live this time, stayed silent because it required a tool name in
+   the sentence. It now fires on intent alone when the session has staged
+   nothing and sent nothing. Walk sixteen measures it.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

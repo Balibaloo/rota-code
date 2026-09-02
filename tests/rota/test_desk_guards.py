@@ -319,6 +319,25 @@ def test_a_named_act_left_undone_is_told_once(db, tmp_path):
     assert "a reply is not a call" in user
 
 
+def test_an_intent_with_nothing_done_is_told_once_even_unnamed(db, tmp_path):
+    """Walks fourteen and fifteen: "I will address these issues by
+    implementing the required functions" -- no tool named, nothing staged,
+    nothing sent, three sessions to quarantine."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    backend = ScriptedBackend([
+        "The functions are not present. I will address these issues by "
+        "implementing the required functions in script.py.",
+        "Nothing more is owed.",
+    ])
+    out = run_session(db, Wake("developer", "tick:tests_failing", refs=("b1",)),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert "named an act and did not perform it" in out.errors
+
+
 def test_a_disputed_test_travels_with_its_last_run(db):
     from rota.core.runner import _resolve_refs
     db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
