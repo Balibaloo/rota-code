@@ -270,6 +270,18 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    refused toward `cannot`, the repeated-argument rule covers escalate,
    and the Architect's answer is named as the material to act on.
 
+3.10. **Walk eleven (2026-09-02): three good tests, and the meta-criterion
+   loops.** The three behavioural criteria landed as importing tests behind
+   their ledger rows; the fourth ("unit tests must validate...") is not a
+   behaviour, and every re-wake re-triaged all four, re-encoded `assert
+   True`, was refused, asked the Terminologist, was answered, and was owed
+   again -- five answered questions, the criterion untouched. Two floors:
+   the mode could not see which criteria already had tests (`criteria.load`
+   carries `tested_by`; a tested criterion's triage owes nothing), and an
+   answer met with the same encode wall never became unresolved, so
+   `criterion_repair` never fired (the derived reask now covers every wall
+   an encode can meet with the answer in view). Walk twelve runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

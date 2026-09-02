@@ -183,6 +183,50 @@ def test_code_in_the_reply_is_told_it_landed_nowhere(db, tmp_path):
     assert "a reply is not a file" in user
 
 
+def test_a_tested_criterion_is_shown_as_tested_and_owes_nothing(db):
+    """Walk eleven: three criteria tested, one not, and every wake
+    re-triaged and re-encoded all four."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','the account is tombstoned')")
+    db.commit()
+    rows = {r["id"]: r for r in sb.call("criteria.load")}
+    assert rows["c1"]["tested_by"] == "tst1"
+    assert "tested_by" not in rows["c2"]
+    out = sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    assert "already encodes it" in out["next"]
+
+
+def test_an_answer_met_with_the_same_wall_is_derived_unresolved(db):
+    """Walk eleven: five answered questions about one criterion, each
+    followed by the same refused encode, and `criterion_repair` never
+    fired because nothing said the answer did not land. Any encode wall
+    met with the answer in view is that evidence."""
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','unit tests must validate the behaviour')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','tester','terminologist',"
+               "'question','[\"c2\"]',1,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, cause_id) VALUES ('m2','th','terminologist',"
+               "'tester','answer','[\"c2\"]',2,'answered','m1')")
+    db.commit()
+    backend = ScriptedBackend([
+        "TOOL: tests.triage(criterion_id='c2', verdict='encodable')\n"
+        "TOOL: tests.encode(id='tst_9', criterion_id='c2', "
+        "path='tests/test_meta.py', body='def test_meta():\\n    assert True')",
+        "Done.",
+    ])
+    out = run_session(db, Wake("tester", "message", message_id="m2",
+                               refs=("m2",)),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert out.committed, out.errors
+    row = db.execute("SELECT status FROM messages WHERE id='m1'").fetchone()
+    assert row["status"] == "unresolved", "the wall is the reask"
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

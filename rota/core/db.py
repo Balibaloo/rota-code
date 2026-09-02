@@ -510,10 +510,20 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
             # before it -- a body that is the criterion in English is not
             # Python, and pytest collects nothing from it. Either refusal on
             # this wake, with no test written, is the answer not landing.
+            # Widened on walk eleven: the Tester, woken by the answer, met
+            # the constant-assert wall ("assert True" under a criterion
+            # that is not a behaviour) and the stdin wall, wrote nothing,
+            # and asked again -- five answered questions, the criterion
+            # untouched. Every encode refusal that can be met with the
+            # answer in view is the answer not landing.
             parroted = any(
                 ("own sentence written back" in msg
                  or "not Python" in msg
-                 or "collect nothing" in msg)
+                 or "collect nothing" in msg
+                 or "on a constant" in msg
+                 or "captures stdin" in msg
+                 or "print returns None" in msg
+                 or "a test that exists nowhere" in msg)
                 for _, msg in (result.refusals or []))
             if parroted:
                 q = conn.execute(

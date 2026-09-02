@@ -2733,10 +2733,18 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
 def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
     if bid:
+        # `tested_by` travels with the row. Walk eleven: three criteria had
+        # tests and one did not, and every wake re-triaged and re-encoded
+        # all four -- the mode could not see which debt was its own.
         rows = _rows(ctx.conn.execute(
-            "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs "
+            "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs, "
+            "(SELECT t.id FROM tests t WHERE t.criterion_id = c.id LIMIT 1) "
+            "AS tested_by "
             "FROM criteria c JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
             "WHERE bt.batch_id = ?", (bid,)))
+        for r in rows:
+            if r.get("tested_by") is None:
+                del r["tested_by"]
     else:
         # No batch, but a subject: a Tester woken by an answer about a term
         # is woken about the criteria that use it. Measured on the register
@@ -2928,6 +2936,13 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
     if not hasattr(ctx, "triaged"):
         ctx.triaged = {}
     ctx.triaged[criterion_id] = verdict
+    done = ctx.conn.execute("SELECT id FROM tests WHERE criterion_id = ?",
+                            (criterion_id,)).fetchone()
+    if done:
+        return {"criterion": criterion_id, "verdict": verdict,
+                "next": f"nothing -- {done['id']} already encodes it; the "
+                        f"criteria you were woken for are the ones without "
+                        f"a tested_by"}
     nxt = {
         "encodable": "encode it: tests.encode names this criterion",
         "cannot": "say what stops you: msg.question_terminologist with the "
