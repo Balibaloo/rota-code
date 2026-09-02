@@ -964,6 +964,19 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "statements you segmented (brief.segment their words, "
                     "then confirm). A bare reply would answer the greeting "
                     "and lose the request")
+            # A chat reply that restates a statement is answered *from* it,
+            # and the trail should say so. G1-what-the-brief-already-holds
+            # went red the day the fork landed: the Liaison claimed chat,
+            # answered from the brief word for word, and ref'd the entry.
+            # Derived, not demanded -- the ref is the system's knowledge of
+            # where the words came from -- and only when exactly one
+            # statement's span is in the reply, so nothing is guessed.
+            if ctx.intake == "chat" and text:
+                hits = [r["id"] for r in ctx.conn.execute(
+                    "SELECT id, text FROM statements WHERE status != 'superseded'")
+                    if _quotes_span(r["text"] or "", text)]
+                if len(hits) == 1 and hits[0] not in (refs or []):
+                    refs = [*(refs or []), hits[0]]
 
         # Recipient and verb, not refs. Matching on refs too caught the exact
         # repeat and missed the expensive one: Terminologist answered a

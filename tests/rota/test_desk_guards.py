@@ -479,6 +479,30 @@ def test_a_fixture_the_harness_lacks_errors_at_setup(db):
                  "    assert close_account(acct) == 'invoices'")
 
 
+def test_a_chat_reply_that_restates_a_statement_carries_its_ref(db):
+    """G1-what-the-brief-already-holds: the Liaison claimed chat, answered
+    from the brief word for word, and ref'd the entry. The system knows
+    where the words came from."""
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'how long do we keep invoices?')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,10,'invoices are kept for "
+               "seven years after the account is closed','ratified')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m1','th','principal','liaison',"
+               "'converse','[\"e1\"]',1)")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("liaison", db, mode="converse",
+               allow=prompts.mode_tools("liaison", "converse"),
+               wake=Wake("liaison", "message", message_id="m1", refs=("m1",)))
+    sb.call("brief.intake", verdict="chat")
+    sb.call("msg.converse_principal", refs=["e1"],
+            reply="We decided that invoices are kept for seven years after the "
+                  "account is closed.")
+    assert "s1" in sb.ctx.outbound[-1]["body_refs"]
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion
