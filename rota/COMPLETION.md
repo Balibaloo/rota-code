@@ -420,6 +420,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    is neither one of pytest's own fixtures nor one the file defines is
    refused at encode with the monkeypatch shape. Walk thirty runs on that.
 
+3.23. **Walk thirty (2026-09-02): three green and a real dispute.** With
+   `mocker` refused, the Tester wrote four tests on monkeypatch and capsys;
+   three passed, and the fourth expects "Please enter a valid name." for
+   the input "123" where the program greets it -- a judgment about what
+   "non-string input" means when everything from `input()` is a string.
+   The Developer and Vision Keeper argued it to the loop cap. That is the
+   assumptions design's boundary, reached honestly from an empty folder:
+   the greeting script exists, its three behavioural criteria are green,
+   and the fourth is a question for the seat. Next measurement: the
+   register re-record, owed after this many guard changes.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
