@@ -83,3 +83,32 @@ def ensure_floor(conn: sqlite3.Connection, batch_id: str,
         except (subprocess.CalledProcessError, OSError):
             pass          # no git is the worktree's existing degraded mode
     return made
+
+
+def ensure_repo(root: Path) -> bool:
+    """A folder with no repository gets one, once, before the first worktree.
+
+    The principal's own first trial: a plain folder, no `git init`. Onboarding
+    tolerated it and batch start could not -- `git worktree add` needs a
+    repository, the Developer had nowhere to build and the harness nothing to
+    run, and nothing said so. Ground with no repository has nothing to assume
+    wrongly about, which is the one shape the floor may lay (the seat's
+    ruling); a folder that is already a repository is left entirely alone.
+    Returns True when a repository was created.
+    """
+    if not root.is_dir() or (root / ".git").exists():
+        return False
+    probe = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-dir"],
+                           capture_output=True, text=True)
+    if probe.returncode == 0:
+        return False                       # inside some larger repository
+    try:
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+        subprocess.run(["git", "-c", "user.email=rota@local", "-c", "user.name=rota",
+                        "commit", "-qm", "the repository floor", "--allow-empty"],
+                       cwd=root, check=True, capture_output=True)
+    except (subprocess.CalledProcessError, OSError):
+        return False
+    return True
+

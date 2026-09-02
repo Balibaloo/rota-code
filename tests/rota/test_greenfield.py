@@ -101,3 +101,30 @@ def test_a_shaped_repository_is_left_alone(tmp_path):
     made = scaffold.ensure_floor(db, "b1")
     assert "pyproject.toml" not in made
     assert not (root / "pyproject.toml").exists()
+
+
+def test_a_plain_folder_gets_a_repository_at_batch_start(tmp_path):
+    """The principal's own first trial: a folder with no git repository.
+    Onboarding tolerated it and batch start could not -- no worktree, no
+    build, no harness, and nothing said so."""
+    from rota.core import lifecycle, scaffold
+
+    root = tmp_path / "plain"
+    root.mkdir()
+    (root / "README.md").write_text("# greeter\n", encoding="utf-8")
+    assert not (root / ".git").exists()
+    assert scaffold.ensure_repo(root) is True
+    assert (root / ".git").exists()
+    assert scaffold.ensure_repo(root) is False, "once"
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
+               (str(root),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
+    db.commit()
+    lifecycle.start(db, "b1")
+    wt = db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
+    assert wt and Path(wt).is_dir(), "the batch has somewhere to build"

@@ -47,6 +47,14 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
     from . import environments
     environments.reserve(conn, batch_id)
 
+    # A folder with no repository gets one first: the principal's own trial
+    # was a plain folder, and a batch there had nowhere to build.
+    from . import scaffold
+    root_row = conn.execute("SELECT value FROM config WHERE key = 'project_root'").fetchone()
+    if root_row and (root_row["value"] or "").strip():
+        from pathlib import Path as _Path
+        scaffold.ensure_repo(_Path(root_row["value"].strip('"')))
+
     try:
         worktrees.create(conn, batch_id)
     except worktrees.WorktreeError:
@@ -58,8 +66,6 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
         # makes the harness's pytest invocation deterministic and the tests/
         # directory the Tester's paths need. A repository with its own test
         # configuration is left entirely alone.
-        from . import scaffold
-
         scaffold.ensure_floor(conn, batch_id)
 
 
