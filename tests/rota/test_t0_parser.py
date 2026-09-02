@@ -675,3 +675,22 @@ def test_the_block_sentinel_is_the_name_in_brackets_and_nothing_else():
     assert extract("TOOL: msg.answer_liaison(refs=['g1'])")[0].args["refs"] == ["g1"]
     call = extract("TOOL: model.load(ids=['a'])\nplain prose after")[0]
     assert call.args["ids"] == ["a"]
+
+
+def test_bare_names_and_the_pass_keyword_are_the_words_they_spell():
+    """S0 walk thirty-three: `verdicts.emit(b1, pass, diff_ref='script.py')`
+    three sessions running, and the verdict on a green batch never landed.
+    A bare identifier where a value goes is the string it spells; the
+    keyword `pass` outside quotes is the word; prose that mentions passing
+    is untouched."""
+    from rota.llm import toolproto
+
+    kwargs, pos = toolproto.parse_args("b1, pass, diff_ref='script.py'")
+    assert pos == ("b1", "pass") and kwargs == {"diff_ref": "script.py"}
+    kwargs, pos = toolproto.parse_args(
+        "batch_id=b1, result=pass, failed_criterion=None, diff_ref='x'")
+    assert kwargs == {"batch_id": "b1", "result": "pass",
+                      "failed_criterion": None, "diff_ref": "x"}
+    kwargs, _ = toolproto.parse_args("text='all tests pass now', refs=['a']")
+    assert kwargs["text"] == "all tests pass now"
+

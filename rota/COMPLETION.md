@@ -463,6 +463,15 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    module-level call to a local function that reads stdin is the same
    collection-time death. Walk thirty-three runs on that.
 
+3.26. **Walk thirty-three (2026-09-02): all four green, and the story
+   reaches review.** Four tests green at step 38 -- the first time the
+   delivery loop handed the greeting script to the Critic -- and the
+   Critic's verdict never landed: `verdicts.emit(b1, pass, ...)`, bare
+   identifiers where the protocol wanted quotes, three sessions running.
+   A bare name where a value goes is now the string it spells, and the
+   keyword `pass` outside quotes is the word. Walk thirty-four measures
+   the review and, if it passes, the first merge.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

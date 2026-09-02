@@ -88,6 +88,13 @@ def _literal(node: ast.AST) -> Any:
             f"Call {called} on its own line first, read what it returns, "
             f"then pass those results as plain strings")
 
+    # A bare name where a value goes is the string it spells. S0 walk
+    # thirty-three: the Critic wrote `verdicts.emit(b1, pass, ...)` three
+    # sessions running, and the verdict on a green batch never landed.
+    # Ids and enum words are strings; nothing else a bare name could mean
+    # is a value the sandbox would accept.
+    if isinstance(node, ast.Name):
+        return node.id
     value = ast.literal_eval(node)
     # `text=...` means "and so on", and `literal_eval` is delighted to hand back
     # Python's Ellipsis for it. It survives the sandbox, survives the write, and
@@ -125,7 +132,7 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     # -- which is how qwen2.5 writes every call -- had `\n` outside any
     # string, failed the strict parse, and fell to the lenient one, which
     # took `term` to be everything to the closing bracket.
-    safe = _escape_newlines_in_quotes(args_str)
+    safe = _quote_bare_keywords(_escape_newlines_in_quotes(args_str))
     try:
         expr = ast.parse(f"_f({safe})", mode="eval")
     except SyntaxError:
@@ -156,6 +163,51 @@ def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
             raise ValueError("**kwargs is not supported")
         out[kw.arg] = _literal(kw.value)
     return out, tuple(_literal(a) for a in call.args)
+
+
+_BARE_KEYWORDS = ("pass",)
+
+
+def _quote_bare_keywords(text: str) -> str:
+    """`result=pass` is a verdict, not a statement. Outside quotes only, so a
+    prose argument that mentions passing is left alone."""
+    out: list[str] = []
+    quote = None
+    esc = False
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if quote:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        matched = False
+        for kw in _BARE_KEYWORDS:
+            end = i + len(kw)
+            before = text[i - 1] if i > 0 else ""
+            after = text[end] if end < n else ""
+            if (text.startswith(kw, i) and not (before.isalnum() or before == "_")
+                    and not (after.isalnum() or after == "_")):
+                out.append(f"'{kw}'")
+                i = end
+                matched = True
+                break
+        if not matched:
+            out.append(ch)
+            i += 1
+    return "".join(out)
 
 
 def _escape_newlines_in_quotes(text: str) -> str:
