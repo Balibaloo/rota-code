@@ -127,6 +127,62 @@ def test_a_name_the_test_never_imports_is_a_nameerror(db):
         _encode(sb, "def test_greet():\n    assert test_valid_input()")
 
 
+def test_an_assert_on_a_constant_checks_nothing(db):
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="verdict='cannot'"):
+        _encode(sb, "def test_meta():\n    # replace when available\n    assert True")
+
+
+def test_a_module_that_reads_stdin_at_import_dies_at_collection(db, tmp_path):
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="input\\(\\) at module level \\(line 3\\)"):
+        sb.call("code.write", path="script.py",
+                text="def greet(n):\n    return f'Hello {n}!'\n"
+                     "name = input('Enter your name: ')\nprint(greet(name))\n")
+    out = sb.call("code.write", path="script.py",
+                  text="def greet(n):\n    return f'Hello {n}!'\n\n"
+                       "if __name__ == '__main__':\n"
+                       "    print(greet(input('Enter your name: ')))\n")
+    assert out["created"]
+
+
+def test_the_same_escalation_twice_is_refused_toward_the_answer(db):
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','developer','architect',"
+               "'escalate','[\"c1\", \"tst1\"]',1,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, cause_id) VALUES ('m2','th','architect',"
+               "'developer','answer','[\"c1\"]',2,'answered','m1')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="act on the answer"):
+        sb.call("msg.escalate_architect", refs=["c1", "tst1"])
+
+
+def test_code_in_the_reply_is_told_it_landed_nowhere(db, tmp_path):
+    from rota.core.runner import run_session
+    from rota.llm.llm import Pins, ScriptedBackend
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    backend = ScriptedBackend([
+        "Here is the fix:\n```python\ndef greet(n):\n    return n\n```",
+        "Done.",
+    ])
+    out = run_session(db, Wake("developer", "tick:tests_failing", refs=("b1",)),
+                      backend=backend, pins=Pins(model="scripted"))
+    assert "wrote code into its reply" in out.errors
+    _, user = backend.calls[1]
+    assert "a reply is not a file" in user
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

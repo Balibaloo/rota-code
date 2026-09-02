@@ -1031,6 +1031,7 @@ def run_session(
 
         transcript = [user]
         held_calls: list = []
+        fence_warned = False
         allowed = set(sb.functions())
         # Which of them answer a question. The graph is the authority: a read
         # edge is a read, whatever the verb happens to be called.
@@ -1116,6 +1117,20 @@ def run_session(
 
             calls = toolproto.extract_lenient(completion.text, allowed,
                                               signatures=_param_sets(sb))
+            if ("```" in completion.text and not calls
+                    and "code.write" in allowed and not fence_warned):
+                # Walk ten: the Developer's fix, whole and correct, inside a
+                # fence in its reply -- and nothing landed, because a reply
+                # is not a file. Once: told, and the next fenced reply is
+                # the session's real stop.
+                fence_warned = True
+                outcome.errors.append("wrote code into its reply")
+                transcript.append(completion.text)
+                transcript.append(
+                    "You wrote code into your reply, and a reply is not a "
+                    "file -- nothing landed. Send it as a call: "
+                    "code.write(path='...', text='...') and then code.commit.")
+                continue
             if not calls:
                 # A session ending with held calls never superseded is the
                 # model standing by them. The hold exists so an act can be

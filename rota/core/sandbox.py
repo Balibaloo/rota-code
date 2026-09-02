@@ -885,6 +885,7 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
+        if verb in ("challenge", "escalate"):
             # And the same challenge twice is the same argument twice. S0
             # walk eight: nine rounds of challenge, answer, harness, with
             # identical refs every round -- a livelock the attempt cap
@@ -893,18 +894,28 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             import json as _json
             prior = ctx.conn.execute(
                 "SELECT m.id FROM messages m JOIN messages a ON a.cause_id = m.id "
-                "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = 'challenge' "
+                "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = ? "
                 "AND m.body_refs = ? AND a.verb = 'answer' ORDER BY m.seq DESC "
-                "LIMIT 1", (ctx.role, recipient, _json.dumps(list(refs or [])))
+                "LIMIT 1", (ctx.role, recipient, verb,
+                            _json.dumps(list(refs or [])))
             ).fetchone()
             if prior:
-                door = ("msg.escalate_architect"
-                        if recipient == "tester" else "schedule.unresolved")
+                # Walk ten: escalate, answer, escalate, answer, three times
+                # on one pair of refs, with the fix written into the reply
+                # as prose in between. The Architect answered; the answer is
+                # the material now.
+                if verb == "escalate":
+                    door = ("act on the answer -- code.write the change it "
+                            "points at and commit; if it truly did not land, "
+                            "the attempt cap carries this batch to the ladder")
+                elif recipient == "tester":
+                    door = "msg.escalate_architect"
+                else:
+                    door = "schedule.unresolved"
                 raise ValueError(
-                    f"you challenged {recipient} on exactly these refs already "
-                    f"({prior['id']}) and they answered holding their ground. "
-                    f"Sending it again is the same argument again -- if the "
-                    f"answer did not land, {door}; if it did, act on it")
+                    f"you sent {verb} to {recipient} on exactly these refs "
+                    f"already ({prior['id']}) and they answered. Sending it "
+                    f"again is the same argument again -- {door}")
 
         # The intake fork, armed by the mode: a converse to the principal is
         # either the reply to work (refs carry what intake produced) or a

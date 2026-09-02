@@ -256,6 +256,20 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    shipped with it: a string the material never said is owed a ledger row
    before the encode lands (`test_desk_guards.py`).
 
+3.9. **Walk ten (2026-09-02): the detector fires live, and the program
+   is right but runs at import.** Four importing tests landed, three of
+   them behind ledger rows the assumptions detector demanded ("the test
+   assumes Hello Alice! where the material is silent") and a Terminologist
+   question about them; the fourth was `assert True` under a criterion
+   that is not a behaviour. `script.py` was right in substance and called
+   `input()` at module level, so every importing test died at collection;
+   the Developer wrote the fix as a fenced block in its reply, then
+   escalated three times on one pair of refs. Five responses: module-level
+   `input()` refused at `code.write` with the main-guard shape, a fenced
+   reply with no call is told it landed nowhere, a constant assert is
+   refused toward `cannot`, the repeated-argument rule covers escalate,
+   and the Architect's answer is named as the material to act on.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

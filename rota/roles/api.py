@@ -3153,7 +3153,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
             f"it returns")
-    for a in (n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)):
+    asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
+    if asserts and all(isinstance(a.test, _ast.Constant) for a in asserts):
+        # Walk ten: `assert True` under "unit tests must validate the
+        # script's behaviour" -- a criterion that is not a behaviour, met
+        # with a test that is not a check. The honest verdict was `cannot`.
+        raise ValueError(
+            "every assertion here is on a constant, so the test checks "
+            "nothing and would report as coverage. If the criterion names "
+            "no behaviour a call could exercise, that is tests.triage "
+            "verdict='cannot' -- say what stops you and route it")
+    for a in asserts:
         t = a.test
         if isinstance(t, _ast.Call) and isinstance(t.func, _ast.Name)                 and t.func.id == "print":
             raise ValueError(
@@ -5524,6 +5534,36 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     reconciles the two.
     """
     target = _within(_worktree_of(ctx), path)
+    # A harness fact about modules, not a judgement about the code. S0 walk
+    # ten: `script.py` was right in substance and ran `input()` at module
+    # level, so every test that imported it died at collection -- OSError,
+    # stdin is captured -- and the Developer escalated three times against
+    # an error that names the line. Under pytest a module the tests import
+    # runs at import; the shape that works is the main guard.
+    if path.endswith(".py"):
+        import ast as _ast
+        try:
+            tree = _ast.parse(text)
+        except SyntaxError as exc:
+            raise ValueError(
+                f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
+                f"the harness imports it and would die at collection") from None
+        for node in tree.body:
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                 _ast.ClassDef, _ast.Import, _ast.ImportFrom)):
+                continue
+            if (isinstance(node, _ast.If) and isinstance(node.test, _ast.Compare)
+                    and any(isinstance(c, _ast.Constant) and c.value == "__main__"
+                            for c in node.test.comparators)):
+                continue
+            if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                   and n.func.id == "input" for n in _ast.walk(node)):
+                raise ValueError(
+                    f"{path} calls input() at module level (line {node.lineno}), "
+                    f"so importing it under pytest raises OSError before any "
+                    f"test runs -- stdin is captured. Put the prompt under "
+                    f"`if __name__ == \"__main__\":` and keep the functions "
+                    f"the tests import at the top level")
     target.parent.mkdir(parents=True, exist_ok=True)
     existed = target.exists()
     target.write_text(text, encoding="utf-8")
