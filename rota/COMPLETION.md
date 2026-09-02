@@ -493,6 +493,20 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    left is 8B judgment (identical refused calls at temperature zero) and
    the seat's questions. Whether to walk a larger model is the seat's call.
 
+3.29. **The seat's question (2026-09-02): does it produce what was asked?**
+   Not quite. Walk thirty-three's `main.py` does the requested thing in a
+   function, all four tests green -- and has no `__main__` entry point, so
+   `python main.py` does nothing: every criterion says "the script must"
+   and every test exercises a function, so "works as a script" is
+   unverified by construction. That is the next S0 floor: a criterion
+   whose subject is the running program wants a subprocess-shaped test.
+   "Hellow User!" was read as a typo plus a placeholder and never logged
+   as the assumption it is. And nothing has merged yet -- review is where
+   the story stands. Also found from the seat's own first trial: a plain
+   folder with no repository onboarded and then had nowhere to build; the
+   floor now lays the repository at batch start. Walk thirty-six runs the
+   delivery stretch on `qwen2.5:14b-instruct-q3_K_M`.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
