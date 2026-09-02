@@ -1453,7 +1453,8 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
                     if mine:
                         raise ValueError(
                             f"{kwargs['id']!r} is the {table} row you wrote "
-                            f"this session, and a {own} row is a different "
+                            f"this session, and a {own or label.split('.', 1)[0]} "
+                            f"row is a different "
                             f"thing from it -- if this one would only say "
                             f"that you made that edit, the edit is already "
                             f"the record and nothing more is owed")

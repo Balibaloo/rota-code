@@ -503,6 +503,29 @@ def test_a_chat_reply_that_restates_a_statement_carries_its_ref(db):
     assert "s1" in sb.ctx.outbound[-1]["body_refs"]
 
 
+def test_a_verbatim_item_assert_moves_no_version(db):
+    """Walk thirty-one: the ladder's last rung re-asserted the item with its
+    own words, the version moved, and the batch with three green tests was
+    cancelled as a revocation."""
+    from rota.roles import prompts
+    sb = build("vision_keeper", db, mode="exhausted",
+               allow=prompts.mode_tools("vision_keeper", "exhausted"))
+    out = sb.call("problem.assert", id="i1", text="Closing keeps invoices.",
+                  kind="in_scope")
+    assert out.get("unchanged"), out
+    assert not any(w[0] == "items" for w in sb.ctx.writes)
+
+
+def test_an_abandoned_batch_releases_its_tickets_for_regrouping(db):
+    """Walk thirty-one: re-approved after the cancel, the item's tickets
+    still belonged to the abandoned batch and nothing re-grouped them."""
+    from rota.core.predicates import grouping
+    assert grouping(db) == [], "tk1 is in a running batch"
+    db.execute("UPDATE batches SET status = 'abandoned' WHERE id = 'b1'")
+    db.commit()
+    assert [w.refs for w in grouping(db)] == [("tk1",)]
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion

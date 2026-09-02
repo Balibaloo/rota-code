@@ -441,6 +441,18 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    and the fourth is a question for the seat. Next measurement: the
    register re-record, owed after this many guard changes.
 
+3.24. **Walk thirty-one (2026-09-02, cold, every fix in): the whole
+   ladder, and its last rung's floor.** Clean intake, a behavioural fourth
+   criterion, three of four tests green, the fourth argued up the ladder
+   -- Developer, Architect, Vision Keeper -- and at the top the Vision
+   Keeper re-asserted the item with its own words. The version moved, the
+   revocation predicate read a withdrawn approval, Loop 6's cancel fired
+   live for the first time and abandoned the batch with its three green
+   tests, the item was re-approved, and nothing re-grouped its tickets:
+   they still belonged to the abandoned batch. Two mechanics: a verbatim
+   `problem.assert` writes nothing and moves no version, and an abandoned
+   batch releases its tickets for regrouping. Walk thirty-two runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

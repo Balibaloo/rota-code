@@ -467,9 +467,16 @@ def grouping(conn) -> list[Wake]:
     was unreachable and no state was undrained. A missing step between two
     reachable states is invisible to both.
     """
+    # An abandoned batch is not a batch the ticket belongs to. S0 walk
+    # thirty-one: the ladder's last rung amended the item, the revocation
+    # cancelled the batch with three green tests, the item was re-approved
+    # -- and its tickets still "belonged" to the abandoned batch, so nothing
+    # re-grouped them and the world went quiet.
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
-        "WHERE c.ticket_id NOT IN (SELECT ticket_id FROM batch_tickets)"
+        "WHERE c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
+        "                          JOIN batches b ON b.id = bt.batch_id "
+        "                          WHERE b.status != 'abandoned')"
     ).fetchall()
     if not rows:
         return []

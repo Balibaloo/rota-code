@@ -518,6 +518,17 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                 return {"id": r["id"], "note": f"close enough to {r['id']!r} to be "
                         f"the same item ({r['text']!r}) -- not written twice"}
 
+    # The item's own words are not an amendment. S0 walk thirty-one: the
+    # Vision Keeper, at the top of the exhausted ladder, re-asserted the
+    # item verbatim; the version moved, the revocation predicate read a
+    # withdrawn approval, and the batch with three green tests was
+    # cancelled. Restating is free; it just is not a write.
+    cur = ctx.conn.execute("SELECT text, kind FROM items WHERE id = ?",
+                           (id,)).fetchone()
+    if cur and cur["kind"] == kind and _same_words(text, cur["text"]):
+        return {"id": id, "unchanged": True,
+                "note": "those are the item's own words and its own kind; "
+                        "nothing was written and no version moved"}
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
         "approval": "draft"}))
