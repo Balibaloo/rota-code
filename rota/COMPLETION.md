@@ -453,6 +453,16 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    `problem.assert` writes nothing and moves no version, and an abandoned
    batch releases its tickets for regrouping. Walk thirty-two runs on that.
 
+3.25. **Walk thirty-two (2026-09-02): two names for one program, and
+   stdin at import through a function.** Three tests imported `script`,
+   one imported `main`; `script.py` was written and `main.py` never was.
+   And `script.py` called `prompt_for_name()` at module level, where the
+   function reads input -- the import-time guard had only seen a direct
+   `input()`. Both refused now: while the batch's module does not exist,
+   a test naming a different one is naming a second program; and a
+   module-level call to a local function that reads stdin is the same
+   collection-time death. Walk thirty-three runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

@@ -3250,6 +3250,36 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"NameError against any code. A test calls the program -- import "
             f"the function the criterion's surface names and assert on what "
             f"it returns")
+    # One program, one name. Walk thirty-two: three tests imported `script`,
+    # one imported `main`, script.py was written and main.py never was, and
+    # the odd test failed at import for the rest of the batch. While the
+    # batch's module does not exist yet, a test that names a different one
+    # is naming a second program.
+    import re as _re
+    _mods = lambda body: set(_re.findall(r"^\s*(?:import|from)\s+([A-Za-z_]\w*)",
+                                         body or "", _re.M)) - {
+        "pytest", "unittest", "sys", "os", "re", "json", "io", "typing",
+        "pathlib", "math", "random", "collections", "builtins"}  # noqa: E731
+    mine = _mods(body)
+    others: dict[str, int] = {}
+    for row in ctx.conn.execute(
+            "SELECT body FROM tests WHERE criterion_id != ?", (criterion_id,)):
+        for m in _mods(row["body"]):
+            others[m] = others.get(m, 0) + 1
+    if mine and others:
+        agreed = max(others, key=others.get)
+        try:
+            root = _worktree_of(ctx) if ctx.batch_id else None
+        except Exception:               # noqa: BLE001 -- no worktree yet is "does not exist"
+            root = None
+        exists = bool(root) and ((root / f"{agreed}.py").exists() or (root / agreed).is_dir())
+        odd = sorted(m for m in mine if m not in others)
+        if odd and agreed not in mine and not exists:
+            raise ValueError(
+                f"this test imports {odd[0]}, and the batch's other tests import "
+                f"{agreed} -- one program, one name. Import from {agreed} like "
+                f"the others; a second module is a second program")
+
     # A fixture the harness does not have fails every test at setup. Walk
     # twenty-nine: four tests took `mocker` (pytest-mock, not installed),
     # every run was an error before the first assertion, and the Developer
@@ -5713,10 +5743,18 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     and any(isinstance(c, _ast.Constant) and c.value == "__main__"
                             for c in node.test.comparators)):
                 continue
+            # Through a local function too: walk thirty-two's
+            # `name = prompt_for_name()` at module level, where the function
+            # reads input, and every importing test died at collection.
+            readers = {f.name for f in tree.body
+                       if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                       and any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                               and n.func.id == "input" for n in _ast.walk(f))}
             if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
-                   and n.func.id == "input" for n in _ast.walk(node)):
+                   and (n.func.id == "input" or n.func.id in readers)
+                   for n in _ast.walk(node)):
                 raise ValueError(
-                    f"{path} calls input() at module level (line {node.lineno}), "
+                    f"{path} reads input() at module level (line {node.lineno}), "
                     f"so importing it under pytest raises OSError before any "
                     f"test runs -- stdin is captured. Put the prompt under "
                     f"`if __name__ == \"__main__\":` and keep the functions "

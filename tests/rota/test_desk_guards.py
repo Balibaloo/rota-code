@@ -526,6 +526,43 @@ def test_an_abandoned_batch_releases_its_tickets_for_regrouping(db):
     assert [w.refs for w in grouping(db)] == [("tk1",)]
 
 
+def test_one_program_one_module_name_across_a_batch(db):
+    """Walk thirty-two: three tests imported `script`, one imported `main`,
+    and the odd one failed at import for the rest of the batch."""
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','the account is tombstoned')")
+    db.execute("UPDATE tests SET body = 'from script import close_account\n"
+               "def test_x():\n    assert close_account(1) == \"invoices\"' "
+               "WHERE id = 'tst1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c2", verdict="encodable")
+    with pytest.raises(ValueError, match="other tests import script -- one program"):
+        sb.call("tests.encode", id="tst_new", criterion_id="c2",
+                path="tests/test_tomb.py",
+                body="from main import tombstone\ndef test_t():\n"
+                     "    assert tombstone('a') == 'invoices'")
+    sb.call("tests.encode", id="tst_new", criterion_id="c2",
+            path="tests/test_tomb.py",
+            body="from script import tombstone\ndef test_t():\n"
+                 "    assert tombstone('a') == 'invoices'")
+
+
+def test_module_level_input_through_a_local_function_is_refused(db, tmp_path):
+    """Walk thirty-two: `name = prompt_for_name()` at module level, where
+    the function reads input."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="reads input\\(\\) at module level \\(line 4\\)"):
+        sb.call("code.write", path="script.py",
+                text="def prompt():\n    return input('name: ')\n\n"
+                     "name = prompt()\nprint(name)\n")
+
+
 def test_tests_missing_is_owed_per_criterion(db):
     """Walk nine: three encodes refused, one landed, and the batch never
     woke the Tester again -- "a batch with no tests" had one. A criterion
