@@ -702,6 +702,22 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
                 f"SELECT {cols} FROM {table} WHERE id = ?", (ref,)).fetchone()
             if hit:
                 resolved[ref] = dict(hit)
+                # A disputed test travels with its last run. S0 walk eight:
+                # the Developer challenged, the Tester held -- "the test
+                # checks the greeting is displayed" -- nine rounds, while
+                # the harness output said OSError: reading from stdin. The
+                # Tester never saw it; a test's run is the one fact about
+                # it that is not its own words, and the dispute is about
+                # exactly that.
+                if table == "tests":
+                    run = conn.execute(
+                        "SELECT result, output FROM test_runs WHERE test_id = ? "
+                        "ORDER BY rowid DESC LIMIT 1", (ref,)).fetchone()
+                    if run:
+                        out = run["output"] or ""
+                        resolved[ref]["last_run"] = {
+                            "result": run["result"],
+                            "output_tail": out[-700:] if out else ""}
                 break
     return resolved
 

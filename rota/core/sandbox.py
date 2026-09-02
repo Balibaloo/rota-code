@@ -885,6 +885,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
+            # And the same challenge twice is the same argument twice. S0
+            # walk eight: nine rounds of challenge, answer, harness, with
+            # identical refs every round -- a livelock the attempt cap
+            # cannot see because every message is a fresh cause. A held
+            # answer means the two of you disagree; the door is above.
+            import json as _json
+            prior = ctx.conn.execute(
+                "SELECT m.id FROM messages m JOIN messages a ON a.cause_id = m.id "
+                "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = 'challenge' "
+                "AND m.body_refs = ? AND a.verb = 'answer' ORDER BY m.seq DESC "
+                "LIMIT 1", (ctx.role, recipient, _json.dumps(list(refs or [])))
+            ).fetchone()
+            if prior:
+                door = ("msg.escalate_architect"
+                        if recipient == "tester" else "schedule.unresolved")
+                raise ValueError(
+                    f"you challenged {recipient} on exactly these refs already "
+                    f"({prior['id']}) and they answered holding their ground. "
+                    f"Sending it again is the same argument again -- if the "
+                    f"answer did not land, {door}; if it did, act on it")
 
         # The intake fork, armed by the mode: a converse to the principal is
         # either the reply to work (refs carry what intake produced) or a

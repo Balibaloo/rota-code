@@ -94,3 +94,58 @@ def test_a_tester_woken_about_a_term_sees_the_criteria_that_use_it(db):
     sb = build("tester", db, mode="answer", wake=wake)
     rows = sb.call("criteria.load")
     assert [r["id"] for r in rows] == ["c1"], rows
+
+
+# --- S0 walk eight: the challenge loop nobody could see out of -------------
+
+
+def _encode(sb, body):
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    return sb.call("tests.encode", id="tst_new", criterion_id="c1",
+                   path="tests/test_greet.py", body=body)
+
+
+def test_a_test_that_reads_stdin_cannot_pass_under_pytest(db):
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="captures stdin"):
+        _encode(sb, "def test_greet():\n    assert input('name: ') == 'Alice'")
+    # Fed in, it is a test.
+    _encode(sb, "def test_greet(monkeypatch):\n"
+                "    monkeypatch.setattr('builtins.input', lambda _='': 'Alice')\n"
+                "    assert greet() == 'Hello Alice!'")
+
+
+def test_asserting_on_print_is_always_false(db):
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="print returns None"):
+        _encode(sb, "def test_greet():\n    assert print('Hello Alice!')")
+
+
+def test_a_disputed_test_travels_with_its_last_run(db):
+    from rota.core.runner import _resolve_refs
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, "
+               "result, attempt, output) VALUES ('r1','b1','tst1','abc123',"
+               "'fail',1,'E  OSError: pytest: reading from stdin while output "
+               "is captured!')")
+    db.commit()
+    out = _resolve_refs(db, ["c1", "tst1"])
+    assert out["tst1"]["last_run"]["result"] == "fail"
+    assert "reading from stdin" in out["tst1"]["last_run"]["output_tail"]
+    assert "last_run" not in out["c1"]
+
+
+def test_the_same_challenge_twice_is_refused_toward_the_door(db):
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','developer','tester',"
+               "'challenge','[\"c1\", \"tst1\"]',1,'answered')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status, cause_id) VALUES ('m2','th','tester',"
+               "'developer','answer','[\"c1\"]',2,'answered','m1')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="escalate_architect"):
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                quotes=["closing an account leaves its invoices in place",
+                        "assert close_account('a1') is not None"])

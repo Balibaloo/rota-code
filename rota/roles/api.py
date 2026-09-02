@@ -3017,6 +3017,31 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "def test_...() containing at least one assert. A sentence about "
             "the criterion is the criterion again, not a test of it")
 
+    # Two facts about the harness, not judgements about the test. S0 walk
+    # eight: four tests, each calling `input()` and asserting on `print()`,
+    # failed nine rounds while the Developer challenged and the Tester held
+    # -- "the test checks the greeting is displayed" -- because neither of
+    # those can ever pass under pytest: stdin is captured and reading it
+    # raises, and print returns None. A test that cannot pass against any
+    # code is not a definition of done, and the refusal names the shapes
+    # that can.
+    calls = [n for n in _ast.walk(tree) if isinstance(n, _ast.Call)]
+    names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
+    if "input" in names and "monkeypatch" not in body and "builtins" not in body:
+        raise ValueError(
+            "this test calls input(), and pytest captures stdin: the call "
+            "raises OSError before any assertion runs, against any code. "
+            "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
+            "lambda _='': 'Alice') -- or test the function that takes the "
+            "name as an argument")
+    for a in (n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)):
+        t = a.test
+        if isinstance(t, _ast.Call) and isinstance(t.func, _ast.Name)                 and t.func.id == "print":
+            raise ValueError(
+                "`assert print(...)` is always False -- print returns None. "
+                "Capture what was printed (capsys.readouterr().out) and "
+                "assert on that, or assert on the value the function returns")
+
     # The criterion is checked *first*, because the batch is derived from it and
     # a derivation from a bad input fails in terms of the derived thing. An
     # invented `criterion_id` used to come back as "no batch in this session and

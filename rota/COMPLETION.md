@@ -225,6 +225,17 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    diagnosis (DECISIONS). Walk eight runs on the new floor; the harness
    lives at `probes/s0_walk.py`.
 
+3.7. **Walk eight (2026-09-02): the first correct program, and a dispute
+   nobody could see out of.** The Developer wrote the right `script.py`
+   and challenged the Tester with the right refs and quotes; the Tester
+   held its tests nine rounds ("the test checks the greeting is
+   displayed") while the harness said `OSError: reading from stdin` --
+   every test called `input()` and asserted on `print()`, and could never
+   pass against any code. Three fixes: the two harness facts refused at
+   encode (stdin is captured; print returns None), a disputed test
+   travels with its last run, and the same challenge twice is refused
+   toward the escalation door. Walk nine runs on that.
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
