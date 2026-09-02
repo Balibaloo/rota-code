@@ -236,6 +236,19 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    travels with its last run, and the same challenge twice is refused
    toward the escalation door. Walk nine runs on that.
 
+3.8. **Walk nine (2026-09-02): the loop breaks and the seat is reached.**
+   The harness facts refused three of the four encodes (the same
+   `input()`/`print()` shapes), the fourth called tests that exist
+   nowhere, the Developer's repeated challenge was refused toward the
+   door and it escalated, the Architect reported, and Liaison put a
+   clarification to the principal -- the first walk to reach the seat
+   with a real question. Two floors: `tests_missing` was per batch and
+   never re-woke the Tester for the three refused criteria (per criterion
+   now, minus the routed ones), and a test calling a `test_` name defined
+   nowhere is the third harness fact. The first assumptions detector
+   shipped with it: a string the material never said is owed a ledger row
+   before the encode lands (`test_desk_guards.py`).
+
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.

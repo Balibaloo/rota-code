@@ -2960,6 +2960,95 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
     return {"criterion": criterion_id, "verdict": verdict, "next": nxt}
 
 
+
+_STOP = {"the", "and", "for", "you", "your", "with", "this", "that", "from",
+         "are", "was", "not", "but", "has", "have", "its", "into", "than",
+         "then", "there", "here", "when", "what", "who", "how", "any", "all",
+         "one", "two", "per", "via", "use", "used", "using", "set", "get",
+         "new", "old", "yes", "true", "false", "none", "test", "tests"}
+
+
+def _stem(w: str) -> str:
+    """Crude and symmetric: 'tombstoned', 'tombstones', 'tombstoning' meet."""
+    for suf in ("ing", "ed", "es", "s"):
+        if w.endswith(suf) and len(w) - len(suf) >= 3:
+            return w[:-len(suf)]
+    return w
+
+
+def _words(s: str) -> set[str]:
+    import re as _re
+    return {_stem(w) for w in _re.findall(r"[a-z]{3,}", (s or "").lower())}
+
+
+def _material_words(ctx: Ctx, criterion_id: str) -> set[str]:
+    """Every word the material said about this criterion."""
+    words = _words
+    material: set[str] = set()
+    crit = ctx.conn.execute(
+        "SELECT text, term_refs, surface_refs, ticket_id FROM criteria "
+        "WHERE id = ?", (criterion_id,)).fetchone()
+    if crit:
+        material |= words(crit["text"]) | words(crit["surface_refs"])
+        tk = ctx.conn.execute("SELECT text, item_id FROM tickets WHERE id = ?",
+                              (crit["ticket_id"],)).fetchone()
+        if tk:
+            material |= words(tk["text"])
+            it = ctx.conn.execute("SELECT text FROM items WHERE id = ?",
+                                  (tk["item_id"],)).fetchone()
+            if it:
+                material |= words(it["text"])
+        for ref in _refs_list(crit["term_refs"]):
+            g = ctx.conn.execute("SELECT term, sense_short, sense_body FROM "
+                                 "glossary_terms WHERE id = ?", (ref,)).fetchone()
+            if g:
+                material |= words(g["term"]) | words(g["sense_short"]) | words(g["sense_body"])
+    for row in ctx.conn.execute("SELECT text FROM statements"):
+        material |= words(row["text"])
+    for row in ctx.conn.execute("SELECT text FROM entries WHERE author = 'principal'"):
+        material |= words(row["text"])
+    for row in ctx.conn.execute("SELECT term FROM glossary_terms"):
+        material |= words(row["term"])
+    return material
+
+
+def _invented_literals(ctx: Ctx, criterion_id: str, tree) -> list[str]:
+    """String literals in the body carrying a word the material never said."""
+    import ast as _ast
+    import re as _re
+
+    words = _words
+    material = _material_words(ctx, criterion_id)
+
+    docstrings = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Module)):
+            if (n.body and isinstance(n.body[0], _ast.Expr)
+                    and isinstance(n.body[0].value, _ast.Constant)):
+                docstrings.add(id(n.body[0].value))
+    out: list[str] = []
+    for n in _ast.walk(tree):
+        if (isinstance(n, _ast.Constant) and isinstance(n.value, str)
+                and id(n) not in docstrings and len(n.value) >= 3):
+            # Code-shaped strings are addresses, not choices: a dotted or
+            # slashed path with no spaces ('builtins.input', 'tests/x.py',
+            # 'utf-8') names something rather than saying something.
+            if " " not in n.value and _re.search(r"[./_:\-]", n.value):
+                continue
+            chosen = words(n.value) - material - _STOP
+            if chosen and n.value not in out:
+                out.append(n.value)
+    return out
+
+
+def _refs_list(raw) -> list[str]:
+    import json as _json
+    try:
+        v = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+    except ValueError:
+        return []
+    return [r for r in v if isinstance(r, str)] if isinstance(v, list) else []
+
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                  batch_id: str | None = None) -> dict:
@@ -3034,6 +3123,36 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
             "name as an argument")
+    # And a third harness fact, from walk nine: `assert test_valid_input()`
+    # against a name the test neither imports nor defines is a NameError
+    # before any code is consulted. The floor puts the project root on the
+    # import path; the test says where the thing comes from.
+    import builtins as _builtins
+    defined = {n.name for n in _ast.walk(tree)
+               if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+    for n in _ast.walk(tree):
+        if isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            defined |= {(a.asname or a.name).split(".")[0] for a in n.names}
+        elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            defined |= {a.arg for a in n.args.args}
+        elif isinstance(n, (_ast.Assign,)):
+            defined |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
+        elif isinstance(n, _ast.For) and isinstance(n.target, _ast.Name):
+            defined.add(n.target.id)
+    # Narrow on purpose: only names shaped like tests. A bare `prorate()` may
+    # be a conftest's doing and the register's own scripted bodies call it
+    # unimported; `test_valid_input()` is a test calling a test that exists
+    # nowhere, which is the measured shape and a certain NameError.
+    unbound = sorted({c.func.id for c in calls if isinstance(c.func, _ast.Name)
+                      and c.func.id.startswith("test_")
+                      and c.func.id not in defined
+                      and not hasattr(_builtins, c.func.id)})
+    if unbound:
+        raise ValueError(
+            f"the test calls {unbound[0]}(), a test that exists nowhere: a "
+            f"NameError against any code. A test calls the program -- import "
+            f"the function the criterion's surface names and assert on what "
+            f"it returns")
     for a in (n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)):
         t = a.test
         if isinstance(t, _ast.Call) and isinstance(t.func, _ast.Name)                 and t.func.id == "print":
@@ -3084,6 +3203,35 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"'words a test can assert') -- that is what routes the criterion "
             f"to its writer for repair. Retrying the same sentence is the one "
             f"move that cannot land")
+
+    # The first assumptions detector (ruled 2026-08-30: introspection is
+    # abandoned, divergence is detected). A string literal in the test whose
+    # words the material never said -- not the criterion, its ticket and
+    # item, the glossary, the principal's words, the criterion's surface --
+    # is a place the material underdetermined the test and the Tester chose.
+    # The sentence is demanded there and only there: the encode goes through
+    # once a ledger row carries the literal. Walk eight's tests chose
+    # 'Enter your name: ' and 'Alice' where the principal said neither.
+    invented = _invented_literals(ctx, criterion_id, tree)
+    if invented:
+        said = [w for t, i, *rest in ctx.writes if t == "ledger"
+                for w in [rest[0].get("default_taken", "")]]
+        said += [r["default_taken"] for r in ctx.conn.execute(
+            "SELECT default_taken FROM ledger WHERE about_ref = ?",
+            (criterion_id,))]
+        covered = set()
+        for d in said:
+            covered |= _words(d)
+        owed = [lit for lit in invented
+                if _words(lit) - covered - _STOP - _material_words(ctx, criterion_id)]
+        if owed:
+            raise ValueError(
+                f"the test chooses {owed[0]!r}, and nothing in the criterion, "
+                f"its ticket, the glossary or the principal's words says it. "
+                f"That is an assumption, and it is logged where it is made: "
+                f"ledger.log(about_ref={criterion_id!r}, about_table='criteria', "
+                f"assumption=\"the test assumes {owed[0]} where the material "
+                f"is silent\") -- then send this encode again unchanged")
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)
     if not batch_id:

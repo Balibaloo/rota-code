@@ -582,10 +582,19 @@ def observed_entries(conn) -> list[Wake]:
 def tests_missing(conn) -> list[Wake]:
     """Criteria for a batch with no tests. Tester needs only criteria, so it can
     run as soon as they exist — it does not wait for the Developer."""
+    # Per criterion, not per batch. Walk nine: four criteria, three encodes
+    # refused at the harness-fact bar, one landed -- and the batch never
+    # woke the Tester again, because "a batch with no tests" had one. The
+    # fork is per criterion, so the debt is: a criterion with no test and no
+    # open question of the Tester's about it (routed is done; the answer
+    # wakes it).
     rows = conn.execute(
         "SELECT DISTINCT bt.batch_id AS bid FROM batch_tickets bt "
         "JOIN criteria c ON c.ticket_id = bt.ticket_id "
-        "WHERE bt.batch_id NOT IN (SELECT batch_id FROM tests)"
+        "WHERE NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id) "
+        "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
+        "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
+        "                  AND m.body_refs LIKE '%\"' || c.id || '\"%')"
     ).fetchall()
     return [Wake("tester", "tick:tests_missing", refs=(r["bid"],)) for r in rows]
 

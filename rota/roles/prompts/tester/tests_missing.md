@@ -20,11 +20,18 @@ which is precisely the failure Critic cannot catch.
 real assertions, and the path is `tests/test_<thing>.py`:
 
     tests.encode(id='tst_1', criterion_id='c1', path='tests/test_prorate.py',
-        body='def test_prorate():
-    assert prorate(999, 1, 3) == 333')
+        body='from billing import prorate
+    def test_prorate():
+        assert prorate(999, 1, 3) == 333')
+
+The test calls the program: import the function the criterion's surface
+names and assert on what it returns.
 
 A bare assertion with no function, or a sentence about the criterion, is
-refused -- pytest would collect nothing from either.
+refused -- pytest would collect nothing from either. A string the test
+chooses that nothing in the material says -- a sample name, a prompt's
+wording -- is an assumption: `ledger.log` it against the criterion, then
+encode.
 
 **`cannot` needs no diagnosis, only honesty.** A criterion can fail you three
 ways — a word that could mean two things, a sentence no machine could check, a

@@ -109,10 +109,65 @@ def test_a_test_that_reads_stdin_cannot_pass_under_pytest(db):
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError, match="captures stdin"):
         _encode(sb, "def test_greet():\n    assert input('name: ') == 'Alice'")
-    # Fed in, it is a test.
-    _encode(sb, "def test_greet(monkeypatch):\n"
+    # Fed in, it is a test -- once the chosen name is on the ledger.
+    sb.call("ledger.log", about_ref="c1", about_table="criteria",
+            assumption="the test assumes Alice as a sample name")
+    _encode(sb, "from script import greet\n"
+                "def test_greet(monkeypatch):\n"
                 "    monkeypatch.setattr('builtins.input', lambda _='': 'Alice')\n"
-                "    assert greet() == 'Hello Alice!'")
+                "    assert greet() == 'closing Alice'")
+
+
+def test_a_name_the_test_never_imports_is_a_nameerror(db):
+    """Walk nine's one landed test: `assert test_valid_input()` against a
+    name defined nowhere. The floor puts the project on the import path;
+    the test says where the thing comes from."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match=r"calls test_valid_input\(\), a test"):
+        _encode(sb, "def test_greet():\n    assert test_valid_input()")
+
+
+def test_tests_missing_is_owed_per_criterion(db):
+    """Walk nine: three encodes refused, one landed, and the batch never
+    woke the Tester again -- "a batch with no tests" had one. A criterion
+    with no test is the debt; a routed one (open question) is not."""
+    from rota.core.predicates import tests_missing
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','tk1','the account is tombstoned')")
+    db.commit()
+    assert [w.refs for w in tests_missing(db)] == [("b1",)], "c2 has no test"
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','tester','terminologist',"
+               "'question','[\"c2\"]',1,'open')")
+    db.commit()
+    assert tests_missing(db) == [], "routed is done until the answer wakes it"
+
+
+def test_a_literal_the_material_never_said_is_an_assumption_first(db):
+    """The first divergence detector: the demand for a sentence lands only
+    where the material underdetermined the test. Words the criterion, its
+    ticket, the glossary or the principal said are free; a chosen string is
+    owed a ledger row, and the encode goes through once it has one."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="chooses 'Enter your name: '"):
+        _encode(sb, "def test_greet():\n"
+                    "    assert prompt_text() == 'Enter your name: '")
+    sb.call("ledger.log", about_ref="c1", about_table="criteria",
+            assumption="the prompt reads 'Enter your name: ' -- the material "
+                       "names no wording")
+    _encode(sb, "from script import prompt_text\n"
+                "def test_greet():\n"
+                "    assert prompt_text() == 'Enter your name: '")
+
+
+def test_material_words_are_never_an_assumption(db):
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'it should say Hellow User!')")
+    db.commit()
+    _encode(sb, "from script import close_account\n"
+                "def test_greet():\n"
+                "    assert close_account('invoices') == 'Hellow User!'")
 
 
 def test_asserting_on_print_is_always_false(db):
