@@ -2711,6 +2711,28 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
     """Criteria are written in glossary terms and name the surface a test
     would exercise; neither list is decoration."""
     _must_exist(ctx, "tickets", ticket_id)
+    # An id already claimed by a different ticket's criterion is not this
+    # ticket's to reuse. Undetected, a second `criteria.specify` under the
+    # same id silently overwrote the first at commit -- same primary key,
+    # last write wins -- so the id's `ticket_id` and `text` both flipped to
+    # the second ticket's, and the first ticket kept no criterion at all,
+    # with no error to read and correct from. Measured on an empty-project
+    # walk: two tickets under one item, one id reused for both across three
+    # attempts, one criterion ever landed, the other ticket shipped with no
+    # criterion and no test -- and the session's own closing reply narrated
+    # both as done. Refused now, at the id, the same shape `problem.assert`
+    # already refuses a kind clash on.
+    prior_ticket = next((w[2].get("ticket_id") for w in ctx.writes
+                        if w[0] == "criteria" and w[1] == id), None)
+    if prior_ticket is None:
+        row = ctx.conn.execute(
+            "SELECT ticket_id FROM criteria WHERE id = ?", (id,)).fetchone()
+        prior_ticket = row["ticket_id"] if row else None
+    if prior_ticket is not None and prior_ticket != ticket_id:
+        raise ValueError(
+            f"{id!r} is already {prior_ticket}'s criterion. An id you invent "
+            f"is yours once -- {ticket_id} needs its own; two tickets never "
+            f"share one criterion's id, even written in the same turn")
     if _about_the_tests(text):
         raise ValueError(
             "a criterion names what the program does; this one names the "
@@ -5798,6 +5820,62 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     f"test runs -- stdin is captured. Put the prompt under "
                     f"`if __name__ == \"__main__\":` and keep the functions "
                     f"the tests import at the top level")
+    # A criterion that names the user as where a value comes from, met by a
+    # function that never reads anything. Walk (empty-project, 2026-09-03):
+    # "the system must retrieve the user's name" was implemented as
+    # `def get_user_name(): return "User"` -- no `input()`, no parameter,
+    # nothing that could ever vary -- and nothing caught it, because the
+    # value it hardcoded ("User") was a word the material had already used,
+    # so the invented-literals detector saw nothing invented. Different
+    # failure shape: not a string nobody said, an *operation* nobody
+    # performed. Deliberately narrow to the one source this has been
+    # measured against -- "the user" -- rather than guessing at files,
+    # the environment or the network with no walk behind any of them yet.
+    if path.endswith(".py"):
+        _ACQUIRE = ("retrieve", "get", "obtain", "ask", "prompt", "read",
+                   "collect", "receive", "fetch", "accept", "request")
+        criteria_here = ctx.conn.execute(
+            "SELECT c.text, c.surface_refs FROM criteria c "
+            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ?", (ctx.batch_id,)).fetchall()
+        for crit in criteria_here:
+            low = (crit["text"] or "").lower()
+            if "user" not in low or not any(v in low for v in _ACQUIRE):
+                continue
+            try:
+                surfaces = json.loads(crit["surface_refs"] or "[]")
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for fn in tree.body:
+                if not (isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                       and fn.name in surfaces):
+                    continue
+                # A function that takes a parameter can legitimately leave
+                # acquisition to its caller -- `greet_user(name)` is fine,
+                # the reading happens one level up. Niladic is the tell:
+                # nothing passed in, nothing read inside, so nothing could
+                # ever make its return value differ from a fixed constant.
+                niladic = not (fn.args.args or fn.args.vararg
+                               or fn.args.kwonlyargs or fn.args.kwarg
+                               or fn.args.posonlyargs)
+                if not niladic:
+                    continue
+                reads = any(
+                    (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                     and n.func.id == "input")
+                    or (isinstance(n, _ast.Attribute) and n.attr in
+                        ("stdin", "argv", "environ", "getenv"))
+                    for n in _ast.walk(fn))
+                if not reads:
+                    raise ValueError(
+                        f"{fn.name} is the surface for a criterion that gets "
+                        f"its value from the user ({crit['text']!r}); "
+                        f"{fn.name} takes no argument and reads nothing -- no "
+                        f"`input()`, nothing that could ever differ from one "
+                        f"run to the next. A hardcoded return cannot satisfy "
+                        f"'from the user'; read it, or take it as a parameter "
+                        f"the caller reads")
+
     # What the tests import is the name the module has to have. Walks
     # twenty-three and twenty-four: the tests said `import script`, the
     # Developer wrote greeting_script.py, the result said so, and the
