@@ -6004,10 +6004,18 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
     # `tests.encode` refuses this when the function already exists to
     # inspect; tests are written first in this flow, so the common case is
     # the reverse order -- the test lands before this function does, and
-    # nothing caught it there. Caught here instead, on the side that still
-    # has a choice: shape the function to take the value as a parameter
-    # (`get_user_name(input_fn=input)` or read it one level up and pass it
-    # in), or dispute the test if it is the one that has to change.
+    # nothing caught it there.
+    #
+    # Points at the test, not at a reshape. The first version of this
+    # offered "read the value one level up and pass it as a parameter" as
+    # an alternative, reasoning that Developer could sidestep the test by
+    # changing the function's shape. Measured, twice: it took that door
+    # both times, parameterized the function, and the test -- unowned by
+    # Developer, uneditable by it -- still called the old zero-argument
+    # form. `OSError` became `TypeError`; nothing was fixed, because
+    # Developer cannot edit the artefact that needed to change. A function
+    # whose whole job is reading external input does not stop needing to
+    # read external input because the test calling it is wrong.
     if path.endswith(".py") and ctx.batch_id:
         readers_here = {f.name for f in _ast.walk(tree)
                         if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
@@ -6034,10 +6042,11 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                         f"monkeypatch shielding it -- stdin is captured "
                         f"under pytest, so that call raises before the "
                         f"test's assertion ever runs, against this or any "
-                        f"other implementation of {fn_name}. Either read the "
-                        f"value one level up and pass it to {fn_name} as a "
-                        f"parameter, or this is the test's shape to answer "
-                        f"for -- msg.challenge_tester names it")
+                        f"other implementation of {fn_name}. Reshaping "
+                        f"{fn_name} does not fix a test you cannot edit: "
+                        f"this is the test's shape to answer for -- "
+                        f"msg.challenge_tester, naming this test and quoting "
+                        f"the call that cannot pass against any code")
 
     # A criterion that names the user as where a value comes from, met by a
     # function that never reads anything. Walk (empty-project, 2026-09-03):
