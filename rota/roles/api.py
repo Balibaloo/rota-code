@@ -3385,6 +3385,31 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "nothing and would report as coverage. If the criterion names "
             "no behaviour a call could exercise, that is tests.triage "
             "verdict='cannot' -- say what stops you and route it")
+    # Names bound to a Mock -- `X = mock.Mock(...)`/`MagicMock(...)`, or
+    # `with mock.patch(...) as X:` -- both spellings measured in the same
+    # walk that found the guard below is needed.
+    _mock_ctor = {"Mock", "MagicMock", "AsyncMock", "NonCallableMock"}
+    mock_vars: set[str] = set()
+    for n in _ast.walk(tree):
+        if isinstance(n, _ast.Assign) and isinstance(n.value, _ast.Call):
+            callee = n.value.func
+            ctor = callee.attr if isinstance(callee, _ast.Attribute) else (
+                callee.id if isinstance(callee, _ast.Name) else None)
+            if ctor in _mock_ctor:
+                mock_vars |= {t.id for t in n.targets if isinstance(t, _ast.Name)}
+        elif isinstance(n, _ast.With):
+            for item in n.items:
+                fn = item.context_expr.func if isinstance(
+                    item.context_expr, _ast.Call) else None
+                fn_name = (fn.attr if isinstance(fn, _ast.Attribute) else
+                          fn.id if isinstance(fn, _ast.Name) else "")
+                if fn_name == "patch" and isinstance(item.optional_vars, _ast.Name):
+                    mock_vars.add(item.optional_vars.id)
+    _real_mock_methods = {
+        "assert_called", "assert_called_once", "assert_called_with",
+        "assert_called_once_with", "assert_any_call", "assert_has_calls",
+        "assert_not_called", "reset_mock", "configure_mock", "attach_mock"}
+
     for a in asserts:
         # Walk thirteen: `assert print(...) == "Hello Alice!"` -- the print
         # moved inside a comparison and the guard on the bare call missed it.
@@ -3394,6 +3419,26 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 "`assert print(...)` is always False -- print returns None. "
                 "Capture what was printed (capsys.readouterr().out) and "
                 "assert on that, or assert on the value the function returns")
+        # `mock_x.called_with(...)` -- not a real Mock method. Mock invents
+        # an attribute for any name asked of it, so this silently returns a
+        # new mock (always true) instead of raising AttributeError; the
+        # assertion passes no matter what the mock saw. Measured (empty-
+        # project walk, 2026-09-03): `assert mock_print.called_with("Hello
+        # User!")` after the surface-call guard forced a real call to
+        # `greet_user` -- the test finally exercised the function and still
+        # could not fail, on this second, narrower wall.
+        for n in _ast.walk(a.test):
+            if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                    and isinstance(n.func.value, _ast.Name)
+                    and n.func.value.id in mock_vars
+                    and n.func.attr not in _real_mock_methods):
+                raise Wall(
+                    f"{n.func.value.id}.{n.func.attr}(...) is not a real Mock "
+                    f"method -- Mock invents one for any name you ask it for, "
+                    f"so this always returns a truthy mock instead of raising "
+                    f"AttributeError, and the assertion cannot fail. The real "
+                    f"check is {n.func.value.id}.assert_called_with(...) (or "
+                    f"assert_any_call, assert_called_once_with)")
 
     # The criterion is checked *first*, because the batch is derived from it and
     # a derivation from a bad input fails in terms of the derived thing. An
