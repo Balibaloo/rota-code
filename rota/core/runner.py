@@ -185,7 +185,8 @@ def _briefs_hash(instructions: str) -> str:
 
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
-                 inbound: dict[str, Any] | None = None) -> tuple[str, str]:
+                 inbound: dict[str, Any] | None = None,
+                 oneshot: bool = False) -> tuple[str, str]:
     """
     System prompt = who you are and what you may do; user prompt = why you woke.
 
@@ -226,12 +227,32 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
         f"do not build it out of an id you were shown. An id for something that "
         f"already exists must be one you were given: an invented one names no "
         f"row and the call cannot land.\n"
-        f"Results come back on your next turn, never inside this one. Ask for "
-        f"everything you need to know in one go — several questions cost one "
-        f"turn. But once you have asked anything, stop: what you do about the "
-        f"answers is next turn's work, and anything you write now was decided "
-        f"without them.\n"
-        f"Emit no tool calls when you are done."
+        + (
+            # One wake, one completion (evaluated 2026-09-02, COMPLETION.md
+            # 3.32; not yet ruled default): the harness truncates a oneshot
+            # session after its first completion regardless of what the
+            # model was told, which made the earlier measurement of this
+            # shape unfair on its own terms -- the model was never told the
+            # turn it was given was the only one, so it planned for a next
+            # turn that the harness had already decided would not come, and
+            # was truncated in the middle of a plan it was never warned to
+            # finish. The prompt now says what the harness does.
+            f"This is your only reply — there is no next turn to act in. "
+            f"Put your whole plan here, in order: every call you have "
+            f"decided on, one per line. What you do not decide now is not "
+            f"decided this session; if it is still owed, whatever wakes "
+            f"next picks it up, not you. Do not hold a call back because "
+            f"you expect to see its answer and act on that after — there "
+            f"is no after.\n"
+            f"Emit no tool calls when you are done."
+            if oneshot else
+            f"Results come back on your next turn, never inside this one. Ask for "
+            f"everything you need to know in one go — several questions cost one "
+            f"turn. But once you have asked anything, stop: what you do about the "
+            f"answers is next turn's work, and anything you write now was decided "
+            f"without them.\n"
+            f"Emit no tool calls when you are done."
+        )
     )
 
     body = [f"You were woken by: {wake.kind}"]
@@ -1091,21 +1112,25 @@ def run_session(
     outcome = RunOutcome(session_id=session_id, committed=False, iterations=0)
 
     try:
-        inbound = resolve_inbound(conn, wake)
-        pushed = push_working_set(
-            wake.role, sb, wake, g,
-            asked=inbound.get("principal_said") or inbound.get("asks") or "")
-        system, user = build_prompt(wake.role, sb, wake, pushed, instructions, inbound)
-        outcome.system, outcome.user = system, user
-        pins = pins.with_prompt(system + user)
-
-        transcript = [user]
         # The one-wake-one-completion experiment (2026-09-02, unruled): the
         # model's first reply is its whole plan; execute it in order and end.
         # No holds -- there is no next turn to revise in -- and no nudges.
         # Behind an env flag so the register can measure the shape against
-        # the default without touching it.
+        # the default without touching it. Computed before the prompt is
+        # built, not after: the earlier measurement of this shape truncated
+        # the session without ever telling the model its turn was the only
+        # one, which is not a fair test of a model told to plan for it.
         oneshot = bool(os.environ.get("ROTA_ONESHOT"))
+        inbound = resolve_inbound(conn, wake)
+        pushed = push_working_set(
+            wake.role, sb, wake, g,
+            asked=inbound.get("principal_said") or inbound.get("asks") or "")
+        system, user = build_prompt(wake.role, sb, wake, pushed, instructions,
+                                    inbound, oneshot=oneshot)
+        outcome.system, outcome.user = system, user
+        pins = pins.with_prompt(system + user)
+
+        transcript = [user]
         held_calls: list = []
         fence_warned = False
         intent_warned = False
