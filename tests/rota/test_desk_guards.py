@@ -52,6 +52,20 @@ def test_a_challenge_is_the_sessions_verdict_until_it_lands(db):
                 failed_criterion="c1")
 
 
+def test_a_developer_challenge_does_not_block_the_verdict(db):
+    # Recipient-scoped (ruled 2026-09-03): a tester-challenge disputes the
+    # measuring instrument, so no verdict may land on top of it; a
+    # developer-challenge disputes the code, which is what a fail verdict
+    # records. The verb-generic form refused a correct fail-naming-its-
+    # criterion verdict five of five (CR-fail-names-its-criterion).
+    sb = build("critic", db, batch_id="b1", mode="review")
+    sb.call("msg.challenge_developer", refs=["c1"],
+            quotes=["closing an account leaves its invoices in place"])
+    out = sb.call("verdicts.emit", batch_id="b1", result="fail",
+                  failed_criterion="c1")
+    assert out["result"] == "fail"
+
+
 def test_a_report_from_a_batch_wake_names_the_batch(db):
     wake = Wake("architect", "tick:exhausted", refs=("b1",))
     sb = build("architect", db, batch_id="b1", mode="exhausted", wake=wake)

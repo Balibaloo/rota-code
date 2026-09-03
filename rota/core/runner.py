@@ -635,6 +635,20 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if row["to_role"] == "liaison" and row["verb"] == "converse":
         out["recent_chat"] = _recent_chat(conn, trigger)
 
+    # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
+    # says and cannot gate what is absent, so the absence is computed here and
+    # handed to the presenter. A ratified statement no item reflects is a
+    # dropped want vanishing through slicing with no trace -- the one gap the
+    # signoff reader cannot see from the items alone. Mechanics locate it;
+    # the present carries it; the principal rules on it.
+    if row["to_role"] == "liaison" and row["verb"] == "submit":
+        uncovered = [dict(r) for r in conn.execute(
+            "SELECT id, text FROM statements WHERE status = 'ratified' "
+            "AND id NOT IN (SELECT statement_id FROM item_statements) "
+            "ORDER BY id")]
+        if uncovered:
+            out["uncovered_statements"] = uncovered
+
     return out
 
 

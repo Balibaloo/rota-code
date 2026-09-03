@@ -102,6 +102,39 @@
     # Vision Keeper applying the principal's ruling, one hop later.
     writes: [items, statements]
 
+- id: L1-LI-present-carries-the-uncovered-statement
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
+  # says and cannot gate what is absent. A ratified statement no item
+  # reflects arrives in the working set as `uncovered_statements`; the
+  # present must carry it, or a thing the principal said vanishes silently
+  # through slicing.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "let people export invoices. also archive old ones"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 26,
+         text: "let people export invoices", status: ratified}
+      - {id: <s2>, span_entry: <e1>, span_start: 28, span_end: 49,
+         text: "also archive old ones", status: ratified}
+    items:
+      - {id: <i1>, text: "users can export their invoices", kind: in_scope,
+         provenance: decided, approval: draft, version: 1}
+    item_statements:
+      - {item_id: <i1>, statement_id: <s1>}
+  inbound: {from: vision_keeper, to: liaison, verb: submit, body_refs: [<i1>]}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1, refs_include: [<i1>, <s2>]}
+  forbidden:
+    # Disclosure, never repair: Liaison neither invents an item for the
+    # uncovered statement nor re-segments what is already ratified.
+    writes: [items, statements]
+
 - id: L1-LI-no-report-no-question
   tier: T1
   role: liaison

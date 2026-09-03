@@ -20,3 +20,10 @@ answering a question, and the Developer follows the ref from there. If what you
 want to say is about the *test* rather than the code, that is
 `msg.challenge_tester`, not a fail — refs naming the criterion and the
 test, `quotes=` copying the exact span of each, verbatim.
+
+`msg.challenge_developer` is for the one case where you cannot yet judge:
+the code looks wrong but you may be missing something, and you need the
+Developer's answer before a verdict — refs naming the criterion, quotes
+copying the span, and no verdict this session. When you are sure, do not
+challenge: a failed criterion **is** the verdict, `fail` naming it, and a
+challenge on top of it wakes the Developer twice for one defect.

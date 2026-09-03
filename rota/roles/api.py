@@ -3699,19 +3699,28 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
     on the record.
     """
     _must_exist(ctx, "batches", batch_id)
-    # A challenge and a verdict are two answers to one question, and only
-    # one can be this session's. Measured on the register (CR-a-test-that-
-    # encodes-nothing, 2026-09-01): the Critic challenged, then talked itself
-    # into "it's not necessary to challenge at this stage" and emitted a
-    # fail on top -- the dispute travelling and the batch judged, both.
-    # A challenge staged is the verdict deferred until it lands.
-    staged = [m for m in getattr(ctx, "outbound", []) if m.get("verb") == "challenge"]
+    # A tester-challenge and a verdict are two answers to one question, and
+    # only one can be this session's: the challenge disputes the measuring
+    # instrument, so nothing can be judged until it lands. Measured on the
+    # register (CR-a-test-that-encodes-nothing, 2026-09-01): the Critic
+    # challenged, then talked itself into "it's not necessary to challenge
+    # at this stage" and emitted a fail on top -- the dispute travelling and
+    # the batch judged, both.
+    #
+    # Scoped to the recipient (ruled 2026-09-03): a challenge to the
+    # *developer* disputes the code, which is what a fail verdict records --
+    # the verb-generic form refused a correct fail-naming-its-criterion
+    # verdict five of five (CR-fail-names-its-criterion, re-earned
+    # 2026-09-02). The recipient is the mechanical distinction; anything
+    # finer is a judgement in disguise.
+    staged = [m for m in getattr(ctx, "outbound", [])
+              if m.get("verb") == "challenge" and m.get("to_role") == "tester"]
     if staged:
         raise ValueError(
-            f"you have already challenged the {staged[0]['to_role']} this "
-            f"session, and that is your judgement of this commit until the "
-            f"challenge lands. A verdict on top of it would judge what you "
-            f"just said is in dispute -- end the session here")
+            "you have already challenged the tester this session, and that "
+            "is your judgement of this commit until the challenge lands. "
+            "A verdict on top of it would judge against a test you just "
+            "said is in dispute -- end the session here")
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
     commit = _head_commit(ctx, batch_id)

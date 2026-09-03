@@ -1101,6 +1101,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if verb == "present" and getattr(ctx, "wake_refs", None):
             refs += [r for r in ctx.wake_refs
                      if isinstance(r, str) and r and r not in refs]
+        # A submit's present carries the uncovered statements by the same
+        # rule: which ratified statements no item reflects is a fact about
+        # the state, computed by the system, never the session's to trim.
+        # Ruled 2026-09-03 with the disclosure itself; measured the same
+        # day: shown the block in its working set, the model presented the
+        # items alone, five of five.
+        if verb == "present" and ctx.trigger:
+            row = ctx.conn.execute(
+                "SELECT verb FROM messages WHERE id = ?",
+                (ctx.trigger,)).fetchone()
+            if row is not None and row["verb"] == "submit":
+                uncovered = [r["id"] for r in ctx.conn.execute(
+                    "SELECT id FROM statements WHERE status = 'ratified' "
+                    "AND id NOT IN (SELECT statement_id FROM item_statements) "
+                    "ORDER BY id")]
+                refs += [r for r in uncovered if r not in refs]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

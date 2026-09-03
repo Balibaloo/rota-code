@@ -117,7 +117,13 @@
   runs: 5
   pass: 3
   first: {role: critic, tick: review, refs: [<b1>]}
-  then:  {role: developer, prompt: verdict_failed, refs: [<b1>]}
+  # The handoff is the artefact and the frontier, not a message: the fail
+  # verdict lands as a row and `verdict_failed` wakes the Developer from it.
+  # Declared as `prompt:` until 2026-09-03, which demanded a critic→developer
+  # *message* — and passed only because the verb-generic verdict guard forced
+  # the Critic into `challenge_developer` instead of a verdict: the wrong
+  # route wearing the right name. The recipient-scoped guard exposed it.
+  then:  {role: developer, tick: verdict_failed, refs: [<b1>]}
   repo:
     batch: <b1>
     message: "close an account"
