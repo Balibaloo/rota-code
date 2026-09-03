@@ -3404,6 +3404,33 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # in the message. `_must_exist` names the ids that would have worked.
     _must_exist(ctx, "criteria", criterion_id)
 
+    # A test that never calls what the criterion names as its surface has
+    # not exercised the program -- it has exercised whatever it did call
+    # instead, and a stub is indistinguishable from a correct implementation
+    # to a test that never calls either. A harness fact, the same class as
+    # stdin capture and `assert print(...)`: true for any code, not a
+    # judgement about this one. Measured (empty-project walk, 2026-09-03):
+    # `get_user_name`'s test mocked `builtins.input` and asserted on the
+    # mock directly; `greet_user`'s test mocked `builtins.print` the same
+    # way. Both passed forever, against a stub or a real implementation
+    # alike, and the Developer had no door back from tests that could never
+    # distinguish its work from a placeholder.
+    surface_row = ctx.conn.execute(
+        "SELECT surface_refs FROM criteria WHERE id = ?", (criterion_id,)
+    ).fetchone()
+    surface = json.loads(surface_row["surface_refs"] or "[]") if surface_row else []
+    if surface:
+        called_names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
+        called_names |= {n.func.attr for n in calls
+                         if isinstance(n.func, _ast.Attribute)}
+        if not (set(surface) & called_names):
+            raise Wall(
+                f"this test never calls {surface[0]!r}, the surface the "
+                f"criterion names -- call it and assert on what it returns "
+                f"or does. A test that calls something else instead (a "
+                f"mocked builtin, a different function) cannot tell a "
+                f"correct {surface[0]} from a stub that never runs")
+
     # A body that says no more than the criterion says has encoded nothing.
     #
     # The brief already asks for this -- "writing a test that passes trivially is
