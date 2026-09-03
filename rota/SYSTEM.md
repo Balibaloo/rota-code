@@ -208,8 +208,11 @@ In the order the frame produces them, not the order they were noticed.
    replying to. The second half is what stops the first being satisfied by
    drawing answers nobody asked for.
 
-4. **The aggregation.** "What does this system not know" is still not one query,
-   though every row of it exists.
+4. ~~**The aggregation.** "What does this system not know" is still not one
+   query, though every row of it exists.~~ Closed. `predicates.outstanding()`
+   is that query — a fold over the register entries plus what the principal
+   is sitting on — and the cockpit and TUI render it. (Staleness caught by
+   the responsibility audit, 2026-09-03.)
 
 **Not on the list, having been checked and found not to be a gap:** Tester's
 missing `escalate`. It has the three question channels its failing cases call

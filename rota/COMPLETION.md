@@ -112,6 +112,25 @@ dance and reports the constraint conflict instead of the dead-end batch
 — possibly a twin-guard over-fire on the fixture's legitimate amend).
 Both want fresh transcripts after the brief change re-records.
 
+### The responsibility audit's pass (2026-09-03)
+
+The audit's rulings landed and re-recorded. The verdict-after-challenge
+guard is recipient-scoped — a tester-challenge still defers the verdict, a
+developer-challenge no longer does — and `CR-fail-names-its-criterion`
+re-earned green: its red was the guard, not the model. The re-record
+exposed `L3-a-failed-verdict-turns-into-a-fix` as mis-authored (a message
+handoff that had only ever passed via the old guard forcing
+`challenge_developer` — the wrong route wearing the right name); declared
+`tick: verdict_failed`, it earns 5/5 on the true route. The signoff present
+now carries ratified statements no item reflects — pushed to the session,
+added to the refs mechanically after briefed-only measured 0/5, pinned by
+`L1-LI-present-carries-the-uncovered-statement`. Five reds stand, all
+previously attributed: `TS-apply-a-term`, `CR-a-test-that-encodes-nothing`
+(the "quotes bar" attribution is stale — the current shape is
+verdict-first, challenge-late; two levers filed with the seat),
+`LI-present`, `TE-words-already-defined`,
+`L3-a-challenge-reaches-the-role`.
+
 ## Track C — every anomaly attributed
 
 The principle, not a grab-bag: every red and every silence in the register
@@ -143,6 +162,11 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   scheduling; pinned at width in `test_frontier_order.py`.
 - **Amendment as the normal operation** and **conflicting sources**: design
   directions filed in the register, neither scheduled.
+- **Scope disclosure (P4, ruled 2026-09-03)**: the modification scope is
+  presented to the principal as a sense check, both coarse-at-signoff and
+  grounded-before-build; never time or effort. Design and build order in
+  `plans/p4-scope-disclosure.md`; piece 1 must land with the signoff-guard
+  scoping or it jams the gate.
 
 ## Questions for the seat
 

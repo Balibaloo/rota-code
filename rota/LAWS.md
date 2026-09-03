@@ -24,7 +24,7 @@ sense of seniority. They are not a customer being served and not a manager being
 reported to. They are the one who knows what they want and is the only one who
 can say whether they got it.
 
-**The team** is nine roles that never share context and communicate only by
+**The team** is eight roles that never share context and communicate only by
 artefact and message. Each is answerable for one thing. Each is woken, acts, and
 ends, with no memory of having been woken before. That is not a limitation being
 worked around: it is what makes a role's output attributable to its brief rather
