@@ -3248,6 +3248,47 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
             "name as an argument")
+    # Same trap, one hop indirect: the test does not call input() itself, it
+    # calls a function that does. `get_user_name()` reading input()
+    # internally and a test asserting `get_user_name() == "User"` hits the
+    # identical OSError -- stdin captured, no assertion ever runs -- and the
+    # check above cannot see it, because the literal word "input" never
+    # appears in this file's own text. Only checked against files already in
+    # the worktree: a function the Developer has not written yet cannot be
+    # inspected, and the ordinary NameError guard covers that case anyway.
+    if ("monkeypatch" not in body and "builtins" not in body and ctx.batch_id):
+        try:
+            root = _worktree_of(ctx)
+        except Exception:                     # noqa: BLE001 -- no worktree yet
+            root = None
+        if root:
+            called_bare = {n.func.id for n in calls
+                           if isinstance(n.func, _ast.Name) and n.func.id != "input"}
+            for pyfile in root.rglob("*.py"):
+                rel = pyfile.relative_to(root).as_posix()
+                if rel.startswith("tests/") or pyfile.stem.startswith("test_"):
+                    continue
+                try:
+                    fn_tree = _ast.parse(pyfile.read_text(encoding="utf-8"))
+                except (OSError, SyntaxError, UnicodeDecodeError):
+                    continue
+                for node in _ast.walk(fn_tree):
+                    if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                            and node.name in called_bare
+                            and any(isinstance(c, _ast.Call)
+                                   and isinstance(c.func, _ast.Name)
+                                   and c.func.id == "input"
+                                   for c in _ast.walk(node))):
+                        raise Wall(
+                            f"{node.name}() reads input() internally "
+                            f"({pyfile.name}), and this test calls "
+                            f"{node.name}() directly under pytest, where "
+                            f"stdin is captured: the call raises OSError "
+                            f"before any assertion runs, against any code. "
+                            f"Feed the name in instead -- "
+                            f"monkeypatch.setattr('builtins.input', "
+                            f"lambda _='': 'Alice') before calling "
+                            f"{node.name}()")
     # And a third harness fact, from walk nine: `assert test_valid_input()`
     # against a name the test neither imports nor defines is a NameError
     # before any code is consulted. The floor puts the project root on the
