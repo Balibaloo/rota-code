@@ -919,7 +919,53 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             pushed["code.callables"] = sb.call("code.callables", hint=hint)
         except Exception:                                  # noqa: BLE001
             pass
+
+    # The same rule pointed at the decision record. `decisions.search` was
+    # the single largest gap in the one-wake-one-completion conversion map
+    # (COMPLETION.md 3.32, 12 of 51 blocked-on-a-read cases) -- eighteen
+    # modes across five roles carry the tool, every one of them told to
+    # search before writing ("check the decision record", "before
+    # asserting, search"), and a cold session has no habit of searching
+    # any more than it has a habit of fetching. `query` is a LIKE match, so
+    # pushing the whole sentence would match nothing; pushed instead is one
+    # search per distinctive word of the wake's subject, capped so a long
+    # sentence does not become a dozen calls' worth of prompt.
+    if asked and "decisions.search" in have:
+        hits: dict[str, Any] = {}
+        for word in _subject_words(asked)[:6]:
+            try:
+                rows = sb.call("decisions.search", query=word)
+            except Exception:                              # noqa: BLE001
+                continue
+            if rows:
+                hits[word] = rows
+        if hits:
+            pushed["decisions.search"] = hits
     return pushed
+
+
+_DECISION_STOP = frozenset("""
+    the a an and or but for from with without into onto upon this that
+    these those what which who when where how why please build show
+    asks user users about your you their them then also just
+""".split())
+
+
+def _subject_words(text: str) -> list[str]:
+    """Distinctive standalone words of a wake's subject, for a LIKE search.
+
+    Lighter than `_terms_named_in`: that one matches against the glossary's
+    own vocabulary and returns terms, not raw words. This has no index to
+    match against -- the decision record is prose, not a term list -- so it
+    is just the words worth searching one at a time: not grammatical
+    scaffolding, not the handful of words every principal message carries
+    regardless of subject ("please", "build", "show").
+    """
+    seen: list[str] = []
+    for w in re.findall(r"[A-Za-z]+", text.lower()):
+        if len(w) > 2 and w not in _DECISION_STOP and w not in seen:
+            seen.append(w)
+    return seen
 
 
 def _terms_named_in(sb: sandbox_mod.Sandbox, asked: str) -> list[str]:
