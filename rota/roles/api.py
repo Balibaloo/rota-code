@@ -5997,6 +5997,48 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     f"test runs -- stdin is captured. Put the prompt under "
                     f"`if __name__ == \"__main__\":` and keep the functions "
                     f"the tests import at the top level")
+    # The same stdin trap, from the writing side. A function that reads
+    # input() internally can never satisfy a test that calls it directly and
+    # asserts a fixed return value -- stdin is captured under pytest, the
+    # call raises before the assertion runs, against any implementation.
+    # `tests.encode` refuses this when the function already exists to
+    # inspect; tests are written first in this flow, so the common case is
+    # the reverse order -- the test lands before this function does, and
+    # nothing caught it there. Caught here instead, on the side that still
+    # has a choice: shape the function to take the value as a parameter
+    # (`get_user_name(input_fn=input)` or read it one level up and pass it
+    # in), or dispute the test if it is the one that has to change.
+    if path.endswith(".py") and ctx.batch_id:
+        readers_here = {f.name for f in _ast.walk(tree)
+                        if isinstance(f, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                               and n.func.id == "input" for n in _ast.walk(f))}
+        if readers_here:
+            for row in ctx.conn.execute(
+                    "SELECT body FROM tests WHERE batch_id = ?", (ctx.batch_id,)):
+                tbody = row["body"] or ""
+                if "monkeypatch" in tbody or "builtins" in tbody:
+                    continue
+                try:
+                    ttree = _ast.parse(tbody)
+                except SyntaxError:
+                    continue
+                called = {n.func.id for n in _ast.walk(ttree)
+                         if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+                hit = called & readers_here
+                if hit:
+                    fn_name = sorted(hit)[0]
+                    raise ValueError(
+                        f"{fn_name} reads input() internally, and a test in "
+                        f"this batch calls {fn_name}() directly with no "
+                        f"monkeypatch shielding it -- stdin is captured "
+                        f"under pytest, so that call raises before the "
+                        f"test's assertion ever runs, against this or any "
+                        f"other implementation of {fn_name}. Either read the "
+                        f"value one level up and pass it to {fn_name} as a "
+                        f"parameter, or this is the test's shape to answer "
+                        f"for -- msg.challenge_tester names it")
+
     # A criterion that names the user as where a value comes from, met by a
     # function that never reads anything. Walk (empty-project, 2026-09-03):
     # "the system must retrieve the user's name" was implemented as
