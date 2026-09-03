@@ -180,6 +180,14 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 4. ~~Chat interfaces~~ — ruled: they enter when the system is production
    grade and trusted, i.e. after Tracks A and B. Their three parked debts
    stay parked with them.
+5. **The last Critic red's lever** (from the audit, 2026-09-03).
+   `CR-a-test-that-encodes-nothing` keeps its attributed shape: verdict
+   emitted first, challenge too late. Two candidate fixes, unruled — reorder
+   the review brief so the per-criterion first step is "does its test encode
+   it? if not, challenge and stop", or the structural fork (a mandatory
+   per-test claim before `verdicts.emit` may be called). Trade-offs in
+   `plans/feasibility-audit.md`; whichever lands re-earns both Critic cases
+   on one load.
 
 ## The four answers that closed the road's open problems (2026-08-30)
 
