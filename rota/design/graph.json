@@ -276,6 +276,15 @@
       "rows": "single"
     },
     {
+      "s": "critic",
+      "t": "verdicts",
+      "type": "writes",
+      "v": "claim encodes",
+      "n": "does this criterion's test actually encode it, before a fail names it",
+      "rows": "single",
+      "label": "the mandatory branch: fail requires the claim; a no answers challenge_tester instead"
+    },
+    {
       "s": "vision_keeper",
       "t": "tickets",
       "type": "writes",

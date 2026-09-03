@@ -39,12 +39,15 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
     Spec note: TESTS.md says Critic's module contains exactly `criteria.*` and
     `diff.*`. Two additions, both agreed: `tests.*`, because Critic judges the
     diff *given* the tests; and `verdicts.emit`, which is its only write and was
-    always implied by the graph.
+    always implied by the graph. A third: `verdicts.claim_encodes`, the branch
+    a fail verdict must take before it can name a criterion -- the structural
+    fork for `CR-a-test-that-encodes-nothing` (2026-09-03).
     """
     sb = build("critic", db)
     artefact_fns = {f for f in sb.functions() if not f.startswith("msg.")}
     assert artefact_fns == {
         "criteria.load", "tests.load", "code.read", "verdicts.emit",
+        "verdicts.claim_encodes",
         "challenge.load", "challenge.uphold", "challenge.break",
         "challenge.vacuous", "code.source",
     }

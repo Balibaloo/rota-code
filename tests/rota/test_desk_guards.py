@@ -61,6 +61,9 @@ def test_a_developer_challenge_does_not_block_the_verdict(db):
     sb = build("critic", db, batch_id="b1", mode="review")
     sb.call("msg.challenge_developer", refs=["c1"],
             quotes=["closing an account leaves its invoices in place"])
+    # The structural fork (2026-09-03): a fail must claim its criterion's
+    # test encodes it before the tool will land the verdict.
+    sb.call("verdicts.claim_encodes", criterion_id="c1", encodes=True)
     out = sb.call("verdicts.emit", batch_id="b1", result="fail",
                   failed_criterion="c1")
     assert out["result"] == "fail"

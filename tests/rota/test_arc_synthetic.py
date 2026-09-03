@@ -168,6 +168,7 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
     drive(db, Wake("critic", "message", "m_review", detail="review"), [
         "TOOL: criteria.load(batch_id='b1')",
         "TOOL: tests.load(batch_id='b1')",
+        "TOOL: verdicts.claim_encodes(criterion_id='c1', encodes=True)",
         "TOOL: verdicts.emit(batch_id='b1', result='fail', failed_criterion='c1')",
         "TOOL: msg.challenge_developer(refs=['c1'])",
     ], batch_id="b1")
@@ -185,7 +186,8 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
         "SELECT fn FROM tool_calls WHERE session_id = "
         "(SELECT id FROM sessions WHERE role='critic')")}
     assert calls <= {"criteria.load", "tests.load", "code.read",
-                     "verdicts.emit", "msg.challenge_developer"}, calls
+                     "verdicts.claim_encodes", "verdicts.emit",
+                     "msg.challenge_developer"}, calls
 
 
 def test_arc_revocation_stops_the_batch(db):

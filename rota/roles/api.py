@@ -103,6 +103,14 @@ class Ctx:
     # writes is defined among the other options. The session was shown these
     # and the guard asks that the sense carry at least one of them.
     kind_facts: dict = None
+    # The mandatory branch behind a fail verdict: criterion_id -> does its
+    # test actually encode it, per the Critic's own claim this session.
+    # `verdicts.claim_encodes` is the only way in; `verdicts.emit` reads it
+    # to refuse a fail the Critic never branched on. Session-scoped like
+    # `refusals` and `opened` -- the claim only has to outlive the session
+    # that acts on it, and `tool_calls` already logs the call itself for
+    # the record.
+    verdict_claims: dict = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -121,6 +129,8 @@ class Ctx:
             self.refusals = []
         if self.kind_facts is None:
             self.kind_facts = {}
+        if self.verdict_claims is None:
+            self.verdict_claims = {}
 
 
 def op(artefact: str, verb: str):
@@ -3706,6 +3716,47 @@ def _head_commit(ctx: Ctx, batch_id: str) -> str | None:
     return row["head_commit"] if row else None
 
 
+@op("verdicts", "claim encodes")
+def verdicts_claim_encodes(ctx: Ctx, criterion_id: str, encodes: bool) -> dict:
+    """
+    The branch a fail verdict skipped past: does this criterion's test
+    actually encode it?
+
+    `CR-a-test-that-encodes-nothing` (chronic, attributed): the model reads
+    the criteria in order and emits `verdicts.emit(fail, ...)` on the first
+    one whose test looks wrong, following the brief's own numbered steps --
+    never reaching the line that says a wrong *test* is `msg.challenge_tester`,
+    not a fail. The two acts were both available and nothing made choosing
+    between them a decision rather than a default. This is the decision,
+    made its own call: `encodes=True` is what a fail verdict is allowed to
+    stand on; `encodes=False` is what a challenge is for, not a code fail.
+    """
+    _must_exist(ctx, "criteria", criterion_id)
+    # One claim per criterion, not reversible within the session. Measured
+    # the day this landed: refused a fail on a criterion claimed False, and
+    # the next turn reclaimed the same criterion True and the fail landed
+    # anyway -- the guard asked a question and trusted whatever answer
+    # arrived second. Same shape `problem.assert` already refuses a kind
+    # clash on: the first claim is the session's, not to be relitigated
+    # because the first answer was inconvenient.
+    prior = ctx.verdict_claims.get(criterion_id)
+    if prior is not None and prior != bool(encodes):
+        raise ValueError(
+            f"you already claimed {criterion_id}'s test "
+            f"{'encodes' if prior else 'does not encode'} it this session; "
+            f"that is the session's answer, not to be reversed because a "
+            f"fail on it was refused. If the test genuinely does not "
+            f"encode the criterion, that is `msg.challenge_tester`, not a "
+            f"second claim")
+    ctx.verdict_claims[criterion_id] = bool(encodes)
+    if encodes:
+        return {"criterion_id": criterion_id, "encodes": True}
+    return {"criterion_id": criterion_id, "encodes": False,
+           "note": "then this is msg.challenge_tester, refs naming the "
+                   "criterion and the test, quotes= copying the span that "
+                   "does not encode it -- not a fail on the code"}
+
+
 @op("verdicts", "emit")
 def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
                   failed_criterion: str | None = None, diff_ref: str = "") -> dict:
@@ -3745,6 +3796,19 @@ def verdicts_emit(ctx: Ctx, batch_id: str, result: str,
             "said is in dispute -- end the session here")
     if failed_criterion:
         _must_exist(ctx, "criteria", failed_criterion)
+        # The mandatory branch: a fail names a criterion whose test was
+        # claimed to encode it. Unclaimed or claimed False means the thing
+        # actually wrong might be the test, and that question was never
+        # asked -- `verdicts.claim_encodes` is where it gets asked.
+        claim = ctx.verdict_claims.get(failed_criterion)
+        if claim is not True:
+            raise ValueError(
+                f"a fail on {failed_criterion} stands on its test actually "
+                f"encoding it, and that has not been claimed this session"
+                + ("" if claim is None else " -- it was claimed False") +
+                f". `verdicts.claim_encodes({failed_criterion!r}, encodes=...)` "
+                f"first: True and the fail can land, False and this is "
+                f"`msg.challenge_tester` instead, not a fail on the code")
     commit = _head_commit(ctx, batch_id)
     id = f"{ctx.role}:{batch_id}:{commit}"
     ctx.writes.append(("verdicts", id, {

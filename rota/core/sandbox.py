@@ -645,6 +645,19 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     hint = (f". {test[0]}'s criterion is "
                             f"{row['criterion_id']}: send "
                             f"refs=['{row['criterion_id']}', '{test[0]}']")
+            # The other direction of the same derivation. Measured the day
+            # the Critic's structural fork landed: `verdicts.claim_encodes`
+            # correctly named the criterion, the challenge that followed
+            # named only it, died on this refusal, and was never retried --
+            # the model moved on to emitting a verdict instead. A criterion
+            # under review knows its own test the same way a test knows its
+            # criterion; unambiguous when there is exactly one.
+            elif crit and not test:
+                ids = [r["id"] for r in ctx.conn.execute(
+                    "SELECT id FROM tests WHERE criterion_id = ?", (crit[0],))]
+                if len(ids) == 1:
+                    hint = (f". {crit[0]}'s test is {ids[0]}: send "
+                            f"refs=['{crit[0]}', '{ids[0]}']")
             raise ValueError(
                 f"a challenge to the tester names both sides of the conflict "
                 f"in refs -- the criterion and the test -- and yours names "

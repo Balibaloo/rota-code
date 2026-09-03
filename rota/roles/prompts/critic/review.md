@@ -6,7 +6,11 @@ and nobody is going to send you more.
 
 Work through it in this order:
 
-1. **Does the diff satisfy each criterion?** Name the criterion, decide, move on
+1. **Does the diff satisfy each criterion?** For each one that looks like it
+   fails, the branch is not yours to skip: `verdicts.claim_encodes` first —
+   does this criterion's own test actually encode it? `True` and the code is
+   what's wrong; `False` and the test is. A fail you have not claimed for
+   does not land — the tool refuses it.
 2. **Does it do what the criteria were *for*?** A change can satisfy every
    criterion literally and still lie about what it does
 3. **Is there anything here nobody asked for?** One judgement about the change as
@@ -16,10 +20,10 @@ Then `verdicts.emit` — `pass`, or `fail` with the criterion that failed. One
 verdict per batch.
 
 A fail names its criterion and stops. You are not writing a review; you are
-answering a question, and the Developer follows the ref from there. If what you
-want to say is about the *test* rather than the code, that is
-`msg.challenge_tester`, not a fail — refs naming the criterion and the
-test, `quotes=` copying the exact span of each, verbatim.
+answering a question, and the Developer follows the ref from there. If the
+claim came back `False`, that is `msg.challenge_tester`, not a fail — refs
+naming the criterion and the test, `quotes=` copying the exact span of each,
+verbatim.
 
 `msg.challenge_developer` is for the one case where you cannot yet judge:
 the code looks wrong but you may be missing something, and you need the
