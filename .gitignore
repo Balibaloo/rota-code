@@ -1,5 +1,6 @@
 active_sessions*/
 .env
+.claude/hooks/loop_session_ids.txt
 __pycache__/
 *.jsonl
 debug_log.jsonl 
