@@ -8,6 +8,35 @@ find one, report it to Liaison with refs to both the decision and the statement,
 and write **no** items. You are blocked pending a principal ruling, not proceeding
 with a caveat.
 
+**If no `how_it_works` item is on file, write it first.** Before any
+behaviour, an account of how the program works for the person using it, four
+or five sentences, in your own words: what the user gives it and how, what the
+program does with that, and what comes out at the end. Keep the principal's
+words where they gave them. Record it whole as the first item --
+`problem.assert(id="how_it_works", text=<the account, whole>,
+kind="in_scope")` -- so that what you understood travels, not only its
+headlines: it is the first item on the page the principal signs, and every
+later role reads the behaviours with it in front of them. Where the statement
+is silent -- what the inputs are, how the thing is run, what it shows -- the
+account says what you took, and each such point is logged, one call per point:
+
+    TOOL: ledger.log(about_ref="how_it_works", about_table="items", assumption="<what you took, and what it costs if wrong>")
+
+A statement of a few words is silent on most things; three words leave at
+least one. The row rides on the page the principal signs: one they see and
+approve ratifies its default, one they never see is a guess that ships.
+An assumption is a default you took where *their* words were silent. A fact
+that lives outside the project -- what a standard requires, what a provider
+mandates, what a law says -- is nobody's to assume here: put it to the
+Researcher, `msg.question_researcher` with the statement's id and the
+question in words, and log nothing that rests on it.
+Then the behaviours that account needed, one `problem.assert` each.
+
+Measured on the tips run (2026-09-03): three desks read "tip calculator pls"
+and understood three different programs, and the one that shipped had no way
+to run it, because nothing on file said what it was. Orient writes this
+account first for an existing repository; a statement gets the same.
+
 Otherwise, assert in-scope and out-of-scope items with `problem.assert`. One item per
 distinct thing the software must do. Check `problem.consult` first — an item already
 on file for the same behaviour is not asserted again under a new id, however

@@ -37,6 +37,43 @@
     writes: [tickets, criteria, glossary_terms]
     calls: [decisions.author]
 
+- id: L1-VK-amend-a-contested-item-from-a-verdict
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 4
+  tick: contested
+  refs: [<i1>]
+  fixture:
+    # The shape the running system actually produces, as against the case
+    # above, whose correction reaches the role through a statement the item
+    # was written off. A contest is a verdict keyed to the message the
+    # principal answered, and its reason is the entry recorded against that
+    # message; the item points at no statement carrying it. Measured on the
+    # tips run (2026-09-03): woken cold on this shape the role quoted the item
+    # id as an entry, read nothing, and reported it could not tell what they
+    # objected to. Handed the reason, it reached for `decisions.author` to
+    # change the item and errored twice. They said what they meant instead;
+    # amending is the answer.
+    entries:
+      - {id: e_<m1>, author: principal, ts_order: 2,
+         text: "no service quality. just bill + tip %"}
+    messages:
+      - {id: <m1>, thread_id: <th>, from_role: principal, to_role: liaison,
+         verb: verdict, body_refs: '["<i1>"]', seq: 1}
+    config:
+      - {key: "verdict:<m1>", value: '{"<i1>": "contest"}'}
+    items:
+      - {id: <i1>, kind: in_scope, provenance: decided, approval: contested,
+         approval_ver: 1, version: 1,
+         text: "Calculate tips based on bill amount and service quality"}
+  expect:
+    writes:
+      items: {count: "1..1"}
+  forbidden:
+    writes: [tickets, criteria, glossary_terms]
+    calls: [decisions.author]
+
 - id: L1-VK-submit-drafts-together
   tier: T1
   role: vision_keeper
@@ -134,3 +171,36 @@
       - writes: {decisions: {count: ">=1"}}
   forbidden:
     writes: [glossary_terms, tickets, criteria]
+
+- id: L1-VK-an-outside-fact-is-the-researchers
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 4
+  # The state before `L1-VK-a-source-does-not-settle-scope` (l1_researcher.yaml),
+  # whose fixture already carries this desk's question answered. A ratified
+  # statement whose scope turns on what an outside standard requires of it:
+  # "sign in with an existing account" is an obligation to whatever that
+  # account's provider mandates, and nobody here has read it. Asserting the
+  # scope as if the words were the whole of it is the failure; the desk that
+  # reads the standard is the Researcher.
+  inbound: {from: liaison, to: vision_keeper, verb: deliver, body_refs: [<s1>]}
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "let people sign in with their existing account"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 45,
+         text: "people can sign in with an existing account", status: ratified}
+  expect:
+    any_of:
+      - messages: [{to: researcher, verb: question, count: 1}]
+      - messages: [{to: liaison, verb: report, count: 1, refs_include: [<s1>]}]
+  forbidden:
+    # Asserting the words as scope is this mode's job and is not forbidden;
+    # what is measured is that the outside obligation is put to the desk that
+    # reads standards rather than settled here. Measured 2026-09-03: the
+    # recording model questioned the Researcher five of five, and asserted the
+    # item beside it, as the brief says.
+    writes: [decisions, glossary_terms, constraints]
+    recipients: [architect, terminologist, developer]

@@ -98,3 +98,31 @@
     # so a write here would be inventing scope nobody approved.
     writes: [items, tickets]
     versions: [items]
+
+- id: L1-VK-the-account-before-the-behaviours
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 4
+  # The tips run (2026-09-03): three desks read "tip calculator pls" and
+  # understood three different programs, and the one that shipped had no way
+  # to run it, because nothing on file said what it was. Orient writes the
+  # whole as the first item for an existing repository; nothing did for a
+  # statement. The account comes first -- how the program works for the person
+  # using it -- then the behaviours it needed.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, text: "tip calculator pls", ts_order: 1}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 18,
+         text: "tip calculator pls", status: ratified}
+  inbound: {from: liaison, to: vision_keeper, verb: deliver, body_refs: [<s1>]}
+  expect:
+    writes:
+      items: {count: "2..5", ids_include: [how_it_works]}
+      # The generator half of A1: what the words left silent is logged, so
+      # the page can carry it. Three words leave at least one such point.
+      ledger: {count: "1..4"}
+  forbidden:
+    writes: [statements, entries, tickets]
+    recipients: [developer, tester, critic]

@@ -210,3 +210,40 @@
     # answer relayed as a question is the failure this case now pins.
     messages:
       - {to: principal, verb: clarify}
+
+- id: L1-TE-answer-the-architects-question
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 4
+  # The exchange the tips run performed live (2026-09-03): the Architect,
+  # modelling a ratified statement, met a word it could not place and put it
+  # to the desk that owns words; the Terminologist answered from the glossary.
+  # Two message edges the register had never touched -- the Architect's
+  # question and the Terminologist's answer to it -- come off the backlog
+  # with this one case: the inbound edge and the expected edge.
+  inbound: {from: architect, to: terminologist, verb: question,
+            body_refs: [<s1>],
+            body_text: "What does 'line total' mean here -- the bill before the tip is added, or after?"}
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "tip calculator: bill amount and tip percent in, tip amount out"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 62,
+         text: "tip calculator: bill amount and tip percent in, tip amount out",
+         status: ratified}
+    glossary_terms:
+      - {id: <g1>, term: line total, sense_short: "the bill before the tip is added",
+         provenance: decided}
+  expect:
+    messages:
+      - {to: architect, verb: answer, count: 1}
+  forbidden:
+    # The word is defined. Answering is the act; redefining it while here would
+    # settle a sense nobody disputed, and the Architect asked a question, not
+    # for a change. And a question from a desk is answered at that desk, not
+    # escalated past it.
+    writes: [glossary_terms, statements, items]
+    messages:
+      - {to: liaison, verb: report}
