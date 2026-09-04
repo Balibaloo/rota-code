@@ -28,6 +28,7 @@ The loop runs in a worker thread. Everything it does lands through
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import subprocess
 import sys
@@ -1127,7 +1128,19 @@ def main(argv: list[str] | None = None) -> int:
                     help="project root; omit to use the one the run records")
     args = ap.parse_args(argv)
     RotaApp(Path(args.db) if args.db else None, args.model, root=args.root).run()
-    return 0
+
+    # By the time `.run()` returns, Textual has already restored the terminal
+    # synchronously in `_shutdown()` and `on_unmount` has stopped every
+    # cockpit this seat owns. What's left is whatever `_turn_the_crank`'s
+    # worker thread is doing -- a session mid-`urlopen`, on a plain
+    # `asyncio` executor thread, which is not a daemon. Falling through to a
+    # normal return/`sys.exit()` hits CPython's `concurrent.futures.thread`
+    # atexit hook, which joins that thread before the interpreter is allowed
+    # to close -- a silent freeze of up to `OllamaBackend`'s 300s timeout.
+    # The run's state already lives in sqlite (autocommit), so there is
+    # nothing this process still owns that needs a clean unwind to save --
+    # os._exit skips the join along with the rest of interpreter teardown.
+    os._exit(0)
 
 
 if __name__ == "__main__":                                 # pragma: no cover
