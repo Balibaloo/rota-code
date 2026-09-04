@@ -187,6 +187,12 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   keypress, contest with words goes back to the desk that assumed it.
   Design and build order in `plans/a1-seed-interview-at-intent.md`; the
   account-first deliver brief (2026-09-03) is its piece zero.
+- **Greenfield setup, to be refined (filed 2026-09-03)**: today's floor is
+  the absolute bare bones and hard-coded to Python and pytest -- a test floor
+  with no entry point, a harness on rota's own interpreter, a fixed stdlib
+  allowlist, no provisioning. Twelve components to make it dynamic, keyed by
+  a stack ruling derived from the account, with the judgment/translation
+  split and a build order: `plans/greenfield-setup.md`. Refine before building.
 - **Scope disclosure (P4, ruled 2026-09-03)**: the modification scope is
   presented to the principal as a sense check, both coarse-at-signoff and
   grounded-before-build; never time or effort. Design and build order in
