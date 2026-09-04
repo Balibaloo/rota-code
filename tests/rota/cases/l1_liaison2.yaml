@@ -334,3 +334,42 @@
     # Vision Keeper to hear about.
     writes: [glossary_terms, constraints, items, decisions]
     recipients: [vision_keeper]
+
+- id: L1-LI-present-the-touch
+  tier: T1
+  role: liaison
+  runs: 5
+  pass: 4
+  tick: touch_note
+  # P4 piece 1 (ruled R16/R17, 2026-09-03): a batch's predicted touch is put
+  # to the principal as a sense check before it builds -- the paths the
+  # Architect expects, the symbol it only guesses, and the commitment bound
+  # to one of those paths. Mechanics compute the set and the present carries
+  # the batch's ref; the principal reads the set as words at the edge. One
+  # present, the batch and its item in its refs, nothing decided.
+  fixture:
+    items:
+      - {id: <i1>, text: "users can export their invoices", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: pending}
+    batch_touch:
+      - {batch_id: <b1>, grain: "src/invoices/export.py", grain_kind: path,
+         confidence: expected}
+      - {batch_id: <b1>, grain: "src/store/db.py", grain_kind: path,
+         confidence: expected}
+      - {batch_id: <b1>, grain: "render_invoice", grain_kind: symbol,
+         confidence: possible}
+    constraints:
+      - {id: <k1>, headline: "the store layer is synchronous",
+         text: "every call into src/store blocks", provenance: decided}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: "src/store/db.py", grain_kind: path}
+  expect:
+    messages:
+      - {to: principal, verb: present, count: 1, refs_include: [<b1>, <i1>]}
+  forbidden:
+    # Disclosure, never a decision: Liaison neither approves, amends nor
+    # re-batches anything here, and asks no role about it.
+    writes: [items, batches, batch_touch, statements, decisions]
+    recipients: [vision_keeper, architect, terminologist]

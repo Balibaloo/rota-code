@@ -525,12 +525,21 @@ def observed_entries(conn) -> list[Wake]:
     # lazy path is what deferral *means*: those rows become assumptions
     # awaiting first touch, exactly as if the election had said so, without
     # re-spending the attention that was already declined.
+    from .lifecycle import touch_notes
+
+    # A touch note answered is read, not deferred: its refs are a batch and
+    # an item the principal already ruled on, and an acknowledgement lands no
+    # verdict on purpose (P4, 2026-09-03). Counting it here would log the
+    # item as a baseline deferral it never was.
+    notes = touch_notes(conn, status=None)
     limbo = []
     for r in conn.execute(
-            "SELECT m.body_refs FROM messages m WHERE m.verb='present' "
+            "SELECT m.id, m.body_refs FROM messages m WHERE m.verb='present' "
             "AND m.status='answered' AND NOT EXISTS ("
             "  SELECT 1 FROM messages v WHERE v.cause_id = m.id "
             "    AND v.verb = 'verdict')"):
+        if r["id"] in notes:
+            continue
         try:
             limbo += [x for x in json.loads(r["body_refs"] or "[]")
                       if isinstance(x, str)]
@@ -568,9 +577,11 @@ def observed_entries(conn) -> list[Wake]:
         return [Wake(SCHEDULER, "do:defer_baseline", refs=tuple(fresh),
                      detail=", ".join(counts))] if fresh else []
 
+    # An open touch note is not an open ask: nothing waits on it (R7), so it
+    # cannot be the reason the baseline is withheld.
     asked = conn.execute(
         "SELECT COUNT(*) n FROM messages WHERE status='open' AND to_role='principal' "
-        "AND verb='present'").fetchone()["n"]
+        "AND verb='present'").fetchone()["n"] - len(touch_notes(conn))
     # The ids ride the wake. Liaison's `observed_entries` mode holds one send
     # and no read that could enumerate these tables -- live, woken with counts
     # alone, it was asked to name 91 rows it cannot see, invented a dict ref,
@@ -653,6 +664,40 @@ def annotate(conn) -> list[Wake]:
         "  LIMIT 1"
     ).fetchall()
     return [Wake("architect", "tick:annotate", refs=(r["id"],)) for r in rows]
+
+
+@predicate("touch_note", wakes="liaison", band="start")
+def touch_note(conn) -> list[Wake]:
+    """
+    A batch's predicted touch, owed to the principal until presented.
+
+    P4 (ruled R16/R17, 2026-09-03): the modification scope is put to the
+    seat as a sense check before the batch builds -- the paths the Architect
+    expects, the symbols it only guesses, the touched ground nobody surveyed,
+    the commitments bound to it. Register-shaped: presented is derived from
+    the presents themselves, so a batch is put to them once whatever came of
+    it. Non-blocking by R7: `batch_start` never waits on the answer -- the
+    file order merely offers the note first -- and a batch that got ahead is
+    still owed its note, because the levers the note exists for (reorder,
+    interrupt, contest the item) act on a running batch too. The refs are
+    the batch and its item, and they ride the present mechanically.
+    """
+    from .db import refs_of
+
+    presented: set[str] = set()
+    for r in conn.execute("SELECT body_refs FROM messages WHERE verb = 'present'"):
+        presented.update(refs_of(r["body_refs"]))
+    rows = conn.execute(
+        "SELECT b.id AS id, b.item_id AS item, "
+        "       SUM(t.confidence = 'expected') AS expected, "
+        "       SUM(t.confidence != 'expected') AS possible "
+        "FROM batches b JOIN batch_touch t ON t.batch_id = b.id "
+        "WHERE b.status IN ('pending', 'deferred', 'running') "
+        "GROUP BY b.id ORDER BY b.id"
+    ).fetchall()
+    return [Wake("liaison", "tick:touch_note", refs=(r["id"], r["item"]),
+                 detail=f"expected {r['expected']}, possible {r['possible']}")
+            for r in rows if r["id"] not in presented]
 
 
 @predicate("batch_start", wakes="developer", band="start",
@@ -1321,7 +1366,7 @@ REGISTER_ENTRIES = frozenset({
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
-    "blindspot", "criterion_repair",
+    "blindspot", "criterion_repair", "touch_note",
 })
 
 

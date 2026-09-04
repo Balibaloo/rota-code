@@ -18,8 +18,8 @@ undischarged goals stay visible and countable.
 ## It is already here, and was never named
 
 Of thirty-six predicates, eleven move the spine forward, one is message
-traffic, and **sixteen are register entries** -- twenty-four, since onboarding
-gained its phases: something is outstanding, and
+traffic, and **sixteen are register entries** -- twenty-six, since onboarding
+gained its phases and the seat its touch note: something is outstanding, and
 the predicate exists to keep offering it until it is not.
 
     contradiction   contested        constraint_zero   awaiting_confirm
@@ -28,7 +28,7 @@ the predicate exists to keep offering it until it is not.
     checkpoint_invalid               survey            term_collision
     unresolved      orient           reconcile         define
     boundary        frame            reorient          challenge
-    blindspot       criterion_repair
+    blindspot       criterion_repair touch_note
 
 `agenda` is the tell — its docstring is "on principal presence, present what is
 blocked on them", which is an open-obligations query with no other name.

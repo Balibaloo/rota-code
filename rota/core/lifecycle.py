@@ -243,6 +243,94 @@ def needs_structural_review(conn: sqlite3.Connection, batch_id: str) -> bool:
         "WHERE t.batch_id = ? AND b.resolves = 1", (batch_id,)).fetchone()["n"])
 
 
+def touch_set(conn: sqlite3.Connection, batch_id: str) -> dict:
+    """
+    One batch's predicted touch, read out for the seat.
+
+    P4 (ruled R16/R17, 2026-09-03): the modification scope is put to the
+    principal as a sense check -- never time, never effort -- and it has four
+    parts, all of them mechanical. `expected` and `possible` are the
+    Architect's own rows (`batches.annotate`: paths always, symbols only where
+    confident). `unsurveyed` is the intersection with constraint zero -- the
+    register's account of what nobody has read -- taken by path prefix,
+    because an area covers the files under it. `commitments` are the other
+    constraints bound to a touched grain: exact on the grain, or by the same
+    prefix rule for a path. A global constraint is bound to nothing and so is
+    everybody's business, not this batch's.
+    """
+    from ..onboarding.boot import ZERO
+
+    row = conn.execute(
+        "SELECT b.id AS id, b.item_id AS item_id, b.status AS status, "
+        "       i.text AS item_text FROM batches b "
+        "LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?",
+        (batch_id,)).fetchone()
+    if row is None:
+        return {}
+    touch = [dict(t) for t in conn.execute(
+        "SELECT grain, grain_kind, confidence FROM batch_touch "
+        "WHERE batch_id = ? ORDER BY grain", (batch_id,))]
+    paths = [t["grain"] for t in touch if t["grain_kind"] == "path"]
+
+    def under(path: str, area: str) -> bool:
+        area = area.rstrip("/")
+        return path == area or path.startswith(area + "/")
+
+    unsurveyed = sorted({
+        b["grain"] for b in conn.execute(
+            "SELECT grain FROM constraint_bindings "
+            "WHERE constraint_id = ? AND resolves = 1", (ZERO,))
+        if any(under(p, b["grain"]) for p in paths)})
+
+    commitments: list[dict] = []
+    for b in conn.execute(
+            "SELECT b.constraint_id AS cid, b.grain AS grain, "
+            "       b.grain_kind AS kind, c.headline AS headline "
+            "FROM constraint_bindings b "
+            "JOIN constraints c ON c.id = b.constraint_id "
+            "WHERE b.constraint_id != ? AND b.resolves = 1 "
+            "ORDER BY b.constraint_id, b.grain", (ZERO,)):
+        hit = any(t["grain"] == b["grain"] and t["grain_kind"] == b["kind"]
+                  for t in touch)
+        if not hit and b["kind"] == "path":
+            hit = any(under(p, b["grain"]) for p in paths)
+        if hit:
+            commitments.append({"id": b["cid"], "headline": b["headline"],
+                                "bound_to": b["grain"]})
+
+    return {
+        "batch": row["id"], "status": row["status"],
+        "item": {"id": row["item_id"], "text": row["item_text"]},
+        "expected": [t["grain"] for t in touch if t["confidence"] == "expected"],
+        "possible": [t["grain"] for t in touch if t["confidence"] != "expected"],
+        "unsurveyed": unsurveyed,
+        "commitments": commitments,
+    }
+
+
+def touch_notes(conn: sqlite3.Connection, status: str | None = "open") -> set[str]:
+    """
+    The presents that are touch notes: a `present` carrying a batch's ref.
+
+    Derived, not declared. A message carries no flag saying which kind of
+    present it is, and the one table a touch note's refs name and a signoff's
+    never do is `batches`. The gates that ask "is anything open to the
+    principal" -- `tick_signoff`, `tick_agenda`, `observed_entries` -- set
+    these aside, because a note nobody has to answer (R7: non-blocking) must
+    not freeze a gate that waits on a ruling.
+    """
+    from .db import refs_of
+
+    batches = {r["id"] for r in conn.execute("SELECT id FROM batches")}
+    if not batches:
+        return set()
+    where = "verb = 'present'" + (" AND status = ?" if status else "")
+    args = (status,) if status else ()
+    return {r["id"] for r in conn.execute(
+                f"SELECT id, body_refs FROM messages WHERE {where}", args)
+            if batches & set(refs_of(r["body_refs"]))}
+
+
 def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     """
     Why this batch cannot merge, or None if it can.

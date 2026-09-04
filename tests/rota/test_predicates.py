@@ -677,8 +677,10 @@ def test_the_register_set_is_the_one_the_document_names():
     """
     assert P.REGISTER_ENTRIES <= set(P.REGISTRY), \
         "the register names a predicate that does not exist"
-    # Sixteen, plus the onboarding phases, plus `criterion_repair` 2026-08-26.
-    assert len(P.REGISTER_ENTRIES) == 25
+    # Sixteen, plus the onboarding phases, plus `criterion_repair` 2026-08-26,
+    # plus `touch_note` 2026-09-03 (P4: a batch's predicted touch is owed to
+    # the principal until presented).
+    assert len(P.REGISTER_ENTRIES) == 26
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):

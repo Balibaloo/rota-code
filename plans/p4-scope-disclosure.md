@@ -31,6 +31,29 @@ prediction-never-permission. Missing: the presentation.
 - `batch_start` does not wait on the presentation (R7). Frontier ordering
   already offers `annotate` before `batch_start` within the band.
 
+### Piece 1 as built (2026-09-03)
+
+- `touch_note` (predicates.py, register entry, band start, declared between
+  `annotate` and `batch_start` so the file order offers it first) wakes
+  Liaison with `(batch, item)`; presented is derived from the presents
+  themselves. It fires for pending, deferred **and running** batches: the
+  levers act on a running batch, so a note that lost its turn is still owed.
+- `lifecycle.touch_set` computes the four parts; `resolve_inbound` pushes it
+  as `touch`; `principal.touch_words` renders a batch ref inside
+  `render_refs`, so the words reach the seat at the edge, Law 2 intact. The
+  present's refs are added-never-substituted from the wake.
+- The jam: rather than cause-chain scoping, `lifecycle.touch_notes` (a
+  present carrying a batch ref -- derived, no flag) is set aside by
+  `tick_signoff`, `tick_agenda` and `observed_entries` (both its `asked`
+  guard and its limbo scan). Cause-chain scoping alone would have let
+  signoff double-present observed items sitting in an open baseline present.
+- The door: `principal.land` drops batch refs from a ruling; an all-approve
+  answer to a note returns None (answered, no verdict message, nobody woken);
+  a contest on the item lands as any ruling does.
+- Pinned in `tests/rota/test_touch_note.py`; `test_delivery.py`'s dispatch
+  test now steps through the note first. Case `L1-LI-present-the-touch`
+  authored in `l1_liaison2.yaml`.
+
 ## Piece 2 — coarse: the Architect's guess beside the items at signoff
 
 Harder, because at signoff nothing is sliced: the guess is model judgment

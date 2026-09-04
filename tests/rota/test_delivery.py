@@ -91,7 +91,15 @@ def test_dispatching_a_batch_marks_it_running(db):
     ready = [w for w in frontier(db) if w.kind == "tick:batch_start"]
     assert ready, "the batch was never offered"
 
-    loop.step(db, backend=ScriptedBackend(["done."]), pins=Pins(model="scripted"))
+    # The touch note comes first (P4, 2026-09-03): the predicted set is put
+    # to the principal before the batch builds, and the batch is dispatched
+    # on the step after. The note's session presents; the Developer's says
+    # nothing.
+    backend = ScriptedBackend(["TOOL: msg.present_principal(refs=[])", "done",
+                               "done."])
+    loop.step(db, backend=backend, pins=Pins(model="scripted"))
+    assert frontier(db)[0].kind == "tick:batch_start"
+    loop.step(db, backend=backend, pins=Pins(model="scripted"))
     assert db.execute(
         "SELECT status FROM batches WHERE id='b1'").fetchone()["status"] == "running"
 
