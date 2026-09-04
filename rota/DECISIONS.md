@@ -1317,3 +1317,33 @@ believed and untested.
    notice is something it pointed at.
 7. **A trust boundary is the right test for a new role.** Applied to git history
    and the internet; untested on the next case.
+
+### The seed interview runs at intent-time, and the signoff page is its first moment
+
+Ruled 2026-09-03 ("lets do this now, this is a usability priority"). The
+audit's universe opens with A1 -- eliciting what the principal wants,
+including what he did not think to say -- graded PARTIAL in the allocation:
+recording strong, elicitation designed but unimplemented, "the named
+permanent choke point at the root." The design was the seat's seed interview
+(SEAT.md, 2026-08-25), fixed for onboard-time and agenda-time. Measured the
+same day as the principal: "tip calculator pls" was read by three desks as
+three programs, the one that shipped had no way to run it, and the only
+question that decided what got built -- what are the inputs -- was never
+asked, while the principal was asked to confirm the echo of his own three
+words and to rule on constraint zero.
+
+Two things ruled. The interview runs at intent-time too: a statement gets
+the account first (`how_it_works`, the item orient already writes for a
+repository), and what the words left silent is logged where a desk had to
+assume it. And the page the principal signs carries those assumptions --
+law 8's sentence, "a lineage's open assumptions are presented at its gates:
+nothing ships whose assumptions the principal never saw", which had never
+been built: no ledger row reached a present and `render_refs` could not read
+one out. Approve is the keypress that takes the default (a decision under
+the principal's name resolving the entry, per law 11 and SEAT.md's "a decided
+row enters the record only from a keypress"); contest with words goes back to
+the desk that assumed it. No new artefact, mode, predicate, edge, or gate:
+the signoff gate already blocks slicing, and the page gets fuller. "Derive
+it" stays the default and nothing waits on a question; the eager/lazy
+election, when built, is the dial. Design and build order:
+`plans/a1-seed-interview-at-intent.md`.

@@ -32,7 +32,7 @@ core surviving is the floor, not the grade.
 | # | loop | grade | evidence |
 |---|---|---|---|
 | 1 | understanding | **G3** | earned on click and cnt against preregistered keys; and hurt its own three ways (`test_chaos_onboarding.py`): a survey killed mid-area never happened, a corrupted attest reopens rather than seals, two onboardings share a checkout without touching it |
-| 2 | inquiry | **G2** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key |
+| 2 | inquiry | **G3** | fan-out, composition, ladder, repair; quality measured stage by stage against the consult key; hurt both ways and held (`test_chaos_inquiry.py`): an owner killed mid-round never happened and the retry's answer tips carrying the round; a corrupted answer says nothing, the sound one composes, and the frontier survives a corrupted report |
 | 3 | intent / signoff | **G2** | observed exit live at scale (81 rows decided); eager and lazy election; the seat |
 | 4 | delivery | **G0** | eight live passes, every structural link fired once; the wall named (criteria must carry a callable surface) |
 | 5 | stay true | **G3** | a changed file reopens exactly its area; the re-survey session earned across three recording loads (40/40); refresh under a running batch pinned |
@@ -41,16 +41,31 @@ core surviving is the floor, not the grade.
 ## What each loop still owes, by gate
 
 - **1 → G4**: the gauntlet — its chaos debts are paid.
-- **2 → G3**: kill an owner mid-round and assert the harvest still composes;
-  a corrupted answer message must not reach the principal.
-- **3 → G3**: two principals ruling at once; a verdict for a present that was
-  re-presented meanwhile; kill the adopt session after the relay.
+- ~~2 → G3~~ — both injuries inflicted and held (`test_chaos_inquiry.py`,
+  2026-09-03); the second drew blood twice: a message whose refs do not
+  parse raised where it was read — inside the compose session as "session
+  failed", retried to quarantine with the round never composed, and inside
+  `open_reports` as the frontier itself, every tick. `db.refs_of` sets it
+  aside as nothing, and the audit names the row.
+- **3 → G3**: ~~two principals ruling at once~~, ~~kill the adopt session after
+  the relay~~ — inflicted and held (`test_chaos_confirm.py`, 2026-09-03), and
+  the first drew blood: `pump` read the present open and landed
+  unconditionally, so two consoles stacked two rulings on one present; the
+  door (`principal.land`) now closes the ask before it lands anything. Still
+  owed: a verdict for a present that was re-presented meanwhile — reproduced
+  and pinned `xfail(strict)` in the same file; closing it needs a retired
+  state for the first present, and the message-status CHECK
+  (`schema.sql:482`) has no such word. The seat's: COMPLETION, question 6;
+  the door mechanic waits in `plans/superseded-present.md`.
 - **4 → G1**: ~~the criteria-surface build~~ — built: criteria carry
   `surface_refs`, vetted at both doors, pushed as candidates, delivered to the
   Tester (`test_criteria_surface.py`); challenges now pay their reading up
-  front too (`test_challenge_evidence.py`). Still owed: cases for the delivery
-  modes that have none. The one-fault-per-pass curve reaching zero *is* this
-  loop's path through the gates.
+  front too (`test_challenge_evidence.py`). ~~Still owed: cases for the
+  delivery modes that have none~~ — closed by the walks' cases: counted from
+  the register on 2026-09-03, every delivery mode has at least one
+  (Developer 7 modes, Tester 3, Critic 2, Architect 13, and `slicing` and
+  `criteria`). The one-fault-per-pass curve reaching zero *is* this loop's
+  path through the gates.
 - ~~5 → G3~~ — both injuries inflicted and held (`test_chaos_staytrue.py`),
   and both drew blood first: the index swap ran on autocommit (93 grains
   before the kill, 3 after) and is a transaction now; an attest stamped the

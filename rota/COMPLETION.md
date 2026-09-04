@@ -75,8 +75,11 @@ attached, and when a pointer's target closes, the line comes out.
    or name the conflict), so the judgment stops being skippable. Plus the
    one-fault-per-pass curve reaching zero on a live pass.
 4. **Per-loop G3: the named chaos injuries.** Loop 1's three are inflicted
-   and held (`test_chaos_onboarding.py`) — first G3 in the ledger. Loops
-   2 and 3 owe theirs; the injuries are listed in `LOOPS.md`.
+   and held (`test_chaos_onboarding.py`) — first G3 in the ledger. Loop 3:
+   two of three held (`test_chaos_confirm.py`, 2026-09-03), the third
+   reproduced and pinned `xfail(strict)`, owed on question 6. Loop 2: both
+   held (`test_chaos_inquiry.py`, same day). The injuries are listed in
+   `LOOPS.md`.
 
 ## Track B — the gauntlet ladder (G4's machinery)
 
@@ -91,8 +94,23 @@ attached, and when a pointer's target closes, the line comes out.
    covers one). The two genuinely distinct flows came off first
    (critic->tester challenge, architect->liaison report); three more came
    off 2026-09-01 (the collapsed triage's nearest desk, and two answer
-   edges `any_of` arms had covered all along); the five left are
-   answer/question flavours of covered machinery.
+   edges `any_of` arms had covered all along); two more came off
+   2026-09-03 with one case, `L1-TE-answer-the-architects-question` --
+   the Architect's question is the case's inbound edge and the
+   Terminologist's answer its expected one, the exchange the tips run
+   performed live; green on the recording model first pass. A third came
+   off the same day for real, not by an arm: `L1-VK-an-outside-fact-is-
+   the-researchers` (the state before `L1-VK-a-source-does-not-settle-
+   scope`) -- the recording model questioned the Researcher five of
+   five, asserting the item beside it as its brief says. The twin
+   Terminologist case was authored, measured 0/5, and withdrawn: its
+   `deliver` brief says outright that there is no way to ask outside
+   from that mode and that a term needing an outside fact is "a
+   different obligation and you will be woken for it" -- and no
+   Terminologist or Vision Keeper brief anywhere names the Researcher;
+   only both `deliver.tools` offer `question_researcher`. The promised
+   wake does not exist. That is a Track C silence, filed here. Two left:
+   researcher->tester answer, terminologist->researcher question.
 2. **Composed flows**: multi-segment stories where a ruling on one trap
    invalidates the work behind another; the `grants:` key arrives here.
 3. **Synthetic stories**, tiered in `stories.json`, then **foreign-repo
@@ -162,11 +180,36 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   scheduling; pinned at width in `test_frontier_order.py`.
 - **Amendment as the normal operation** and **conflicting sources**: design
   directions filed in the register, neither scheduled.
+- **A1, the seed interview at intent-time (ruled 2026-09-03, "a usability
+  priority")**: the audit's root gap -- elicitation designed, unbuilt,
+  unscheduled -- built as the signoff page carrying the lineage's open
+  assumptions (law 8's unbuilt sentence): approve takes the default at the
+  keypress, contest with words goes back to the desk that assumed it.
+  Design and build order in `plans/a1-seed-interview-at-intent.md`; the
+  account-first deliver brief (2026-09-03) is its piece zero.
 - **Scope disclosure (P4, ruled 2026-09-03)**: the modification scope is
   presented to the principal as a sense check, both coarse-at-signoff and
   grounded-before-build; never time or effort. Design and build order in
-  `plans/p4-scope-disclosure.md`; piece 1 must land with the signoff-guard
-  scoping or it jams the gate.
+  `plans/p4-scope-disclosure.md`. ~~Piece 1 must land with the signoff-guard
+  scoping or it jams the gate~~ — **piece 1 built 2026-09-03**: `touch_note`
+  (register entry, offered between `annotate` and `batch_start`) puts the
+  batch's predicted touch to the principal -- expected paths, guessed
+  symbols, the touched ground constraint zero still covers, the commitments
+  bound to it -- computed by `lifecycle.touch_set` and read out as words at
+  the edge (`render_refs`); the present carries the batch and its item
+  mechanically. Three gates set a note aside rather than the planned
+  cause-chain scoping (`tick_signoff`, `tick_agenda`, `observed_entries`),
+  because cause-chain scoping alone would let signoff double-present the
+  observed items sitting in an open baseline present. The door
+  (`principal.land`) reads an all-approve answer as an acknowledgement that
+  wakes nobody and lets a contest on the item land as any ruling -- the
+  lever is the contested -> amend -> revocation -> cancel path loop 6
+  already pins. A note is still owed to a batch that got ahead of it, since
+  the levers act on a running batch too. Pinned in `test_touch_note.py`;
+  the register case `L1-LI-present-the-touch` is authored and owed its
+  recording (the recorder was held by a peer's pass when it landed). Next:
+  piece 2, the Architect's coarse guess beside the items at signoff, a
+  measured change with its own table.
 
 ## Questions for the seat
 
@@ -188,6 +231,20 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
    per-test claim before `verdicts.emit` may be called). Trade-offs in
    `plans/feasibility-audit.md`; whichever lands re-earns both Critic cases
    on one load.
+
+6. **A retired present (loop 3's third injury, 2026-09-03).** A present the
+   world moved past — the item amended and presented again while the first
+   present was still open — must be neither open (it must not be put to them
+   again, and an open ask silences the agenda tick and the baseline offer)
+   nor answered (an answered present with no verdict is a deferral,
+   `do:defer_baseline`, and the audit flags it). The message-status CHECK at
+   `schema.sql:482` allows only open, answered, unresolved, quarantined. Two
+   shapes: add `superseded` to the CHECK — an existing database keeps its
+   old constraint, `init_db` only creates — and let the door mark earlier
+   open presents sharing a ref when a later one lands (written, measured to
+   fail on the CHECK, held in `plans/superseded-present.md`); or a rule that
+   needs no new word. Until ruled, `principal.land` already refuses any ask
+   that is not open, and the injury stands pinned.
 
 ## The four answers that closed the road's open problems (2026-08-30)
 
@@ -577,6 +634,43 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    subject's words). The re-founding is therefore: derive those pushes,
    reshape the briefs to one reply, re-record. Awaiting the seat's ruling
    on the direction.
+
+3.33. **The contest half of the confirm loop (2026-09-03, found by being
+   the principal).** The seat asked for the tool to be used, not fixed from
+   outside: "tip calculator pls", the derived item read "based on bill
+   amount and service quality", the principal contested it with "no service
+   quality. just bill + tip %" -- and the build merged
+   `calculate_tip(bill_amount, service_quality)` with hardcoded tiers and no
+   tip percent, the exact thing rejected. Three floors, each behind the
+   last. The relay stripped the verdict: the ruling is keyed to the
+   principal's message and the owner is woken by Liaison's relay, a
+   different message, so `resolve_inbound` found no ruling and Vision
+   Keeper approved a contested item it never knew was contested (one hop
+   back along `cause_id` now, filtered to the rows the relay carries; the
+   two `adopt-what-the-principal-approved` cases went STALE and re-earned).
+   The contested tick carried no reason: `tick:contested` names the item
+   alone, Vision Keeper quoted the item id as an entry, read nothing,
+   reported "cannot tell what they objected to", and Liaison put the
+   principal's own words back to them as a question, verbatim, on every
+   tick (`_resolve_contest` surfaces the latest contesting verdict and its
+   entry). Then the 8B, reading the reason correctly on both models, called
+   `decisions.author` on the item to minute or supersede it instead of
+   `problem.assert` to amend it, errored on the id, and reported -- fixed
+   in the brief, not a guard: the amend case as a literal call,
+   "`decisions.author` never changes an item", and the brief's own "Amend,
+   report, stop" made "Amend, stop". Measured: the register's
+   `VK-amend-a-contested-item` had passed all along on a fixture that
+   reaches the correction through a statement, a shape the system never
+   produces, so a real-shape sibling `...-from-a-verdict` was added -- 0/5
+   before the brief, 5/5 after, the old case still green -- and the cold
+   walk on the other 8B amended with no error, re-presented "Calculate tips
+   based on bill amount", and merged `calculate_tip(bill_amount,
+   tip_percentage)`. With the seat: the fallback path (an owner that
+   reports instead of amending gets a clarify to the principal whose answer
+   arrives as plain intake and never returns to the owner); the
+   forbidden-call check ignores calls that errored, so a forbidden
+   `decisions.author` was invisible on every passing run; and a trailing
+   `msg.report_liaison` after a successful amend on every register run.
 
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
