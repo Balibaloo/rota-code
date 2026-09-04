@@ -136,9 +136,10 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
     return [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
-            rendered=render_refs(conn, json.loads(r["body_refs"])))
+            rendered=render_ask(conn, r["verb"], json.loads(r["body_refs"]),
+                                r["body_text"]))
         for r in conn.execute(
-            "SELECT id, verb, body_refs FROM messages "
+            "SELECT id, verb, body_refs, body_text FROM messages "
             "WHERE status = 'open' AND to_role = 'principal' "
             "  AND verb != 'converse' ORDER BY seq")
     ]
@@ -155,6 +156,133 @@ def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
             "WHERE status = 'open' AND to_role = 'principal' AND verb = 'converse' "
             "ORDER BY seq")
     ]
+
+
+def render_ask(conn: sqlite3.Connection, verb: str, refs: list[str],
+               question: str | None = None) -> str:
+    """
+    An ask, as a message to a person: what is being asked, why, and what
+    happens when they answer.
+
+    `render_refs` reads the rows out; this is the page around them. Measured
+    on the tips runs (2026-09-03), as the principal: every ask arrived as a
+    verb name and a list of ids -- "confirm: s1: tip calculator pls",
+    "present: k0: Nobody has read this area yet...", "l_a69ad6edd4: assumed:
+    ..." -- and a newcomer could not tell what was being asked, what
+    approving would start, or which of the words were theirs. Liaison's brief
+    has the translate rule ("the principal does not know your roles'
+    vocabulary") and the mechanical presents route around it, because the
+    system composes them. So the composing happens here, once, for every
+    seat: no ids in the prose (the CLI keeps them in its header for `rota
+    sign`), the principal's own words quoted as theirs, the account before
+    the behaviours, what was assumed in its own place, and one closing line
+    that says what the answer does. SEAT.md's rules: asked specifically,
+    the bargain stated, never a form.
+    """
+    from ..core.runner import _resolve_refs
+    from ..onboarding.boot import ZERO
+
+    resolved = _resolve_refs(conn, refs)
+    said: list[str] = []
+    account: list[str] = []
+    does: list[str] = []
+    does_not: list[str] = []
+    terms: list[str] = []
+    assumed: list[str] = []
+    touches: list[str] = []
+    other: list[str] = []
+    zero = False
+    for ref in refs:
+        row = resolved.get(ref)
+        if not row:
+            words = touch_words(conn, ref)
+            if words:
+                touches.append(words)
+            continue
+        if row.get("id") == ZERO:
+            zero = True
+            continue
+        if row.get("term"):
+            terms.append(": ".join(x for x in (row["term"], row.get("sense_short")) if x))
+            continue
+        if row.get("default_taken"):
+            assumed.append(row["default_taken"])
+            continue
+        text = next((row[k] for k in ("text", "headline", "body") if row.get(k)), "")
+        kind = row.get("kind")
+        if kind == "in_scope":
+            (account if row.get("id") == "how_it_works" else does).append(text)
+        elif kind == "out_of_scope":
+            does_not.append(text)
+        elif "approval" not in row and row.get("status") in (
+                "proposed", "ratified", "superseded", "contradicted", "clarified"):
+            said.append(text)
+        elif text:
+            other.append(text)
+
+    out: list[str] = []
+    if verb == "confirm":
+        n = len(said) or len(other) or len(refs)
+        out.append("Did I hear you right? I've taken this as "
+                   + ("one request:" if n == 1 else f"{n} separate requests:"))
+        out += [f'  "{s}"' for s in said] or [f"  {o}" for o in other]
+        out.append("Approve if that's what you meant, or tell me what's wrong. "
+                   "Once you approve, I'll work out what to build and show you "
+                   "before anything is written.")
+    elif verb == "present" and touches:
+        out.append("Before I build this, here's what I expect to touch.")
+        for d in does + account:
+            out.append(f"  For: {d}")
+        out += [f"  {t}" for t in touches]
+        if zero:
+            out.append("  Some of that code hasn't been read yet, so I can't say "
+                       "what a change there might break.")
+        out.append("This is a prediction, not a promise. Approve to go ahead, "
+                   "or say what concerns you.")
+    elif verb == "present" and zero and not (said or account or does or does_not):
+        out.append("Nothing here has been read yet, so I can't say what a change "
+                   "might break. That's normal for a new or unread project.")
+        out.append("Approve to go ahead; I'll flag anything I touch that I "
+                   "haven't read.")
+    elif verb == "present":
+        out.append("Here's what I understand you want, on one page.")
+        if said:
+            out.append("You asked:")
+            out += [f'  "{s}"' for s in said]
+        if account:
+            out.append("What we're building:")
+            out += [f"  {a}" for a in account]
+        if does:
+            out.append("It would:")
+            out += [f"  - {d}" for d in does]
+        if does_not:
+            out.append("It would not:")
+            out += [f"  - {d}" for d in does_not]
+        if assumed:
+            out.append("Where you didn't say, I assumed:")
+            out += [f"  - {a}" for a in assumed]
+        if terms:
+            out.append("A word that means more than one thing here:")
+            out += [f"  - {t}" for t in terms]
+        if other:
+            out += [f"  {o}" for o in other]
+        if zero:
+            out.append("Some of this code hasn't been read yet; I'll flag anything "
+                       "I touch there.")
+        out.append("Approve to start building. Or say what's wrong in your own "
+                   "words, and I'll correct it before anything is built.")
+    elif verb == "clarify":
+        out.append("I need one thing from you before I can continue.")
+        if question:
+            out.append(f"  {question.strip()}")
+        context = said + account + does + does_not + assumed + terms + other + touches
+        if context:
+            out.append("This is about:")
+            out += [f"  - {c}" for c in context]
+        out.append("A sentence is enough; I'll take it from there.")
+    else:
+        out += [f"  {x}" for x in said + account + does + does_not + assumed + terms + touches + other]
+    return chr(10).join(out)
 
 
 def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:

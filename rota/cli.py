@@ -479,7 +479,7 @@ def cmd_agenda(args: argparse.Namespace) -> int:
     if not asks:
         print("nothing is waiting on you")
     for a in asks:
-        print(f"[{a.message_id}] {a.verb} · {len(a.refs)} refs")
+        print(f"[{a.message_id}] {a.verb} · rule by id: {', '.join(a.refs)}")
         if a.rendered:
             for line in a.rendered.splitlines()[:args.limit]:
                 print(f"  {line}")

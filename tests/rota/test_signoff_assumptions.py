@@ -83,7 +83,8 @@ def test_the_present_carries_the_lineage_s_open_assumptions(db):
     assert "assumed: the percentage is typed each time" in shown, shown
     asks = pending_asks(db)
     assert asks and asks[0].message_id == present["id"]
-    assert "assumed:" in asks[0].rendered
+    assert "Where you didn't say, I assumed:" in asks[0].rendered, asks[0].rendered
+    assert "the percentage is typed each time" in asks[0].rendered
 
 
 def test_an_assumption_s_owner_is_its_author(db):
