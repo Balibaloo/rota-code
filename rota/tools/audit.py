@@ -146,6 +146,17 @@ def audit(conn: sqlite3.Connection) -> list[str]:
         findings.append(f"messages: {r['mid']} is 'answered' and nothing "
                         f"answers it")
 
+    # 6. Refs parse. A message whose body_refs does not load says nothing to
+    #    every reader (`db.refs_of`); it must not also say nothing here.
+    for r in _rows(conn, "SELECT id, body_refs FROM messages"):
+        try:
+            loaded = json.loads(r["body_refs"] or "[]")
+        except (TypeError, ValueError):
+            loaded = None
+        if not isinstance(loaded, list):
+            findings.append(f"messages: {r['id']} carries refs that do not "
+                            f"parse ({str(r['body_refs'])[:40]!r})")
+
     return findings
 
 

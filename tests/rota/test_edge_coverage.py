@@ -86,10 +86,7 @@ def test_every_message_edge_is_exercised_or_on_the_backlog():
 
     BACKLOG = {
         ("researcher", "tester", "answer"),
-        ("terminologist", "architect", "answer"),
-        ("architect", "terminologist", "question"),
         ("terminologist", "researcher", "question"),
-        ("vision_keeper", "researcher", "question"),
     }
     untouched = edges - touched
     assert untouched == BACKLOG, (

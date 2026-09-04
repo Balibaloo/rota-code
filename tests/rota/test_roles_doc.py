@@ -166,9 +166,11 @@ def test_every_predicate_is_either_spine_or_register():
     # 37 with `criterion_repair` (register), 38 with `preempt` (spine: a
     # scheduling act, not an open obligation -- law 9's reorder performed by
     # the scheduler, drained the moment it fires), 39 with `cancel` (spine,
-    # the same authority ending a batch whose approval was withdrawn). The
-    # pin forced each classification before the count moved.
-    assert len(every) == 39, (
+    # the same authority ending a batch whose approval was withdrawn), 40 with
+    # `touch_note` (register: a batch's predicted touch is owed to the
+    # principal until presented -- P4, 2026-09-03). The pin forced each
+    # classification before the count moved.
+    assert len(every) == 40, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 
@@ -259,6 +261,7 @@ def test_the_loop_ledger_claims_only_what_the_build_can_check():
     # check extended exactly as its docstring demanded when loop 1 earned
     # it. G4 stays unclaimable until the gauntlet's story log exists.
     chaos_files = {"1": "test_chaos_onboarding.py",
+                   "2": "test_chaos_inquiry.py",
                    "5": "test_chaos_staytrue.py"}
     here = paths.PACKAGE.parent / "tests" / "rota"
     for num, grade in _re.findall(r"^\| (\d) \| [a-z /]+? \| \*\*(G\d)\*\* \|",

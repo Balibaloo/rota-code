@@ -579,6 +579,12 @@ def _owner_of_ref(conn, ref: str) -> str | None:
     for table, owner in RULED_TABLES.items():
         if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
             return owner
+    # A ledger row is a journal entry -- one author per entry (law 1) -- and
+    # the author is who acts on a ruling about it: an overruled assumption
+    # goes back to the desk that assumed it.
+    row = conn.execute("SELECT author FROM ledger WHERE id = ?", (ref,)).fetchone()
+    if row and row["author"]:
+        return row["author"]
     return None
 
 
@@ -1130,6 +1136,20 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "AND id NOT IN (SELECT statement_id FROM item_statements) "
                     "ORDER BY id")]
                 refs += [r for r in uncovered if r not in refs]
+                # And the lineage's open assumptions, by the same rule and
+                # law 8's own sentence: "a lineage's open assumptions are
+                # presented at its gates: nothing ships whose assumptions the
+                # principal never saw." A ledger row about a presented row
+                # rides with it, added never substituted, so the page the
+                # principal signs carries what was assumed where their words
+                # were silent. Ruled 2026-09-03 (A1, intent-time): the signoff
+                # page is the seed interview's first moment.
+                if refs:
+                    marks = ",".join("?" * len(refs))
+                    assumed = [r["id"] for r in ctx.conn.execute(
+                        "SELECT id FROM ledger WHERE status = 'open' "
+                        f"AND about_ref IN ({marks}) ORDER BY id", tuple(refs))]
+                    refs += [r for r in assumed if r not in refs]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

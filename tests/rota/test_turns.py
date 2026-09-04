@@ -372,3 +372,118 @@ def test_a_resolved_ref_carries_the_body_not_a_summary(tmp_path):
                                    detail="answer"))
     assert "seed the new note" in out["resolved_refs"]["g1"]["sense_body"]
     assert "nowhere else" in out["resolved_refs"]["k1"]["text"]
+
+
+def test_a_relay_carries_the_principal_ruling_from_its_cause(tmp_path):
+    """
+    The ruling travels on the cause chain, and for one owner it did not arrive.
+
+    A principal's verdict is keyed to the message they answered (principal ->
+    liaison), but the owner who must act on it is woken by a different message:
+    Liaison's relay, whose cause is that verdict. `verdict_for` and `entry_for`
+    looked up the trigger alone, so the relay carried no ruling and no reason.
+    Measured on the tips run: the principal contested "service quality" on t1,
+    Vision Keeper was shown t1 at draft and nothing else, set it approved, and
+    the build shipped the contested thing.
+
+    One hop, relay only, and only the rows this relay carries -- a ruling fans
+    out one relay per owner, and each owner sees its own subset.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m10','principal','no service quality. just bill + tip %',1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('t1',"
+               "'Calculate tips based on bill amount and service quality',"
+               "'in_scope','decided','draft',0,1)")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
+               (json.dumps({"t1": "contest", "s1": "approve"}),))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m10','th','principal','liaison',"
+               "'verdict',?,1)", (json.dumps(["t1", "s1"]),))
+    # The owner's relay: cause is the verdict, refs are only the rows it holds.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, cause_id) VALUES ('m11','th','liaison',"
+               "'vision_keeper','relay',?,2,'m10')", (json.dumps(["t1"]),))
+    # A second owner's relay for a row the ruling never named: nothing to carry.
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, cause_id) VALUES ('m12','th','liaison',"
+               "'architect','relay',?,3,'m10')", (json.dumps(["k0"]),))
+    db.commit()
+
+    out = resolve_inbound(db, Wake(role="vision_keeper", kind="message",
+                                   message_id="m11", detail="relay"))
+    assert out["verb"] == "relay"
+    assert out["principal_verdict"] == {"t1": "contest"}, (
+        "the owner sees its own rows' ruling, not the whole fan-out")
+    assert out["principal_said"] == "no service quality. just bill + tip %"
+
+    other = resolve_inbound(db, Wake(role="architect", kind="message",
+                                     message_id="m12", detail="relay"))
+    assert "principal_verdict" not in other
+    assert "principal_said" not in other
+
+
+def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
+    """
+    A contested item wakes its owner by tick, and the tick carried the item id
+    and nothing else. The owner's brief says `transcript.quote` for what they
+    actually said -- and the owner had no way to know where that was: it saw
+    the verdict in the relay session, and sessions have no memory. Measured on
+    the tips run: woken cold, Vision Keeper quoted `entry_id="t1"`, the item id,
+    read nothing, and reported it could not tell what was objected to. Liaison
+    asked the principal what they had already said; the tick fired again; the
+    same question came back verbatim.
+
+    The latest verdict that contested the item is the one that stands, and its
+    entry is the reason. An item nothing contested resolves to nothing.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('t1',"
+               "'Calculate tips based on bill amount and service quality',"
+               "'in_scope','decided','contested',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('t2','unrelated',"
+               "'in_scope','decided','contested',0,1)")
+    # An earlier contest, then the item was amended, re-presented, contested
+    # again with a different reason. The later one is the one that stands.
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m10','principal','old reason',1)")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m20','principal','no service quality. just bill + tip %',2)")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
+               (json.dumps({"t1": "contest"}),))
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:m20', ?)",
+               (json.dumps({"t1": "contest", "s1": "approve"}),))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m10','th','principal','liaison',"
+               "'verdict',?,1)", (json.dumps(["t1"]),))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES ('m20','th','principal','liaison',"
+               "'verdict',?,2)", (json.dumps(["t1", "s1"]),))
+    db.commit()
+
+    out = resolve_inbound(db, Wake("vision_keeper", "tick:contested",
+                                   refs=("t1",)))
+    assert out["principal_verdict"] == {"t1": "contest"}
+    assert out["principal_said"] == "no service quality. just bill + tip %", (
+        "the latest contest's reason, not the first")
+    assert out["entry_id"] == "e_m20"
+    assert out["resolved_refs"]["t1"]["approval"] == "contested"
+
+    # Contested in the table but no verdict ever named it: nothing to carry.
+    assert resolve_inbound(db, Wake("vision_keeper", "tick:contested",
+                                    refs=("t2",))) == {}

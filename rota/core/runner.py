@@ -543,6 +543,32 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     """
     if wake.kind == "tick:round_close":
         return _resolve_round(conn, wake)
+    # The contest's reason. A contested item wakes its owner by tick, and the
+    # tick carries the item id and nothing else. The owner's brief opens with
+    # "`transcript.quote` for what they actually said" -- and the owner has no
+    # way to know where that is: it saw the verdict in the relay session, and
+    # sessions have no memory. Measured on the tips run (2026-09-03): woken
+    # cold, Vision Keeper quoted `entry_id="t1"` -- the item id, the only id
+    # in front of it -- read nothing, and reported that it could not tell
+    # what they objected to. Liaison asked the principal what they had
+    # already said; the principal said it again; the tick fired again; the
+    # same question came back verbatim. The ruling that contested the item
+    # is the config verdict naming it, the latest wins, and its entry is the
+    # reason. Surfaced the way a relay surfaces it, so the brief's two cases
+    # -- "they said what they meant instead" and "they said no" -- can be
+    # told apart by reading `principal_said`.
+    if wake.kind == "tick:contested" and wake.refs:
+        return _resolve_contest(conn, wake.refs[0])
+    # The touch note's content (P4, 2026-09-03). A batch's predicted touch is
+    # rows in `batch_touch`, which Liaison cannot read and must not judge;
+    # what the seat is owed is the set read out -- expected, possible, the
+    # touched ground nobody surveyed, the commitments bound to it -- and
+    # mechanics compute all four. The wake names the batch; the set arrives
+    # whole.
+    if wake.kind == "tick:touch_note" and wake.refs:
+        from .lifecycle import touch_set
+
+        return {"touch": touch_set(conn, wake.refs[0])}
     # A tick can name a message too, and one kind does. The `unresolved`
     # ladder's rung was woken with the question in `refs` and shown nothing but
     # the id: no `principal_said`, no resolved rows, no text. Measured on the
@@ -555,14 +581,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         return {}
 
     row = conn.execute(
-        "SELECT id, from_role, to_role, verb, body_refs, body_text, round_no "
-        "FROM messages WHERE id = ?", (trigger,)).fetchone()
+        "SELECT id, from_role, to_role, verb, body_refs, body_text, round_no, "
+        "cause_id FROM messages WHERE id = ?", (trigger,)).fetchone()
     if not row:
         return {}
 
+    from .db import refs_of
+
     out: dict[str, Any] = {
         "from": row["from_role"], "verb": row["verb"],
-        "refs": json.loads(row["body_refs"] or "[]"),
+        "refs": refs_of(row["body_refs"]),
     }
     # Present on one channel only, and on that one it is the whole message: the
     # Researcher shares no artefact with its asker, so the refs beside this are
@@ -586,6 +614,27 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     ruling = verdict_for(conn, trigger)
     if ruling:
         out["principal_verdict"] = ruling
+
+    # The ruling travels on the cause chain. A principal's verdict is keyed to
+    # the message they answered (principal -> liaison), but the owner who must
+    # act on it is woken by a different message: Liaison's relay, whose cause
+    # is that verdict. Read by the trigger alone, the relay carries no ruling
+    # and no reason, so the owner sees a draft row with no sign it was
+    # contested -- and approves it. Measured on the tips run (2026-09-03): the
+    # principal contested "service quality" on t1, Vision Keeper was shown t1
+    # at draft and nothing else, set it approved, and the build shipped the
+    # contested thing. Every owner's relay.md says the ruling is
+    # `principal_verdict` in the message; this is what makes that true. One
+    # hop, relay only, and only the rows this relay carries -- a ruling fans
+    # out one relay per owner, and each owner sees its own.
+    if row["verb"] == "relay" and not ruling and row["cause_id"]:
+        carried = verdict_for(conn, row["cause_id"])
+        mine = {r: v for r, v in carried.items() if r in out["refs"]}
+        if mine:
+            out["principal_verdict"] = mine
+            reason = entry_for(conn, row["cause_id"])
+            if reason:
+                out.setdefault("principal_said", reason)
 
     resolved = _resolve_refs(conn, out["refs"])
     if resolved:
@@ -617,7 +666,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             "SELECT verb, body_refs FROM messages WHERE id = "
             "(SELECT cause_id FROM messages WHERE id = ?)", (trigger,)).fetchone()
         if cause and cause["verb"] == "ask":
-            extra: list[str] = json.loads(cause["body_refs"] or "[]")
+            extra: list[str] = refs_of(cause["body_refs"])
             siblings = [dict(r) for r in conn.execute(
                 "SELECT a.id, a.from_role, a.body_refs FROM messages a "
                 "JOIN messages q ON q.id = a.cause_id "
@@ -627,7 +676,7 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             if siblings:
                 out["other_answers"] = siblings
                 for sib in siblings:
-                    extra += json.loads(sib["body_refs"] or "[]")
+                    extra += refs_of(sib["body_refs"])
             more = _resolve_refs(conn, [r for r in extra
                                         if r not in out.get("resolved_refs", {})])
             if more:
@@ -671,6 +720,44 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
             out["uncovered_statements"] = uncovered
 
     return out
+
+
+def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
+    """
+    The ruling that contested `item`, and the principal's reason for it.
+
+    A verdict is a config row `verdict:<message id>` holding a map of row id
+    to approve, contest or revise, keyed to the principal's message. An item
+    can be contested more than once -- amended, re-presented, contested again
+    -- so the latest by that message's seq is the one that stands. Nothing
+    contested it: nothing to say, and the owner is woken with the item alone,
+    as before.
+    """
+    from ..roles.principal import entry_for
+
+    rows = conn.execute(
+        "SELECT c.key, c.value FROM config c JOIN messages m "
+        "ON m.id = substr(c.key, 9) WHERE c.key LIKE 'verdict:%' "
+        "ORDER BY m.seq DESC").fetchall()
+    for r in rows:
+        ruling = json.loads(r["value"] or "{}")
+        if ruling.get(item) != "contest":
+            continue
+        mid = r["key"][len("verdict:"):]
+        out: dict[str, Any] = {"refs": [item],
+                               "principal_verdict": {item: "contest"}}
+        reason = entry_for(conn, mid)
+        if reason:
+            out["principal_said"] = reason
+            recorded = conn.execute(
+                "SELECT id FROM entries WHERE id = ?", (f"e_{mid}",)).fetchone()
+            if recorded:
+                out["entry_id"] = recorded["id"]
+        resolved = _resolve_refs(conn, [item])
+        if resolved:
+            out["resolved_refs"] = resolved
+        return out
+    return {}
 
 
 def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
@@ -838,10 +925,12 @@ def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if not rows:
         return {}
 
+    from .db import refs_of
+
     reports = []
     every_ref: list[str] = []
     for r in rows:
-        refs = json.loads(r["body_refs"] or "[]")
+        refs = refs_of(r["body_refs"])
         every_ref.extend(refs)
         reports.append({"id": r["id"], "from": r["from_role"], "refs": refs})
 
@@ -1472,9 +1561,34 @@ def run_session(
 
             transcript.append(completion.text)
 
-            # One wake, one completion: the reply has been executed as the
-            # model's whole plan; if more is owed the scheduler wakes again.
-            if oneshot:
+            # One wake, one completion: once the reply has committed to
+            # something -- a write, a message, a terminal act -- that is the
+            # model's whole plan, executed in order, and the session ends; no
+            # later turn revises it. A turn that only read is not a plan yet.
+            # Measured live (S0 walk, 2026-09-03): the unconditional break
+            # ended a session after a single `model.load` with nothing else
+            # attempted -- the architect never saw the result, wrote nothing,
+            # and no predicate re-woke it. The walk went quiet at step 4, 0
+            # statements.
+            #
+            # "Decided something" is `ctx.writes` or `ctx.outbound` being
+            # non-empty -- the same boundary the rest of this runner and
+            # every op in `roles/api.py` already builds on, not a
+            # rebuilt-from-call-names guess. A call-name heuristic
+            # (`not in read_fns`) needed two hand-carved exceptions inside a
+            # single hour: `code.commit` on an unchanged tree returns
+            # `{"committed": False}` instead of raising, and `code.write`
+            # is explicitly documented as outside the transaction ("the
+            # filesystem is outside the transaction") -- a session that
+            # diagnosed a real pytest failure correctly and wrote a fully
+            # correct fix ended on the write alone, before `code.commit`,
+            # and the fix was discarded uncommitted. `ctx.writes`/
+            # `ctx.outbound` already get this right without special-casing:
+            # every real op appends to `ctx.writes` on success, no read
+            # does, and `code.write`/a no-op `code.commit` don't either --
+            # by the same design that keeps `verdicts.claim_encodes` (a
+            # staged judgement, not yet a verdict) off it too.
+            if oneshot and (sb.ctx.writes or sb.ctx.outbound):
                 break
 
             # A role that has sent its outbound message has, in almost every

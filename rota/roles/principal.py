@@ -189,7 +189,11 @@ def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
     for ref in refs:
         row = resolved.get(ref)
         if not row:
-            lines.append(f"  {ref}")
+            # A batch is the one ref with no words of its own: what it means
+            # to the seat is its predicted touch, read out here at the edge
+            # the same way a term's two senses are (P4, 2026-09-03).
+            words = touch_words(conn, ref)
+            lines.append(f"  {ref}: {words}" if words else f"  {ref}")
             continue
         # The readable column differs by table and the principal does not need
         # to know which table they are looking at. A term is the one row where
@@ -198,10 +202,37 @@ def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
         # rendering the word alone shows them "delete" and "delete".
         if row.get("term"):
             words = ": ".join(x for x in (row["term"], row.get("sense_short")) if x)
+        elif row.get("default_taken"):
+            # An assumption, read out as one: the sentence a desk wrote where
+            # the principal's words were silent, and what it costs to be wrong.
+            words = f"assumed: {row['default_taken']}"
         else:
             words = next((row[k] for k in ("text", "headline") if row.get(k)), "")
         lines.append(f"  {ref}: {words}" if words else f"  {ref}")
     return "\n".join(lines)
+
+
+def touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The batch's predicted touch as words, or '' when the id is no batch."""
+    from ..core.lifecycle import touch_set
+
+    t = touch_set(conn, batch_id)
+    if not t:
+        return ""
+    item = t["item"]
+    parts = ["the batch for " + item["id"]
+             + (f" ({item['text']})" if item.get("text") else "")]
+    parts.append("expected to touch "
+                 + (", ".join(t["expected"]) if t["expected"] else "nothing named"))
+    if t["possible"]:
+        parts.append("might touch " + ", ".join(t["possible"]))
+    if t["unsurveyed"]:
+        parts.append("unsurveyed ground: " + ", ".join(t["unsurveyed"]))
+    if t["commitments"]:
+        parts.append("commitments: " + ", ".join(
+            f"{c['id']} {c['headline']} (bound to {c['bound_to']})"
+            for c in t["commitments"]))
+    return "; ".join(parts)
 
 
 def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
@@ -218,41 +249,118 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
         answer = backend.respond(ask)
         if answer is None:
             continue                       # deferral is always allowed
-
-        msg_id = new_id("m", conn)
-        seq = conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
-        thread = conn.execute(
-            "SELECT thread_id FROM messages WHERE id = ?", (ask.message_id,)
-        ).fetchone()["thread_id"]
-
-        refs = list(answer.per_item) or ask.refs
-        conn.execute(
-            "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
-            "to_role, verb, body_refs, seq) "
-            "VALUES (?, ?, 'message', ?, 'principal', 'liaison', ?, ?, ?)",
-            (msg_id, ask.message_id, thread, answer.verb, json.dumps(refs), seq),
-        )
-        conn.execute("UPDATE messages SET status = 'answered' WHERE id = ?",
-                     (ask.message_id,))
-
-        # Per-item verdicts travel as refs; the ruling itself is recorded so
-        # Liaison can relay it without re-asking.
-        if answer.per_item:
-            conn.execute(
-                "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                (f"verdict:{msg_id}", json.dumps(answer.per_item)),
-            )
-        if answer.text:
-            conn.execute(
-                "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                (f"entry:{msg_id}", json.dumps(answer.text)),
-            )
-            record_entry(conn, msg_id, answer.text)
-
-        created.append(msg_id)
+        msg_id = land(conn, ask, answer)
+        if msg_id:
+            created.append(msg_id)
 
     return created
+
+
+def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
+    """
+    Land one answer as a message, if the ask is still open.
+
+    The answer's door, split from `pump` so it can be hurt on its own
+    (`test_chaos_confirm.py`, loop 3's injuries). Two principals can read the
+    same open present -- two consoles, one checkout -- and both answer it; the
+    first to land wins and the second is refused here rather than stacked,
+    because two rulings on one present relay two rulings to the owner, and
+    which one it applied would be decided by arrival order. And a present the
+    world moved past is `superseded` at the door every present lands through
+    (`db.py`, where a session's messages are inserted: a later present of the
+    same row is the one to answer), so it is no longer open, and a ruling for
+    it from a screen that never refreshed lands nothing -- it would approve a
+    version of the row the principal never saw. Returns the new message id,
+    or None when the ask was no longer open.
+    """
+    closed = conn.execute(
+        "UPDATE messages SET status = 'answered' "
+        "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
+    if not closed:
+        return None
+
+    # A touch note is read, not ruled on (P4, R7: nothing waits on it). The
+    # batch's ref is never a row the principal rules, so it leaves the
+    # ruling; what is left, if it is all approve, is an acknowledgement --
+    # the note closes and wakes nobody. A contest or revise on the item lands
+    # as any ruling does: the owner amends it, the version moves, and the
+    # revocation is what ends the batch (loop 6) -- the lever the note is for.
+    per_item = dict(answer.per_item or {})
+    if ask.verb == "present" and answer.verb == "verdict":
+        batches = {r["id"] for r in conn.execute("SELECT id FROM batches")}
+        if batches & set(ask.refs):
+            per_item = {k: v for k, v in per_item.items() if k not in batches}
+            if all(v == "approve" for v in per_item.values()):
+                return None
+
+    msg_id = new_id("m", conn)
+    seq = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
+    thread = conn.execute(
+        "SELECT thread_id FROM messages WHERE id = ?", (ask.message_id,)
+    ).fetchone()["thread_id"]
+
+    # A ruling on an assumption closes here, at the keypress, whichever way
+    # it went: a decision row under the principal's name that resolves the
+    # ledger entry -- the two writes `decisions.author` makes, made by the one
+    # author a ruling has. Law 11 (an entry is resolved by a decision that
+    # names it, in the same commit, and by nothing else) and SEAT.md's
+    # contract (a decided row enters the record only from a keypress).
+    # Approve takes the default. Contest overrules it, with the words, and
+    # contests the row the assumption was about: the principal rejected the
+    # reading, so the row is amended by its owner through the contested
+    # loop, with `principal_said` in front of it. Either way the ledger id
+    # leaves the relay's refs -- the owner has nothing to apply to it, and
+    # told to `set_approval` a ledger id it would only be refused. Measured
+    # first the other way (2026-09-03): `decisions.author` handed to the
+    # relay mode drew fourteen decisions a session, five of five, on the
+    # plain approve case too. The tool in the list was the invitation.
+    # (`per_item` is the ruling less any batch ref -- see the touch-note
+    # door above.)
+    closed_here: list[str] = []
+    for ref, ruling in list(per_item.items()):
+        if ruling not in ("approve", "contest", "revise"):
+            continue
+        row = conn.execute(
+            "SELECT id, about_ref, default_taken FROM ledger "
+            "WHERE id = ? AND status = 'open'", (ref,)).fetchone()
+        if row is None:
+            continue
+        if ruling == "approve":
+            text = f"default taken at signoff: {row['default_taken']}"
+        else:
+            said = answer.text.strip() if answer.text else "contested at signoff"
+            text = f"overruled at signoff: {said} (was assumed: {row['default_taken']})"
+            per_item[row["about_ref"]] = "contest"
+        conn.execute(
+            "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
+            "VALUES (?, 'principal', ?, ?, ?)",
+            (new_id("d", conn), text, json.dumps([row["about_ref"]]), ref))
+        conn.execute("UPDATE ledger SET status = 'resolved' WHERE id = ?", (ref,))
+        closed_here.append(ref)
+
+    refs = [r for r in (list(per_item) or ask.refs) if r not in closed_here]
+    conn.execute(
+        "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
+        "to_role, verb, body_refs, seq) "
+        "VALUES (?, ?, 'message', ?, 'principal', 'liaison', ?, ?, ?)",
+        (msg_id, ask.message_id, thread, answer.verb, json.dumps(refs), seq),
+    )
+
+    # Per-item verdicts travel as refs; the ruling itself is recorded so
+    # Liaison can relay it without re-asking.
+    if per_item:
+        conn.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            (f"verdict:{msg_id}", json.dumps(per_item)),
+        )
+    if answer.text:
+        conn.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            (f"entry:{msg_id}", json.dumps(answer.text)),
+        )
+        record_entry(conn, msg_id, answer.text)
+    return msg_id
 
 
 def record_entry(conn: sqlite3.Connection, message_id: str, text: str) -> str:

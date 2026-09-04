@@ -160,10 +160,12 @@ def report_is_settled(conn: sqlite3.Connection, refs: list[str]) -> bool:
 
 def open_reports(conn: sqlite3.Connection, thread: str) -> list[sqlite3.Row]:
     """The reports in a thread that are still asking for something."""
+    from .db import refs_of
+
     return [r for r in conn.execute(
         "SELECT id, from_role, body_refs FROM messages "
         "WHERE thread_id = ? AND verb = 'report' ORDER BY seq", (thread,))
-        if not report_is_settled(conn, json.loads(r["body_refs"] or "[]"))]
+        if not report_is_settled(conn, refs_of(r["body_refs"]))]
 
 
 def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
@@ -279,14 +281,19 @@ def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
     the principal is approving an interpretation, and interpretations are read
     whole. An item already awaiting a verdict is not resubmitted.
     """
+    from .lifecycle import touch_notes
+
     drafts = [r["id"] for r in conn.execute(
         "SELECT id FROM items WHERE approval = 'draft' ORDER BY id")]
     if not drafts:
         return []
+    # A touch note is set aside (P4, 2026-09-03): this guard exists so an
+    # interpretation is not submitted twice, and a note nobody has to answer
+    # left open would otherwise freeze every later signoff behind it.
     pending = conn.execute(
         "SELECT COUNT(*) n FROM messages "
         "WHERE status = 'open' AND verb IN ('submit', 'present')"
-    ).fetchone()["n"]
+    ).fetchone()["n"] - len(touch_notes(conn))
     if pending:
         return []
     return [Wake("vision_keeper", "tick:signoff", refs=tuple(drafts))]
@@ -782,9 +789,13 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     # terminate: presenting an agenda opens a message to the principal, which
     # silences the predicate until it is answered. Without that it fires
     # forever, because Liaison has no verb that could satisfy it.
+    # Less any touch note: the principal is not being waited on for one
+    # (P4, R7), so it is not the reason to hold the agenda back.
+    from .lifecycle import touch_notes
+
     awaiting = conn.execute(
         "SELECT COUNT(*) AS n FROM messages WHERE status = 'open' AND to_role = 'principal'"
-    ).fetchone()["n"]
+    ).fetchone()["n"] - len(touch_notes(conn))
     if awaiting:
         return []
 

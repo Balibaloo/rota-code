@@ -277,6 +277,14 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
             if not _count_ok(len(rows), want):
                 problems.append(
                     f"expected writes to {table} ({want or '>0'}), got {len(rows)}")
+            # A row the case names, the way a message spec names refs. The
+            # account case needs it: the count alone cannot tell "the whole,
+            # then the behaviours" from three behaviours.
+            need = set(spec.get("ids_include") or []) if isinstance(spec, dict) else set()
+            if need and not need <= set(rows):
+                problems.append(
+                    f"expected writes to {table} to include {sorted(need)}, "
+                    f"got {sorted(rows)}")
 
     for spec in expect.get("messages") or []:
         matches = [

@@ -224,6 +224,27 @@ JUNCTION_TABLES = {
 }
 
 
+def refs_of(raw) -> list[str]:
+    """
+    A message's refs, or nothing.
+
+    `body_refs` is JSON on disk and the one column every reader loads. A row
+    that does not parse -- a bit flipped, a write cut short -- used to raise
+    where it was read: inside a session that was "session failed", retried to
+    quarantine with the round never composed; inside `open_reports` it was the
+    frontier, every tick, the scheduler dead on one bad row. Loop 2's second
+    injury (`test_chaos_inquiry.py`). A corrupted message says nothing now,
+    which is what it has: no refs, set aside, and the audit names it.
+    """
+    try:
+        loaded = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(loaded, list):
+        return []
+    return [x for x in loaded if isinstance(x, str)]
+
+
 def _apply_write(conn: sqlite3.Connection, w: Write) -> None:
     if w.table in JUNCTION_TABLES:
         cols = list(w.values.keys())
