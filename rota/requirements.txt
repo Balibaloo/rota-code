@@ -1,0 +1,37 @@
+# rota — what a fresh environment needs.
+#
+#   python -m venv .venv
+#   .venv/bin/pip install -r rota/requirements.txt      # Windows: .venv\Scripts\pip
+#
+# Python 3.10 or newer. The repo root's requirements.txt is the *whole*
+# checkout (the older TUI under src/ included); this file is rota alone.
+#
+# rota's core -- graph, db, scheduler, runner, roles, onboarding -- is
+# stdlib only. Everything below is a seam: the seat, the parsers, the
+# case files, the tests.
+
+# The seat and the cockpit (rota/cockpit/). `python -m rota tui` and
+# `python -m rota cockpit` are unreachable without it.
+textual==8.2.5
+
+# The case format: tests/rota/cases/*.yaml and probes/*/answer_key.yaml.
+# Imported lazily by testkit/fixtures.py; JSON cases work without it.
+PyYAML==6.0.3
+
+# Onboarding's indexer. Raises ParsersUnavailable at use, not at import,
+# so the rest of the system runs without it -- but no repo gets indexed.
+tree-sitter==0.25.2
+tree-sitter-language-pack==1.14.3
+
+# The cockpit's --reload watcher only.
+watchfiles==1.1.1
+
+# The test suite (tests/rota/). pytest.ini sets the timeout; the register
+# runs under xdist.
+pytest==8.4.2
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0
+
+# Optional. llm.py talks to Ollama over urllib -- no client library. This
+# is only for the litellm arm of the complete() seam, imported lazily.
+# litellm==1.96.0
