@@ -82,6 +82,7 @@ def test_the_floor_is_laid_only_where_nothing_exists(tmp_path):
     # merged program had no way to run it).
     assert "main.py" in made and "README.md" in made
     main = (root / "main.py").read_text(encoding="utf-8")
+    assert "prog='b1'" not in main, "the program is named after the project, not the batch"
     assert 'if __name__ == "__main__":' in main and "def main(" in main
     assert "python main.py" in (root / "README.md").read_text(encoding="utf-8")
     import subprocess, sys

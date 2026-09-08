@@ -97,13 +97,13 @@ def _program_floor(root: Path, name: str) -> list[str]:
     return made
 
 
-def _python_floor(root: Path) -> list[str]:
+def _python_floor(root: Path, name: str | None = None) -> list[str]:
     made: list[str] = []
     # Decided before anything is written: the pyproject this lays would
     # otherwise count as "existing config" one line later.
     bare = not any((root / f).exists() for f in _EXISTING_CONFIG)
     if bare:
-        name = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-") or "project"
+        name = name or _slug(root.name)
         (root / "pyproject.toml").write_text(
             _PYPROJECT.format(name=name), encoding="utf-8")
         made.append("pyproject.toml")
@@ -120,9 +120,13 @@ def _python_floor(root: Path) -> list[str]:
         (tests / ".gitkeep").write_text("", encoding="utf-8")
         made.append("tests/")
     if bare:
-        name = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-") or "project"
+        name = name or _slug(root.name)
         made += _program_floor(root, name)
     return made
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9_-]+", "-", text.lower()).strip("-") or "project"
 
 
 LANGUAGES = {"python": _python_floor}
@@ -138,7 +142,15 @@ def ensure_floor(conn: sqlite3.Connection, batch_id: str,
     root = Path(row["worktree"])
     if not root.is_dir():
         return []
-    made = LANGUAGES[language](root)
+    # The project's name, not the worktree's. The worktree is named after the
+    # batch, so the first merged program introduced itself as `bg_1` (tipsF,
+    # 2026-09-08). The run records the project root; its name is the name.
+    from .worktrees import project_root
+    try:
+        name = _slug(project_root(conn).name)
+    except Exception:
+        name = None
+    made = LANGUAGES[language](root, name)
     if made:
         # Commit-first is what bounds every loss in this system; the floor is
         # the batch's first commit, so a deferral keeps it.
