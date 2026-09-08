@@ -192,7 +192,10 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   with no entry point, a harness on rota's own interpreter, a fixed stdlib
   allowlist, no provisioning. Twelve components to make it dynamic, keyed by
   a stack ruling derived from the account, with the judgment/translation
-  split and a build order: `plans/greenfield-setup.md`. Refine before building.
+  split and a build order: `plans/greenfield-setup.md`. Pieces 2 (the program floor: `main.py`, README run line, on bare
+  ground) and 5 (the provisioner: `.venv` with pytest and the declared
+  dependencies, Python only) landed 2026-09-08 and 2026-09-09. The rest is
+  still to refine.
 - **Scope disclosure (P4, ruled 2026-09-03)**: the modification scope is
   presented to the principal as a sense check, both coarse-at-signoff and
   grounded-before-build; never time or effort. Design and build order in
@@ -681,3 +684,22 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
 3. **k0 bootstrap held** (the prior session's fix works), and the walk is
    the story: it becomes `S0-hello-world`, the permanent floor of the
    story tier, so this can never silently regress.
+
+3.34. **The first runnable merge (2026-09-08, tipsF).** "tip calculator pls"
+   merged `main.py` with `--total` and `--tip-percentage`; `python main.py
+   --total 100 --tip-percentage 15` prints the tip. 81 steps, 14 asks, one
+   batch. The floors it took, each measured on a walk: the Tester waits for
+   the Developer's commit (tests now import real functions instead of
+   asserting constants); the account is not sliced (105 slicing sessions on
+   `how_it_works` before); `batches.group` states the one-item rule and the
+   split (the Architect had invented a combined item id and was quarantined);
+   the program floor lays an entry point on bare ground; the program is named
+   after the project. On 2026-09-09: the provisioner (a `.venv` per batch),
+   `prior_answers` on a report wake so a collision the principal answered once
+   is relayed and not re-asked (tipsG: eight clarifies for one question), the
+   runner's first-repeat sentence. Attributed and not chased:
+   `L1-VK-the-account-before-the-behaviours` is 0/5 on the current llama
+   load with a brief byte-identical to its 5/5 recording (the model loops on
+   an empty decision search); qwen writes the account on every cold walk.
+   The Terminologist relay lever for the storm was tried and reverted (the
+   plain adopt case wrote two rows with the new tools in its list).
