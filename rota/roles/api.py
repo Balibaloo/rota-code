@@ -2929,6 +2929,26 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
                 f"item_id is required: the named tickets trace to "
                 f"{owners or 'no items'} and a batch delivers exactly one "
                 f"approved item.")
+    else:
+        # The rule, said at the door. Measured on a cold walk (tipsE,
+        # 2026-09-08): the Architect grouped tk_1 and tk_2, from two items,
+        # under an invented id "calculate_tip_and_display_results". The
+        # existence check refused the id and named the items that exist. The
+        # model tried twice more and the tick was quarantined. Nothing said
+        # that a batch is one item's tickets, or how to split.
+        by_item: dict[str, list[str]] = {}
+        for tid in ticket_ids:
+            for r in ctx.conn.execute("SELECT item_id FROM tickets WHERE id = ?",
+                                      (tid,)):
+                by_item.setdefault(r["item_id"], []).append(tid)
+        if by_item and item_id not in by_item:
+            split = "; ".join(f"item_id={k!r} with ticket_ids={v}"
+                              for k, v in sorted(by_item.items()))
+            raise ValueError(
+                f"{item_id!r} is not the item any of these tickets trace to. "
+                f"A batch delivers exactly one approved item, and the item is "
+                f"the one the tickets already name. Make one batch per item: "
+                f"{split}. Do not invent an item id")
     _must_exist(ctx, "items", item_id)
     # A batch id is never reused. S0 walk thirty-four: after the cancel, the
     # Architect grouped the same tickets under id="b1" and the upsert

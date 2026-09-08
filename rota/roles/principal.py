@@ -270,7 +270,21 @@ def render_state(conn: sqlite3.Connection) -> str:
             out.append(f"Building: {running + pending} change"
                        f"{'s' if running + pending > 1 else ''} in progress.")
     if not out:
-        if approved:
+        # A tick that was tried past its cap and quarantined is the team giving
+        # up before any batch exists. Measured (tipsE, 2026-09-08): the
+        # Architect could not group two tickets, was quarantined after three
+        # tries, and the seat said "nothing is building", which was true and
+        # not the point.
+        gave_up = [r["tick_key"] for r in conn.execute(
+            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1")]
+        if gave_up:
+            what = ", ".join(
+                f"{k.split('|')[1].replace('tick:', '')} for "
+                f"{k.split('|')[2] or 'the whole project'}" for k in gave_up)
+            out.append(f"Stuck before building. The team gave up on: {what}. "
+                       "Nothing waits on you, and nothing moves until that is "
+                       "cleared. Tell me what to change.")
+        elif approved:
             out.append(f"Nothing waits on you and nothing is building. "
                        f"{approved} thing{'s' if approved > 1 else ''} approved so far.")
         else:

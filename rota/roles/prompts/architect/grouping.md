@@ -4,7 +4,9 @@ MODE: grouping — turn tickets into batches.
 batch. Group them with `batches.group`.
 
 **A batch is a complete feature set.** One discrete change, one worktree, one PR,
-tracing to exactly one approved item. Complete means it can be judged on its own:
+tracing to exactly one approved item. Tickets from two items are two batches.
+Never invent an item id: omit `item_id` when the tickets share one item, and the
+call derives it. Complete means it can be judged on its own:
 a batch that only makes sense once a later batch lands is not a batch, it is half
 of one.
 
