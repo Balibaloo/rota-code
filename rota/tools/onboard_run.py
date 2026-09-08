@@ -54,6 +54,7 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> Non
         if not ready:
             print(f"\nquiescent after {n - 1} sessions "
                   f"({time.time() - started:.0f}s)")
+            _say_where_we_are(conn)
             return
         # The terminologist's phase includes disambiguating the terms it wrote.
         #
@@ -91,9 +92,23 @@ def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> Non
               + (f"  [{step.note}]" if step.note else ""))
         if not step.productive and not step.wake:
             print(f"       idle: {step.note}")
+            _say_where_we_are(conn)
             return
 
     print(f"\nstopped at the {limit}-session limit")
+    _say_where_we_are(conn)
+
+
+def _say_where_we_are(conn: sqlite3.Connection) -> None:
+    """The loop ends in the principal's language, not the machine's.
+
+    The lines above are instrumentation: wake kinds and row counts. They do
+    not say whether the thing the principal asked for happened. A stopped
+    run looked the same as a thinking run (tips9, 2026-09-04).
+    """
+    from ..roles.principal import render_state
+
+    print("\n" + render_state(conn))
 
 
 def _counts(conn: sqlite3.Connection) -> dict[str, int]:

@@ -838,6 +838,44 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Refused here rather than asked for again, because asking again has
         # been measured: the same instruction stated outright in the mode's own
         # brief moved it 0/5 to 0/5.
+        # Never the same question twice. `interrupt_cap` states it: never
+        # repeat the question, reframe or offer a default. No code read it.
+        # Clarify only: a confirm or a present is a gate on rows, and its
+        # words are the rows read out. A principal who says the same thing
+        # twice gets the same echo twice, correctly. This refuses a
+        # byte-identical repeat. A reworded repeat is judgement and stays
+        # the brief's.
+        if recipient == "principal" and verb == "clarify" and text:
+            words = " ".join(text.split())
+            for row in ctx.conn.execute(
+                    "SELECT id, body_text FROM messages WHERE to_role = 'principal' "
+                    "AND verb = 'clarify' AND body_text IS NOT NULL ORDER BY seq"):
+                if " ".join((row["body_text"] or "").split()) == words:
+                    raise ValueError(
+                        f"you have already put these words to the principal, in "
+                        f"{row['id']}. Asking twice spends the one budget that "
+                        f"cannot be topped up, and reads as not having heard. "
+                        f"Reframe it: decompose the question, or name a default "
+                        f"they can veto. Or take the default and log the assumption")
+
+        # A role's own bookkeeping is not a question for the principal. Asked
+        # as the principal (tips5): "The item_id 'i_1' is invalid ... is there
+        # a specific item_id that should be used instead?" A failed call became
+        # a question. Whether a question is about the project is judgement and
+        # stays the brief's. This is arithmetic: the question quotes an id and
+        # the id names no row. Quoted on purpose, so prose with a short word in
+        # it is untouched.
+        if recipient == "principal" and text:
+            for token in re.findall(r"['\"`]([a-z][a-z0-9_]{1,30})['\"`]", text):
+                if token in (refs or []) or api.ref_resolves(ctx, token):
+                    continue
+                raise ValueError(
+                    f"{token!r} names no row, so this question is about your own "
+                    f"bookkeeping, not about the project. The principal cannot see "
+                    f"it, did not cause it, and cannot fix it. Put the difficulty "
+                    f"to the owner of what you were working on, or report it. Ask "
+                    f"the principal only what needs their authority")
+
         if recipient == "principal" and refs:
             unresolvable = [r for r in refs if ctx.conn.execute(
                 "SELECT 1 FROM messages WHERE id = ?", (r,)).fetchone()]

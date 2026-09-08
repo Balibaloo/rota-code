@@ -705,6 +705,29 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if row["to_role"] == "liaison" and row["verb"] == "converse":
         out["recent_chat"] = _recent_chat(conn, trigger)
 
+        # An answer is an answer to something. A principal `converse` whose
+        # cause is a clarify is a reply, not new work. A desk could not settle
+        # something, and that desk still waits. Liaison saw the words and
+        # nothing else, so it segmented them as a fresh request. Measured as
+        # the principal (tips5, 2026-09-04): the Tester asked, the principal
+        # answered in one sentence, the answer came back as three statements
+        # to confirm, and the Tester asked again in other words. The chain
+        # holds the context: answer, clarify, the ask that caused the clarify.
+        # Nothing read it. This surfaces who asked, what, and about which rows.
+        if row["cause_id"]:
+            clarify = conn.execute(
+                "SELECT id, verb, body_text, cause_id FROM messages WHERE id = ?",
+                (row["cause_id"],)).fetchone()
+            if clarify and clarify["verb"] == "clarify":
+                answering: dict[str, Any] = {"question": clarify["body_text"]}
+                asker = conn.execute(
+                    "SELECT from_role, body_refs FROM messages WHERE id = ?",
+                    (clarify["cause_id"],)).fetchone() if clarify["cause_id"] else None
+                if asker:
+                    answering["asked_by"] = asker["from_role"]
+                    answering["about"] = json.loads(asker["body_refs"] or "[]")
+                out["answering"] = answering
+
     # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
     # says and cannot gate what is absent, so the absence is computed here and
     # handed to the presenter. A ratified statement no item reflects is a
@@ -763,14 +786,23 @@ def _resolve_contest(conn: sqlite3.Connection, item: str) -> dict[str, Any]:
 def _recent_chat(conn: sqlite3.Connection, current_msg_id: str,
                  limit: int = 8) -> list[dict[str, str]]:
     """Recent principal/liaison converse turns, newest last, excluding the wake."""
+    # Questions count as turns. This selected `converse` alone, so Liaison
+    # could not see what it had already asked. A role with no memory, shown
+    # the answer but not the question, cannot tell the ground has moved.
+    # `interrupt_cap` says never repeat and always reframe. That needs the
+    # last question in view.
     rows = conn.execute(
-        "SELECT from_role, body_text FROM messages "
-        "WHERE verb = 'converse' AND from_role IN ('principal', 'liaison') "
+        "SELECT from_role, verb, body_text FROM messages "
+        "WHERE verb IN ('converse', 'clarify') "
+        "  AND from_role IN ('principal', 'liaison') "
+        "  AND to_role IN ('principal', 'liaison') "
+        "  AND body_text IS NOT NULL AND body_text != '' "
         "  AND id != ? "
         "ORDER BY seq DESC LIMIT ?",
         (current_msg_id, limit)
     ).fetchall()
     return [{"from": r["from_role"], "text": r["body_text"] or ""}
+            | ({"asked": True} if r["verb"] == "clarify" else {})
             for r in reversed(rows)]
 
 

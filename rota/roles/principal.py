@@ -220,6 +220,65 @@ def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
     ]
 
 
+def render_state(conn: sqlite3.Connection) -> str:
+    """
+    Where the run is, in words, for the person who waits on it.
+
+    Every seat could say what the machine did: wake kinds, role names, row
+    counts. No seat could say what happened. Measured as the principal
+    (tips9, 2026-09-04): a walk built the code, failed six of seven tests,
+    climbed the escalation ladder, and went quiet. Nothing was pending, so
+    nothing was shown. A stopped run and a thinking run were the same picture.
+
+    The state is composed here once, like an ask. First what waits on you,
+    because that line asks for something. Then what shipped. Then what is
+    stuck and what would move it. Read from the rows, so it is true of a
+    database opened cold.
+    """
+    asks = pending_asks(conn)
+    if asks:
+        head = ("Waiting on you." if len(asks) == 1
+                else f"Waiting on you: {len(asks)} things. The first is:")
+        return head + chr(10) + asks[0].rendered
+
+    def count(sql):
+        row = conn.execute(sql).fetchone()
+        return row[0] if row else 0
+
+    merged = count("SELECT COUNT(*) FROM batches WHERE status = 'merged'")
+    running = count("SELECT COUNT(*) FROM batches WHERE status = 'running'")
+    pending = count("SELECT COUNT(*) FROM batches WHERE status = 'pending'")
+    approved = count("SELECT COUNT(*) FROM items WHERE approval = 'approved'")
+
+    out: list[str] = []
+    if merged:
+        out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
+                   "tested and merged.")
+    if running or pending:
+        failing = count(
+            "SELECT COUNT(DISTINCT t.test_id) FROM test_runs t "
+            "JOIN batches b ON b.id = t.batch_id "
+            "WHERE b.status = 'running' AND t.result != 'pass' "
+            "AND t.id IN (SELECT MAX(id) FROM test_runs GROUP BY test_id)")
+        if failing:
+            out.append(
+                f"Stuck: the code is written, but {failing} test"
+                f"{'s are' if failing > 1 else ' is'} still failing, and the "
+                "team has run out of things to try. Tell me what to change, "
+                "or what the tests should check.")
+        else:
+            out.append(f"Building: {running + pending} change"
+                       f"{'s' if running + pending > 1 else ''} in progress.")
+    if not out:
+        if approved:
+            out.append(f"Nothing waits on you and nothing is building. "
+                       f"{approved} thing{'s' if approved > 1 else ''} approved so far.")
+        else:
+            out.append("Nothing waits on you and nothing is building. "
+                       "Tell me what you want. I take it from there.")
+    return chr(10).join(out)
+
+
 def render_ask(conn: sqlite3.Connection, verb: str, refs: list[str],
                question: str | None = None) -> str:
     """The page alone. `render_page` also returns the numbered rows' order."""

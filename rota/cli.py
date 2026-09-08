@@ -474,10 +474,15 @@ def cmd_agenda(args: argparse.Namespace) -> int:
     from .core.predicates import outstanding
     from .roles.principal import pending_asks
 
+    from .roles.principal import pending_replies, render_state
+
     conn = connect_readonly(require(args.name))
     asks = pending_asks(conn)
     if not asks:
-        print("nothing is waiting on you")
+        # "nothing is waiting on you" was the whole answer. A finished run, a
+        # run stuck with red tests, and a run nobody started printed the same
+        # line. The agenda is where a person looks to learn what happened.
+        print(render_state(conn))
     for a in asks:
         print(f"[{a.message_id}] {a.verb} · rule by id: {', '.join(a.refs)}")
         if a.rendered:
@@ -485,7 +490,19 @@ def cmd_agenda(args: argparse.Namespace) -> int:
                 print(f"  {line}")
             if len(a.rendered.splitlines()) > args.limit:
                 print(f"  ... {len(a.rendered.splitlines()) - args.limit} more")
-    rows = outstanding(conn)
+    # Liaison's own words. They are displayed, not asked. "Displayed" meant
+    # displayed by the TUI only, so the command line never saw them.
+    replies = pending_replies(conn)
+    if replies:
+        print("\nsaid to you (no answer needed, but you can reply):")
+        for r in replies:
+            for line in (r.rendered or "").splitlines()[:args.limit]:
+                print(f"  {line}")
+            print(f"  reply with: rota sign {args.name} {r.message_id} --say '...'")
+
+    # Only what is outstanding. Every obligation printed at n=0 hid the real
+    # rows in a table of zeroes.
+    rows = [r for r in outstanding(conn) if r["count"]]
     if rows:
         print("\noutstanding:")
         for r in rows:
@@ -561,7 +578,10 @@ def cmd_sign(args: argparse.Namespace) -> int:
         def respond(self, ask):
             if ask.message_id != args.ask:
                 return None                       # defer everything else
-            if args.say:
+            # Words alone are a reply. Words with a ruling are its reason.
+            # `--say` returned before the ruling was read, so a contest and
+            # its reason were two commands and two unrelated acts.
+            if args.say and not (approve or contest):
                 return Answer(verb="converse", text=args.say)
             per_item = {i: "approve" for i in approve}
             per_item.update({i: "contest" for i in contest})
@@ -569,7 +589,8 @@ def cmd_sign(args: argparse.Namespace) -> int:
             if unknown:
                 raise SystemExit(f"{unknown} are not on this gate; it asks "
                                  f"about {ask.refs}")
-            return Answer(verb="verdict", per_item=per_item)
+            return Answer(verb="verdict", per_item=per_item,
+                          text=args.say or "")
 
     conn = connect(require(args.name))
     try:
