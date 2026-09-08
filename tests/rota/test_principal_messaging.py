@@ -48,7 +48,7 @@ def test_a_confirm_asks_whether_it_heard_right_and_quotes_the_words(db):
     assert page.startswith("Did I hear you right?"), page
     assert "one request" in page
     assert '"tip calculator pls"' in page, "their words, quoted as theirs"
-    assert "Approve if that's what you meant" in page
+    assert "Reply 'ok' if that is what you meant" in page
     assert "before anything is written" in page, "what approving starts"
     assert not RAW_ID.search(page), page
 
@@ -72,16 +72,16 @@ def test_a_signoff_page_reads_as_one_page_in_order(db):
     db.commit()
     ask = _ask(db, "m9", "present", ["calculate_tip", "how_it_works", "s1", "l_a69ad6edd4", "no_gui"])
     page = ask.rendered
-    assert page.startswith("Here's what I understand you want, on one page."), page
+    assert page.startswith("Here is what I understand you want, on one page."), page
     order = [page.index(x) for x in (
         "You asked:", '"tip calculator pls"',
-        "What we're building:", "The user types the bill",
+        "What we are building:", "The user types the bill",
         "It would:", "calculates the tip",
         "It would not:", "No graphical interface",
-        "Where you didn't say, I assumed:", "typed each time",
-        "Approve to start building.")]
+        "Where you did not say, I assumed:", "typed each time",
+        "Reply 'ok' to approve all of this and start building.")]
     assert order == sorted(order), page
-    assert "say what's wrong in your own words" in page
+    assert "Reply with words to correct it." in page
     assert not RAW_ID.search(page), page
     assert ": assumed:" not in page, "the old id-shaped rendering is gone from the page"
 
@@ -95,8 +95,8 @@ def test_constraint_zero_is_a_sentence_a_person_can_act_on(db):
     ask = _ask(db, "m12", "present", ["k0"])
     page = ask.rendered
     assert page.startswith("Nothing here has been read yet"), page
-    assert "That's normal for a new or unread project." in page
-    assert "Approve to go ahead" in page
+    assert "That is normal for a new or unread project." in page
+    assert "Reply 'ok' to go ahead" in page
     assert "committed to is unknown" not in page, "the doctrine's wording stays with the roles"
     assert "k0" not in page
 
@@ -117,7 +117,7 @@ def test_a_clarify_carries_the_question_its_context_and_the_bargain(db):
     assert page.startswith("I need one thing from you before I can continue."), page
     assert "What behaviour should these tests exercise?" in page
     assert "This is about:" in page and "accept a total bill amount" in page
-    assert page.rstrip().endswith("A sentence is enough; I'll take it from there.")
+    assert page.rstrip().endswith("Reply in a sentence. I take it from there.")
     assert "c_1" not in page and "c_2" not in page
 
 

@@ -28,6 +28,7 @@ The loop runs in a worker thread. Everything it does lands through
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import sqlite3
 import subprocess
@@ -125,26 +126,12 @@ class QueuedPrincipal:
 
     @staticmethod
     def _answer_for(ask: Ask, text: str) -> Answer:
-        raw = text.strip()
-        if ask.verb in ("confirm", "present"):
-            if raw.lower() in ("lgtm", "ok", "yes", "approve", "approved"):
-                return Answer(verb="verdict",
-                              per_item={ref: "approve" for ref in ask.refs})
-            per_item = {}
-            for part in raw.replace(",", " ").split():
-                if "=" in part:
-                    ref, ruling = part.split("=", 1)
-                elif ":" in part:
-                    ref, ruling = part.split(":", 1)
-                else:
-                    continue
-                if ref in ask.refs and ruling in ("approve", "contest", "revise"):
-                    per_item[ref] = ruling
-            if not per_item:
-                raise ValueError(
-                    "reply with 'lgtm' or rulings such as 's1=approve'")
-            return Answer(verb="verdict", per_item=per_item)
-        return Answer(verb="converse", text=raw)
+        # One parser for every seat. The page and the input are one contract,
+        # and this class kept its own copy of the input half -- which demanded
+        # ids after the page had stopped showing them (2026-09-04).
+        from ..roles.principal import parse_reply
+
+        return parse_reply(ask, text)
 
 
 class Outstanding(Static):
@@ -205,6 +192,8 @@ class RotaApp(App):
     }
     #runlist_container { width: 90%; height: 80%; }
     #runs { height: 1fr; }
+    #runlist_loading { align: center middle; height: 1fr; }
+    #runlist_loading Button { margin-top: 1; }
     #runlist_title, #newrun_title { text-style: bold; }
     #runlist_note, #newrun_detected { color: $text-muted; }
     #newrun_container { width: 70; }
@@ -1127,20 +1116,34 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", type=Path, default=None,
                     help="project root; omit to use the one the run records")
     args = ap.parse_args(argv)
-    RotaApp(Path(args.db) if args.db else None, args.model, root=args.root).run()
+    app = RotaApp(Path(args.db) if args.db else None, args.model, root=args.root)
 
-    # By the time `.run()` returns, Textual has already restored the terminal
-    # synchronously in `_shutdown()` and `on_unmount` has stopped every
-    # cockpit this seat owns. What's left is whatever `_turn_the_crank`'s
-    # worker thread is doing -- a session mid-`urlopen`, on a plain
-    # `asyncio` executor thread, which is not a daemon. Falling through to a
-    # normal return/`sys.exit()` hits CPython's `concurrent.futures.thread`
-    # atexit hook, which joins that thread before the interpreter is allowed
-    # to close -- a silent freeze of up to `OllamaBackend`'s 300s timeout.
-    # The run's state already lives in sqlite (autocommit), so there is
-    # nothing this process still owns that needs a clean unwind to save --
-    # os._exit skips the join along with the rest of interpreter teardown.
-    os._exit(0)
+    # Not `app.run()`. On a Python where `asyncio.get_event_loop()` outside a
+    # running loop is deprecated -- which is every Python this now ships on --
+    # `App.run()` drives itself through `asyncio.run()`, and `asyncio.run()`'s
+    # *own* cleanup, not Textual's, is `loop.shutdown_default_executor()`: a
+    # blocking wait, up to 300s, for every thread `_turn_the_crank` ever ran
+    # a session on. That wait sits inside `run()`, before it returns -- so
+    # `os._exit` placed after the call never got a turn to run early. Quitting
+    # mid-session sat through the full 300s, `RuntimeWarning` and all, and
+    # only then reached a line that would have skipped exactly that wait.
+    #
+    # `run_async` is the coroutine `run()` wraps `asyncio.run()` around, and
+    # `run_until_complete` on a loop of our own drives it without that
+    # cleanup ever running -- the same path `App.run()` itself takes on an
+    # older Python where a usable loop already exists (see its own `else`
+    # branch). Textual's shutdown still happens: `_shutdown()` restoring the
+    # terminal and `on_unmount` stopping every cockpit both live inside
+    # `run_async`, not in the part being skipped. What's left after it
+    # returns is only ever a lingering worker thread, and the run's state
+    # already lives in sqlite (autocommit) -- nothing here needs the wait
+    # `asyncio.run()` would have imposed on its way out.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(app.run_async())
+    finally:
+        os._exit(0)
 
 
 if __name__ == "__main__":                                 # pragma: no cover

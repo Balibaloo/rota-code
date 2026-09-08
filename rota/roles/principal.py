@@ -32,6 +32,9 @@ class Ask:
     verb: str                     # confirm | clarify | present
     refs: list[str] = field(default_factory=list)
     rendered: str = ""
+    # The rulable rows in the order the page shows them. "2: no" means the
+    # second numbered line, not the second ref.
+    order: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -107,20 +110,77 @@ class ConsolePrincipal:                                    # pragma: no cover
             return None
 
     def respond(self, ask: Ask) -> Answer | None:
-        print(f"\n[{ask.verb}] {ask.rendered or ask.refs}")
+        print(f"\n{ask.rendered or ask.refs}")
         if ask.verb in ("confirm", "present"):
-            print("  per-item: 'id=approve id2=contest', 'lgtm' for all, blank to defer")
-            raw = self._read()
-            if not raw:
-                return None
-            if raw.lower() in ("lgtm", "ok", "yes"):
-                return Answer(verb="verdict",
-                              per_item={r: "approve" for r in ask.refs})
-            per_item = dict(
-                part.split("=", 1) for part in raw.split() if "=" in part)
-            return Answer(verb="verdict", per_item=per_item)
+            print(REPLY_HELP)
         raw = self._read()
-        return Answer(verb="converse", text=raw) if raw else None
+        if not raw:
+            return None
+        return parse_reply(ask, raw)
+
+
+REPLY_HELP = ("  ok = approve all.  A sentence = correct it in your words.  "
+              "'2: <words>' = correct line 2 only.  Blank = decide later.")
+
+_APPROVE_WORDS = {"ok", "okay", "yes", "y", "lgtm", "approve", "approved",
+                  "fine", "good", "go", "yep", "correct", "right"}
+
+
+def parse_reply(ask: Ask, text: str) -> Answer:
+    """
+    A person's reply to an ask, as the Answer it means.
+
+    Measured as the principal (2026-09-04): the page had stopped showing ids,
+    the parser still demanded them, and the page promised "say what's wrong
+    in your own words" while no input could carry words with a verdict. The
+    only reply that worked was "lgtm". The page and the input are one
+    contract, and this is where it is kept.
+
+    For a confirm or a present:
+      - an approval word alone approves every row;
+      - "2: <words>" or "2 <words>" contests line 2 of the page, approves the
+        rest, and carries the words as the reason;
+      - "2, 4: <words>" does the same for lines 2 and 4;
+      - any other sentence contests every row and carries the words;
+      - "s1=approve t1=contest" still works, for scripts.
+    For a clarify, the text is the answer.
+    """
+    raw = text.strip()
+    if ask.verb not in ("confirm", "present"):
+        return Answer(verb="converse", text=raw)
+    if raw.lower().rstrip(".!") in _APPROVE_WORDS:
+        return Answer(verb="verdict",
+                      per_item={r: "approve" for r in ask.refs})
+
+    # Scripts: id=ruling pairs.
+    pairs: dict[str, str] = {}
+    for part in raw.replace(",", " ").split():
+        sep = "=" if "=" in part else (":" if ":" in part else None)
+        if sep:
+            ref, ruling = part.split(sep, 1)
+            if ref in ask.refs and ruling in ("approve", "contest", "revise"):
+                pairs[ref] = ruling
+    if pairs and len(pairs) == len([p for p in raw.replace(",", " ").split()
+                                    if "=" in p or ":" in p]):
+        return Answer(verb="verdict", per_item=pairs)
+
+    # "2: words" / "2 4: words" / "2, 4 words": numbers name page lines.
+    order = ask.order or ask.refs
+    head, _, tail = raw.partition(":")
+    nums = [int(n) for n in head.replace(",", " ").split() if n.isdigit()]
+    if nums and all(1 <= n <= len(order) for n in nums) and (
+            _ or len(head.replace(",", " ").split()) == len(nums)):
+        words = tail.strip() if _ else " ".join(
+            w for w in head.replace(",", " ").split() if not w.isdigit()).strip()
+        if not _ and not words:
+            words = ""
+        targets = {order[n - 1] for n in nums}
+        per_item = {r: ("contest" if r in targets else "approve") for r in ask.refs}
+        return Answer(verb="verdict", per_item=per_item, text=words)
+
+    # A sentence: the whole page is wrong in the way the sentence says.
+    return Answer(verb="verdict",
+                  per_item={r: "contest" for r in ask.refs}, text=raw)
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +196,10 @@ def pending_asks(conn: sqlite3.Connection) -> list[Ask]:
     return [
         Ask(message_id=r["id"], verb=r["verb"],
             refs=json.loads(r["body_refs"]),
-            rendered=render_ask(conn, r["verb"], json.loads(r["body_refs"]),
-                                r["body_text"]))
+            rendered=(page := render_page(conn, r["verb"],
+                                          json.loads(r["body_refs"]),
+                                          r["body_text"]))[0],
+            order=page[1])
         for r in conn.execute(
             "SELECT id, verb, body_refs, body_text FROM messages "
             "WHERE status = 'open' AND to_role = 'principal' "
@@ -160,129 +222,142 @@ def pending_replies(conn: sqlite3.Connection) -> list[Ask]:
 
 def render_ask(conn: sqlite3.Connection, verb: str, refs: list[str],
                question: str | None = None) -> str:
-    """
-    An ask, as a message to a person: what is being asked, why, and what
-    happens when they answer.
+    """The page alone. `render_page` also returns the numbered rows' order."""
+    return render_page(conn, verb, refs, question)[0]
 
-    `render_refs` reads the rows out; this is the page around them. Measured
-    on the tips runs (2026-09-03), as the principal: every ask arrived as a
-    verb name and a list of ids -- "confirm: s1: tip calculator pls",
-    "present: k0: Nobody has read this area yet...", "l_a69ad6edd4: assumed:
-    ..." -- and a newcomer could not tell what was being asked, what
-    approving would start, or which of the words were theirs. Liaison's brief
-    has the translate rule ("the principal does not know your roles'
-    vocabulary") and the mechanical presents route around it, because the
-    system composes them. So the composing happens here, once, for every
-    seat: no ids in the prose (the CLI keeps them in its header for `rota
-    sign`), the principal's own words quoted as theirs, the account before
-    the behaviours, what was assumed in its own place, and one closing line
-    that says what the answer does. SEAT.md's rules: asked specifically,
-    the bargain stated, never a form.
+
+def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
+                question: str | None = None) -> tuple[str, list[str]]:
+    """
+    An ask as a message to a person, and the rows it numbers, in order.
+
+    The page and the input are one contract. The page shows no ids, so the
+    input cannot ask for ids. Each rulable row gets a number. A reply of
+    "2: <words>" means the second numbered line. `parse_reply` reads the
+    same order this returns.
+
+    Measured as the principal (2026-09-04): asks arrived as a verb and a list
+    of ids, and a newcomer could not tell what was asked or what approving
+    would start. Then the ids were removed from the page while the parser
+    still demanded them, and the only reply that worked was "lgtm". This
+    function and `parse_reply` fix both faults together.
     """
     from ..core.runner import _resolve_refs
     from ..onboarding.boot import ZERO
 
     resolved = _resolve_refs(conn, refs)
-    said: list[str] = []
-    account: list[str] = []
-    does: list[str] = []
-    does_not: list[str] = []
-    terms: list[str] = []
-    assumed: list[str] = []
-    touches: list[str] = []
-    other: list[str] = []
+    said: list[tuple[str, str]] = []
+    account: list[tuple[str, str]] = []
+    does: list[tuple[str, str]] = []
+    does_not: list[tuple[str, str]] = []
+    terms: list[tuple[str, str]] = []
+    assumed: list[tuple[str, str]] = []
+    touches: list[tuple[str, str]] = []
+    other: list[tuple[str, str]] = []
     zero = False
     for ref in refs:
         row = resolved.get(ref)
         if not row:
             words = touch_words(conn, ref)
             if words:
-                touches.append(words)
+                touches.append((ref, words))
             continue
         if row.get("id") == ZERO:
             zero = True
             continue
         if row.get("term"):
-            terms.append(": ".join(x for x in (row["term"], row.get("sense_short")) if x))
+            terms.append((ref, ": ".join(
+                x for x in (row["term"], row.get("sense_short")) if x)))
             continue
         if row.get("default_taken"):
-            assumed.append(row["default_taken"])
+            assumed.append((ref, row["default_taken"]))
             continue
         text = next((row[k] for k in ("text", "headline", "body") if row.get(k)), "")
         kind = row.get("kind")
         if kind == "in_scope":
-            (account if row.get("id") == "how_it_works" else does).append(text)
+            (account if row.get("id") == "how_it_works" else does).append((ref, text))
         elif kind == "out_of_scope":
-            does_not.append(text)
+            does_not.append((ref, text))
         elif "approval" not in row and row.get("status") in (
                 "proposed", "ratified", "superseded", "contradicted", "clarified"):
-            said.append(text)
+            said.append((ref, text))
         elif text:
-            other.append(text)
+            other.append((ref, text))
 
     out: list[str] = []
+    order: list[str] = []
+
+    def numbered(rows: list[tuple[str, str]], quote: bool = False) -> None:
+        for ref, text in rows:
+            order.append(ref)
+            shown = f'"{text}"' if quote else text
+            out.append(f"  {len(order)}. {shown}")
+
     if verb == "confirm":
         n = len(said) or len(other) or len(refs)
-        out.append("Did I hear you right? I've taken this as "
+        out.append("Did I hear you right? I have taken this as "
                    + ("one request:" if n == 1 else f"{n} separate requests:"))
-        out += [f'  "{s}"' for s in said] or [f"  {o}" for o in other]
-        out.append("Approve if that's what you meant, or tell me what's wrong. "
-                   "Once you approve, I'll work out what to build and show you "
-                   "before anything is written.")
+        numbered(said, quote=True)
+        numbered(other)
+        out.append("Reply 'ok' if that is what you meant. Reply with words if "
+                   "it is wrong. After 'ok', I work out what to build and show "
+                   "you the plan before anything is written.")
     elif verb == "present" and touches:
-        out.append("Before I build this, here's what I expect to touch.")
-        for d in does + account:
-            out.append(f"  For: {d}")
-        out += [f"  {t}" for t in touches]
+        out.append("Before I build this, here is what I expect to touch.")
+        numbered(does + account)
+        numbered(touches)
         if zero:
-            out.append("  Some of that code hasn't been read yet, so I can't say "
+            out.append("  Some of that code has not been read yet. I cannot say "
                        "what a change there might break.")
-        out.append("This is a prediction, not a promise. Approve to go ahead, "
-                   "or say what concerns you.")
+        out.append("This is a prediction, not a promise. Reply 'ok' to go "
+                   "ahead. Reply with words if something concerns you.")
     elif verb == "present" and zero and not (said or account or does or does_not):
-        out.append("Nothing here has been read yet, so I can't say what a change "
-                   "might break. That's normal for a new or unread project.")
-        out.append("Approve to go ahead; I'll flag anything I touch that I "
-                   "haven't read.")
+        out.append("Nothing here has been read yet, so I cannot say what a "
+                   "change might break. That is normal for a new or unread "
+                   "project.")
+        out.append("Reply 'ok' to go ahead. I will flag anything I touch that "
+                   "I have not read.")
     elif verb == "present":
-        out.append("Here's what I understand you want, on one page.")
+        out.append("Here is what I understand you want, on one page.")
         if said:
             out.append("You asked:")
-            out += [f'  "{s}"' for s in said]
+            numbered(said, quote=True)
         if account:
-            out.append("What we're building:")
-            out += [f"  {a}" for a in account]
+            out.append("What we are building:")
+            numbered(account)
         if does:
             out.append("It would:")
-            out += [f"  - {d}" for d in does]
+            numbered(does)
         if does_not:
             out.append("It would not:")
-            out += [f"  - {d}" for d in does_not]
+            numbered(does_not)
         if assumed:
-            out.append("Where you didn't say, I assumed:")
-            out += [f"  - {a}" for a in assumed]
+            out.append("Where you did not say, I assumed:")
+            numbered(assumed)
         if terms:
             out.append("A word that means more than one thing here:")
-            out += [f"  - {t}" for t in terms]
-        if other:
-            out += [f"  {o}" for o in other]
+            numbered(terms)
+        numbered(other)
         if zero:
-            out.append("Some of this code hasn't been read yet; I'll flag anything "
-                       "I touch there.")
-        out.append("Approve to start building. Or say what's wrong in your own "
-                   "words, and I'll correct it before anything is built.")
+            out.append("Some of this code has not been read yet. I will flag "
+                       "anything I touch there.")
+        out.append("Reply 'ok' to approve all of this and start building. "
+                   "Reply with words to correct it. Reply '2: <words>' to "
+                   "correct line 2 only.")
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
         if question:
             out.append(f"  {question.strip()}")
-        context = said + account + does + does_not + assumed + terms + other + touches
+        context = [t for _, t in said + account + does + does_not + assumed
+                   + terms + other + touches]
         if context:
             out.append("This is about:")
             out += [f"  - {c}" for c in context]
-        out.append("A sentence is enough; I'll take it from there.")
+        out.append("Reply in a sentence. I take it from there.")
     else:
-        out += [f"  {x}" for x in said + account + does + does_not + assumed + terms + touches + other]
-    return chr(10).join(out)
+        out += [f"  {t}" for _, t in said + account + does + does_not + assumed
+                + terms + touches + other]
+    return chr(10).join(out), order
 
 
 def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:
