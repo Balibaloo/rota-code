@@ -25,11 +25,6 @@ account says what you took, and each such point is logged, one call per point:
 A statement of a few words is silent on most things; three words leave at
 least one. The row rides on the page the principal signs: one they see and
 approve ratifies its default, one they never see is a guess that ships.
-An assumption is a default you took where *their* words were silent. A fact
-that lives outside the project -- what a standard requires, what a provider
-mandates, what a law says -- is nobody's to assume here: put it to the
-Researcher, `msg.question_researcher` with the statement's id and the
-question in words, and log nothing that rests on it.
 Then the behaviours that account needed, one `problem.assert` each.
 
 Measured on the tips run (2026-09-03): three desks read "tip calculator pls"

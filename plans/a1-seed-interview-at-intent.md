@@ -82,11 +82,13 @@ rule.
    shape, and `L1-VK-the-account-before-the-behaviours` expects `ledger
    1..4` -- green on the recording model 2026-09-03 (the sentence form had
    logged nothing on qwen3:8b in the tips6 walk; the literal shape is the
-   lever, as with every worked example here). The same brief distinguishes an
-   assumption (a default where *their* words were silent) from an outside
-   fact (the Researcher's), because the first ledger clause had absorbed the
-   Researcher route (`L1-VK-an-outside-fact-is-the-researchers` 5/5 -> 0/5).
-   Then Terminologist (criteria) and Architect (deliver), one case each.
+   lever, as with every worked example here). A paragraph that separated an
+   assumption from an outside fact (the Researcher's) was tried and removed
+   on 2026-09-09: with it the account case went 5/5 -> 0/5 (the model read
+   and never wrote) and the outside-fact case stayed 0/5. The Researcher
+   route from deliver is an open register red. It needs a different lever
+   than another sentence. Then Terminologist (criteria) and Architect
+   (deliver), one case each.
 4. **Never twice.** The `unresolved` ladder put the identical clarify to the
    principal twice in one run (tips5, 2026-09-03), against the interrupt-cap
    doctrine. A derived reask whose words did not change is refused toward a
