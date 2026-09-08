@@ -254,12 +254,31 @@ def render_state(conn: sqlite3.Connection) -> str:
     if merged:
         out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
                    "tested and merged.")
+    # A tick tried past its cap and quarantined is the team giving up. It
+    # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
+    # without a verdict, was quarantined, the batch stayed running, and the
+    # seat said "Building" because nothing else was pending.
+    gave_up = [r["tick_key"] for r in conn.execute(
+        "SELECT tick_key FROM tick_attempts WHERE quarantined = 1 "
+        "AND tick_key NOT LIKE '%tick:constraint_zero%'")]
+    if gave_up:
+        what = ", ".join(
+            f"{k.split('|')[1].replace('tick:', '')} for "
+            f"{k.split('|')[2] or 'the whole project'}" for k in gave_up)
+        out.append(f"Stuck. The team gave up on: {what}. Nothing waits on you, "
+                   "and nothing moves until that is cleared. Tell me what to "
+                   "change.")
+        return chr(10).join(out)
     if running or pending:
+        # At the batch's head commit, the harness's own notion of "now". The
+        # first version picked the latest run by MAX(id), and ids are strings:
+        # 'tr9' sorts after 'tr11', so a run that had gone green still read as
+        # "1 test failing" (tipsH, 2026-09-09).
         failing = count(
             "SELECT COUNT(DISTINCT t.test_id) FROM test_runs t "
             "JOIN batches b ON b.id = t.batch_id "
             "WHERE b.status = 'running' AND t.result != 'pass' "
-            "AND t.id IN (SELECT MAX(id) FROM test_runs GROUP BY test_id)")
+            "AND t.commit_sha = b.head_commit")
         if failing:
             out.append(
                 f"Stuck: the code is written, but {failing} test"
@@ -270,21 +289,7 @@ def render_state(conn: sqlite3.Connection) -> str:
             out.append(f"Building: {running + pending} change"
                        f"{'s' if running + pending > 1 else ''} in progress.")
     if not out:
-        # A tick that was tried past its cap and quarantined is the team giving
-        # up before any batch exists. Measured (tipsE, 2026-09-08): the
-        # Architect could not group two tickets, was quarantined after three
-        # tries, and the seat said "nothing is building", which was true and
-        # not the point.
-        gave_up = [r["tick_key"] for r in conn.execute(
-            "SELECT tick_key FROM tick_attempts WHERE quarantined = 1")]
-        if gave_up:
-            what = ", ".join(
-                f"{k.split('|')[1].replace('tick:', '')} for "
-                f"{k.split('|')[2] or 'the whole project'}" for k in gave_up)
-            out.append(f"Stuck before building. The team gave up on: {what}. "
-                       "Nothing waits on you, and nothing moves until that is "
-                       "cleared. Tell me what to change.")
-        elif approved:
+        if approved:
             out.append(f"Nothing waits on you and nothing is building. "
                        f"{approved} thing{'s' if approved > 1 else ''} approved so far.")
         else:

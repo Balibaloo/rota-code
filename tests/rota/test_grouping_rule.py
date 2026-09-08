@@ -62,6 +62,28 @@ def test_the_state_names_what_the_team_gave_up_on(db):
                "('architect|tick:grouping|tk_1,tk_2', 3, 1)")
     db.commit()
     state = render_state(db)
-    assert state.startswith("Stuck before building."), state
+    assert state.startswith("Stuck. The team gave up on:"), state
     assert "grouping for tk_1,tk_2" in state
     assert "Tell me what to change." in state
+
+
+def test_the_state_reads_failures_at_the_head_commit_not_by_id_order(db):
+    """
+    Ids are strings: 'tr9' sorts after 'tr11'. The state picked the latest run
+    by MAX(id) and reported a green batch as "1 test failing" (tipsH,
+    2026-09-09). The harness's own notion of now is the batch's head commit.
+    """
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
+               "('bg_1','calculate_tip','running','77f2c70')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_2','bg_1','c_1','tests/test_x.py','def test_x(): pass')")
+    for i, (sha, result) in enumerate((("718bb20", "fail"), ("77f2c70", "pass")), start=9):
+        db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) "
+                   "VALUES (?, 'bg_1', 'tst_2', ?, ?)", (f"tr{i}", sha, result))
+    db.commit()
+    state = render_state(db)
+    assert state.startswith("Building:"), state
+    db.execute("UPDATE test_runs SET result = 'fail' WHERE id = 'tr10'")
+    db.commit()
+    assert render_state(db).startswith("Stuck:")
+
