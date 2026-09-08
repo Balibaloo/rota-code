@@ -141,8 +141,12 @@ def _run_one(root: Path, path: str, timeout: int) -> tuple[str, str]:
     # test suite is the worst available failure: it looks like the Developer's
     # problem and it is not.
     try:
+        # The worktree's own interpreter when it has one. `sys.executable` was
+        # rota's own, with rota's own packages, so a project that imported
+        # anything else could not be tested and nothing said why.
+        from .provision import python_for
         out = subprocess.run(
-            [sys.executable, "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
+            [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
             cwd=root, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return "error", f"timed out after {timeout}s"

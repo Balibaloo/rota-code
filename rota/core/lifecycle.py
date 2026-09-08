@@ -67,6 +67,17 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
         # directory the Tester's paths need. A repository with its own test
         # configuration is left entirely alone.
         scaffold.ensure_floor(conn, batch_id)
+        # The batch's own interpreter, with what the project declares. Best
+        # effort: a failure is noted and the harness falls back to rota's own
+        # interpreter, which is what it always ran.
+        from . import provision
+        row = conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                           (batch_id,)).fetchone()
+        if row and row["worktree"]:
+            _, note = provision.ensure_env(_Path(row["worktree"]))
+            conn.execute(
+                "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                (f"env:{batch_id}", note))
 
 
 def defer(conn: sqlite3.Connection, batch_id: str) -> None:

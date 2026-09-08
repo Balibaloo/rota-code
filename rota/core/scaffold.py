@@ -111,7 +111,8 @@ def _python_floor(root: Path, name: str | None = None) -> list[str]:
     if not ignore.exists():
         # Walk thirty-seven's delivered branch carried __pycache__: the
         # harness runs pytest in the worktree and the Developer commits -A.
-        ignore.write_text(chr(10).join(["__pycache__/", "*.pyc", ".pytest_cache/", ""]),
+        ignore.write_text(chr(10).join(["__pycache__/", "*.pyc", ".pytest_cache/",
+                                        ".venv/", ""]),
                           encoding="utf-8")
         made.append(".gitignore")
     tests = root / "tests"
