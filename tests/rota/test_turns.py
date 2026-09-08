@@ -534,3 +534,43 @@ def test_a_reply_to_a_clarify_says_who_asked_and_about_what(tmp_path):
     two = resolve_inbound(db, Wake("liaison", "message", message_id="m6", detail="converse"))
     assert two["answering"] == {"question": "Is the assumption right?",
                                 "asked_by": "liaison", "about": ["l_1"]}
+
+
+def test_a_report_about_rows_the_principal_already_answered_carries_the_answers(tmp_path):
+    """
+    A report about a row the principal has answered once is not a new question.
+    On the tipsG walk (2026-09-09) one collision was reported eight times, each
+    report became a clarify, and the principal gave the same answer eight
+    times. The answers were on file; the harvest could not see them.
+    `prior_answers` carries each earlier question and the principal's words,
+    for the rows the report names.
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) VALUES "
+               "('g1','total','the bill before the tip','decided')")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m3','principal','total means the bill plus the tip',1)")
+    m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+         "body_text, cause_id, seq) VALUES (?,?,?,?,?,?,?,?,?)")
+    db.execute(m, ("m1", "th", "terminologist", "liaison", "report", json.dumps(["g1"]), None, None, 1))
+    db.execute(m, ("m2", "th", "liaison", "principal", "clarify", json.dumps(["g1"]),
+                   "Does total include the tip?", "m1", 2))
+    db.execute(m, ("m3", "th", "principal", "liaison", "converse", json.dumps(["g1"]), None, "m2", 3))
+    # The same collision, reported again.
+    db.execute(m, ("m4", "th", "terminologist", "liaison", "report", json.dumps(["g1"]), None, None, 4))
+    # A report about a different row carries nothing.
+    db.execute(m, ("m5", "th", "architect", "liaison", "report", json.dumps(["k9"]), None, None, 5))
+    db.commit()
+
+    again = resolve_inbound(db, Wake("liaison", "message", message_id="m4", detail="report"))
+    assert again["prior_answers"] == [{"question": "Does total include the tip?",
+                                       "principal_said": "total means the bill plus the tip",
+                                       "about": ["g1"]}]
+    other = resolve_inbound(db, Wake("liaison", "message", message_id="m5", detail="report"))
+    assert "prior_answers" not in other

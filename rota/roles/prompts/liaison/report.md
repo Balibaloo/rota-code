@@ -22,3 +22,12 @@ leave the payments boundary — which gives?" is the question.
 answers. Name the two things that cannot both hold, and say what each way costs.
 
 Send one `msg.clarify_principal` carrying the question and the report's refs.
+
+**If `prior_answers` is in the message, do not ask.** The principal has
+already answered about these rows. `prior_answers` holds their words. Relay
+those words to the owner of the rows -- `msg.relay_vision_keeper`,
+`msg.relay_terminologist` or `msg.relay_architect` -- with the report's refs.
+Then stop. Measured on a live run (tipsG, 2026-09-09): one collision was
+reported eight times, each report became a clarify, and the principal gave
+the same answer eight times. The answers were on file. Asking again spends
+the one budget that cannot be topped up on a question already settled.

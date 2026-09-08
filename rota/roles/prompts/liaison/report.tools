@@ -2,3 +2,6 @@ decisions.search
 msg.clarify_principal
 brief.list
 transcript.quote
+msg.relay_vision_keeper
+msg.relay_terminologist
+msg.relay_architect

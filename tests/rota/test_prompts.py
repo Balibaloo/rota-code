@@ -46,6 +46,7 @@ from rota.core.sandbox import build
 KNOWN_UNBRIEFED = {
     "architect": ("glossary.lookup", "msg.question_researcher"),
     "developer": ("msg.question_researcher",),
+    "vision_keeper": ("msg.question_researcher",),
     "liaison": ("decisions.search",),
     "researcher": ("msg.answer_architect", "msg.answer_developer",
                    "msg.answer_vision_keeper", "msg.answer_terminologist",

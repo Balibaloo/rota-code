@@ -698,6 +698,33 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         if siblings:
             out["other_reports"] = siblings
 
+        # What the principal has already said about these rows. A report
+        # about a row the principal answered once is not a new question. On
+        # the tipsG walk (2026-09-09) the Terminologist reported one collision
+        # eight times, each report became a clarify, and the principal
+        # answered the same thing eight times. The answers were on file. The
+        # harvest could not see them. Each is the clarify's words and the
+        # principal's reply, for the rows this report names.
+        from ..roles.principal import entry_for
+        refs_here = set(out["refs"])
+        prior = []
+        for c in conn.execute(
+                "SELECT id, body_text, body_refs FROM messages "
+                "WHERE verb = 'clarify' AND to_role = 'principal' ORDER BY seq"):
+            if not refs_here & set(json.loads(c["body_refs"] or "[]")):
+                continue
+            reply = conn.execute(
+                "SELECT id FROM messages WHERE from_role = 'principal' "
+                "AND cause_id = ? ORDER BY seq DESC LIMIT 1", (c["id"],)).fetchone()
+            if not reply:
+                continue
+            said = entry_for(conn, reply["id"])
+            if said:
+                prior.append({"question": c["body_text"], "principal_said": said,
+                              "about": json.loads(c["body_refs"] or "[]")})
+        if prior:
+            out["prior_answers"] = prior
+
     # Chat memory: a Liaison intake session sees the recent back-and-forth so
     # greetings and follow-ups are answered in context. This is the one place
     # where a role is deliberately given history; the no-memory rule still
