@@ -716,8 +716,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
         # Nothing read it. This surfaces who asked, what, and about which rows.
         if row["cause_id"]:
             clarify = conn.execute(
-                "SELECT id, verb, body_text, cause_id FROM messages WHERE id = ?",
-                (row["cause_id"],)).fetchone()
+                "SELECT id, verb, body_text, body_refs, cause_id FROM messages "
+                "WHERE id = ?", (row["cause_id"],)).fetchone()
             if clarify and clarify["verb"] == "clarify":
                 answering: dict[str, Any] = {"question": clarify["body_text"]}
                 asker = conn.execute(
@@ -726,6 +726,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 if asker:
                     answering["asked_by"] = asker["from_role"]
                     answering["about"] = json.loads(asker["body_refs"] or "[]")
+                else:
+                    # Liaison's own question, with no desk behind it. The rows
+                    # the clarify named are what the reply is about, and their
+                    # owner is who acts on it. Measured (tipsF, 2026-09-08):
+                    # two such clarifies carried nothing here, the brief had
+                    # no row to route to, and both replies re-entered as
+                    # fresh requests to confirm.
+                    answering["asked_by"] = "liaison"
+                    answering["about"] = (json.loads(clarify["body_refs"] or "[]")
+                                          or json.loads(row["body_refs"] or "[]"))
                 out["answering"] = answering
 
     # Signoff disclosure (ruled 2026-09-03): the principal gates what an item

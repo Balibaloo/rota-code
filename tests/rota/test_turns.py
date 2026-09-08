@@ -487,3 +487,50 @@ def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
     # Contested in the table but no verdict ever named it: nothing to carry.
     assert resolve_inbound(db, Wake("vision_keeper", "tick:contested",
                                     refs=("t2",))) == {}
+
+
+def test_a_reply_to_a_clarify_says_who_asked_and_about_what(tmp_path):
+    """
+    A principal converse whose cause is a clarify is a reply. Liaison was shown
+    the words and nothing about the question, so it segmented them as new work
+    (tips5). `answering` carries who asked, what, and which rows.
+
+    Two shapes. A desk's report caused the clarify: the desk and its refs. Or
+    Liaison asked on its own, with no cause: then the clarify's own refs are
+    what the reply is about (tipsF, 2026-09-08: two such replies re-entered as
+    fresh requests because nothing here named a row).
+    """
+    import json
+
+    from rota.core.db import init_db
+    from rota.core.predicates import Wake
+    from rota.core.runner import resolve_inbound
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m3','principal','both, show the tip and the total',1)")
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e_m6','principal','yes, that is right',2)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('how_it_works','the account','in_scope','decided','draft',0,1)")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+               "author) VALUES ('l_1','how_it_works','items','typed each time','open','vision_keeper')")
+    m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+         "body_text, cause_id, seq) VALUES (?,?,?,?,?,?,?,?,?)")
+    # Shape one: the Tester reported, Liaison clarified, the principal replied.
+    db.execute(m, ("m1", "th", "tester", "liaison", "report", json.dumps(["c_1"]), None, None, 1))
+    db.execute(m, ("m2", "th", "liaison", "principal", "clarify", json.dumps(["c_1"]),
+                   "What should the tests exercise?", "m1", 2))
+    db.execute(m, ("m3", "th", "principal", "liaison", "converse", json.dumps(["c_1"]), None, "m2", 3))
+    # Shape two: Liaison asked on its own about an assumption; no cause.
+    db.execute(m, ("m5", "th", "liaison", "principal", "clarify", json.dumps(["l_1"]),
+                   "Is the assumption right?", None, 5))
+    db.execute(m, ("m6", "th", "principal", "liaison", "converse", json.dumps(["l_1"]), None, "m5", 6))
+    db.commit()
+
+    one = resolve_inbound(db, Wake("liaison", "message", message_id="m3", detail="converse"))
+    assert one["answering"] == {"question": "What should the tests exercise?",
+                                "asked_by": "tester", "about": ["c_1"]}
+    two = resolve_inbound(db, Wake("liaison", "message", message_id="m6", detail="converse"))
+    assert two["answering"] == {"question": "Is the assumption right?",
+                                "asked_by": "liaison", "about": ["l_1"]}
