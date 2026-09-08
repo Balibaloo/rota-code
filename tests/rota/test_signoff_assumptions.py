@@ -126,6 +126,13 @@ def test_approving_an_assumption_takes_the_default_at_the_keypress(db):
 
     sent = db.execute("SELECT body_refs FROM messages WHERE id = ?", (mid,)).fetchone()
     assert json.loads(sent["body_refs"]) == ["how_it_works"], "the taken default is not relayed"
+    # The item ruling lands at the keypress too. The owner used to apply it
+    # and dropped rows (tips7, tips8, 2026-09-04): the account stayed draft
+    # and the same page came back without end.
+    item = db.execute("SELECT approval, approval_ver, version FROM items "
+                      "WHERE id = 'how_it_works'").fetchone()
+    assert item["approval"] == "approved"
+    assert item["approval_ver"] == item["version"]
     assert verdict_for(db, mid) == {"how_it_works": "approve", "L1": "approve"}, (
         "the ruling itself is recorded whole")
 
@@ -159,4 +166,7 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
                                  (mid,)).fetchone()["body_refs"]) == ["how_it_works"]
     assert verdict_for(db, mid) == {"how_it_works": "contest", "L1": "contest"}, (
         "contesting what was assumed about a row contests the row")
+    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'"
+                      ).fetchone()["approval"] == "contested", (
+        "the contest lands on the row at the keypress, so the contested tick fires")
     assert _owner_of_ref(db, "L1") == "vision_keeper"

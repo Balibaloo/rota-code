@@ -542,6 +542,32 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
         conn.execute("UPDATE ledger SET status = 'resolved' WHERE id = ?", (ref,))
         closed_here.append(ref)
 
+    # The ruling lands on the rows it names, here, at the keypress.
+    #
+    # The owner used to apply it. The owner was woken with the verdict and
+    # told to write the state for each ruling, from a lookup table in its own
+    # brief. Measured as the principal (tips7, tips8, 2026-09-04): given five
+    # refs, the model applied two, invented a third on a statement, and
+    # dropped `how_it_works`. The account never left `draft`. `tick_signoff`
+    # fired again. The principal got the same page again, with no exit.
+    #
+    # The state that follows from a ruling is not a judgement. So the state
+    # lands here. The relay still goes out for the judgement half: an
+    # amendment the words demand, and the order of the approved items.
+    # `approval_ver` is stamped against the current version. That keeps law
+    # 9 true: no batch schedules unless its approval postdates its last
+    # amendment.
+    for ref, ruling in per_item.items():
+        if ref in closed_here:
+            continue
+        state = {"approve": "approved", "contest": "contested",
+                 "revise": "contested"}.get(ruling)
+        if state is None:
+            continue
+        conn.execute(
+            "UPDATE items SET approval = ?, approval_ver = version "
+            "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
+
     refs = [r for r in (list(per_item) or ask.refs) if r not in closed_here]
     conn.execute(
         "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "

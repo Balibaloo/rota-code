@@ -598,8 +598,21 @@ def observed_entries(conn) -> list[Wake]:
 
 @predicate("tests_missing", wakes="tester", band="start")
 def tests_missing(conn) -> list[Wake]:
-    """Criteria for a batch with no tests. Tester needs only criteria, so it can
-    run as soon as they exist — it does not wait for the Developer."""
+    """Criteria for a batch with no tests, after the Developer has committed.
+
+    The Tester ran as soon as criteria existed, before the Developer. On a
+    greenfield batch there is nothing to call. Every test the Tester could
+    write asserted a constant it had just assigned. The encode door refused
+    each one. Measured as the principal on three walks (2026-09-04): six of
+    seven tests red, no program, and a question to the principal that the
+    criteria had already answered.
+
+    The Tester now waits for `head_commit`. It stays black-box. Criteria are
+    still its only material. The thing the criterion names now exists to be
+    imported and called. The criteria are the specification, written by
+    another role before this. The order of these two roles does not change
+    them. `batch_start` needs no tests, so nothing deadlocks.
+    """
     # Per criterion, not per batch. Walk nine: four criteria, three encodes
     # refused at the harness-fact bar, one landed -- and the batch never
     # woke the Tester again, because "a batch with no tests" had one. The
@@ -608,8 +621,10 @@ def tests_missing(conn) -> list[Wake]:
     # wakes it).
     rows = conn.execute(
         "SELECT DISTINCT bt.batch_id AS bid FROM batch_tickets bt "
+        "JOIN batches b ON b.id = bt.batch_id "
         "JOIN criteria c ON c.ticket_id = bt.ticket_id "
-        "WHERE NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id) "
+        "WHERE b.head_commit IS NOT NULL AND b.head_commit != '' "
+        "  AND NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id) "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
         "                  AND m.body_refs LIKE '%\"' || c.id || '\"%')"

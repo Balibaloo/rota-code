@@ -215,8 +215,21 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
 
     If the project has no indexed areas yet, there is no real project to survey,
     so there is no meaningful `k0` to create or present.
+
+    An area holds code, or it binds nothing. Constraint zero says "what this
+    area is committed to is unknown". A commitment is something code makes. A
+    README, a licence and a `.gitignore` promise nothing a change could break.
+    An area of pure prose is not unread ground. It is ground with nothing on
+    it. Measured as the principal (tips5, tips7, 2026-09-04): a new project
+    whose only file was `README.md` indexed one prose area. `k0` existed and
+    bound to it. The walk stopped to ask the principal to approve a paragraph
+    of internal doctrine on a repository with no code. Symbol grains are the
+    test. `_EXPECTED_UNPARSED` already uses the same signal.
     """
-    if not conn.execute("SELECT 1 FROM code_index WHERE area IS NOT NULL LIMIT 1").fetchone():
+    coded = [r["area"] for r in conn.execute(
+        "SELECT DISTINCT area FROM code_index "
+        "WHERE area IS NOT NULL AND grain_kind = 'symbol' ORDER BY area")]
+    if not coded:
         conn.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?", (ZERO,))
         conn.execute("DELETE FROM constraints WHERE id = ?", (ZERO,))
         return 0
@@ -228,9 +241,7 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
 
     surveyed = {r["area"] for r in conn.execute(
         "SELECT DISTINCT area FROM survey_records")}
-    remaining = [r["area"] for r in conn.execute(
-        "SELECT DISTINCT area FROM code_index WHERE area IS NOT NULL ORDER BY area")
-        if r["area"] not in surveyed]
+    remaining = [area for area in coded if area not in surveyed]
 
     conn.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?", (ZERO,))
     conn.executemany(

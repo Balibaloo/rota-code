@@ -437,7 +437,10 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
                "('i1','archived orders are searchable','in_scope','decided',"
                "'approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','search')")
-    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    # A commit. The Tester now waits for one, because on a greenfield batch
+    # there is nothing to call. This case is about collisions, not ordering.
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('b1','i1','running','deadbeef')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
                "('c1','tk1','archived orders come back from search','[\"g1\"]')")
