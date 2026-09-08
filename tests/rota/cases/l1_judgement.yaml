@@ -144,7 +144,7 @@
       - {id: <c1>, ticket_id: <tk1>, text: "prorate(999, 1, 3) returns 333",
          term_refs: '[]'}
     batches:
-      - {id: <b1>, item_id: <i1>, status: pending}
+      - {id: <b1>, item_id: <i1>, status: pending, head_commit: deadbeef}
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:

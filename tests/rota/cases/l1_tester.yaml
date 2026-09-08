@@ -148,7 +148,7 @@
          text: "the exported file is easy for the finance team to work with",
          term_refs: '[]'}
     batches:
-      - {id: <b1>, item_id: <i1>, status: running}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: deadbeef}
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:
@@ -187,7 +187,7 @@
          text: "each webhook carries a signature header in the format the
            receiving spec requires", term_refs: '[]'}
     batches:
-      - {id: <b1>, item_id: <i1>, status: running}
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: deadbeef}
     batch_tickets:
       - {batch_id: <b1>, ticket_id: <tk1>}
   expect:

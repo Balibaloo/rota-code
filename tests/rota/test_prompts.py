@@ -45,9 +45,7 @@ from rota.core.sandbox import build
 # uncovered in the matrix, which is what this looks like from the other side.
 KNOWN_UNBRIEFED = {
     "architect": ("glossary.lookup", "msg.question_researcher"),
-    "critic": ("msg.challenge_developer",),
     "developer": ("msg.question_researcher",),
-    "vision_keeper": ("msg.question_researcher",),
     "liaison": ("decisions.search",),
     "researcher": ("msg.answer_architect", "msg.answer_developer",
                    "msg.answer_vision_keeper", "msg.answer_terminologist",

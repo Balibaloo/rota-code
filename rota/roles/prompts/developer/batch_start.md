@@ -3,7 +3,7 @@ MODE: batch_start — a batch is yours.
 Load the tickets and their criteria, read the constraints that bind what you are
 about to touch, and build it.
 
-**`main.py` is the program's entry point.** On a new project the floor lays it
+**main.py is the program's entry point.** On a new project the floor lays it
 with an empty `main()`. Wire the behaviour the criteria name into `main()`. A
 person runs the program with `python main.py`. Do not create a second entry
 point. Do not leave `main()` printing "nothing to do yet" when a criterion
