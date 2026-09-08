@@ -3,6 +3,12 @@ MODE: batch_start — a batch is yours.
 Load the tickets and their criteria, read the constraints that bind what you are
 about to touch, and build it.
 
+**`main.py` is the program's entry point.** On a new project the floor lays it
+with an empty `main()`. Wire the behaviour the criteria name into `main()`. A
+person runs the program with `python main.py`. Do not create a second entry
+point. Do not leave `main()` printing "nothing to do yet" when a criterion
+says what the program does for the person running it.
+
 1. `tickets.load` and `criteria.load` — the batch's tickets and what "done" means
    for each. The criteria are the specification; the ticket text is context
 2. `model.load` — the constraints in play. These are external commitments, not

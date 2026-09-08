@@ -218,10 +218,17 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     amendment. Fires per *gate result* rather than per item: one session with the
     whole batch of approvals is cheaper and better informed.
     """
+    # The account is not sliced. `how_it_works` is the whole program in four
+    # sentences, the first item on the page. The behaviours beside it are what
+    # tickets come from. Measured on a cold walk (tipsE, 2026-09-08): the
+    # account was approved with no ticket, this predicate woke Vision Keeper,
+    # Vision Keeper sliced nothing from it, and the predicate woke it again.
+    # Fifty sessions, no batch, no ask.
     rows = conn.execute(
         "SELECT id FROM items "
         "WHERE kind = 'in_scope' AND approval = 'approved' "
         "  AND approval_ver >= version "
+        "  AND id != 'how_it_works' "
         "  AND id NOT IN (SELECT item_id FROM tickets)"
     ).fetchall()
     if not rows:

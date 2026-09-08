@@ -41,9 +41,68 @@ pythonpath = ["."]
 """
 
 
+_MAIN = (
+    '"""{name}: the program\'s entry point. Run it with `python main.py`."""',
+    "import argparse",
+    "",
+    "",
+    "def main(argv=None) -> int:",
+    "    parser = argparse.ArgumentParser(prog={name!r})",
+    "    parser.parse_args(argv)",
+    "    print({name!r} + \": nothing to do yet\")",
+    "    return 0",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    raise SystemExit(main())",
+    "",
+)
+
+_RUN_LINE = "Run it: `python main.py`"
+
+
+def _program_floor(root: Path, name: str) -> list[str]:
+    """
+    An entry point, on ground that has no Python at all.
+
+    The test floor made tests runnable. Nothing made the program runnable.
+    Measured as the principal (tips4, 2026-09-04): "tip calculator pls" merged
+    as one function in one file, with no `__main__`, no prompt, and no way to
+    run it. The account said "the user types the bill and a tip percentage".
+    Nobody could type anything.
+
+    `main.py` is laid only where the tree has no test configuration and no
+    `.py` file at all. A tree with either has an author's own idea of its
+    shape, and the floor is for ground that has none. The stub parses `--help` and exits 0, so "the
+    program starts" is true from the first commit, and the Developer wires
+    the behaviour into `main()` rather than inventing a second entry point.
+    The README gets the run line, so a person knows how to start it.
+    """
+    made: list[str] = []
+    if any(root.rglob("*.py")):
+        return made
+    (root / "main.py").write_text(
+        chr(10).join(line.format(name=name) for line in _MAIN), encoding="utf-8")
+    made.append("main.py")
+    readme = root / "README.md"
+    if readme.exists():
+        text = readme.read_text(encoding="utf-8")
+        if "python main.py" not in text:
+            readme.write_text(text.rstrip(chr(10)) + chr(10) * 2 + _RUN_LINE + chr(10),
+                              encoding="utf-8")
+            made.append("README.md")
+    else:
+        readme.write_text(f"# {name}" + chr(10) * 2 + _RUN_LINE + chr(10), encoding="utf-8")
+        made.append("README.md")
+    return made
+
+
 def _python_floor(root: Path) -> list[str]:
     made: list[str] = []
-    if not any((root / f).exists() for f in _EXISTING_CONFIG):
+    # Decided before anything is written: the pyproject this lays would
+    # otherwise count as "existing config" one line later.
+    bare = not any((root / f).exists() for f in _EXISTING_CONFIG)
+    if bare:
         name = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-") or "project"
         (root / "pyproject.toml").write_text(
             _PYPROJECT.format(name=name), encoding="utf-8")
@@ -60,6 +119,9 @@ def _python_floor(root: Path) -> list[str]:
         tests.mkdir()
         (tests / ".gitkeep").write_text("", encoding="utf-8")
         made.append("tests/")
+    if bare:
+        name = re.sub(r"[^a-z0-9_-]+", "-", root.name.lower()).strip("-") or "project"
+        made += _program_floor(root, name)
     return made
 
 

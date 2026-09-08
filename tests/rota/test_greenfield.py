@@ -77,6 +77,17 @@ def test_the_floor_is_laid_only_where_nothing_exists(tmp_path):
 
     made = scaffold.ensure_floor(db, "b1")
     assert "pyproject.toml" in made and "tests/" in made
+    # The program floor. Ground with no Python gets an entry point that
+    # starts, and a README that says how to run it (tips4, 2026-09-04: the
+    # merged program had no way to run it).
+    assert "main.py" in made and "README.md" in made
+    main = (root / "main.py").read_text(encoding="utf-8")
+    assert 'if __name__ == "__main__":' in main and "def main(" in main
+    assert "python main.py" in (root / "README.md").read_text(encoding="utf-8")
+    import subprocess, sys
+    started = subprocess.run([sys.executable, "main.py", "--help"], cwd=root,
+                             capture_output=True, text=True, timeout=30)
+    assert started.returncode == 0, started.stderr
     body = (root / "pyproject.toml").read_text(encoding="utf-8")
     assert 'testpaths = ["tests"]' in body and 'pythonpath = ["."]' in body
     log = subprocess.run(["git", "log", "--oneline"], cwd=root,
@@ -101,6 +112,7 @@ def test_a_shaped_repository_is_left_alone(tmp_path):
     made = scaffold.ensure_floor(db, "b1")
     assert "pyproject.toml" not in made
     assert not (root / "pyproject.toml").exists()
+    assert "main.py" not in made, "a tree with Python has its own shape"
 
 
 def test_a_merged_batch_lands_on_the_base_branch(tmp_path):

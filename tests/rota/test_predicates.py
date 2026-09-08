@@ -1513,3 +1513,26 @@ def test_equal_priority_never_preempts(db):
 
     _two_batches(db, running_pri=5, challenger_pri=5)
     assert preempt(db) == []
+
+
+def test_the_account_is_never_sliced(db):
+    """
+    `how_it_works` is the whole program, not a behaviour. An approved account
+    with no ticket is the normal state. On a cold walk (tipsE, 2026-09-08) the
+    slicing predicate woke Vision Keeper for it fifty times, and Vision Keeper
+    had nothing to slice each time.
+    """
+    from rota.core.scheduler import tick_slicing
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('how_it_works','the user types the bill; the program prints the tip',"
+               "'in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('calculate_tip','calculate the tip','in_scope','decided','approved',1,1)")
+    db.commit()
+    wakes = tick_slicing(db)
+    assert len(wakes) == 1
+    assert "calculate_tip" in wakes[0].refs
+    assert "how_it_works" not in wakes[0].refs
