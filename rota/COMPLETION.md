@@ -709,7 +709,11 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    owner is a fact about the table and llama3.1:8b, shown a bare id, relayed a
    criterion to the Vision Keeper 5/5. With the table: 5/5 to the
    Terminologist, same load. The two `test_arc_seam` arcs now commit before
-   the Tester wakes, which is the ruled order.
+   the Tester wakes, which is the ruled order. Cold walk tipsI after the
+   split: "tip calculator pls" merged in 34 steps with 3 asks (tipsF: 81 and
+   14). The program reads two numbers and prints the total, the tip, and the
+   total with tip. No clarify was asked, so the `answering` mode has its
+   register case and no live hop yet.
    Attributed and not chased:
    `L1-VK-the-account-before-the-behaviours` is 0/5 on the current llama
    load with a brief byte-identical to its 5/5 recording (the model loops on
