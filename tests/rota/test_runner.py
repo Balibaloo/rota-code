@@ -143,10 +143,17 @@ def test_pins_are_recorded_on_the_session(db):
     backend = ScriptedBackend(["done"])
     outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="qwen3.5:9b", temperature=0.0, num_ctx=8192))
-    row = db.execute("SELECT model, temperature, num_ctx, prompt_hash FROM sessions").fetchone()
+    row = db.execute("SELECT model, temperature, num_ctx, prompt_hash, pins_json, backend "
+                     "FROM sessions").fetchone()
     assert row["model"] == "qwen3.5:9b"
     assert row["num_ctx"] == 8192
     assert row["prompt_hash"], "a result without its pins is not a result"
+    # The whole pin set and the adapter, so a new pin is additive and a
+    # provider is on record (2026-09-09).
+    import json as _json
+    whole = _json.loads(row["pins_json"])
+    assert whole["model"] == "qwen3.5:9b" and "max_tokens" in whole
+    assert row["backend"] == "scripted"
 
 
 def test_tool_calls_are_logged_for_assertion(db):
