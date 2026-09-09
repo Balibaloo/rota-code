@@ -26,9 +26,10 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .. import paths
 from . import llm
 
-SHIPPED = Path(__file__).resolve().parent / "profiles"
+SHIPPED = paths.PROFILES
 PROVIDERS = ("ollama", "litellm")
 PIN_KEYS = ("temperature", "num_ctx", "max_tokens", "top_p", "seed", "repeat_penalty")
 

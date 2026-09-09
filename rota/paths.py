@@ -26,6 +26,7 @@ REPO = PACKAGE.parent
 SCHEMA = PACKAGE / "core" / "schema.sql"
 DESIGN = PACKAGE / "design"
 PROMPTS = PACKAGE / "roles" / "prompts"
+PROFILES = PACKAGE / "llm" / "profiles"      # the shipped run profiles
 
 VIEWER = PACKAGE / "cockpit" / "viewer.html"
 STATIC = PACKAGE / "cockpit" / "static"
