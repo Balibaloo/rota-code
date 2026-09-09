@@ -701,6 +701,15 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    day: it rescued nothing and turned two passing cases red (the Architect,
    told to write, send or end, amended instead of reporting a dead end). A
    transcript change is a brief-class lever and is measured like one.
+   Later on 2026-09-09: a principal reply to a clarify is its own Liaison
+   mode, `answering`, keyed by the cause like `verdict_signoff`. The relay
+   tools had been added to `converse`, and qwen3:8b then relayed a plain
+   question to the Vision Keeper 5/5 (G1). A tool in a mode's list changes
+   the plain case. The `about` rows travel with their table, because the
+   owner is a fact about the table and llama3.1:8b, shown a bare id, relayed a
+   criterion to the Vision Keeper 5/5. With the table: 5/5 to the
+   Terminologist, same load. The two `test_arc_seam` arcs now commit before
+   the Tester wakes, which is the ruled order.
    Attributed and not chased:
    `L1-VK-the-account-before-the-behaviours` is 0/5 on the current llama
    load with a brief byte-identical to its 5/5 recording (the model loops on

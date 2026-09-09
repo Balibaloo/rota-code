@@ -515,6 +515,8 @@ def test_a_reply_to_a_clarify_says_who_asked_and_about_what(tmp_path):
                "version) VALUES ('how_it_works','the account','in_scope','decided','draft',0,1)")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_1','how_it_works','items','typed each time','open','vision_keeper')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1','how_it_works','print the tip')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_1','tk_1','the tip is right')")
     m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
          "body_text, cause_id, seq) VALUES (?,?,?,?,?,?,?,?,?)")
     # Shape one: the Tester reported, Liaison clarified, the principal replied.
@@ -529,11 +531,18 @@ def test_a_reply_to_a_clarify_says_who_asked_and_about_what(tmp_path):
     db.commit()
 
     one = resolve_inbound(db, Wake("liaison", "message", message_id="m3", detail="converse"))
-    assert one["answering"] == {"question": "What should the tests exercise?",
-                                "asked_by": "tester", "about": ["c_1"]}
+    keys = ("question", "asked_by", "about")
+    assert {k: one["answering"][k] for k in keys} == {
+        "question": "What should the tests exercise?",
+        "asked_by": "tester", "about": ["c_1"]}
+    # The owner is a fact about the table. A bare id does not say its table,
+    # and an 8B model shown one relayed a criterion to the Vision Keeper 5/5.
+    assert one["answering"]["about_rows"]["c_1"]["table"] == "criteria"
     two = resolve_inbound(db, Wake("liaison", "message", message_id="m6", detail="converse"))
-    assert two["answering"] == {"question": "Is the assumption right?",
-                                "asked_by": "liaison", "about": ["l_1"]}
+    assert {k: two["answering"][k] for k in keys} == {
+        "question": "Is the assumption right?",
+        "asked_by": "liaison", "about": ["l_1"]}
+    assert two["answering"]["about_rows"]["l_1"]["table"] == "ledger"
 
 
 def test_a_report_about_rows_the_principal_already_answered_carries_the_answers(tmp_path):

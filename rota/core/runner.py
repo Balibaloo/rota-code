@@ -161,6 +161,19 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
                 (wake.message_id,)).fetchone()
             if row and row["cause_verb"] == "elect":
                 return "batch_start"
+        # A principal `converse` whose cause is a `clarify` is a reply, not a
+        # request. The reply goes to the owner of the rows the question was
+        # about. That needs the relay tools. Offering them in `converse`
+        # taught qwen3:8b to relay a plain question to the Vision Keeper 5/5
+        # (G1, 2026-09-09). The cause keys the mode, as for `verdict` above.
+        if (verb == "converse" and wake.role == "liaison" and conn is not None
+                and wake.message_id):
+            row = conn.execute(
+                "SELECT c.verb AS cause_verb FROM messages m "
+                "LEFT JOIN messages c ON c.id = m.cause_id WHERE m.id = ?",
+                (wake.message_id,)).fetchone()
+            if row and row["cause_verb"] == "clarify":
+                return "answering"
         return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
@@ -763,6 +776,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     answering["asked_by"] = "liaison"
                     answering["about"] = (json.loads(clarify["body_refs"] or "[]")
                                           or json.loads(row["body_refs"] or "[]"))
+                # The owner of a row is a fact about its table, and a bare id
+                # says nothing about its table. Measured on the register
+                # (2026-09-09): shown `about: ["c_ec730c"]` and a list that
+                # named the Vision Keeper first, llama3.1:8b relayed a
+                # criterion to the Vision Keeper 5/5. The rows travel with
+                # their table, and the brief keys the owner on it.
+                about_rows = _resolve_refs(conn, answering["about"])
+                for ref, resolved_row in about_rows.items():
+                    resolved_row["table"] = _table_of(conn, ref)
+                answering["about_rows"] = about_rows
                 out["answering"] = answering
 
     # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
@@ -921,6 +944,18 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
                             "output_tail": out[-700:] if out else ""}
                 break
     return resolved
+
+
+_REF_TABLES = ("statements", "items", "criteria", "tests", "tickets",
+               "constraints", "glossary_terms", "ledger", "entries")
+
+
+def _table_of(conn: sqlite3.Connection, ref: str) -> str | None:
+    """The table a ref resolves in, or None. Same tables as `_resolve_refs`."""
+    for table in _REF_TABLES:
+        if conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (ref,)).fetchone():
+            return table
+    return None
 
 
 def _group_by_shared_refs(reports: list[dict]) -> list[list[str]]:
@@ -1685,7 +1720,8 @@ def run_session(
             # legitimately sends two messages (report, then challenge) in one
             # session. See rota-loop-termination-fix memory for the two
             # earlier attempts this replaced.
-            if (wake.role == "liaison" and _mode_key(wake, conn) == "converse"
+            if (wake.role == "liaison"
+                    and _mode_key(wake, conn) in ("converse", "answering")
                     and sb.ctx.outbound):
                 break
 

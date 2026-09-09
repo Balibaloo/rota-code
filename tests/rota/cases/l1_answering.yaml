@@ -1,0 +1,42 @@
+# L1 — the `answering` mode: a principal reply reaches the desk that asked.
+#
+# A desk reports. Liaison clarifies with the principal. The principal answers in
+# one sentence. Measured (tips5, 2026-09-04): converse mode segmented the answer
+# into three statements to confirm, and the Tester asked again. Relay tools in
+# converse then taught qwen3:8b to relay a plain question to the Vision Keeper
+# (G1, 2026-09-09, 5/5). So the reply is its own mode, keyed by its cause.
+
+- id: L1-LI-a-reply-reaches-the-desk-that-asked
+  tier: T1
+  role: liaison
+  prompt: answering
+  runs: 5
+  pass: 3
+  inbound: {from: principal, to: liaison, verb: converse, body_refs: [e_m_in],
+            cause: <m2>}
+  fixture:
+    entries:
+      - {id: e_m_in, author: principal, ts_order: 2,
+         text: "the tests should check the tip amount and the total, both printed"}
+    items:
+      - {id: <i1>, text: "the program prints the tip", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "print the tip"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "the tip is right", term_refs: '[]'}
+    messages:
+      - {id: <m1>, thread_id: <t1>, from_role: tester, to_role: liaison,
+         verb: report, body_refs: '["<c1>"]', seq: 1, status: answered}
+      - {id: <m2>, thread_id: <t1>, from_role: liaison, to_role: principal,
+         verb: clarify, body_refs: '["<c1>"]', cause_id: <m1>, seq: 2,
+         status: answered,
+         body_text: "What should the tests exercise? The criterion names no behaviour."}
+  expect:
+    messages:
+      - {to: terminologist, verb: relay, count: 1, refs_include: [<c1>]}
+  forbidden:
+    # The criterion is the Terminologist's. Confirming or segmenting the reply
+    # is the failure this mode exists to end.
+    writes: [statements, items, tickets, criteria, decisions]
+    recipients: [vision_keeper, architect, principal]

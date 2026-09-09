@@ -97,6 +97,7 @@ def l2(g: graph_mod.Graph | None = None) -> list[Obligation]:
     # runner keys the prompt by the cause for exactly that reason.
     if "liaison" in g.roles:
         add("liaison", "verdict_signoff", "a principal verdict answering a present")
+        add("liaison", "answering", "a principal converse answering a clarify")
 
     return sorted(seen.values(), key=lambda o: o.id)
 

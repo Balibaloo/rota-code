@@ -8,6 +8,3 @@ transcript.quote
 msg.ask_vision_keeper
 msg.ask_terminologist
 msg.ask_architect
-msg.relay_vision_keeper
-msg.relay_terminologist
-msg.relay_architect

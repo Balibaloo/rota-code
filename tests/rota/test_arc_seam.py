@@ -140,20 +140,12 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
         "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
     assert worktree, "a dispatched batch must have somewhere to work"
 
-    # --- tests before code, which is the whole point of the ordering ---------
-    drive(db, tick(db, "tick:tests_missing"), [
-        "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
-        "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
-        "body='from seam import delete_account\n"
-        "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
-    ], batch_id="b1")
-
-    assert db.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"] == 1
-
-    # --- the Developer, woken by the same dispatch tick ----------------------
-    # `batch_start` wakes Developer; the tests above were written by Tester in
-    # `tests_missing`, which the same dispatch derived. Order matters and is
-    # the design's: a test written after the code encodes what the code does.
+    # --- the Developer first, woken by the dispatch tick ---------------------
+    # The Tester waits for a commit (ruled 2026-09-05). Before the rule, the
+    # Tester wrote tests against nothing and asserted constants. Now the code
+    # exists first. The test stays black-box: it imports the real function.
+    assert not [w for w in predicate_wakes(db) if w.kind == "tick:tests_missing"], \
+        "the Tester must not wake before the Developer has committed"
     drive(db, Wake("developer", "tick:batch_start", refs=("b1",)), [
         "TOOL: code.write(path='seam.py', text='def delete_account(account_id):"
         "\n    return \"tombstoned\"\n')",
@@ -163,6 +155,16 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
     head = db.execute(
         "SELECT head_commit FROM batches WHERE id='b1'").fetchone()["head_commit"]
     assert head, "code.commit must stamp the batch with what it committed"
+
+    # --- the Tester, derived from the commit --------------------------------
+    drive(db, tick(db, "tick:tests_missing"), [
+        "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
+        "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
+        "body='from seam import delete_account\n"
+        "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
+    ], batch_id="b1")
+
+    assert db.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"] == 1
 
     # --- the harness: the one gate with no judgement in it -------------------
     h = tick(db, "do:harness")
@@ -341,18 +343,19 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
                "VALUES ('b1','tk1')")
     lifecycle.start(db, "b1")
 
+    # --- a first attempt, committed before the Tester wakes -----------------
+    drive(db, Wake("developer", "tick:batch_start", refs=("b1",)), [
+        "TOOL: code.write(path='seam.py', text='def delete_account(account_id):"
+        "\n    return \"deleted\"\n')",
+        "TOOL: code.commit(message='delete an account')",
+    ], batch_id="b1")
+
+    # --- the Tester, derived from the commit, encodes what the criterion says -
     drive(db, tick(db, "tick:tests_missing"), [
         "TOOL: tests.triage(criterion_id='c1', verdict='encodable')",
         "TOOL: tests.encode(id='t1', criterion_id='c1', path='test_delete.py', "
         "body='from seam import delete_account\n"
         "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
-    ], batch_id="b1")
-
-    # --- a first attempt that does not satisfy it ---------------------------
-    drive(db, Wake("developer", "tick:batch_start", refs=("b1",)), [
-        "TOOL: code.write(path='seam.py', text='def delete_account(account_id):"
-        "\n    return \"deleted\"\n')",
-        "TOOL: code.commit(message='delete an account')",
     ], batch_id="b1")
 
     from rota.core import harness
