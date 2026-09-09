@@ -757,6 +757,11 @@ merged cold in 34 steps.
    Architect could not attest none_found on pyproject.toml. The boundary
    brief with none_found first measured 0/5 against 5/5 as it was, same
    load, and stays as it was.
+   tipsN went quiet at 65 steps with 5 asks, down from 17: the split was
+   its own item and had two tickets. The Terminologist swapped the
+   criterion id and the ticket id and flipped between the two refusals;
+   the Critic's ledger id ran past the ref door's sixty-four characters and
+   the agenda could not present it (490005f).
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
