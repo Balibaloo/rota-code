@@ -133,8 +133,30 @@ def test_approving_an_assumption_takes_the_default_at_the_keypress(db):
                       "WHERE id = 'how_it_works'").fetchone()
     assert item["approval"] == "approved"
     assert item["approval_ver"] == item["version"]
-    assert verdict_for(db, mid) == {"how_it_works": "approve", "L1": "approve"}, (
-        "the ruling itself is recorded whole")
+    # The closed row is a decision now, and it leaves the recorded ruling as
+    # it leaves the refs: relayed, the owner acted on a done row (tipsQ,
+    # 2026-09-09: 36 rounds).
+    assert verdict_for(db, mid) == {"how_it_works": "approve"}, (
+        "the ruling still to relay is recorded; the closed row is a decision")
+
+
+def test_a_page_of_only_assumptions_lands_answered(db):
+    """
+    tipsQ, 2026-09-09: the agenda presented one ledger row, the principal
+    approved, the verdict woke the Liaison, the Liaison relayed it to the
+    row's author, the author adopted the ledger id, was refused, logged the
+    refusal as a new assumption, and the agenda presented that. 36 rounds.
+    A page whose every row closed at the keypress leaves nothing to relay.
+    """
+    _an_item_with_an_assumption(db)
+    ask = _a_present_of(db, ["L1"])
+    mid = land(db, ask, Answer(verb="verdict", per_item={"L1": "approve"}))
+    db.commit()
+    sent = db.execute("SELECT status, body_refs FROM messages WHERE id = ?", (mid,)).fetchone()
+    assert sent["status"] == "answered", "nothing remains for an owner"
+    assert json.loads(sent["body_refs"]) == []
+    assert verdict_for(db, mid) == {}
+    assert db.execute("SELECT status FROM ledger WHERE id = 'L1'").fetchone()["status"] == "resolved"
 
 
 def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):

@@ -776,6 +776,25 @@ merged cold in 34 steps.
    step now clears a stale worktree, the start step records the error, and
    a batch with no worktree cannot be written to (0e90513). The sample
    repository was reset to its merged commit.
+   tipsQ reached a green harness on an existing repo, one test passing at
+   the head, and stopped at "no verdict": the Critic judged c_2 not encoded,
+   which is right, and its challenge was refused six times for the shape of
+   `quotes`, one string where the door wants two spans. Alongside, 36
+   rounds of a ledger about the ledger: the approval of a Terminologist
+   assumption relayed to the Terminologist, which adopted the ledger id,
+   was refused, and logged the refusal as the next assumption. A verdict
+   whose rows all closed at the keypress now lands answered, an assumption
+   may not be about an assumption, and the quotes door names the two-string
+   shape.
+   tipsR merged on an existing repo: 43 steps, 3 asks, two tests green.
+   The merge was hollow. The Developer rewrote the Tester's test file to
+   import a module that does not exist, the harness ran the database's copy
+   and passed, and the merge carried the Developer's file. main.py went
+   from the interactive program to one function with no main guard, nothing
+   imported the dropped functions so the write went through, and the Critic
+   passed all of it. Two doors: the Developer writes no test file, and a
+   file with a main guard keeps it. The Critic's pass is Level 3's open
+   boundary, now with a live example. The sample repository was reset.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The

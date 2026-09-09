@@ -647,19 +647,31 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
             "WHERE id = ? AND approval IS NOT ?", (state, ref, state))
 
     refs = [r for r in (list(per_item) or ask.refs) if r not in closed_here]
+    # A page whose every row closed at the keypress leaves nothing for an
+    # owner to do. The verdict is the record and lands answered. Relayed,
+    # it woke the Terminologist with a ruling on a done row; it adopted the
+    # ledger id, was refused, logged the refusal as a new assumption, and
+    # the agenda put that row to the principal: 36 rounds (tipsQ,
+    # 2026-09-09).
+    approved_here = [r for r in closed_here if per_item.get(r) == "approve"]
+    settled = per_item and not refs and closed_here and len(approved_here) == len(closed_here)
     conn.execute(
         "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
-        "to_role, verb, body_refs, seq) "
-        "VALUES (?, ?, 'message', ?, 'principal', 'liaison', ?, ?, ?)",
-        (msg_id, ask.message_id, thread, answer.verb, json.dumps(refs), seq),
+        "to_role, verb, body_refs, seq, status) "
+        "VALUES (?, ?, 'message', ?, 'principal', 'liaison', ?, ?, ?, ?)",
+        (msg_id, ask.message_id, thread, answer.verb, json.dumps(refs), seq,
+         "answered" if settled else "open"),
     )
 
     # Per-item verdicts travel as refs; the ruling itself is recorded so
-    # Liaison can relay it without re-asking.
-    if per_item:
+    # Liaison can relay it without re-asking. An approved row closed here is
+    # not in it: a taken default needs no relay. A contested one stays: its
+    # author has to hear the words.
+    remaining = {r: v for r, v in per_item.items() if r not in approved_here}
+    if remaining:
         conn.execute(
             "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-            (f"verdict:{msg_id}", json.dumps(per_item)),
+            (f"verdict:{msg_id}", json.dumps(remaining)),
         )
     if answer.text:
         conn.execute(

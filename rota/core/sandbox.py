@@ -703,7 +703,9 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     f"quotes= must copy {r}'s exact words and what you sent "
                     f"is not in the {rows[r][0]} row. Quote, not paraphrase: "
                     f"the span of each side your challenge stands on, "
-                    f"verbatim -- both rows are in front of you{hint}")
+                    f"verbatim -- both rows are in front of you{hint}. Send "
+                    f"quotes as a list of two strings: one copied from "
+                    f"{crit[0]}, one copied from {test[0]}")
         return
 
     # No redirect by who is quoted. A rule that sent a quoted test to the

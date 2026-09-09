@@ -90,6 +90,34 @@ def test_a_ref_that_names_no_row_is_refused(tmp_path):
     assert sb.ctx.outbound
 
 
+def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
+    """
+    tipsQ, 2026-09-09: the Terminologist logged an assumption about a ledger
+    row, under `about_table="glossary_terms"`, with a tool refusal as its
+    text. The agenda put it to the principal and the approval woke the
+    Terminologist, which logged the next one. 36 rounds.
+    """
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance)"
+               " VALUES ('g1','recipe','x','observed')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('l_1','g1','glossary_terms','x','open','terminologist')")
+    db.commit()
+    sb = build("terminologist", db, mode="deliver")
+    with _pytest.raises(ValueError, match="is a ledger row"):
+        sb.call("ledger.log", about_ref="l_1", about_table="glossary_terms",
+                assumption="The id 'l_1' is not a row in the glossary_terms table.")
+    with _pytest.raises(ValueError, match="is a row of glossary_terms, not of items"):
+        sb.call("ledger.log", about_ref="g1", about_table="items", assumption="x")
+    assert sb.call("ledger.log", about_ref="g1", about_table="glossary_terms",
+                   assumption="recipe means the written one")["id"]
+
+
 def test_a_row_staged_this_session_is_a_legal_ref(tmp_path):
     """Sends and writes commit together, so a ref to a row written moments
     ago in the same session must pass -- refusing it would make the commonest

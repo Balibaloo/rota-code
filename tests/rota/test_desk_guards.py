@@ -103,6 +103,33 @@ def test_a_rewrite_keeps_what_the_criteria_and_other_files_use(db, tmp_path):
     assert out["bytes"]
 
 
+def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path):
+    """
+    tipsR, 2026-09-09: the Developer rewrote the Tester's test file to
+    import a module that does not exist, and rewrote main.py from the
+    interactive program to one function. The harness ran the database's
+    copy of the test and passed. The merge carried both files. The merged
+    program printed nothing and its own test suite was broken.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "main.py").write_text(
+        "def run():\n    return 1\n\nif __name__ == \"__main__\":\n    run()\n",
+        encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="test file, and the tests are the Tester's"):
+        sb.call("code.write", path="tests/test_x.py", text="def test_x():\n    pass\n")
+    with pytest.raises(ValueError, match="entry point"):
+        sb.call("code.write", path="main.py", text="def split(t, n):\n    return t / n\n")
+    out = sb.call("code.write", path="main.py",
+                  text="def run():\n    return 1\n\ndef split(t, n):\n    return t / n\n\n"
+                       "if __name__ == \"__main__\":\n    run()\n")
+    assert out["bytes"]
+
+
 def test_labelled_quotes_are_read_not_crashed_on(db):
     """
     qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register

@@ -3765,6 +3765,30 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"{about_ref!r} names no row. about_ref is the id of the row the "
             f"assumption is about (about_table says which table); if it is "
             f"about the whole area, use the @-prefixed area name")
+    # A row of the table it says. tipsQ (2026-09-09): the Terminologist
+    # logged `about_table="glossary_terms"` with a ledger id as the ref and
+    # a tool refusal as the assumption, the agenda put it to the principal,
+    # the approval woke the Terminologist, which logged the next one: 36
+    # rounds of a ledger about the ledger.
+    if about_table == "ledger" or ctx.conn.execute(
+            "SELECT 1 FROM ledger WHERE id = ?", (about_ref,)).fetchone():
+        raise ValueError(
+            f"{about_ref!r} is a ledger row. An assumption is about an "
+            f"artefact, never about another assumption. If a ruling on it "
+            f"left you nothing to do, you are done")
+    # A rota row under another table's name. A path or an entry as the
+    # subject stays legal: reconcile logs "README says X" about README.md
+    # under items, and that is the shape the design asks for.
+    home = next((t for t in ("items", "statements", "criteria", "tickets",
+                             "tests", "constraints", "glossary_terms",
+                             "model_areas", "frame_rulings")
+                 if ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
+                                     (about_ref,)).fetchone()), None)
+    if home and about_table != home:
+        raise ValueError(
+            f"{about_ref!r} is a row of {home}, not of {about_table}. "
+            f"about_ref and about_table name one row together; send "
+            f"about_table={home!r}")
 
     import hashlib
 
@@ -6078,6 +6102,42 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
                 f"the harness imports it and would die at collection") from None
+        # The tests are the Tester's. tipsR (2026-09-09): the Developer
+        # rewrote tests/test_split_bill.py to import a module that does not
+        # exist, the harness ran the database's copy of the test and passed,
+        # the merge carried the Developer's file, and the merged tree's own
+        # test suite was broken. A test file is not the Developer's to
+        # write: the harness holds the tests from the database.
+        from pathlib import Path as _TP
+        _tp = _TP(path)
+        if ctx.role == "developer" and (
+                "tests" in _tp.parts[:-1] or _tp.name.startswith("test_")
+                or _tp.name.endswith("_test.py")):
+            raise ValueError(
+                f"{path} is a test file, and the tests are the Tester's. The "
+                f"harness runs the tests on record; a test you cannot pass "
+                f"is `msg.challenge_tester`, not a rewrite")
+        # An entry point keeps its main guard. tipsR (2026-09-09): main.py
+        # went from the interactive program to one function with no guard,
+        # nothing imported the dropped functions so the rewrite went
+        # through, the Critic passed it, and the merged program printed
+        # nothing. A program that ran and now does not is a fact.
+        if target.is_file():
+            def _guarded(t) -> bool:
+                return any(isinstance(n, _ast.If) and isinstance(n.test, _ast.Compare)
+                           and any(isinstance(c, _ast.Constant) and c.value == "__main__"
+                                   for c in n.test.comparators) for n in t.body)
+            try:
+                old_tree = _ast.parse(target.read_text(encoding="utf-8", errors="replace"))
+            except SyntaxError:
+                old_tree = None
+            if old_tree is not None and _guarded(old_tree) and not _guarded(tree):
+                raise ValueError(
+                    f"{path} is the program's entry point: it has an "
+                    f"`if __name__ == \"__main__\":` block today and this "
+                    f"write has none, so the program would stop running. "
+                    f"Keep the block and the functions it calls; add your "
+                    f"change to the file, do not replace it")
         for node in tree.body:
             if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
                                  _ast.ClassDef, _ast.Import, _ast.ImportFrom)):
