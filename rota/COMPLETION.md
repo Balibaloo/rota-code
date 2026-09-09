@@ -851,6 +851,15 @@ merged cold in 34 steps.
    Terminologist boundaries are judgement at 14B too. The rung is worth
    taking for the Vision Keeper alone if the walks keep hitting outside
    facts.
+   Taken live the same day with `model_routing` on the judging ticks
+   (review, challenge, criteria, tests_missing on qwen2.5:14b; the rest on
+   qwen3:8b), walk tipsX: the Terminologist named a new callable
+   `main.py::split_bill` as the split's surface, the Tester tested it, and
+   the Critic judged the wrong rounding test not encoding and challenged
+   the Tester with the right two-string shape. The blocker moved to the 8B
+   Developer, which repurposed `calculate_tip` and committed three times
+   without defining `split_bill`. A commit that leaves a named surface
+   undefined is now refused. The rung is real for the judging roles.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.

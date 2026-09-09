@@ -6502,6 +6502,44 @@ def code_commit(ctx: Ctx, message: str) -> dict:
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
     tree = _batch_worktree(ctx)
+    # A commit that leaves a criterion's surface undefined is a certain
+    # ImportError for every test of it. tipsX (2026-09-09): the criterion
+    # named `main.py::split_bill`, the Developer repurposed `calculate_tip`
+    # and committed three times without ever defining `split_bill`. The
+    # surface is the name the tests import; the file it names must define
+    # it before the commit.
+    import ast as _ast
+    undefined: list[str] = []
+    for crit in ctx.conn.execute(
+            "SELECT c.id, c.surface_refs FROM criteria c "
+            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ?", (ctx.batch_id,)):
+        try:
+            refs = json.loads(crit["surface_refs"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for ref in refs:
+            if "::" not in ref or not ref.split("::", 1)[0].endswith(".py"):
+                continue
+            rel, name = ref.split("::", 1)
+            f = tree / rel
+            if not f.is_file():
+                continue
+            try:
+                defs = {n.name for n in _ast.parse(
+                    f.read_text(encoding="utf-8", errors="replace")).body
+                    if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                      _ast.ClassDef))}
+            except SyntaxError:
+                continue
+            if name not in defs:
+                undefined.append(f"{ref} ({crit['id']})")
+    if undefined:
+        raise ValueError(
+            f"the tree does not define {', '.join(undefined)}, the surface "
+            f"the criteria name and the tests import. Define it in the file "
+            f"named, then commit. A commit without it fails every test of "
+            f"it at import")
     sha = worktrees.commit(tree, message)
     if sha is None:
         # Not an error -- the docstring says why -- but the bare result read

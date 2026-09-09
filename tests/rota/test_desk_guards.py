@@ -144,6 +144,32 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
     assert out["bytes"]
 
 
+def test_a_commit_defines_the_surface_the_criteria_name(db, tmp_path):
+    """
+    tipsX, 2026-09-09: the criterion named `main.py::split_bill`, the
+    Developer repurposed `calculate_tip` and committed three times without
+    defining `split_bill`. Every test of it failed at import.
+    """
+    import subprocess
+
+    root = tmp_path / "wt"; root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "script.py").write_text("def other():\n    return 1\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"script.py::close_account\"]' "
+               "WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="does not define script.py::close_account"):
+        sb.call("code.commit", message="half done")
+    sb.call("code.write", path="script.py",
+            text="def other():\n    return 1\n\ndef close_account(a):\n    return 'x'\n")
+    out = sb.call("code.commit", message="the surface exists")
+    assert out.get("committed") is not False
+
+
 def test_a_file_defines_each_name_once(db, tmp_path):
     """
     tipsS, 2026-09-09: a second `calculate_tip(total, people)` above the
