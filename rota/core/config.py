@@ -211,20 +211,30 @@ def get(conn: sqlite3.Connection, key: str) -> Any:
     return json.loads(row["value"]) if row else SETTINGS[key].default
 
 
-def routed_model(routing: str, wake_kind: str) -> str | None:
+def routed_model(routing: str, wake_kind: str, role: str | None = None) -> str | None:
     """The model `model_routing` names for this wake, or None for untouched.
 
-    Only ticks route: a wake like `verdict_failed` carries batch context that
-    was built by whatever model is already driving, and mid-conversation model
-    swaps are exactly the cross-model adjudication the challenge design
-    forbids. Model names contain colons, so pairs split on commas and only
-    the first `=` binds.
+    Two kinds of pair. `tick=model` routes one tick and no message: a wake
+    like `verdict_failed` carries batch context that was built by whatever
+    model is already driving, and mid-conversation model swaps are exactly
+    the cross-model adjudication the challenge design forbids. `role=model`
+    routes every wake of that role, ticks and messages alike, so one desk
+    is one model: measured (tipsAA, 2026-09-09), a Tester wrote its test on
+    the 14B tick and defended it on the 8B message. A role pair wins over a
+    tick pair. Model names contain colons, so pairs split on commas and
+    only the first `=` binds.
     """
-    if not routing or not wake_kind.startswith("tick:"):
+    if not routing:
+        return None
+    pairs = [p.strip().partition("=") for p in routing.split(",")]
+    if role:
+        for name, _, model in pairs:
+            if name == role and model:
+                return model
+    if not wake_kind.startswith("tick:"):
         return None
     tick = wake_kind[len("tick:"):]
-    for pair in routing.split(","):
-        name, _, model = pair.strip().partition("=")
+    for name, _, model in pairs:
         if name == tick and model:
             return model
     return None

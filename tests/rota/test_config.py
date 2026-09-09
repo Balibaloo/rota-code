@@ -178,6 +178,14 @@ def test_model_routing_names_ticks_and_only_ticks():
     assert config.routed_model(routing, "tick:define") is None
     assert config.routed_model(routing, "verdict_failed") is None
     assert config.routed_model("", "tick:frame") is None
+    # A role pair routes every wake of that role, messages included, so one
+    # desk is one model (tipsAA, 2026-09-09: a Tester wrote its test on the
+    # 14B tick and defended it on the 8B message). A role pair wins.
+    roled = "tester=qwen2.5:14b,frame=gemma3:12b"
+    assert config.routed_model(roled, "message", "tester") == "qwen2.5:14b"
+    assert config.routed_model(roled, "tick:tests_missing", "tester") == "qwen2.5:14b"
+    assert config.routed_model(roled, "message", "developer") is None
+    assert config.routed_model(roled, "tick:frame", "architect") == "gemma3:12b"
     # model names carry colons and dashes; the pair still splits on the
     # first '=' and nothing else
     long = "survey=qwen2.5:14b-instruct-q3_K_M"

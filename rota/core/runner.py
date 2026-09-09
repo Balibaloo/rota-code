@@ -1246,7 +1246,7 @@ def run_session(
     # leaves it to the wake.
     mode = mode or session_mode(wake)
     routed = config_mod.routed_model(
-        config_mod.get(conn, "model_routing"), wake.kind)
+        config_mod.get(conn, "model_routing"), wake.kind, wake.role)
     if routed:
         pins = llm.Pins(routed, pins.temperature, pins.num_ctx)
 

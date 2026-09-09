@@ -874,6 +874,13 @@ merged cold in 34 steps.
    the harness something to run and the gate band carried the batch through
    review and merge before the Tester's tick in the start band had a turn.
    Review and the merge gate now require every criterion to have its test.
+   tipsAA held every door: `split_bill` added, the tip kept, the guard
+   intact, and the repo's test green. What was red was the Tester's
+   rounding test of `calculate_tip`, because the Terminologist named the
+   tip function as both criteria's surface. The Tester wrote that test
+   on 14B and defended it on 8B, since routing was per tick and skipped
+   messages by design. `model_routing` now takes `role=model` pairs too,
+   so one desk is one model. The surface judgement is the open lever.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.
