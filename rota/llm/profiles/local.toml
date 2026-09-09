@@ -1,0 +1,19 @@
+# The default profile: local Ollama, the mechanical desks on qwen3:8b and the
+# judging desks on qwen3.5:9b. This is the configuration that produced the
+# first honest merge on an existing repository (tipsAD, 2026-09-09).
+name = "local"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "qwen3:8b"
+tester = "qwen3.5:9b"
+critic = "qwen3.5:9b"
+terminologist = "qwen3.5:9b"
+developer = "qwen3.5:9b"

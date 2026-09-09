@@ -902,6 +902,15 @@ merged cold in 34 steps.
    the program around the invented API until quarantine. A name a test
    imports from the surface's module is now a surface or a name the module
    defines today.
+   Providers, steps one to three (2026-09-09): `Pins` complete with a
+   stable key, the LiteLLM adapter made true, native tools by opt-in,
+   and the run profile: one TOML file for provider, pins and the model
+   per desk, found in the project, the home, or the package, frozen into
+   the run at onboarding, `model_routing` derived from it, changed only by
+   `rota profile set` with history. Verbs: `rota profile list|show|check|
+   set`, `rota onboard --profile`, `rota run --model --role`. The shipped
+   `local` profile is the configuration that merged tipsAD. Left: the
+   smoke walks on llama.cpp and a hosted judge, and the budget.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with

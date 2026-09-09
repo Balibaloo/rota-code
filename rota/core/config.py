@@ -160,6 +160,11 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "session opened: models never adjudicate models.",
             values=("off", "sample", "full")),
 
+    Setting("profile", {},
+            "The run profile frozen at onboarding: provider, pins, and the "
+            "model per desk (rota/llm/profile.py). `model_routing` below is "
+            "derived from it. Changed only by `rota profile set`, which "
+            "writes a new snapshot with history."),
     Setting("model_routing", "",
             "Which model drives which tick, as comma-joined `tick=model` "
             "pairs: `frame=gemma3:12b,challenge=llama3.1:8b`. Empty routes "

@@ -39,9 +39,20 @@ def onboard(db_path: str, root: str) -> None:
           f"{len(report.leaky)} leaky")
 
 
-def drive(db_path: str, model: str, limit: int, survey_only: bool = True) -> None:
+def drive(db_path: str, model: str, limit: int, survey_only: bool = True,
+          profile=None) -> None:
     conn = connect(db_path)
-    backend, pins = default_backend(), Pins(model=model, temperature=0.0)
+    if profile is None:
+        from ..llm import profile as _profile
+        profile = _profile.of_run(conn)
+    if profile is not None:
+        # The run's frozen profile: its backend and pins. The model per
+        # desk is in `model_routing`, derived from the same profile.
+        backend, pins = profile.backend(), profile.pins_for(None)
+        if model and model != profile.default_model:
+            pins = pins.__class__(model=model, **profile.pins)
+    else:
+        backend, pins = default_backend(), Pins(model=model, temperature=0.0)
     started = time.time()
 
     for n in range(1, limit + 1):

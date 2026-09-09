@@ -449,6 +449,19 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     if not (root / ".git").exists():
         print(f"note: {root} is not a git checkout; batches will have no worktree")
     report = onboard(path, root)
+    from .llm import profile as profile_mod
+    from .core.db import connect as _connect
+
+    prof = profile_mod.find(args.profile or profile_mod.default_name(), root)
+    problems = prof.check()
+    if problems:
+        wipe(path)
+        raise SystemExit("profile " + prof.name + ": " + "; ".join(problems))
+    _conn = _connect(path)
+    profile_mod.bind(_conn, prof)
+    _conn.commit(); _conn.close()
+    print(f"profile: {prof.name}  default {prof.default_model}"
+          + (f"  roles {prof.routing()}" if prof.roles else ""))
     if getattr(args, "no_prose", False):
         from .core import config
         from .core.db import connect
@@ -477,8 +490,69 @@ def cmd_run(args: argparse.Namespace) -> int:
     # become an argument the system takes seriously.
     if getattr(args, "until", None):
         os.environ["ROTA_SURVEY_UNTIL"] = args.until
-    drive(str(path), args.model, args.limit, survey_only=not args.all)
+    from .core.db import connect as _connect
+    from .llm import profile as profile_mod
+
+    conn = _connect(path)
+    prof = profile_mod.of_run(conn) or profile_mod.find(profile_mod.default_name())
+    roles = {}
+    for item in getattr(args, "role", []) or []:
+        role, _, model = item.partition("=")
+        if not model:
+            raise SystemExit(f"--role wants ROLE=MODEL, got {item!r}")
+        roles[role] = model
+    if args.model or roles:
+        prof = prof.with_override(model=args.model, roles=roles)
+        profile_mod.bind(conn, prof)      # recorded, with history
+        conn.commit()
+    conn.close()
+    drive(str(path), prof.default_model, args.limit, survey_only=not args.all,
+          profile=prof)
     return 0
+
+
+def cmd_profile(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from .llm import profile as profile_mod
+
+    root = Path(args.root).resolve() if getattr(args, "root", None) else None
+    if args.action == "list":
+        for name, src in profile_mod.available(root):
+            print(f"{name:20} {src}")
+        return 0
+    if not args.target:
+        raise SystemExit(f"rota profile {args.action} needs a name")
+    if args.action == "set":
+        if not args.assignment or "=" not in args.assignment:
+            raise SystemExit("rota profile set <run> dotted.key=value")
+        from .core.db import connect as _connect
+
+        conn = _connect(require(args.target))
+        key, _, value = args.assignment.partition("=")
+        prof = profile_mod.set_field(conn, key, value)
+        conn.commit(); conn.close()
+        print(f"{args.target}: {key} = {value}  (profile {prof.name}, new snapshot)")
+        return 0
+    run_path = resolve(args.target)
+    if run_path.exists():
+        from .core.db import connect as _connect
+
+        conn = _connect(run_path)
+        prof = profile_mod.of_run(conn)
+        conn.close()
+        if prof is None:
+            raise SystemExit(f"run {args.target} has no profile bound")
+    else:
+        prof = profile_mod.find(args.target, root)
+    if args.action == "show":
+        print(_json.dumps(prof.to_dict(), indent=1))
+        return 0
+    problems = prof.check()
+    for line in problems:
+        print(f"  {line}")
+    print(f"{prof.name}: " + ("ok" if not problems else f"{len(problems)} problem(s)"))
+    return 1 if problems else 0
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
@@ -754,11 +828,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-prose", action="store_true",
                    help="withhold README/docs from every session: measure "
                         "understanding on code, schema and manifest alone")
+    p.add_argument("--profile", default=None,
+                   help="the run profile to freeze into the run "
+                        "(default: $ROTA_PROFILE or 'local'; rota profile list)")
     p.set_defaults(func=cmd_onboard)
 
     p = sub.add_parser("run", help="turn the crank until quiescent")
     p.add_argument("name")
-    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument("--model", default=None,
+                   help="override the profile's default model for this run")
+    p.add_argument("--role", action="append", default=[], metavar="ROLE=MODEL",
+                   help="override one desk's model for this run; repeatable")
     p.add_argument("--limit", type=int, default=40)
     p.add_argument("--all", action="store_true",
                    help="do not stop when the survey wakes run out")
@@ -795,6 +875,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--contest", help="comma-separated row ids")
     p.add_argument("--say", help="answer a clarify in words instead")
     p.set_defaults(func=cmd_sign)
+
+
+    p = sub.add_parser("profile", help="run profiles: list, show, check, set")
+    p.add_argument("action", choices=("list", "show", "check", "set"))
+    p.add_argument("target", nargs="?", help="a profile name, or a run name for set")
+    p.add_argument("assignment", nargs="?", help="set: dotted.key=value")
+    p.add_argument("--root", help="a project whose .rota/profiles to include")
+    p.set_defaults(func=cmd_profile)
 
     p = sub.add_parser("tui", help="talk to it, with the register beside you")
     p.add_argument("name", nargs="?", help="omit to open the run list")
