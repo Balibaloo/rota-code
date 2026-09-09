@@ -111,6 +111,35 @@ def test_ls_survives_a_database_it_cannot_read(home):
     assert next(r for r in cli.runs() if r["name"] == "broken")["error"]
 
 
+def test_ls_asks_each_checkout_once_and_not_each_run(home, tmp_path, monkeypatch):
+    """
+    What listing costs. Reading 67 runs took 6.5 seconds and 6.2 of them were
+    `git`: two processes per run, about 45ms each to start on Windows.
+
+    A tree has one HEAD, so 55 runs against 24 checkouts is 24 questions.
+    Asked once per run, the answers were identical and the wait was tenfold.
+    """
+    asked = []
+
+    def counted(root):
+        asked.append(str(root))
+        return "main", "b" * 40
+
+    monkeypatch.setattr(cli, "checkout_of", counted)
+    for name in ("one", "two", "three"):
+        path = _run(home, name, root=tmp_path / "shared")
+        conn = sqlite3.connect(path)
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+                     "('project_commit', ?)", ("a" * 40,))
+        conn.commit()
+        conn.close()
+
+    rows = {r["name"]: r for r in cli.runs()}
+
+    assert asked == [str(tmp_path / "shared")], "one tree, one question"
+    assert all(rows[n]["moved"] for n in ("one", "two", "three")),         "every run against that tree is behind it"
+
+
 def test_ls_reports_when_a_run_was_made_and_when_it_was_last_opened(
         home, tmp_path):
     """

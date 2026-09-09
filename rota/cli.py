@@ -153,7 +153,7 @@ def _file_times(path: Path) -> tuple[float, float]:
     return getattr(stat, "st_birthtime", stat.st_ctime), stat.st_mtime
 
 
-def _read(path: Path) -> dict:
+def _read(path: Path, ask_git: bool = True) -> dict:
     from .core.db import connect_readonly
 
     created, opened = _file_times(path)
@@ -180,7 +180,12 @@ def _read(path: Path) -> dict:
         # Has the tree moved past the receipt? The same comparison
         # `boot.reconcile_worktrees` makes for a batch, one level up. Runs
         # onboarded before the commit was recorded simply do not answer.
-        if row["commit"] and row["root"]:
+        #
+        # `ask_git` is how `runs()` takes this question away and answers it
+        # for the whole directory at once. One run asked alone still asks
+        # here, because one `git` call is nothing and a caller reading one
+        # run wants the answer in the row it gets back.
+        if ask_git and row["commit"] and row["root"]:
             _, now = checkout_of(row["root"])
             row["moved"] = bool(now) and now != row["commit"]
         for table in COUNTED:
@@ -205,10 +210,41 @@ def _read(path: Path) -> dict:
     return row
 
 
+def _mark_moved(rows: list[dict]) -> None:
+    """
+    Ask each checkout where it is now, once per checkout and all at once.
+
+    This is what listing costs. Reading 67 runs took 6.5 seconds, and 6.2 of
+    them were `git`: `checkout_of` spawns two processes, `_read` called it
+    once per run, and a process costs about 45ms to start on Windows.
+
+    Two facts make that cheap. **A tree has one HEAD**, so 55 runs against 24
+    checkouts is 24 questions and not 55. And **a question about another
+    process is a wait**, so the questions go together rather than in turn.
+
+    Deliberately per call, not a cache with a life of its own. A listing is a
+    photograph of the directory, and the whole point of the column is that it
+    is true when it is shown.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    asking = {row["root"] for row in rows if row["commit"] and row["root"]}
+    if not asking:
+        return
+    roots = sorted(asking)
+    with ThreadPoolExecutor(max_workers=min(8, len(roots))) as pool:
+        heads = dict(zip(roots, pool.map(lambda r: checkout_of(r)[1], roots)))
+    for row in rows:
+        now = heads.get(row["root"], "")
+        row["moved"] = bool(now) and bool(row["commit"]) and now != row["commit"]
+
+
 def runs() -> list[dict]:
     if not RUNS.is_dir():
         return []
-    return [_read(p) for p in sorted(RUNS.glob("*.db"))]
+    rows = [_read(p, ask_git=False) for p in sorted(RUNS.glob("*.db"))]
+    _mark_moved(rows)
+    return rows
 
 
 def cmd_ls(args: argparse.Namespace) -> int:
