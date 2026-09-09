@@ -730,6 +730,17 @@ merged cold in 34 steps.
    leaves and comes back. An approved item is amended and the revocation
    cascade runs. An existing repo, not bare ground. The measure is merges
    per principal-hour.
+   First walks, 2026-09-09. A second sentence into the merged tipsI run
+   went quiet in 6 steps: `tests_missing` fired on the merged batch and
+   quarantined the Tester, and the Liaison claimed work, ref'd the entry,
+   said "Got it, anything else?" and the request died. Both fixed
+   (7c7dc63). The tipsI repo onboarded as a new run, tipsJ, hit the step
+   cap at 150 with three batches pending: the frame attestation was refused
+   as a title with nothing under it, since a frame ruling's body is its
+   reason (c370c35), and the agenda mode asked a question about three open
+   ledger rows until quarantined, where the ruled design presents them on a
+   page (9d69bdd). The `answering` mode fired live three times and each
+   reply reached the Vision Keeper.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
@@ -738,6 +749,16 @@ merged cold in 34 steps.
    revocation is refused. The model rung decides this: the four open 8B
    boundary cases run on qwen2.5:14b tell whether it is a rung or a
    redesign.
+   Run 2026-09-09, five cases, five runs each, one load. One rung: the
+   Vision Keeper sends the outside fact to the Researcher 5/5 (8B: 0/5).
+   Four not: the Critic tried the challenge and the door crashed on a dict
+   of quotes (fixed, 7c7dc63), then chose the Developer over the Tester;
+   the Terminologist looked up every word and defined nothing; the Liaison
+   invented label refs, which was the case's missing wake refs (fixed); the
+   Tester encoded a test for an outside fact. So the Critic and the
+   Terminologist boundaries are judgement at 14B too. The rung is worth
+   taking for the Vision Keeper alone if the walks keep hitting outside
+   facts.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.
