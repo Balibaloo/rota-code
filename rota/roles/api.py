@@ -524,13 +524,21 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         # an out-of-scope claim is evidence they share a subject, not that
         # they are one claim.
         prose = _prose_words(text)
+        # The account is never a behaviour, and a behaviour never folds into
+        # it. On an existing repo the Vision Keeper rewrote the account to
+        # describe the one new feature, then asserted the feature, and the
+        # feature folded into the account: one item, nothing to slice, the
+        # run went quiet (tipsL, 2026-09-09).
+        account = "how_it_works"
         for t, i, vals, *_ in ctx.writes:
             if (t == "items" and i != id and vals.get("kind") == kind
+                    and account not in (i, id)
                     and _near_duplicate(prose, _prose_words(vals.get("text") or ""))):
                 return {"id": i, "note": f"close enough to {i!r} to be the same "
                         f"item ({vals.get('text')!r}) -- not written twice"}
         for r in ctx.conn.execute(
-                "SELECT id, text FROM items WHERE id <> ? AND kind = ?", (id, kind)):
+                "SELECT id, text FROM items WHERE id <> ? AND kind = ? "
+                "AND id <> ? AND ? <> ?", (id, kind, account, id, account)):
             if _near_duplicate(prose, _prose_words(r["text"] or "")):
                 return {"id": r["id"], "note": f"close enough to {r['id']!r} to be "
                         f"the same item ({r['text']!r}) -- not written twice"}

@@ -950,6 +950,27 @@ def test_the_same_sentence_under_a_second_id_is_the_same_item(project):
     assert [w[1] for w in ctx.writes if w[0] == "items"] == ["reads_intents"]
 
 
+def test_a_behaviour_never_folds_into_the_account(project):
+    """
+    tipsL, 2026-09-09: on an existing repo the Vision Keeper rewrote the
+    account to describe the one new feature, then asserted the feature. The
+    near-duplicate fold answered with the account's id. One item, nothing to
+    slice, and the run went quiet. The account is never a behaviour.
+    """
+    from rota.roles.api import Ctx, problem_assert
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    problem_assert(ctx, id="how_it_works",
+                   text="The software splits the bill among a number of people "
+                        "and rounds each share up to the nearest cent.")
+    got = problem_assert(ctx, id="split_bill",
+                         text="Split the bill among a number of people and round "
+                              "each share up to the nearest cent.")
+    assert got["id"] == "split_bill", got
+
+
 
 def test_the_no_prose_front_shows_the_code_that_reads_what_the_user_writes(project):
     """Without the README, the front carries the importer of the authoring
