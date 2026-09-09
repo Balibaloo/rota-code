@@ -720,3 +720,28 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    an empty decision search); qwen writes the account on every cold walk.
    The Terminologist relay lever for the storm was tried and reverted (the
    plain adopt case wrote two rows with the new tools in its list).
+
+## Levels
+
+Ruled 2026-09-09. The order of the next capability, after the toy loop
+merged cold in 34 steps.
+
+1. **A project, not a program.** Many batches over days. The principal
+   leaves and comes back. An approved item is amended and the revocation
+   cascade runs. An existing repo, not bare ground. The measure is merges
+   per principal-hour.
+2. **A team that designs before it builds.** The Terminologist asks what
+   the words mean. The Architect asks what the shape is. The Researcher
+   fetches the outside facts. The principal answers once, on one page. The
+   signoff page is the first moment. The generators are the rest.
+3. **The team judges its own work.** The Critic holds a verdict. A wrong
+   revocation is refused. The model rung decides this: the four open 8B
+   boundary cases run on qwen2.5:14b tell whether it is a rung or a
+   redesign.
+4. **Any stack.** Deferred. The seam is a language profile: test command,
+   floor, dependency file, entry point. Nothing below the harness names a
+   language.
+5. **The tool tunes itself.** Last, and not sure it can be done well. Walks
+   and the register would feed the briefs: the Researcher reads a failed
+   case and proposes the brief change, the register measures it. Today a
+   person does this by hand. Kept here so it is not forgotten, not planned.
