@@ -696,8 +696,12 @@ walk (reproduced live, qwen3:8b, empty repo) attributes every stall:
    the program floor lays an entry point on bare ground; the program is named
    after the project. On 2026-09-09: the provisioner (a `.venv` per batch),
    `prior_answers` on a report wake so a collision the principal answered once
-   is relayed and not re-asked (tipsG: eight clarifies for one question), the
-   runner's first-repeat sentence. Attributed and not chased:
+   is relayed and not re-asked (tipsG: eight clarifies for one question). A
+   runner sentence on the first repeated turn was tried and reverted the same
+   day: it rescued nothing and turned two passing cases red (the Architect,
+   told to write, send or end, amended instead of reporting a dead end). A
+   transcript change is a brief-class lever and is measured like one.
+   Attributed and not chased:
    `L1-VK-the-account-before-the-behaviours` is 0/5 on the current llama
    load with a brief byte-identical to its 5/5 recording (the model loops on
    an empty decision search); qwen writes the account on every cold walk.
