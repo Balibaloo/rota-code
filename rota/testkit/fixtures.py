@@ -136,6 +136,7 @@ class Delta:
     messages: list[dict] = field(default_factory=list)
     tool_calls: list[str] = field(default_factory=list)
     versions_moved: dict[str, int] = field(default_factory=dict)
+    rows: dict[str, list[dict]] = field(default_factory=dict)   # the written rows' content
 
     def tables_written(self) -> set[str]:
         return set(self.writes)
@@ -183,8 +184,22 @@ def capture(conn: sqlite3.Connection, session_id: str,
         if r["version"] != before:
             moved[r["table_name"]] = r["version"] - before
 
+    # The rows themselves, for a case that asserts on a column: the surface a
+    # criterion names is a value, not an id (2026-09-09).
+    rows: dict[str, list[dict]] = {}
+    for table, ids in writes.items():
+        if not ids:
+            continue
+        try:
+            marks = ",".join("?" * len(ids))
+            rows[table] = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE id IN ({marks})", tuple(ids))]
+        except sqlite3.Error:
+            rows[table] = []
+
     return Delta(session_id=session_id, committed=committed, writes=writes,
-                 messages=messages, tool_calls=tool_calls, versions_moved=moved)
+                 messages=messages, tool_calls=tool_calls, versions_moved=moved,
+                 rows=rows)
 
 
 def snapshot_versions(conn: sqlite3.Connection) -> dict[str, int]:
@@ -285,6 +300,16 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
                 problems.append(
                     f"expected writes to {table} to include {sorted(need)}, "
                     f"got {sorted(rows)}")
+            # A value the written rows must carry, as a substring of the row's
+            # JSON: the surface a criterion names, the sense a term gets.
+            words = spec.get("text_includes") or [] if isinstance(spec, dict) else []
+            if words:
+                blob = json.dumps(delta.rows.get(table, []), default=str)
+                missing = [w for w in words if w not in blob]
+                if missing:
+                    problems.append(
+                        f"expected writes to {table} to carry {missing}; "
+                        f"the rows carry {blob[:200]}")
 
     for spec in expect.get("messages") or []:
         matches = [
@@ -323,6 +348,11 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
     # artefact write with its row id -- inserts and updates alike -- so
     # "this row, untouched" is a fact the committed database already holds.
     # Spelled `table:row_id`, the same way a citation names a row.
+    # A value no written row may carry: the tip function as a split's surface.
+    for word in forbidden.get("text_in_writes") or []:
+        blob = json.dumps(delta.rows, default=str)
+        if word in blob:
+            problems.append(f"forbidden text {word!r} in a written row")
     for ref in forbidden.get("rows") or []:
         table, _, row_id = ref.partition(":")
         if row_id in delta.writes.get(table, []):

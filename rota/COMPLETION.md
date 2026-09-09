@@ -980,6 +980,17 @@ merged cold in 34 steps.
    judgement, the Architect blind to a contested touch page, and ledger
    rows that are progress notes or tool refusals, which a principal
    should never be shown.
+   The surface judgement, measured (2026-09-09): the criteria brief now
+   says a new behaviour is a new callable and a name the item gives is
+   the surface, with the tip-as-split example. The specify case held
+   5/5. The new case, an item whose words name `split_bill` beside an
+   index holding `calculate_tip`, is 0/5 on llama: every run named the
+   tip function. The register's grader gained `text_includes` on writes
+   and `text_in_writes` under forbidden for it. The case stays red as
+   the marker; the next lever is not a paragraph. Candidates: the
+   Tester's surface doubt as a challenge to the Terminologist instead of
+   a ledger row, or the principal's ruling that names a callable read
+   as a fact by the surface door.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with

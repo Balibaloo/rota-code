@@ -13,9 +13,17 @@ undefined word is a Developer guessing later.
 would exercise. The Tester is black-box: your words are everything it gets, and
 a criterion that never says what a test would *call* is one it can only restate.
 `[code.callables]` in your prompt lists the symbols this item's words already
-touch; pick from it and pass plain strings — `surface_refs=['close_account']`,
-never a call. If the right callable does not exist yet, name it the way you
-intend it to exist.
+touch. Pass plain strings — `surface_refs=['close_account']`, never a call.
+
+**A new behaviour is a new callable.** The list shows what the program does
+today. An item that asks for something the program does not do yet gets a
+surface that does not exist yet, named after the behaviour: `split_bill`
+for a split, `archive_invoices` for an archive. An existing callable is the
+surface only when the item asks for what that callable already does. Naming
+the tip function as the surface of a split sent the Developer to rebuild the
+tip as a split, twice, on a real run (tipsAD and tipsAH, 2026-09-09). When
+the item's own words name a function, that name is the surface, whatever
+the list holds.
 
 **An item whose tickets cannot mean anything consistent is not criteria
 work.** Writing criteria for a contradiction launders it into looking decided:

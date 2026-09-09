@@ -1,0 +1,35 @@
+# L1 — the surface a criterion names (2026-09-09).
+#
+# The one judgement fault that survived every door: the Terminologist named
+# the existing tip function as the split's surface, so the Tester tested the
+# split through the tip and the Developer rebuilt the tip as a split. Twice on
+# real runs, once after the principal's ruling had named `split_bill`.
+
+- id: L1-TE-a-new-behaviour-is-a-new-callable
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  tick: criteria
+  refs: [<tk1>]
+  fixture:
+    items:
+      - {id: <i1>, kind: in_scope, provenance: decided, approval: approved,
+         approval_ver: 1, version: 1,
+         text: "Each share is the total including the tip divided by the number of people, rounded up to the next cent. The tip stays what it was: the total times the percentage, in calculate_tip. The share lives in a new function named split_bill."}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "split the total with tip between the people, rounding each share up"}
+    glossary_terms:
+      - {id: <g1>, term: share, sense_short: "one person's part of the total with tip",
+         provenance: decided}
+    code_index:
+      - {grain: "main.py::calculate_tip", grain_kind: symbol, sym_kind: function}
+      - {grain: "main.py::display_results", grain_kind: symbol, sym_kind: function}
+      - {grain: "main.py::input_total", grain_kind: symbol, sym_kind: function}
+  expect:
+    writes:
+      criteria: {count: "1..4", text_includes: ["split_bill"]}
+  forbidden:
+    writes: [tickets, items]
+    # The tip function is not the surface of a split.
+    text_in_writes: ["calculate_tip"]
