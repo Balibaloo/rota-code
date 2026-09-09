@@ -1005,6 +1005,34 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     f"you sent {verb} to {recipient} on exactly these refs "
                     f"already ({prior['id']}) and they answered. Sending it "
                     f"again is the same argument again -- {door}")
+        if verb == "question" and refs:
+            # A question answered twice on the same rows is not a third
+            # question. tipsAB (2026-09-09): the Tester asked the
+            # Terminologist about one criterion's term 71 times in nine
+            # wordings, alternating two ref sets so the exact-refs door
+            # above never fired, and the Terminologist answered 65 times
+            # with the same ref and no words. Overlap, not equality, and
+            # two answers are the bound; the ladder is the exit.
+            import json as _json
+            answered = 0
+            for row in ctx.conn.execute(
+                    "SELECT m.body_refs FROM messages m JOIN messages a ON a.cause_id = m.id "
+                    "WHERE m.from_role = ? AND m.to_role = ? AND m.verb = 'question' "
+                    "AND a.verb = 'answer'", (ctx.role, recipient)):
+                try:
+                    prior_refs = set(_json.loads(row["body_refs"] or "[]"))
+                except (TypeError, ValueError):
+                    continue
+                if prior_refs & set(refs):
+                    answered += 1
+            if answered >= 2:
+                door = ("tests.triage(criterion_id=..., verdict='cannot') with the "
+                        "reason: the criterion goes to repair"
+                        if ctx.role == "tester" else "schedule.unresolved")
+                raise ValueError(
+                    f"{recipient} has answered {answered} questions of yours "
+                    f"on these rows and they did not settle it. A third "
+                    f"question is the same question. The exit is {door}")
 
         # The intake fork, armed by the mode: a converse to the principal is
         # either the reply to work (refs carry what intake produced) or a

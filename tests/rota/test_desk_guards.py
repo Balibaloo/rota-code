@@ -144,6 +144,26 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
     assert out["bytes"]
 
 
+def test_two_answers_on_the_same_rows_end_the_questions(db):
+    """
+    tipsAB, 2026-09-09: the Tester asked the Terminologist about one
+    criterion's term 71 times in nine wordings, alternating two ref sets so
+    the exact-refs door never fired. Two answers are the bound.
+    """
+    m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+         "body_text, cause_id, seq, status) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    db.execute(m, ("q1", "t", "tester", "terminologist", "question", '["c1"]', "what?", None, 1, "answered"))
+    db.execute(m, ("a1", "t", "terminologist", "tester", "answer", '["g1"]', None, "q1", 2, "answered"))
+    db.execute(m, ("q2", "t", "tester", "terminologist", "question", '["c1", "g1"]', "and?", None, 3, "answered"))
+    db.execute(m, ("a2", "t", "terminologist", "tester", "answer", '["g1"]', None, "q2", 4, "answered"))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("tester", db, batch_id="b1", mode="tests_missing",
+               allow=prompts.mode_tools("tester", "tests_missing"))
+    with pytest.raises(ValueError, match="answered 2 questions of yours.*triage"):
+        sb.call("msg.question_terminologist", refs=["c1"], question="but really?")
+
+
 def test_a_commit_defines_the_surface_the_criteria_name(db, tmp_path):
     """
     tipsX, 2026-09-09: the criterion named `main.py::split_bill`, the

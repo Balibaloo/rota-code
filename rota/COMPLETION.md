@@ -881,6 +881,12 @@ merged cold in 34 steps.
    on 14B and defended it on 8B, since routing was per tick and skipped
    messages by design. `model_routing` now takes `role=model` pairs too,
    so one desk is one model. The surface judgement is the open lever.
+   tipsAB, four roles on 14B: the harness went green on two tests and the
+   merge gate held, since the second criterion had no test. The steps
+   went to a loop: the Tester asked the Terminologist about the rounding
+   term 71 times in nine wordings, alternating two ref sets, and got 65
+   answers with the same ref and no words. Two answered questions on
+   overlapping rows now end the questions, and the exit is named.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.
