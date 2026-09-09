@@ -52,6 +52,19 @@ def test_a_challenge_is_the_sessions_verdict_until_it_lands(db):
                 failed_criterion="c1")
 
 
+def test_labelled_quotes_are_read_not_crashed_on(db):
+    """
+    qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register
+    (2026-09-09). The door crashed on `.split` and the Critic's challenge, the
+    one act 8B never reached, was lost to a Python error.
+    """
+    sb = build("critic", db, batch_id="b1", mode="review")
+    sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+            quotes={"criterion": "closing an account leaves its invoices in place",
+                    "test": "assert close_account('a1') is not None"})
+    assert sb.ctx.outbound
+
+
 def test_a_developer_challenge_does_not_block_the_verdict(db):
     # Recipient-scoped (ruled 2026-09-03): a tester-challenge disputes the
     # measuring instrument, so no verdict may land on top of it; a

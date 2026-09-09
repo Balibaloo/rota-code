@@ -470,6 +470,26 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
                for w in frontier(db)), "the ruling never released the work"
 
 
+def test_a_merged_batch_never_wakes_the_tester_again(db):
+    """
+    tipsI, 2026-09-09: one criterion never got a test. The batch merged
+    anyway. `tests_missing` fired on the merged batch, the Tester was
+    quarantined, and the state said the team gave up. A merged batch is done.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','the tip is shown','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','show')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+               "VALUES ('b1','i1','merged','deadbeef')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
+               "('c1','tk1','the tip is printed','[]')")
+    assert not any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
+    db.execute("UPDATE batches SET status = 'running' WHERE id = 'b1'")
+    assert any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
+
+
 def test_a_dead_answer_climbs_to_somebody_who_has_not_spoken(db):
     """
     The register's one declared entry, and everything after it derived.

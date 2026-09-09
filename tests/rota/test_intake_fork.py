@@ -55,6 +55,23 @@ def test_work_claimed_means_the_reply_carries_refs(db):
     assert sb.ctx.outbound
 
 
+def test_work_claimed_with_the_entry_as_its_ref_is_still_nothing(db):
+    """
+    tipsI, 2026-09-09: a second sentence into a merged run. The Liaison
+    claimed work, ref'd the entry, replied "Got it, anything else?", and the
+    request died with the refs door satisfied. An entry is not a statement.
+    """
+    sb = _intake(db)
+    sb.call("brief.intake", verdict="work")
+    with pytest.raises(ValueError, match="segmented nothing"):
+        sb.call("msg.converse_principal", refs=["e_m_in"], reply="Got it!")
+    sb.call("brief.segment", id="s1", span_start=7, span_end=90,
+            text='Please build a python script that asks for the users name, '
+                 'and then shows "Hellow User!"')
+    sb.call("msg.confirm_principal", refs=["s1"])
+    assert sb.ctx.outbound
+
+
 def test_chat_claimed_means_a_bare_reply_is_legal(db):
     sb = _intake(db)
     sb.call("brief.intake", verdict="chat")

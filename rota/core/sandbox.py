@@ -1021,6 +1021,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     "statements you segmented (brief.segment their words, "
                     "then confirm). A bare reply would answer the greeting "
                     "and lose the request")
+            # The refs must be statements. Measured on tipsI (2026-09-09): a
+            # second sentence into a merged run was claimed as work, the reply
+            # ref'd the entry and said "Got it, anything else?", and the
+            # request died with the door satisfied. An entry is not a
+            # statement. The state the session holds decides: work claimed,
+            # nothing segmented, nothing ref'd that is a statement.
+            if (ctx.intake == "work"
+                    and not any(w[0] == "statements" for w in ctx.writes)
+                    and not any(ctx.conn.execute(
+                        "SELECT 1 FROM statements WHERE id = ?", (r,)).fetchone()
+                        for r in (refs or []))):
+                raise ValueError(
+                    "you claimed work and segmented nothing. The refs name "
+                    "the entry, and an entry is not a statement. brief.segment "
+                    "the request into statements first, then confirm them. "
+                    "A reply that only acknowledges loses the request")
             # A chat reply that restates a statement is answered *from* it,
             # and the trail should say so. G1-what-the-brief-already-holds
             # went red the day the fork landed: the Liaison claimed chat,
@@ -1457,9 +1473,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # spans is unambiguous -- join it. `question=` keeps the scalar
         # annotation: two questions really are two messages, and refusing
         # that ambiguity is validate_args doing its job.
-        ann = "str | list" if verb == "challenge" else "str"
+        # A dict of labelled spans is the same thing with names on it.
+        # qwen2.5:14b sent `quotes={"criterion": ..., "diff": ...}` and the
+        # door crashed on `.split` instead of reading the spans (2026-09-09).
+        ann = "str | list | dict" if verb == "challenge" else "str"
         src = (
             f"def send(refs: list[str], {arg}: {ann}, round_no: int = 0):\n"
+            f"    if isinstance({arg}, dict):\n"
+            f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
             f"    if isinstance({arg}, list):\n"
             f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"
