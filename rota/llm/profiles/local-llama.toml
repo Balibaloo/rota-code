@@ -1,0 +1,20 @@
+# The register's model as the default. On the 91 common L1 cases (2026-09-09,
+# one load each) llama3.1:8b passes 80, qwen3:8b 70, qwen3.5:9b 66; the briefs
+# were tuned on llama and every desk but the Vision Keeper reads them best on
+# it. The judging desks stay on qwen3.5:9b, which is what merged tipsAD.
+name = "local-llama"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "llama3.1:8b"
+tester = "qwen3.5:9b"
+critic = "qwen3.5:9b"
+terminologist = "qwen3.5:9b"
+developer = "qwen3.5:9b"

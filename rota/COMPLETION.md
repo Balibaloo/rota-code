@@ -918,6 +918,13 @@ merged cold in 34 steps.
    a different family reads them differently. The walks' default,
    qwen3:8b, has no register record, so it records next. The shipped
    profile keeps the walk's evidence until the three-way picture is in.
+   The three-way, 91 common cases, one load each: llama3.1:8b 80,
+   qwen3:8b 70, qwen3.5:9b 66. Per desk llama reads the briefs best
+   everywhere except the Vision Keeper, where the 9b ties on different
+   cases; the Terminologist is 14, 11, 9. The briefs were tuned on
+   llama. A second shipped profile, `local-llama`, puts llama as the
+   default with the 9b judges, and a walk on it decides the shipped
+   default.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with
