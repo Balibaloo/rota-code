@@ -1086,10 +1086,18 @@ class RotaApp(App):
         self.driving = True
         self._from_worker(self.refresh_run_state)
         try:
+            # The run's frozen profile when it has one; the --model flag is
+            # the pre-profile way and still works for a run without one.
+            from ..llm import profile as profile_mod
+            _conn = connect(self.db_path)
+            _prof = profile_mod.of_run(_conn)
+            _backend = _prof.backend() if _prof else llm.OllamaBackend()
+            _pins = (_prof.pins_for(None) if _prof
+                     else llm.Pins(model=self.model, temperature=0.0))
             loop_mod.run(
-                connect(self.db_path),
-                backend=llm.OllamaBackend(),
-                pins=llm.Pins(model=self.model, temperature=0.0),
+                _conn,
+                backend=_backend,
+                pins=_pins,
                 principal=self.principal,
                 max_steps=40,
                 on_step=on_step,
