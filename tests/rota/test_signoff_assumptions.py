@@ -87,6 +87,39 @@ def test_the_present_carries_the_lineage_s_open_assumptions(db):
     assert "the percentage is typed each time" in asks[0].rendered
 
 
+def test_the_other_desks_assumptions_about_the_words_ride_the_page(db):
+    """
+    Level 2 (2026-09-09): the Terminologist and the Architect log against
+    the ratified statement, the lineage's root. Once items cover it the
+    statement is not on the page, so its rows ride by lineage: the word
+    taken one way and the shape assumed reach the principal before slicing.
+    """
+    _an_item_with_an_assumption(db)
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'archive the invoices older than a year')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
+               "VALUES ('s1','e1',0,39,'archive the invoices older than a year','ratified')")
+    db.execute("INSERT INTO item_statements (item_id, statement_id) VALUES ('how_it_works','s1')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, author) "
+               "VALUES ('L4','s1','statements','archive: took move to cold storage; if it "
+               "means delete, the invoices are gone','open','terminologist')")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, author) "
+               "VALUES ('L5','s1','statements','settled','resolved','architect')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m8','th','vision_keeper',"
+               "'liaison','submit',?,1,'open')", (json.dumps(["how_it_works"]),))
+    db.commit()
+    out = run_session(
+        db, Wake("liaison", "message", message_id="m8", detail="submit"),
+        backend=ScriptedBackend(["TOOL: msg.present_principal(refs=['how_it_works'])", "done"]),
+        pins=PINS, instructions="present it")
+    assert out.committed, out.errors
+    refs = json.loads(db.execute("SELECT body_refs FROM messages WHERE verb='present'").fetchone()["body_refs"])
+    assert "L4" in refs and "L5" not in refs, refs
+    assert "archive: took move to cold storage" in render_refs(db, refs)
+    assert _owner_of_ref(db, "L4") == "terminologist"
+
+
 def test_an_assumption_s_owner_is_its_author(db):
     _an_item_with_an_assumption(db)
     assert _owner_of_ref(db, "L1") == "vision_keeper"

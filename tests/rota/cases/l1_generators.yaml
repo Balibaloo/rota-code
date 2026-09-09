@@ -1,0 +1,42 @@
+# L1 — the generators (Level 2, 2026-09-09).
+#
+# The signoff page is the seed interview. The Vision Keeper logs what the
+# statement left silent about behaviour; these two are the other desks' halves.
+# The Terminologist logs a word it took one way, and the Architect logs a shape
+# it assumed. Both rows are about the ratified statement, the lineage's root,
+# and ride the signoff page beside the account.
+
+- id: L1-TE-log-the-word-you-took-one-way
+  tier: T1
+  role: terminologist
+  runs: 5
+  pass: 3
+  # tipsAD: "rounded up to the nearest cent" and a glossary sense of "nearest
+  # unit" went unreconciled for 71 questions. The word was taken one way and
+  # nobody was told. Here the word is `archive`: delete, or move to cold
+  # storage. Take one, define it, and log the taking.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "archive the invoices older than a year"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 39,
+         text: "archive the invoices older than a year", status: ratified}
+  inbound: {from: liaison, to: terminologist, verb: deliver, body_refs: [<s1>]}
+  expect:
+    writes:
+      # The row is what this case measures. The over-production, five words
+      # of a seven-word sentence defined, is another case's concern.
+      glossary_terms: {count: "1..6"}
+      ledger: {count: "1..2"}
+  forbidden:
+    writes: [items, criteria, tickets, statements]
+    recipients: [vision_keeper, architect, developer, tester]
+
+# `L1-AR-log-where-you-put-it` was authored here and withdrawn the same day.
+# The Architect's deliver brief gained the same literal `ledger.log` shape as
+# the Terminologist's, and on the plain external-commitment case the model
+# logged two assumptions, authored a decision, and never wrote the constraint:
+# 5/5 to 0/5. The paragraph is reverted and the case with it. The Architect's
+# generator needs a different lever, as the Vision Keeper's Researcher route
+# did (COMPLETION.md, Level 2).

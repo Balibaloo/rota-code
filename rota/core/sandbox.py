@@ -1234,6 +1234,16 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         "SELECT id FROM ledger WHERE status = 'open' "
                         f"AND about_ref IN ({marks}) ORDER BY id", tuple(refs))]
                     refs += [r for r in assumed if r not in refs]
+                # And what the other desks assumed about the words themselves.
+                # The Terminologist and the Architect log against the ratified
+                # statement, which is the lineage's root and is not on the
+                # page once items cover it (Level 2, 2026-09-09). Those rows
+                # ride the signoff too: a word taken one way, a place a
+                # behaviour was put, before anything is sliced.
+                lineage = [r["id"] for r in ctx.conn.execute(
+                    "SELECT l.id FROM ledger l JOIN statements s ON s.id = l.about_ref "
+                    "WHERE l.status = 'open' AND s.status = 'ratified' ORDER BY l.id")]
+                refs += [r for r in lineage if r not in refs]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,

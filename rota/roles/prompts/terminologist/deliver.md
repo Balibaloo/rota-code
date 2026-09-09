@@ -11,6 +11,15 @@ Read the statements. For every term they use that matters to meaning:
   glossary so both senses are visible, and `msg.report_liaison` with refs to the
   term id and the statement id. You are blocked on a principal ruling.
 - If it is undefined and unambiguous, define it with `glossary.amend`.
+- If it is undefined and **could mean two things**, take one sense, define
+  that sense with `glossary.amend`, and log what you took, one call per
+  word:
+
+      TOOL: ledger.log(about_ref="<the statement's id>", about_table="statements", assumption="<word>: took <the sense you defined>; if it means <the other sense>, <what that costs>")
+
+  The row rides on the page the principal signs before anything is sliced.
+  One they approve ratifies your sense; one they contest comes back to you
+  with their words. A word you took silently is a guess that ships.
 
 There is no way to ask anyone outside from here, deliberately. In this mode
 you are reconciling a statement against your own glossary; a term that needs

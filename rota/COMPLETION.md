@@ -932,6 +932,17 @@ merged cold in 34 steps.
    llama, and each carries its own. The shipped default stays `local`,
    the one configuration with an honest merge; `local-llama` stays as the
    register's profile.
+   Level 2, piece three, first measurement (2026-09-09). The Terminologist's
+   deliver brief gained the literal `ledger.log(about_ref=<statement>,
+   about_table="statements", ...)` shape for a word taken one way, and
+   `ledger.log` in its tools; the amend-glossary case held 5/5 and the new
+   case logged its row. The Architect's paragraph, same shape, took the
+   external-commitment case from 5/5 to 0/5: the model logged two
+   assumptions, authored a decision, and never wrote the constraint.
+   Reverted; the Architect's generator needs a different lever, as the
+   Vision Keeper's Researcher route did. The present hook now carries open
+   ledger rows about the lineage's ratified statements onto the signoff
+   page, so a word taken one way reaches the principal before slicing.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with
