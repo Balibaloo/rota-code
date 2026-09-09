@@ -24,3 +24,6 @@ env/
 
 tests/rota/cassettes.db-wal
 tests/rota/cassettes.db-shm
+
+# a TUI database written at the repo root by an old default
+rota-tui.db*
