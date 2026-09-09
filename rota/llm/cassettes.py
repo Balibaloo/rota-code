@@ -111,10 +111,15 @@ def key_for(system: str, user: str, pins: Pins, protocol: str = "text") -> str:
     let a text-protocol recording answer for a native run, which is not evidence
     about it.
     """
-    blob = json.dumps(
-        [pins.model, pins.temperature, pins.num_ctx, protocol, system, user],
-        sort_keys=True,
-    )
+    # The original six fields make the blob every existing recording was
+    # keyed by. An optional pin that is set joins as a seventh element, so
+    # a recording made under the provider's defaults keeps its key and a
+    # recording made under a set pin gets its own.
+    fields: list = [pins.model, pins.temperature, pins.num_ctx, protocol, system, user]
+    extras = pins.extras()
+    if extras:
+        fields.append(extras)
+    blob = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
 
 

@@ -1340,9 +1340,13 @@ def run_session(
         # marker, which made a session commit *empty* — success-shaped failure.
         # The TOOL: protocol remains for models without tool support, which is
         # exactly what it is for.
-        use_native = native_tools
-        if use_native is None:
-            use_native = getattr(backend, "name", "") == "ollama" and                 llm.supports_tools(pins.model)
+        # Text protocol unless a run asks for native tools. The default used
+        # to be "native when the model supports it", and the schemas were
+        # computed and never handed to the backend, so every run has in
+        # fact spoken the text protocol; handing them over under that
+        # default would have switched the protocol on every capable model
+        # at once. Opt in per run, and the schemas travel (2026-09-09).
+        use_native = bool(native_tools)
         schemas = toolschema.schemas_for_sandbox(sb) if use_native else None
 
         # Every read this session has already performed, so that re-sending one
@@ -1391,7 +1395,7 @@ def run_session(
             transcript = _fit(transcript, budget)
             user = "\n\n".join(transcript)
             _started = time.perf_counter()
-            completion = backend.complete(system, user, pins)
+            completion = backend.complete(system, user, pins, tools=schemas)
             outcome.completions.append(completion.text)
             # The exact context and the exact response, kept. Everything else
             # about a session is recoverable from its rows; this is not, and it
@@ -1872,6 +1876,7 @@ def run_session(
             tool_calls=sandbox_mod.drain_calls(sb.ctx),
             turns=turns,
             pins=pins.as_dict(),
+            backend=getattr(backend, "name", ""),
             refusals=list(getattr(sb.ctx, "refusals", []) or []),
         )
         # Hard guard: a chat reply to the principal is mutually exclusive with

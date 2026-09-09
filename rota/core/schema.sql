@@ -503,6 +503,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     temperature  REAL,
     num_ctx      INTEGER,
     prompt_hash  TEXT,
+    -- the whole pin set, so a new pin is additive and never a column; and
+    -- the adapter that ran it, never an endpoint or a key
+    pins_json    TEXT NOT NULL DEFAULT '{}',
+    backend      TEXT,
     -- What woke it. `trigger_msg` answers this only for a message, and in an
     -- onboarding run nothing is a message: 24 of 24 sessions on the last real
     -- one were ticks, so the record of why any of them ran was a null column.

@@ -186,6 +186,7 @@ class SessionResult:
     turns: list[Turn] = field(default_factory=list)
     checkpoint: dict | None = None
     pins: dict = field(default_factory=dict)
+    backend: str = ""               # the adapter that ran it: ollama, litellm, scripted
     # (label, message) for every call a guard threw out. Evidence, not noise:
     # the derived reask below turns on a refusal the session met after being
     # answered, and the commit is the one place session and database meet.
@@ -389,8 +390,8 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         conn.execute(
             "INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq, "
             "model, temperature, num_ctx, prompt_hash, wake_kind, wake_detail, "
-            "wake_refs, briefs_hash) "
-            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "wake_refs, briefs_hash, pins_json, backend) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 result.session_id, result.role, result.trigger_msg, result.mode,
                 _next_seq(conn, "sessions"),
@@ -398,6 +399,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                 result.pins.get("num_ctx"), result.pins.get("prompt_hash"),
                 result.wake_kind, result.wake_detail,
                 json.dumps(list(result.wake_refs)), result.briefs_hash,
+                json.dumps(result.pins, sort_keys=True), result.backend or None,
             ),
         )
 

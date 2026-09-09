@@ -46,20 +46,55 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 @dataclass(frozen=True)
 class Pins:
+    """
+    Every setting that can change a model's reply, and nothing else.
+
+    The first three are the original pins and key every recording ever
+    made. The rest are optional: `None` means the provider's own default,
+    and a pin at `None` stays out of the cassette key, so a recording made
+    before the field existed keeps its key. A pin that is set changes the
+    key, which is the point of a pin.
+    """
     model: str = DEFAULT_MODEL
     temperature: float = 0.0
     num_ctx: int = DEFAULT_NUM_CTX
     prompt_hash: str = ""
+    max_tokens: int | None = None
+    top_p: float | None = None
+    seed: int | None = None
+    repeat_penalty: float | None = None
 
     def with_prompt(self, prompt: str) -> "Pins":
+        import dataclasses
         digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
-        return Pins(self.model, self.temperature, self.num_ctx, digest)
+        return dataclasses.replace(self, prompt_hash=digest)
 
     def as_dict(self) -> dict:
         return {
             "model": self.model, "temperature": self.temperature,
             "num_ctx": self.num_ctx, "prompt_hash": self.prompt_hash,
+            "max_tokens": self.max_tokens, "top_p": self.top_p,
+            "seed": self.seed, "repeat_penalty": self.repeat_penalty,
         }
+
+    def extras(self) -> dict:
+        """The optional pins that are set. Empty for the original three."""
+        return {k: v for k, v in (("max_tokens", self.max_tokens),
+                                  ("top_p", self.top_p), ("seed", self.seed),
+                                  ("repeat_penalty", self.repeat_penalty))
+                if v is not None}
+
+    def check(self) -> "Pins":
+        """Refuse a value no provider could honour. Returns self."""
+        if self.temperature < 0:
+            raise ValueError(f"temperature must be >= 0, not {self.temperature}")
+        if self.num_ctx <= 0:
+            raise ValueError(f"num_ctx must be > 0, not {self.num_ctx}")
+        if self.max_tokens is not None and self.max_tokens <= 0:
+            raise ValueError(f"max_tokens must be > 0, not {self.max_tokens}")
+        if self.top_p is not None and not (0 < self.top_p <= 1):
+            raise ValueError(f"top_p must satisfy 0 < top_p <= 1, not {self.top_p}")
+        return self
 
 
 @dataclass
@@ -249,6 +284,17 @@ class OllamaBackend:
         self.host = host.rstrip("/")
         self.timeout = timeout
 
+    def options(self, pins: Pins) -> dict:
+        """The request options from the pins. An unset pin is absent, so the
+        request for the original three pins is byte-identical to before."""
+        out = {"temperature": pins.temperature, "num_ctx": pins.num_ctx,
+               "num_predict": pins.max_tokens or self.max_tokens}
+        for key in ("top_p", "seed", "repeat_penalty"):
+            value = getattr(pins, key)
+            if value is not None:
+                out[key] = value
+        return out
+
     def complete(self, system: str, user: str, pins: Pins,
                  tools: list | None = None) -> Completion:
         payload = {
@@ -262,8 +308,7 @@ class OllamaBackend:
             # visible tok/s on the bench. The system speaks in acts, so
             # thinking is off; a template that ignores the flag is unharmed.
             "think": False,
-            "options": {"temperature": pins.temperature, "num_ctx": pins.num_ctx,
-                        "num_predict": self.max_tokens},
+            "options": self.options(pins),
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -319,23 +364,63 @@ class OllamaBackend:
 
 
 class LiteLLMBackend:
-    """Optional. Present so swapping providers is a config change, not a rewrite."""
+    """
+    Every provider that is not local Ollama: OpenAI, Anthropic, an
+    OpenAI-compatible server such as llama.cpp, or Ollama through LiteLLM.
+
+    Optional import, so its absence never breaks the runner. Portable pins
+    only: `num_ctx` is an Ollama option and stays as provenance, and
+    `repeat_penalty` is refused rather than dropped, because a setting that
+    silently does nothing contaminates a comparison.
+    """
 
     name = "litellm"
+    default_max_tokens = 2048
+
+    def __init__(self, api_base: str | None = None, timeout: float = 300.0):
+        self.api_base = api_base or None
+        self.timeout = timeout
+
+    def kwargs(self, system: str, user: str, pins: Pins,
+               tools: list | None = None) -> dict:
+        """The completion call, as keyword arguments. Testable without the library."""
+        if pins.repeat_penalty is not None:
+            raise ValueError(
+                "repeat_penalty is an Ollama option and LiteLLM has no portable "
+                "equivalent; unset it for this provider rather than have it "
+                "silently ignored")
+        out = {
+            "model": f"ollama/{pins.model}" if "/" not in pins.model else pins.model,
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": user}],
+            "temperature": pins.temperature,
+            "max_tokens": pins.max_tokens or self.default_max_tokens,
+            "timeout": self.timeout,
+        }
+        if pins.top_p is not None:
+            out["top_p"] = pins.top_p
+        if pins.seed is not None:
+            out["seed"] = pins.seed
+        if tools:
+            out["tools"] = tools
+        if self.api_base:
+            out["api_base"] = self.api_base
+        return out
 
     def complete(self, system: str, user: str, pins: Pins,
                  tools: list | None = None) -> Completion:
         import litellm  # imported lazily: absence must not break the runner
 
-        resp = litellm.completion(
-            model=f"ollama/{pins.model}" if "/" not in pins.model else pins.model,
-            messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": user}],
-            temperature=pins.temperature,
-            num_ctx=pins.num_ctx,
-        )
-        return Completion(text=resp.choices[0].message.content, pins=pins,
-                          backend=self.name, raw={})
+        try:
+            resp = litellm.completion(**self.kwargs(system, user, pins, tools))
+        except Exception as exc:  # noqa: BLE001 -- the provider's own error class varies
+            raise LLMUnavailable(f"litellm ({pins.model}): {exc}") from exc
+        message = resp.choices[0].message
+        calls = [NativeCall(name=c.function.name,
+                            args=json.loads(c.function.arguments or "{}"))
+                 for c in (getattr(message, "tool_calls", None) or [])]
+        return Completion(text=message.content or "", pins=pins,
+                          backend=self.name, raw={}, calls=calls)
 
 
 class ScriptedBackend:
