@@ -1484,20 +1484,6 @@ def run_session(
                     == turns[-3].completion.strip()):
                 outcome.errors.append("repeated its previous turn verbatim twice; ended")
                 break
-            if (len(turns) >= 2
-                    and turns[-1].completion.strip() == turns[-2].completion.strip()):
-                # The first repeat gets a sentence; the second ends the session.
-                # Measured on the register (2026-09-09): Vision Keeper called
-                # `decisions.search("tip calculator")` three times, got the
-                # same empty answer three times, and was ended without ever
-                # writing. A read that finds nothing is an answer. Said once,
-                # here, for every role, because the loop is the runner's to
-                # see and no brief can watch its own transcript.
-                transcript.append(
-                    "You made the same call as your last turn, and its answer "
-                    "is the same. A read that found nothing is the answer: "
-                    "nothing is on file. Act on what you have now. Write, "
-                    "send, or end.")
 
             feedback = []
             held = []

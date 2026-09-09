@@ -788,39 +788,3 @@ def test_a_stream_that_repeats_the_same_line_three_times_is_stopped_there():
     assert out.get("done_reason") == "repeating"
     assert len(pulled) == 3, pulled
     assert out["message"]["content"].count(line) == 3
-
-
-def test_a_first_repeat_gets_a_sentence_and_the_session_goes_on(tmp_path):
-    """
-    Three identical turns end a session. The second used to pass in silence.
-    Measured on the register (2026-09-09): Vision Keeper searched the decision
-    record for the same words three times, got nothing three times, and was
-    ended without writing. A read that finds nothing is an answer. The runner
-    says so once, on the first repeat, and the role acts on the next turn.
-    """
-    from rota.core.db import init_db
-    from rota.core.predicates import Wake
-    from rota.core.runner import run_session
-    from rota.llm.llm import Pins, ScriptedBackend
-
-    db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
-               "('e1','principal','tip calculator pls',1)")
-    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
-               "status) VALUES ('s1','e1',0,18,'tip calculator pls','ratified')")
-    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
-               "seq, status) VALUES ('m3','th','liaison','vision_keeper','deliver',"
-               "'[\"s1\"]',1,'open')")
-    db.commit()
-    same = 'TOOL: decisions.search(query="tip calculator")'
-    act = ('TOOL: problem.assert(id="how_it_works", kind="in_scope", '
-           'text="The user types the bill and a tip percentage.")')
-    out = run_session(db, Wake("vision_keeper", "message", message_id="m3", detail="deliver"),
-                      backend=ScriptedBackend([same, same, act, "done"]),
-                      pins=Pins(model="stub", temperature=0.0), instructions="x")
-    assert out.committed, out.errors
-    assert not any("verbatim" in e for e in out.errors)
-    nudged = [t for t in db.execute("SELECT user FROM turns WHERE session_id = ? ORDER BY seq",
-                                    (out.session_id,)) if "same call as your last turn" in t["user"]]
-    assert nudged, "the first repeat was answered with the sentence"
-    assert db.execute("SELECT 1 FROM items WHERE id = 'how_it_works'").fetchone()
