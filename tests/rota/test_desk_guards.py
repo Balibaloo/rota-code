@@ -71,6 +71,14 @@ def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
                        "def test_calculate_tip():\n"
                        "    assert calculate_tip(100, 10) == 10\n")
     assert got, "the encode must land"
+    # tipsU: the surface lives in main.py, the test imported it from a
+    # module that does not exist, ImportError at collection, quarantine.
+    with pytest.raises(ValueError, match="lives in main.py and this test imports from billing"):
+        sb.call("tests.encode", id="tst10", criterion_id="c1",
+                path="tests/test_tip2.py",
+                body="from billing import calculate_tip\n"
+                     "def test_calculate_tip():\n"
+                     "    assert calculate_tip(100, 10) == 10\n")
 
 
 def test_a_rewrite_keeps_what_the_criteria_and_other_files_use(db, tmp_path):

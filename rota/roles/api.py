@@ -3595,6 +3595,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # was refused as never calling `main.py::calculate_tip`, three
         # sessions, quarantine, nothing merged (tipsK, 2026-09-09).
         surface_names = {s.rsplit("::", 1)[-1] for s in surface} | set(surface)
+        # And from the surface's own module. tipsU (2026-09-09): the surface
+        # was `main.py::calculate_tip` and the test did `from billing import
+        # calculate_tip`; no such module, ImportError at collection, three
+        # sessions, quarantine. The path half of a surface ref says where
+        # the name lives.
+        import re as _re2
+        surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
+                        for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
+        imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
+        if surface_mods and imported_from and not (surface_mods & {m.split(".")[0] for m in imported_from}):
+            raise Wall(
+                f"the surface {surface[0]!r} lives in "
+                f"{sorted(surface_mods)[0]}.py and this test imports from "
+                f"{sorted(imported_from)[0]}. Import the surface from its own "
+                f"module: `from {sorted(surface_mods)[0]} import "
+                f"{surface[0].rsplit('::', 1)[-1]}`")
         if not (surface_names & called_names):
             raise Wall(
                 f"this test never calls {surface[0]!r}, the surface the "
