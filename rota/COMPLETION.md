@@ -820,6 +820,11 @@ merged cold in 34 steps.
    definition the file has stays. Thirteen of the asks were one page per
    Critic challenge row; the agenda now waits for onboarding to finish,
    the same gate as the observed rows.
+   tipsW went quiet at 90 steps with 9 asks, and main.py kept its
+   functions and its guard. What remains is judgement, not a door: the
+   Terminologist names the existing tip function as the split's surface,
+   the Tester's second test expects a number no split could return, and
+   the Developer's challenge path exhausts against it. That is Level 3.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
