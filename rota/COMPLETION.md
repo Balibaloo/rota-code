@@ -887,6 +887,12 @@ merged cold in 34 steps.
    term 71 times in nine wordings, alternating two ref sets, and got 65
    answers with the same ref and no words. Two answered questions on
    overlapping rows now end the questions, and the exit is named.
+   qwen3.5:9b on the five open cases, one load: the same profile as
+   qwen2.5:14b, the Vision Keeper's outside fact 5/5, the observed page
+   5/5, the Critic, Terminologist and Tester boundaries 0/5, in under
+   three minutes against ten, because 6.6 GB fits the card whole. It is
+   the judgement-tier candidate. qwen3.5:4b and a walk with the four
+   roles on the 9b follow.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.
