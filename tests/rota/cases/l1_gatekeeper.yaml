@@ -126,3 +126,34 @@
   forbidden:
     writes: [statements, entries, tickets]
     recipients: [developer, tester, critic]
+
+- id: L1-VK-a-statement-on-an-existing-account-is-a-behaviour
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 4
+  # tipsL and tipsM (2026-09-09): on an existing repository the account is
+  # on file from orient. Handed a new statement, the Vision Keeper rewrote
+  # the account to describe the feature and wrote no behaviour item. One
+  # item, nothing to slice, and the run went quiet. The statement is a
+  # behaviour with its own id.
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "also split the bill between a number of people, and round each share up to the nearest cent"}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 90,
+         text: "split the bill between a number of people, and round each share up to the nearest cent",
+         status: ratified}
+    items:
+      - {id: how_it_works, kind: in_scope, provenance: observed, approval: approved,
+         approval_ver: 1, version: 1,
+         text: "The program asks for the total and the tip percentage, calculates the tip, and prints the total, the tip, and the total with tip."}
+  inbound: {from: liaison, to: vision_keeper, verb: deliver, body_refs: [<s1>]}
+  expect:
+    writes:
+      items: {count: "1..3"}
+  forbidden:
+    rows: [items:how_it_works]
+    writes: [statements, entries, tickets]
+    recipients: [developer, tester, critic]

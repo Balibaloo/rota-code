@@ -32,6 +32,14 @@ and understood three different programs, and the one that shipped had no way
 to run it, because nothing on file said what it was. Orient writes this
 account first for an existing repository; a statement gets the same.
 
+**If `how_it_works` is already on file, leave it.** The repository exists
+and the account describes what it does today. The statement is a new
+behaviour. Assert it as its own item, with an id that names the behaviour,
+one `problem.assert` per distinct thing. Do not put the statement into the
+account. Measured on an existing repository (tipsL and tipsM, 2026-09-09):
+the account was rewritten to describe the new feature, no behaviour item
+was written, there was nothing to slice, and the run went quiet.
+
 Otherwise, assert in-scope and out-of-scope items with `problem.assert`. One item per
 distinct thing the software must do. Check `problem.consult` first — an item already
 on file for the same behaviour is not asserted again under a new id, however

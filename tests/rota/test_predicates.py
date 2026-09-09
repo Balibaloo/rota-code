@@ -470,6 +470,22 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
                for w in frontier(db)), "the ruling never released the work"
 
 
+def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
+    """
+    tipsM, 2026-09-09: the observed-entries wake fired while onboarding was
+    still writing rows. Each wake carried one or two, and the principal saw
+    the same page sixteen times. The page waits for the last row.
+    """
+    from rota.core import scheduler
+
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1','tip','the gratuity','observed')")
+    monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
+    assert not any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
+    monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
+    assert any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
+
+
 def test_a_merged_batch_never_wakes_the_tester_again(db):
     """
     tipsI, 2026-09-09: one criterion never got a test. The batch merged

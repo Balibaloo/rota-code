@@ -495,7 +495,17 @@ def observed_entries(conn) -> list[Wake]:
 
     Onboarding produces these by the hundred and nothing was ever going to ask
     the principal to confirm them, so `observed` was a state with no exit.
+
+    Not before onboarding is done. Fired mid-onboarding, each wake carried
+    the one or two rows written since the last, and the principal saw the
+    same page sixteen times on one run (tipsM, 2026-09-09). One page, once
+    the rows are all there. `none` is a run with nothing onboarded, where
+    the rows can only be fixture rows.
     """
+    from .scheduler import onboarding_phase
+
+    if onboarding_phase(conn) not in ("done", "none"):
+        return []
     # Not re-presented. With the confirm path built, an approved row leaves
     # `observed`; a contested one stays, and it is on file as contested --
     # asking the principal about it again is spending their attention on a
