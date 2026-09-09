@@ -768,6 +768,14 @@ merged cold in 34 steps.
    one function, the criterion's surface named a vanished one, and the test
    imported it. The write door now keeps the criteria's surfaces and other
    files' imports as well as the tests' (d6ae755).
+   tipsP went quiet at 161 steps with two red tests: the batch had no
+   worktree. Two runs on one root name their first batch b_1, the second
+   run's worktree creation failed on the first run's directory, the start
+   step swallowed it, and the write and commit ops fell back to the project
+   root. Six commits landed on the sample repository's master. The create
+   step now clears a stale worktree, the start step records the error, and
+   a batch with no worktree cannot be written to (0e90513). The sample
+   repository was reset to its merged commit.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
