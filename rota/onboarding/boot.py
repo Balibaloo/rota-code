@@ -27,6 +27,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..core import db
 from . import areas as areas_mod
 from . import indexer
 from . import lexicon as lexicon_mod
@@ -83,6 +84,10 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     words = lexicon_mod.build(conn, root)
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(Path(root)),))
+    # And *when*. Written here rather than in `cli.onboard` for the reason
+    # below: every path that makes a run comes through this function, and a
+    # date that only some runs carried would be worse than no date at all.
+    db.mark_created(conn)
     # And *which tree*. This lived in `cli.onboard`, so `rota onboard` and the
     # new-run form recorded it while the seat's own onboard key did not --
     # `tui._do_onboard`, `fixtures` and `onboard_run` all call this function

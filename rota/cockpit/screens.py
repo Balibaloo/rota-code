@@ -104,7 +104,8 @@ class RunList(ModalScreen):
     # in is worse than a second keystroke.
     marked: str | None = None
 
-    COLUMNS = ("run", "state", "source", "terms", "cons", "items", "sess")
+    COLUMNS = ("run", "state", "source", "terms", "cons", "items", "sess",
+               "created", "opened")
 
     # What each column sorts on. The counts sort as numbers, because a
     # string sort puts 10 before 9. A run this could not read holds no
@@ -118,11 +119,19 @@ class RunList(ModalScreen):
         "cons": lambda row: row["counts"].get("constraints", -1),
         "items": lambda row: row["counts"].get("items", -1),
         "sess": lambda row: row["counts"].get("sessions", -1),
+        "created": lambda row: row["created"],
+        "opened": lambda row: row["opened"],
     }
 
-    # The order the list opens in is the order it had before sorting existed.
-    sort_by = "run"
-    sort_desc = False
+    # The list opens on the run you had open last.
+    #
+    # Name order was the order of the directory, which is an order about the
+    # letters in a name and never about you. The run you want is nearly always
+    # the run you were just in, and the one before it is the one you were in
+    # before that. This is the one sort that starts descending. Every other
+    # column starts ascending, as `sort_on` says.
+    sort_by = "opened"
+    sort_desc = True
 
     def compose(self) -> ComposeResult:
         with Vertical(id="runlist_container"):
@@ -147,12 +156,16 @@ class RunList(ModalScreen):
 
         A `DataTable` measures a column when the column is added. It does not
         measure the column again when the label changes. The suffix is
-        therefore two characters wide in every state, the unsorted one
+        therefore one character wide in every state, the unsorted one
         included. A later arrow has the room it needs and no column moves.
+
+        One character and not two. Nine columns pay for this space whether or
+        not they are the sorted one, and the list is a modal over a seat that
+        has its own panes to fit.
         """
         if name != self.sort_by:
-            return f"{name}  "
-        return f"{name} " + ("v" if self.sort_desc else "^")
+            return f"{name} "
+        return name + ("↓" if self.sort_desc else "↑")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "runlist_cancel":
@@ -282,7 +295,37 @@ class RunList(ModalScreen):
             str(counts.get("constraints", "")),
             str(counts.get("items", "")),
             str(counts.get("sessions", "")),
+            RunList._age(row["created"]),
+            RunList._age(row["opened"]),
         )
+
+    @staticmethod
+    def _age(when: float) -> str:
+        """
+        How long ago, in one cell.
+
+        An age, not a date. The question the column answers is "which of these
+        did I touch last", and a date makes the reader do the subtraction. A
+        date is also 10 characters wide in a table that already has seven
+        columns.
+
+        A run with no answer shows a dash. `_file_times` means that is rare,
+        so a dash here says the file itself could not be read.
+        """
+        if not when:
+            return "—"
+        import time
+
+        gap = time.time() - when
+        if gap < 60:
+            return "now"
+        if gap < 3600:
+            return f"{int(gap // 60)}m"
+        if gap < 86400:
+            return f"{int(gap // 3600)}h"
+        if gap < 86400 * 365:
+            return f"{int(gap // 86400)}d"
+        return f"{int(gap // (86400 * 365))}y"
 
     @property
     def selected(self) -> dict | None:

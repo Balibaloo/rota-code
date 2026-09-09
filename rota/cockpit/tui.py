@@ -58,7 +58,7 @@ if __package__ in (None, ""):                              # pragma: no cover
 
 from .. import cli, paths
 from ..core import config, loop as loop_mod
-from ..core.db import connect, init_db
+from ..core.db import connect, init_db, mark_opened
 from ..core.predicates import outstanding
 from ..llm import llm
 from ..onboarding import boot
@@ -261,6 +261,9 @@ class RotaApp(App):
         # is a thing to say, not a thing to guess.
         self.root = Path(root) if root else None
         self.conn = init_db(self.db_path)
+        # A seat holding a run is what "opened" means, so it is stamped here
+        # and in `open_run`, and in no third place. The list sorts on it.
+        mark_opened(self.conn)
         # And if it was not passed, ask the run. `project_root` has been in
         # `config` since onboarding wrote it and nothing downstream read it
         # back, so the root was supplied twice and the two could disagree.
@@ -768,6 +771,7 @@ class RotaApp(App):
             self.conn.close()
         self.db_path = Path(path)
         self.conn = init_db(self.db_path)
+        mark_opened(self.conn)
         self.root = None
         row = self.conn.execute(
             "SELECT value FROM config WHERE key = 'project_root'").fetchone()

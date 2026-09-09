@@ -642,6 +642,36 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
             pass                       # instrumentation must never fail a commit
 
 
+def mark_created(conn: sqlite3.Connection) -> None:
+    """
+    Stamp the moment this run was made. The first stamp is the one that keeps.
+
+    `INSERT OR IGNORE`, because onboarding runs again on a run that already
+    exists. A second onboarding of one run does not make a second run, so the
+    date the list shows must not move.
+
+    The value is `datetime('now')` text, in UTC, the same shape and the same
+    clock as `config_history.at`. SQLite writes it, so no two callers can
+    disagree about the format.
+    """
+    conn.execute("INSERT OR IGNORE INTO config (key, value) "
+                 "VALUES ('created_at', datetime('now'))")
+
+
+def mark_opened(conn: sqlite3.Connection) -> None:
+    """
+    Stamp the moment a seat opened this run. The last stamp is the one that
+    keeps.
+
+    Opening means the seat, and only the seat. The cockpit is a viewer and
+    never changes state, so reading a run in the browser is not opening it.
+    `rota ls` reads every run through `connect_readonly`, so listing them all
+    cannot stamp them all.
+    """
+    conn.execute("INSERT OR REPLACE INTO config (key, value) "
+                 "VALUES ('opened_at', datetime('now'))")
+
+
 def get_config(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
     row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
     return json.loads(row["value"]) if row else default

@@ -183,6 +183,60 @@ def _table(screen):
     return screen.query_one("#runs", DataTable)
 
 
+async def test_the_list_opens_on_the_run_you_had_open_last(
+        tmp_path, home, project):
+    """
+    Name order is an order about the letters in a name, and never about you.
+    The run you want is nearly always the run you were just in.
+    """
+    _seed(home, "aaa", project, opened_at="2026-01-01 09:00:00")
+    _seed(home, "bbb", project, opened_at="2026-09-08 17:30:00")
+    _seed(home, "ccc", project, opened_at="2026-05-04 12:00:00")
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+
+        assert (screen.sort_by, screen.sort_desc) == ("opened", True)
+        assert [row["name"] for row in screen.rows] == ["bbb", "ccc", "aaa"]
+
+
+async def test_the_seat_stamps_the_run_it_opens(tmp_path, home, project):
+    """
+    Opening means the seat, and only the seat. The cockpit is a viewer and
+    changes no state, and `rota ls` reads every run in the directory. Either
+    of those stamping a run would make the column a record of being looked
+    at rather than of being worked in.
+    """
+    import sqlite3
+
+    other = _seed(home, "other", project, opened_at="2001-01-01 00:00:00")
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        app.open_run(other)
+        await pilot.pause()
+
+    stamp, = sqlite3.connect(other).execute(
+        "SELECT value FROM config WHERE key = 'opened_at'").fetchone()
+    assert stamp > "2001-01-01 00:00:00", "the seat opened it and said nothing"
+
+
+def test_an_age_is_one_cell_wide_and_says_when(tmp_path):
+    """A date makes the reader do the subtraction. The column answers it."""
+    import time
+
+    from rota.cockpit.screens import RunList
+
+    now = time.time()
+    assert RunList._age(now - 5) == "now"
+    assert RunList._age(now - 90) == "1m"
+    assert RunList._age(now - 3600 * 5) == "5h"
+    assert RunList._age(now - 86400 * 3) == "3d"
+    assert RunList._age(now - 86400 * 400) == "1y"
+    assert RunList._age(0) == "—", "a file this could not read is not a date"
+
+
 async def test_a_count_column_sorts_as_a_number(tmp_path, home, project):
     """
     Ten items is more than nine items. A string sort says otherwise, and a
@@ -215,6 +269,8 @@ async def test_the_cursor_holds_its_run_across_a_sort(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
+        screen.sort_on("run")                   # a named order to point into
+        await pilot.pause()
         _table(screen).move_cursor(row=2)
         await pilot.pause()
         assert screen.selected["name"] == "ccc"
@@ -242,7 +298,7 @@ async def test_a_sort_survives_a_reload(tmp_path, home, project):
         await pilot.pause()
 
         assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
-        assert "^" in str(_table(screen).columns["items"].label)
+        assert "↑" in str(_table(screen).columns["items"].label)
 
 
 async def test_runs_that_tie_fall_back_to_their_names(tmp_path, home, project):
@@ -271,8 +327,9 @@ async def test_s_moves_the_sort_along_the_columns_and_wraps(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
-        assert screen.sort_by == "run"
-        for expected in screen.COLUMNS[1:] + screen.COLUMNS[:1]:
+        start = screen.COLUMNS.index(screen.sort_by)
+        order = screen.COLUMNS[start + 1:] + screen.COLUMNS[:start + 1]
+        for expected in order:
             await pilot.press("s")
             assert screen.sort_by == expected
 
@@ -288,10 +345,14 @@ async def test_shift_s_reverses_without_moving_the_column(tmp_path, home, projec
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
+        screen.sort_on("run")
+        await pilot.pause()
+        assert [row["name"] for row in screen.rows] == ["aaa", "bbb"]
+
         await pilot.press("S")
         await pilot.pause()
 
-        assert screen.sort_by == "run"
+        assert screen.sort_by == "run", "reversing moved the column"
         assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
 
 
@@ -752,7 +813,8 @@ async def test_wiping_the_open_run_goes_through_the_seat(tmp_path, home, project
         screen = app.screen
         screen.rows = [{"name": name, "path": str(path), "state": "ready",
                         "root": str(project), "counts": {}, "branch": "",
-                        "commit": "", "moved": False}]
+                        "commit": "", "moved": False, "created": 0.0,
+                        "opened": 0.0}]
         screen.query_one("#runs").add_row(*screen._cells(screen.rows[0]))
         screen.query_one("#runs").move_cursor(row=0)
         screen.action_wipe()

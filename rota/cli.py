@@ -118,12 +118,48 @@ COUNTED = ("glossary_terms", "constraints", "items", "survey_records",
            "batches", "sessions")
 
 
+def _when(text: str) -> float:
+    """
+    `datetime('now')` text as epoch seconds. 0.0 when it cannot be read.
+
+    SQLite writes these stamps in UTC, so they are read back in UTC. A stamp
+    this cannot parse is treated as absent rather than as a date, because a
+    wrong date sorts and an absent one does not.
+    """
+    from datetime import datetime, timezone
+
+    try:
+        return (datetime.strptime(text.strip(), "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc).timestamp())
+    except (AttributeError, ValueError):
+        return 0.0
+
+
+def _file_times(path: Path) -> tuple[float, float]:
+    """
+    What the file system knows, for the runs that were made before the stamps
+    existed.
+
+    Every run in `RUNS` today predates `created_at` and `opened_at`, and a
+    column of dashes for all of them would make the list's default order
+    useless on the day it ships. The file answers approximately. Creation time
+    is creation time on Windows, where this runs. Last write is not last open,
+    but a run that was worked on was written to.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return 0.0, 0.0
+    return getattr(stat, "st_birthtime", stat.st_ctime), stat.st_mtime
+
+
 def _read(path: Path) -> dict:
     from .core.db import connect_readonly
 
+    created, opened = _file_times(path)
     row: dict = {"name": path.stem, "path": str(path), "root": "", "error": "",
                  "counts": {}, "state": "", "branch": "", "commit": "",
-                 "moved": False}
+                 "moved": False, "created": created, "opened": opened}
     try:
         conn = connect_readonly(path)
     except sqlite3.Error as exc:
@@ -132,7 +168,12 @@ def _read(path: Path) -> dict:
     try:
         recorded = {r["key"]: (r["value"] or "").strip('"') for r in conn.execute(
             "SELECT key, value FROM config WHERE key IN "
-            "('project_root', 'project_branch', 'project_commit')")}
+            "('project_root', 'project_branch', 'project_commit', "
+            "'created_at', 'opened_at')")}
+        # The run's own answer beats the file's, where the run has one.
+        for field, key in (("created", "created_at"), ("opened", "opened_at")):
+            if recorded.get(key):
+                row[field] = _when(recorded[key])
         row["root"] = recorded.get("project_root", "")
         row["branch"] = recorded.get("project_branch", "")
         row["commit"] = recorded.get("project_commit", "")

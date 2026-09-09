@@ -111,6 +111,63 @@ def test_ls_survives_a_database_it_cannot_read(home):
     assert next(r for r in cli.runs() if r["name"] == "broken")["error"]
 
 
+def test_ls_reports_when_a_run_was_made_and_when_it_was_last_opened(
+        home, tmp_path):
+    """
+    Two dates the run keeps about itself. The list sorts on the second one,
+    so a run that never recorded either would sit wherever the sort put it
+    and say nothing about why.
+    """
+    from rota.core.db import mark_opened
+    from rota.onboarding import boot
+
+    path = home / "fresh.db"
+    conn = init_db(path)
+    boot.onboard(conn, tmp_path / "empty")
+    mark_opened(conn)
+    conn.close()
+
+    row = next(r for r in cli.runs() if r["name"] == "fresh")
+    stamped = {key for key, in sqlite3.connect(path).execute(
+        "SELECT key FROM config WHERE key IN ('created_at', 'opened_at')")}
+    assert stamped == {"created_at", "opened_at"}
+    assert row["created"] > 0 and row["opened"] > 0
+
+
+def test_a_second_onboarding_does_not_move_the_creation_date(home, tmp_path):
+    """
+    Onboarding runs again on a run that already exists. A run onboarded twice
+    is still one run, so the date it was made must not move.
+    """
+    from rota.onboarding import boot
+
+    conn = init_db(home / "twice.db")
+    boot.onboard(conn, tmp_path / "empty")
+    first = conn.execute(
+        "SELECT value FROM config WHERE key = 'created_at'").fetchone()["value"]
+    conn.execute("UPDATE config SET value = '2001-01-01 00:00:00' "
+                 "WHERE key = 'created_at'")
+    boot.onboard(conn, tmp_path / "empty")
+    again = conn.execute(
+        "SELECT value FROM config WHERE key = 'created_at'").fetchone()["value"]
+    conn.close()
+
+    assert first, "onboarding recorded nothing"
+    assert again == "2001-01-01 00:00:00", "the second onboarding overwrote it"
+
+
+def test_a_run_older_than_the_stamps_answers_with_its_file(home):
+    """
+    Every run in `.rota/` today was made before either stamp existed. A column
+    of dashes for all of them would make the list's own default order useless
+    on the day it ships, so the file answers when the run cannot.
+    """
+    _run(home, "old")
+    row = next(r for r in cli.runs() if r["name"] == "old")
+
+    assert row["created"] > 0 and row["opened"] > 0
+
+
 # ---------------------------------------------------------------------------
 # Wiping
 # ---------------------------------------------------------------------------
