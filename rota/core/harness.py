@@ -161,3 +161,40 @@ def _run_one(root: Path, path: str, timeout: int) -> tuple[str, str]:
     if out.returncode == EXIT_FAILED and "No module named pytest" not in out.stderr:
         return "fail", said
     return "error", said
+
+
+def inherit(conn: sqlite3.Connection, batch_id: str, worktree: Path) -> list[str]:
+    """
+    The repository's own tests join the batch, with no criterion.
+
+    A merge must not break what the tree already proved. tipsY (2026-09-09):
+    the batch's tests were green and the Critic passed, and the merged
+    program read the tip percentage and ignored it, because the repo's own
+    tip test never ran. The harness runs every test of the batch, so the
+    existing tests become tests of the batch at start. Their bodies are the
+    files as found, and `materialise` writes the same bytes back.
+    """
+    import hashlib
+
+    owned = {t["path"].replace("\\", "/") for t in tests_for(conn, batch_id)}
+    found: list[str] = []
+    candidates = sorted(
+        {p for pat in ("tests/**/test_*.py", "tests/**/*_test.py", "test_*.py")
+         for p in worktree.glob(pat)})
+    for f in candidates:
+        relp = f.relative_to(worktree)
+        rel = relp.as_posix()
+        # The worktree itself lives under `.rota/`, so the exclusion
+        # reads the relative parts, not the full path's.
+        if rel in owned or ".rota" in relp.parts or ".venv" in relp.parts:
+            continue
+        tid = "inh_" + hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
+        try:
+            body = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        conn.execute(
+            "INSERT OR REPLACE INTO tests (id, batch_id, criterion_id, path, body) "
+            "VALUES (?, ?, NULL, ?, ?)", (tid, batch_id, rel, body))
+        found.append(rel)
+    return found

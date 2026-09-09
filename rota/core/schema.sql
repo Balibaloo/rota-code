@@ -368,7 +368,13 @@ CREATE TABLE IF NOT EXISTS schedule_deps (
 CREATE TABLE IF NOT EXISTS tests (
     id            TEXT PRIMARY KEY,
     batch_id      TEXT NOT NULL REFERENCES batches(id),
-    criterion_id  TEXT NOT NULL REFERENCES criteria(id),
+    -- NULL for a test the repository already had. The batch inherits the
+    -- repository's own tests at start, so the harness runs them with the
+    -- batch's and a merge cannot break what the tree already proved.
+    -- tipsY (2026-09-09): tests green, Critic pass, and the merged program
+    -- read the tip percentage and ignored it; the repo's own tip test was
+    -- in the tree and never ran.
+    criterion_id  TEXT REFERENCES criteria(id),
     path          TEXT NOT NULL,
     body          TEXT NOT NULL,
     version       INTEGER NOT NULL DEFAULT 1

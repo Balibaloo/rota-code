@@ -6426,7 +6426,11 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                 imported |= {r.rsplit("::", 1)[-1] for r in refs
                              if "::" in r and _Path(r.split("::", 1)[0]).stem == stem}
             for other in root.rglob("*.py"):
-                if other == target or ".rota" in other.parts or ".venv" in other.parts:
+                # The worktree lives under `.rota/`, so the exclusion reads
+                # the relative parts; on the full path it skipped every
+                # file and the importer scan never held (found 2026-09-09).
+                relparts = other.relative_to(root).parts
+                if other == target or ".rota" in relparts or ".venv" in relparts:
                     continue
                 try:
                     src = other.read_text(encoding="utf-8", errors="replace")

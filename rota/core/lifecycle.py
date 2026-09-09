@@ -81,6 +81,10 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
             conn.execute(
                 "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                 (f"env:{batch_id}", note))
+            # The repository's own tests join the batch. A merge must not
+            # break what the tree already proved (tipsY, 2026-09-09).
+            from . import harness
+            harness.inherit(conn, batch_id, _Path(row["worktree"]))
 
 
 def defer(conn: sqlite3.Connection, batch_id: str) -> None:

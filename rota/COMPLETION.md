@@ -860,6 +860,14 @@ merged cold in 34 steps.
    Developer, which repurposed `calculate_tip` and committed three times
    without defining `split_bill`. A commit that leaves a named surface
    undefined is now refused. The rung is real for the judging roles.
+   tipsY, the Developer's ticks on 14B too: merged in 20 steps with 3
+   asks, tests green, Critic pass. And the product was worse: the tip
+   function became the splitter and the merged program read the tip
+   percentage and ignored it. The repo's own tip test was in the tree and
+   never ran, because the harness ran only the batch's tests. The
+   repository's own tests now join the batch at start, with no criterion,
+   so the harness runs them and a merge cannot break what the tree already
+   proved.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.

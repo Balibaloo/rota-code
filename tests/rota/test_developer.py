@@ -95,6 +95,31 @@ def test_a_batch_with_no_worktree_cannot_be_written_to(project):
     assert not (repo.root / "new.py").exists()
 
 
+def test_the_repositorys_own_tests_join_the_batch(project):
+    """
+    tipsY, 2026-09-09: the batch's tests were green, the Critic passed, and
+    the merged program read the tip percentage and ignored it. The repo's
+    own tip test was in the tree and never ran. A merge must not break
+    what the tree already proved.
+    """
+    from rota.core import harness
+
+    db, repo = project
+    (repo.root / "tests").mkdir(exist_ok=True)
+    (repo.root / "tests" / "test_existing.py").write_text(
+        "from src.store.records import *\n\ndef test_existing():\n    assert 1 == 2\n",
+        encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo.root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo.root), "-c", "user.name=t", "-c",
+                    "user.email=t@t", "commit", "-qm", "an existing test"], check=True)
+    lifecycle.start(db, "b1")
+    row = db.execute("SELECT id, criterion_id, path FROM tests WHERE batch_id='b1' "
+                     "AND path = 'tests/test_existing.py'").fetchone()
+    assert row and row["criterion_id"] is None and row["id"].startswith("inh_")
+    results = dict(harness.run(db, "b1"))
+    assert results[row["id"]] in ("fail", "error"), "the existing test must run and be red"
+
+
 def test_the_developer_cannot_make_one(project):
     """
     Law 9 puts every decision about a worktree's life outside the role. A role
@@ -281,7 +306,9 @@ def test_the_harness_runs_in_the_batch_worktree(project):
     dev = build("developer", db, batch_id="b1")
     dev.call("code.commit", message="baseline")
 
-    results = harness.run(db, "b1")
+    # The fixture repo's own tests join the batch too (tipsY); this test is
+    # about the batch's own test.
+    results = [r for r in harness.run(db, "b1") if not r[0].startswith("inh_")]
     assert results == [("tst1", "pass")], results
 
 
@@ -381,7 +408,7 @@ def test_a_test_run_keeps_what_the_harness_said(project):
                 "def test_rounds():\n    assert prorate(999, 1, 3) == 12345\n",))
     build("developer", db, batch_id="b1").call("code.commit", message="baseline")
 
-    assert harness.run(db, "b1") == [("tst1", "fail")]
+    assert [r for r in harness.run(db, "b1") if not r[0].startswith("inh_")] == [("tst1", "fail")]
 
     said = db.execute(
         "SELECT output FROM test_runs WHERE test_id='tst1'").fetchone()["output"]
@@ -389,8 +416,9 @@ def test_a_test_run_keeps_what_the_harness_said(project):
 
     # And it reaches the role, on the read the mode actually makes.
     loaded = build("developer", db, batch_id="b1").call("tests.load")
-    assert loaded[0]["last_result"] == "fail"
-    assert "12345" in loaded[0]["said"]
+    mine = next(r for r in loaded if r["id"] == "tst1")
+    assert mine["last_result"] == "fail"
+    assert "12345" in mine["said"]
 
 
 def test_a_passing_test_says_nothing(project):
