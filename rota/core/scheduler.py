@@ -224,11 +224,16 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     # account was approved with no ticket, this predicate woke Vision Keeper,
     # Vision Keeper sliced nothing from it, and the predicate woke it again.
     # Fifty sessions, no batch, no ask.
+    # An observed item is the record of what the code does today: found,
+    # not decided, and approving it on the page ratifies the description.
+    # It is not a build order. Sliced, it sent the Developer to rewrite
+    # behaviour that exists (tipsK, tipsT, 2026-09-09).
     rows = conn.execute(
         "SELECT id FROM items "
         "WHERE kind = 'in_scope' AND approval = 'approved' "
         "  AND approval_ver >= version "
         "  AND id != 'how_it_works' "
+        "  AND provenance != 'observed' "
         "  AND id NOT IN (SELECT item_id FROM tickets)"
     ).fetchall()
     if not rows:

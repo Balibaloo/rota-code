@@ -486,6 +486,23 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
     assert any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
 
 
+def test_an_observed_item_is_a_record_not_a_build_order(db):
+    """
+    tipsK and tipsT, 2026-09-09: approving the observed items on the page
+    sent them to slicing, and the Developer was sent to rewrite behaviour
+    that exists. Found is not decided, and a description is not an order.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('accept_inputs','the program reads two numbers','in_scope',"
+               "'observed','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES "
+               "('split_bill','the bill is split','in_scope','decided','approved',1,1)")
+    wakes = [w for w in P.all_wakes(db) if w.kind == "tick:slicing"]
+    assert wakes and wakes[0].refs == ("split_bill",), wakes
+
+
 def test_a_merged_batch_never_wakes_the_tester_again(db):
     """
     tipsI, 2026-09-09: one criterion never got a test. The batch merged

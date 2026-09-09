@@ -2546,6 +2546,20 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     # the transaction and takes the session with it -- recoverable one level
     # up, so it is refused here, like `batches.group` already does.
     _must_exist(ctx, "items", item_id)
+    # An id you invent is yours once. tipsT (2026-09-09): every slicing
+    # session wrote tk_1 and tk_2, the ids re-parented to whichever items
+    # the wake named, the other items lost their tickets, and the two sets
+    # ping-ponged for 130 sessions. Same rule as `criteria.specify`.
+    owner = next((w[2].get("item_id") for w in ctx.writes
+                  if w[0] == "tickets" and w[1] == id), None)
+    if owner is None:
+        row = ctx.conn.execute(
+            "SELECT item_id FROM tickets WHERE id = ?", (id,)).fetchone()
+        owner = row["item_id"] if row else None
+    if owner is not None and owner != item_id:
+        raise ValueError(
+            f"{id!r} is already {owner}'s ticket. Two items never share a "
+            f"ticket id; give {item_id}'s ticket a new id of your own")
     # A ticket is its text. Recorded after the ledger rename: Vision Keeper
     # sliced six tickets of which five were `text=''` -- work orders saying
     # nothing, which the criteria phase would then be woken to define "done"
@@ -6168,6 +6182,27 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     f"write has none, so the program would stop running. "
                     f"Keep the block and the functions it calls; add your "
                     f"change to the file, do not replace it")
+            # And the guard's body must still resolve. tipsT (2026-09-09):
+            # the guard was kept and the three functions it calls were
+            # dropped, so the program crashed at the first line.
+            if old_tree is not None and _guarded(tree):
+                def _defs(t) -> set[str]:
+                    return {n.name for n in t.body
+                            if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                              _ast.ClassDef))}
+                guard = next(n for n in tree.body
+                             if isinstance(n, _ast.If) and isinstance(n.test, _ast.Compare)
+                             and any(isinstance(c, _ast.Constant) and c.value == "__main__"
+                                     for c in n.test.comparators))
+                called = {n.func.id for n in _ast.walk(guard)
+                          if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+                lost = sorted((called & _defs(old_tree)) - _defs(tree))
+                if lost:
+                    raise ValueError(
+                        f"the `__main__` block of {path} calls {', '.join(lost)}, "
+                        f"which the file defines today and this write drops. "
+                        f"The program would crash at that line. Keep every "
+                        f"definition the block calls")
         for node in tree.body:
             if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef,
                                  _ast.ClassDef, _ast.Import, _ast.ImportFrom)):

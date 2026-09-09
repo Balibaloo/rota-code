@@ -72,6 +72,22 @@ def test_a_ticket_id_that_names_an_item_is_told_the_call_shape(db):
     assert "ticket_id='tk_1'" in str(e.value)
 
 
+def test_a_ticket_id_belongs_to_one_item(db):
+    """
+    tipsT, 2026-09-09: every slicing session wrote tk_1 and tk_2, and the
+    slice op re-parented them to whichever items the wake named. Two item
+    sets ping-ponged for 130 sessions.
+    """
+    from rota.core.sandbox import build
+
+    sb = build("vision_keeper", db, mode="slicing")
+    with pytest.raises(ValueError, match="already calculate_tip's ticket"):
+        sb.call("tickets.slice", id="tk_1", item_id="display_results",
+                text="show the share")
+    assert sb.call("tickets.slice", id="tk_9", item_id="display_results",
+                   text="show the share")["id"] == "tk_9"
+
+
 def test_the_state_names_what_the_team_gave_up_on(db):
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) VALUES "
                "('architect|tick:grouping|tk_1,tk_2', 3, 1)")

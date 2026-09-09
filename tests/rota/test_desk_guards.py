@@ -124,6 +124,11 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
         sb.call("code.write", path="tests/test_x.py", text="def test_x():\n    pass\n")
     with pytest.raises(ValueError, match="entry point"):
         sb.call("code.write", path="main.py", text="def split(t, n):\n    return t / n\n")
+    # tipsT: the guard kept, the function it calls dropped.
+    with pytest.raises(ValueError, match="block of main.py calls run"):
+        sb.call("code.write", path="main.py",
+                text="def split(t, n):\n    return t / n\n\n"
+                     "if __name__ == \"__main__\":\n    run()\n")
     out = sb.call("code.write", path="main.py",
                   text="def run():\n    return 1\n\ndef split(t, n):\n    return t / n\n\n"
                        "if __name__ == \"__main__\":\n    run()\n")

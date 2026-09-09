@@ -801,6 +801,13 @@ merged cold in 34 steps.
    named a test function and the existing tip function as the split's
    surfaces. Two doors: one name, one definition; a test is not a
    surface.
+   tipsT held those and ran to the step cap with 5 asks: the guard was
+   kept and the three functions it calls were dropped, so the program would
+   crash at its first line; and 130 slicing sessions ping-ponged two item
+   sets because every session wrote tk_1 and tk_2 and the slice op
+   re-parented them. Three changes: the guard's body must still resolve, a
+   ticket id belongs to one item, and an observed item is a record and not
+   a build order, so it is never sliced.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
