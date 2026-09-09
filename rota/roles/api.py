@@ -465,6 +465,20 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             f"this says {kind}. Those are the two answers this call chooses "
             f"between, so both is not an answer; decide, and send the one")
 
+    # Found never overwrites decided. tipsU (2026-09-09): the principal's
+    # `split_bill` was delivered as decided, then orient and reorient
+    # asserted it again from the code as observed, and the slicing rule
+    # read it as a record of what exists. An observed session records the
+    # code; a decided item is the principal's, and it stays as it is.
+    if getattr(ctx, "provenance", "decided") == "observed":
+        decided = ctx.conn.execute(
+            "SELECT 1 FROM items WHERE id = ? AND provenance = 'decided'",
+            (id,)).fetchone()
+        if decided:
+            return {"id": id, "note": (f"{id} is decided by the principal and "
+                                       f"stays as it is; an observation does "
+                                       f"not amend it")}
+
     # An item named after a grain is a sentence about that grain.
     #
     # `items.yaml` in the cnt key states the test an item passes -- "it says

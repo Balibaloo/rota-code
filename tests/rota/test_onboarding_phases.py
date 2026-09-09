@@ -950,6 +950,29 @@ def test_the_same_sentence_under_a_second_id_is_the_same_item(project):
     assert [w[1] for w in ctx.writes if w[0] == "items"] == ["reads_intents"]
 
 
+def test_an_observed_session_never_amends_a_decided_item(project):
+    """
+    tipsU, 2026-09-09: the principal's `split_bill` was delivered as decided,
+    then orient and reorient asserted it again as observed. The slicing
+    rule then read it as a record, not a build order. Found never
+    overwrites decided.
+    """
+    from rota.roles.api import Ctx, problem_assert
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('split_bill', 'the bill is split', "
+               "'in_scope', 'decided', 'approved', 1, 1)")
+    db.commit()
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    got = problem_assert(ctx, id="split_bill", text="the program splits the bill")
+    assert got["id"] == "split_bill" and "decided" in got.get("note", ""), got
+    assert not [w for w in ctx.writes if w[0] == "items"], "observed wrote over decided"
+    row = db.execute("SELECT provenance, text FROM items WHERE id='split_bill'").fetchone()
+    assert (row["provenance"], row["text"]) == ("decided", "the bill is split")
+
+
 def test_a_behaviour_never_folds_into_the_account(project):
     """
     tipsL, 2026-09-09: on an existing repo the Vision Keeper rewrote the

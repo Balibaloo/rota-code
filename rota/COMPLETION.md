@@ -808,6 +808,11 @@ merged cold in 34 steps.
    re-parented them. Three changes: the guard's body must still resolve, a
    ticket id belongs to one item, and an observed item is a record and not
    a build order, so it is never sliced.
+   tipsU went quiet at 116 steps with 17 asks: the Tester imported the
+   surface from a module named `billing` that does not exist, and orient
+   and reorient re-asserted the principal's `split_bill` as observed. Two
+   rules: a test imports the surface from the surface's own module, and an
+   observed session never amends a decided item.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
