@@ -943,6 +943,16 @@ merged cold in 34 steps.
    Vision Keeper's Researcher route did. The present hook now carries open
    ledger rows about the lineage's ratified statements onto the signoff
    page, so a word taken one way reaches the principal before slicing.
+   Cold walk tipsAG on `local`: the page carried six assumptions live,
+   none from the Terminologist, which runs on the 9b there while the
+   brief was measured on llama. The row that mattered was the Tester's:
+   it logged that the split criterion's surface points at the tip
+   function, the judgement fault behind the last merge, and the page put
+   it to the principal before any test. The walk driver approved it, as
+   it approves everything, so the run stalled with no test instead of a
+   contest. The next measurement of Level 2 needs a principal who
+   contests, which is a person at the seat or a driver that reads the
+   page; the mechanics are in place.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with
