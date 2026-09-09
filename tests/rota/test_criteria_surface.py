@@ -56,6 +56,22 @@ def test_a_bare_name_resolves_to_the_grain_that_owns_it(db):
         "src/export.py::export_recipe_csv"]
 
 
+def test_a_test_is_not_a_surface(db):
+    """
+    tipsS, 2026-09-09: the split's first criterion named a test function as
+    its surface. The Tester then tested the split through the tip function
+    the second criterion named, and the fix loop ran to the step cap.
+    """
+    _index(db, "tests/test_calculate_tip.py::test_calculate_tip",
+           "src/export.py::export_recipe_csv")
+    sb = build("terminologist", db, mode="criteria")
+    with pytest.raises(ValueError, match="a test is not a surface"):
+        sb.call("criteria.specify", id="c1", ticket_id="t1", text="x",
+                surface_refs=["test_calculate_tip"])
+    sb.call("criteria.specify", id="c1", ticket_id="t1", text="x",
+            surface_refs=["export_recipe_csv"])
+
+
 def test_a_typo_is_refused_with_its_neighbour_named(db):
     """'regster' is one dropped letter from a real symbol; LIKE cannot see
     that, which is why the scan is fuzzy rather than substring."""

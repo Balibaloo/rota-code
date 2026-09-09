@@ -795,6 +795,12 @@ merged cold in 34 steps.
    passed all of it. Two doors: the Developer writes no test file, and a
    file with a main guard keeps it. The Critic's pass is Level 3's open
    boundary, now with a live example. The sample repository was reset.
+   tipsS held both doors and ran to the step cap: the Developer put a
+   second `calculate_tip(total, people)` above the tip function, Python
+   kept the last one, and the test got the tip. Upstream, the criteria
+   named a test function and the existing tip function as the split's
+   surfaces. Two doors: one name, one definition; a test is not a
+   surface.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The

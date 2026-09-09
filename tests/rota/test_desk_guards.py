@@ -130,6 +130,27 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
     assert out["bytes"]
 
 
+def test_a_file_defines_each_name_once(db, tmp_path):
+    """
+    tipsS, 2026-09-09: a second `calculate_tip(total, people)` above the
+    tip function. Python kept the last one, the test got the tip instead of
+    the share, and the fix loop ran to the step cap.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="defines calculate_tip twice"):
+        sb.call("code.write", path="calc.py",
+                text="def calculate_tip(t, n):\n    return t / n\n\n"
+                     "def calculate_tip(t, p):\n    return t * p / 100\n")
+    assert sb.call("code.write", path="calc.py",
+                   text="def split_bill(t, n):\n    return t / n\n\n"
+                        "def calculate_tip(t, p):\n    return t * p / 100\n")["bytes"]
+
+
 def test_labelled_quotes_are_read_not_crashed_on(db):
     """
     qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register

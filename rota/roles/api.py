@@ -2697,7 +2697,21 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
             "SELECT grain FROM code_index WHERE grain_kind='symbol' AND "
             "(grain = ? OR grain LIKE ?)", (ref, f"%::{ref}")).fetchone()
         if hit:
-            vetted.append(hit["grain"])
+            # A test is not a surface. tipsS (2026-09-09): the split's first
+            # criterion named `tests/test_calculate_tip.py::test_calculate_tip`
+            # as its surface, the second named the existing tip function,
+            # and the Tester tested the split through the tip.
+            g = hit["grain"]
+            gpath, _, gname = g.partition("::")
+            if ("tests" in gpath.replace("\\", "/").split("/")[:-1]
+                    or gpath.rsplit("/", 1)[-1].startswith("test_")
+                    or gname.startswith("test_")):
+                raise ValueError(
+                    f"{ref!r} is a test ({g}), and a test is not a surface. "
+                    f"The surface is the program callable a test would "
+                    f"exercise. Name that callable; if the behaviour is new, "
+                    f"name the callable that will implement it")
+            vetted.append(g)
             continue
         # Fuzzy, not substring: 'regster' is one dropped letter from a real
         # symbol and LIKE cannot see that. The symbol index is bounded, so a
@@ -6102,6 +6116,22 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
                 f"the harness imports it and would die at collection") from None
+        # One name, one definition. tipsS (2026-09-09): the Developer put a
+        # second `calculate_tip(total, people)` above the tip function, the
+        # later definition won, the test got the tip instead of the share,
+        # and the fix loop ran to the step cap. Python keeps the last one
+        # silently, which is a fact about the file.
+        seen: dict[str, int] = {}
+        for node in tree.body:
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                if node.name in seen:
+                    raise ValueError(
+                        f"{path} defines {node.name} twice (lines "
+                        f"{seen[node.name]} and {node.lineno}). Python keeps "
+                        f"the last one and the first never runs. One name, "
+                        f"one definition: give the new behaviour its own "
+                        f"name, or change the one definition")
+                seen[node.name] = node.lineno
         # The tests are the Tester's. tipsR (2026-09-09): the Developer
         # rewrote tests/test_split_bill.py to import a module that does not
         # exist, the harness ran the database's copy of the test and passed,
