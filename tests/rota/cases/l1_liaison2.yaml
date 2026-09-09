@@ -212,6 +212,9 @@
   runs: 5
   pass: 4
   tick: observed_entries
+  # The ids ride the wake (predicates.py): live, the Liaison is named every
+  # observed row. Without them here both models invented label refs, 0/5.
+  refs: [<g1>, <g2>, <k1>]
   fixture:
     glossary_terms:
       - {id: <g1>, term: account, sense_short: "the login identity",

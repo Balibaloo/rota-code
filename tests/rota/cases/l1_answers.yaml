@@ -170,7 +170,11 @@
          default_taken: "closing twice is a no-op rather than an error"}
   expect:
     messages:
-      - {to: principal, verb: clarify, count: 1, refs_include: [<l1>, <l2>]}
+      # A present, not a clarify (2026-09-09): the page renders each row as
+      # an assumption to approve or contest, and the ruling lands at the
+      # keypress. A clarify put a question, the answer relayed, the rows
+      # stayed open, and the agenda asked again until quarantined (tipsJ).
+      - {to: principal, verb: present, count: 1, refs_include: [<l1>, <l2>]}
   forbidden:
     # Presentation, not a gate. They may defer every one of these; what must not
     # happen is Liaison resolving one on their behalf to keep things moving.

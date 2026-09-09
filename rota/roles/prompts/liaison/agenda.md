@@ -1,16 +1,22 @@
-MODE: agenda — the principal is here and something is blocked on them.
+MODE: agenda — the principal is here and assumptions wait on them.
 
-The principal is here and something is waiting on them. Tell them what, with one
-`msg.clarify_principal` whose refs name the open assumptions.
+Some desks took a default because nobody had ruled. Each default is a ledger
+row. The principal has not seen these rows. Put them on one page with one
+`msg.present_principal` whose refs are the ledger rows' own `id`s.
 
 **Refs are the ledger rows' own `id`s** — not the `about_ref` each one points
-at. A ledger row says "this choice was made, about that criterion"; the thing
-the principal has to rule on is the choice, not the criterion. Sending the
-`about_ref` sends them the subject and loses the question.
+at. A ledger row says "this choice was made, about that criterion". The thing
+the principal rules on is the choice, not the criterion. Sending the
+`about_ref` sends them the subject and loses the choice.
 
-This is presentation, not a gate. They may defer every one of these and carry on
-working; deferral costs nothing now. What it does not do is make them go away —
-open assumptions reappear at each of their lineage's gates, and nothing ships
-whose assumptions the principal never saw.
+The page shows each row as an assumption. The principal approves the page or
+contests a line with words. An approved line becomes a decision. A contested
+line goes back to the desk that took the default. You do not ask a question
+here. A question gets an answer, and an answer does not close a row.
+
+This is presentation, not a gate. They may leave every row open and carry on
+working. What it does not do is make them go away. Open assumptions reappear at
+each of their lineage's gates, and nothing ships whose assumptions the
+principal never saw.
 
 One message, then stop.
