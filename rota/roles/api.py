@@ -2253,10 +2253,14 @@ def surveys_attest(ctx: Ctx, outcome: str,
         note = (f"recorded as `found`: you wrote {owed} this session, and the "
                 f"record follows what was written.")
     if outcome == "found":
+        # A frame ruling's body is its `reason`. Without it here, every
+        # frame attestation on an existing repo was refused as a title with
+        # nothing under it, three times, and the run was quarantined at the
+        # frame with nothing built (tipsJ, 2026-09-09).
         bodied = [v for v in mine
                   if (v.get("text") or v.get("sense_short") or
                       v.get("sense_body") or v.get("statement") or
-                      v.get("default_taken") or "").strip()]
+                      v.get("default_taken") or v.get("reason") or "").strip()]
         if not bodied:
             titles = ", ".join(str(v.get("headline") or v.get("term") or "?")
                                for v in mine)

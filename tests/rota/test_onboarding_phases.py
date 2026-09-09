@@ -1522,6 +1522,26 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
         sb.call("frame.assign", path="src", kind="ignore")
 
 
+def test_a_frame_attestation_with_rulings_is_found_not_a_title(tmp_path):
+    """
+    tipsJ, 2026-09-09: the Architect assigned two files with reasons and
+    attested `found`. The bodied check read text, sense and default fields,
+    none of which a frame ruling has, and refused the attestation as a title
+    with nothing under it. Three times, then quarantine, and nothing built.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db = init_db(tmp_path / "rota.db")
+    root = _boundary_repo(tmp_path)
+    boot.onboard(db, root)
+    sb = sandbox_mod.build("architect", db, session_id="s1", mode="frame",
+                           area="@frame")
+    sb.call("frame.assign", path="src", kind="program",
+            reason="entry is source of shipped thing")
+    got = sb.call("surveys.attest", outcome="found", citations=["src"])
+    assert got.get("outcome", got.get("recorded", "found")) == "found", got
+
+
 def test_the_tree_view_carries_priors_and_entry_imports(tmp_path):
     """`code.tree` shows each top-level entry with the heuristic prior, and
     what the root's own files import -- the fzf lesson: a README of badges
