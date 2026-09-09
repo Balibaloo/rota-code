@@ -1750,3 +1750,26 @@ def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
                   why="true of every exported name; asserts nothing here")
     assert got["verdict"] == "unfounded"
     assert any(w[0] == "ledger" for w in sb.ctx.writes)
+
+
+def test_a_claim_that_cites_nothing_is_read_by_loading_it(tmp_path):
+    """
+    tipsK, 2026-09-09: an item claim cites no files. The vacuity door
+    demanded opened files. The Critic read a file that does not exist,
+    eleven sessions, three quarantines. Loading a claim with nothing to
+    open is the reading.
+    """
+    from rota.core import sandbox as sandbox_mod
+
+    db = init_db(tmp_path / "rota.db")
+    boot.onboard(db, _boundary_repo(tmp_path))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('how_it_works', "
+               "'the program does what a program does', 'in_scope', "
+               "'decided', 'approved', 1, 1)")
+    sb = sandbox_mod.build("critic", db, session_id="s1", mode="challenge",
+                           area="@claim:items:how_it_works")
+    sb.ctx.wake_refs = ("@claim:items:how_it_works",)
+    sb.call("challenge.load")
+    got = sb.call("challenge.vacuous", why="no line could support or defeat it")
+    assert got["verdict"] == "unfounded"

@@ -52,6 +52,27 @@ def test_a_challenge_is_the_sessions_verdict_until_it_lands(db):
                 failed_criterion="c1")
 
 
+def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
+    """
+    tipsK, 2026-09-09: the surface is `main.py::calculate_tip`. The test
+    did `from main import calculate_tip` and called it. Compared whole, the
+    door said the test never calls the surface, three sessions, quarantine,
+    nothing merged.
+    """
+    db.execute("UPDATE criteria SET surface_refs = '[\"main.py::calculate_tip\"]' "
+               "WHERE id = 'c1'")
+    db.execute("DELETE FROM tests")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    got = sb.call("tests.encode", id="tst9", criterion_id="c1",
+                  path="tests/test_tip.py",
+                  body="from main import calculate_tip\n"
+                       "def test_calculate_tip():\n"
+                       "    assert calculate_tip(100, 10) == 10\n")
+    assert got, "the encode must land"
+
+
 def test_labelled_quotes_are_read_not_crashed_on(db):
     """
     qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register

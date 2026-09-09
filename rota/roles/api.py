@@ -2387,7 +2387,13 @@ def surveys_attest(ctx: Ctx, outcome: str,
     # 12 -- "you cannot have found one in a file you did not read" -- using the
     # same `ctx.opened`. The rule was written and applied one artefact along.
     read = [g for g in inside if _grain_path(g) in (ctx.opened or set())]
-    if inside and not read:
+    # The frame is the exception: its ruling is a reading of the tree, and
+    # `code.tree` carries the priors and the entry imports so the judge
+    # need not open files. Held to this guard, the Architect's attestation
+    # was refused three times on an existing repo and the run was
+    # quarantined at the frame (tipsK, 2026-09-09).
+    from ..core.scheduler import FRAME as _FRAME_AREA
+    if inside and not read and getattr(ctx, "area", None) != _FRAME_AREA:
         raise ValueError(
             f"you cited {inside[:3]} and opened none of them. `code.survey` "
             f"lists an area; it does not show you what is in it, so a term "
@@ -3533,7 +3539,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         called_names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
         called_names |= {n.func.attr for n in calls
                          if isinstance(n.func, _ast.Attribute)}
-        if not (set(surface) & called_names):
+        # A surface ref is `path::name`. The test calls the name. Compared
+        # whole, `from main import calculate_tip` + `calculate_tip(100, 10)`
+        # was refused as never calling `main.py::calculate_tip`, three
+        # sessions, quarantine, nothing merged (tipsK, 2026-09-09).
+        surface_names = {s.rsplit("::", 1)[-1] for s in surface} | set(surface)
+        if not (surface_names & called_names):
             raise Wall(
                 f"this test never calls {surface[0]!r}, the surface the "
                 f"criterion names -- call it and assert on what it returns "
@@ -5264,6 +5275,12 @@ def challenge_load(ctx: Ctx) -> dict:
             cited = _json.loads(r["source_refs"] or "[]") if "source_refs" in r.keys() else []
         except Exception:
             cited = []
+    # A claim that cites nothing has nothing to open. Loading it is the
+    # reading. Without this, `challenge.vacuous` on an item claim could
+    # never be reached: the Critic read a file that does not exist, eleven
+    # sessions, three quarantines (tipsK, 2026-09-09).
+    if not cited:
+        ctx.opened.add(f"@claim:{table}:{row}")
     root = _worktree_of(ctx)
     parts: list[str] = []
     used = 0
@@ -5390,9 +5407,9 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
         raise ValueError("say what makes it empty: why= the reason no line "
                          "could support or defeat this claim")
     if not ctx.opened:
-        raise ValueError("vacuity is still a reading's verdict: open the "
-                         "claim's cited files first (challenge.load or "
-                         "code.source)")
+        raise ValueError("vacuity is still a reading's verdict: call "
+                         "challenge.load first. It shows the claim and opens "
+                         "the files it cites")
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "unfounded", "why": why.strip()[:300]}))
     ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
