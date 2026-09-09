@@ -228,16 +228,45 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     # not decided, and approving it on the page ratifies the description.
     # It is not a build order. Sliced, it sent the Developer to rewrite
     # behaviour that exists (tipsK, tipsT, 2026-09-09).
+    # An item amended after its delivery is new work. Its tickets went out
+    # in a merged batch; the merge records the item's version under
+    # `delivered:<item>`, and an approval of a later version slices again.
+    # Without this the corrected split sat approved at version 9 with one
+    # spent ticket and the run went quiet (tipsAH, 2026-09-09, from the
+    # seat).
     rows = conn.execute(
-        "SELECT id FROM items "
-        "WHERE kind = 'in_scope' AND approval = 'approved' "
-        "  AND approval_ver >= version "
-        "  AND id != 'how_it_works' "
-        "  AND provenance != 'observed' "
-        "  AND id NOT IN (SELECT item_id FROM tickets)"
+        "SELECT i.id FROM items i "
+        "WHERE i.kind = 'in_scope' AND i.approval = 'approved' "
+        "  AND i.approval_ver >= i.version "
+        "  AND i.id != 'how_it_works' "
+        "  AND i.provenance != 'observed' "
+        "  AND (i.id NOT IN (SELECT item_id FROM tickets) "
+        "       OR i.version > COALESCE((SELECT CAST(value AS INTEGER) FROM config "
+        "                                 WHERE key = 'delivered:' || i.id), 0) "
+        "          AND NOT EXISTS (SELECT 1 FROM tickets t "
+        "                          JOIN batch_tickets bt ON bt.ticket_id = t.id "
+        "                          JOIN batches b ON b.id = bt.batch_id "
+        "                          WHERE t.item_id = i.id "
+        "                            AND b.status NOT IN ('merged', 'abandoned')) "
+        "          AND EXISTS (SELECT 1 FROM config WHERE key = 'delivered:' || i.id))"
     ).fetchall()
     if not rows:
         return []
+    # An amended item is a new debt under the same tick key. The key's old
+    # quarantine, earned before the amendment, is forgotten once per
+    # version and the forgetting is on record, so live evidence is never
+    # erased: the corrected split sat quarantined under its own key from
+    # three slicing sessions of the first delivery (tipsAH, 2026-09-09).
+    for r in rows:
+        ver = conn.execute("SELECT version FROM items WHERE id = ?",
+                           (r["id"],)).fetchone()["version"]
+        seen = conn.execute("SELECT value FROM config WHERE key = ?",
+                            (f"resliced:{r['id']}",)).fetchone()
+        if seen is None or int(seen["value"]) != ver:
+            conn.execute("DELETE FROM tick_attempts WHERE tick_key = ?",
+                         (f"vision_keeper|tick:slicing|{r['id']}",))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                         (f"resliced:{r['id']}", str(ver)))
     return [Wake("vision_keeper", "tick:slicing", refs=tuple(r["id"] for r in rows))]
 
 

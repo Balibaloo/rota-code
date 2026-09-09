@@ -533,6 +533,38 @@ def test_the_agenda_waits_for_onboarding_to_finish(db, monkeypatch):
     assert any(w.kind == "tick:agenda" for w in P.all_wakes(db, principal_present=True))
 
 
+def test_an_item_amended_after_delivery_is_sliced_again(db):
+    """
+    tipsAH, 2026-09-09, from the seat: the split merged wrong, the principal
+    said so, the item was amended and approved at version 9, and the run
+    went quiet. Its one ticket had gone out in the merged batch, and an item
+    with a ticket is never sliced. The merge records the delivered version;
+    an approval of a later version is new work.
+    """
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('split_bill','v1','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1','split_bill','t')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','split_bill','merged','abc')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk_1')")
+    db.execute("INSERT INTO config (key, value) VALUES ('delivered:split_bill', '1')")
+    assert not any(w.kind == "tick:slicing" for w in P.all_wakes(db)), "delivered and unchanged"
+    # The key was quarantined before the amendment; the new version forgets
+    # it once, on record, and the frontier offers the work.
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) VALUES "
+               "('vision_keeper|tick:slicing|split_bill', 3, 1)")
+    db.execute("UPDATE items SET version = 2, approval_ver = 2, text = 'v2' WHERE id = 'split_bill'")
+    from rota.core.scheduler import frontier
+    wakes = [w for w in frontier(db) if w.kind == "tick:slicing"]
+    assert wakes and wakes[0].refs == ("split_bill",), "amended after delivery is new work"
+    assert db.execute("SELECT value FROM config WHERE key='resliced:split_bill'").fetchone()["value"] == "2"
+    assert not db.execute("SELECT 1 FROM tick_attempts WHERE tick_key LIKE '%slicing%'").fetchone()
+    # A running batch on the item holds it.
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_2','split_bill','t2')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b2','split_bill','running')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b2','tk_2')")
+    assert not any(w.kind == "tick:slicing" for w in P.all_wakes(db))
+
+
 def test_an_observed_item_is_a_record_not_a_build_order(db):
     """
     tipsK and tipsT, 2026-09-09: approving the observed items on the page

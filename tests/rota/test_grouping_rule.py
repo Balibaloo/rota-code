@@ -86,6 +86,13 @@ def test_a_ticket_id_belongs_to_one_item(db):
                 text="show the share")
     assert sb.call("tickets.slice", id="tk_9", item_id="display_results",
                    text="show the share")["id"] == "tk_9"
+    # tipsAH: a ticket that went out in a merged batch is not reused when
+    # its item is amended and sliced again.
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b9','calculate_tip','merged')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b9','tk_1')")
+    db.commit()
+    with pytest.raises(ValueError, match="went out in batch b9, which is merged"):
+        sb.call("tickets.slice", id="tk_1", item_id="calculate_tip", text="calc again")
 
 
 def test_the_state_names_what_the_team_gave_up_on(db):

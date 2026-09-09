@@ -2574,6 +2574,18 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
         raise ValueError(
             f"{id!r} is already {owner}'s ticket. Two items never share a "
             f"ticket id; give {item_id}'s ticket a new id of your own")
+    # A delivered ticket is not a ticket to reuse. An item amended after its
+    # delivery is sliced again, and the Vision Keeper wrote the old id back:
+    # the upsert changed nothing, three sessions did the same, and the tick
+    # was quarantined (tipsAH, 2026-09-09, from the seat).
+    spent = ctx.conn.execute(
+        "SELECT b.id FROM batch_tickets bt JOIN batches b ON b.id = bt.batch_id "
+        "WHERE bt.ticket_id = ? AND b.status IN ('merged', 'abandoned') LIMIT 1",
+        (id,)).fetchone()
+    if spent:
+        raise ValueError(
+            f"{id!r} went out in batch {spent['id']}, which is {ctx.conn.execute('SELECT status FROM batches WHERE id = ?', (spent['id'],)).fetchone()['status']}. "
+            f"New work is a new ticket: give it a new id of your own")
     # A ticket is its text. Recorded after the ledger rename: Vision Keeper
     # sliced six tickets of which five were `text=''` -- work orders saying
     # nothing, which the criteria phase would then be woken to define "done"

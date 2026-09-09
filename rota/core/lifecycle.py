@@ -161,6 +161,15 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
         # tolerates -- the batch is still delivered as far as the database
         # can know.
     conn.execute("UPDATE batches SET status = 'merged' WHERE id = ?", (batch_id,))
+    # The item's version as delivered. An approval of a later version is
+    # new work and slices again; without the record the corrected split sat
+    # approved with one spent ticket (tipsAH, 2026-09-09).
+    row = conn.execute(
+        "SELECT i.id, i.version FROM items i JOIN batches b ON b.item_id = i.id "
+        "WHERE b.id = ?", (batch_id,)).fetchone()
+    if row is not None:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"delivered:{row['id']}", str(row["version"])))
     environments.teardown(conn, batch_id, release_ports=True)
     try:
         worktrees.destroy(conn, batch_id)

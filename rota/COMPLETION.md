@@ -953,6 +953,33 @@ merged cold in 34 steps.
    contest. The next measurement of Level 2 needs a principal who
    contests, which is a person at the seat or a driver that reads the
    page; the mechanics are in place.
+   At the seat myself, tipsAH: the signoff page's one assumption restated
+   my sentence, so I contested it with the answers (share of the total with
+   tip, tip unchanged, round up, ask for people after the percentage), and
+   the item was amended with them. The touch page predicted `src/models`
+   and `src/services` in a two-file repo; I contested with the real shape,
+   the batch was abandoned and regrouped, and the new prediction was the
+   same words: the Architect's annotate and grouping sessions never see the
+   principal's words on a contested touch page. Open. Approved to move on;
+   merged in 34 sessions with the tip broken again, since the criterion's
+   surface named `calculate_tip` and nothing tests main.py's tip.
+   The second sentence from the seat, the correction: the confirm was
+   right; the signoff page carried the Terminologist's word taken one way
+   live and I contested the item line with the ruling; a desk asked a
+   real question, whether rounding up may overshoot the total, and I
+   answered it; the item was amended and approved at version 9 and the
+   run went quiet. Three facts under that: an item amended after its
+   delivery was never sliced again (the merge now records the delivered
+   version and a later approval slices), the re-slice reused the spent
+   ticket id (refused now), and the tick's old quarantine outlived the
+   amendment (forgotten once per version, on record). Then the build:
+   the criteria still named `calculate_tip` as the split's surface after
+   my ruling named `split_bill`, the Tester invented a signature for it,
+   and the Developer's ten writes were refused as unterminated, with the
+   cause unsaid; the parser now says it. Open from the seat: the surface
+   judgement, the Architect blind to a contested touch page, and ledger
+   rows that are progress notes or tool refusals, which a principal
+   should never be shown.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with

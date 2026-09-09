@@ -159,6 +159,9 @@ def test_merging_removes_the_worktree_and_keeps_the_branch(project):
         "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"] is None
     branches = gitfixture.git(repo.root, "branch", "--list", "batch/b1")
     assert "batch/b1" in branches, "the record of what was built went with it"
+    # And the item's delivered version is on record, so an amendment after
+    # delivery is new work (tipsAH, 2026-09-09).
+    assert db.execute("SELECT value FROM config WHERE key='delivered:i1'").fetchone()["value"] == "1"
 
 
 def test_it_refuses_to_remove_a_worktree_outside_the_state_directory(project):

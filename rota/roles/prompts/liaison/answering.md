@@ -11,8 +11,8 @@ principal's entry as refs:
 
 - table `criteria` or `glossary_terms`: the Terminologist owns the row. Call
   `msg.relay_terminologist`.
-- table `items` or `statements`: the Vision Keeper owns the row. Call
-  `msg.relay_vision_keeper`.
+- table `items`, `statements` or `tickets`: the Vision Keeper owns the row.
+  Call `msg.relay_vision_keeper`.
 - table `constraints`: the Architect owns the row. Call `msg.relay_architect`.
 - table `ledger`: the row's `author` owns it.
 

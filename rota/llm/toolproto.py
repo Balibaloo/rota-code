@@ -438,7 +438,16 @@ def extract(text: str) -> list[ToolCall | ToolError]:
             i += 1
 
         if args_end is None:
-            results.append(ToolError(f"{MARKER} {name}(...", "unterminated argument list"))
+            # Say why, or the model retries the same call. tipsAH (2026-09-09):
+            # ten writes of main.py refused as "unterminated argument list",
+            # the model's own guess was "a multi-line string", and the cause
+            # was a quote inside the text closing the string early.
+            results.append(ToolError(
+                f"{MARKER} {name}(...",
+                "unterminated argument list: a quote inside a quoted argument "
+                "ended the string early, or a bracket is unbalanced. Put the "
+                "text in double quotes, escape every inner double quote as \\\", "
+                "and write newlines as \\n on one line"))
             cursor = marker + len(MARKER)
             continue
 
