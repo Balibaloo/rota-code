@@ -57,6 +57,21 @@ def test_one_batch_per_item_lands(db):
     assert db.execute("SELECT COUNT(*) FROM batches").fetchone()[0] == 2
 
 
+def test_a_ticket_id_that_names_an_item_is_told_the_call_shape(db):
+    """
+    tipsN, 2026-09-09: the Terminologist put the item under `ticket_id` and
+    the ticket under `id`. Each refusal named one argument, so it fixed one
+    per round and flipped back the next. One message names both.
+    """
+    from rota.core.sandbox import build
+
+    sb = build("terminologist", db, mode="criteria")
+    with pytest.raises(ValueError, match="is an item, not a ticket") as e:
+        sb.call("criteria.specify", id="c_9", ticket_id="calculate_tip",
+                text="each share is rounded up to the cent")
+    assert "ticket_id='tk_1'" in str(e.value)
+
+
 def test_the_state_names_what_the_team_gave_up_on(db):
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) VALUES "
                "('architect|tick:grouping|tk_1,tk_2', 3, 1)")

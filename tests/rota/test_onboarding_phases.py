@@ -1773,6 +1773,24 @@ def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
     assert any(w[0] == "ledger" for w in sb.ctx.writes)
 
 
+def test_the_critics_ledger_id_fits_the_ref_door():
+    """
+    tipsN, 2026-09-09: `challenge_constraints_<long constraint id>` ran to
+    seventy characters. The ref door allows sixty-four. The agenda could
+    not present the row and was quarantined. Long ids end in a hash.
+    """
+    from rota.core.sandbox import _ID
+    from rota.roles.api import _challenge_ledger_id
+
+    short = _challenge_ledger_id("items", "split_bill")
+    assert short == "challenge_items_split_bill"
+    long_ = _challenge_ledger_id(
+        "constraints", "accept_total_and_accept_tip_percentage_functions_are_input")
+    assert _ID.fullmatch(long_) and len(long_) <= 64, long_
+    assert long_ == _challenge_ledger_id(
+        "constraints", "accept_total_and_accept_tip_percentage_functions_are_input")
+
+
 def test_a_claim_that_cites_nothing_is_read_by_loading_it(tmp_path):
     """
     tipsK, 2026-09-09: an item claim cites no files. The vacuity door

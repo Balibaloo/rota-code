@@ -2738,6 +2738,21 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      surface_refs: list[str] | None = None) -> dict:
     """Criteria are written in glossary terms and name the surface a test
     would exercise; neither list is decoration."""
+    # `ticket_id` that names an item. The model put the item under
+    # `ticket_id` and the ticket under `id`, and each refusal named one of
+    # the two, so it fixed one per round and flipped back the next: three
+    # sessions, quarantine, no criterion (tipsN, 2026-09-09). One message
+    # names both arguments and the call shape.
+    if not ctx.conn.execute("SELECT 1 FROM tickets WHERE id = ?",
+                            (ticket_id,)).fetchone():
+        owned = [r["id"] for r in ctx.conn.execute(
+            "SELECT id FROM tickets WHERE item_id = ? ORDER BY id", (ticket_id,))]
+        if owned:
+            raise ValueError(
+                f"{ticket_id!r} is an item, not a ticket. Its tickets are "
+                f"{owned}. A criterion belongs to one ticket: send "
+                f"criteria.specify(id='c_1', ticket_id={owned[0]!r}, text=...) "
+                f"with a new c_ id of your own and one of those ticket ids")
     _must_exist(ctx, "tickets", ticket_id)
     # An id already claimed by a different ticket's criterion is not this
     # ticket's to reuse. Undetected, a second `criteria.specify` under the
@@ -5250,6 +5265,22 @@ def _claim_of(ctx: Ctx) -> tuple[str, str]:
     return table, row
 
 
+def _challenge_ledger_id(table: str, row: str) -> str:
+    """
+    The Critic's ledger row for a claim, deterministic per claim and never
+    longer than an id may be. `challenge_constraints_<a long constraint
+    id>` ran to seventy characters, the ref door allows sixty-four, and the
+    agenda could not present the row: three sessions, quarantine (tipsN,
+    2026-09-09). A long one keeps its head and ends in a hash of the whole.
+    """
+    import hashlib
+
+    base = f"challenge_{_slug_of(table)}_{_slug_of(row)}"
+    if len(base) <= 60:
+        return base
+    return base[:52] + "_" + hashlib.sha1(base.encode("utf-8")).hexdigest()[:7]
+
+
 @op("challenge", "load")
 def challenge_load(ctx: Ctx) -> dict:
     """
@@ -5387,7 +5418,7 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
         "verdict": "falsified", "citation": citation,
         "quote": (quote or "").strip()[:300],
         "why": (why.strip() + (f" [{flagged}]" if flagged else ""))[:460]}))
-    ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
+    ctx.writes.append(("ledger", _challenge_ledger_id(table, row), {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic falsified {table}:{row} against "
                           f"{citation}: \"{quote.strip()[:160]}\" -- "
@@ -5420,7 +5451,7 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
                          "the files it cites")
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "unfounded", "why": why.strip()[:300]}))
-    ctx.writes.append(("ledger", f"challenge_{_slug_of(table)}_{_slug_of(row)}", {
+    ctx.writes.append(("ledger", _challenge_ledger_id(table, row), {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic found {table}:{row} unfounded: "
                           f"{why.strip()[:200]}. An empty claim is kept in "
