@@ -902,6 +902,15 @@ merged cold in 34 steps.
    the program around the invented API until quarantine. A name a test
    imports from the surface's module is now a surface or a name the module
    defines today.
+   tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
+   real fix loop, three tests green, the repo's own and the batch's two,
+   and the program still prints the total, the tip and the total with
+   tip, then asks for the number of people and prints each share. The
+   first honest merge on an existing repository. Two judgements remain
+   open: the criteria still name the tip function as the split's surface,
+   so the Developer renamed the tip and reused the name; and nobody asked
+   whether the share is of the total or of the total with tip, which is
+   Level 2's question.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.
