@@ -911,6 +911,13 @@ merged cold in 34 steps.
    set`, `rota onboard --profile`, `rota run --model --role`. The shipped
    `local` profile is the configuration that merged tipsAD. Left: the
    smoke walks on llama.cpp and a hosted judge, and the budget.
+   The whole L1 register on qwen3.5:9b (94 cases, one load, 19 minutes):
+   69 green against llama3.1:8b's 80 on the same cases. Three cases flip
+   green (the two Vision Keeper reds and the Developer fix) and seventeen
+   flip red, nine of them Terminologist. The briefs were tuned on llama;
+   a different family reads them differently. The walks' default,
+   qwen3:8b, has no register record, so it records next. The shipped
+   profile keeps the walk's evidence until the three-way picture is in.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with
