@@ -56,6 +56,45 @@ def test_dispatch_creates_the_worktree(project):
     assert (worktrees.Path(path) / "src" / "store" / "records.py").exists()
 
 
+def test_a_second_run_on_the_same_root_gets_a_fresh_worktree(project):
+    """
+    tipsP, 2026-09-09: two runs on one root named their first batch b_1.
+    The second's `worktree add` failed on the first's directory, the failure
+    was swallowed, and the Developer wrote and committed on master.
+    """
+    db, repo = project
+    lifecycle.start(db, "b1")
+    first = db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
+    (worktrees.Path(first) / "left_behind.py").write_text("x = 1\n", encoding="utf-8")
+    worktrees.commit(first, "the first run's work")
+    # The next run: same root, same batch id, no worktree on record.
+    db.execute("UPDATE batches SET worktree = NULL, status = 'pending' WHERE id='b1'")
+    db.commit()
+    lifecycle.start(db, "b1")
+    second = db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
+    assert second, "the second run has nowhere to work"
+    assert not (worktrees.Path(second) / "left_behind.py").exists(), \
+        "the second run started from the first run's branch"
+    branches = subprocess.run(["git", "-C", str(repo.root), "branch", "--list", "batch/b1*"],
+                              capture_output=True, text=True).stdout
+    assert "batch/b1@" in branches, "the first run's branch is the record and must survive"
+
+
+def test_a_batch_with_no_worktree_cannot_be_written_to(project):
+    """The fallback to the project root is for reads. A write there is a
+    change nobody reviewed on a branch nobody merged."""
+    db, repo = project
+    db.execute("UPDATE batches SET status = 'running' WHERE id='b1'")
+    db.execute("INSERT INTO config (key, value) VALUES ('worktree:b1', 'no git here')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start")
+    with pytest.raises(ValueError, match="has no worktree \\(no git here\\)"):
+        sb.call("code.write", path="new.py", text="def f():\n    return 1\n")
+    with pytest.raises(ValueError, match="has no worktree"):
+        sb.call("code.commit", message="nothing")
+    assert not (repo.root / "new.py").exists()
+
+
 def test_the_developer_cannot_make_one(project):
     """
     Law 9 puts every decision about a worktree's life outside the role. A role

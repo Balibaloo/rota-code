@@ -5891,6 +5891,31 @@ def _prose_allowed(ctx) -> bool:
         return True
 
 
+def _batch_worktree(ctx) -> "Path":
+    """
+    The batch's worktree for a write or a commit, and nothing else.
+
+    `_worktree_of` falls back to the project root, which is right for a
+    read and wrong for a write: with the worktree missing, the Developer
+    wrote and committed on the sample repository's master, six commits,
+    and the harness said "no worktree at None" (tipsP, 2026-09-09).
+    """
+    from pathlib import Path as _P
+
+    row = ctx.conn.execute(
+        "SELECT worktree FROM batches WHERE id = ?", (ctx.batch_id,)).fetchone()
+    if not (row and row["worktree"]):
+        note = ctx.conn.execute(
+            "SELECT value FROM config WHERE key = ?",
+            (f"worktree:{ctx.batch_id}",)).fetchone()
+        why = f" ({note['value']})" if note else ""
+        raise ValueError(
+            f"batch {ctx.batch_id} has no worktree{why}. Code is written and "
+            f"committed in a batch's worktree and nowhere else. Nothing can "
+            f"be written until the batch has one; say so and end")
+    return _P(row["worktree"])
+
+
 def _worktree_of(ctx, batch_id=None) -> "Path":
     """
     The batch's worktree, or the project root when there is no batch.
@@ -6038,7 +6063,7 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             "no batch: code is written in a batch's worktree, and this "
             "session was not woken for one. Answer the message you were "
             "woken by; the build starts when the batch does")
-    target = _within(_worktree_of(ctx), path)
+    target = _within(_batch_worktree(ctx), path)
     # A harness fact about modules, not a judgement about the code. S0 walk
     # ten: `script.py` was right in substance and ran `input()` at module
     # level, so every test that imported it died at collection -- OSError,
@@ -6308,7 +6333,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
 
     if not ctx.batch_id:
         raise ValueError("no batch: a commit belongs to one")
-    tree = _worktree_of(ctx)
+    tree = _batch_worktree(ctx)
     sha = worktrees.commit(tree, message)
     if sha is None:
         # Not an error -- the docstring says why -- but the bare result read

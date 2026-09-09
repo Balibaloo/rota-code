@@ -96,6 +96,19 @@ def create(conn: sqlite3.Connection, batch_id: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     branch = f"batch/{batch_id}"
+    # A batch with no worktree on record never had one, so whatever stands
+    # at its path is another run's. Two runs on one root name their first
+    # batch b_1: the second's `worktree add` failed on the first's
+    # directory, the failure was swallowed, and the Developer wrote and
+    # committed on the project's master (tipsP, 2026-09-09). The stale
+    # worktree goes; its branch is kept under a dated name as the record.
+    if path.exists():
+        _git(root, "worktree", "remove", "--force", str(path), check=False)
+        shutil.rmtree(path, ignore_errors=True)
+        _git(root, "worktree", "prune", check=False)
+        old_sha = _git(root, "rev-parse", "--short", branch, check=False).strip()
+        if old_sha:
+            _git(root, "branch", "-m", branch, f"{branch}@{old_sha}", check=False)
     existing = _git(root, "branch", "--list", branch, check=False).strip()
     args = ["worktree", "add", "-q"]
     args += [str(path), branch] if existing else ["-b", branch, str(path)]

@@ -57,10 +57,13 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
 
     try:
         worktrees.create(conn, batch_id)
-    except worktrees.WorktreeError:
+    except worktrees.WorktreeError as exc:
         # No git, or no project root: the batch still runs. Boot reconciles a
-        # missing worktree the same way it reconciles a diverged one.
-        pass
+        # missing worktree the same way it reconciles a diverged one. The
+        # reason is on record, because a swallowed one let a Developer write
+        # on the project's master for 160 steps (tipsP, 2026-09-09).
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"worktree:{batch_id}", str(exc)[:300]))
     else:
         # Greenfield gets its floor before anyone works: the pyproject that
         # makes the harness's pytest invocation deterministic and the tests/
