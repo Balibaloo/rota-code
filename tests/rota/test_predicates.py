@@ -486,6 +486,35 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
     assert any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
 
 
+def test_review_and_merge_wait_for_every_criterions_test(db):
+    """
+    tipsZ, 2026-09-09: the repository's own test joined the batch, the
+    harness ran it green, review ran, and the batch merged with no test of
+    either criterion and no Tester session. A green harness no longer says
+    the Tester has been here.
+    """
+    from rota.core import lifecycle
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','t')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES ('c1','tk1','the tip is right','[]')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','i1','running','abc123')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('inh_1','b1',NULL,'tests/test_old.py','def test_old(): pass')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) VALUES "
+               "('tr1','b1','inh_1','abc123','pass')")
+    assert not any(w.kind == "tick:review" for w in P.all_wakes(db)), "review ran before the Tester"
+    assert any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
+    assert lifecycle.mergeable(db, "b1") == "criteria without a test: c1"
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_1','b1','c1','tests/test_tip.py','def test_tip(): pass')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result) VALUES "
+               "('tr2','b1','tst_1','abc123','pass')")
+    assert any(w.kind == "tick:review" for w in P.all_wakes(db))
+
+
 def test_the_agenda_waits_for_onboarding_to_finish(db, monkeypatch):
     """
     tipsV, 2026-09-09: each Critic challenge wrote one ledger row and the

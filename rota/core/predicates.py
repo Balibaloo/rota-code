@@ -1024,7 +1024,17 @@ def review(conn) -> list[Wake]:
         "                  WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit "
         "                    AND r.result != 'pass') "
         "  AND EXISTS (SELECT 1 FROM test_runs r "
-        "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit)"
+        "              WHERE r.batch_id = b.id AND r.commit_sha = b.head_commit) "
+        # And every criterion has its test. Since the repository's own tests
+        # join the batch, a green harness no longer means the Tester has been
+        # here: tipsZ (2026-09-09) merged on the inherited test alone, with
+        # no test of either criterion and no Tester session. The Tester's tick
+        # is in the start band; review waits for it.
+        "  AND NOT EXISTS (SELECT 1 FROM batch_tickets bt "
+        "                  JOIN criteria c ON c.ticket_id = bt.ticket_id "
+        "                  WHERE bt.batch_id = b.id "
+        "                    AND NOT EXISTS (SELECT 1 FROM tests t "
+        "                                    WHERE t.criterion_id = c.id))"
     ).fetchall()
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 

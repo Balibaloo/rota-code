@@ -868,6 +868,12 @@ merged cold in 34 steps.
    repository's own tests now join the batch at start, with no criterion,
    so the harness runs them and a merge cannot break what the tree already
    proved.
+   tipsZ merged in 19 steps on the inherited test alone: no test of either
+   criterion, no Tester session. A batch with no tests never used to reach
+   the harness, so the Tester always came first; the inherited test gave
+   the harness something to run and the gate band carried the batch through
+   review and merge before the Tester's tick in the start band had a turn.
+   Review and the merge gate now require every criterion to have its test.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.

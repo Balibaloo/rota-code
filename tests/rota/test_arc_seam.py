@@ -164,7 +164,8 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
         "def test_tombstones():\n    assert delete_account(1) == \"tombstoned\"')",
     ], batch_id="b1")
 
-    assert db.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"] == 1
+    # The batch's own test; the repository's tests join the batch too (tipsY).
+    assert db.execute("SELECT COUNT(*) n FROM tests WHERE criterion_id IS NOT NULL").fetchone()["n"] == 1
 
     # --- the harness: the one gate with no judgement in it -------------------
     h = tick(db, "do:harness")
@@ -363,7 +364,7 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
         "SELECT head_commit FROM batches WHERE id='b1'").fetchone()["head_commit"]
     harness.run(db, "b1")
     assert db.execute(
-        "SELECT result FROM test_runs WHERE batch_id='b1' AND commit_sha=?",
+        "SELECT result FROM test_runs WHERE batch_id='b1' AND test_id='t1' AND commit_sha=?",
         (bad,)).fetchone()["result"] == "fail", "the code does not tombstone"
 
     # It goes back to the Developer, and it does *not* go to Critic: a model
@@ -385,7 +386,7 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
 
     harness.run(db, "b1")
     assert db.execute(
-        "SELECT result FROM test_runs WHERE batch_id='b1' AND commit_sha=?",
+        "SELECT result FROM test_runs WHERE batch_id='b1' AND test_id='t1' AND commit_sha=?",
         (good,)).fetchone()["result"] == "pass"
 
     # The failing run is still on file against the commit it judged, and does

@@ -364,6 +364,17 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     head = head_of(conn, batch_id)
     if head is None:
         return "nothing committed"
+    # Every criterion has its test. The repository's own tests join the
+    # batch, so a green harness alone no longer says the Tester has been
+    # here: tipsZ (2026-09-09) merged on the inherited test with no test of
+    # either criterion.
+    untested = [r["id"] for r in conn.execute(
+        "SELECT c.id FROM batch_tickets bt JOIN criteria c ON c.ticket_id = bt.ticket_id "
+        "WHERE bt.batch_id = ? AND NOT EXISTS (SELECT 1 FROM tests t "
+        "                                       WHERE t.criterion_id = c.id) "
+        "ORDER BY c.id", (batch_id,))]
+    if untested:
+        return f"criteria without a test: {', '.join(untested)}"
 
     verdict = conn.execute(
         "SELECT result FROM verdicts WHERE batch_id = ? AND commit_sha = ? "
