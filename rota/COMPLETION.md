@@ -813,6 +813,13 @@ merged cold in 34 steps.
    and reorient re-asserted the principal's `split_bill` as observed. Two
    rules: a test imports the surface from the surface's own module, and an
    observed session never amends a decided item.
+   tipsV went quiet at 116 steps with 18 asks. The split stayed decided.
+   The Developer again rewrote main.py down to the feature and the guard,
+   and the functions nothing imported were allowed to go: the fourth walk
+   to lose the program that way, so the write door is strict now and a
+   definition the file has stays. Thirteen of the asks were one page per
+   Critic challenge row; the agenda now waits for onboarding to finish,
+   the same gate as the observed rows.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The

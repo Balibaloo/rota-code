@@ -486,6 +486,24 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
     assert any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
 
 
+def test_the_agenda_waits_for_onboarding_to_finish(db, monkeypatch):
+    """
+    tipsV, 2026-09-09: each Critic challenge wrote one ledger row and the
+    agenda raised a page for each before the next challenge ran. Thirteen
+    pages. One page, once the rows are all there.
+    """
+    from rota.core import scheduler
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
+               "author) VALUES ('l_1','i1','items','a default','open','critic')")
+    monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
+    assert not any(w.kind == "tick:agenda" for w in P.all_wakes(db, principal_present=True))
+    monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
+    assert any(w.kind == "tick:agenda" for w in P.all_wakes(db, principal_present=True))
+
+
 def test_an_observed_item_is_a_record_not_a_build_order(db):
     """
     tipsK and tipsT, 2026-09-09: approving the observed items on the page

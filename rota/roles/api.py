@@ -6438,14 +6438,26 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                     imported |= {x.strip().split(" as ")[0]
                                  for x in m.group(1).split(",")}
                 imported |= set(_re.findall(r"\b" + _re.escape(stem) + r"\.(\w+)", src))
-            gone = sorted((old_defs - new_defs) & imported)
+            # The entry point keeps every definition. tipsS, tipsT, tipsU,
+            # tipsV (2026-09-09): four walks lost the interactive program to
+            # a whole-file write of main.py that kept the feature and the
+            # guard. Nothing imported the dropped functions, so the narrow
+            # rule let them go, and with them the program. A file with a
+            # main guard is the program; elsewhere, dropping a name nobody
+            # uses stays the Developer's business.
+            entry = any(isinstance(n, _ast.If) and isinstance(n.test, _ast.Compare)
+                        and any(isinstance(c, _ast.Constant) and c.value == "__main__"
+                                for c in n.test.comparators) for n in old_tree.body)
+            dropped = old_defs - new_defs
+            gone = sorted(dropped if entry else dropped & imported)
             if gone:
+                why = ("the program's entry point keeps every definition it has"
+                       if entry else
+                       "the batch's tests, its criteria or other files use them")
                 raise ValueError(
-                    f"this rewrite of {path} drops {', '.join(gone)}, which the "
-                    f"batch's tests, its criteria or other files use -- an "
-                    f"ImportError on every one that does. Keep every "
-                    f"definition the file has; add to the file, do not "
-                    f"replace it")
+                    f"this rewrite of {path} drops {', '.join(gone)}, and "
+                    f"{why}. Write the whole file with every existing "
+                    f"definition kept and your change added; do not replace it")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "

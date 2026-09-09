@@ -132,11 +132,12 @@ def test_the_developer_writes_no_test_file_and_keeps_the_main_guard(db, tmp_path
         sb.call("code.write", path="tests/test_x.py", text="def test_x():\n    pass\n")
     with pytest.raises(ValueError, match="entry point"):
         sb.call("code.write", path="main.py", text="def split(t, n):\n    return t / n\n")
-    # tipsT: the guard kept, the function it calls dropped.
-    with pytest.raises(ValueError, match="block of main.py calls run"):
+    # tipsV: the entry point keeps every definition, referenced or not.
+    # Four walks lost the program to a main.py that kept only the feature.
+    with pytest.raises(ValueError, match="drops run, and the program's entry point"):
         sb.call("code.write", path="main.py",
                 text="def split(t, n):\n    return t / n\n\n"
-                     "if __name__ == \"__main__\":\n    run()\n")
+                     "if __name__ == \"__main__\":\n    split(1, 1)\n")
     out = sb.call("code.write", path="main.py",
                   text="def run():\n    return 1\n\ndef split(t, n):\n    return t / n\n\n"
                        "if __name__ == \"__main__\":\n    run()\n")
@@ -572,9 +573,10 @@ def test_a_rewrite_may_not_delete_what_the_tests_import(db, tmp_path):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError, match="drops close_account, which the batch's tests"):
+    with pytest.raises(ValueError, match="drops close_account, and the batch's tests"):
         sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
-    # Dropping a function nobody imports is the Developer's business.
+    # Dropping a function nobody imports, in a module that is not the
+    # entry point, is the Developer's business.
     out = sb.call("code.write", path="script.py",
                   text="def close_account(a):\n    return 'invoices'\n")
     assert out["bytes"]

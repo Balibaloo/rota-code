@@ -1236,8 +1236,19 @@ def quarantined(conn) -> list[Wake]:
 @predicate("agenda", wakes="liaison", band="gate", needs_principal=True,
            drains=[("ledger", "status", "open")])
 def agenda(conn) -> list[Wake]:
-    """On principal presence, present what is blocked on them."""
-    from .scheduler import tick_agenda
+    """
+    On principal presence, present what is blocked on them.
+
+    Not before onboarding is done. The Critic's challenge ticks run in the
+    start band and each writes one ledger row; the agenda in the gate band
+    outranks them, so every row raised its own page before the next
+    challenge ran: thirteen pages on one run (tipsV, 2026-09-09). One page,
+    once the rows are all there; the same gate as `observed_entries`.
+    """
+    from .scheduler import onboarding_phase, tick_agenda
+
+    if onboarding_phase(conn) not in ("done", "none"):
+        return []
     return tick_agenda(conn, principal_present=True)
 
 
