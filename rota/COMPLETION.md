@@ -750,6 +750,13 @@ merged cold in 34 steps.
    with no batch: the Vision Keeper rewrote the account to describe the new
    feature, asserted the feature, and the near-duplicate fold answered with
    the account's id (4fbf8b3). Each walk found one layer under the last.
+   tipsM went quiet at 94 steps: the observed rows were presented as they
+   were written, sixteen pages (gated to onboarding done, cb39961); the
+   Vision Keeper again wrote only the account (brief paragraph, unmeasured
+   on this load: both deliver cases loop on the decision search); the
+   Architect could not attest none_found on pyproject.toml. The boundary
+   brief with none_found first measured 0/5 against 5/5 as it was, same
+   load, and stays as it was.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
