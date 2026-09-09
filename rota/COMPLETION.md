@@ -741,6 +741,15 @@ merged cold in 34 steps.
    ledger rows until quarantined, where the ruled design presents them on a
    page (9d69bdd). The `answering` mode fired live three times and each
    reply reached the Vision Keeper.
+   tipsK went quiet at 116 steps with three quarantines, each a door that
+   refused a correct act: the encode door compared `main.py::calculate_tip`
+   whole against a bare call; the attest door demanded an opened file for a
+   frame ruling, which is a reading of the tree; the vacuity door demanded
+   opened files for an item claim that cites none (b56b3fd). The observed
+   rows went out over eight pages (4be51ec). tipsL went quiet at 121 steps
+   with no batch: the Vision Keeper rewrote the account to describe the new
+   feature, asserted the feature, and the near-duplicate fold answered with
+   the account's id (4fbf8b3). Each walk found one layer under the last.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
