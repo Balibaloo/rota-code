@@ -762,6 +762,12 @@ merged cold in 34 steps.
    criterion id and the ticket id and flipped between the two refusals;
    the Critic's ledger id ran past the ref door's sixty-four characters and
    the agenda could not present it (490005f).
+   tipsO reached the build loop on an existing repo for the first time: a
+   batch, a test, a harness, and a fix loop to the step cap of 200 with 4
+   asks. The first write of the batch replaced a four-function module with
+   one function, the criterion's surface named a vanished one, and the test
+   imported it. The write door now keeps the criteria's surfaces and other
+   files' imports as well as the tests' (d6ae755).
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
