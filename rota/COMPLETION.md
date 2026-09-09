@@ -893,6 +893,15 @@ merged cold in 34 steps.
    three minutes against ten, because 6.6 GB fits the card whole. It is
    the judgement-tier candidate. qwen3.5:4b and a walk with the four
    roles on the 9b follow.
+   qwen3.5:4b, same five cases: the Tester's outside fact 5/5, which every
+   larger model failed, the observed page 5/5, the Vision Keeper's outside
+   fact 0/5, the Critic and Terminologist 0/5. A different profile, not a
+   smaller one. tipsAC with the four roles on the 9b: the Tester invented
+   a `Bill` class, imported it from main, and asserted on a list; nothing
+   defined it and no criterion named it; the Developer tried to rebuild
+   the program around the invented API until quarantine. A name a test
+   imports from the surface's module is now a surface or a name the module
+   defines today.
 4. **Any stack.** Deferred. The seam is a language profile: test command,
    floor, dependency file, entry point. Nothing below the harness names a
    language.

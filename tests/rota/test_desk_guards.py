@@ -71,6 +71,14 @@ def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
                        "def test_calculate_tip():\n"
                        "    assert calculate_tip(100, 10) == 10\n")
     assert got, "the encode must land"
+    # tipsAC: the Tester invented a `Bill` class and imported it from main.
+    # Nothing defines it and no criterion names it.
+    with pytest.raises(ValueError, match="imports Bill from main, and main.py defines no such name"):
+        sb.call("tests.encode", id="tst11", criterion_id="c1",
+                path="tests/test_tip3.py",
+                body="from main import calculate_tip, Bill\n"
+                     "def test_calculate_tip():\n"
+                     "    assert calculate_tip(Bill(100, 2)) == [50, 50]\n")
     # tipsU: the surface lives in main.py, the test imported it from a
     # module that does not exist, ImportError at collection, quarantine.
     with pytest.raises(ValueError, match="lives in main.py and this test imports from billing"):

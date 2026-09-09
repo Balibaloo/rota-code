@@ -3619,6 +3619,42 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                         for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
+        # And only the surface, or what the module defines today. tipsAC
+        # (2026-09-09): the Tester wrote `from main import calculate_tip,
+        # Bill` and asserted on a list; nothing defined `Bill`, no criterion
+        # named it, and the Developer rebuilt the program around the
+        # invented API until quarantine. A test is black-box on the surface;
+        # a name it invents is a design nobody asked for.
+        for mod in surface_mods:
+            names = set()
+            for m in _re2.finditer(r"^\s*from\s+" + _re2.escape(mod) + r"\s+import\s+([^\r\n]+)",
+                                   body, _re2.M):
+                names |= {x.strip().split(" as ")[0] for x in m.group(1).split(",")}
+            names.discard("*")
+            defined: set[str] = set()
+            try:
+                mf = _worktree_of(ctx) / f"{mod}.py"
+                if mf.is_file():
+                    defined = {n.name for n in _ast.parse(
+                        mf.read_text(encoding="utf-8", errors="replace")).body
+                        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef,
+                                          _ast.ClassDef))}
+                    defined |= {t.id for n in _ast.parse(
+                        mf.read_text(encoding="utf-8", errors="replace")).body
+                        if isinstance(n, _ast.Assign) for t in n.targets
+                        if isinstance(t, _ast.Name)}
+            except Exception:  # noqa: BLE001 -- no worktree yet is "defines nothing"
+                defined = set()
+            invented = sorted(n for n in names if n and n not in surface_names
+                              and n not in defined)
+            if invented:
+                raise Wall(
+                    f"this test imports {', '.join(invented)} from {mod}, and "
+                    f"{mod}.py defines no such name and no criterion names it. "
+                    f"A test calls the surface the criterion names, "
+                    f"{surface[0]!r}, and nothing it invents; if the surface "
+                    f"needs a new type or helper, that is the Developer's to "
+                    f"add and the criterion's to name")
         if surface_mods and imported_from and not (surface_mods & {m.split(".")[0] for m in imported_from}):
             raise Wall(
                 f"the surface {surface[0]!r} lives in "
