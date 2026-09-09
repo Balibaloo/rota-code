@@ -237,6 +237,10 @@ class RunList(ModalScreen):
         a different run under you at every press of the key.
         """
         table = self.query_one("#runs", DataTable)
+        # Where the reader had scrolled sideways to. `DataTable.clear` sets
+        # `scroll_x` to zero, so sorting on a column you had to scroll right
+        # to reach threw away the view of the column you sorted on.
+        scroll_x = table.scroll_x
         # Two sorts, because most columns tie. Seven runs at `ready` in the
         # order the last sort left them is an order with no rule you can see.
         # A Python sort is stable, so the name sort underneath is the rule the
@@ -257,6 +261,10 @@ class RunList(ModalScreen):
             return
         names = [row["name"] for row in self.rows]
         table.move_cursor(row=names.index(keep) if keep in names else 0)
+        # After the cursor, not before it. Moving the cursor scrolls to it,
+        # and the horizontal half of that is what put the view back at the
+        # left edge in the first place.
+        table.scroll_to(x=scroll_x, y=table.scroll_y, animate=False)
 
     def _fetch_failed(self, exc: Exception) -> None:
         if self._cancelled:

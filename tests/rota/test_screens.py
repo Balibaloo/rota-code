@@ -222,6 +222,34 @@ async def test_the_seat_stamps_the_run_it_opens(tmp_path, home, project):
     assert stamp > "2001-01-01 00:00:00", "the seat opened it and said nothing"
 
 
+async def test_sorting_holds_the_view_you_had_scrolled_to(tmp_path, home, project):
+    """
+    Nine columns do not fit a narrow terminal. `DataTable.clear` sets
+    `scroll_x` to zero, so sorting on a column you had to scroll right to
+    reach threw away the view of the column you sorted on.
+    """
+    _seed(home, "aaa", project, project_branch="feature/a-long-branch-name",
+          project_commit="a" * 40)
+    _seed(home, "bbb", project, project_branch="feature/a-long-branch-name",
+          project_commit="b" * 40)
+
+    app = _app(tmp_path)
+    async with app.run_test(size=(60, 20)) as pilot:
+        screen = await _open_list(pilot)
+        table = _table(screen)
+        assert table.max_scroll_x > 20, "the table fits, so nothing is proven"
+        table.scroll_to(x=20, animate=False)
+        await pilot.pause()
+
+        screen.sort_on("items")
+        await pilot.pause()
+        assert table.scroll_x == 20
+
+        screen.action_reload()
+        await pilot.pause()
+        assert table.scroll_x == 20, "a reload threw the view away instead"
+
+
 def test_an_age_is_one_cell_wide_and_says_when(tmp_path):
     """A date makes the reader do the subtraction. The column answers it."""
     import time
