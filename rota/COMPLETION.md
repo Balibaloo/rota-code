@@ -825,6 +825,14 @@ merged cold in 34 steps.
    Terminologist names the existing tip function as the split's surface,
    the Tester's second test expects a number no split could return, and
    the Developer's challenge path exhausts against it. That is Level 3.
+   Closing suite for the day: 1453 passed, 20 register reds before the
+   re-record, 14 after. Six were stale from door messages and re-earned
+   10/10. One is new and marginal (`L1-DV-fix-the-code-not-the-test`,
+   5/10: the model wrote `text=[text]`). The rest are the attributed set:
+   load variance on the Vision Keeper deliver cases, the Developer fix
+   cases and the three L3 chains (the failed-verdict chain was green on
+   four loads and 0/40 on the last two, same prompt), and the 8B
+   boundaries.
 2. **A team that designs before it builds.** The Terminologist asks what
    the words mean. The Architect asks what the shape is. The Researcher
    fetches the outside facts. The principal answers once, on one page. The
