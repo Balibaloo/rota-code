@@ -156,6 +156,146 @@ async def test_choosing_a_run_rebinds_the_seat_to_it(tmp_path, home, project):
 
 
 # ---------------------------------------------------------------------------
+# Sorting
+# ---------------------------------------------------------------------------
+
+def _seed_items(path: Path, count: int) -> None:
+    """Give a run a count to sort on."""
+    import sqlite3
+
+    conn = sqlite3.connect(path)
+    conn.executemany(
+        "INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
+        [(f"i{n}", "a thing", "in_scope", "observed") for n in range(count)])
+    conn.commit()
+    conn.close()
+
+
+async def _open_list(pilot):
+    await pilot.press("ctrl+l")
+    await pilot.pause()
+    return pilot.app.screen
+
+
+def _table(screen):
+    from textual.widgets import DataTable
+
+    return screen.query_one("#runs", DataTable)
+
+
+async def test_a_count_column_sorts_as_a_number(tmp_path, home, project):
+    """
+    Ten items is more than nine items. A string sort says otherwise, and a
+    column of counts is where that answer is the whole question.
+    """
+    _seed_items(_seed(home, "few", project), 9)
+    _seed_items(_seed(home, "many", project), 10)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        screen.sort_on("items")
+        await pilot.pause()
+        assert [row["name"] for row in screen.rows] == ["few", "many"]
+        screen.sort_on("items")                      # asked twice, so reversed
+        await pilot.pause()
+        assert [row["name"] for row in screen.rows] == ["many", "few"]
+
+
+async def test_the_cursor_holds_its_run_across_a_sort(tmp_path, home, project):
+    """
+    You sort to find a run. A cursor that held its row number instead would
+    leave you pointed at a different run every time. The next key you press
+    acts on the run under the cursor.
+    """
+    _seed_items(_seed(home, "aaa", project), 3)
+    _seed_items(_seed(home, "bbb", project), 2)
+    _seed_items(_seed(home, "ccc", project), 1)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        _table(screen).move_cursor(row=2)
+        await pilot.pause()
+        assert screen.selected["name"] == "ccc"
+        screen.sort_on("items")
+        await pilot.pause()
+        assert screen.selected["name"] == "ccc", "the cursor stayed on a row"
+        assert screen.rows[0]["name"] == "ccc"
+
+
+async def test_a_sort_survives_a_reload(tmp_path, home, project):
+    """
+    The sort belongs to the screen and not to one reading of the directory.
+    A reload that dropped the sort would put the list back in name order
+    under a header that still named the other column.
+    """
+    _seed_items(_seed(home, "aaa", project), 3)
+    _seed_items(_seed(home, "bbb", project), 1)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        screen.sort_on("items")
+        await pilot.pause()
+        screen.action_reload()
+        await pilot.pause()
+
+        assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
+        assert "^" in str(_table(screen).columns["items"].label)
+
+
+async def test_runs_that_tie_fall_back_to_their_names(tmp_path, home, project):
+    """
+    Most columns tie. Seven runs at `ready`, left in the order the previous
+    sort happened to give them, is an order with no rule you can see.
+    """
+    for name in ("ccc", "aaa", "bbb"):
+        _seed(home, name, project)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        screen.sort_on("state")                     # every run is `ready`
+        await pilot.pause()
+        assert [row["name"] for row in screen.rows] == ["aaa", "bbb", "ccc"]
+        screen.sort_on("state")                     # reversed, and still named
+        await pilot.pause()
+        assert [row["name"] for row in screen.rows] == ["aaa", "bbb", "ccc"]
+
+
+async def test_s_moves_the_sort_along_the_columns_and_wraps(tmp_path, home):
+    """One key, every column, and no dead end at the last one."""
+    _seed(home, "one")
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        assert screen.sort_by == "run"
+        for expected in screen.COLUMNS[1:] + screen.COLUMNS[:1]:
+            await pilot.press("s")
+            assert screen.sort_by == expected
+
+
+async def test_shift_s_reverses_without_moving_the_column(tmp_path, home, project):
+    """
+    Direction is a second decision. Reversing by cycling through every other
+    column and back is not a decision anybody makes twice.
+    """
+    _seed(home, "aaa", project)
+    _seed(home, "bbb", project)
+
+    app = _app(tmp_path)
+    async with app.run_test() as pilot:
+        screen = await _open_list(pilot)
+        await pilot.press("S")
+        await pilot.pause()
+
+        assert screen.sort_by == "run"
+        assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
+
+
+# ---------------------------------------------------------------------------
 # Creating
 # ---------------------------------------------------------------------------
 

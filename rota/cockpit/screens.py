@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -79,12 +80,22 @@ class RunList(ModalScreen):
     # so handling the event gets both and a binding would have got neither.
     BINDINGS = [
         ("escape", "dismiss_list", "back"),
+        # Screen bindings shadow the app's — the app's own `ctrl+c` means
+        # "quit", which is the wrong verb here: nothing is running yet, there
+        # is only a scan of `RUNS` this screen is waiting on, and "cancel"
+        # is that scan's own word for "back".
+        ("ctrl+c", "dismiss_list", "cancel"),
         ("n", "new", "new"),
         ("f", "fork", "fork"),
         ("w", "wipe", "wipe"),
         ("c", "cockpit", "cockpit"),
         ("d", "diff", "diff"),
         ("r", "reload", "reload"),
+        # Two keys, because a sort is two decisions. `s` chooses the
+        # column. `S` chooses the direction. One key for both would make you
+        # step through every other column to reverse the column you are on.
+        ("s", "sort", "sort"),
+        ("S", "sort_reverse", "reverse"),
     ]
 
     # The run marked as the left-hand side of a comparison. Two presses of `d`
@@ -95,37 +106,159 @@ class RunList(ModalScreen):
 
     COLUMNS = ("run", "state", "source", "terms", "cons", "items", "sess")
 
+    # What each column sorts on. The counts sort as numbers, because a
+    # string sort puts 10 before 9. A run this could not read holds no
+    # counts. Such a run sorts as -1, so the unreadable runs gather at one
+    # end instead of scattering through the numbers.
+    SORT_KEYS = {
+        "run": lambda row: row["name"].casefold(),
+        "state": lambda row: (row["state"] or "").casefold(),
+        "source": lambda row: RunList._source(row).casefold(),
+        "terms": lambda row: row["counts"].get("glossary_terms", -1),
+        "cons": lambda row: row["counts"].get("constraints", -1),
+        "items": lambda row: row["counts"].get("items", -1),
+        "sess": lambda row: row["counts"].get("sessions", -1),
+    }
+
+    # The order the list opens in is the order it had before sorting existed.
+    sort_by = "run"
+    sort_desc = False
+
     def compose(self) -> ComposeResult:
         with Vertical(id="runlist_container"):
             yield Label("runs", id="runlist_title")
+            with Vertical(id="runlist_loading"):
+                yield Static(f"reading {cli.RUNS}…", id="runlist_loading_text")
+                yield Button("cancel", id="runlist_cancel")
             yield DataTable(id="runs", cursor_type="row")
             yield Static("", id="runlist_note")
 
     def on_mount(self) -> None:
+        self._cancelled = False
+        self.rows: list[dict] = []
         table = self.query_one("#runs", DataTable)
-        table.add_columns(*self.COLUMNS)
+        for name in self.COLUMNS:
+            table.add_column(self._header(name), key=name)
         self.reload()
-        table.focus()
+
+    def _header(self, name: str) -> str:
+        """
+        The column label, with the arrow of the sort when the sort is on it.
+
+        A `DataTable` measures a column when the column is added. It does not
+        measure the column again when the label changes. The suffix is
+        therefore two characters wide in every state, the unsorted one
+        included. A later arrow has the room it needs and no column moves.
+        """
+        if name != self.sort_by:
+            return f"{name}  "
+        return f"{name} " + ("v" if self.sort_desc else "^")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "runlist_cancel":
+            self.action_dismiss_list()
 
     # -- data ----------------------------------------------------------------
 
     def reload(self) -> None:
+        """
+        `cli.runs()` opens and reads every `.db` in `RUNS` -- one seek apiece
+        on a slow disk, which is nothing on the command line where the
+        process exits either way, and is the screen sitting frozen with no
+        cursor and no way out when it runs on the UI thread here instead. So
+        it runs on a worker thread, same as a session's own turn, and the
+        loading placeholder plus its cancel button are what the screen shows
+        instead of nothing while that thread is still working.
+
+        Only shown when there is nothing to show yet: a manual reload with
+        rows already on screen leaves them up rather than blanking a table
+        that was doing no harm.
+        """
+        if not self.rows:
+            self.query_one("#runlist_loading", Vertical).display = True
+            self.query_one("#runs", DataTable).display = False
+            self.query_one("#runlist_cancel", Button).focus()
+        self.run_worker(self._fetch, thread=True, exclusive=True)
+
+    def _fetch(self) -> None:
+        try:
+            rows = cli.runs()
+        except Exception as exc:                            # noqa: BLE001
+            self.app.call_from_thread(self._fetch_failed, exc)
+            return
+        self.app.call_from_thread(self._fetch_done, rows)
+
+    def _fetch_done(self, rows: list[dict]) -> None:
+        # The screen this was reading for may already be gone -- cancelled
+        # out from under it by the same key that would once have just sat
+        # there unresponsive. Nothing left to post the result to.
+        if self._cancelled:
+            return
         table = self.query_one("#runs", DataTable)
-        cursor = table.cursor_row
-        table.clear()
-        self.rows = cli.runs()
-        for row in self.rows:
-            table.add_row(*self._cells(row))
-        if self.rows:
-            table.move_cursor(row=min(cursor, len(self.rows) - 1))
+        # Read out of the rows that are still on screen, before the new ones
+        # replace them. A reload that found the same runs leaves the cursor
+        # on the run you were looking at.
+        keep = self.selected["name"] if self.selected else None
+        self.rows = rows
+        self._draw(keep)
+        self.query_one("#runlist_loading", Vertical).display = False
+        table.display = True
+        table.focus()
         self.query_one("#runlist_note", Static).update(
-            "enter open · n new · f fork · w wipe · c cockpit · esc back"
+            "enter open · n new · f fork · w wipe · c cockpit · "
+            "s sort · esc back"
             if self.rows else
             f"no runs in {cli.RUNS} — press n")
 
+    def _draw(self, keep: str | None) -> None:
+        """
+        Put `self.rows` in the sort order, then draw them.
+
+        `self.rows` holds the drawn order, not the read order. The cursor row
+        is an index into the table. `selected` reads the same index out of
+        `self.rows`. One list in one order is what keeps the cursor and the
+        run under it the same run.
+
+        The cursor holds its **run**, not its row number. `keep` names that
+        run. You sort to find a run. A cursor that stayed on row 4 would put
+        a different run under you at every press of the key.
+        """
+        table = self.query_one("#runs", DataTable)
+        # Two sorts, because most columns tie. Seven runs at `ready` in the
+        # order the last sort left them is an order with no rule you can see.
+        # A Python sort is stable, so the name sort underneath is the rule the
+        # ties fall back to, and it holds in both directions.
+        self.rows.sort(key=self.SORT_KEYS["run"])
+        if self.sort_by != "run":
+            self.rows.sort(key=self.SORT_KEYS[self.sort_by],
+                           reverse=self.sort_desc)
+        elif self.sort_desc:
+            self.rows.sort(key=self.SORT_KEYS["run"], reverse=True)
+        table.clear()
+        for row in self.rows:
+            table.add_row(*self._cells(row))
+        for name in self.COLUMNS:
+            table.columns[name].label = Text(self._header(name))
+        table.refresh()
+        if not self.rows:
+            return
+        names = [row["name"] for row in self.rows]
+        table.move_cursor(row=names.index(keep) if keep in names else 0)
+
+    def _fetch_failed(self, exc: Exception) -> None:
+        if self._cancelled:
+            return
+        self.query_one("#runlist_loading_text", Static).update(
+            f"[red]{type(exc).__name__}: {exc}[/red]")
+
     @staticmethod
-    def _cells(row: dict) -> tuple[str, ...]:
-        counts = row["counts"]
+    def _source(row: dict) -> str:
+        """
+        The source cell, which the source sort also reads.
+
+        One function serves the cell and the sort key. A column that sorts on
+        something other than what it shows is a column you cannot read.
+        """
         if row["branch"]:
             source = f"{row['branch']}@{row['commit'][:7]}"
             if row["moved"]:
@@ -134,8 +267,13 @@ class RunList(ModalScreen):
                 # that no longer exists in that shape, and comparing it to a
                 # fresh one is comparing two different sources.
                 source += " · moved"
-        else:
-            source = Path(row["root"]).name if row["root"] else "—"
+            return source
+        return Path(row["root"]).name if row["root"] else "—"
+
+    @staticmethod
+    def _cells(row: dict) -> tuple[str, ...]:
+        counts = row["counts"]
+        source = RunList._source(row)
         return (
             row["name"],
             row["state"] or "—",
@@ -164,7 +302,54 @@ class RunList(ModalScreen):
     def action_reload(self) -> None:
         self.reload()
 
+    def on_data_table_header_selected(
+            self, event: DataTable.HeaderSelected) -> None:
+        """
+        A click on a column header sorts on that column.
+
+        The second click on the same header reverses the sort. Every other
+        table does this. The keyboard gains nothing if the mouse cannot.
+        """
+        self.sort_on(self.COLUMNS[event.column_index])
+
+    def action_sort(self) -> None:
+        """`s` moves the sort to the next column, and wraps at the end."""
+        following = (self.COLUMNS.index(self.sort_by) + 1) % len(self.COLUMNS)
+        self.sort_on(self.COLUMNS[following], toggle=False)
+
+    def action_sort_reverse(self) -> None:
+        """`S` reverses the sort that is on."""
+        self.sort_desc = not self.sort_desc
+        self._resort()
+
+    def sort_on(self, column: str, toggle: bool = True) -> None:
+        """
+        Sort on one column. Asking again for the same column reverses the sort.
+
+        A new column always starts ascending. One direction for every column
+        is the direction you can predict. `S` gives you the other direction
+        in one key.
+        """
+        if column not in self.SORT_KEYS:
+            return
+        if column == self.sort_by and toggle:
+            self.sort_desc = not self.sort_desc
+        else:
+            self.sort_by = column
+            self.sort_desc = False
+        self._resort()
+
+    def _resort(self) -> None:
+        """
+        Draw again in the new order, and hold the cursor on its run.
+
+        An empty list still redraws. The header arrow moves, so the sort you
+        chose is the sort the next reload lands in.
+        """
+        self._draw(self.selected["name"] if self.selected else None)
+
     def action_dismiss_list(self) -> None:
+        self._cancelled = True
         self.dismiss(None)
 
     def action_open(self) -> None:
