@@ -6227,12 +6227,43 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                         row["body"] or "", _re.M):
                     imported |= {x.strip().split(" as ")[0]
                                  for x in m.group(1).split(",")}
+            # Two more sources of names the file has to keep. The Developer
+            # now writes before the Tester, so on the first write the tests
+            # are not there yet to protect anything: tipsO (2026-09-09), the
+            # first write replaced four functions with one, the criterion's
+            # surface named a vanished one, the test imported it, and the
+            # fix loop ran to the step cap. The criteria's surfaces for this
+            # file, and what other files in the tree import from it.
+            for crit in ctx.conn.execute(
+                    "SELECT c.surface_refs FROM criteria c "
+                    "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+                    "WHERE bt.batch_id = ?", (ctx.batch_id,)):
+                try:
+                    refs = json.loads(crit["surface_refs"] or "[]")
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                imported |= {r.rsplit("::", 1)[-1] for r in refs
+                             if "::" in r and _Path(r.split("::", 1)[0]).stem == stem}
+            for other in root.rglob("*.py"):
+                if other == target or ".rota" in other.parts or ".venv" in other.parts:
+                    continue
+                try:
+                    src = other.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                for m in _re.finditer(
+                        r"^\s*from\s+" + _re.escape(stem) + r"\s+import\s+([^\r\n]+)",
+                        src, _re.M):
+                    imported |= {x.strip().split(" as ")[0]
+                                 for x in m.group(1).split(",")}
+                imported |= set(_re.findall(r"\b" + _re.escape(stem) + r"\.(\w+)", src))
             gone = sorted((old_defs - new_defs) & imported)
             if gone:
                 raise ValueError(
                     f"this rewrite of {path} drops {', '.join(gone)}, which the "
-                    f"batch's tests import -- an ImportError on every test that "
-                    f"does. Keep what the tests import; add to the file, do not "
+                    f"batch's tests, its criteria or other files use -- an "
+                    f"ImportError on every one that does. Keep every "
+                    f"definition the file has; add to the file, do not "
                     f"replace it")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(

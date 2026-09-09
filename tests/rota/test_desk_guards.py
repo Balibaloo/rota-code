@@ -73,6 +73,36 @@ def test_a_bare_call_of_the_surface_name_is_a_call_of_the_surface(db):
     assert got, "the encode must land"
 
 
+def test_a_rewrite_keeps_what_the_criteria_and_other_files_use(db, tmp_path):
+    """
+    tipsO, 2026-09-09: the Developer writes before the Tester now, so on
+    the first write no test protects anything. The first write replaced a
+    module of four functions with one. The criterion's surface named a
+    vanished one, the test then imported it, and the fix loop ran to the
+    step cap. The criteria's surfaces and other files' imports hold too.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "script.py").write_text("def close_account(a):\n    return 'invoices'\n"
+                                    "def other():\n    return 1\n"
+                                    "def helper():\n    return 2\n", encoding="utf-8")
+    (root / "app.py").write_text("from script import helper\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("DELETE FROM tests")
+    db.execute("UPDATE criteria SET surface_refs = '[\"script.py::close_account\"]' "
+               "WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="drops close_account, helper"):
+        sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
+    out = sb.call("code.write", path="script.py",
+                  text="def close_account(a):\n    return 'invoices'\n"
+                       "def helper():\n    return 2\n"
+                       "def run():\n    return 1\n")
+    assert out["bytes"]
+
+
 def test_labelled_quotes_are_read_not_crashed_on(db):
     """
     qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register
@@ -481,7 +511,7 @@ def test_a_rewrite_may_not_delete_what_the_tests_import(db, tmp_path):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
-    with pytest.raises(ValueError, match="drops close_account, which the batch's tests import"):
+    with pytest.raises(ValueError, match="drops close_account, which the batch's tests"):
         sb.call("code.write", path="script.py", text="def run():\n    return 1\n")
     # Dropping a function nobody imports is the Developer's business.
     out = sb.call("code.write", path="script.py",
