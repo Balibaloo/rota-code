@@ -925,6 +925,13 @@ merged cold in 34 steps.
    llama. A second shipped profile, `local-llama`, puts llama as the
    default with the 9b judges, and a walk on it decides the shipped
    default.
+   tipsAF on `local-llama` went quiet at 46 steps with no batch: the
+   intake landed and both statements were ratified, then the llama
+   Liaison relayed the ratification instead of delivering it, and no item
+   was written. The walks were tuned on qwen3:8b as the register was on
+   llama, and each carries its own. The shipped default stays `local`,
+   the one configuration with an honest merge; `local-llama` stays as the
+   register's profile.
    tipsAD, four roles on qwen3.5:9b: merged in 37 steps with 3 asks after a
    real fix loop, three tests green, the repo's own and the batch's two,
    and the program still prints the total, the tip and the total with
