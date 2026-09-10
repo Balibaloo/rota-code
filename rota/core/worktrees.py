@@ -156,7 +156,12 @@ def commit(path: str | Path, message: str) -> str | None:
     the code was already right has nothing to commit, and inventing an empty
     commit to have something to report would be worse than saying so.
     """
-    subprocess.run(["git", "-C", str(path), "add", "-A"],
+    # Everything but the harness's own furniture. The batch's venv and the
+    # run's state live inside the worktree and are not the project's:
+    # under WSL (2026-09-10) `add -A` staged 952 files of `.venv` into the
+    # first commit and the Critic reviewed them as the diff.
+    subprocess.run(["git", "-C", str(path), "add", "-A", "--", ".",
+                    ":(exclude).venv", ":(exclude).rota"],
                    capture_output=True, text=True)
     staged = subprocess.run(["git", "-C", str(path), "diff", "--cached", "--name-only"],
                             capture_output=True, text=True).stdout.strip()

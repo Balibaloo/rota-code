@@ -1057,9 +1057,14 @@ merged cold in 34 steps.
    Critic never opened) rode along on every run and blocks nothing.
    Packaging (fb914b2): `pyproject.toml` builds a wheel with the prompts,
    schema, graph, profiles and cockpit assets; Python 3.11 or newer. The
-   deterministic suite ran under WSL from a Python 3.12 venv: the root
-   conftest needs the old TUI's dependencies, and the bench fixtures
-   snapshot the Critic brief (refreshed, 9d2e8a5).
+   deterministic suite ran under WSL from a Python 3.12 venv, 1399 green,
+   five red: two are the clone's location under /tmp, which the git
+   fixture reads as a temp root; two are a shared dev database under six
+   workers timing out; one was real. `git add -A` staged the batch's
+   `.venv`, 952 files, into the first commit, and the Critic reviewed
+   them as the diff. The commit now excludes `.venv` and `.rota` by
+   pathspec. The root conftest needs the old TUI's dependencies, and the
+   bench fixtures snapshot the Critic brief (refreshed, 9d2e8a5).
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
