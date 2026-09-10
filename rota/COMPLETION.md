@@ -1032,6 +1032,34 @@ merged cold in 34 steps.
    three ruling cases 5/5 and rules on the question too (0/5). Both reds
    are judgements, on record. The register runs llama, so two reds join
    it: 20 attributed, up from 18.
+   tipsAI (2026-09-10), the first walk through the landing mode, driven
+   by a principal that answered every page with "yes that all looks
+   right, go ahead" and nothing else. Every page landed through the
+   Liaison's reading: seven rulings in the last run, none by a parser.
+   Four walks, four facts, one open judgement. The Critic cited the
+   claim's own id fourteen sessions running and the refusal said
+   "code.source it first" about a file it had opened: the refusal now
+   names the files opened (fb914b2). The sentence arrived before
+   orientation ran and the Vision Keeper wrote the feature as the
+   account, which nothing slices: a deliver now waits for onboarding,
+   and an assert that replaces the account's words is refused
+   (16d6c47). The Developer's start session committed nothing and no
+   predicate woke anyone again: a running batch with no commit owes its
+   start (0d7fad4). The Developer copied `start=0, end=-1` from
+   `code.source` onto `code.write`, three sessions running, and each
+   write was refused for the extra arguments: the whole-file span lands
+   (25bbb04). Then the build: five commits, four tests, two failing, the
+   fix loop exhausted at 101 steps. The criteria named `calculate_tip`
+   as the split's surface, the Tester called it with a count of diners,
+   the Developer reshaped it, and the tests still disagreed. That is the
+   surface judgement, A4, red on record, and the next lever is not a
+   paragraph. The Critic's quarantined claim (`accept_total`, a file the
+   Critic never opened) rode along on every run and blocks nothing.
+   Packaging (fb914b2): `pyproject.toml` builds a wheel with the prompts,
+   schema, graph, profiles and cockpit assets; Python 3.11 or newer. The
+   deterministic suite ran under WSL from a Python 3.12 venv: the root
+   conftest needs the old TUI's dependencies, and the bench fixtures
+   snapshot the Critic brief (refreshed, 9d2e8a5).
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
