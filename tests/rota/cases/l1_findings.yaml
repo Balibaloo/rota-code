@@ -62,3 +62,67 @@
   forbidden:
     writes: [constraints, findings, criteria, tests]
     recipients: [critic, tester, vision_keeper, terminologist]
+
+# Pinned to the walk's Developer model. The fixture's repository holds the
+# edited file as its only commit, so the drift door has no project base to
+# compare against here and llama's escalation goes through; in a run the
+# door refuses it (d4d1880). qwen3.5:9b gives the defaults 5/5.
+- id: L1-DV-give-the-new-parameters-defaults
+  tier: T1
+  role: developer
+  model: qwen3.5:9b
+  runs: 5
+  pass: 3
+  tick: finding_violated
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "split the bill"
+    edit:
+      main.py: |
+        def calculate_tip(total, tip_percentage):
+            return total * tip_percentage / 100
+
+
+        def display_results(total, tip, total_with_tip, num_payers, shares):
+            print(f"Total: {total:.2f}")
+            print(f"Tip: {tip:.2f}")
+            print(f"Total with tip: {total_with_tip:.2f}")
+            for i in range(num_payers):
+                print(f"Payer {i + 1}: {shares[i]:.2f}")
+
+
+        if __name__ == "__main__":
+            total = float(input("Enter total amount: "))
+            pct = float(input("Enter tip percentage: "))
+            people = int(input("How many people: "))
+            tip = calculate_tip(total, pct)
+            display_results(total, tip, total + tip, people, [(total + tip) / people] * people)
+  fixture:
+    items:
+      - {id: <i1>, text: "the bill is split between the people paying", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "split the bill"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "each payer's share is printed after the totals",
+         term_refs: '[]', surface_refs: '["main.py::display_results"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    constraints:
+      - {id: <k1>, headline: "display_results is called by the main script",
+         text: "The function display_results(total, tip, total_with_tip) is called by the main script to show the results. If renamed or given a new required parameter, the main script fails.",
+         provenance: observed, is_global: 0}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: main.py, grain_kind: path, resolves: 1}
+    findings:
+      - {id: <f1>, batch_id: <b1>, constraint_id: <k1>, commit_sha: abc123,
+         status: violated, grain: display_results}
+  expect:
+    calls: [findings.load, code.write, code.commit]
+  forbidden:
+    writes: [constraints, findings, criteria, tests]
+    recipients: [critic, tester, vision_keeper, terminologist, architect]

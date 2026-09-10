@@ -748,6 +748,14 @@ def _escalation_over_removed_grain(ctx, refs) -> None:
     if not (row and row["worktree"]):
         return
     root = _P(row["worktree"])
+    # The same fact for a name that is still defined but changed shape:
+    # the register (2026-09-10), llama escalated over display_results
+    # gaining two required parameters, which is what the finding says.
+    drift = api._signature_drift(ctx, root)
+    if drift:
+        raise ValueError(
+            "the finding stands on a fact about your tree, and the Architect "
+            "read the same diff. " + " ".join(drift) + ". Then code.commit")
     for ref in refs:
         f = ctx.conn.execute(
             "SELECT grain, constraint_id FROM findings WHERE id = ? "
