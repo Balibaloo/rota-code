@@ -232,14 +232,14 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
 4. ~~Chat interfaces~~ — ruled: they enter when the system is production
    grade and trusted, i.e. after Tracks A and B. Their three parked debts
    stay parked with them.
-5. **The last Critic red's lever** (from the audit, 2026-09-03).
-   `CR-a-test-that-encodes-nothing` keeps its attributed shape: verdict
-   emitted first, challenge too late. Two candidate fixes, unruled — reorder
-   the review brief so the per-criterion first step is "does its test encode
-   it? if not, challenge and stop", or the structural fork (a mandatory
-   per-test claim before `verdicts.emit` may be called). Trade-offs in
-   `plans/feasibility-audit.md`; whichever lands re-earns both Critic cases
-   on one load.
+5. **The last Critic red's lever** (from the audit, 2026-09-03). Ruled
+   2026-09-10: the row goes to its owner first, the Vision Keeper for a
+   criterion or the Architect for a shape, and the principal sees only what
+   stays open. No new tool, no direct road to the signoff page.
+   `CR-a-test-that-encodes-nothing` keeps its attributed shape until the
+   review brief's per-criterion first step is "does its test encode it? if
+   not, challenge and stop"; whichever lands re-earns both Critic cases on
+   one load.
 
 6. **A retired present (loop 3's third injury, 2026-09-03).** A present the
    world moved past — the item amended and presented again while the first
@@ -254,6 +254,8 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
    fail on the CHECK, held in `plans/superseded-present.md`); or a rule that
    needs no new word. Until ruled, `principal.land` already refuses any ask
    that is not open, and the injury stands pinned.
+   Settled 2026-09-10 by the reply layer: the present moment gets a new
+   case in `agenda` mode, and the old converse case stays retired.
 
 ## The four answers that closed the road's open problems (2026-08-30)
 
@@ -1000,10 +1002,96 @@ merged cold in 34 steps.
    so the Developer renamed the tip and reused the name; and nobody asked
    whether the share is of the total or of the total with tip, which is
    Level 2's question.
-4. **Any stack.** Deferred. The seam is a language profile: test command,
-   floor, dependency file, entry point. Nothing below the harness names a
-   language.
+   The fence (2026-09-10, afac9f9). A file the Developer writes or a test
+   the Tester encodes is refused when it reaches the network, a process, a
+   removal, a path outside the project or dynamic code, unless a criterion
+   of the batch names that behaviour in a word. A fact about the file, not
+   a sandbox: the harness runs the project's own code by design. The full
+   register recorded no fence refusal.
+   The reply layer (2026-09-10). Ruled: the seat is text, and no parser
+   reads it. The keyword list is gone. A reply to a confirm or a present
+   lands as a principal `converse` with the page as its cause, the page
+   stays open, and the Liaison wakes in `landing` with the page, the
+   numbered lines and the words. One function, `rulings.rule`: `rulings`
+   maps each line to approve, contest or revise, or `ask` sends one
+   sentence back. The reading is a `rulings` row; `apply_rulings` lands
+   it through `principal.land` after the session commits. Scripts still
+   land a verdict `Answer` through the same door. The TUI keeps a replied
+   page off the screen until the Liaison speaks or the page closes.
+   Measured on four cases, five runs each. The first shape had
+   `msg.converse_principal` beside the rule: llama3.1:8b sent the words
+   back as a converse 5/5 on every ruling case, under three briefs and two
+   bases, and qwen3:8b ruled correctly and then echoed on its second turn.
+   Three facts followed: the session ends after the ruling; the function
+   list follows the `.tools` order, not the alphabet; and the mode has one
+   function, with `ask` folded in. With a literal example sentence in the
+   brief, llama copied the sentence verbatim 5/5. Without literals: llama
+   passes plain agreement and a named line 15/15, contests the assumption
+   line instead of the printing line on the sentence case (0/15), and
+   rules on a question instead of answering it (0/15); qwen passes the
+   three ruling cases 5/5 and rules on the question too (0/5). Both reds
+   are judgements, on record. The register runs llama, so two reds join
+   it: 20 attributed, up from 18.
+4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
+   table: one mechanical adapter per stack, chosen at onboarding, holding
+   the test command, the floor, the dependency file and the entry point.
+   There is nuance to discuss before it is ruled. Nothing below the harness
+   names a language.
 5. **The tool tunes itself.** Last, and not sure it can be done well. Walks
    and the register would feed the briefs: the Researcher reads a failed
    case and proposes the brief change, the register measures it. Today a
    person does this by hand. Kept here so it is not forgotten, not planned.
+
+## The plan (agreed 2026-09-10)
+
+The end state for the second half of the budget: a tool a careful person
+runs alone on a small existing Python repository, from the terminal, in
+plain text, and gets a merged change they can read. Proven on a handful of
+real repositories. Honest about where small models stop. Not a product a
+stranger installs cold.
+
+| # | Goal | Done when |
+|---|---|---|
+| 1 | The fence | Done, afac9f9. |
+| 2 | Stranger at the seat | Reply layer built (done); every page moment has plain-text help; the Liaison liaises; a scripted principal drives a walk in one call. |
+| 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
+| 4 | Register hygiene | Every case recorded on its role's profile model; dead cases retired; reds attributed or zero. |
+| 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
+| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. |
+| 7 | Runner seam and audit | Seam in, `local` default; the audit document with its doors. |
+| 8 | Providers, local only | llama.cpp in scope: a walk and the register recorded on it. Remote providers off the list until wanted. |
+| 9 | Packaging | `pip install` on a clean machine runs `rota onboard`; the prompts, schema, profiles and graph ship as package data. |
+| 10 | The gauntlet | Goals 3 and 4 as one campaign against the full lineage, results here. |
+
+Order: fence, then 2 with 3 overnight, then 4 while 5 and 6, then 7 to 10.
+The gauntlet is cheap to run and open-ended to act on: every fault beyond
+the slack comes out of goals 5 and 6. The audit document is the first
+thing dropped if the gauntlet runs long. WSL is for testing rota on a
+second platform once per milestone, not a runner.
+
+Rulings that shape it: the seat is text, buttons only speed it up; no
+keyword checks anywhere; Docker is not a security boundary and a stranger
+may not have it, so the fence is a fact and the seam is a plug; the web
+cockpit waits until every interaction is TUI-simple.
+
+The runner seam is one `run(worktree, cmd)` function with `local` as the
+default, so a `wsl` or container runner plugs in for people who have one.
+The audit is the list of everything rota executes or trusts: pip installs
+of the project's dependencies, pytest imports, git hooks, model-written
+files, model-written tests, the repository's own text in prompts, the
+cockpit's inputs, and the profile files. Each finding becomes a door.
+
+### Long-term list
+
+Not this budget. Kept so nothing is forgotten.
+
+1. A second language: shape undecided, discussion pending (Level 4).
+2. The tool tunes itself (Level 5).
+3. The web cockpit, after every interaction is TUI-simple.
+4. Goals 5 and 6 to completion.
+5. The runner seam's non-local runners.
+6. The audit document.
+7. The full gauntlet against the whole lineage.
+8. Providers on every local backend.
+9. The two seat questions still open in their attributed shape (5, 6).
+10. Multiple principals on one run.

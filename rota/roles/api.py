@@ -3851,6 +3851,121 @@ def tests_consult(ctx: Ctx) -> list[dict]:
 # journals
 # ---------------------------------------------------------------------------
 
+def _ask_of(ctx: Ctx):
+    """The confirm or present the triggering reply answers, or None."""
+    trigger = getattr(ctx, "trigger", None)
+    if not trigger:
+        return None
+    return ctx.conn.execute(
+        "SELECT a.id, a.verb, a.body_refs, a.body_text FROM messages m "
+        "JOIN messages a ON a.id = m.cause_id WHERE m.id = ? "
+        "AND a.verb IN ('confirm', 'present') AND a.status = 'open'",
+        (trigger,)).fetchone()
+
+
+@op("rulings", "rule")
+def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
+                 ask: str = "") -> dict:
+    """
+    The principal's reply, read as a ruling on the page it answers.
+
+    One function for the whole mode. `rulings` records the ruling. `ask`
+    instead sends the principal one sentence: an answer to a question about
+    the page, or the one thing the reply does not settle. Measured with a
+    second function for that (2026-09-10): given `msg.converse_principal`
+    beside this one, llama3.1:8b sent the principal's words back as a
+    converse 5/5 on every ruling case, under three briefs and two bases.
+    The tool in the list was the invitation.
+
+    The seat is text. The principal answers a page in their own words, and
+    no parser reads the words. The Liaison reads them with the page in front
+    of it and records the reading here: each numbered line of the page, or
+    each row id, to approve, contest or revise. `words` carry the reply for
+    the owner of a contested row. The ruling lands through `principal.land`
+    after this session commits, so a session that dies lands nothing.
+
+    Mechanical here: the page is a fact. A line number must be on the page.
+    Every line of the page needs a ruling, because the ask closes when the
+    ruling lands and an unnamed line would close unruled. One ruling per
+    session: a second is a second reading of the same words.
+    """
+    from ..core.runner import new_id
+    from .principal import render_page
+
+    page = _ask_of(ctx)
+    if page is None:
+        raise ValueError(
+            "no open page: this session was not woken by a reply to a "
+            "confirm or a present, so there is nothing to rule on. Stop")
+    if any(w[0] == "rulings" for w in (ctx.writes or [])):
+        raise ValueError(
+            "this reply is already read: one ruling per reply. Stop")
+    if (ask or "").strip():
+        if rulings:
+            raise ValueError(
+                "either a ruling or a question, not both. A ruling closes the "
+                "page; a question keeps it open for the next reply")
+        if any(m["to_role"] == "principal" for m in (ctx.outbound or [])):
+            raise ValueError("the principal has your sentence. Stop")
+        refs = json.loads(page["body_refs"] or "[]")
+        mid = new_id("m", ctx.conn, offset=len(ctx.outbound or []))
+        ctx.outbound.append({
+            "id": mid, "to_role": "principal", "verb": "converse",
+            "body_refs": refs, "body_text": ask.strip(), "round_no": 0,
+            "cause_id": ctx.trigger})
+        return {"id": mid, "to": "principal", "said": ask.strip()}
+    ask = page
+    if not isinstance(rulings, dict) or not rulings:
+        raise ValueError(
+            "rulings is a map of page line number (or row id) to approve, "
+            "contest or revise, for example {\"1\": \"approve\", "
+            "\"2\": \"contest\"}")
+    refs = json.loads(ask["body_refs"] or "[]")
+    order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"])[1] or refs
+    per_item: dict[str, str] = {}
+    for key, ruling in rulings.items():
+        key = str(key).strip()
+        ruling = str(ruling).strip().lower()
+        if ruling not in ("approve", "contest", "revise"):
+            raise ValueError(
+                f"line {key}: {ruling!r} is not a ruling. Each line takes "
+                f"approve, contest or revise")
+        if key.isdigit() and 1 <= int(key) <= len(order):
+            per_item[order[int(key) - 1]] = ruling
+        elif key in refs:
+            per_item[key] = ruling
+        else:
+            raise ValueError(
+                f"{key!r} is not a line of the page. The page numbers its "
+                f"rows 1 to {len(order)}; use those numbers")
+    unnamed = [str(i + 1) for i, r in enumerate(order) if r not in per_item]
+    if unnamed:
+        raise ValueError(
+            f"lines {', '.join(unnamed)} have no ruling. Every line of the "
+            f"page takes one: the ask closes when the ruling lands. A line "
+            f"the reply does not contest is approve")
+    if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
+        raise ValueError(
+            "a contest carries the principal's words to the row's owner, and "
+            "words is empty. Pass the reply, whole")
+    rid = new_id("r", ctx.conn)
+    ctx.writes.append(("rulings", rid, {
+        "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
+        "per_item": json.dumps(per_item), "words": (words or "").strip(),
+        "status": "open"}))
+    return {"id": rid, "per_item": per_item}
+
+
+@op("rulings", "load")
+def rulings_load(ctx: Ctx, ask_id: str | None = None) -> list[dict]:
+    """The readings on record, for one page or all. Read by the door, not
+    offered to a session: the edge is `actor: system`."""
+    if ask_id:
+        return _rows(ctx.conn.execute(
+            "SELECT * FROM rulings WHERE ask_id = ? ORDER BY rowid", (ask_id,)))
+    return _rows(ctx.conn.execute("SELECT * FROM rulings ORDER BY rowid"))
+
+
 @op("ledger", "log")
 def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                assumption: str) -> dict:

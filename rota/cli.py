@@ -733,7 +733,9 @@ def cmd_sign(args: argparse.Namespace) -> int:
             # `--say` returned before the ruling was read, so a contest and
             # its reason were two commands and two unrelated acts.
             if args.say and not (approve or contest):
-                return Answer(verb="converse", text=args.say)
+                # Words on a page are a reply the Liaison reads (landing).
+                verb = "reply" if ask.verb in ("confirm", "present") else "converse"
+                return Answer(verb=verb, text=args.say)
             per_item = {i: "approve" for i in approve}
             per_item.update({i: "contest" for i in contest})
             unknown = [i for i in per_item if i not in ask.refs]

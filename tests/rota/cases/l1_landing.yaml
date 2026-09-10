@@ -1,0 +1,118 @@
+# L1 — the `landing` mode: the principal's words, read as a ruling on the page.
+#
+# Ruled 2026-09-10: the seat is text and no parser reads it. A reply to a
+# confirm or a present wakes the Liaison with the page, the numbered lines and
+# the words. The Liaison records the ruling it read (`rulings.rule`), or asks
+# back. The ruling lands through `principal.land` after the commit.
+
+- id: L1-LI-plain-agreement-approves-every-line
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <l1>], cause: <m_present>,
+            body_text: "yes that all looks right, go ahead"}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    ledger:
+      - {id: <l1>, about_ref: <i1>, about_table: items, author: vision_keeper,
+         default_taken: "the bill is one number, not a list of dishes"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<l1>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<i1>": "approve"', '"<i2>": "approve"', '"<l1>": "approve"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
+- id: L1-LI-a-named-line-is-contested-and-the-rest-approved
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <l1>], cause: <m_present>,
+            body_text: "3 is wrong. The bill is a list of dishes and each person picks theirs."}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    ledger:
+      - {id: <l1>, about_ref: <i1>, about_table: items, author: vision_keeper,
+         default_taken: "the bill is one number, not a list of dishes"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<l1>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<l1>": "contest"', '"<i2>": "approve"', 'list of dishes']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
+- id: L1-LI-a-correction-in-a-sentence-contests-the-line-it-is-about
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 3
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <l1>], cause: <m_present>,
+            body_text: "no, it should print the total for the table too, not just each share"}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    ledger:
+      - {id: <l1>, about_ref: <i1>, about_table: items, author: vision_keeper,
+         default_taken: "the bill is one number, not a list of dishes"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<l1>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<i2>": "contest"', '"<i1>": "approve"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]
+
+- id: L1-LI-a-question-about-the-page-is-answered-not-ruled
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <l1>], cause: <m_present>,
+            body_text: "what does line 3 mean, where did that come from?"}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    ledger:
+      - {id: <l1>, about_ref: <i1>, about_table: items, author: vision_keeper,
+         default_taken: "the bill is one number, not a list of dishes"}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<l1>"]', seq: 1}
+  expect:
+    messages:
+      - {to: principal, verb: converse, count: 1}
+  forbidden:
+    writes: [rulings, statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect]

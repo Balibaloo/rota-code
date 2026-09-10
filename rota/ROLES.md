@@ -32,6 +32,7 @@ Law 1 is single-writer, and fifteen artefacts have exactly one:
 | `brief` | liaison | | `tests` | tester |
 | `transcript` | liaison | | `verdicts` | critic |
 | `references` | researcher | | `frame` | architect |
+| `rulings` | liaison | | | |
 | `challenge` | critic | | | |
 
 Four are shared, by ruling rather than by accident:

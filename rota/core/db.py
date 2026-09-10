@@ -55,6 +55,9 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     # is wrong -- cascaded as though the system model had changed, waking the
     # whole delivery chain including the role that had just written it.
     "findings":   ("findings",),
+    # The Liaison's reading of a principal reply. Its own artefact: one
+    # writer, one row per reply, landed mechanically after the commit.
+    "rulings":    ("rulings",),
     "tickets":    ("tickets",),
     "criteria":   ("criteria",),
     "batches":    ("batches", "batch_tickets", "batch_dep_facts", "batch_touch"),

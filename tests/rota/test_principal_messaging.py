@@ -79,9 +79,9 @@ def test_a_signoff_page_reads_as_one_page_in_order(db):
         "It would:", "calculates the tip",
         "It would not:", "No graphical interface",
         "Where you did not say, I assumed:", "typed each time",
-        "Reply 'ok' to approve all of this and start building.")]
+        "Reply in your own words.")]
     assert order == sorted(order), page
-    assert "Reply with words to correct it." in page
+    assert "Name a line to correct only that line." in page
     assert not RAW_ID.search(page), page
     assert ": assumed:" not in page, "the old id-shaped rendering is gone from the page"
 

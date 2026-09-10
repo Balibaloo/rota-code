@@ -119,13 +119,13 @@ def test_the_console_principal_answers_the_verbs_it_is_offered(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *a: "lgtm")
     answer = ConsolePrincipal().respond(
         Ask(message_id="m1", verb="confirm", refs=["s1", "s2"]))
-    assert answer.verb == "verdict"
-    assert answer.per_item == {"s1": "approve", "s2": "approve"}
+    assert answer.verb == "reply"
+    assert answer.text == "lgtm" and not answer.per_item
 
     monkeypatch.setattr("builtins.input", lambda *a: "s1=approve s2=contest")
     answer = ConsolePrincipal().respond(
         Ask(message_id="m2", verb="confirm", refs=["s1", "s2"]))
-    assert answer.per_item == {"s1": "approve", "s2": "contest"}
+    assert answer.verb == "reply" and not answer.per_item
 
     monkeypatch.setattr("builtins.input", lambda *a: "a purchase, not a sequence")
     answer = ConsolePrincipal().respond(
@@ -237,8 +237,8 @@ def test_the_ui_principal_satisfies_the_same_protocol():
     assert seen, "the principal was asked and the interface never showed it"
 
 
-def test_the_ui_principal_deduplicates_an_open_ask_and_accepts_lgtm():
-    """A deferred ask is displayed once, then becomes a verdict when answered."""
+def test_the_ui_principal_deduplicates_an_open_ask_and_carries_the_words():
+    """A deferred ask is displayed once; the words go to the Liaison as a reply."""
     from rota.cockpit.tui import QueuedPrincipal
     from rota.roles.principal import Ask
 
@@ -261,8 +261,12 @@ def test_the_ui_principal_deduplicates_an_open_ask_and_accepts_lgtm():
     principal.submit("lgtm")
     answer = principal.respond(ask)
     assert answer is not None
-    assert answer.verb == "verdict"
-    assert answer.per_item == {"s1": "approve", "s2": "approve"}
+    assert answer.verb == "reply" and answer.text == "lgtm"
+    # The page stays open under the Liaison reading and is not shown again.
+    assert principal.respond(ask) is None
+    assert len(shown) == 1
+    principal.forget_closed(set())
+    assert principal.pending == []
 
 
 def test_the_sidebar_shows_what_the_register_owes(tmp_path):

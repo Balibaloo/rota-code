@@ -96,6 +96,7 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "schedule_deps": ("relation", "the (before, after) pair"),
     "batch_dep_facts": ("relation", "the (batch, grain) pair"),
     "findings": ("journal", "what the challenge pass found"),
+    "rulings": ("journal", "the Liaison's reading of one principal reply"),
     "references_": ("keyed", "fetched documents, keyed by source"),
 
     # ---- ephemeral --------------------------------------------------------

@@ -120,6 +120,25 @@ def mode_tools(role: str, mode: str) -> list[str] | None:
             if line.strip() and not line.startswith("#")]
 
 
+def mode_order(role: str, mode: str) -> list[str] | None:
+    """
+    The order a mode's functions are listed in, when the mode says so.
+
+    A `.tools` file whose first line is `# ordered` lists its functions in
+    the order of the job, and the prompt follows it. Every other mode keeps
+    the alphabet, so its recordings stand: the order is a measured lever for
+    `landing` (2026-09-10) and unmeasured everywhere else.
+    """
+    path = _pick(role, f"{mode}.tools")
+    if not path.exists():
+        return None
+    lines = _read(path).splitlines()
+    if not lines or lines[0].strip() != "# ordered":
+        return None
+    return [line.strip() for line in lines[1:]
+            if line.strip() and not line.startswith("#")]
+
+
 def available(role: str) -> list[str]:
     d = PROMPT_DIR / role
     if not d.exists():

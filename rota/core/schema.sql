@@ -416,6 +416,26 @@ CREATE TABLE IF NOT EXISTS ledger (
     version        INTEGER NOT NULL DEFAULT 1
 );
 
+-- The principal's reply to a page, read as a ruling by the Liaison.
+--
+-- The seat is text. A person answers a confirm or a present in their own
+-- words. No parser reads the words: the Liaison does, with the page in front
+-- of it, and records what it read here, one row per reply. The row is the
+-- record of the reading, and `principal.land` is the one door the ruling
+-- goes through, after the session commits. `per_item` maps each rulable row
+-- to approve, contest or revise. `words` are the principal's, carried whole.
+CREATE TABLE IF NOT EXISTS rulings (
+    id          TEXT PRIMARY KEY,
+    ask_id      TEXT NOT NULL REFERENCES messages(id),
+    reply_id    TEXT REFERENCES messages(id),
+    per_item    TEXT NOT NULL DEFAULT '{}',
+    words       TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'open'
+                CHECK (status IN ('open','landed','stale')),
+    verdict_id  TEXT REFERENCES messages(id),
+    version     INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS decisions (
     id               TEXT PRIMARY KEY,
     author           TEXT NOT NULL,

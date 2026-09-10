@@ -234,10 +234,17 @@ class Sandbox:
     dispatches against — the two cannot drift, because both read this.
     """
 
-    def __init__(self, role: str, ctx: api.Ctx, artefacts: dict[str, _Artefact]):
+    def __init__(self, role: str, ctx: api.Ctx, artefacts: dict[str, _Artefact],
+                 order: list[str] | None = None):
         self.role = role
         self.ctx = ctx
         self._artefacts = artefacts
+        # The mode's own order for its functions, when it has one. The list
+        # was alphabetical, which put `msg.converse_principal` above
+        # `rulings.rule` in `landing`, and both 8B models took the first
+        # function whose arguments matched the inbound fields (2026-09-10).
+        # A mode's `.tools` file names its functions in the order of its job.
+        self._order = list(order or [])
 
     def __getattr__(self, item: str):
         raise NotInWorkingSet(
@@ -255,11 +262,15 @@ class Sandbox:
             ) from exc
 
     def functions(self) -> list[str]:
-        return sorted(
+        names = sorted(
             f"{name}.{fn}"
             for name, art in self._artefacts.items()
             for fn in art._available
         )
+        if self._order:
+            rank = {n: i for i, n in enumerate(self._order)}
+            names.sort(key=lambda n: (rank.get(n, len(rank)), n))
+        return names
 
     def signatures(self) -> list[str]:
         """

@@ -98,6 +98,10 @@ class QueuedPrincipal:
         self.app = app
         self.pending: list[Ask] = []
         self.answers: dict[str, Answer] = {}
+        # Asks the person has replied to in words. The ask stays open while
+        # the Liaison reads the reply, so it is offered again each turn; a
+        # page shown twice for one reply reads as the reply being lost.
+        self.replied: set[str] = set()
         self._lock = threading.Lock()
 
     def respond(self, ask: Ask) -> Answer | None:
@@ -107,13 +111,19 @@ class QueuedPrincipal:
             if answer is None and not known:
                 self.pending.append(ask)
         if answer is not None:
-            with self._lock:
-                self.pending = [p for p in self.pending
-                                if p.message_id != ask.message_id]
+            if answer.verb != "reply":
+                with self._lock:
+                    self.pending = [p for p in self.pending
+                                    if p.message_id != ask.message_id]
             return answer
         if not known:
             self.app.call_from_thread(self.app.show_ask, ask)
         return None                       # deferred until the UI answers
+
+    def forget_closed(self, open_ids: set[str]) -> None:
+        with self._lock:
+            self.pending = [p for p in self.pending if p.message_id in open_ids]
+            self.replied &= open_ids
 
     def submit(self, text: str) -> Ask | None:
         """Turn the user's reply to the oldest visible ask into an Answer."""
@@ -121,7 +131,10 @@ class QueuedPrincipal:
             ask = self.pending[0] if self.pending else None
             if ask is None:
                 return None
-            self.answers[ask.message_id] = self._answer_for(ask, text)
+            answer = self._answer_for(ask, text)
+            self.answers[ask.message_id] = answer
+            if answer.verb == "reply":
+                self.replied.add(ask.message_id)
         return ask
 
     @staticmethod
@@ -438,6 +451,9 @@ class RotaApp(App):
 
     def show_replies(self) -> None:
         """Display Liaison conversational replies and mark them shown."""
+        from ..roles.principal import pending_asks
+
+        self.principal.forget_closed({a.message_id for a in pending_asks(self.conn)})
         for ask in pending_replies(self.conn):
             self.say(ask.rendered or "", "liaison", "magenta")
             self.conn.execute(

@@ -98,6 +98,7 @@ def l2(g: graph_mod.Graph | None = None) -> list[Obligation]:
     if "liaison" in g.roles:
         add("liaison", "verdict_signoff", "a principal verdict answering a present")
         add("liaison", "answering", "a principal converse answering a clarify")
+        add("liaison", "landing", "a principal converse answering a confirm or a present")
 
     return sorted(seen.values(), key=lambda o: o.id)
 

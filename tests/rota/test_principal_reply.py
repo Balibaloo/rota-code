@@ -54,45 +54,156 @@ def test_the_page_numbers_its_rows_in_the_order_it_shows_them(db):
     assert "3. The software calculates the tip." in page
     assert "4. the percentage is typed each time" in page
     assert ask.order == ["s1", "how_it_works", "calculate_tip", "l_1"], ask.order
-    assert "Reply '2: <words>' to correct line 2 only." in page
+    assert "Name a line to correct only that line." in page
     assert "how_it_works" not in page and "l_1" not in page
 
 
-def test_ok_approves_everything(db):
+def test_words_land_as_a_reply_and_the_page_stays_open(db):
+    """
+    Ruled 2026-09-10: no parser reads the principal's words. "ok", "no",
+    "4: wrong" and a sentence all land the same way: a reply the Liaison
+    reads in `landing` mode, with the page still open under it.
+    """
+    from rota.roles.principal import land
+
     ask = _present(db)
-    for word in ("ok", "OK", "yes", "lgtm", "approve", "Fine."):
+    for word in ("ok", "no", "4: a fixed 15 percent", "just bill and a percent"):
         a = parse_reply(ask, word)
-        assert a.verb == "verdict"
-        assert set(a.per_item.values()) == {"approve"}
-        assert a.text == ""
+        assert a.verb == "reply" and a.text == word
+    msg = land(db, ask, parse_reply(ask, "4: a fixed 15 percent, nobody types it"))
+    row = db.execute("SELECT * FROM messages WHERE id = ?", (msg,)).fetchone()
+    assert row["from_role"] == "principal" and row["verb"] == "converse"
+    assert row["cause_id"] == "m9" and row["status"] == "open"
+    assert row["body_text"] == "4: a fixed 15 percent, nobody types it"
+    assert json.loads(row["body_refs"]) == ask.refs
+    assert db.execute("SELECT status FROM messages WHERE id = 'm9'").fetchone()[0] == "open"
+    assert pending_asks(db)[0].message_id == "m9"
+    # The words are on the transcript, mechanically.
+    assert db.execute("SELECT count(*) FROM entries WHERE author = 'principal' "
+                      "AND text LIKE '4: a fixed%'").fetchone()[0] == 1
+    # A blank reply lands nothing.
+    assert land(db, ask, parse_reply(ask, "   ")) is None
 
 
-def test_a_number_and_words_contest_that_line_and_carry_the_words(db):
+def _reply(db, ask, text):
+    from rota.roles.principal import land
+
+    return land(db, ask, parse_reply(ask, text))
+
+
+def test_the_reply_wakes_the_liaison_in_landing_with_the_page(db):
+    from rota.core.predicates import Wake
+    from rota.core.runner import _mode_key, resolve_inbound
+
     ask = _present(db)
-    a = parse_reply(ask, "4: no, a fixed 15 percent, nobody types it")
-    assert a.per_item["l_1"] == "contest"
-    assert a.per_item["s1"] == "approve"
-    assert a.per_item["how_it_works"] == "approve"
-    assert a.text == "no, a fixed 15 percent, nobody types it"
+    msg = _reply(db, ask, "2 is wrong, the percentage is fixed")
+    wake = Wake(role="liaison", kind="message", detail="converse",
+                message_id=msg, refs=ask.refs)
+    assert _mode_key(wake, db) == "landing"
+    inbound = resolve_inbound(db, wake)
+    landing = inbound["landing"]
+    assert landing["page_kind"] == "present"
+    assert landing["reply"] == "2 is wrong, the percentage is fixed"
+    assert landing["lines"] == {"1": "s1", "2": "how_it_works",
+                                "3": "calculate_tip", "4": "l_1"}
+    assert landing["line_rows"]["l_1"]["table"] == "ledger"
+    assert "2. The user types the bill" in landing["page"]
+    assert "earlier_exchange" not in landing
 
-    b = parse_reply(ask, "2, 4: both wrong")
-    assert b.per_item["how_it_works"] == "contest"
-    assert b.per_item["l_1"] == "contest"
-    assert b.per_item["calculate_tip"] == "approve"
-    assert b.text == "both wrong"
+
+def _landing(db, ask, text):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    msg = _reply(db, ask, text)
+    sb = build("liaison", db, mode="normal", session_id="sess_land",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = msg
+    return sb, msg
 
 
-def test_a_sentence_alone_contests_the_page_with_that_sentence(db):
+def test_the_liaison_records_the_ruling_by_line_and_the_door_lands_it(db):
+    from rota.roles.principal import apply_rulings
+
     ask = _present(db)
-    a = parse_reply(ask, "no service quality. just bill and a percent")
-    assert set(a.per_item.values()) == {"contest"}
-    assert a.text == "no service quality. just bill and a percent"
+    sb, msg = _landing(db, ask, "4 is wrong: a fixed 15 percent, nobody types it")
+    out = sb.call("rulings.rule",
+                  rulings={"1": "approve", "2": "approve", "3": "approve", "4": "contest"},
+                  words="4 is wrong: a fixed 15 percent, nobody types it")
+    assert out["per_item"] == {"s1": "approve", "how_it_works": "approve",
+                               "calculate_tip": "approve", "l_1": "contest"}
+    w = [w for w in sb.ctx.writes if w[0] == "rulings"]
+    assert len(w) == 1 and w[0][2]["ask_id"] == "m9" and w[0][2]["reply_id"] == msg
+    # One reading per reply.
+    with pytest.raises(ValueError, match="already read"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                         "3": "approve", "4": "approve"})
+    # The row lands after the commit, through the one door.
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item, words) "
+               "VALUES ('r1', 'm9', ?, ?, ?)",
+               (msg, json.dumps(out["per_item"]), w[0][2]["words"]))
+    created = apply_rulings(db)
+    assert len(created) == 1
+    verdict = db.execute("SELECT * FROM messages WHERE id = ?", (created[0],)).fetchone()
+    assert verdict["from_role"] == "principal" and verdict["verb"] == "verdict"
+    assert verdict["cause_id"] == "m9"
+    assert db.execute("SELECT status FROM messages WHERE id = 'm9'").fetchone()[0] == "answered"
+    assert db.execute("SELECT status FROM rulings WHERE id = 'r1'").fetchone()[0] == "landed"
+    # The contested assumption is overruled at the keypress, with the words.
+    assert db.execute("SELECT status FROM ledger WHERE id = 'l_1'").fetchone()[0] == "resolved"
+    d = db.execute("SELECT text FROM decisions WHERE resolves_ledger = 'l_1'").fetchone()
+    assert "overruled at signoff: 4 is wrong" in d["text"]
+    assert db.execute("SELECT approval FROM items WHERE id = 'how_it_works'").fetchone()[0] == "contested"
+    assert db.execute("SELECT approval FROM items WHERE id = 'calculate_tip'").fetchone()[0] == "approved"
+    # Landing twice lands nothing more: the ask is closed.
+    assert apply_rulings(db) == []
 
 
-def test_scripts_still_rule_by_id(db):
+def test_the_ruling_door_holds_the_page(db):
     ask = _present(db)
-    a = parse_reply(ask, "s1=approve how_it_works=contest")
-    assert a.per_item == {"s1": "approve", "how_it_works": "contest"}
+    sb, _ = _landing(db, ask, "fine")
+    with pytest.raises(ValueError, match="not a line of the page"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve",
+                                         "3": "approve", "9": "approve"})
+    with pytest.raises(ValueError, match="lines 3, 4 have no ruling"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "approve"})
+    with pytest.raises(ValueError, match="not a ruling"):
+        sb.call("rulings.rule", rulings={"1": "yes", "2": "approve",
+                                         "3": "approve", "4": "approve"})
+    with pytest.raises(ValueError, match="words is empty"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "contest",
+                                         "3": "approve", "4": "approve"})
+    # A row id names a line as well as its number does.
+    out = sb.call("rulings.rule", rulings={"s1": "approve", "how_it_works": "approve",
+                                           "3": "approve", "l_1": "approve"})
+    assert set(out["per_item"].values()) == {"approve"}
+
+
+def test_no_open_page_means_no_ruling(db):
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    _present(db)
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES ('m_free','th','principal',"
+               "'liaison','converse','[]','hello',5,'open')")
+    sb = build("liaison", db, mode="normal", session_id="sess_x",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = "m_free"
+    with pytest.raises(ValueError, match="no open page"):
+        sb.call("rulings.rule", rulings={"1": "approve"})
+
+
+def test_a_stale_ruling_lands_nothing(db):
+    from rota.roles.principal import apply_rulings
+
+    ask = _present(db)
+    msg = _reply(db, ask, "ok")
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm9'")
+    db.execute("INSERT INTO rulings (id, ask_id, reply_id, per_item) VALUES "
+               "('r_old', 'm9', ?, ?)", (msg, json.dumps({"s1": "approve"})))
+    assert apply_rulings(db) == []
+    assert db.execute("SELECT status FROM rulings WHERE id = 'r_old'").fetchone()[0] == "landed"
 
 
 def test_a_clarify_reply_is_the_answer(db):

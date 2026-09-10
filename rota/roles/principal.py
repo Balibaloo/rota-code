@@ -39,7 +39,7 @@ class Ask:
 
 @dataclass
 class Answer:
-    verb: str                     # converse | verdict
+    verb: str                     # converse | verdict | reply
     text: str = ""
     per_item: dict[str, str] = field(default_factory=dict)   # ref -> approve|contest|revise
 
@@ -119,68 +119,28 @@ class ConsolePrincipal:                                    # pragma: no cover
         return parse_reply(ask, raw)
 
 
-REPLY_HELP = ("  ok = approve all.  A sentence = correct it in your words.  "
-              "'2: <words>' = correct line 2 only.  Blank = decide later.")
-
-_APPROVE_WORDS = {"ok", "okay", "yes", "y", "lgtm", "approve", "approved",
-                  "fine", "good", "go", "yep", "correct", "right"}
+REPLY_HELP = ("  Reply in your own words. The Liaison reads the reply against "
+              "the page and lands it, or asks. Blank = decide later.")
 
 
 def parse_reply(ask: Ask, text: str) -> Answer:
     """
-    A person's reply to an ask, as the Answer it means.
+    A person's words to an ask, as the Answer that carries them.
 
-    Measured as the principal (2026-09-04): the page had stopped showing ids,
-    the parser still demanded them, and the page promised "say what's wrong
-    in your own words" while no input could carry words with a verdict. The
-    only reply that worked was "lgtm". The page and the input are one
-    contract, and this is where it is kept.
+    No parser reads the words. Ruled 2026-09-10: the Liaison is the natural
+    language seat, and a keyword list ("ok", "lgtm") was the layer that told
+    a person "no" is not a reply. A reply to a confirm or a present lands as
+    a `reply`: the ask stays open, the words go to the Liaison in `landing`
+    mode, and the Liaison records the ruling it read (`rulings.rule`) or
+    asks back. A reply to a clarify is the answer, as before.
 
-    For a confirm or a present:
-      - an approval word alone approves every row;
-      - "2: <words>" or "2 <words>" contests line 2 of the page, approves the
-        rest, and carries the words as the reason;
-      - "2, 4: <words>" does the same for lines 2 and 4;
-      - any other sentence contests every row and carries the words;
-      - "s1=approve t1=contest" still works, for scripts.
-    For a clarify, the text is the answer.
+    Scripts do not come through here. A scripted principal builds a verdict
+    `Answer` with `per_item` and lands it through the same door.
     """
     raw = text.strip()
     if ask.verb not in ("confirm", "present"):
         return Answer(verb="converse", text=raw)
-    if raw.lower().rstrip(".!") in _APPROVE_WORDS:
-        return Answer(verb="verdict",
-                      per_item={r: "approve" for r in ask.refs})
-
-    # Scripts: id=ruling pairs.
-    pairs: dict[str, str] = {}
-    for part in raw.replace(",", " ").split():
-        sep = "=" if "=" in part else (":" if ":" in part else None)
-        if sep:
-            ref, ruling = part.split(sep, 1)
-            if ref in ask.refs and ruling in ("approve", "contest", "revise"):
-                pairs[ref] = ruling
-    if pairs and len(pairs) == len([p for p in raw.replace(",", " ").split()
-                                    if "=" in p or ":" in p]):
-        return Answer(verb="verdict", per_item=pairs)
-
-    # "2: words" / "2 4: words" / "2, 4 words": numbers name page lines.
-    order = ask.order or ask.refs
-    head, _, tail = raw.partition(":")
-    nums = [int(n) for n in head.replace(",", " ").split() if n.isdigit()]
-    if nums and all(1 <= n <= len(order) for n in nums) and (
-            _ or len(head.replace(",", " ").split()) == len(nums)):
-        words = tail.strip() if _ else " ".join(
-            w for w in head.replace(",", " ").split() if not w.isdigit()).strip()
-        if not _ and not words:
-            words = ""
-        targets = {order[n - 1] for n in nums}
-        per_item = {r: ("contest" if r in targets else "approve") for r in ask.refs}
-        return Answer(verb="verdict", per_item=per_item, text=words)
-
-    # A sentence: the whole page is wrong in the way the sentence says.
-    return Answer(verb="verdict",
-                  per_item={r: "contest" for r in ask.refs}, text=raw)
+    return Answer(verb="reply", text=raw)
 
 
 # ---------------------------------------------------------------------------
@@ -419,9 +379,9 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         if zero:
             out.append("Some of this code has not been read yet. I will flag "
                        "anything I touch there.")
-        out.append("Reply 'ok' to approve all of this and start building. "
-                   "Reply with words to correct it. Reply '2: <words>' to "
-                   "correct line 2 only.")
+        out.append("Reply in your own words. 'ok' approves all of this and "
+                   "starts building. Name a line to correct only that line. "
+                   "Ask, if something here is unclear.")
     elif verb == "clarify":
         out.append("I need one thing from you before I can continue.")
         if question:
@@ -554,6 +514,33 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
     version of the row the principal never saw. Returns the new message id,
     or None when the ask was no longer open.
     """
+    # Words, not a ruling. The ask stays open: the Liaison reads the words
+    # in `landing` mode and records the ruling, and the ruling lands here
+    # through `apply_rulings` after that session commits. The reply is a
+    # principal `converse` whose cause is the ask, which is what keys the
+    # mode. The words go on the message and into the transcript.
+    if answer.verb == "reply":
+        still_open = conn.execute(
+            "SELECT 1 FROM messages WHERE id = ? AND status = 'open'",
+            (ask.message_id,)).fetchone()
+        if not still_open or not answer.text.strip():
+            return None
+        msg_id = new_id("m", conn)
+        seq = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 n FROM messages").fetchone()["n"]
+        thread = conn.execute(
+            "SELECT thread_id FROM messages WHERE id = ?", (ask.message_id,)
+        ).fetchone()["thread_id"]
+        conn.execute(
+            "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
+            "to_role, verb, body_refs, body_text, seq, status) "
+            "VALUES (?, ?, 'message', ?, 'principal', 'liaison', 'converse', "
+            "?, ?, ?, 'open')",
+            (msg_id, ask.message_id, thread, json.dumps(ask.refs),
+             answer.text.strip(), seq))
+        record_entry(conn, msg_id, answer.text.strip())
+        return msg_id
+
     closed = conn.execute(
         "UPDATE messages SET status = 'answered' "
         "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount
@@ -680,6 +667,41 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
         )
         record_entry(conn, msg_id, answer.text)
     return msg_id
+
+
+def apply_rulings(conn: sqlite3.Connection) -> list[str]:
+    """
+    Land every ruling the Liaison has read and nothing has landed yet.
+
+    Called after each session commits. The Liaison's `rulings.rule` stages
+    a row; this turns the row into the verdict through `land`, the one door
+    a ruling has. A ruling whose ask closed meanwhile is `stale`: the page
+    the principal answered is gone, and a ruling on a page nobody sees lands
+    nothing. Returns the verdict message ids created.
+    """
+    created: list[str] = []
+    for r in conn.execute(
+            "SELECT id, ask_id, per_item, words FROM rulings "
+            "WHERE status = 'open' ORDER BY rowid").fetchall():
+        ask_row = conn.execute(
+            "SELECT id, verb, body_refs, body_text FROM messages WHERE id = ?",
+            (r["ask_id"],)).fetchone()
+        msg_id = None
+        if ask_row is not None:
+            ask = Ask(message_id=ask_row["id"], verb=ask_row["verb"],
+                      refs=json.loads(ask_row["body_refs"] or "[]"))
+            msg_id = land(conn, ask, Answer(
+                verb="verdict", per_item=json.loads(r["per_item"] or "{}"),
+                text=r["words"] or ""))
+        closed = conn.execute(
+            "SELECT status FROM messages WHERE id = ?", (r["ask_id"],)).fetchone()
+        landed = msg_id is not None or (closed and closed["status"] != "open")
+        conn.execute(
+            "UPDATE rulings SET status = ?, verdict_id = ? WHERE id = ?",
+            ("landed" if landed else "stale", msg_id, r["id"]))
+        if msg_id:
+            created.append(msg_id)
+    return created
 
 
 def record_entry(conn: sqlite3.Connection, message_id: str, text: str) -> str:

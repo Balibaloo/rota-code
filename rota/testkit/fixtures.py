@@ -304,7 +304,12 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
             # JSON: the surface a criterion names, the sense a term gets.
             words = spec.get("text_includes") or [] if isinstance(spec, dict) else []
             if words:
-                blob = json.dumps(delta.rows.get(table, []), default=str)
+                # The rows as JSON, and every string value verbatim after
+                # it: a column that holds JSON of its own (`rulings.per_item`)
+                # is escaped inside the dump and a case cannot spell that.
+                written = delta.rows.get(table, [])
+                blob = json.dumps(written, default=str) + " " + " ".join(
+                    v for row in written for v in row.values() if isinstance(v, str))
                 missing = [w for w in words if w not in blob]
                 if missing:
                     problems.append(

@@ -189,6 +189,14 @@
       "contact": false,
       "contact_why": "a fact artefact, and the only one outside the engagement: reading it yields evidence, not judgement, and there is nobody in this system to ask about it",
       "note": "Reachable only from the Researcher, and only within the domain allowlist the principal configures. Queries are constructed from the question, never forwarded: the asker may put whatever context it likes into a question, and that context must not reach the wire."
+    },
+    {
+      "id": "rulings",
+      "label": "Rulings",
+      "type": "artefact",
+      "note": "The Liaison's reading of a principal reply to a page: which row got approve, contest or revise, and the words. Landed by the one door after the session commits.",
+      "contact": false,
+      "contact_why": "one writer, one row per reply; read back only as the record of what was read"
     }
   ],
   "edges": [
@@ -2031,6 +2039,26 @@
       "n": "one account per area: what it is for, on which files",
       "rows": "delta",
       "label": "the survey's first two sentences, kept instead of discarded"
+    },
+    {
+      "s": "liaison",
+      "t": "rulings",
+      "type": "writes",
+      "v": "rule",
+      "n": "a reply read as a ruling",
+      "rows": "delta",
+      "label": "the seat is text: the Liaison reads the reply, the door lands it"
+    },
+    {
+      "s": "liaison",
+      "t": "rulings",
+      "type": "reads",
+      "v": "load",
+      "n": "own readings, landed by the door",
+      "rows": "delta",
+      "depth": "index",
+      "actor": "system",
+      "label": "read back by apply_rulings, never by a session"
     }
   ],
   "contact_exceptions": [],

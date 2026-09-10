@@ -174,6 +174,10 @@ def _mode_key(wake: Wake, conn: sqlite3.Connection | None = None) -> str:
                 (wake.message_id,)).fetchone()
             if row and row["cause_verb"] == "clarify":
                 return "answering"
+            # And a reply to a confirm or a present is a ruling to read
+            # (ruled 2026-09-10: the seat is text, no parser reads it).
+            if row and row["cause_verb"] in ("confirm", "present"):
+                return "landing"
         return verb
     if wake.kind.startswith("tick:"):
         return wake.kind.split(":", 1)[1]
@@ -787,6 +791,37 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     resolved_row["table"] = _table_of(conn, ref)
                 answering["about_rows"] = about_rows
                 out["answering"] = answering
+            # A reply to a page. The Liaison reads the words against the
+            # page and records the ruling. It needs the page as the person
+            # saw it, the numbered lines in order, the words, and what was
+            # said back and forth on this page before.
+            if clarify and clarify["verb"] in ("confirm", "present"):
+                from ..roles.principal import render_page
+
+                page_refs = json.loads(clarify["body_refs"] or "[]")
+                page, order = render_page(conn, clarify["verb"], page_refs,
+                                          clarify["body_text"])
+                landing: dict[str, Any] = {
+                    "page_kind": clarify["verb"], "page": page,
+                    "lines": {str(i + 1): ref for i, ref in enumerate(order)},
+                    "reply": row["body_text"] or "",
+                }
+                line_rows = _resolve_refs(conn, order)
+                for ref, resolved_row in line_rows.items():
+                    resolved_row["table"] = _table_of(conn, ref)
+                landing["line_rows"] = line_rows
+                earlier = [dict(r) for r in conn.execute(
+                    "SELECT from_role, body_text FROM messages "
+                    "WHERE cause_id = ? AND verb = 'converse' AND id != ? "
+                    "AND body_text IS NOT NULL ORDER BY seq",
+                    (clarify["id"], row["id"]))]
+                if earlier:
+                    landing["earlier_exchange"] = earlier
+                out["landing"] = landing
+                # The words live in `landing.reply`, once. Beside a field
+                # named `asks`, both 8B models answered the "question" by
+                # sending the words back (2026-09-10, 5/5).
+                out.pop("asks", None)
 
     # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
     # says and cannot gate what is absent, so the absence is computed here and
@@ -1283,6 +1318,7 @@ def run_session(
                                  if wake.kind in ONBOARDING_TICKS and wake.refs else None),
                            allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
                            wake=wake)
+    sb._order = prompts.mode_order(wake.role, _mode_key(wake, conn)) or []
     # What this session is replying to, which is not always a message wake.
     #
     # A rung on the `unresolved` ladder is woken by a *tick* carrying the
@@ -1725,8 +1761,15 @@ def run_session(
             # session. See rota-loop-termination-fix memory for the two
             # earlier attempts this replaced.
             if (wake.role == "liaison"
-                    and _mode_key(wake, conn) in ("converse", "answering")
+                    and _mode_key(wake, conn) in ("converse", "answering", "landing")
                     and sb.ctx.outbound):
+                break
+            # The same fact for a ruling: once the reply is read, the
+            # session's job is done. Given a second turn, qwen3:8b read the
+            # reply correctly and then echoed it back to the principal as a
+            # converse, 5/5 on both contest cases (2026-09-10).
+            if (wake.role == "liaison" and _mode_key(wake, conn) == "landing"
+                    and any(w[0] == "rulings" for w in (sb.ctx.writes or []))):
                 break
 
             # And when saying so is not enough, stop.
@@ -1890,6 +1933,13 @@ def run_session(
                 m for m in result.messages
                 if not (m.to_role == "principal" and m.verb == "confirm")]
         session_commit(conn, result)
+        # A ruling the Liaison read lands now, through the one door, after
+        # the reading is on record. Inside the session it would land a
+        # ruling from a session that then died.
+        if any(w.table == "rulings" for w in result.writes):
+            from ..roles.principal import apply_rulings
+
+            apply_rulings(conn)
         outcome.committed = True
         outcome.result = result
         return outcome
