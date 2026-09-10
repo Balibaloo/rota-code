@@ -1151,3 +1151,42 @@ def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path)
     (root / "main.py").write_text("def calculate_tip(t, p):\n    return t * p\n",
                                   encoding="utf-8")
     assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]
+
+
+def test_an_empty_commit_under_a_finding_names_the_signature_drift(db, tmp_path):
+    """tipsAL (2026-09-10): display_results gained three required parameters
+    and the Developer committed nothing three times, saying the constraint
+    held."""
+    import subprocess
+
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    (repo / "main.py").write_text("def display_results(total, tip):\n    print(total, tip)\n",
+                                  encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "base"], check=True)
+    wt = tmp_path / "wt"; wt.mkdir()
+    (wt / "main.py").write_text(
+        "def display_results(total, tip, names, shares):\n    print(total, tip, names, shares)\n",
+        encoding="utf-8")
+    subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(wt), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(wt), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(wt), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(wt), "commit", "-q", "-m", "diff"], check=True)
+    db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)", (str(repo),))
+    db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(wt),))
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
+               "('k1','display_results is called by main','observed')")
+    db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, resolves) "
+               "VALUES ('k1','main.py','path',1)")
+    db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+               "VALUES ('f1','b1','k1','abc','violated','display_results')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("developer", "finding_violated"))
+    with pytest.raises(ValueError, match="now requires names, shares.*Give names, shares defaults"):
+        sb.call("code.commit", message="nothing")

@@ -6750,6 +6750,86 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     return out
 
 
+def _signature_drift(ctx: Ctx, tree) -> list[str]:
+    """
+    What the diff did to the names the standing findings are about, as a
+    fact: parameters the worktree's definition requires that the project's
+    definition did not. tipsAL (2026-09-10): `display_results` gained three
+    required parameters, the constraint said a new required parameter
+    breaks the main script, and the Developer committed nothing three
+    sessions running while saying the constraint held.
+    """
+    import ast as _ast
+    import subprocess as _sp
+    from pathlib import Path as _P
+
+    from ..core import worktrees as _wt
+
+    batch = ctx.conn.execute(
+        "SELECT head_commit FROM batches WHERE id = ?", (ctx.batch_id,)).fetchone()
+    if not (batch and batch["head_commit"]):
+        return []
+    rows = ctx.conn.execute(
+        "SELECT f.grain, f.constraint_id, b.grain AS path FROM findings f "
+        "JOIN constraint_bindings b ON b.constraint_id = f.constraint_id "
+        "WHERE f.batch_id = ? AND f.commit_sha = ? AND f.status = 'violated' "
+        "AND b.grain_kind = 'path'",
+        (ctx.batch_id, batch["head_commit"])).fetchall()
+    try:
+        root = _wt.project_root(ctx.conn)
+    except Exception:
+        return []
+
+    def params(src: str, name: str):
+        try:
+            mod = _ast.parse(src)
+        except SyntaxError:
+            return None
+        for node in _ast.walk(mod):
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and node.name == name:
+                a = node.args
+                pos = a.posonlyargs + a.args
+                defaults = len(a.defaults)
+                required = [p.arg for p in pos[:len(pos) - defaults]]
+                required += [k.arg for k, d in zip(a.kwonlyargs, a.kw_defaults) if d is None]
+                return required, [p.arg for p in pos] + [k.arg for k in a.kwonlyargs]
+        return None
+
+    notes: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for r in rows:
+        name = (r["grain"] or "").split("::")[-1]
+        path = r["path"]
+        if (name, path) in seen or not path.endswith(".py"):
+            continue
+        seen.add((name, path))
+        here = _P(tree) / path
+        if not here.is_file():
+            continue
+        base = _sp.run([*_wt.GIT, "-C", str(root), "show", f"HEAD:{path}"],
+                       capture_output=True, text=True)
+        if base.returncode != 0:
+            continue
+        old = params(base.stdout, name)
+        new = params(here.read_text(encoding="utf-8", errors="replace"), name)
+        if old is None and new is None:
+            continue
+        if old is not None and new is None:
+            notes.append(f"{name} is defined in {path} in the project and not in "
+                         f"your tree: the constraint {r['constraint_id']} binds it")
+            continue
+        if old is None:
+            continue
+        gained = [p for p in new[0] if p not in old[1]]
+        if gained:
+            notes.append(
+                f"{name} in {path} now requires {', '.join(gained)}, which the "
+                f"project's {name}({', '.join(old[1])}) did not. A caller with "
+                f"the old arguments fails: that is finding {r['constraint_id']}. "
+                f"Give {', '.join(gained)} defaults, or restore the old signature")
+    return notes
+
+
 @op("code", "commit")
 def code_commit(ctx: Ctx, message: str) -> dict:
     """
@@ -6806,7 +6886,12 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             f"the criteria name and the tests import. Define it in the file "
             f"named, then commit. A commit without it fails every test of "
             f"it at import")
+    drift = _signature_drift(ctx, tree)
     sha = worktrees.commit(tree, message)
+    if sha is None and drift:
+        raise ValueError(
+            "nothing changed, and the finding stands. " + " ".join(drift)
+            + ". Change the file, then commit")
     if sha is None:
         # Not an error -- the docstring says why -- but the bare result read
         # as completion. Recorded after the ledger rename: the Developer
