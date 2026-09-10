@@ -1128,6 +1128,16 @@ merged cold in 34 steps.
    its three new required parameters. The merge is still that one
    finding away, and the lever is the Developer's brief on defaults,
    measured on the register before the next walk.
+   The escalation door names a drifted signature too (f2feabb), and the
+   defaults case is green on qwen3.5:9b. tipsAM, a fresh walk with both
+   doors in: with turns, onboarding crawled, one define session spent
+   seven minutes on one generation, so the walk ran one-shot. It built
+   and its tests passed, and stopped before review: the Tester asked the
+   Terminologist what "distribute equally" means, the answer did not
+   land, the question went unresolved up the ladder, and one criterion
+   never got its test. A different layer, the question ladder, seen
+   before (tipsN). Three walks today ended in three different places;
+   none merged. The next walk is not the lever. The record is.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
