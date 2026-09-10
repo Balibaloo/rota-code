@@ -166,7 +166,7 @@ undiscoverable afterwards is the exact failure this system exists to prevent.
 **Reaches** architect (escalate), vision_keeper (elect, question), researcher
 (question), terminologist (question), tester (challenge).
 
-**Woken by** batch_start, reopen, tests_failing, verdict_failed.
+**Woken by** batch_start, reopen, tests_failing, verdict_failed, finding_violated.
 
 **Its `answer` mode cannot ask anything, deliberately.** Asking a second role
 the same question is how one question becomes three answers; asking the same

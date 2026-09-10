@@ -815,7 +815,7 @@ def test_the_register_set_is_the_one_the_document_names():
     # Sixteen, plus the onboarding phases, plus `criterion_repair` 2026-08-26,
     # plus `touch_note` 2026-09-03 (P4: a batch's predicted touch is owed to
     # the principal until presented).
-    assert len(P.REGISTER_ENTRIES) == 26
+    assert len(P.REGISTER_ENTRIES) == 27
 
 
 def test_the_livelock_guard_does_not_pre_empt_the_escalation(db):
@@ -1727,3 +1727,40 @@ def test_a_running_batch_with_no_commit_still_owes_its_start(tmp_path):
     conn.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
     conn.commit()
     assert tick_batch_start(conn) == []
+
+
+def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
+    """
+    tipsAJ (2026-09-10): every test passed, the Critic passed, the review
+    found four constraints violated, and nothing woke anyone.
+    """
+    from rota.core.db import init_db
+    from rota.core.predicates import REGISTRY
+
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('b1','i1','running','abc')")
+    conn.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
+                 "('k1','calculate_tip is used by main','observed')")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
+    conn.commit()
+    fn = REGISTRY["finding_violated"].fn
+    assert [(w.role, w.kind, w.refs) for w in fn(conn)] == \
+        [("developer", "tick:finding_violated", ("b1",))]
+    # A newer commit answers it: the review reads that one.
+    conn.execute("UPDATE batches SET head_commit = 'def' WHERE id = 'b1'")
+    conn.commit()
+    assert fn(conn) == []
+    # A finding on the new commit, still violated, wakes again; an open
+    # escalation to the Architect holds it.
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f2','b1','k1','def','violated','calculate_tip')")
+    conn.commit()
+    assert fn(conn)[0].detail == "round 2"
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+                 "seq) VALUES ('m1','t','developer','architect','escalate','[\"b1\",\"f2\"]',1)")
+    conn.commit()
+    assert fn(conn) == []

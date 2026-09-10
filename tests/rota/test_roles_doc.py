@@ -170,7 +170,7 @@ def test_every_predicate_is_either_spine_or_register():
     # `touch_note` (register: a batch's predicted touch is owed to the
     # principal until presented -- P4, 2026-09-03). The pin forced each
     # classification before the count moved.
-    assert len(every) == 40, (
+    assert len(every) == 41, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

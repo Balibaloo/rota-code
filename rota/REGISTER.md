@@ -25,6 +25,7 @@ the predicate exists to keep offering it until it is not.
     contradiction   contested        constraint_zero   awaiting_confirm
     agenda          quarantined      exhausted         round_close
     observed_entries reopen          tests_failing     verdict_failed
+    finding_violated
     checkpoint_invalid               survey            term_collision
     unresolved      orient           reconcile         define
     boundary        frame            reorient          challenge

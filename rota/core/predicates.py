@@ -1080,6 +1080,41 @@ def verdict_failed(conn) -> list[Wake]:
     return [Wake("developer", "tick:verdict_failed", refs=(r["bid"],)) for r in rows]
 
 
+@predicate("finding_violated", wakes="developer", band="fix",
+           drains=[("findings", "status", "violated")])
+def finding_violated(conn) -> list[Wake]:
+    """
+    A violated finding on the batch's head commit: the Developer has not
+    answered it.
+
+    tipsAJ (2026-09-10): every test passed, the Critic passed twice, the
+    structural review found four constraints violated, and nothing woke
+    anyone. The merge gate said "4 constraint(s) violated" and the run
+    was quiet. A finding is answered by a newer commit, which the review
+    reads again, or by an escalation to the Architect who owns the
+    constraint. Capped like the test loop: `loop_cap` commits with a
+    violated finding on them, then the batch is exhausted.
+    """
+    from . import config
+
+    cap = config.get(conn, "loop_cap")
+    rows = conn.execute(
+        "SELECT b.id AS bid, "
+        "  (SELECT COUNT(DISTINCT f2.commit_sha) FROM findings f2 "
+        "   WHERE f2.batch_id = b.id AND f2.status = 'violated') AS rounds "
+        "FROM batches b "
+        "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+        "  AND EXISTS (SELECT 1 FROM findings f WHERE f.batch_id = b.id "
+        "              AND f.commit_sha = b.head_commit AND f.status = 'violated') "
+        "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'developer' "
+        "                  AND m.verb = 'escalate' AND m.status = 'open' "
+        "                  AND m.body_refs LIKE '%' || b.id || '%') "
+        "ORDER BY b.id").fetchall()
+    return [Wake("developer", "tick:finding_violated", refs=(r["bid"],),
+                 detail=f"round {r['rounds']}")
+            for r in rows if (r["rounds"] or 1) < cap]
+
+
 @predicate("cancel", wakes=SCHEDULER, band="fix",
            drains=[("batches", "status", "pending"),
                    ("batches", "status", "running"),
@@ -1411,6 +1446,7 @@ REGISTER_ENTRIES = frozenset({
     "contradiction", "contested", "constraint_zero", "awaiting_confirm",
     "agenda", "quarantined", "exhausted", "round_close",
     "observed_entries", "reconcile", "reopen", "tests_failing", "verdict_failed",
+    "finding_violated",
     "checkpoint_invalid", "survey", "term_collision", "unresolved",
     "orient", "define", "boundary", "frame", "reorient", "challenge",
     "blindspot", "criterion_repair", "touch_note",

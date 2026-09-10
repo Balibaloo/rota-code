@@ -1129,3 +1129,25 @@ def test_criteria_go_to_the_item_the_wake_named(db):
                allow=prompts.mode_tools("terminologist", "criteria"))
     with pytest.raises(ValueError, match="woken for 'i2', whose tickets are \['tk2'\]"):
         sb.call("criteria.specify", id="c_x", ticket_id="tk1", text="closing keeps invoices")
+
+
+def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path):
+    """The register (2026-09-10): the diff renamed calculate_tip, the finding
+    said so, and llama escalated 5/5 instead of restoring the name."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "main.py").write_text("def calculate_share(t, p, n):\n    return t / n\n",
+                                  encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(root),))
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
+               "('k1','calculate_tip is called by main','observed')")
+    db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+               "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("developer", "finding_violated"))
+    with pytest.raises(ValueError, match="no file in the worktree defines 'calculate_tip'"):
+        sb.call("msg.escalate_architect", refs=["f1", "k1"])
+    (root / "main.py").write_text("def calculate_tip(t, p):\n    return t * p\n",
+                                  encoding="utf-8")
+    assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]

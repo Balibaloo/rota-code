@@ -737,6 +737,39 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
             f"{some} verbatim, not a paraphrase")
 
 
+def _escalation_over_removed_grain(ctx, refs) -> None:
+    import re as _re
+    from pathlib import Path as _P
+
+    if not ctx.batch_id:
+        return
+    row = ctx.conn.execute("SELECT worktree FROM batches WHERE id = ?",
+                           (ctx.batch_id,)).fetchone()
+    if not (row and row["worktree"]):
+        return
+    root = _P(row["worktree"])
+    for ref in refs:
+        f = ctx.conn.execute(
+            "SELECT grain, constraint_id FROM findings WHERE id = ? "
+            "AND batch_id = ? AND status = 'violated'", (ref, ctx.batch_id)).fetchone()
+        if not f:
+            continue
+        grain = (f["grain"] or "").split("::")[-1]
+        if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", grain):
+            continue
+        pat = _re.compile(rf"^\s*(def|class)\s+{_re.escape(grain)}(?!\w)", _re.M)
+        defined = any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
+                      for py in root.rglob("*.py")
+                      if ".venv" not in py.parts and ".rota" not in py.parts)
+        if not defined:
+            raise ValueError(
+                f"the finding {ref} is about {grain!r}, which constraint "
+                f"{f['constraint_id']} binds, and no file in the worktree "
+                f"defines {grain!r} now. That is what the finding says, and "
+                f"the Architect read the same diff. Restore the name: define "
+                f"{grain} again, or a wrapper under that name, and code.commit")
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -1413,6 +1446,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # an answer did not land -- but it no longer has to carry the fan-out,
         # which it only ever did when the non-answer was detectable. A
         # confident wrong answer stopped it dead.
+        # An escalation over a finding whose grain the diff removed is the
+        # finding restated. The register (2026-09-10): given a constraint
+        # binding `calculate_tip` and a diff that renamed it, llama3.1:8b
+        # escalated 5/5 instead of restoring the name. Whether the name is
+        # still defined in the worktree is a fact about the files.
+        if verb == "escalate" and recipient == "architect":
+            _escalation_over_removed_grain(ctx, refs or [])
         recipients = [recipient]
         if verb == "ask":
             g = graph_mod.load()

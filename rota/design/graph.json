@@ -2059,6 +2059,16 @@
       "depth": "index",
       "actor": "system",
       "label": "read back by apply_rulings, never by a session"
+    },
+    {
+      "s": "developer",
+      "t": "findings",
+      "type": "reads",
+      "v": "load",
+      "n": "the findings on its batch",
+      "rows": "batch",
+      "depth": "index",
+      "label": "what the structural review found violated on its commit"
     }
   ],
   "contact_exceptions": [],
