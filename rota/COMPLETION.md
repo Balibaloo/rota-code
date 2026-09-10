@@ -1103,8 +1103,21 @@ merged cold in 34 steps.
    same four constraints violated, the loop woke the Developer three
    times, and in each session the model read, logged a ledger row that
    was refused, and ended without a write. Under `ROTA_ONESHOT` the
-   plan is one turn, and the plan had no write. tipsAL runs the same
-   walk with turns.
+   plan is one turn, and the plan had no write. tipsAL ran the same
+   walk with turns: 118 sessions, 24 commits. The contest changed the
+   criteria. The surfaces are `count_payers`, `calculate_share` and
+   `print_shares`, new callables, not `calculate_tip`: the seat road
+   through A4 works when the principal contests the surface line. The
+   loop ran: eight verdicts, one Critic fail answered, findings on one
+   commit answered, `calculate_tip` restored with its old signature.
+   The run ended on one finding that stands: `display_results` gained
+   three required parameters, and the constraint says a new required
+   parameter breaks the main script. Three finding sessions each
+   committed nothing and logged that the constraint holds, without
+   escalating; the loop capped and quarantined. That is a judgement,
+   qwen3.5:9b reading a signature constraint, and the lever is either
+   the Developer's brief on defaults or the Architect's finding naming
+   the parameter. The merge on tipsI is one finding away.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
@@ -1130,7 +1143,7 @@ stranger installs cold.
 | 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
 | 4 | Register hygiene | Every case recorded on its role's profile model; dead cases retired; reds attributed or zero. |
 | 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
-| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) builds and passes the tests; the merge waits on the findings loop. |
+| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The merge waits on one signature finding. |
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |
 | 8 | Providers, local only | llama.cpp in scope: a walk and the register recorded on it. Remote providers off the list until wanted. |
 | 9 | Packaging | `pip install` on a clean machine runs `rota onboard`; the prompts, schema, profiles and graph ship as package data. |
