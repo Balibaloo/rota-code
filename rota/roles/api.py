@@ -6335,9 +6335,15 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
 
 
 @op("code", "write")
-def code_write(ctx: Ctx, path: str, text: str) -> dict:
+def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) -> dict:
     """
     Write one file, whole, in this batch's worktree.
+
+    `start` and `end` are accepted for one reason: the Developer copies
+    them from `code.source`. tipsAI (2026-09-10): three sessions running,
+    the whole file arrived with `start=0, end=-1` and was refused for the
+    two extra arguments, then the commit found nothing written. The whole
+    file is `start=0, end=-1`, and any other span is refused by name.
 
     Whole-file rather than patch-shaped, deliberately. A patch that does not
     apply is a failure the model must be told about and re-derive from, and
@@ -6359,6 +6365,11 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
             "no batch: code is written in a batch's worktree, and this "
             "session was not woken for one. Answer the message you were "
             "woken by; the build starts when the batch does")
+    if (start, end) not in ((0, -1), (0, 0)) and end is not None:
+        raise ValueError(
+            f"code.write writes the whole file: start={start}, end={end} "
+            f"names a span, and a partial write is not offered. Send the "
+            f"whole file as text, with no start or end")
     target = _within(_batch_worktree(ctx), path)
     # A harness fact about modules, not a judgement about the code. S0 walk
     # ten: `script.py` was right in substance and ran `input()` at module

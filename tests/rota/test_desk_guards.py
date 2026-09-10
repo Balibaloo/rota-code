@@ -1042,3 +1042,22 @@ def test_a_delivered_statement_is_an_item_of_its_own(db):
     out = sb.call("problem.assert", id="split_bill",
                   text="The program asks how many people are paying and prints each share.")
     assert out["id"] == "split_bill"
+
+
+def test_a_whole_file_write_with_source_spans_lands(db, tmp_path):
+    """
+    tipsAI (2026-09-10): the Developer copied `start=0, end=-1` from
+    `code.source` onto `code.write`, three sessions running, and each
+    write was refused for the extra arguments.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="script.py", text="def close_account(a):\n    return 1\n",
+                  start=0, end=-1)
+    assert out["bytes"]
+    with pytest.raises(ValueError, match="writes the whole file"):
+        sb.call("code.write", path="script.py", text="def x():\n    pass\n", start=10, end=20)
