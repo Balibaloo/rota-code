@@ -5589,6 +5589,27 @@ def challenge_load(ctx: Ctx) -> dict:
                        "the claim cites nothing -- open what would decide it"}
 
 
+def _not_a_citation(ctx: Ctx, citation: str, verdict: str) -> str:
+    """
+    Why a citation is refused, naming the fact.
+
+    tipsAI (2026-09-10): the Critic read main.py, then cited the claim's
+    own id, `items:how_it_works`, fourteen sessions running, and the
+    refusal said "code.source it first" about a file it had opened. The
+    citation is the path of a file opened this session. Say so, and say
+    which files those are.
+    """
+    opened = sorted(ctx.opened or ())
+    if ":" in citation and "/" not in citation and "." not in citation.split(":")[0]:
+        what = (f"{citation!r} is the claim's id, not a file. ")
+    else:
+        what = f"{citation!r} was not opened this session. "
+    where = (f"You opened: {', '.join(opened)}. Cite one of those paths"
+             if opened else "You opened nothing. code.source a file first")
+    return (f"{what}An {verdict} stands on a line you read: citation= the "
+            f"path of the file the quote is from. {where}.")
+
+
 @op("challenge", "uphold")
 def challenge_uphold(ctx: Ctx, citation: str, quote: str,
                      why: str = "") -> dict:
@@ -5611,9 +5632,7 @@ def challenge_uphold(ctx: Ctx, citation: str, quote: str,
                          "claim: quote= the source's words. A claim nobody "
                          "checked has not survived anything.")
     if _grain_path(citation) not in ctx.opened:
-        raise ValueError(f"{citation!r} was not opened this session: an "
-                         f"uphold stands on a line you read. code.source "
-                         f"it first.")
+        raise ValueError(_not_a_citation(ctx, citation, "uphold"))
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "stands", "citation": citation,
         "quote": quote.strip()[:300], "why": (why or "").strip()[:300]}))

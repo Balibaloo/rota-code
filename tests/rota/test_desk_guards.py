@@ -990,3 +990,20 @@ def test_the_fence_holds_a_reach_no_criterion_names(db, tmp_path):
                     path="tests/test_close.py",
                     body="import subprocess\ndef test_close():\n"
                          "    assert subprocess.run(['x']).returncode == 0\n")
+
+
+def test_a_citation_refusal_names_the_file_it_wants(db):
+    """
+    tipsAI (2026-09-10): the Critic read main.py and cited the claim's own
+    id fourteen sessions running, and the refusal said "code.source it
+    first" about a file it had opened.
+    """
+    from rota.roles import prompts
+
+    from rota.core.predicates import Wake
+    sb = build("critic", db, mode="normal", wake=Wake(role="critic", kind="tick:challenge",
+                                                     refs=("@claim:items:i1",), detail="challenge"),
+               allow=prompts.mode_tools("critic", "challenge"))
+    sb.ctx.opened.add("main.py")
+    with pytest.raises(ValueError, match="is the claim's id, not a file.*You opened: main.py"):
+        sb.call("challenge.uphold", citation="items:i1", quote="return 1", why="it does")

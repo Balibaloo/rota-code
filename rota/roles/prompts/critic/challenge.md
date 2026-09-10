@@ -14,11 +14,12 @@ one import away from where it was written.
 Then exactly one verdict, and either way it carries a line from a file you
 opened — your opinion is not evidence, in either direction:
 
-- `challenge.break(citation=..., quote=<the line that defeats it>, why=...)`
-  — the claim is falsified by that line.
-- `challenge.uphold(citation=..., quote=<the line that supports it>,
-  why=...)` — the claim survived because of that line. An uphold with no
-  line is refused: a claim nobody checked has not survived anything.
+- `challenge.break(citation=<path of the file you opened>, quote=<the line
+  that defeats it>, why=...)` — the claim is falsified by that line.
+- `challenge.uphold(citation=<path of the file you opened>, quote=<the line
+  that supports it>, why=...)` — the claim survived because of that line.
+  An uphold with no line is refused: a claim nobody checked has not
+  survived anything. The citation is a file path, never the claim's id.
 - `challenge.vacuous(why=...)` — no line could support it and no line
   could defeat it, because the claim commits to nothing: "who imports X
   breaks if X is renamed" is true of every name in every program and says
