@@ -1668,3 +1668,37 @@ def test_the_account_is_never_sliced(db):
     assert len(wakes) == 1
     assert "calculate_tip" in wakes[0].refs
     assert "how_it_works" not in wakes[0].refs
+
+
+def test_a_deliver_waits_for_onboarding(tmp_path):
+    """
+    tipsAI (2026-09-10): a sentence typed before orientation ran was
+    ratified and delivered, the Vision Keeper found no account, and wrote
+    the feature as the account. The deliver waits; the confirm does not.
+    """
+    from rota.core.db import init_db
+    from rota.core.scheduler import open_tips
+
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO code_index (grain, grain_kind, area, fan_in, sym_kind, "
+                 "content_hash) VALUES ('main.py', 'path', 'main', 0, '', 'x')")
+    conn.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+                 "('e1','principal',1,'split the bill')")
+    conn.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+                 "status) VALUES ('s1','e1',0,5,'split the bill','ratified')")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq) VALUES ('m1','t','liaison','vision_keeper','deliver',"
+                 "'[\"s1\"]',1)")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq) VALUES ('m2','t','principal','liaison','converse',"
+                 "'[\"e1\"]',2)")
+    conn.commit()
+    from rota.core.scheduler import onboarding_phase
+    assert onboarding_phase(conn) not in ("done", "none")
+    tips = open_tips(conn)
+    assert [t.message_id for t in tips] == ["m2"]
+    # Onboarding done: the deliver tips.
+    conn.execute("DELETE FROM code_index")
+    conn.commit()
+    assert onboarding_phase(conn) == "none"
+    assert {t.message_id for t in open_tips(conn)} == {"m1", "m2"}

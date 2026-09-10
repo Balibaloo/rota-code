@@ -67,9 +67,17 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
     what `report` mode is for: the top of the escalation ladder, where Vision Keeper
     has run out of rungs and the next step is a person.
     """
+    # A ratified statement is delivered to owners who write against the
+    # account, and the account is orientation's. tipsAI (2026-09-10): the
+    # sentence arrived before orientation ran, the Vision Keeper's deliver
+    # session found no account and wrote the feature as the account, and
+    # nothing sliced it. The deliver waits until onboarding is done; the
+    # confirm, the ratification and the transcript do not.
+    hold_deliver = onboarding_phase(conn) not in ("done", "none")
     rows = conn.execute(
         "SELECT id, to_role, verb FROM messages m "
         "WHERE status = 'open' AND to_role != 'principal' "
+        "  AND NOT (verb = 'deliver' AND ?) "
         "  AND NOT (verb = 'report' AND to_role = 'liaison' AND EXISTS ("
         "    SELECT 1 FROM messages d WHERE d.thread_id = m.thread_id "
         "      AND d.verb = 'deliver' AND d.from_role = 'liaison')) "
@@ -98,7 +106,7 @@ def open_tips(conn: sqlite3.Connection) -> list[Wake]:
         "                WHERE a2.thread_id = m.thread_id "
         "                  AND a2.verb = 'answer' AND a2.status = 'open' "
         "                  AND q2.verb = 'ask'))) "
-        "ORDER BY seq"
+        "ORDER BY seq", (hold_deliver,)
     ).fetchall()
     return [
         Wake(role=r["to_role"], kind="message", message_id=r["id"], detail=r["verb"])

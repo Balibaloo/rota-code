@@ -1007,3 +1007,38 @@ def test_a_citation_refusal_names_the_file_it_wants(db):
     sb.ctx.opened.add("main.py")
     with pytest.raises(ValueError, match="is the claim's id, not a file.*You opened: main.py"):
         sb.call("challenge.uphold", citation="items:i1", quote="return 1", why="it does")
+
+
+def test_a_delivered_statement_is_an_item_of_its_own(db):
+    """
+    tipsAI (2026-09-10): delivered "split the bill", the Vision Keeper
+    asserted `how_it_works` as the split and then an item under the
+    statement's id. The account was gone and nothing sliced the split.
+    """
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'Split the bill between the people paying')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
+               "status) VALUES ('s1','e1',0,10,'Split the bill between the people paying','ratified')")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('how_it_works', ?, 'in_scope', 'decided', 'approved', 1, 1)",
+               ("The program is a tip calculator: it takes a total and a percentage "
+                "and prints the tip and the total with tip.",))
+    db.commit()
+    sb = build("vision_keeper", db, mode="normal",
+               allow=prompts.mode_tools("vision_keeper", "deliver"))
+    with pytest.raises(ValueError, match="already a row of statements"):
+        sb.call("problem.assert", id="s1", text="Split the bill between the people paying")
+    with pytest.raises(ValueError, match="account of the whole program"):
+        sb.call("problem.assert", id="how_it_works",
+                text="The software splits the total bill by asking how many people "
+                     "are paying and prints each person's share.")
+    # Adding to the account keeps its words, and a behaviour under its own name lands.
+    sb.call("problem.assert", id="how_it_works",
+            text="The program is a tip calculator: it takes a total and a percentage, "
+                 "prints the tip and the total with tip, and splits the bill between "
+                 "the people paying.")
+    out = sb.call("problem.assert", id="split_bill",
+                  text="The program asks how many people are paying and prints each share.")
+    assert out["id"] == "split_bill"

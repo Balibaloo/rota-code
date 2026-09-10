@@ -499,6 +499,25 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # catch it: rename `getRelativePath` to anything and "returns the relative
     # path" stays true, which is exactly why it says nothing about this product.
     # Naming the item after the code is the tell.
+    # The account is the whole program, and a delivered statement is a
+    # behaviour. tipsAI (2026-09-10): delivered "split the bill", the Vision
+    # Keeper asserted `how_it_works` as the split, and the account of the
+    # tip calculator was gone. Nothing slices the account, so the split was
+    # never built. A fact about the words: the new account keeps none of
+    # the old one's.
+    if id == "how_it_works":
+        cur_acc = ctx.conn.execute(
+            "SELECT text FROM items WHERE id = 'how_it_works'").fetchone()
+        old_words = set(_prose_words(cur_acc["text"])) if cur_acc and cur_acc["text"] else set()
+        new_words = set(_prose_words(text))
+        if old_words and len(old_words & new_words) < max(3, len(old_words) // 2):
+            raise ValueError(
+                f"how_it_works is the account of the whole program, and this "
+                f"text keeps almost none of its words ({cur_acc['text']!r}). A "
+                f"behaviour the principal asked for is its own item: assert it "
+                f"under its own name, kind in_scope. Amend the account only to "
+                f"add the new behaviour to what it already says")
+
     if ctx.conn.execute(
             "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
             (id, f"%::{id}")).fetchone():
