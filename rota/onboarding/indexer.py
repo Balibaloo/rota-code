@@ -18,6 +18,8 @@ sign, and the partition is what every later area-scoped decision rests on.
 """
 from __future__ import annotations
 
+from ..core.worktrees import GIT
+
 import posixpath
 import sqlite3
 from dataclasses import dataclass, field
@@ -284,7 +286,7 @@ def tracked(root: Path) -> set[Path] | None:
 
     try:
         got = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "--cached", "--others",
+            [*GIT, "-C", str(root), "ls-files", "--cached", "--others",
              "--exclude-standard", "-z"],
             capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError):

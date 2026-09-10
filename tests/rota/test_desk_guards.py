@@ -1061,3 +1061,41 @@ def test_a_whole_file_write_with_source_spans_lands(db, tmp_path):
     assert out["bytes"]
     with pytest.raises(ValueError, match="writes the whole file"):
         sb.call("code.write", path="script.py", text="def x():\n    pass\n", start=10, end=20)
+
+
+def test_a_dependency_manifest_is_fenced(db, tmp_path):
+    """Audit item 1 (2026-09-10): what a manifest names, pip installs and runs."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="dependency manifest"):
+        sb.call("code.write", path="requirements.txt", text="requests\n")
+    with pytest.raises(ValueError, match="dependency manifest"):
+        sb.call("code.write", path="pyproject.toml", text="[project]\nname='x'\n")
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'",
+               ("closing an account records the closure with the httpx package",))
+    db.commit()
+    assert sb.call("code.write", path="requirements.txt", text="httpx\n")["bytes"]
+
+
+def test_rota_commits_with_the_repositorys_hooks_off(tmp_path):
+    """Audit item 3 (2026-09-10): a checkout's hooks run on commit with the
+    user's rights, and rota commits what a model wrote."""
+    import subprocess
+
+    from rota.core import worktrees
+
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    hooks = repo / ".git" / "hooks"; hooks.mkdir(exist_ok=True)
+    marker = tmp_path / "hook-ran"
+    (hooks / "pre-commit").write_text(f"#!/bin/sh\ntouch '{marker.as_posix()}'\n", encoding="utf-8")
+    (hooks / "pre-commit").chmod(0o755)
+    (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+    assert worktrees.commit(repo, "first")
+    assert not marker.exists()

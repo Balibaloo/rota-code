@@ -67,6 +67,8 @@ LOAD_BEARING = {
                       "asserted below and go red when the stage is built",
     "LOOPS.md": "test_roles_doc.py -- the grade ledger; its gates are "
                 "propositions and its headline claim is pinned",
+    "AUDIT.md": "test_audit.py -- every item names a file that exists, and "
+                "the two doors it landed are asserted",
     "COMPLETION.md": "test_docs.py below -- the unified remaining-work "
                      "document; its claims about what is green are asserted "
                      "so a closed debt cannot keep reading as open",

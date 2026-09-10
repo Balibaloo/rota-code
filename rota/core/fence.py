@@ -114,6 +114,33 @@ def named(kind: str, texts: list[str]) -> bool:
     return any(re.search(rf"\b{re.escape(w)}", low) for w in words)
 
 
+MANIFESTS = ("pyproject.toml", "requirements.txt", "setup.py", "setup.cfg",
+             "Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "constraints.txt")
+MANIFEST_WORDS = ("dependency", "dependencies", "package", "install", "library",
+                  "requirement", "requirements", "version bump", "release")
+
+
+def check_manifest(path: str, criteria: list[str]) -> None:
+    """
+    A dependency manifest is what provisioning installs from, with pip, in
+    the batch's environment. A file the model writes there is a package the
+    model chose, and pip runs its setup. Refused unless a criterion names a
+    dependency, a package or an install.
+    """
+    name = path.replace("\\", "/").split("/")[-1]
+    if not (name in MANIFESTS or (name.startswith("requirements") and name.endswith(".txt"))):
+        return
+    low = " ".join(t.lower() for t in criteria)
+    if any(w in low for w in MANIFEST_WORDS):
+        return
+    raise ValueError(
+        f"{path} is a dependency manifest: what it names, pip installs and "
+        f"runs in the batch's environment. No criterion of this batch names "
+        f"a dependency, a package or an install, so this write is refused. "
+        f"If the change needs a package, the criterion has to say so; "
+        f"otherwise leave the manifest as it is")
+
+
 def check(path: str, tree: ast.AST, criteria: list[str]) -> None:
     """Raise ValueError for the first reach no criterion names."""
     for kind, what, line in reaches(tree):

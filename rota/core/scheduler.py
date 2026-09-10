@@ -313,7 +313,11 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         # again. The batch stayed running with no commit and the run went
         # quiet. The start is owed until a commit exists. The tick
         # quarantine caps the repeats, keyed by the batch.
-        stalled = [r["id"] for r in running if not r["head_commit"]]
+        stalled = [r["id"] for r in running if not r["head_commit"]
+                   and conn.execute(
+                       "SELECT 1 FROM sessions WHERE role = 'developer' "
+                       "AND wake_kind = 'tick:batch_start' AND wake_refs LIKE ?",
+                       (f'%"{r["id"]}"%',)).fetchone()]
         return [Wake("developer", "tick:batch_start", refs=(stalled[0],))] if stalled else []
 
     candidates = [r["id"] for r in conn.execute(

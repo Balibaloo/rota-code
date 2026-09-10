@@ -460,6 +460,10 @@ def cmd_onboard(args: argparse.Namespace) -> int:
     _conn = _connect(path)
     profile_mod.bind(_conn, prof)
     _conn.commit(); _conn.close()
+    where = prof.endpoint or ("local ollama" if prof.provider == "ollama" else prof.provider)
+    print(f"profile: {prof.name}  sends prompts and this repository's code to "
+          f"{where} ({prof.provider}); from a file under "
+          f"{'the project' if '.rota' in str(getattr(prof, 'source', '') or '') else 'rota or your home'}")
     print(f"profile: {prof.name}  default {prof.default_model}"
           + (f"  roles {prof.routing()}" if prof.roles else ""))
     if getattr(args, "no_prose", False):

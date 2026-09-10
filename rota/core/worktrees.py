@@ -18,6 +18,13 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import subprocess
+
+# Every git command rota runs. Hooks are the repository's code, and a
+# checkout's hooks run on commit and merge with the user's rights; rota
+# commits and merges what a model wrote, so its git runs with no hooks.
+# The path names a directory that does not exist, which git treats as no
+# hooks at all. Audit item 3 (rota/AUDIT.md, 2026-09-10).
+GIT = ["git", "-c", "core.hooksPath=.rota/hooks-off"]
 from pathlib import Path
 
 
@@ -26,7 +33,7 @@ class WorktreeError(RuntimeError):
 
 
 def _git(root: Path, *args: str, check: bool = True) -> str:
-    out = subprocess.run(["git", "-C", str(root), *args],
+    out = subprocess.run([*GIT, "-C", str(root), *args],
                          capture_output=True, text=True)
     if check and out.returncode != 0:
         raise WorktreeError(f"git {' '.join(args)}: {out.stderr.strip()}")
@@ -143,7 +150,7 @@ def destroy(conn: sqlite3.Connection, batch_id: str) -> bool:
 
 
 def head(path: str | Path) -> str | None:
-    out = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"],
+    out = subprocess.run([*GIT, "-C", str(path), "rev-parse", "HEAD"],
                          capture_output=True, text=True)
     return out.stdout.strip() or None if out.returncode == 0 else None
 
@@ -160,14 +167,14 @@ def commit(path: str | Path, message: str) -> str | None:
     # run's state live inside the worktree and are not the project's:
     # under WSL (2026-09-10) `add -A` staged 952 files of `.venv` into the
     # first commit and the Critic reviewed them as the diff.
-    subprocess.run(["git", "-C", str(path), "add", "-A", "--", ".",
+    subprocess.run([*GIT, "-C", str(path), "add", "-A", "--", ".",
                     ":(exclude).venv", ":(exclude).rota"],
                    capture_output=True, text=True)
-    staged = subprocess.run(["git", "-C", str(path), "diff", "--cached", "--name-only"],
+    staged = subprocess.run([*GIT, "-C", str(path), "diff", "--cached", "--name-only"],
                             capture_output=True, text=True).stdout.strip()
     if not staged:
         return None
-    out = subprocess.run(["git", "-C", str(path), "commit", "-q", "-m", message],
+    out = subprocess.run([*GIT, "-C", str(path), "commit", "-q", "-m", message],
                          capture_output=True, text=True)
     if out.returncode != 0:
         raise WorktreeError(f"commit failed: {out.stderr.strip()}")
@@ -175,7 +182,7 @@ def commit(path: str | Path, message: str) -> str | None:
 
 
 def diff(path: str | Path, against: str = "HEAD~1") -> str:
-    out = subprocess.run(["git", "-C", str(path), "diff", against, "HEAD"],
+    out = subprocess.run([*GIT, "-C", str(path), "diff", against, "HEAD"],
                          capture_output=True, text=True)
     return out.stdout
 
@@ -183,7 +190,7 @@ def diff(path: str | Path, against: str = "HEAD~1") -> str:
 def touched(path: str | Path, against: str = "HEAD~1") -> list[str]:
     """The paths a batch's diff changed — the grains structural review joins on."""
     out = subprocess.run(
-        ["git", "-C", str(path), "diff", "--name-only", against, "HEAD"],
+        [*GIT, "-C", str(path), "diff", "--name-only", against, "HEAD"],
         capture_output=True, text=True)
     return [line for line in out.stdout.splitlines() if line.strip()]
 
@@ -204,11 +211,11 @@ def integrate(conn: sqlite3.Connection, batch_id: str) -> str:
     if not _git(root, "branch", "--list", branch, check=False).strip():
         raise WorktreeError(f"no branch {branch} to merge")
     out = subprocess.run(
-        ["git", "-C", str(root), "-c", "user.email=rota@local", "-c", "user.name=rota",
+        [*GIT, "-C", str(root), "-c", "user.email=rota@local", "-c", "user.name=rota",
          "merge", "--no-ff", "--no-edit", "-m", f"rota: deliver {batch_id}", branch],
         capture_output=True, text=True)
     if out.returncode != 0:
-        subprocess.run(["git", "-C", str(root), "merge", "--abort"],
+        subprocess.run([*GIT, "-C", str(root), "merge", "--abort"],
                        capture_output=True, text=True)
         raise WorktreeError(f"merge of {branch} is not clean: {out.stderr.strip()[:300]}")
     return _git(root, "rev-parse", "HEAD").strip()

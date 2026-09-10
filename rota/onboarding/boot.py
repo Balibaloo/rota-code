@@ -23,6 +23,8 @@ by it when somebody has looked, and only then.
 """
 from __future__ import annotations
 
+from ..core.worktrees import GIT
+
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,7 +70,7 @@ def checkout_of(root: str | Path) -> tuple[str, str]:
     out = []
     for args in (("rev-parse", "--abbrev-ref", "HEAD"), ("rev-parse", "HEAD")):
         try:
-            got = subprocess.run(["git", "-C", str(root), *args],
+            got = subprocess.run([*GIT, "-C", str(root), *args],
                                  capture_output=True, text=True, timeout=10)
             out.append(got.stdout.strip() if got.returncode == 0 else "")
         except (OSError, subprocess.SubprocessError):

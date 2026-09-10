@@ -1717,6 +1717,11 @@ def test_a_running_batch_with_no_commit_still_owes_its_start(tmp_path):
                  "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     conn.commit()
+    # Dispatched, no session yet: the Developer is in flight, single-instance.
+    assert tick_batch_start(conn) == []
+    conn.execute("INSERT INTO sessions (id, role, seq, wake_kind, wake_refs, committed) "
+                 "VALUES ('s1','developer',1,'tick:batch_start','[\"b1\"]',1)")
+    conn.commit()
     assert [(w.role, w.kind, w.refs) for w in tick_batch_start(conn)] == \
         [("developer", "tick:batch_start", ("b1",))]
     conn.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")

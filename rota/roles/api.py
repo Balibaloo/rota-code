@@ -19,6 +19,8 @@ enforced centrally; the sandbox binds that away before the model ever sees them.
 """
 from __future__ import annotations
 
+from ..core.worktrees import GIT
+
 import difflib
 import json as _json
 
@@ -6144,7 +6146,7 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         return {"batch": bid, "error": "no worktree"}
     try:
         out = subprocess.run(
-            ["git", "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
+            [*GIT, "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
             capture_output=True, text=True, timeout=30)
         return {"batch": bid, "diff": out.stdout[:20000]}
     except Exception as exc:
@@ -6371,6 +6373,8 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             f"names a span, and a partial write is not offered. Send the "
             f"whole file as text, with no start or end")
     target = _within(_batch_worktree(ctx), path)
+    from ..core import fence as _fence
+    _fence.check_manifest(path, _criteria_texts(ctx))
     # A harness fact about modules, not a judgement about the code. S0 walk
     # ten: `script.py` was right in substance and ran `input()` at module
     # level, so every test that imported it died at collection -- OSError,
