@@ -1118,6 +1118,16 @@ merged cold in 34 steps.
    qwen3.5:9b reading a signature constraint, and the lever is either
    the Developer's brief on defaults or the Architect's finding naming
    the parameter. The merge on tipsI is one finding away.
+   The drift door (d4d1880): an empty commit under a standing finding
+   now names the parameters the tree requires that the project did not.
+   tipsAL resumed with the quarantines lifted: one more commit, then the
+   run crossed into the exhausted region, the Developer at attempt 23
+   of a cap of 10, trading challenges with the Tester at one session
+   per ten minutes. Stopped there. The batch stands at commit 00d3657,
+   all tests green, the Critic green, `display_results` still carrying
+   its three new required parameters. The merge is still that one
+   finding away, and the lever is the Developer's brief on defaults,
+   measured on the register before the next walk.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
