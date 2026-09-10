@@ -19,6 +19,8 @@ whatever answers "which interpreter runs this worktree's tests".
 from __future__ import annotations
 
 import subprocess
+
+from . import execute
 import sys
 from pathlib import Path
 
@@ -64,19 +66,21 @@ def ensure_env(root: Path, *, timeout: int = 600) -> tuple[Path | None, str]:
     notes: list[str] = []
     if not py.exists():
         try:
-            subprocess.run([sys.executable, "-m", "venv", str(root / VENV)],
-                           check=True, capture_output=True, text=True,
-                           timeout=timeout)
-        except (subprocess.SubprocessError, OSError) as exc:
+            made = execute.run(root, [sys.executable, "-m", "venv", str(root / VENV)],
+                               timeout=timeout)
+            if made.error or made.returncode != 0:
+                raise OSError(made.error or made.stderr.strip()[-200:])
+        except (KeyError, OSError) as exc:
             return None, f"could not create {VENV}: {exc}"
         notes.append(f"made {VENV}")
     wanted = ["pytest", *declared_dependencies(root)]
     try:
-        out = subprocess.run([str(py), "-m", "pip", "install", "-q",
-                              "--disable-pip-version-check", *wanted],
-                             cwd=root, capture_output=True, text=True,
-                             timeout=timeout)
-    except (subprocess.SubprocessError, OSError) as exc:
+        out = execute.run(root, [str(py), "-m", "pip", "install", "-q",
+                                 "--disable-pip-version-check", *wanted],
+                          timeout=timeout)
+        if out.error:
+            raise OSError(out.error)
+    except (KeyError, OSError) as exc:
         return py, f"{'; '.join(notes)}; pip did not run: {exc}"
     if out.returncode != 0:
         tail = (out.stderr or out.stdout).strip().splitlines()[-1:] or ["no output"]

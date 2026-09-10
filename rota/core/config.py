@@ -52,6 +52,10 @@ class Setting:
 
 
 SETTINGS: dict[str, Setting] = {s.key: s for s in [
+    Setting("runner", "local",
+            "Where the harness runs commands inside a worktree: a name in "
+            "core/execute.RUNNERS. `local` is this machine, the user's rights."),
+
     Setting("loop_cap", 10,
             "Developer<->Tester bounces on one batch before it escalates. "
             "Spends compute, which is the cheap resource — hence generous."),

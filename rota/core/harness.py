@@ -98,10 +98,13 @@ def run(conn: sqlite3.Connection, batch_id: str,
     materialise(root, tests)
     attempt = lifecycle.next_attempt(conn, batch_id)
 
+    from . import config as _config
+
+    runner = _config.get(conn, "runner")
     results: list[tuple[str, str]] = []
     output: dict[str, str] = {}
     for t in tests:
-        verdict, said = _run_one(root, t["path"], timeout)
+        verdict, said = _run_one(root, t["path"], timeout, runner=runner)
         results.append((t["id"], verdict))
         output[t["id"]] = said
 
@@ -119,7 +122,8 @@ def run(conn: sqlite3.Connection, batch_id: str,
     return results
 
 
-def _run_one(root: Path, path: str, timeout: int) -> tuple[str, str]:
+def _run_one(root: Path, path: str, timeout: int,
+             runner: str | None = None) -> tuple[str, str]:
     """
     One test file: one word, and what the harness actually said.
 
@@ -144,14 +148,15 @@ def _run_one(root: Path, path: str, timeout: int) -> tuple[str, str]:
         # The worktree's own interpreter when it has one. `sys.executable` was
         # rota's own, with rota's own packages, so a project that imported
         # anything else could not be tested and nothing said why.
+        from . import execute
         from .provision import python_for
-        out = subprocess.run(
-            [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
-            cwd=root, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return "error", f"timed out after {timeout}s"
-    except OSError as exc:
+        out = execute.run(
+            root, [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
+            timeout=timeout, runner=runner)
+    except KeyError as exc:
         return "error", str(exc)
+    if out.error:
+        return "error", out.error
 
     # Tail rather than head: pytest puts the summary and the failing assertion
     # at the end, and the beginning is collection chatter.
