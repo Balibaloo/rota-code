@@ -1136,8 +1136,18 @@ merged cold in 34 steps.
    Terminologist what "distribute equally" means, the answer did not
    land, the question went unresolved up the ladder, and one criterion
    never got its test. A different layer, the question ladder, seen
-   before (tipsN). Three walks today ended in three different places;
-   none merged. The next walk is not the lever. The record is.
+   before (tipsN). The ladder's clarify had been refused at the door:
+   the Liaison's question said the criterion names no term for 'share'
+   and the door read the quoted word as a row id (4c7da3f). Resumed,
+   the question reached the principal, the answer landed, and the
+   Tester wrote the test for the second criterion: refused, correctly,
+   because the criterion names `accept_total` as its surface and the
+   test needs `calculate_share`, which no criterion names. A4 in its
+   third form today. The seat road answers it when the principal
+   contests the surface line; the scripted principal's pattern named
+   `calculate_tip` and this page did not. Three walks today ended in
+   three different places; none merged. The next walk is not the
+   lever. The record is.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
