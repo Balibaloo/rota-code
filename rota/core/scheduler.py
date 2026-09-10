@@ -303,10 +303,18 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
     *and* that approval must postdate the item's last amendment.
     """
     running = conn.execute(
-        "SELECT COUNT(*) AS n FROM batches WHERE status = 'running'"
-    ).fetchone()["n"]
+        "SELECT id, head_commit FROM batches WHERE status = 'running' ORDER BY id"
+    ).fetchall()
     if running:
-        return []
+        # A running batch with no commit is a start that did not land.
+        # tipsAI (2026-09-10): the Developer's one session read the code,
+        # logged a plan and called commit with nothing written; the call
+        # was refused, the session ended, and no predicate woke anyone
+        # again. The batch stayed running with no commit and the run went
+        # quiet. The start is owed until a commit exists. The tick
+        # quarantine caps the repeats, keyed by the batch.
+        stalled = [r["id"] for r in running if not r["head_commit"]]
+        return [Wake("developer", "tick:batch_start", refs=(stalled[0],))] if stalled else []
 
     candidates = [r["id"] for r in conn.execute(
         "SELECT b.id AS id FROM batches b JOIN items i ON i.id = b.item_id "

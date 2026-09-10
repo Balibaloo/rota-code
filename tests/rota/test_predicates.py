@@ -1702,3 +1702,23 @@ def test_a_deliver_waits_for_onboarding(tmp_path):
     conn.commit()
     assert onboarding_phase(conn) == "none"
     assert {t.message_id for t in open_tips(conn)} == {"m1", "m2"}
+
+
+def test_a_running_batch_with_no_commit_still_owes_its_start(tmp_path):
+    """
+    tipsAI (2026-09-10): the Developer's start session committed nothing,
+    the batch stayed running with no commit, and nothing woke anyone.
+    """
+    from rota.core.db import init_db
+    from rota.core.scheduler import tick_batch_start
+
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
+    conn.commit()
+    assert [(w.role, w.kind, w.refs) for w in tick_batch_start(conn)] == \
+        [("developer", "tick:batch_start", ("b1",))]
+    conn.execute("UPDATE batches SET head_commit = 'abc' WHERE id = 'b1'")
+    conn.commit()
+    assert tick_batch_start(conn) == []
