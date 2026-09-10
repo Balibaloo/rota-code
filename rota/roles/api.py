@@ -3705,7 +3705,10 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     f"A test calls the surface the criterion names, "
                     f"{surface[0]!r}, and nothing it invents; if the surface "
                     f"needs a new type or helper, that is the Developer's to "
-                    f"add and the criterion's to name")
+                    f"add and the criterion's to name. If the criterion's "
+                    f"surface is the wrong callable for this behaviour, say so "
+                    f"to its owner: msg.question_terminologist with the "
+                    f"criterion and the name the test needs")
         if surface_mods and imported_from and not (surface_mods & {m.split(".")[0] for m in imported_from}):
             raise Wall(
                 f"the surface {surface[0]!r} lives in "
