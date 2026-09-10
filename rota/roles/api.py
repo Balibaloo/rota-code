@@ -3329,6 +3329,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             f"the body is not Python ({exc.msg}, line {exc.lineno}). A test "
             f"is code the harness can execute -- def test_...(): with "
             f"assertions, not a description of one") from None
+    from ..core import fence as _fence
+    _fence.check(path, tree, _criteria_texts(ctx))
     has_test = any(isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                    and n.name.startswith("test") for n in _ast.walk(tree))
     has_assert = any(isinstance(n, _ast.Assert) for n in _ast.walk(tree))
@@ -6022,6 +6024,16 @@ def _prose_allowed(ctx) -> bool:
         return True
 
 
+def _criteria_texts(ctx) -> list[str]:
+    """The criteria of this session's batch, as text, for the fence."""
+    if not ctx.batch_id:
+        return []
+    return [r["text"] or "" for r in ctx.conn.execute(
+        "SELECT c.text FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "WHERE bt.batch_id = ?", (ctx.batch_id,)).fetchall()]
+
+
 def _batch_worktree(ctx) -> "Path":
     """
     The batch's worktree for a write or a commit, and nothing else.
@@ -6225,6 +6237,10 @@ def code_write(ctx: Ctx, path: str, text: str) -> dict:
                         f"one definition: give the new behaviour its own "
                         f"name, or change the one definition")
                 seen[node.name] = node.lineno
+        # The fence: a reach outside the project is a fact about the file,
+        # and the criteria are the only thing that can ask for one.
+        from ..core import fence as _fence
+        _fence.check(path, tree, _criteria_texts(ctx))
         # The tests are the Tester's. tipsR (2026-09-09): the Developer
         # rewrote tests/test_split_bill.py to import a module that does not
         # exist, the harness ran the database's copy of the test and passed,

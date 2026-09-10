@@ -1,0 +1,136 @@
+"""
+The fence: what a written file may reach, held to the criteria.
+
+A fact about the file, not a judgement about the code. A file that imports
+`socket` reaches the network. A file that calls `subprocess.run` starts a
+process. A file that calls `shutil.rmtree` removes a tree. Each reach is
+visible in the syntax tree, and each is refused unless a criterion of the
+batch names that kind of behaviour in words.
+
+This is not a sandbox. The harness runs the target project's own code by
+design, the same as pytest does. The fence stops the accidental case, a
+small model reaching for a capability nobody asked for, and says which
+criterion would have to ask.
+"""
+from __future__ import annotations
+
+import ast
+import re
+
+# kind -> (modules, attribute names, bare call names, words a criterion may use)
+KINDS: dict[str, tuple[frozenset[str], frozenset[str], frozenset[str], tuple[str, ...]]] = {
+    "network": (
+        frozenset({"socket", "urllib", "http", "requests", "httpx", "aiohttp",
+                   "ftplib", "smtplib", "imaplib", "poplib", "ssl", "websocket",
+                   "websockets", "xmlrpc", "telnetlib"}),
+        frozenset(), frozenset(),
+        ("network", "http", "url", "web", "fetch", "download", "upload",
+         "server", "socket", "api", "request", "internet", "email", "mail",
+         "send", "endpoint", "client", "remote", "online")),
+    "process": (
+        frozenset({"subprocess", "pty"}),
+        frozenset({"system", "popen", "execl", "execle", "execlp", "execv",
+                   "execve", "execvp", "execvpe", "spawnl", "spawnv", "kill",
+                   "killpg", "startfile"}),
+        frozenset(),
+        ("process", "command", "shell", "execute", "launch", "spawn",
+         "terminal", "subprocess")),
+    "remove": (
+        frozenset(),
+        frozenset({"rmtree", "remove", "unlink", "rmdir", "removedirs"}),
+        frozenset(),
+        ("delete", "remove", "clean", "erase", "purge", "discard",
+         "uninstall")),
+    "outside": (
+        frozenset(),
+        frozenset({"home", "expanduser", "expandvars", "chdir"}),
+        frozenset(),
+        ("home", "config", "global", "system", "environment", "user directory",
+         "profile", "install", "settings", "absolute")),
+    "dynamic": (
+        frozenset({"ctypes", "marshal", "pickle", "shelve", "importlib"}),
+        frozenset({"import_module", "load_module"}),
+        frozenset({"eval", "exec", "__import__", "compile"}),
+        ("plugin", "dynamic", "eval", "expression", "pickle", "serialise",
+         "serialize", "load code", "extension", "native", "binary")),
+}
+
+
+def reaches(tree: ast.AST) -> list[tuple[str, str, int]]:
+    """Every reach in the tree: (kind, what, line)."""
+    out: list[tuple[str, str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                for kind, (mods, _a, _c, _w) in KINDS.items():
+                    if root in mods:
+                        out.append((kind, f"import {alias.name}", node.lineno))
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".")[0]
+            for kind, (mods, attrs, _c, _w) in KINDS.items():
+                if root in mods:
+                    out.append((kind, f"from {node.module} import ...", node.lineno))
+                for alias in node.names:
+                    if alias.name in attrs and root in {"os", "shutil", "importlib"}:
+                        out.append((kind, f"from {root} import {alias.name}", node.lineno))
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Name):
+                for kind, (_m, _a, calls, _w) in KINDS.items():
+                    if fn.id in calls:
+                        out.append((kind, f"{fn.id}(...)", node.lineno))
+                if fn.id == "open" and node.args:
+                    lit = node.args[0]
+                    if isinstance(lit, ast.Constant) and isinstance(lit.value, str):
+                        if _escapes(lit.value):
+                            out.append(("outside", f"open({lit.value!r})", node.lineno))
+            elif isinstance(fn, ast.Attribute):
+                for kind, (_m, attrs, _c, _w) in KINDS.items():
+                    if fn.attr in attrs:
+                        out.append((kind, f"{_dotted(fn)}(...)", node.lineno))
+    seen: set[tuple[str, str, int]] = set()
+    return [r for r in out if not (r in seen or seen.add(r))]
+
+
+def _escapes(path: str) -> bool:
+    p = path.replace("\\", "/")
+    return p.startswith("/") or p.startswith("~") or ".." in p.split("/") \
+        or re.match(r"^[A-Za-z]:/", p) is not None
+
+
+def _dotted(node: ast.AST) -> str:
+    if isinstance(node, ast.Attribute):
+        return f"{_dotted(node.value)}.{node.attr}"
+    if isinstance(node, ast.Name):
+        return node.id
+    return "?"
+
+
+def named(kind: str, texts: list[str]) -> bool:
+    """Does any criterion name this kind of behaviour, in a word?"""
+    words = KINDS[kind][3]
+    low = " ".join(t.lower() for t in texts)
+    return any(re.search(rf"\b{re.escape(w)}", low) for w in words)
+
+
+def check(path: str, tree: ast.AST, criteria: list[str]) -> None:
+    """Raise ValueError for the first reach no criterion names."""
+    for kind, what, line in reaches(tree):
+        if named(kind, criteria):
+            continue
+        raise ValueError(
+            f"{path} reaches the {kind} at line {line} ({what}) and no "
+            f"criterion of this batch names {_noun(kind)}. The code does only "
+            f"what the criteria ask. If the behaviour is intended, the "
+            f"criterion has to say so: name the criterion and the words it "
+            f"lacks in your reply, and end. Otherwise write the file "
+            f"without it")
+
+
+def _noun(kind: str) -> str:
+    return {"network": "the network, a server or an email",
+            "process": "a process, a command or a shell",
+            "remove": "deleting or removing anything",
+            "outside": "a path outside the project",
+            "dynamic": "loading or evaluating code"}[kind]

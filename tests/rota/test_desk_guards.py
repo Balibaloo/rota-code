@@ -945,3 +945,48 @@ def test_an_item_records_which_statement_it_reads(db):
     out = sb.call("problem.consult")
     row = next(r for r in out if r["id"] == "i1")
     assert row["from_statements"] == [], "existing items are untouched"
+
+
+def test_the_fence_holds_a_reach_no_criterion_names(db, tmp_path):
+    """
+    The fence (2026-09-10): a file that reaches the network, a process, a
+    removal, a path outside the project or dynamic code is refused unless
+    a criterion of the batch names that behaviour. The Developer's writes
+    and the Tester's tests both pass through it.
+    """
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="reaches the network at line 1"):
+        sb.call("code.write", path="script.py",
+                text="import requests\ndef close_account(a):\n    return 1\n")
+    with pytest.raises(ValueError, match="reaches the process at line 2"):
+        sb.call("code.write", path="script.py",
+                text="import os\nos.system('rm -rf x')\n")
+    with pytest.raises(ValueError, match="reaches the outside"):
+        sb.call("code.write", path="script.py",
+                text="def close_account(a):\n    return open('/etc/hosts').read()\n")
+    with pytest.raises(ValueError, match="reaches the dynamic"):
+        sb.call("code.write", path="script.py",
+                text="def close_account(a):\n    return eval(a)\n")
+    out = sb.call("code.write", path="script.py",
+                  text="import json\ndef close_account(a):\n    return json.dumps(a)\n")
+    assert out["bytes"]
+    # A criterion that names the behaviour opens the fence.
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'",
+               ("closing an account sends an email to the owner",))
+    db.commit()
+    out = sb.call("code.write", path="script.py",
+                  text="import smtplib\ndef close_account(a):\n    return 1\n")
+    assert out["bytes"]
+    # The Tester's test goes through the same fence.
+    tester = build("tester", db, batch_id="b1", mode="tests_missing")
+    tester.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError, match="reaches the process"):
+        tester.call("tests.encode", id="tst_new", criterion_id="c1",
+                    path="tests/test_close.py",
+                    body="import subprocess\ndef test_close():\n"
+                         "    assert subprocess.run(['x']).returncode == 0\n")
