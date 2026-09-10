@@ -1190,3 +1190,19 @@ def test_an_empty_commit_under_a_finding_names_the_signature_drift(db, tmp_path)
                allow=prompts.mode_tools("developer", "finding_violated"))
     with pytest.raises(ValueError, match="now requires names, shares.*Give names, shares defaults"):
         sb.call("code.commit", message="nothing")
+
+
+def test_a_quoted_word_in_a_clarify_is_a_word_not_a_row(db):
+    """tipsAM (2026-09-10): the ladder's clarify said the criterion names no
+    term for 'share', and the door read 'share' as a row id."""
+    from rota.roles import prompts
+
+    sb = build("liaison", db, mode="normal",
+               allow=prompts.mode_tools("liaison", "unresolved"))
+    out = sb.call("msg.clarify_principal", refs=["c1"],
+                  question="The criterion says 'invoices' but names no term for 'share'. "
+                           "What is a share here?")
+    assert out["id"]
+    with pytest.raises(ValueError, match="names no row"):
+        sb.call("msg.clarify_principal", refs=["c1"],
+                question="Is 'tst_9' the right test, or 'c_77'?")

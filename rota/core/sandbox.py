@@ -923,6 +923,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             for token in re.findall(r"['\"`]([a-z][a-z0-9_]{1,30})['\"`]", text):
                 if token in (refs or []) or api.ref_resolves(ctx, token):
                     continue
+                # A quoted English word is a word. tipsAM (2026-09-10): the
+                # ladder reached the Liaison, its clarify said the criterion
+                # names no term for 'share', and the door read 'share' as a
+                # row id three sessions running. An id has a prefix and an
+                # underscore or a digit; a word has neither.
+                if "_" not in token and not any(ch.isdigit() for ch in token):
+                    continue
                 raise ValueError(
                     f"{token!r} names no row, so this question is about your own "
                     f"bookkeeping, not about the project. The principal cannot see "
