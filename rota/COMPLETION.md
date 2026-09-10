@@ -1092,6 +1092,19 @@ merged cold in 34 steps.
    that no desk had reported, "what is the priority for the items in
    batch_1", and the driver answered them with the clarify sentence. Two
    doors landed; the rest is on record.
+   The findings loop (2026-09-10, b33a2ab). `finding_violated` wakes the
+   Developer while a violated finding sits on the head commit and no
+   escalation is open, capped by `loop_cap`. The mode restores what the
+   constraint says and commits, or escalates to the Architect. An
+   escalation over a name the diff removed is refused, a fact about the
+   worktree: llama escalated 5/5 without the door and restores the name
+   5/5 with it. qwen3.5:9b passes the case 5/5 too. tipsAK, the contest
+   walk again with the loop in: the tests passed, the review found the
+   same four constraints violated, the loop woke the Developer three
+   times, and in each session the model read, logged a ledger row that
+   was refused, and ended without a write. Under `ROTA_ONESHOT` the
+   plan is one turn, and the plan had no write. tipsAL runs the same
+   walk with turns.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
@@ -1117,7 +1130,7 @@ stranger installs cold.
 | 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
 | 4 | Register hygiene | Every case recorded on its role's profile model; dead cases retired; reds attributed or zero. |
 | 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
-| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. |
+| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) builds and passes the tests; the merge waits on the findings loop. |
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |
 | 8 | Providers, local only | llama.cpp in scope: a walk and the register recorded on it. Remote providers off the list until wanted. |
 | 9 | Packaging | `pip install` on a clean machine runs `rota onboard`; the prompts, schema, profiles and graph ship as package data. |
