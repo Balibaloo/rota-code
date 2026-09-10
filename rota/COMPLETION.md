@@ -1065,6 +1065,33 @@ merged cold in 34 steps.
    them as the diff. The commit now excludes `.venv` and `.rota` by
    pathspec. The root conftest needs the old TUI's dependencies, and the
    bench fixtures snapshot the Critic brief (refreshed, 9d2e8a5).
+   tipsAJ (2026-09-10), the seat road for A4: the driver contested the
+   page line that named `calculate_tip` as the surface, in words. The
+   Liaison landed the contest, the build ran, and all four tests passed
+   on the second commit, the repository's own and the three of the
+   batch. The Critic passed twice. The batch did not merge: four
+   observed constraints on `calculate_tip` and `display_results` were
+   found violated by the structural review, and no predicate drains a
+   violated finding. The merge gate reads "4 constraint(s) violated" and
+   the run is quiet. That is the next layer, and it is a loop, not a
+   door: who answers a finding, and how it closes. The criteria still
+   name `calculate_tip`; the words went to the owner and did not change
+   the surface. A4 stays open.
+   clickI (2026-09-10), the gauntlet's first foreign repository, three
+   sentences unattended, 250 sessions. Onboarding took two minutes and
+   left four quarantines: the constraint-zero tick, the Architect's
+   survey of the root, and three Critic challenges. All three sentences
+   ratified, presented and landed in words, one batch each. None merged.
+   Walk 1 wrote `__future__.py` at the worktree root and every test in
+   the repository failed at import for twelve attempts (door: a root file
+   may not carry a standard-library module's name). Walk 2's Terminologist,
+   woken for `default_on_eof`, specified criteria for `echo_json` three
+   sessions running and the item was quarantined with none (door: the
+   criteria go to the item the wake named). Walk 3 the same for
+   `show_python`. The Liaison asked two chat questions of the principal
+   that no desk had reported, "what is the priority for the items in
+   batch_1", and the driver answered them with the clarify sentence. Two
+   doors landed; the rest is on record.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.

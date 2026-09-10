@@ -1099,3 +1099,33 @@ def test_rota_commits_with_the_repositorys_hooks_off(tmp_path):
     (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
     assert worktrees.commit(repo, "first")
     assert not marker.exists()
+
+
+def test_a_root_file_cannot_shadow_the_standard_library(db, tmp_path):
+    """clickI (2026-09-10): `__future__.py` at the root broke every import."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="standard-library module 'json'"):
+        sb.call("code.write", path="json.py", text="def dumps(x):\n    return ''\n")
+    assert sb.call("code.write", path="pkg_json.py", text="def dumps(x):\n    return ''\n")["bytes"]
+
+
+def test_criteria_go_to_the_item_the_wake_named(db):
+    """clickI (2026-09-10): woken for one item, the Terminologist wrote the
+    criteria of another, three sessions running."""
+    from rota.core.predicates import Wake
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i2','show the python version','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk2','i2','show python')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               wake=Wake(role="terminologist", kind="tick:criteria", refs=("i2",), detail="criteria"),
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    with pytest.raises(ValueError, match="woken for 'i2', whose tickets are \['tk2'\]"):
+        sb.call("criteria.specify", id="c_x", ticket_id="tk1", text="closing keeps invoices")

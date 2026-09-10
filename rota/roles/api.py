@@ -2829,6 +2829,22 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                 f"criteria.specify(id='c_1', ticket_id={owned[0]!r}, text=...) "
                 f"with a new c_ id of your own and one of those ticket ids")
     _must_exist(ctx, "tickets", ticket_id)
+    # The wake names the item whose tickets want criteria. clickI
+    # (2026-09-10): woken for `show_python`, the Terminologist specified
+    # criteria for `echo_json` three sessions running, and `show_python`
+    # was quarantined with none. The ticket's item is a fact.
+    woken = [r for r in (getattr(ctx, "wake_refs", ()) or ())
+             if ctx.conn.execute("SELECT 1 FROM items WHERE id = ?", (r,)).fetchone()]
+    if woken:
+        owner = ctx.conn.execute(
+            "SELECT item_id FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+        if owner and owner["item_id"] not in woken:
+            theirs = [r["id"] for r in ctx.conn.execute(
+                "SELECT id FROM tickets WHERE item_id = ? ORDER BY id", (woken[0],))]
+            raise ValueError(
+                f"{ticket_id!r} belongs to {owner['item_id']!r}, and you were "
+                f"woken for {woken[0]!r}, whose tickets are {theirs}. Write "
+                f"the criteria for those")
     # An id already claimed by a different ticket's criterion is not this
     # ticket's to reuse. Undetected, a second `criteria.specify` under the
     # same id silently overwrote the first at commit -- same primary key,
@@ -6375,6 +6391,20 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     target = _within(_batch_worktree(ctx), path)
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
+    # A file at the root named like a standard-library module shadows it
+    # for every import in the project. clickI (2026-09-10): the Developer
+    # wrote `__future__.py` in the worktree root and every test of the
+    # repository failed at import, twelve attempts running.
+    import sys as _sys
+    from pathlib import Path as _SP
+    _sp = _SP(path)
+    if (_sp.suffix == ".py" and len(_sp.parts) == 1
+            and _sp.stem in getattr(_sys, "stdlib_module_names", ())):
+        raise ValueError(
+            f"{path} at the project root has the name of the standard-library "
+            f"module {_sp.stem!r}, and every `import {_sp.stem}` in the project "
+            f"would load this file instead. Put the code in the module the "
+            f"criteria name, or under another name")
     # A harness fact about modules, not a judgement about the code. S0 walk
     # ten: `script.py` was right in substance and ran `input()` at module
     # level, so every test that imported it died at collection -- OSError,
