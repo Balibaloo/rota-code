@@ -1235,3 +1235,20 @@ def test_a_new_batch_never_inherits_an_old_runs_branch(db, tmp_path):
     branches = subprocess.run(["git", "-C", str(repo), "branch", "--list", "batch/b1*"],
                               capture_output=True, text=True).stdout
     assert "batch/b1@" in branches
+
+
+def test_the_tests_imports_exclude_the_stdlib_and_the_projects_packages(db, tmp_path):
+    """clickI (2026-09-11): inherited tests import __future__, click and
+    shutil, and every write of a new file was refused for missing modules."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "__init__.py").write_text("", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'",
+               ("from __future__ import annotations\nimport shutil\nimport click\n"
+                "from click.testing import CliRunner\ndef test_x():\n    assert click\n",))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    assert sb.call("code.write", path="echo_json.py",
+                   text="def close_account(a):\n    return 1\n")["bytes"]

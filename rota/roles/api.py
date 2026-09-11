@@ -6709,9 +6709,17 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                                   row["body"] or "", _re.M))
     wanted -= {"pytest", "unittest", "sys", "os", "re", "json", "io",
                "typing", "pathlib", "math", "random", "collections"}
+    # The standard library and the project's own packages are not modules
+    # the batch owes. clickI (2026-09-11): the repository's inherited tests
+    # import __future__, click, shutil and twenty more, and every write of
+    # main.py was refused for "modules that do not exist yet".
+    import sys as _sys
+    wanted -= set(getattr(_sys, "stdlib_module_names", ()))
     root = _worktree_of(ctx)
-    missing = sorted(m for m in wanted if not (root / f"{m}.py").exists()
-                     and not (root / m).is_dir())
+    def _present(m: str) -> bool:
+        return any(((base / f"{m}.py").exists() or (base / m).is_dir())
+                   for base in (root, root / "src", root / "lib"))
+    missing = sorted(m for m in wanted if not _present(m))
     from pathlib import Path as _Path
     stem = _Path(path).stem
     # A rewrite that deletes a name the tests import breaks them with
