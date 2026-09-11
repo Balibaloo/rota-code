@@ -38,3 +38,15 @@ def test_the_harness_runs_its_tests_on_the_chosen_runner(tmp_path, monkeypatch):
     assert verdict == "pass" and said == "1 passed"
     assert seen[0][0] == tmp_path and seen[0][2] == 7
     assert seen[0][1][:2] == ["-m", "pytest"]
+
+
+def test_a_packaged_project_is_installable(tmp_path):
+    """clickI (2026-09-11): a src layout, every test errored on the conftest
+    import of the project itself."""
+    from rota.core.provision import project_installable
+
+    assert not project_installable(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires=['x']\n", encoding="utf-8")
+    assert not project_installable(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='click'\n", encoding="utf-8")
+    assert project_installable(tmp_path)

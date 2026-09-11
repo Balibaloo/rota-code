@@ -54,6 +54,28 @@ def declared_dependencies(root: Path) -> list[str]:
     return [d for d in deps if isinstance(d, str) and d.strip()]
 
 
+def project_installable(root: Path) -> bool:
+    """
+    The project itself is a package the tests import: a `[project]` table
+    in pyproject.toml or a setup.py. clickI (2026-09-11): a src layout,
+    every test errored at the conftest on `No module named 'click'`, and
+    the batch's only test never ran. The dependencies were installed; the
+    project was not.
+    """
+    root = Path(root)
+    if (root / "setup.py").exists():
+        return True
+    pyproject = root / "pyproject.toml"
+    if not pyproject.exists():
+        return False
+    try:
+        import tomllib
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return bool(data.get("project")) or bool((data.get("tool") or {}).get("poetry"))
+
+
 def ensure_env(root: Path, *, timeout: int = 600) -> tuple[Path | None, str]:
     """
     Lay the environment if it is missing. Returns (interpreter, note).
@@ -86,4 +108,19 @@ def ensure_env(root: Path, *, timeout: int = 600) -> tuple[Path | None, str]:
         tail = (out.stderr or out.stdout).strip().splitlines()[-1:] or ["no output"]
         return py, f"{'; '.join(notes)}; pip install failed: {tail[0]}"
     notes.append(f"installed {', '.join(wanted)}")
+    # The project itself, editable and without its dependencies, which are
+    # above. Its build backend runs here: the project's own manifest, the
+    # same trust as its dependencies (AUDIT item 1).
+    if project_installable(root):
+        try:
+            out = execute.run(root, [str(py), "-m", "pip", "install", "-q",
+                                     "--disable-pip-version-check", "--no-deps",
+                                     "-e", "."], timeout=timeout)
+            if out.error or out.returncode != 0:
+                tail = (out.error or out.stderr or out.stdout).strip().splitlines()[-1:] or ["no output"]
+                notes.append(f"project install failed: {tail[0][:160]}")
+            else:
+                notes.append("installed the project (editable)")
+        except KeyError as exc:
+            notes.append(f"project install did not run: {exc}")
     return py, "; ".join(notes)
