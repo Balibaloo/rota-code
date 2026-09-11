@@ -4058,13 +4058,28 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "cause_id": ctx.trigger})
         return {"id": mid, "to": "principal", "said": ask.strip()}
     ask = page
+    refs = json.loads(ask["body_refs"] or "[]")
+    order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"])[1] or []
+    # A page with no numbered line, the touch note, takes an empty ruling:
+    # the reply acknowledged it. tipsAS (2026-09-11): the Liaison sent
+    # rulings={} for the touch note and was refused, the only right
+    # answer, and the page stayed open under "Waiting on you".
+    batches_only = bool(refs) and all(ctx.conn.execute(
+        "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone() for r in refs)
+    if isinstance(rulings, dict) and not rulings and (not order or batches_only):
+        rid = new_id("r", ctx.conn)
+        ctx.writes.append(("rulings", rid, {
+            "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
+            "per_item": json.dumps({r: "approve" for r in refs}),
+            "words": (words or "").strip(), "status": "open"}))
+        return {"id": rid, "per_item": {r: "approve" for r in refs},
+                "note": "the page had no line to rule on; acknowledged"}
     if not isinstance(rulings, dict) or not rulings:
         raise ValueError(
             "rulings is a map of page line number (or row id) to approve, "
             "contest or revise, for example {\"1\": \"approve\", "
             "\"2\": \"contest\"}")
-    refs = json.loads(ask["body_refs"] or "[]")
-    order = render_page(ctx.conn, ask["verb"], refs, ask["body_text"])[1] or refs
+    order = order or refs
     per_item: dict[str, str] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()

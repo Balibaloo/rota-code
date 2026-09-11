@@ -210,3 +210,26 @@ def test_a_clarify_reply_is_the_answer(db):
     ask = Ask(message_id="m1", verb="clarify", refs=["c_1"])
     a = parse_reply(ask, "exactly what the criteria say")
     assert a.verb == "converse" and a.text == "exactly what the criteria say"
+
+
+def test_a_page_with_no_line_takes_an_empty_ruling(db):
+    """tipsAS (2026-09-11): the touch note has no numbered line; the Liaison's
+    empty map was refused and the page stayed open."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i1','split','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+               "body_text, seq, status) VALUES ('m_t','th','liaison','principal','present',"
+               "'[\"b1\"]','Nothing here has been read yet.',1,'open')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
+               "body_text, seq, status, cause_id) VALUES ('m_r','th','principal','liaison',"
+               "'converse','[\"b1\"]','ok',2,'open','m_t')")
+    db.commit()
+    sb = build("liaison", db, mode="normal", session_id="s_l",
+               allow=prompts.mode_tools("liaison", "landing"))
+    sb.ctx.trigger = "m_r"
+    out = sb.call("rulings.rule", rulings={}, words="ok")
+    assert out["per_item"] == {"b1": "approve"} and "acknowledged" in out["note"]
