@@ -243,6 +243,10 @@ def recommend(found: list[Model], sys_: System, benchmarks: list[dict],
     caller, never ranked here."""
     scored: dict[str, dict[str, float]] = {}
     for b in benchmarks:
+        # One recorded case is not a ranking. The first table put qwen3.5:4b
+        # first on two desks on the strength of one case each.
+        if int(b.get("cases", 3) or 0) < 3:
+            continue
         scored.setdefault(b["capability"], {})[b["model"]] = float(b["score"])
     fits = {m.name: fit_of(m, sys_, num_ctx, resident) for m in found}
     out: dict[str, Fit | None] = {}

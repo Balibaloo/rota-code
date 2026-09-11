@@ -40,7 +40,9 @@ def test_recommend_ranks_recorded_models_by_score_within_fit():
              {"model": "qwen3:8b", "capability": "judge", "score": 0.7},
              {"model": "big:70b", "capability": "desk", "score": 0.95},
              {"model": "qwen3:8b", "capability": "desk", "score": 0.8}]
+    bench.append({"model": "new:1b", "capability": "judge", "score": 1.0, "cases": 1})
     out = D.recommend(found, machine, bench, ["judge", "desk", "prose"], num_ctx=12288, resident=1)
+    # One case does not outrank nine: new:1b is shown, never ranked.
     assert out["judge"].model == "llama3.1:8b" and out["judge"].fit == "in_vram"
     # The best-scoring desk model spills to RAM; the one that fits wins.
     assert out["desk"].model == "qwen3:8b"
