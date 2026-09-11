@@ -1209,7 +1209,15 @@ merged cold in 34 steps.
    `utils.py` in windows for all twelve turns, looking for where `echo`
    lives, and never wrote: twelve was written for the toy repository,
    and the cap is a per-run budget now, `ROTA_MAX_ITERATIONS`, 24 for the
-   click nights (5e8911e). Night 14 runs with it.
+   click nights (5e8911e). Night 14, with 24 turns: the Developer read
+   `decorators.py` in windows, the same span four times, logged four
+   ledger rows about the criterion, and never wrote. Twice the turns,
+   the same shape. And under turns the Liaison folded the first two
+   sentences into the pages it was presenting; only the third became a
+   statement, where one-shot nights 9 to 13 had all three. Both are
+   judgements, the Developer's on a six-hundred-line module and the
+   Liaison's with pages pending, and both move with the load. Fourteen
+   nights, ten doors, no merge on click. Left here.
    Night 9, with turns and the narrowed door: all three sentences became
    decided items, the first time on click. Then the Terminologist wrote
    thirty criteria, sixteen of them for the account against
