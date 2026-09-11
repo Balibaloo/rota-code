@@ -507,7 +507,7 @@
   "model": "openai/qwen3.5:9b",
   "capability": "walk:merge",
   "score": 0.0,
-  "cases": 1,
+  "cases": 2,
   "source": "walks",
   "recorded_on": "2026-09-11"
  },
@@ -515,7 +515,7 @@
   "model": "openai/qwen3:8b",
   "capability": "walk:merge",
   "score": 0.0,
-  "cases": 1,
+  "cases": 2,
   "source": "walks",
   "recorded_on": "2026-09-11"
  },
