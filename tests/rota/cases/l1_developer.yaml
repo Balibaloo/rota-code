@@ -386,3 +386,292 @@
     # specification that no longer holds.
     writes: [items, criteria, tickets]
     calls: [code.write, code.commit]
+
+- id: L1-DV-read-the-map-not-the-whole-file
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 3
+  tick: batch_start
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "confirm reads stdin"
+    edit:
+      src/pkg/termui.py: |
+        import sys
+        
+        
+        def helper_0(x):
+            return x + 0
+        
+        
+        def helper_1(x):
+            return x + 1
+        
+        
+        def helper_2(x):
+            return x + 2
+        
+        
+        def helper_3(x):
+            return x + 3
+        
+        
+        def helper_4(x):
+            return x + 4
+        
+        
+        def helper_5(x):
+            return x + 5
+        
+        
+        def helper_6(x):
+            return x + 6
+        
+        
+        def helper_7(x):
+            return x + 7
+        
+        
+        def helper_8(x):
+            return x + 8
+        
+        
+        def helper_9(x):
+            return x + 9
+        
+        
+        def helper_10(x):
+            return x + 10
+        
+        
+        def helper_11(x):
+            return x + 11
+        
+        
+        def helper_12(x):
+            return x + 12
+        
+        
+        def helper_13(x):
+            return x + 13
+        
+        
+        def helper_14(x):
+            return x + 14
+        
+        
+        def helper_15(x):
+            return x + 15
+        
+        
+        def helper_16(x):
+            return x + 16
+        
+        
+        def helper_17(x):
+            return x + 17
+        
+        
+        def helper_18(x):
+            return x + 18
+        
+        
+        def helper_19(x):
+            return x + 19
+        
+        
+        def helper_20(x):
+            return x + 20
+        
+        
+        def helper_21(x):
+            return x + 21
+        
+        
+        def helper_22(x):
+            return x + 22
+        
+        
+        def helper_23(x):
+            return x + 23
+        
+        
+        def helper_24(x):
+            return x + 24
+        
+        
+        def helper_25(x):
+            return x + 25
+        
+        
+        def helper_26(x):
+            return x + 26
+        
+        
+        def helper_27(x):
+            return x + 27
+        
+        
+        def helper_28(x):
+            return x + 28
+        
+        
+        def helper_29(x):
+            return x + 29
+        
+        
+        def helper_30(x):
+            return x + 30
+        
+        
+        def helper_31(x):
+            return x + 31
+        
+        
+        def helper_32(x):
+            return x + 32
+        
+        
+        def helper_33(x):
+            return x + 33
+        
+        
+        def helper_34(x):
+            return x + 34
+        
+        
+        def helper_35(x):
+            return x + 35
+        
+        
+        def helper_36(x):
+            return x + 36
+        
+        
+        def helper_37(x):
+            return x + 37
+        
+        
+        def helper_38(x):
+            return x + 38
+        
+        
+        def helper_39(x):
+            return x + 39
+        
+        
+        def helper_40(x):
+            return x + 40
+        
+        
+        def helper_41(x):
+            return x + 41
+        
+        
+        def helper_42(x):
+            return x + 42
+        
+        
+        def helper_43(x):
+            return x + 43
+        
+        
+        def helper_44(x):
+            return x + 44
+        
+        
+        def helper_45(x):
+            return x + 45
+        
+        
+        def helper_46(x):
+            return x + 46
+        
+        
+        def helper_47(x):
+            return x + 47
+        
+        
+        def helper_48(x):
+            return x + 48
+        
+        
+        def helper_49(x):
+            return x + 49
+        
+        
+        def helper_50(x):
+            return x + 50
+        
+        
+        def helper_51(x):
+            return x + 51
+        
+        
+        def helper_52(x):
+            return x + 52
+        
+        
+        def helper_53(x):
+            return x + 53
+        
+        
+        def helper_54(x):
+            return x + 54
+        
+        
+        def helper_55(x):
+            return x + 55
+        
+        
+        def helper_56(x):
+            return x + 56
+        
+        
+        def helper_57(x):
+            return x + 57
+        
+        
+        def helper_58(x):
+            return x + 58
+        
+        
+        def helper_59(x):
+            return x + 59
+        
+        
+        def confirm(text, default=False):
+            answer = input(text)
+            if not answer:
+                return default
+            return answer.lower().startswith('y')
+      src/pkg/__init__.py: |
+        from .termui import confirm
+      pyproject.toml: |
+        [build-system]
+        requires = ["setuptools"]
+        build-backend = "setuptools.build_meta"
+        [project]
+        name = "pkg"
+        version = "0.0.0"
+  fixture:
+    items:
+      - {id: <i1>, text: "confirm takes a default_on_eof flag: when stdin is closed it returns the default instead of aborting", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "let confirm take default_on_eof"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "with default_on_eof set and stdin closed, confirm returns its default",
+         term_refs: '[]', surface_refs: '["src/pkg/termui.py::confirm"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    calls: [code.source, code.write, code.commit]
+  forbidden:
+    writes: [criteria, tests]
+    calls: [msg.question_vision_keeper, msg.question_terminologist]

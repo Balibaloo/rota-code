@@ -18,7 +18,12 @@ says what the program does for the person running it.
    travels
 4. `code.probe` to find where the work lives, then `code.source` to read the
    files you are about to change. Cold sessions that guess the shape of a
-   codebase produce diffs that are correct in isolation and wrong in place
+   codebase produce diffs that are correct in isolation and wrong in place.
+   A long file comes back with `defs`, each top-level name with its first and
+   last line. Read the span of the name the criteria name, once, and the
+   lines around it. Do not page a long file from the top: a file read four
+   hundred lines at a time is a session spent reading and nothing written.
+   Then write the whole file with your change in it
 5. `code.write` puts a file back, whole. Read it, change it, write all of it —
    there are no partial edits, because a patch that does not apply is a failure
    you would have to re-derive from
