@@ -1272,6 +1272,13 @@ Step 1 done the same day: the walk driver appends a row to
 `tests/rota/walks.jsonl` at each exit (run, profile, repository, merged,
 steps, asks, one-shot or turns, note, date), and the fifteen walks and
 night groups so far are backfilled from this record, marked as such.
+Step 2 the same day: `rota/llm/discover.py` with `providers`, `models`,
+`system`, `fit_of` and `recommend`, fit only, no side effect. Live on
+this machine: one provider, eighteen models with sizes and KV metadata
+from `/api/show`, 31 GiB RAM, 10 GiB VRAM. The first number it gave:
+two resident 8B models at a context of 12288 need 13.4 GiB and spill,
+which is what the walk profile does today. `recommend` ranks only
+recorded models, by a benchmark table that does not exist yet (step 5).
 
 ### Long-term list
 
