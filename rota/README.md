@@ -78,6 +78,7 @@ the cockpit renders; this is only ever the current call.
 | `ctrl+alt+r` | wipe, then index the same project again |
 | `alt+w` | wipe: worktrees, processes, then the file |
 | `alt+b` | the cockpit, on the run you are in |
+| `alt+m` | model setup: the providers and models this machine can serve, what it holds, a recommendation, and a profile file written from it |
 
 Everything that destroys something arms rather than fires, and the confirmation
 is typing the run's name — the same rule `rota wipe` uses, and it costs the one
