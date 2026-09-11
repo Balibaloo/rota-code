@@ -4044,10 +4044,11 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         raise ValueError(
             "this reply is already read: one ruling per reply. Stop")
     if (ask or "").strip():
-        if rulings:
-            raise ValueError(
-                "either a ruling or a question, not both. A ruling closes the "
-                "page; a question keeps it open for the next reply")
+        # A question beside a ruling is the question. The register
+        # (2026-09-11): qwen3:8b answered a question about line 3 with the
+        # right sentence in `ask` and a rulings map beside it, 5/5, and
+        # the refusal "not both" cost the answer. The map is dropped: a
+        # question keeps the page open, and the next reply rules.
         if any(m["to_role"] == "principal" for m in (ctx.outbound or [])):
             raise ValueError("the principal has your sentence. Stop")
         refs = json.loads(page["body_refs"] or "[]")
