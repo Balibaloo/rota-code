@@ -120,7 +120,15 @@ def step(
     if max_iterations is None:
         from .runner import MAX_ITERATIONS
 
-        max_iterations = MAX_ITERATIONS
+        # A larger repository needs more turns to read before it writes.
+        # clickI night 13 (2026-09-11): the Developer read utils.py in
+        # windows for all twelve turns, looking for where echo lives, and
+        # never wrote. The cap is a budget, and a budget is set per run.
+        import os as _os
+        try:
+            max_iterations = int(_os.environ.get("ROTA_MAX_ITERATIONS") or MAX_ITERATIONS)
+        except ValueError:
+            max_iterations = MAX_ITERATIONS
 
     result = Step()
 
