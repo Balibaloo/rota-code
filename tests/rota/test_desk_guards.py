@@ -1290,8 +1290,13 @@ def test_a_new_module_goes_into_the_src_package(db, tmp_path):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
+    (root / "src" / "click" / "main.py").write_text("def main():" + chr(10) + "    pass" + chr(10), encoding="utf-8")
+    db.execute("UPDATE criteria SET surface_refs = '[\"echo_json\"]' WHERE id = 'c1'")
+    db.commit()
     with pytest.raises(ValueError, match="src/click/echo_json.py"):
         sb.call("code.write", path="echo_json.py", text="def echo_json(o):\n    return o\n")
+    with pytest.raises(ValueError, match="src/click/echo_json.py"):
+        sb.call("code.write", path="main.py", text="def echo_json(o):" + chr(10) + "    return o" + chr(10))
     assert sb.call("code.write", path="src/click/echo_json.py",
                    text="def echo_json(o):\n    return o\n")["bytes"]
 

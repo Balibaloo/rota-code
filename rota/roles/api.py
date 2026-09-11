@@ -6559,10 +6559,21 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (ctx.batch_id,))
             for r in json.loads(c["surface_refs"] or "[]") if "::" in r}
         if path not in named_roots:
+            # The place suggested must be free. clickI night 12 (2026-09-11):
+            # the suggestion was src/click/main.py, which exists and is the
+            # package's entry point, and the rewrite was refused for that.
+            bare = sorted({r for c in ctx.conn.execute(
+                "SELECT c.surface_refs FROM criteria c JOIN batch_tickets bt "
+                "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (ctx.batch_id,))
+                for r in json.loads(c["surface_refs"] or "[]") if "::" not in r})
+            where = _root / "src" / _pkgs[0] / _sp.name
+            if where.exists() and bare:
+                where = _root / "src" / _pkgs[0] / f"{bare[0]}.py"
             raise ValueError(
                 f"{path} is a new module at the project root, and the project's "
                 f"package lives in src/{_pkgs[0]}. A module the tests import as "
-                f"part of the project goes there: src/{_pkgs[0]}/{_sp.name}")
+                f"part of the project goes there, in a file of its own: "
+                f"{where.relative_to(_root).as_posix()}")
     if (_sp.suffix == ".py" and len(_sp.parts) == 1
             and _sp.stem in getattr(_sys, "stdlib_module_names", ())):
         raise ValueError(
@@ -7053,7 +7064,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                            for py in tree.rglob("*.py")
                            if ".venv" not in py.parts and ".rota" not in py.parts
                            and "tests" not in py.parts):
-                    undefined.append(f"{ref} ({crit['id']})")
+                    undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
             if not ref.split("::", 1)[0].endswith(".py"):
                 continue
@@ -7069,7 +7080,7 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             except SyntaxError:
                 continue
             if name not in defs:
-                undefined.append(f"{ref} ({crit['id']})")
+                undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
     if undefined:
         raise ValueError(
             f"the tree does not define {', '.join(undefined)}, the surface "
