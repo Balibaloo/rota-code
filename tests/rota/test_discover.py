@@ -101,3 +101,41 @@ def test_a_user_profile_is_written_from_a_shipped_one(tmp_path, monkeypatch):
     back = profile.find("mine")
     assert back.default_model == "qwen3:8b" and back.roles == {"critic": "llama3.1:8b"}
     assert back.pins.get("num_ctx") == 12288 and "key" not in path.read_text(encoding="utf-8")
+
+
+def test_capability_groups_come_from_the_modes_tools():
+    """plans/model-setup.md step 7: the partition is the graph's. A mode may
+    sit in a different group from its role."""
+    from rota.llm import groups
+
+    assert groups.group_of(["code.source", "code.write", "code.commit"]) == "code"
+    assert groups.group_of(["transcript.quote", "msg.clarify_principal"]) == "prose"
+    assert groups.group_of(["tickets.scan", "batches.group"]) == "rows"
+    by = groups.by_mode()
+    assert by[("architect", "survey")] == "code" and by[("architect", "grouping")] == "rows"
+    assert by[("developer", "batch_start")] == "code"
+    assert by[("liaison", "landing")] == "prose"
+    g = groups.groups()
+    assert set(g) <= {"code", "prose", "rows"} and sum(len(v) for v in g.values()) == len(by)
+    assert groups.group_of_role("developer") == "code"
+
+
+def test_group_rows_fold_the_roles_by_cases():
+    from rota.llm import benchmarks as B
+
+    reg = [{"model": "m", "capability": "DV", "score": 1.0, "cases": 2},
+           {"model": "m", "capability": "TS", "score": 0.5, "cases": 2},
+           {"model": "m", "capability": "LI", "score": 0.9, "cases": 5}]
+    rows = {r["capability"]: r for r in B.by_group(reg)}
+    assert rows["group:code"]["score"] == 0.75 and rows["group:code"]["cases"] == 4
+    assert rows["group:prose"]["score"] == 0.9
+
+
+def test_pull_on_a_remote_or_a_llamacpp_server_never_guesses(monkeypatch):
+    from rota.llm import discover as D
+
+    remote = D.Provider("acme", "litellm", "https://api.acme.test/v1", remote=True)
+    assert D.pull(remote, "x")["pulled"] is False
+    monkeypatch.setattr(D, "models", lambda p, key=None: [D.Model("llamacpp", "served.gguf")])
+    local = D.Provider("llamacpp", "litellm", "http://localhost:8080/v1")
+    assert D.pull(local, "served.gguf")["found"] and not D.pull(local, "other.gguf")["found"]

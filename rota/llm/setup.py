@@ -70,8 +70,11 @@ def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None =
         f = D.fit_of(m, machine, num_ctx, loaded_bytes=lb)
         rows.append(Row(m.provider, m.name, f.fit, (f.need_bytes or 0) >> 20 or None,
                         scores.get(m.name, {}), m.name in recorded))
-    groups = sorted({r["capability"] for r in table
-                     if not r["capability"].startswith(("transport:", "walk:"))})
+    # The derived groups when the table has them (step 7), the roles before.
+    groups = sorted({r["capability"] for r in table if r["capability"].startswith("group:")})
+    if not groups:
+        groups = sorted({r["capability"] for r in table
+                         if not r["capability"].startswith(("transport:", "walk:"))})
     rec = D.recommend(found, machine, table, groups, num_ctx=num_ctx, resident=1)
     recommendation = {g: (fit.model if fit else None) for g, fit in rec.items()}
     return Plan(providers, machine, rows, recommendation, groups)
@@ -88,7 +91,18 @@ def choose(plan_: Plan) -> tuple[str, dict[str, str]]:
     for m in picks.values():
         counts[m] = counts.get(m, 0) + 1
     default = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-    roles = {ROLE_OF.get(g, g): m for g, m in picks.items() if m != default and g in ROLE_OF}
+    roles: dict[str, str] = {}
+    for g, m in picks.items():
+        if m == default:
+            continue
+        if g in ROLE_OF:
+            roles[ROLE_OF[g]] = m
+        elif g.startswith("group:"):
+            # A group's model reaches every role whose modes mostly sit in it.
+            from . import groups as groups_mod
+            for role in ROLE_OF.values():
+                if groups_mod.group_of_role(role) == g.split(":", 1)[1]:
+                    roles[role] = m
     return default, roles
 
 

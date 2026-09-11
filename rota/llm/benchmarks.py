@@ -100,11 +100,35 @@ def profile_models() -> dict[str, list[str]]:
     return out
 
 
+ROLE_OF_TAG = {"LI": "liaison", "VK": "vision_keeper", "TE": "terminologist", "AR": "architect",
+               "DV": "developer", "TS": "tester", "CR": "critic", "RS": "researcher"}
+
+
+def by_group(register_rows: list[dict]) -> list[dict]:
+    """Role rows folded into the capability groups the modes derive
+    (plans/model-setup.md, step 7): per (model, group), the case-weighted
+    pass share of the roles that sit in the group."""
+    from . import groups as groups_mod
+    tally: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0])
+    for r in register_rows:
+        role = ROLE_OF_TAG.get(r["capability"])
+        if not role:
+            continue
+        g = groups_mod.group_of_role(role)
+        tally[(r["model"], g)][0] += float(r["score"]) * int(r["cases"])
+        tally[(r["model"], g)][1] += int(r["cases"])
+    today = datetime.date.today().isoformat()
+    return [{"model": m, "capability": f"group:{g}", "score": round(w / n, 3), "cases": n,
+             "source": "register", "recorded_on": today}
+            for (m, g), (w, n) in sorted(tally.items()) if n]
+
+
 def build(dev_db: Path | None = None, walks: Path | None = None) -> list[dict]:
     from . import cassettes
     conn = cassettes.open_dev_db(dev_db or paths.DEV_DB)
     try:
-        rows = from_register(conn) + from_tool_check(conn)
+        reg = from_register(conn)
+        rows = reg + by_group(reg) + from_tool_check(conn)
     finally:
         conn.close()
     rows += from_walks(walks or (paths.REPO / "tests" / "rota" / "walks.jsonl"), profile_models())

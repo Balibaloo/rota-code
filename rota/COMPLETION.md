@@ -1335,6 +1335,14 @@ profile with the chosen models, keys never in it. Today's recommendation
 reads: default llama3.1:8b, Liaison qwen3:8b, Vision Keeper qwen3.5:9b,
 which is the register speaking; the walks say `local` merges. The
 disagreement the plan names, now visible on one screen.
+Steps 7, 8 and 9 the same day. Groups are derived, `rota/llm/groups.py`:
+a mode's tools give its shape, code, prose or rows; seventy modes fall
+29, 21 and 20; the Architect's survey is code and its grouping rows, as
+the plan said. The table carries `group:` rows folded from the roles by
+cases, and the recommendation reads them first. `discover.pull` pulls
+from Ollama with streamed progress, says found or not found on a
+llama.cpp endpoint, and never guesses a folder. The cockpit serves
+`/setup.json` from the same backend, read only.
 
 ### Long-term list
 

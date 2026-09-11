@@ -275,3 +275,34 @@ def recommend_from_record(found: list[Model], sys_: System, groups: list[str] | 
                              if not r["capability"].startswith(("transport:", "walk:"))})
     return recommend(found, sys_, table, caps, num_ctx=num_ctx, resident=1)
 
+
+def pull(provider: Provider, model: str, progress=None) -> dict:
+    """The one side effect (plans/model-setup.md, step 8). Ollama pulls with
+    streamed progress, `progress(status, completed, total)` per line. A
+    llama.cpp server has no pull: the answer names the model and says found
+    or not found on its endpoint. A remote provider has no pull. Never a
+    guessed folder."""
+    if provider.kind == "ollama":
+        req = urllib.request.Request(f"{provider.endpoint}/api/pull",
+                                     data=json.dumps({"model": model, "stream": True}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        last: dict = {}
+        with urllib.request.urlopen(req, timeout=3600) as resp:
+            for raw in resp:
+                try:
+                    last = json.loads(raw.decode("utf-8"))
+                except ValueError:
+                    continue
+                if progress:
+                    progress(last.get("status", ""), last.get("completed"), last.get("total"))
+                if last.get("error"):
+                    return {"model": model, "pulled": False, "error": last["error"]}
+        return {"model": model, "pulled": last.get("status") == "success", "status": last.get("status", "")}
+    if provider.remote:
+        return {"model": model, "pulled": False, "error": "a remote provider serves what it serves; nothing to pull"}
+    served = {m.name for m in models(provider)}
+    return {"model": model, "pulled": False,
+            "found": model in served,
+            "note": ("served by this endpoint" if model in served else
+                     "not found on this endpoint; place the file where the server expects it and restart it")}
+

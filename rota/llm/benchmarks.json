@@ -304,6 +304,134 @@
   "recorded_on": "2026-09-11"
  },
  {
+  "model": "llama3.1:8b",
+  "capability": "group:code",
+  "score": 0.772,
+  "cases": 57,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "group:prose",
+  "score": 0.815,
+  "cases": 27,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "group:rows",
+  "score": 0.833,
+  "cases": 24,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "group:code",
+  "score": 0.0,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "group:prose",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "group:rows",
+  "score": 1.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:latest",
+  "capability": "group:code",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "group:code",
+  "score": 0.333,
+  "cases": 3,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "group:prose",
+  "score": 1.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "group:rows",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "group:code",
+  "score": 0.627,
+  "cases": 51,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "group:prose",
+  "score": 0.857,
+  "cases": 21,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "group:rows",
+  "score": 0.826,
+  "cases": 23,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "group:code",
+  "score": 0.688,
+  "cases": 48,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "group:prose",
+  "score": 0.92,
+  "cases": 25,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "group:rows",
+  "score": 0.739,
+  "cases": 23,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
   "model": "openai/qwen3.5:9b",
   "capability": "transport:native-call",
   "score": 1.0,

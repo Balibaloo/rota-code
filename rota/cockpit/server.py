@@ -414,6 +414,26 @@ def make_handler(db_path: Path):
                     self._send(body, "application/json")
                 elif path == "/fingerprint":
                     self._send(source_fingerprint().encode("utf-8"), "text/plain")
+                elif path == "/setup.json":
+                    # Model setup for the cockpit: the same backend the TUI
+                    # modal calls (plans/model-setup.md, step 9). Read only;
+                    # the profile is written from the TUI or the command line.
+                    from ..llm import setup as setup_mod
+                    from dataclasses import asdict
+                    try:
+                        plan_ = setup_mod.plan(driving=False)
+                        default, roles = setup_mod.choose(plan_)
+                        body = json.dumps({
+                            "providers": [asdict(p) for p in plan_.providers],
+                            "machine": asdict(plan_.machine),
+                            "rows": [asdict(r) for r in plan_.rows],
+                            "recommendation": plan_.recommendation,
+                            "groups": plan_.groups,
+                            "choice": {"default": default, "roles": roles},
+                        }, default=str).encode("utf-8")
+                    except Exception as exc:
+                        body = json.dumps({"error": str(exc)}).encode("utf-8")
+                    self._send(body, "application/json")
                 elif path == "/state.json":
                     conn = connect_readonly(state["db"])
                     try:
