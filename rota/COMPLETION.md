@@ -1202,6 +1202,14 @@ merged cold in 34 steps.
    a callable, "a function named X" or "X()", and stays green on both
    judges. Two of the three sentences never reached a confirm under
    turns; on record, unread.
+   Nights 12 and 13 (2026-09-11): the placement door had suggested
+   `src/click/main.py`, which exists and is the package's entry point,
+   so the rewrite was refused for that; the suggestion is now a free
+   file named after the surface (9f6765d). Then the Developer read
+   `utils.py` in windows for all twelve turns, looking for where `echo`
+   lives, and never wrote: twelve was written for the toy repository,
+   and the cap is a per-run budget now, `ROTA_MAX_ITERATIONS`, 24 for the
+   click nights (5e8911e). Night 14 runs with it.
    Night 9, with turns and the narrowed door: all three sentences became
    decided items, the first time on click. Then the Terminologist wrote
    thirty criteria, sixteen of them for the account against
