@@ -227,3 +227,21 @@ def test_a_surface_names_the_callable_the_item_names(db):
                   text="each share is the total with tip divided by the people",
                   surface_refs=["main.py::split_bill"])
     assert out["id"] == "c_9"
+
+
+def test_a_call_with_arguments_names_the_callable(db):
+    """clickI night 11 (2026-09-11): "an echo_json(obj, indent=2) helper" did
+    not match the door's X() shape, and echo_json was refused as invented."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i8', 'Add an echo_json(obj, indent=2) helper next to echo.', "
+               "'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk8','i8','add echo_json')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    assert sb.call("criteria.specify", id="c_8", ticket_id="tk8",
+                   text="echo_json prints the object as JSON",
+                   surface_refs=["echo_json"])["id"] == "c_8"

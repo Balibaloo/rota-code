@@ -1332,3 +1332,21 @@ def test_an_invented_bare_surface_is_refused(db):
                 surface_refs=["range_argument"])
     assert sb.call("criteria.specify", id="c_9", ticket_id="tk9", text="each share is equal",
                    surface_refs=["split_bill"])["id"] == "c_9"
+
+
+def test_a_long_source_read_maps_its_definitions(db, tmp_path):
+    """clickI night 11 (2026-09-11): the Developer paged a long file four
+    hundred lines at a time and never found the function."""
+    root = tmp_path / "wt"; root.mkdir()
+    body = "\n".join(["import os", ""] + [f"def f{i}():\n    return {i}\n" for i in range(300)]
+                     + ["def confirm(text, default=False):\n    return default\n"])
+    (root / "termui.py").write_text(body, encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.source", path="termui.py", start=0, end=400)
+    assert out["lines"] > 400 and "confirm" in out["defs"]
+    start, end = out["defs"]["confirm"]
+    assert "def confirm" in sb.call("code.source", path="termui.py", start=start, end=end)["text"]

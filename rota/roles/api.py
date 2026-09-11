@@ -2862,7 +2862,7 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     names = set(_re.findall(
         r"(?:function|callable|method|helper|decorator)\s+(?:named|called)?\s*`?([A-Za-z_][A-Za-z0-9_]*)`?",
         text))
-    names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(\)`?", text))
+    names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(", text))
     names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to"}
     out = []
     for name in sorted(names):
@@ -6246,6 +6246,23 @@ def code_source(ctx: Ctx, path: str, start: int = 0, end: int = 400) -> dict:
     ctx.read_words.update(_words_in(body))
     out = {"path": path, "start": start, "end": end,
            "text": chr(10).join(lines[start:end]), "lines": len(lines)}
+    # Where the definitions are, so a long file is read at the right
+    # place. clickI night 11 (2026-09-11): the Developer paged termui.py
+    # four hundred lines at a time looking for `confirm`, read the same
+    # windows twice, and ran out of turns without a write.
+    if path.endswith(".py") and len(lines) > end - start:
+        import ast as _ast
+        try:
+            tree = _ast.parse(chr(10).join(lines))
+            out["defs"] = {n.name: [n.lineno - 1, getattr(n, "end_lineno", n.lineno)]
+                           for n in tree.body
+                           if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+            out["note"] = ((note + " ") if note else "") + (
+                "defs maps each top-level name to its [start, end) lines; "
+                "read the one you need with those numbers")
+            note = out["note"]
+        except SyntaxError:
+            pass
     if note:
         out["note"] = note
     return out
