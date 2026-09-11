@@ -1268,6 +1268,10 @@ screen that discovers providers and models, reads what the machine can
 hold, recommends from measured benchmarks, and writes a user profile. Ten
 steps in order, the first being that walks write their own result row
 (profile, repository, merged, steps). Not built. Not ruled.
+Step 1 done the same day: the walk driver appends a row to
+`tests/rota/walks.jsonl` at each exit (run, profile, repository, merged,
+steps, asks, one-shot or turns, note, date), and the fifteen walks and
+night groups so far are backfilled from this record, marked as such.
 
 ### Long-term list
 
