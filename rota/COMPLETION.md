@@ -1158,6 +1158,19 @@ merged cold in 34 steps.
    specify and repair cases stay green. A4 has its door for the case
    where the principal names the function; the case where they do not
    still rides the seat.
+   tipsAN (2026-09-11), the merge re-earned. One sentence, "split the
+   bill ... in a new function named split_bill", a principal that only
+   ever said yes, no contest. The criteria named `split_bill` three
+   times. The Developer wrote `split_bill.py` and a `split_bill` in
+   main.py, the Tester wrote three tests, all green with the
+   repository's own, the Critic passed. The last layer was constraint
+   zero: four k0 findings against the batch's own new files, which the
+   review called violated and nothing could restore. Constraint zero is
+   a fact about the register, not a rule (c633eb1). Resumed, the batch
+   merged: tipsI master 37fc850, four tests green on the merged tree,
+   branch `tipsAN-merged` kept. The second honest merge on the
+   repository, and the first through the text seat. tipsAO runs the
+   same sentence cold, with no lifted quarantine, to earn it clean.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
@@ -1183,7 +1196,7 @@ stranger installs cold.
 | 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
 | 4 | Register hygiene | Every case recorded on its role's profile model; dead cases retired; reds attributed or zero. |
 | 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
-| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The surface door makes the marker case green on both judges (2026-09-11). The merge waits on a walk. |
+| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The surface door makes the marker case green on both judges (2026-09-11). tipsAN merged through the text seat with a yes-only principal. |
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |
 | 8 | Providers, local only | llama.cpp in scope: a walk and the register recorded on it. Remote providers off the list until wanted. |
 | 9 | Packaging | `pip install` on a clean machine runs `rota onboard`; the prompts, schema, profiles and graph ship as package data. |
