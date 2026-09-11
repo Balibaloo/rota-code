@@ -1206,3 +1206,32 @@ def test_a_quoted_word_in_a_clarify_is_a_word_not_a_row(db):
     with pytest.raises(ValueError, match="names no row"):
         sb.call("msg.clarify_principal", refs=["c1"],
                 question="Is 'tst_9' the right test, or 'c_77'?")
+
+
+def test_a_new_batch_never_inherits_an_old_runs_branch(db, tmp_path):
+    """clickI (2026-09-11): onboard --force wiped the database, not the
+    repository; the old batch branch came back with the old run's files."""
+    import subprocess
+
+    from rota.core import worktrees
+
+    repo = tmp_path / "repo"; repo.mkdir()
+    for cmd in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+        subprocess.run(["git", "-C", str(repo), *cmd], check=True)
+    (repo / "main.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "base"], check=True)
+    # An old run's branch with a stray file on it.
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "batch/b1"], check=True)
+    (repo / "__future__.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "stray"], check=True)
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-"], check=True)
+    db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)", (str(repo),))
+    db.execute("UPDATE batches SET head_commit = NULL, worktree = NULL WHERE id = 'b1'")
+    db.commit()
+    path = worktrees.create(db, "b1")
+    assert not (path / "__future__.py").exists()
+    branches = subprocess.run(["git", "-C", str(repo), "branch", "--list", "batch/b1*"],
+                              capture_output=True, text=True).stdout
+    assert "batch/b1@" in branches

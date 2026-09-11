@@ -1177,6 +1177,15 @@ merged cold in 34 steps.
    tipsI master ce7631f, four tests green, branch `tipsAP-merged`. The
    merge is re-earned clean. One Critic challenge on an observed
    constraint stays quarantined beside it, blocking nothing.
+   click, third night (2026-09-11), after the five doors: walk 1 built
+   `echo_json` and stalled on the repository's own tests, which failed
+   at import on `__future__.py` again. The door holds; the file came
+   from the previous run's `batch/batch_1` branch, which `onboard
+   --force` wipes from the database and not from the repository, and
+   `worktrees.create` checked the old branch out again. Walks 2 and 3
+   queued behind batch_1. The Tester's tests were refused for a body
+   that was not Python, unescaped quotes inside a JSON string, correctly
+   and with no second turn to fix it.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.

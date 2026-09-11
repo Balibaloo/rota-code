@@ -117,6 +117,16 @@ def create(conn: sqlite3.Connection, batch_id: str) -> Path:
         if old_sha:
             _git(root, "branch", "-m", branch, f"{branch}@{old_sha}", check=False)
     existing = _git(root, "branch", "--list", branch, check=False).strip()
+    # A batch that has not started yet never inherits a branch. clickI
+    # (2026-09-11): `onboard --force` wiped the database and not the
+    # repository, the old `batch/batch_1` stayed, the new batch checked it
+    # out and the old run's `__future__.py` broke every test again.
+    started = conn.execute(
+        "SELECT head_commit FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    if existing and not (started and started["head_commit"]):
+        old_sha = _git(root, "rev-parse", "--short", branch, check=False).strip()
+        _git(root, "branch", "-m", branch, f"{branch}@{old_sha or 'old'}", check=False)
+        existing = ""
     args = ["worktree", "add", "-q"]
     args += [str(path), branch] if existing else ["-b", branch, str(path)]
     _git(root, *args)
