@@ -1194,7 +1194,14 @@ merged cold in 34 steps.
    surface must be defined and a new module joins the installed package
    (f464d28). Night 7 ended where one-shot walks end: the Developer wrote
    `echo_json_helper` under src/click, the commit door asked for
-   `echo_json`, and no turn came to hear it. Night 8 runs with turns.
+   `echo_json`, and no turn came to hear it. Night 8, with turns: the
+   surface door read "give version_option a show_python flag" as a flag
+   the criteria had to name as a callable, the Terminologist named the
+   item's own id as the surface, and the Developer could define no such
+   thing in twelve turns. The door now takes only names the words call
+   a callable, "a function named X" or "X()", and stays green on both
+   judges. Two of the three sentences never reached a confirm under
+   turns; on record, unread.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.

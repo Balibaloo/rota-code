@@ -2835,8 +2835,16 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     if not row:
         return []
     text = f"{row['item'] or ''} {row['ticket'] or ''}"
-    names = set(_re.findall(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b", text))
-    names |= set(_re.findall(r"(?:function|callable|method)\s+(?:named|called)\s+`?([A-Za-z_][A-Za-z0-9_]*)", text))
+    # Only names the words call a callable: "a function named X", "X()".
+    # A bare snake_case word is not enough. clickI night 8 (2026-09-11):
+    # "give version_option a show_python flag" made `show_python`, a flag,
+    # a callable the criteria had to name, and the Terminologist named
+    # the item's own id instead.
+    names = set(_re.findall(
+        r"(?:function|callable|method|helper|decorator)\s+(?:named|called)?\s*`?([A-Za-z_][A-Za-z0-9_]*)`?",
+        text))
+    names |= set(_re.findall(r"`?([A-Za-z_][A-Za-z0-9_]*)\(\)`?", text))
+    names -= {"a", "the", "named", "called", "new", "that", "which", "in", "to"}
     out = []
     for name in sorted(names):
         known = ctx.conn.execute(
