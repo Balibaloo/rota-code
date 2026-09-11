@@ -126,3 +126,32 @@ def test_the_litellm_backend_returns_a_completion(monkeypatch):
     out = backend.complete("sys", "user", llm.Pins(model="openai/qwen3:8b", temperature=0.0))
     assert out.text.startswith("TOOL:") and out.backend == "litellm"
     assert out.tool_calls and out.tool_calls[0].name == "rulings.rule"
+
+
+def test_the_tool_check_reads_both_transports():
+    """plans/model-setup.md step 4: one prompt must come back as a TOOL: line,
+    one as a native call, pass or fail, no judgement."""
+    import types
+
+    from rota.llm import llm, toolcheck
+
+    class Good:
+        name = "fake"
+        def complete(self, system, user, pins, tools=None):
+            if tools:
+                return llm.Completion(text="", pins=pins, backend="fake",
+                                      tool_calls=[types.SimpleNamespace(name="ledger.log", args={})])
+            return llm.Completion(text="TOOL: ledger.log(about_ref='i_1', about_table='items', "
+                                       "assumption='the check runs')", pins=pins, backend="fake")
+
+    class Mute:
+        name = "mute"
+        def complete(self, system, user, pins, tools=None):
+            return llm.Completion(text="I would log an assumption here.", pins=pins, backend="mute")
+
+    pins = llm.Pins(model="m", temperature=0.0)
+    good = toolcheck.check(Good(), pins)
+    assert good.tool_line and good.native_call and good.problems == []
+    mute = toolcheck.check(Mute(), pins)
+    assert not mute.tool_line and not mute.native_call and len(mute.problems) == 2
+    assert toolcheck.case_ids("local") == ("T0-PROVIDER-local-tool-line", "T0-PROVIDER-local-native-call")

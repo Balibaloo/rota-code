@@ -552,6 +552,33 @@ def cmd_profile(args: argparse.Namespace) -> int:
     if args.action == "show":
         print(_json.dumps(prof.to_dict(), indent=1))
         return 0
+    if args.action == "toolcheck":
+        # Two fixed prompts against every model the profile names, recorded
+        # like cases under their own tier (plans/model-setup.md, step 4).
+        from . import paths
+        from .llm import cassettes, toolcheck
+
+        backend = prof.backend()
+        dev = cassettes.open_dev_db(paths.DEV_DB)
+        failed = 0
+        for model in sorted({prof.default_model, *prof.roles.values()}):
+            pins = prof.pins_for(None)
+            pins = pins.__class__(**{**pins.__dict__, "model": model})
+            res = toolcheck.check(backend, pins)
+            line_id, native_id = toolcheck.case_ids(prof.name)
+            cassettes.record_case_run(dev, line_id, pins, 1, res.tool_line,
+                                      [] if res.tool_line else [res.problems[0]],
+                                      [{"say": res.tool_line_said}])
+            cassettes.record_case_run(dev, native_id, pins, 1, res.native_call,
+                                      [] if res.native_call else [res.problems[-1]],
+                                      [{"say": res.native_said}])
+            dev.commit()
+            print(f"{model:24} TOOL: line {'ok' if res.tool_line else 'FAIL'}   "
+                  f"native call {'ok' if res.native_call else 'FAIL'}")
+            failed += (not res.tool_line) + (not res.native_call)
+        dev.close()
+        print(f"{prof.name}: " + ("supported" if not failed else f"{failed} check(s) failed"))
+        return 1 if failed else 0
     problems = prof.check()
     for line in problems:
         print(f"  {line}")
@@ -884,7 +911,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
     p = sub.add_parser("profile", help="run profiles: list, show, check, set")
-    p.add_argument("action", choices=("list", "show", "check", "set"))
+    p.add_argument("action", choices=("list", "show", "check", "set", "toolcheck"))
     p.add_argument("target", nargs="?", help="a profile name, or a run name for set")
     p.add_argument("assignment", nargs="?", help="set: dotted.key=value")
     p.add_argument("--root", help="a project whose .rota/profiles to include")

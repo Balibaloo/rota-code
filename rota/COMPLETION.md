@@ -1308,6 +1308,14 @@ or `~/.rota/keys.env`, restricted to the user; the environment wins;
 `profile check` says, for a remote endpoint, that prompts and the
 repository's code are sent there. The modal's screen sentence has its
 source. The TUI modal itself is step 6.
+Step 4 the same day: the provider tool check, `rota profile toolcheck
+<name>`, two fixed prompts per model the profile names, a `TOOL:` line
+and a native call, recorded in the register under the `T0-PROVIDER`
+tier. Live: `local` passes the line on both models and the native call
+on qwen3:8b only, qwen3.5:9b answered the schema with text through
+Ollama's own API; `local-openai` passes all four through litellm, the
+same models behind the OpenAI shape. A fact about the transport, and
+the first row of the benchmarks table (step 5).
 
 ### Long-term list
 
