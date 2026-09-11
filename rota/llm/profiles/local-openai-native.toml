@@ -1,0 +1,21 @@
+# local-openai with native tool calling on: the transport the tool check
+# passed on both models through litellm (plans/model-setup.md, step 10).
+# A walk measures whether the desks judge as well with native calls.
+name = "local-openai-native"
+native_tools = true
+
+[provider]
+kind = "litellm"
+endpoint = "http://localhost:11434/v1"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "openai/qwen3:8b"
+tester = "openai/qwen3.5:9b"
+critic = "openai/qwen3.5:9b"
+terminologist = "openai/qwen3.5:9b"
+developer = "openai/qwen3.5:9b"
