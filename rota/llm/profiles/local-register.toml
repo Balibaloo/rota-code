@@ -1,0 +1,17 @@
+# The register's model on every desk. Recorded per role on 2026-09-11:
+# llama3.1:8b passes more cases than qwen3:8b or qwen3.5:9b on every desk
+# but the Liaison, where qwen3:8b is one ahead. The briefs were tuned on
+# llama. Whether the merge prefers it is measured by a walk, not by this
+# file: `local` is what merged tipsAP.
+name = "local-register"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "llama3.1:8b"
