@@ -6465,6 +6465,33 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     import sys as _sys
     from pathlib import Path as _SP
     _sp = _SP(path)
+    # A src layout keeps its modules in the package. clickI (2026-09-11):
+    # the Developer wrote main.py at the root of a library whose package
+    # lives in src/click, and the tests could not import it as a module of
+    # the project. A fact about the tree: a package under src/ exists, and
+    # no criterion names a root path.
+    _root = _batch_worktree(ctx)
+    _pkgs = sorted(d.name for d in (_root / "src").iterdir()
+                   if (d / "__init__.py").is_file()) if (_root / "src").is_dir() else []
+    def _root_importable(root) -> bool:
+        # A root module is importable by the tests when the project is not
+        # an installed package: pytest prepends the test file's directory,
+        # and a root conftest or `pythonpath = ["."]` does the rest. An
+        # installed src-layout package, one with a build system, is
+        # imported from the package and a root module is outside it.
+        from ..core.provision import project_installable
+        return not project_installable(root)
+    if (_sp.suffix == ".py" and len(_sp.parts) == 1 and _pkgs
+            and not _sp.stem.startswith("test") and not _root_importable(_root)):
+        named_roots = {r.split("::")[0] for c in ctx.conn.execute(
+            "SELECT c.surface_refs FROM criteria c JOIN batch_tickets bt "
+            "ON bt.ticket_id = c.ticket_id WHERE bt.batch_id = ?", (ctx.batch_id,))
+            for r in json.loads(c["surface_refs"] or "[]") if "::" in r}
+        if path not in named_roots:
+            raise ValueError(
+                f"{path} is a new module at the project root, and the project's "
+                f"package lives in src/{_pkgs[0]}. A module the tests import as "
+                f"part of the project goes there: src/{_pkgs[0]}/{_sp.name}")
     if (_sp.suffix == ".py" and len(_sp.parts) == 1
             and _sp.stem in getattr(_sys, "stdlib_module_names", ())):
         raise ValueError(
@@ -6940,7 +6967,24 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         except (json.JSONDecodeError, TypeError):
             continue
         for ref in refs:
-            if "::" not in ref or not ref.split("::", 1)[0].endswith(".py"):
+            if "::" not in ref:
+                # A bare name is a name some file in the tree must define.
+                # clickI (2026-09-11): the surface was `echo_json`, the
+                # Developer defined `echo_json_helper` in a new main.py,
+                # and the commit went through because the bare name was
+                # skipped here. Then the test imported a module that did
+                # not exist.
+                import re as _re
+                if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ref):
+                    continue
+                pat = _re.compile(rf"^\s*(?:def|class)\s+{_re.escape(ref)}(?!\w)", _re.M)
+                if not any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
+                           for py in tree.rglob("*.py")
+                           if ".venv" not in py.parts and ".rota" not in py.parts
+                           and "tests" not in py.parts):
+                    undefined.append(f"{ref} ({crit['id']})")
+                continue
+            if not ref.split("::", 1)[0].endswith(".py"):
                 continue
             rel, name = ref.split("::", 1)
             f = tree / rel

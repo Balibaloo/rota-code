@@ -1252,3 +1252,45 @@ def test_the_tests_imports_exclude_the_stdlib_and_the_projects_packages(db, tmp_
                allow=prompts.mode_tools("developer", "batch_start"))
     assert sb.call("code.write", path="echo_json.py",
                    text="def close_account(a):\n    return 1\n")["bytes"]
+
+
+def test_a_bare_surface_must_be_defined_somewhere_in_the_tree(db, tmp_path):
+    """clickI (2026-09-11): surface `echo_json`, definition `echo_json_helper`,
+    and the commit went through because a bare name was never checked."""
+    import subprocess
+
+    root = tmp_path / "wt"; root.mkdir()
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "script.py").write_text("def echo_json_helper(f):\n    return f\n", encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"echo_json\"]' WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="does not define echo_json"):
+        sb.call("code.commit", message="helper")
+    (root / "script.py").write_text("def echo_json(obj):\n    return obj\n", encoding="utf-8")
+    assert sb.call("code.commit", message="helper")["committed"]
+
+
+def test_a_new_module_goes_into_the_src_package(db, tmp_path):
+    """clickI (2026-09-11): main.py at the root of a src-layout library."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "tests").mkdir()
+    nl = chr(10)
+    (root / "pyproject.toml").write_text(
+        "[build-system]" + nl + "requires=['flit_core']" + nl + "build-backend='flit_core.buildapi'" + nl
+        + "[project]" + nl + "name='click'" + nl, encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="src/click/echo_json.py"):
+        sb.call("code.write", path="echo_json.py", text="def echo_json(o):\n    return o\n")
+    assert sb.call("code.write", path="src/click/echo_json.py",
+                   text="def echo_json(o):\n    return o\n")["bytes"]

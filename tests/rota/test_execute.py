@@ -42,11 +42,14 @@ def test_the_harness_runs_its_tests_on_the_chosen_runner(tmp_path, monkeypatch):
 
 def test_a_packaged_project_is_installable(tmp_path):
     """clickI (2026-09-11): a src layout, every test errored on the conftest
-    import of the project itself."""
+    import of the project itself. Only a project that says how it is built."""
     from rota.core.provision import project_installable
 
+    nl = chr(10)
     assert not project_installable(tmp_path)
-    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires=['x']\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text("[project]" + nl + "name='click'" + nl, encoding="utf-8")
     assert not project_installable(tmp_path)
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='click'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        "[build-system]" + nl + "requires=['flit_core']" + nl + "build-backend='flit_core.buildapi'" + nl
+        + "[project]" + nl + "name='click'" + nl, encoding="utf-8")
     assert project_installable(tmp_path)

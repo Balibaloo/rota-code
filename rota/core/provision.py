@@ -73,6 +73,12 @@ def project_installable(root: Path) -> bool:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except Exception:
         return False
+    # A project that says how it is built. A bare `[project]` table, the
+    # scaffold's shape, builds under setuptools' auto-discovery and that
+    # discovery is a guess about a flat layout; the arc suite's scaffolded
+    # repository went from green to a harness error on it.
+    if not data.get("build-system"):
+        return False
     return bool(data.get("project")) or bool((data.get("tool") or {}).get("poetry"))
 
 
