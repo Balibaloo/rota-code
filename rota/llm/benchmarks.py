@@ -25,7 +25,7 @@ from pathlib import Path
 
 from .. import paths
 
-SHIPPED = Path(__file__).resolve().parent / "benchmarks.json"
+SHIPPED = paths.PACKAGE / "llm" / "benchmarks.json"
 
 
 def from_register(conn: sqlite3.Connection) -> list[dict]:
