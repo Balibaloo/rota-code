@@ -32,4 +32,4 @@ include = ["rota*"]
 [tool.setuptools.package-data]
 "rota" = ["*.md", "core/*.sql", "design/*.json", "design/layouts/*",
           "roles/prompts/**/*.md", "roles/prompts/**/*.tools",
-          "llm/profiles/*.toml", "cockpit/*.html", "cockpit/static/*"]
+          "llm/profiles/*.toml", "llm/*.json", "cockpit/*.html", "cockpit/static/*"]

@@ -259,3 +259,15 @@ def recommend(found: list[Model], sys_: System, benchmarks: list[dict],
                 break
         out[group] = choice
     return out
+
+
+def recommend_from_record(found: list[Model], sys_: System, groups: list[str] | None = None,
+                          num_ctx: int = 12288) -> dict[str, Fit | None]:
+    """`recommend` over the shipped benchmarks table (plans/model-setup.md,
+    step 5). Groups default to the roles the table knows."""
+    from . import benchmarks as B
+    table = B.load()
+    caps = groups or sorted({r["capability"] for r in table
+                             if not r["capability"].startswith(("transport:", "walk:"))})
+    return recommend(found, sys_, table, caps, num_ctx=num_ctx, resident=1)
+

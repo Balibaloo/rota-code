@@ -1,0 +1,410 @@
+[
+ {
+  "model": "llama3.1:8b",
+  "capability": "AR",
+  "score": 0.867,
+  "cases": 15,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "CR",
+  "score": 0.75,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "DV",
+  "score": 0.636,
+  "cases": 11,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "GK",
+  "score": 1.0,
+  "cases": 15,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "LI",
+  "score": 0.815,
+  "cases": 27,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "RS",
+  "score": 1.0,
+  "cases": 2,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "TE",
+  "score": 0.842,
+  "cases": 19,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "TS",
+  "score": 0.625,
+  "cases": 8,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "VK",
+  "score": 0.818,
+  "cases": 22,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "chain",
+  "score": 0.538,
+  "cases": 13,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "CR",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "LI",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "TE",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "TS",
+  "score": 0.0,
+  "cases": 2,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:14b",
+  "capability": "VK",
+  "score": 1.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen2.5:latest",
+  "capability": "TS",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "CR",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "LI",
+  "score": 1.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "TE",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "TS",
+  "score": 1.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "VK",
+  "score": 0.0,
+  "cases": 1,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "AR",
+  "score": 0.714,
+  "cases": 14,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "CR",
+  "score": 0.25,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "DV",
+  "score": 0.636,
+  "cases": 11,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "LI",
+  "score": 0.857,
+  "cases": 21,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "RS",
+  "score": 0.5,
+  "cases": 2,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "TE",
+  "score": 0.706,
+  "cases": 17,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "TS",
+  "score": 0.4,
+  "cases": 5,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "VK",
+  "score": 0.857,
+  "cases": 21,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "AR",
+  "score": 0.786,
+  "cases": 14,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "CR",
+  "score": 0.75,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "DV",
+  "score": 0.556,
+  "cases": 9,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "LI",
+  "score": 0.92,
+  "cases": 25,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "RS",
+  "score": 0.5,
+  "cases": 2,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "TE",
+  "score": 0.733,
+  "cases": 15,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "TS",
+  "score": 0.5,
+  "cases": 6,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "VK",
+  "score": 0.762,
+  "cases": 21,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "chain",
+  "score": 0.625,
+  "cases": 8,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3.5:9b",
+  "capability": "transport:native-call",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3.5:9b",
+  "capability": "transport:tool-line",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3:8b",
+  "capability": "transport:native-call",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3:8b",
+  "capability": "transport:tool-line",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "transport:native-call",
+  "score": 0.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "transport:tool-line",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "transport:native-call",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "transport:tool-line",
+  "score": 1.0,
+  "cases": 1,
+  "source": "toolcheck",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "llama3.1:8b",
+  "capability": "walk:merge",
+  "score": 0.0,
+  "cases": 2,
+  "source": "walks",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3.5:9b",
+  "capability": "walk:merge",
+  "score": 0.0,
+  "cases": 1,
+  "source": "walks",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "openai/qwen3:8b",
+  "capability": "walk:merge",
+  "score": 0.0,
+  "cases": 1,
+  "source": "walks",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "walk:merge",
+  "score": 0.15,
+  "cases": 20,
+  "source": "walks",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3:8b",
+  "capability": "walk:merge",
+  "score": 0.15,
+  "cases": 20,
+  "source": "walks",
+  "recorded_on": "2026-09-11"
+ }
+]

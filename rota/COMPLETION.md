@@ -1316,6 +1316,15 @@ on qwen3:8b only, qwen3.5:9b answered the schema with text through
 Ollama's own API; `local-openai` passes all four through litellm, the
 same models behind the OpenAI shape. A fact about the transport, and
 the first row of the benchmarks table (step 5).
+Step 5 the same day: `rota/llm/benchmarks.py` folds the register (pass
+share per model per role on each case's latest prompt), the walks
+(merge share per model through the profiles that name it) and the tool
+check into one table, `rota/llm/benchmarks.json`, 51 rows, shipped as
+package data; `discover.recommend_from_record` reads it. The first
+table says what the day said: llama 0.64 and qwen3.5:9b 0.64 on the
+Developer's cases, qwen3:8b 0.92 on the Liaison's, and every model's
+walk merge share at 0.15, which is two merges in twenty walks on the
+one profile that merges. Capabilities are roles until step 7.
 
 ### Long-term list
 
