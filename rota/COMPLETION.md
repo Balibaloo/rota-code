@@ -1202,6 +1202,16 @@ merged cold in 34 steps.
    a callable, "a function named X" or "X()", and stays green on both
    judges. Two of the three sentences never reached a confirm under
    turns; on record, unread.
+   Night 9, with turns and the narrowed door: all three sentences became
+   decided items, the first time on click. Then the Terminologist wrote
+   thirty criteria, sixteen of them for the account against
+   `examples/completion`, the Architect grouped seven batches, and the
+   first was deferred with its start quarantined: the Developer could
+   not define a surface such as `range_argument` that no item asked
+   for. 157 sessions. The layer is the Terminologist's judgement on a
+   large repository, criteria for the account and surfaces from the
+   examples, and it is a brief, not a door. Nine nights on click, seven
+   doors, no merge. Left here for the record.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
