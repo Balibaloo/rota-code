@@ -200,3 +200,30 @@ def test_the_tester_finally_sees_the_surface(db):
     rows = sb.call("criteria.load")
     assert json.loads(rows[0]["surface_refs"]) == [
         "src/export.py::export_recipe_csv"]
+
+
+def test_a_surface_names_the_callable_the_item_names(db):
+    """A4 (2026-09-10): the item said "a new function named split_bill" and
+    both local judges named calculate_tip as the surface, 0/5 each. A fact
+    about three texts and the index."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i9', ?, 'in_scope', 'decided', 'approved', 1, 1)",
+               ("Each share is the total with tip divided by the people. "
+                "The share lives in a new function named split_bill.",))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split the bill')")
+    db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind, area, fan_in, sym_kind, "
+               "content_hash) VALUES ('main.py::calculate_tip','symbol','main',0,'function','x')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    with pytest.raises(ValueError, match="the item names split_bill.*Name split_bill as the surface"):
+        sb.call("criteria.specify", id="c_9", ticket_id="tk9",
+                text="each share is the total with tip divided by the people",
+                surface_refs=["main.py::calculate_tip"])
+    out = sb.call("criteria.specify", id="c_9", ticket_id="tk9",
+                  text="each share is the total with tip divided by the people",
+                  surface_refs=["main.py::split_bill"])
+    assert out["id"] == "c_9"

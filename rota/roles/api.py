@@ -2807,6 +2807,57 @@ def _about_the_tests(text: str) -> bool:
     return bool(_re.match(r"^(the\s+)?(unit\s+|automated\s+)?tests?\b", head))
 
 
+def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
+    """
+    Callable names the item or its ticket give in words that the index does
+    not hold: snake_case identifiers, and a name after "function named" or
+    "function called". A4 (2026-09-10): "the share lives in a new function
+    named split_bill" beside an index holding calculate_tip, and llama3.1:8b
+    and qwen3.5:9b both named calculate_tip as the surface, 0/5 each.
+    """
+    import re as _re
+
+    row = ctx.conn.execute(
+        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
+        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
+    if not row:
+        return []
+    text = f"{row['item'] or ''} {row['ticket'] or ''}"
+    names = set(_re.findall(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b", text))
+    names |= set(_re.findall(r"(?:function|callable|method)\s+(?:named|called)\s+`?([A-Za-z_][A-Za-z0-9_]*)", text))
+    out = []
+    for name in sorted(names):
+        known = ctx.conn.execute(
+            "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+            (name, f"%::{name}")).fetchone()
+        if not known:
+            out.append(name)
+    return out
+
+
+def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -> None:
+    """A fact about three texts: the item names a callable the index does not
+    hold, and the surface names only callables it does."""
+    new = _named_new_callables(ctx, ticket_id)
+    if not new:
+        return
+    refs = [str(r) for r in (surface_refs or [])]
+    tails = {r.split("::")[-1] for r in refs}
+    if tails & set(new):
+        return
+    existing = [r for r in refs if ctx.conn.execute(
+        "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+        (r, f"%::{r.split('::')[-1]}")).fetchone()]
+    if refs and len(existing) == len(refs):
+        raise ValueError(
+            f"the item names {', '.join(new)}, and the index has no such "
+            f"callable: a new behaviour is a new callable, and the item gives "
+            f"its name. This surface names only what exists today "
+            f"({', '.join(refs)}), so a test of it would test the old "
+            f"behaviour. Name {new[0]} as the surface, in the file the item "
+            f"names or the one the existing callables live in")
+
+
 @op("criteria", "specify")
 def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                      term_refs: list[str] | None = None,
@@ -2891,6 +2942,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"those are {twin}'s words already, on the same ticket. The same "
             f"words are the same criterion; if the ticket needs a second "
             f"criterion, it needs a second sentence")
+    _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,

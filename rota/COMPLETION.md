@@ -1148,6 +1148,16 @@ merged cold in 34 steps.
    `calculate_tip` and this page did not. Three walks today ended in
    three different places; none merged. The next walk is not the
    lever. The record is.
+   The surface door (2026-09-11). A fact about three texts and the
+   index: when the item or its ticket names a callable in words, a
+   snake_case name or "a function named X", and the index does not hold
+   it, a criterion whose surface names only existing callables is
+   refused and told the name. The marker case
+   `L1-TE-a-new-behaviour-is-a-new-callable` is green 5/5 on llama3.1:8b
+   and on qwen3.5:9b, both of which were 0/5 on the brief alone. The
+   specify and repair cases stay green. A4 has its door for the case
+   where the principal names the function; the case where they do not
+   still rides the seat.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
@@ -1173,7 +1183,7 @@ stranger installs cold.
 | 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
 | 4 | Register hygiene | Every case recorded on its role's profile model; dead cases retired; reds attributed or zero. |
 | 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
-| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The merge waits on one signature finding. |
+| 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The surface door makes the marker case green on both judges (2026-09-11). The merge waits on a walk. |
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |
 | 8 | Providers, local only | llama.cpp in scope: a walk and the register recorded on it. Remote providers off the list until wanted. |
 | 9 | Packaging | `pip install` on a clean machine runs `rota onboard`; the prompts, schema, profiles and graph ship as package data. |
