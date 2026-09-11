@@ -1283,10 +1283,16 @@ night groups so far are backfilled from this record, marked as such.
 Step 2 the same day: `rota/llm/discover.py` with `providers`, `models`,
 `system`, `fit_of` and `recommend`, fit only, no side effect. Live on
 this machine: one provider, eighteen models with sizes and KV metadata
-from `/api/show`, 31 GiB RAM, 10 GiB VRAM. The first number it gave:
-two resident 8B models at a context of 12288 need 13.4 GiB and spill,
-which is what the walk profile does today. `recommend` ranks only
-recorded models, by a benchmark table that does not exist yet (step 5).
+from `/api/show`, 31 GiB RAM, 10 GiB VRAM. Its first number was wrong
+in two ways and both are fixed the same day: it assumed two models
+resident, and Ollama keeps one, swapping at each role change; and it
+guessed qwen3.5's KV heads from its query heads, three times too many.
+Now a loaded model's own size from `/api/ps` is the measurement and the
+arithmetic is the estimate, with no guessed heads. On this card every
+model in the walk profile fits in VRAM one at a time: qwen3:8b 6.7 GiB
+estimated, qwen3.5:9b 5.5 GiB measured, llama3.1:8b 6.2 GiB estimated.
+`recommend` ranks only recorded models, by a benchmark table that does
+not exist yet (step 5).
 
 ### Long-term list
 

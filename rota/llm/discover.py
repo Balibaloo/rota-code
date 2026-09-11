@@ -128,10 +128,9 @@ def _kv_meta(info: dict) -> dict:
         for tail in want:
             if k.endswith("." + tail) or k.endswith(".attention." + tail):
                 want[tail] = v
-    if want["head_count_kv"] is None:
-        for k, v in info.items():
-            if k.endswith(".attention.head_count"):
-                want["head_count_kv"] = v
+    # No guess for the KV heads: qwen3.5 reports none, and the query-head
+    # count overstated its cache threefold against what Ollama loaded.
+    # None means "cannot say"; the loaded size from /api/ps is the check.
     return {k: v for k, v in want.items() if v is not None}
 
 
@@ -185,8 +184,19 @@ def _ram_bytes() -> int | None:
 
 
 def _vram_from_ollama() -> tuple[int | None, int | None]:
-    """A loaded model reports size_vram: a check, not the total."""
+    """Ollama reports no total. Its loaded models are a check, see `loaded`."""
     return None, None
+
+
+def loaded(endpoint: str = OLLAMA) -> dict[str, tuple[int, int]]:
+    """What Ollama holds right now: name -> (size, size_vram). One model at
+    a time on this machine, swapped at each role change."""
+    try:
+        ps = _get(f"{endpoint}/api/ps")
+    except Exception:
+        return {}
+    return {m["name"]: (int(m.get("size") or 0), int(m.get("size_vram") or 0))
+            for m in ps.get("models") or []}
 
 
 def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:
@@ -202,15 +212,19 @@ def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:
     return total_mib << 20, (total_mib - used_mib) << 20
 
 
-def fit_of(model: Model, sys_: System, num_ctx: int, resident: int = 1) -> Fit:
+def fit_of(model: Model, sys_: System, num_ctx: int, resident: int = 1,
+           loaded_bytes: int | None = None) -> Fit:
     """Weights plus KV cache at `num_ctx`, against VRAM then RAM. `resident`
-    is how many such models the profile keeps loaded at once; the need is
-    multiplied, which is the open question the plan names."""
+    is how many such models are loaded at once. Ollama keeps one resident
+    and swaps at each role change (measured 2026-09-11: /api/ps shows one
+    model at a time), so the default is one; a server that keeps two needs
+    the set, which is the open question the plan names."""
     kv = kv_cache_bytes(model.meta, num_ctx) if model.meta else None
     weights = model.size_bytes
-    if weights is None:
+    if weights is None and loaded_bytes is None:
         return Fit(model.name, model.provider, "unknown", None, kv, None, None)
-    need = (weights + (kv or 0)) * max(1, resident)
+    # A loaded model's own size is the measurement; arithmetic is the estimate.
+    need = (loaded_bytes if loaded_bytes else (weights or 0) + (kv or 0)) * max(1, resident)
     if sys_.vram_total_bytes is None and sys_.ram_bytes is None:
         fit = "unknown"
     elif sys_.vram_total_bytes is not None and need <= sys_.vram_total_bytes:
@@ -223,7 +237,7 @@ def fit_of(model: Model, sys_: System, num_ctx: int, resident: int = 1) -> Fit:
 
 
 def recommend(found: list[Model], sys_: System, benchmarks: list[dict],
-              groups: list[str], num_ctx: int = 12288, resident: int = 2) -> dict[str, Fit | None]:
+              groups: list[str], num_ctx: int = 12288, resident: int = 1) -> dict[str, Fit | None]:
     """One model per capability group: the best-scoring recorded model that
     fits, else the best that spills. Unrecorded models are shown by the
     caller, never ranked here."""
