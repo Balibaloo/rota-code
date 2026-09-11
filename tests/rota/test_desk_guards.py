@@ -1294,3 +1294,41 @@ def test_a_new_module_goes_into_the_src_package(db, tmp_path):
         sb.call("code.write", path="echo_json.py", text="def echo_json(o):\n    return o\n")
     assert sb.call("code.write", path="src/click/echo_json.py",
                    text="def echo_json(o):\n    return o\n")["bytes"]
+
+
+def test_observed_items_and_the_account_are_never_sliced(db):
+    """clickI night 9 (2026-09-11): tickets for three observed items and for
+    the account, sixteen criteria for the account, one batch of five tickets
+    of which one was asked for."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('seen','click parses arguments','in_scope','observed','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('how_it_works','a cli library','in_scope','observed','approved',1,1)")
+    db.commit()
+    sb = build("vision_keeper", db, mode="normal",
+               allow=prompts.mode_tools("vision_keeper", "slicing"))
+    with pytest.raises(ValueError, match="is observed"):
+        sb.call("tickets.slice", id="tk_x", item_id="seen", text="parse arguments")
+    with pytest.raises(ValueError, match="never sliced"):
+        sb.call("tickets.slice", id="tk_y", item_id="how_it_works", text="the whole")
+    assert sb.call("tickets.slice", id="tk_z", item_id="i1", text="close an account")["id"]
+
+
+def test_an_invented_bare_surface_is_refused(db):
+    """clickI night 9: range_argument and get_usage as surfaces."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i9', 'The share lives in a new function named split_bill.', "
+               "'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split the bill')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    with pytest.raises(ValueError, match="range_argument is a name the index does not hold"):
+        sb.call("criteria.specify", id="c_9", ticket_id="tk9", text="each share is equal",
+                surface_refs=["range_argument"])
+    assert sb.call("criteria.specify", id="c_9", ticket_id="tk9", text="each share is equal",
+                   surface_refs=["split_bill"])["id"] == "c_9"

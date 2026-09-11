@@ -2593,6 +2593,25 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     # the transaction and takes the session with it -- recoverable one level
     # up, so it is refused here, like `batches.group` already does.
     _must_exist(ctx, "items", item_id)
+    # Observed items are what the repository already does, and the account
+    # is the whole program: neither is work. clickI night 9 (2026-09-11):
+    # the Vision Keeper sliced tickets for three observed items and for
+    # how_it_works, the Terminologist wrote sixteen criteria for the
+    # account against examples/, and the first batch carried five tickets
+    # of which one was asked for. The slicing predicate has never fired for
+    # these rows; the call was reachable from another mode.
+    kind = ctx.conn.execute(
+        "SELECT provenance FROM items WHERE id = ?", (item_id,)).fetchone()
+    if item_id == "how_it_works":
+        raise ValueError(
+            "how_it_works is the account of the whole program, not a "
+            "behaviour to build. Tickets come from the items the principal "
+            "asked for; the account is never sliced")
+    if kind and kind["provenance"] == "observed":
+        raise ValueError(
+            f"{item_id} is observed: it is what the repository already does, "
+            f"and a ticket for it would build what exists. Slice the items "
+            f"the principal asked for, the decided ones")
     # An id you invent is yours once. tipsT (2026-09-09): every slicing
     # session wrote tk_1 and tk_2, the ids re-parented to whichever items
     # the wake named, the other items lost their tickets, and the two sets
@@ -2865,6 +2884,18 @@ def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -
     tails = {r.split("::")[-1] for r in refs}
     if tails & set(new):
         return
+    # The mirror: a bare name the index does not hold and no item names is
+    # invented. clickI night 9: `range_argument` and `get_usage` as
+    # surfaces, and the Developer could define nothing the item asked for.
+    invented = [r for r in refs if "::" not in r and r not in new
+                and not ctx.conn.execute(
+                    "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+                    (r, f"%::{r}")).fetchone()]
+    if invented:
+        raise ValueError(
+            f"{', '.join(invented)} is a name the index does not hold and no "
+            f"item or ticket gives. A surface is an existing callable or the "
+            f"one the item names in words ({', '.join(new)}); nothing else")
     existing = [r for r in refs if ctx.conn.execute(
         "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
         (r, f"%::{r.split('::')[-1]}")).fetchone()]
