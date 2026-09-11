@@ -129,41 +129,65 @@
  },
  {
   "model": "qwen3.5:4b",
+  "capability": "AR",
+  "score": 0.786,
+  "cases": 14,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
   "capability": "CR",
-  "score": 0.0,
-  "cases": 1,
+  "score": 0.25,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "DV",
+  "score": 0.4,
+  "cases": 10,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "LI",
-  "score": 1.0,
-  "cases": 1,
+  "score": 0.8,
+  "cases": 25,
+  "source": "register",
+  "recorded_on": "2026-09-11"
+ },
+ {
+  "model": "qwen3.5:4b",
+  "capability": "RS",
+  "score": 0.0,
+  "cases": 2,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "TE",
-  "score": 0.0,
-  "cases": 1,
+  "score": 0.765,
+  "cases": 17,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "TS",
-  "score": 1.0,
-  "cases": 1,
+  "score": 0.6,
+  "cases": 5,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "VK",
-  "score": 0.0,
-  "cases": 1,
+  "score": 0.667,
+  "cases": 21,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
@@ -362,24 +386,24 @@
  {
   "model": "qwen3.5:4b",
   "capability": "group:code",
-  "score": 0.333,
-  "cases": 3,
+  "score": 0.64,
+  "cases": 50,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "group:prose",
-  "score": 1.0,
-  "cases": 1,
+  "score": 0.8,
+  "cases": 25,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
  {
   "model": "qwen3.5:4b",
   "capability": "group:rows",
-  "score": 0.0,
-  "cases": 1,
+  "score": 0.609,
+  "cases": 23,
   "source": "register",
   "recorded_on": "2026-09-11"
  },
