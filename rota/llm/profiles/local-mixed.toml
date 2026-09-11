@@ -1,0 +1,24 @@
+# The register's best model per desk (2026-09-11): qwen3:8b for the Liaison
+# and the Vision Keeper, llama3.1:8b for the Critic, the Tester, the
+# Architect and the Researcher, qwen3.5:9b for the Developer and the
+# Terminologist. tipsAQ measured the all-llama profile: the Liaison on
+# llama could not present the observed rows and the sentence never reached
+# a confirm. Whether this mix merges is a walk's to say.
+name = "local-mixed"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "qwen3:8b"
+critic = "llama3.1:8b"
+tester = "llama3.1:8b"
+architect = "llama3.1:8b"
+researcher = "llama3.1:8b"
+developer = "qwen3.5:9b"
+terminologist = "qwen3.5:9b"
