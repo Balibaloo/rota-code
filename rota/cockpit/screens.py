@@ -613,3 +613,82 @@ class NewRun(ModalScreen):
             note.update("[red]no such directory[/red]")
             return
         self.dismiss(("onboard", name, str(Path(root).expanduser().resolve())))
+
+
+class ModelSetup(ModalScreen):
+    """
+    One screen, one profile. What this machine can serve, what it can hold,
+    what the record recommends, and a name for the profile file the screen
+    writes. plans/model-setup.md, step 6. Discovery is done before the
+    screen opens, by the app, which also refuses it while a run drives.
+    """
+
+    BINDINGS = [("escape", "cancel", "cancel")]
+
+    def __init__(self, plan, name: str = "mine", base: str = "local") -> None:
+        super().__init__()
+        self._plan, self._name, self._base = plan, name, base
+
+    def compose(self) -> ComposeResult:
+        from ..llm import setup as setup_mod
+
+        plan = self._plan
+        with Vertical(id="setup_container"):
+            yield Label("model setup", id="setup_title")
+            m = plan.machine
+            ram = f"{(m.ram_bytes or 0) >> 30} GiB RAM" if m.ram_bytes else "RAM unknown"
+            vram = (f"{(m.vram_total_bytes or 0) >> 20} MiB VRAM" if m.vram_total_bytes
+                    else "VRAM: cannot say")
+            yield Static(f"{m.platform} · {ram} · {vram} · providers: "
+                         + (", ".join(p.name for p in plan.providers) or "none"), id="setup_machine")
+            table = DataTable(id="setup_models")
+            table.add_columns("provider", "model", "fit", "need MiB", "record")
+            for r in sorted(plan.rows, key=lambda r: (r.fit != "in_vram", -len(r.scores), r.model)):
+                best = max(r.scores.values()) if r.scores else None
+                rec = (f"{best:.2f} on {len(r.scores)} desks" if r.recorded
+                       else "no benchmark on record")
+                table.add_row(r.provider, r.model, r.fit, str(r.need_mib or "?"), rec)
+            yield table
+            default, roles = setup_mod.choose(plan)
+            words = (f"recommended: default {default}"
+                     + (", " + ", ".join(f"{k} {v}" for k, v in sorted(roles.items())) if roles else "")
+                     if default else "no recommendation: nothing recorded fits")
+            yield Static(words, id="setup_recommend")
+            remote = [p for p in plan.providers if p.remote]
+            if remote:
+                yield Static("[yellow]a remote provider sends prompts and this repository's "
+                             "code to its endpoint[/yellow]", id="setup_remote")
+            yield Label("profile name")
+            yield Input(value=self._name, placeholder="mine", id="setup_name")
+            with Horizontal():
+                yield Button("write profile", id="setup_go", variant="primary")
+                yield Button("cancel", id="setup_cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#setup_name", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "setup_go":
+            self.go()
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.go()
+
+    def go(self) -> None:
+        from ..llm import setup as setup_mod
+
+        name = self.query_one("#setup_name", Input).value.strip()
+        if not name:
+            self.query_one("#setup_recommend", Static).update("[yellow]a name for the profile[/yellow]")
+            return
+        default, roles = setup_mod.choose(self._plan)
+        if not default:
+            self.query_one("#setup_recommend", Static).update(
+                "[red]nothing recorded fits this machine; pick by hand with rota profile set[/red]")
+            return
+        self.dismiss(("profile", name, self._base, default, roles))

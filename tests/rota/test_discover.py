@@ -80,3 +80,24 @@ def test_the_benchmarks_table_is_built_from_the_record(tmp_path):
                      json.dumps({"profile": "p", "merged": 0}) + "\n", encoding="utf-8")
     w = B.from_walks(walks, {"p": ["m1"]})
     assert w[0]["model"] == "m1" and w[0]["score"] == 0.5 and w[0]["capability"] == "walk:merge"
+
+
+def test_choose_picks_a_default_and_the_desks_that_differ():
+    from rota.llm import discover as D, setup
+
+    plan = setup.Plan([], D.System("x", None, None, None), [],
+                      {"LI": "qwen3:8b", "VK": "qwen3:8b", "CR": "llama3.1:8b", "RS": None}, ["LI", "VK", "CR", "RS"])
+    default, roles = setup.choose(plan)
+    assert default == "qwen3:8b" and roles == {"critic": "llama3.1:8b"}
+    assert setup.choose(setup.Plan([], plan.machine, [], {"LI": None}, ["LI"])) == ("", {})
+
+
+def test_a_user_profile_is_written_from_a_shipped_one(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROTA_HOME", str(tmp_path))
+    from rota.llm import profile, setup
+
+    path = setup.write("mine", "local", "qwen3:8b", {"critic": "llama3.1:8b"})
+    assert path == tmp_path / "profiles" / "mine.toml"
+    back = profile.find("mine")
+    assert back.default_model == "qwen3:8b" and back.roles == {"critic": "llama3.1:8b"}
+    assert back.pins.get("num_ctx") == 12288 and "key" not in path.read_text(encoding="utf-8")

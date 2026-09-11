@@ -240,3 +240,42 @@ def set_field(conn, dotted: str, value: str, *, author: str = "principal") -> Pr
     fresh = Profile.from_dict(d, name=current.name, source="run")
     bind(conn, fresh, author=author)
     return fresh
+
+
+def to_toml(p: "Profile") -> str:
+    """The file a profile is, written back. Keys never sit here."""
+    lines = [f'name = "{p.name}"', "", "[provider]", f'kind = "{p.provider}"']
+    if p.endpoint:
+        lines.append(f'endpoint = "{p.endpoint}"')
+    if p.api_key_env:
+        lines.append(f'key_env = "{p.api_key_env}"')
+    lines.append(f"timeout = {int(p.timeout)}")
+    if p.remote:
+        lines.append("remote = true")
+    lines += ["", "[pins]"]
+    for key in PIN_KEYS:
+        if p.pins.get(key) is not None:
+            lines.append(f"{key} = {p.pins[key]}")
+    lines += ["", "[models]", f'default = "{p.default_model}"']
+    for role, model in sorted(p.roles.items()):
+        lines.append(f'{role} = "{model}"')
+    return chr(10).join(lines) + chr(10)
+
+
+def write_user_profile(name: str, base: "Profile", default_model: str,
+                       roles: dict[str, str], provider: str | None = None,
+                       endpoint: str | None = None, key_env: str | None = None) -> Path:
+    """A user profile under ~/.rota/profiles, copied from a shipped one with
+    the models the setup screen chose (plans/model-setup.md, step 6). The
+    modal writes user profiles only."""
+    import dataclasses
+    new = dataclasses.replace(
+        base, name=name, default_model=default_model, roles=dict(roles),
+        provider=provider or base.provider,
+        endpoint=base.endpoint if endpoint is None else endpoint,
+        api_key_env=base.api_key_env if key_env is None else key_env)
+    path = user_dir() / f"{name}.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(to_toml(new), encoding="utf-8")
+    return path
+

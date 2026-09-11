@@ -210,6 +210,11 @@ class RotaApp(App):
     #runlist_title, #newrun_title { text-style: bold; }
     #runlist_note, #newrun_detected { color: $text-muted; }
     #newrun_container { width: 70; }
+    #setup_container { width: 100; }
+    #setup_container Input { dock: none; width: 100%; }
+    #setup_models { height: 12; }
+    #setup_title { text-style: bold; }
+    #setup_machine, #setup_recommend { color: $text-muted; }
     #newrun_container Input { dock: none; width: 100%; }
     """
     BINDINGS = [
@@ -240,6 +245,7 @@ class RotaApp(App):
         ("ctrl+alt+r", "rerun", "rerun over the top"),
         ("alt+w", "wipe", "wipe"),
         ("alt+b", "cockpit", "cockpit"),
+        ("alt+m", "model_setup", "model setup"),
         ("ctrl+c", "request_quit", "quit"),
     ]
 
@@ -976,6 +982,37 @@ class RotaApp(App):
         finally:
             conn.close()
         self._turn_the_crank()
+
+    def action_model_setup(self) -> None:
+        """One screen, one profile (plans/model-setup.md, step 6). Discovery
+        runs here, before the screen, and never while a run drives."""
+        from ..llm import setup as setup_mod
+        from .screens import ModelSetup
+
+        if self.driving:
+            self.say("pause first: discovery loads models and would evict the "
+                     "run's", "system", "yellow")
+            return
+        try:
+            plan = setup_mod.plan(driving=False)
+        except Exception as exc:
+            self.say(f"discovery failed: {exc}", "system", "red")
+            return
+        self.push_screen(ModelSetup(plan), self._from_model_setup)
+
+    def _from_model_setup(self, result) -> None:
+        if not result:
+            return
+        from ..llm import setup as setup_mod
+
+        _verb, name, base, default, roles = result
+        try:
+            path = setup_mod.write(name, base, default, roles)
+        except Exception as exc:
+            self.say(f"could not write the profile: {exc}", "system", "red")
+            return
+        self.say(f"wrote {path}. Use it with: rota onboard <run> --root <repo> "
+                 f"--profile {name}", "system", "green")
 
     def action_onboard(self) -> None:
         """

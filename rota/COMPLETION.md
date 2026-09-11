@@ -1325,6 +1325,16 @@ table says what the day said: llama 0.64 and qwen3.5:9b 0.64 on the
 Developer's cases, qwen3:8b 0.92 on the Liaison's, and every model's
 walk merge share at 0.15, which is two merges in twenty walks on the
 one profile that merges. Capabilities are roles until step 7.
+Step 6 the same day: `rota/llm/setup.py`, the backend the screen and
+the cockpit share, `plan()` and `choose()` and `write()`; the TUI modal
+`ModelSetup` on `alt+m`, refused while a run drives; the machine, the
+providers, every model with its fit and its record, the recommendation
+in words, the remote sentence when a provider is remote, and a name.
+Its product is `~/.rota/profiles/<name>.toml`, copied from a shipped
+profile with the chosen models, keys never in it. Today's recommendation
+reads: default llama3.1:8b, Liaison qwen3:8b, Vision Keeper qwen3.5:9b,
+which is the register speaking; the walks say `local` merges. The
+disagreement the plan names, now visible on one screen.
 
 ### Long-term list
 
