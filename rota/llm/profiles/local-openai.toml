@@ -1,0 +1,22 @@
+# The provider seam, measured without a key or an install: Ollama's
+# OpenAI-compatible endpoint through litellm. Every model name carries the
+# `openai/` prefix litellm expects for that API, and litellm wants an
+# OPENAI_API_KEY in the environment; any word does for Ollama. A llama.cpp
+# server is the same file with its own port.
+name = "local-openai"
+
+[provider]
+kind = "litellm"
+endpoint = "http://localhost:11434/v1"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "openai/qwen3:8b"
+tester = "openai/qwen3.5:9b"
+critic = "openai/qwen3.5:9b"
+terminologist = "openai/qwen3.5:9b"
+developer = "openai/qwen3.5:9b"

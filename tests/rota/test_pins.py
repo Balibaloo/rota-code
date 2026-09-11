@@ -107,3 +107,22 @@ def test_native_tools_are_off_unless_asked_and_travel_when_asked(tmp_path):
     run_session(db, Wake("liaison", "message", message_id="m1", detail="converse"),
                 backend=on, pins=Pins("stub"), instructions="x", native_tools=True)
     assert on.seen and all(t for t in on.seen), "the schemas must reach the backend"
+
+
+def test_the_litellm_backend_returns_a_completion(monkeypatch):
+    """2026-09-11: the first live call through litellm died on a field name
+    the Completion does not have. A fake provider reply, the real return."""
+    import types
+
+    from rota.llm import llm
+
+    fn = types.SimpleNamespace(name="rulings.rule", arguments='{"rulings": {"1": "approve"}}')
+    call = types.SimpleNamespace(id="c1", function=fn)
+    message = types.SimpleNamespace(content="TOOL: rulings.rule()", tool_calls=[call])
+    response = types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+    fake = types.SimpleNamespace(completion=lambda **kw: response)
+    monkeypatch.setitem(__import__("sys").modules, "litellm", fake)
+    backend = llm.LiteLLMBackend(api_base="http://localhost:11434/v1", timeout=5)
+    out = backend.complete("sys", "user", llm.Pins(model="openai/qwen3:8b", temperature=0.0))
+    assert out.text.startswith("TOOL:") and out.backend == "litellm"
+    assert out.tool_calls and out.tool_calls[0].name == "rulings.rule"

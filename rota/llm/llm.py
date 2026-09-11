@@ -420,7 +420,7 @@ class LiteLLMBackend:
                             args=json.loads(c.function.arguments or "{}"))
                  for c in (getattr(message, "tool_calls", None) or [])]
         return Completion(text=message.content or "", pins=pins,
-                          backend=self.name, raw={}, calls=calls)
+                          backend=self.name, raw={}, tool_calls=calls)
 
 
 class ScriptedBackend:
