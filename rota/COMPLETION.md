@@ -1261,6 +1261,14 @@ of the project's dependencies, pytest imports, git hooks, model-written
 files, model-written tests, the repository's own text in prompts, the
 cockpit's inputs, and the profile files. Each finding becomes a door.
 
+### Model setup, one modal, one profile (2026-09-11)
+
+Roman's extension to the plan, persisted as `plans/model-setup.md`: one TUI
+screen that discovers providers and models, reads what the machine can
+hold, recommends from measured benchmarks, and writes a user profile. Ten
+steps in order, the first being that walks write their own result row
+(profile, repository, merged, steps). Not built. Not ruled.
+
 ### Long-term list
 
 Not this budget. Kept so nothing is forgotten.
