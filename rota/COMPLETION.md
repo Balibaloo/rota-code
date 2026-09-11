@@ -1186,6 +1186,15 @@ merged cold in 34 steps.
    queued behind batch_1. The Tester's tests were refused for a body
    that was not Python, unescaped quotes inside a JSON string, correctly
    and with no second turn to fix it.
+   Nights 4 to 7 (2026-09-11), one door each: a new batch never inherits
+   an old run's branch (ca28ccf); the tests' imports exclude the standard
+   library and the project's packages (bb01a67); the project installs
+   itself, editable, when it has a build system (c14e0c5), after which
+   click's own suite passed inside the batch for the first time; a bare
+   surface must be defined and a new module joins the installed package
+   (f464d28). Night 7 ended where one-shot walks end: the Developer wrote
+   `echo_json_helper` under src/click, the commit door asked for
+   `echo_json`, and no turn came to hear it. Night 8 runs with turns.
 4. **Any stack.** Shape undecided, discussion pending (2026-09-10). On the
    table: one mechanical adapter per stack, chosen at onboarding, holding
    the test command, the floor, the dependency file and the entry point.
