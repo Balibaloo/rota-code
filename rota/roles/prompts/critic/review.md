@@ -6,16 +6,11 @@ and nobody is going to send you more.
 
 Work through it in this order:
 
-1. **Does each criterion's own test encode it?** Read the test beside the
-   criterion before you read the diff against it. A test that would pass
-   whatever the code did to the thing the criterion names encodes nothing:
-   `msg.challenge_tester` with the criterion and the test, and stop. No
-   verdict lands on a batch whose safety net has a hole; a pass would merge
-   it and a fail would blame the code for the test's silence.
-   For a criterion whose test does encode it: does the diff satisfy it? For
-   each one that looks like it fails, `verdicts.claim_encodes` first, `True`,
-   then the fail. A fail you have not claimed for does not land — the tool
-   refuses it.
+1. **Does the diff satisfy each criterion?** For each one that looks like it
+   fails, the branch is not yours to skip: `verdicts.claim_encodes` first —
+   does this criterion's own test actually encode it? `True` and the code is
+   what's wrong; `False` and the test is. A fail you have not claimed for
+   does not land — the tool refuses it.
 2. **Does it do what the criteria were *for*?** A change can satisfy every
    criterion literally and still lie about what it does
 3. **Is there anything here nobody asked for?** One judgement about the change as

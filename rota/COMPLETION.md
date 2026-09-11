@@ -215,8 +215,10 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
   lever is the contested -> amend -> revocation -> cancel path loop 6
   already pins. A note is still owed to a batch that got ahead of it, since
   the levers act on a running batch too. Pinned in `test_touch_note.py`;
-  the register case `L1-LI-present-the-touch` is authored and owed its
-  recording (the recorder was held by a peer's pass when it landed). Next:
+  the register case `L1-LI-present-the-touch` is green on qwen3:8b and
+  llama (5/5 each, 2026-09-11): the case had no `refs`, so the wake had
+  no `Refs:` line to copy and the model invented `batch-001`; the predicate
+  wakes with the batch and its item, and the case now does too. Next:
   piece 2, the Architect's coarse guess beside the items at signoff, a
   measured change with its own table.
 
@@ -236,10 +238,13 @@ Loop 4's debt. Unattributed still: the ledger silence (one assumption in
    2026-09-10: the row goes to its owner first, the Vision Keeper for a
    criterion or the Architect for a shape, and the principal sees only what
    stays open. No new tool, no direct road to the signoff page.
-   `CR-a-test-that-encodes-nothing` keeps its attributed shape until the
-   review brief's per-criterion first step is "does its test encode it? if
-   not, challenge and stop"; whichever lands re-earns both Critic cases on
-   one load.
+   Measured 2026-09-11: the review brief's per-criterion first step "does
+   its test encode it? if not, challenge and stop" turns `encodes-nothing`
+   green on llama and `fail-names-its-criterion` red (0/5): the judge
+   challenges a test that contradicts the criterion too. A sentence that
+   separates the two cases did not move it. The brief is back to the
+   ruled order of 2026-09-10, `encodes-nothing` keeps its attribution, and
+   the lever is a 14B probe, not more words on 8B.
 
 6. **A retired present (loop 3's third injury, 2026-09-03).** A present the
    world moved past — the item amended and presented again while the first
@@ -1251,7 +1256,7 @@ stranger installs cold.
 | 1 | The fence | Done, afac9f9. |
 | 2 | Stranger at the seat | Reply layer built and proven: tipsAP merged with a principal that typed only "yes that all looks right, go ahead". Page help in words. A scripted principal drives a walk in one call. A question typed at a page is answered on qwen3:8b, the seat's model (2026-09-11: it had sent the right sentence in `ask` beside a rulings map and the door refused both; a question beside a ruling is the question now). llama still rules on it, attributed. |
 | 3 | Real repository end to end | Three lineage repos, three sentences each, unattended, one summary per walk; each fault becomes a door or a brief case. |
-| 4 | Register hygiene | First pass done 2026-09-11 (93987a5): every case recorded on the `local` profile's model for its role, beside llama. Passes per role, llama / qwen3:8b / qwen3.5:9b: AR 14/15, 11/14, 10/14. CR 3/4, 3/4, 1/4. DV 7/11, 5/9, 7/11. LI 22/27, 23/25, 18/21. TE 15/19, 11/15, 12/17. TS 6/8, 3/6, 2/5. VK 18/22, 16/21, 18/21. The briefs were tuned on llama and the register says so; the walks merged on qwen. tipsAQ walked the all-llama profile: quiet at 37 steps, the Liaison on llama could not present the observed rows in three tries and the sentence never reached a confirm. The merge prefers `local`. tipsAR walked `local-mixed`, the register's best model per desk: 112 steps, 10 asks, no merge, the llama Tester stuck on the tip function as the split's surface and a criteria quarantine. Measured, then: the register's best per desk is not the walk's best, and `local` stays the shipped default. qwen3.5:4b recorded on the whole register 2026-09-11: 70 of 102 cases, groups code 0.64, prose 0.80, rows 0.61, a 3 GiB model within reach of the 9B on code. qwen3:4b the same day: 71 of 102, code 0.62, prose 0.88, rows 0.61, the best prose score on the table after qwen3:8b. Both in the table. Five cases are red on every one of the five recorded models: `CR-a-test-that-encodes-nothing-is-a-challenge`, `DV-fix-the-code-not-the-test`, `DV-log-the-choice-the-criteria-did-not-make`, `LI-present-the-touch`, `TE-the-words-are-already-defined`. Each keeps its attribution; none is withdrawn without a reason that names what it measures. |
+| 4 | Register hygiene | First pass done 2026-09-11 (93987a5): every case recorded on the `local` profile's model for its role, beside llama. Passes per role, llama / qwen3:8b / qwen3.5:9b: AR 14/15, 11/14, 10/14. CR 3/4, 3/4, 1/4. DV 7/11, 5/9, 7/11. LI 22/27, 23/25, 18/21. TE 15/19, 11/15, 12/17. TS 6/8, 3/6, 2/5. VK 18/22, 16/21, 18/21. The briefs were tuned on llama and the register says so; the walks merged on qwen. tipsAQ walked the all-llama profile: quiet at 37 steps, the Liaison on llama could not present the observed rows in three tries and the sentence never reached a confirm. The merge prefers `local`. tipsAR walked `local-mixed`, the register's best model per desk: 112 steps, 10 asks, no merge, the llama Tester stuck on the tip function as the split's surface and a criteria quarantine. Measured, then: the register's best per desk is not the walk's best, and `local` stays the shipped default. qwen3.5:4b recorded on the whole register 2026-09-11: 70 of 102 cases, groups code 0.64, prose 0.80, rows 0.61, a 3 GiB model within reach of the 9B on code. qwen3:4b the same day: 71 of 102, code 0.62, prose 0.88, rows 0.61, the best prose score on the table after qwen3:8b. Both in the table. Four cases are red on every one of the five recorded models: `CR-a-test-that-encodes-nothing-is-a-challenge`, `DV-fix-the-code-not-the-test`, `DV-log-the-choice-the-criteria-did-not-make`, `TE-the-words-are-already-defined`. `LI-present-the-touch` was the case's shape, not the model: it wakes with refs now and is 5/5 on both Liaison models. Each keeps its attribution; none is withdrawn without a reason that names what it measures. |
 | 5 | Team designs before it builds | Architect reads the contested touch page; generators for Architect and Researcher measured. |
 | 6 | Small models judge | Surface judgement case green on qwen3:8b, or ruled a 14B rung with the profile set so. The seat road (contest the surface line) changes the surfaces to new callables and builds green (tipsAL). The surface door makes the marker case green on both judges (2026-09-11). tipsAN and tipsAP merged through the text seat with a yes-only principal, tipsAP cold in 75 steps. Done for the case where the sentence names the function. |
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |

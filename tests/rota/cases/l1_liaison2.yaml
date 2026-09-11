@@ -344,6 +344,10 @@
   runs: 5
   pass: 4
   tick: touch_note
+  # The predicate wakes with the batch and its item as refs, and the
+  # brief says to copy the two ids from the `Refs:` line. Without them
+  # the wake had no line to copy and qwen3:8b invented `batch-001`.
+  refs: [<b1>, <i1>]
   # P4 piece 1 (ruled R16/R17, 2026-09-03): a batch's predicted touch is put
   # to the principal as a sense check before it builds -- the paths the
   # Architect expects, the symbol it only guesses, and the commitment bound
