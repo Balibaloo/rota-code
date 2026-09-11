@@ -1764,3 +1764,33 @@ def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
                  "seq) VALUES ('m1','t','developer','architect','escalate','[\"b1\",\"f2\"]',1)")
     conn.commit()
     assert fn(conn) == []
+
+
+def test_constraint_zero_cannot_be_violated(tmp_path):
+    """tipsAN (2026-09-11): four k0 findings on the batch's own new files
+    stood between green tests and the merge."""
+    from rota.core.db import init_db
+    from rota.core.predicates import REGISTRY
+    from rota.core import lifecycle
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('b1','i1','running','abc')")
+    conn.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
+                 "('k0','this area has not been surveyed','observed')")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f1','b1','k0','abc','violated','split_bill.py')")
+    conn.commit()
+    assert REGISTRY["finding_violated"].fn(conn) == []
+    assert "violated" not in (lifecycle.mergeable(conn, "b1") or "")
+    sb = build("architect", conn, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("architect", "structural_review"))
+    with pytest.raises(ValueError, match="constraint zero"):
+        sb.call("findings.find", id="f2", batch_id="b1", constraint_id="k0",
+                status="violated", grain="split_bill.py")
+    assert sb.call("findings.find", id="f2", batch_id="b1", constraint_id="k0",
+                   status="satisfied", grain="split_bill.py")["status"] == "satisfied"

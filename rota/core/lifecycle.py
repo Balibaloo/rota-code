@@ -411,9 +411,11 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     if not reviewed and needs_structural_review(conn, batch_id):
         return "no structural review yet"
 
+    from ..onboarding.boot import ZERO
     violated = conn.execute(
         "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ? AND commit_sha = ? "
-        "  AND status = 'violated'", (batch_id, head)).fetchone()["n"]
+        "  AND status = 'violated' AND constraint_id != ?",
+        (batch_id, head, ZERO)).fetchone()["n"]
     if violated:
         return f"{violated} constraint(s) violated"
 

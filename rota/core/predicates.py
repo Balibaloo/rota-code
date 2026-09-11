@@ -1096,20 +1096,23 @@ def finding_violated(conn) -> list[Wake]:
     violated finding on them, then the batch is exhausted.
     """
     from . import config
+    from ..onboarding.boot import ZERO
 
     cap = config.get(conn, "loop_cap")
     rows = conn.execute(
         "SELECT b.id AS bid, "
         "  (SELECT COUNT(DISTINCT f2.commit_sha) FROM findings f2 "
-        "   WHERE f2.batch_id = b.id AND f2.status = 'violated') AS rounds "
+        "   WHERE f2.batch_id = b.id AND f2.status = 'violated' "
+        "   AND f2.constraint_id != ?) AS rounds "
         "FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
         "  AND EXISTS (SELECT 1 FROM findings f WHERE f.batch_id = b.id "
-        "              AND f.commit_sha = b.head_commit AND f.status = 'violated') "
+        "              AND f.commit_sha = b.head_commit AND f.status = 'violated' "
+        "              AND f.constraint_id != ?) "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'developer' "
         "                  AND m.verb = 'escalate' AND m.status = 'open' "
         "                  AND m.body_refs LIKE '%' || b.id || '%') "
-        "ORDER BY b.id").fetchall()
+        "ORDER BY b.id", (ZERO, ZERO)).fetchall()
     return [Wake("developer", "tick:finding_violated", refs=(r["bid"],),
                  detail=f"round {r['rounds']}")
             for r in rows if (r["rounds"] or 1) < cap]

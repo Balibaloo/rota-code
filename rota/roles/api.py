@@ -2021,6 +2021,18 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     it. Nobody usually does: what the merge gate needs is whether anything is
     violated, and that question has no interesting prose answer.
     """
+    # Constraint zero is the register's account of what no survey has
+    # read. A diff cannot violate it: a file the batch wrote is read by
+    # this very review. tipsAN (2026-09-11): four k0 findings on the
+    # batch's own new files stood between green tests and the merge, and
+    # the Developer had nothing to restore.
+    from ..onboarding.boot import ZERO
+    if constraint_id == ZERO and status == "violated":
+        raise ValueError(
+            f"{ZERO} is constraint zero, the area no survey has read. It is "
+            f"a fact about the register, not a rule the code can break, and "
+            f"a file this batch wrote is read by this review. Record it "
+            f"satisfied, or check the constraints that bind {grain!r}")
     ctx.writes.append(("findings", id, {
         "batch_id": batch_id, "constraint_id": constraint_id,
         "commit_sha": _head_commit(ctx, batch_id),
