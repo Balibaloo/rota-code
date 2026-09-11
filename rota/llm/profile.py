@@ -73,7 +73,7 @@ class Profile:
             name=name or d.get("name") or "unnamed",
             provider=kind,
             endpoint=str(prov.get("endpoint") or ""),
-            api_key_env=str(prov.get("api_key_env") or ""),
+            api_key_env=str(prov.get("api_key_env") or prov.get("key_env") or ""),
             timeout=float(prov.get("timeout", 300.0)),
             keep_alive=str(prov.get("keep_alive") or ""),
             budget_usd=(float(prov["budget_usd"]) if prov.get("budget_usd") is not None else None),
@@ -125,7 +125,18 @@ class Profile:
         """The `model_routing` string the runner already understands."""
         return ",".join(f"{r}={m}" for r, m in sorted(self.roles.items()))
 
+    @property
+    def remote(self) -> bool:
+        """Prompts and the repository's code leave this machine."""
+        e = (self.endpoint or "").lower()
+        return bool(e) and "localhost" not in e and "127.0.0.1" not in e
+
     def backend(self) -> llm.Backend:
+        from . import keys
+        if self.api_key_env:
+            # The environment wins; the keys file fills a gap, so a provider
+            # library that reads the environment finds the key there.
+            keys.export(self.api_key_env)
         if self.provider == "litellm":
             return llm.LiteLLMBackend(api_base=self.endpoint or None, timeout=self.timeout)
         return llm.OllamaBackend(host=self.endpoint or llm.OLLAMA_HOST, timeout=self.timeout)
@@ -133,9 +144,14 @@ class Profile:
     def check(self) -> list[str]:
         """What would fail on the first session, said before any database is
         touched: a missing key variable, a model the server does not have."""
+        from . import keys
         problems: list[str] = []
-        if self.api_key_env and not os.environ.get(self.api_key_env):
-            problems.append(f"{self.api_key_env} is not set in the environment")
+        if self.api_key_env and keys.get(self.api_key_env) is None:
+            problems.append(f"{self.api_key_env} is set neither in the environment "
+                            f"nor in {keys.keys_path()}")
+        if self.remote:
+            problems.append(f"remote: prompts and the repository's code are sent to "
+                            f"{self.endpoint} (AUDIT items 8 and 9)")
         wanted = sorted({self.default_model, *self.roles.values()})
         if self.provider == "ollama":
             host = self.endpoint or llm.OLLAMA_HOST

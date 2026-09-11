@@ -77,3 +77,27 @@ def test_set_writes_a_new_snapshot_and_an_override_keeps_the_rest(tmp_path):
     assert over.model_for("tester") == "qwen3.5:4b"
     with pytest.raises(ValueError, match="no profile bound"):
         P.set_field(init_db(tmp_path / "other.db"), "models.tester", "x")
+
+
+def test_keys_live_outside_the_profile(tmp_path, monkeypatch):
+    """plans/model-setup.md step 3: key_env names a variable; the file fills
+    the environment's gap; the environment wins; a remote profile says so."""
+    from rota.llm import keys, profile
+
+    monkeypatch.setenv("ROTA_HOME", str(tmp_path))
+    monkeypatch.delenv("ACME_KEY", raising=False)
+    assert keys.get("ACME_KEY") is None
+    p = keys.set_key("ACME_KEY", "s3cret")
+    assert p == tmp_path / "keys.env" and keys.get("ACME_KEY") == "s3cret"
+    monkeypatch.setenv("ACME_KEY", "from-env")
+    assert keys.get("ACME_KEY") == "from-env"
+    monkeypatch.delenv("ACME_KEY", raising=False)
+    prof = profile.Profile.from_dict({"name": "acme", "provider": {"kind": "litellm",
+                                      "endpoint": "https://api.acme.test/v1", "key_env": "ACME_KEY"},
+                                      "models": {"default": "openai/x"}})
+    assert prof.api_key_env == "ACME_KEY" and prof.remote
+    problems = prof.check()
+    assert any("remote: prompts and the repository" in x for x in problems)
+    assert not any("set neither" in x for x in problems)
+    prof.backend()
+    assert __import__("os").environ.get("ACME_KEY") == "s3cret"

@@ -1301,6 +1301,13 @@ model in the walk profile fits in VRAM one at a time: qwen3:8b 6.7 GiB
 estimated, qwen3.5:9b 5.5 GiB measured, llama3.1:8b 6.2 GiB estimated.
 `recommend` ranks only recorded models, by a benchmark table that does
 not exist yet (step 5).
+Step 3 the same day: `rota/llm/keys.py`. A profile names the variable
+(`key_env`, `api_key_env` still read); the key lives in the environment
+or `~/.rota/keys.env`, restricted to the user; the environment wins;
+`backend()` exports the file's key so a provider library finds it; and
+`profile check` says, for a remote endpoint, that prompts and the
+repository's code are sent there. The modal's screen sentence has its
+source. The TUI modal itself is step 6.
 
 ### Long-term list
 
