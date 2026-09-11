@@ -1343,6 +1343,13 @@ cases, and the recommendation reads them first. `discover.pull` pulls
 from Ollama with streamed progress, says found or not found on a
 llama.cpp endpoint, and never guesses a folder. The cockpit serves
 `/setup.json` from the same backend, read only.
+Step 10, first measurement: tipsAT, `local-openai-native`, native tool
+calls on through litellm, cold on tipsI. 47 sessions on litellm, six
+pages landed including the touch note that tipsAS had left open, and
+the build stalled where tipsAS stalled: the Developer's start on
+qwen3.5:9b behind the OpenAI shape, three sessions, no commit. The
+transport holds; the judgement is the same model's. On record in the
+walks table.
 
 ### Long-term list
 

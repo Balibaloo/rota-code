@@ -13,3 +13,12 @@
 {"run": "clickI-n1..3", "profile": "local", "repository": "clickI", "merged": 0, "steps": 128, "asks": 6, "note": "__future__.py shadowing; nights 1-3 one-shot", "oneshot": true, "date": "2026-09-10", "backfilled": true}
 {"run": "clickI-n4..7", "profile": "local", "repository": "clickI", "merged": 0, "steps": 116, "asks": 6, "note": "stale branch, stdlib imports, editable install, bare surface", "oneshot": true, "date": "2026-09-11", "backfilled": true}
 {"run": "clickI-n8..11", "profile": "local", "repository": "clickI", "merged": 0, "steps": 157, "asks": 7, "note": "turns: sentences decided; criteria for the account; invented surfaces", "oneshot": false, "date": "2026-09-11", "backfilled": true}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 1, "asks": 0, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 1, "asks": 0, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 93, "asks": 8, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 48, "asks": 7, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 41, "asks": 6, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 58, "asks": 3, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 1, "asks": 0, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 32, "asks": 4, "note": "quiet", "oneshot": false, "date": "2026-09-11"}
+{"run": "tipsAT", "profile": "local-openai-native", "repository": "D:\\repos\\_AI\\sample_repos\\tipsI", "merged": 0, "steps": 64, "asks": 6, "note": "quiet", "oneshot": true, "date": "2026-09-11"}
