@@ -1473,3 +1473,26 @@ def test_a_criterions_words_are_not_an_item(db):
         sb.call("problem.assert", id="c_9_item",
                 text="The function divides the sum of the bill and the tip by the number of payers.")
     sb.call("problem.assert", id="tip_rounding", text="The tip is rounded to the nearest cent.")
+
+
+def test_a_bare_surface_is_found_in_a_worktree_under_dot_rota(db, tmp_path):
+    """clickI night 22 (2026-09-12): echo_json defined in src/click/echo_json.py,
+    and the commit refused for a tree that did not define it. The worktree
+    lives under .rota/worktrees, and the scan dropped every file in it."""
+    import subprocess
+
+    root = tmp_path / ".rota" / "worktrees" / "b1"; root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "script.py").write_text("def other():" + chr(10) + "    return 1" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"close_account\"]' WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="does not define close_account"):
+        sb.call("code.commit", message="half done")
+    sb.call("code.write", path="helpers.py",
+            text="def close_account(a):" + chr(10) + "    return 'x'" + chr(10))
+    out = sb.call("code.commit", message="the surface exists, in a new file under .rota")
+    assert out.get("committed") is not False

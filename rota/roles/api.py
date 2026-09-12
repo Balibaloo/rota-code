@@ -7198,10 +7198,16 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                 if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ref):
                     continue
                 pat = _re.compile(rf"^\s*(?:def|class)\s+{_re.escape(ref)}(?!\w)", _re.M)
+                # The parts below the tree, not the whole path: a worktree
+                # lives under `.rota/worktrees/<batch>`, and the old test
+                # on `py.parts` dropped every file in it. clickI night 22
+                # (2026-09-12): echo_json defined in src/click/echo_json.py,
+                # and the commit refused for a tree that did not define it.
                 if not any(pat.search(py.read_text(encoding="utf-8", errors="replace"))
                            for py in tree.rglob("*.py")
-                           if ".venv" not in py.parts and ".rota" not in py.parts
-                           and "tests" not in py.parts):
+                           if ".venv" not in py.relative_to(tree).parts
+                           and ".rota" not in py.relative_to(tree).parts
+                           and "tests" not in py.relative_to(tree).parts):
                     undefined.append(f"{ref} (the surface criterion {crit['id']} names)")
                 continue
             if not ref.split("::", 1)[0].endswith(".py"):
