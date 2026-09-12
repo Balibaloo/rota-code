@@ -3223,6 +3223,20 @@ def batches_group(ctx: Ctx, id: str, ticket_ids: list[str],
     # Architect grouped the same tickets under id="b1" and the upsert
     # resurrected the abandoned batch -- its worktree, its regressed code,
     # its head commit -- which "abandoned is terminal" exists to forbid.
+    # The grouping wake names the tickets that have no live batch; those
+    # are the ones to group. tipsAV (2026-09-12): woken for the amended
+    # item's new ticket, the Architect grouped two tickets already sitting
+    # in a pending batch, four turns running, and the new ticket waited
+    # until the tick was quarantined. Which tickets are unbatched is a fact
+    # the wake already carries.
+    if ctx.wake_refs and ticket_ids:
+        stray = [t for t in ticket_ids if t not in ctx.wake_refs]
+        if stray:
+            raise ValueError(
+                f"{', '.join(stray)} {'is' if len(stray) == 1 else 'are'} not "
+                f"among the tickets you were woken to group. Those are "
+                f"{', '.join(ctx.wake_refs)}: the tickets with no live batch. "
+                f"A ticket already in a batch is not grouped again")
     prior = ctx.conn.execute("SELECT status FROM batches WHERE id = ?",
                              (id,)).fetchone()
     if prior:
@@ -6712,12 +6726,16 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             except SyntaxError:
                 old_tree = None
             if old_tree is not None and _guarded(old_tree) and not _guarded(tree):
+                n_old = len(target.read_text(encoding="utf-8").splitlines())
                 raise ValueError(
                     f"{path} is the program's entry point: it has an "
                     f"`if __name__ == \"__main__\":` block today and this "
                     f"write has none, so the program would stop running. "
                     f"Keep the block and the functions it calls; add your "
-                    f"change to the file, do not replace it")
+                    f"change to the file, do not replace it. To add new "
+                    f"definitions without retyping the file, write only them "
+                    f"with start={n_old}, end={n_old}: {path} has {n_old} "
+                    f"lines and that span appends after them")
             # And the guard's body must still resolve. tipsT (2026-09-09):
             # the guard was kept and the three functions it calls were
             # dropped, so the program crashed at the first line.

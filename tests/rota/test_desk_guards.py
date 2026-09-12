@@ -1414,3 +1414,22 @@ def test_nearly_the_same_words_are_the_same_criterion(db):
     sb.call("criteria.specify", id="c_3", ticket_id="tk9",
             text="With the flag set, the message ends with the running Python version as major.minor.micro",
             surface_refs=["show_python"])
+
+
+def test_the_architect_groups_the_tickets_its_wake_named(db):
+    """tipsAV (2026-09-12): woken for the amended item's new ticket, the
+    Architect grouped two tickets already in a pending batch, four turns
+    running. The wake names the unbatched tickets; that is the set."""
+    from types import SimpleNamespace
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i2', 'print each share', 'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk2','i2','print the shares')")
+    db.commit()
+    sb = build("architect", db, mode="grouping",
+               allow=prompts.mode_tools("architect", "grouping"),
+               wake=SimpleNamespace(refs=("tk2",), kind="tick:grouping", message_id=None))
+    with pytest.raises(ValueError, match="not among the tickets you were woken to group"):
+        sb.call("batches.group", id="b9", ticket_ids=["tk1"], item_id="i1")
+    assert sb.call("batches.group", id="b9", ticket_ids=["tk2"], item_id="i2")["id"] == "b9"
