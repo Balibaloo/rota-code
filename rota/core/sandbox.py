@@ -900,6 +900,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Never the same question twice. `interrupt_cap` states it: never
         # repeat the question, reframe or offer a default. No code read it.
         # Clarify only: a confirm or a present is a gate on rows, and its
+        # A reopen says an approved item changed under a batch. That is a
+        # fact in the items table: the approval is older than the version,
+        # or gone. tipsAT (2026-09-12): the Vision Keeper, woken by a
+        # challenge, authored a decision that the item was already built
+        # and sent reopen for it; the Developer was woken to elect on an
+        # amendment that never happened, and the batch stalled there.
+        if verb == "reopen" and refs:
+            unchanged = []
+            for r in refs:
+                row = ctx.conn.execute(
+                    "SELECT approval, approval_ver, version FROM items WHERE id = ?",
+                    (r,)).fetchone()
+                if row and row["approval"] == "approved" and (
+                        row["approval_ver"] or 0) >= (row["version"] or 0):
+                    unchanged.append(r)
+            if unchanged:
+                raise ValueError(
+                    f"{unchanged[0]} is approved at its current version; nothing "
+                    f"changed under the batch, so there is nothing to reopen. A "
+                    f"reopen follows an amendment, never a decision")
         # A page carries at most seven open assumptions. clickI night 17
         # (2026-09-12): reconcile read 37 prose files and the first page
         # put 27 assumptions to the principal in one go. Roman ruled the

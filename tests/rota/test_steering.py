@@ -153,3 +153,19 @@ def test_an_amended_delivered_item_owes_new_tickets_and_keeps_its_merged_batch(d
     assert cancel(db) == [], "a merged batch is not live; nothing to cancel"
     row = db.execute("SELECT batch_id FROM batch_tickets WHERE ticket_id = 't1'").fetchone()
     assert row["batch_id"] == "b1"
+
+
+def test_a_reopen_needs_an_amendment_behind_it(db):
+    """tipsAT (2026-09-12): the Vision Keeper, woken by a challenge, authored
+    a decision that the item was already built and sent reopen for it. The
+    Developer was woken to elect on an amendment that never happened. A
+    reopen follows a risen version, a fact in the items table."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    sb = build("vision_keeper", db, mode="challenge",
+               allow=prompts.mode_tools("vision_keeper", "challenge"))
+    with pytest.raises(ValueError, match="nothing to reopen"):
+        sb.call("msg.reopen_developer", refs=["i1"])
+    _revoke(db)
+    sb.call("msg.reopen_developer", refs=["i1"])
