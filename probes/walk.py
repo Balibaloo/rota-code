@@ -54,11 +54,19 @@ PAGE_RE = os.environ.get("WALK_CONTEST_PAGE", "")
 replied: set = set()
 
 
+contested_once = False
+
+
 def reply_for(rendered: str) -> str:
-    if C_RE and (not PAGE_RE or _re.search(PAGE_RE, rendered or "", _re.I)):
+    # One contest a walk: a principal says the correction once, and the
+    # page that comes back after it is read as answered (tipsAU, 2026-09-12:
+    # the same touch note contested twenty times).
+    global contested_once
+    if C_RE and not contested_once and (not PAGE_RE or _re.search(PAGE_RE, rendered or "", _re.I)):
         for line in (rendered or "").splitlines():
             m = _re.match(r"\s*(\d+)\.\s+(.*)", line)
             if m and _re.search(C_RE, m.group(2), _re.I):
+                contested_once = True
                 return f"{m.group(1)} is wrong: {C_WORDS}"
     return WORDS
 
