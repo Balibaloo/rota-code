@@ -480,6 +480,28 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
             return {"id": id, "note": (f"{id} is decided by the principal and "
                                        f"stays as it is; an observation does "
                                        f"not amend it")}
+    else:
+        # The other direction. clickI night 18 (2026-09-12): delivering
+        # the principal's one sentence, the Vision Keeper asserted its item
+        # and then the three account items from onboarding again, word for
+        # word. A decided wake writes decided, so the account became
+        # buildable: 119 criteria for behaviour the repository already has,
+        # a batch for it ahead of the sentence's, and the Developer
+        # quarantined on it. The words are the fact: the same words on an
+        # observed row change nothing and build what exists.
+        observed = ctx.conn.execute(
+            "SELECT text FROM items WHERE id = ? AND provenance = 'observed'",
+            (id,)).fetchone()
+        if observed and observed["text"]:
+            old_words = set(_prose_words(observed["text"]))
+            new_words = set(_prose_words(text))
+            if old_words and len(old_words & new_words) >= 0.8 * len(old_words | new_words):
+                raise ValueError(
+                    f"{id} is the account's observed row and these are its "
+                    f"words. Asserting it again makes what the repository "
+                    f"already does a thing to build. Assert only what the "
+                    f"principal asked for; an observed item stays observed "
+                    f"until their words change it")
 
     # An item named after a grain is a sentence about that grain.
     #

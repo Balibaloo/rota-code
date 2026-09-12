@@ -1363,3 +1363,29 @@ def test_a_long_source_read_maps_its_definitions(db, tmp_path):
     assert out["lines"] > 400 and "confirm" in out["defs"]
     start, end = out["defs"]["confirm"]
     assert "def confirm" in sb.call("code.source", path="termui.py", start=start, end=end)["text"]
+
+
+def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
+    """clickI night 18 (2026-09-12): delivering the principal's sentence, the
+    Vision Keeper asserted its item and then the three onboarding items
+    again, word for word. A decided wake writes decided, so the account
+    became buildable, 119 criteria, a batch ahead of the sentence's. The
+    same words on an observed row are refused; the principal's words land."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('parses_commands', ?, 'in_scope', 'observed', 'approved', 1, 1)",
+               ("When a user types a command, the toolkit parses it into arguments and "
+                "options using the script's defined commands.",))
+    db.commit()
+    sb = build("vision_keeper", db, mode="normal",
+               allow=prompts.mode_tools("vision_keeper", "deliver"))
+    with pytest.raises(ValueError, match="observed row"):
+        sb.call("problem.assert", id="parses_commands",
+                text="When a user types a command, the toolkit parses it into arguments "
+                     "and options using the script's defined commands.")
+    # The principal's words change it: a different behaviour under the same name lands.
+    sb.call("problem.assert", id="parses_commands",
+            text="Commands accept a --json flag that prints the parsed arguments as JSON.")
+    sb.call("problem.assert", id="echo_json",
+            text="Add an echo_json helper next to echo that prints an object as JSON.")
