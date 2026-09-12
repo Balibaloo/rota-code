@@ -1325,7 +1325,18 @@ merged cold in 34 steps.
    does not exist, died at collection, and sent the Developer to
    challenge the wrong test. Both are doors now (79f3e73, b0ad120).
    The first seat exchange ran on the Titan the same afternoon
-   (plans/seat-exchange.md): five findings, two already doors. `a-challenge-
+   (plans/seat-exchange.md): five findings, two already doors.
+   Nights 25 and 26 (2026-09-12, evening): the module door held and its
+   hint named the right module once it read the tree (6cbe4a6). Night
+   26 reached a true judgement fork: the Tester's one test imported
+   `from click.main import echo_json` correctly and expected a returned
+   string, the Developer's echo_json prints and returns None as the
+   sentence said, and the Developer challenged the Tester naming no
+   test, escalated the same refs twice, and never wrote. Both desks are
+   qwen3.5:9b. The doors held at every step; the fork is the 8B
+   judgement the register's `DV-challenge-a-test-that-contradicts-its-
+   criterion` already measures red on that model. Three of the day's
+   click nights ended here, one door further each time. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
