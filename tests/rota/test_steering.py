@@ -133,3 +133,23 @@ def test_a_quarantine_lifts_when_its_subject_moves(db):
                           (key,)).fetchone(), "the moved subject revives"
     assert db.execute("SELECT 1 FROM tick_attempts WHERE tick_key LIKE "
                       "'%other%'").fetchone(), "an unrelated debt survives"
+
+
+def test_an_amended_delivered_item_owes_new_tickets_and_keeps_its_merged_batch(db):
+    """Amendment level 2, the merged half (plans/amendment-and-conflicts.md,
+    2026-09-12): an item delivered at version 1, amended to version 2 and
+    re-approved, is sliced again. Its old tickets stay with the merged
+    batch, which is never cancelled, and the new tickets group fresh."""
+    from rota.core.scheduler import tick_slicing
+
+    db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b1'")
+    db.execute("INSERT INTO config (key, value) VALUES ('delivered:i1', '1')")
+    db.commit()
+    assert tick_slicing(db) == [], "a delivered item at its delivered version owes nothing"
+    db.execute("UPDATE items SET version = 2, approval_ver = 2 WHERE id = 'i1'")
+    db.commit()
+    (wake,) = tick_slicing(db)
+    assert wake.refs[0] == "i1"
+    assert cancel(db) == [], "a merged batch is not live; nothing to cancel"
+    row = db.execute("SELECT batch_id FROM batch_tickets WHERE ticket_id = 't1'").fetchone()
+    assert row["batch_id"] == "b1"
