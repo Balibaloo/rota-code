@@ -1414,8 +1414,12 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    question at any moment is the chat surface, post-core by the
    2026-09-01 ruling; the page half is core and built.
 6. **D3, hollow verification.** `CR-a-test-that-encodes-nothing` is red on
-   every 8B model. The lever is a 14B judge on the Critic's desk, measured
-   on the register and a walk, never more 8B wording. Fits between nights.
+   every 8B model and on qwen2.5:14b. Measured 2026-09-12 on the Titan:
+   gemma3:12b passes every Critic case 5/5 on one load, that one included.
+   The lever was a different model, not a bigger one. Shipped as
+   `local-gemma-critic` (d096d3c), the Critic's desk only; its Developer
+   score is 0.5. Owed: a click night on that profile, and the L3
+   failed-verdict chain on it.
 7. **G1, dynamic stacks.** The account rules the stack; the provisioner
    installs its toolchain; the floor is that stack's test runner. Prose
    repositories get judgement without a mechanical net, and the tool says
