@@ -6929,10 +6929,18 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 why = ("the program's entry point keeps every definition it has"
                        if entry else
                        "the batch's tests, its criteria or other files use them")
+                # tipsAT (2026-09-12): ten refusals in one session, the
+                # same whole-file write of only the new functions each
+                # time. The way out is a fact about the file, so say it:
+                # the line count, and the span that appends.
+                n_old = len(target.read_text(encoding="utf-8").splitlines())
                 raise ValueError(
                     f"this rewrite of {path} drops {', '.join(gone)}, and "
-                    f"{why}. Write the whole file with every existing "
-                    f"definition kept and your change added; do not replace it")
+                    f"{why}. Either write the whole file with every existing "
+                    f"definition kept and your change added, or write only "
+                    f"the new definitions with start={n_old}, end={n_old}: "
+                    f"{path} has {n_old} lines and that span appends after "
+                    f"them, keeping the rest")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "

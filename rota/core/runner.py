@@ -1299,10 +1299,24 @@ def run_session(
     session_id = new_id("s", conn)
     entry_id = None
     if wake.message_id:
-        row = conn.execute(
-            "SELECT id FROM entries WHERE id = ?",
-            (f"e_{wake.message_id}",)).fetchone()
-        entry_id = row["id"] if row else None
+        # The entry this session segments: the one the message carries.
+        # It used to be derived by name, `e_<message id>`, which held for
+        # the seat's own messages and not for a driver's (`m_p1` carried
+        # `e_p1`): clickI night 17, the Liaison's every brief.segment was
+        # refused "no entry to segment against" and the sentence never
+        # became a statement. The refs are the fact; the name was a guess.
+        from .db import refs_of
+        msg = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (wake.message_id,)).fetchone()
+        for ref in refs_of(msg["body_refs"]) if msg else []:
+            if conn.execute("SELECT 1 FROM entries WHERE id = ?", (ref,)).fetchone():
+                entry_id = ref
+                break
+        if entry_id is None:
+            row = conn.execute(
+                "SELECT id FROM entries WHERE id = ?",
+                (f"e_{wake.message_id}",)).fetchone()
+            entry_id = row["id"] if row else None
 
     # Law 11, decided by the wake rather than by the role: a survey is reading
     # a codebase, so what it writes was found. Everything else was chosen.

@@ -92,3 +92,32 @@ def test_modes_without_the_fork_are_untouched(db):
     sb = build("liaison", db, mode="answer",
                allow=prompts.mode_tools("liaison", "answer"))
     assert getattr(sb.ctx, "intake", "unarmed") == "unarmed"
+
+
+def test_the_entry_to_segment_is_the_one_the_message_carries(tmp_path):
+    """clickI night 17 (2026-09-12): the runner derived the entry by name,
+    `e_<message id>`, and a message named otherwise left `entry_id` empty;
+    every brief.segment was refused and the sentence never became a
+    statement. The message's refs are the fact."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import frontier
+    from rota.llm.llm import ScriptedBackend
+
+    conn = init_db(tmp_path / "rota.db")
+    conn.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+                 "('e_p1','principal',1,'Add an echo helper that prints an object as JSON.')")
+    conn.execute("INSERT INTO messages (id, cause_kind, thread_id, from_role, to_role, verb, "
+                 "body_refs, seq) VALUES ('m_p1','message','t_p1','principal','liaison',"
+                 "'converse','[\"e_p1\"]',1)")
+    conn.commit()
+    wake = next(w for w in frontier(conn) if w.role == "liaison" and w.message_id == "m_p1")
+    out = run_session(conn, wake, backend=ScriptedBackend([
+        "TOOL: brief.intake(verdict='work')",
+        "TOOL: brief.segment(id='s1', span_start=0, span_end=49, "
+        "text='Add an echo helper that prints an object as JSON.')",
+        "TOOL: msg.confirm_principal(refs=['s1'])",
+        "done", "done",
+    ]))
+    assert out.committed, out.errors
+    assert not [e for e in out.errors if "no entry to segment" in e], out.errors
+    assert conn.execute("SELECT COUNT(*) FROM statements WHERE id = 's1'").fetchone()[0] == 1

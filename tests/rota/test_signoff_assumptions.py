@@ -243,3 +243,23 @@ def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
     assert "1. users can export their invoices as CSV" in page
     assert "code that names these words: src/billing/export.py, src/billing/invoice.py" in page
     assert "login" not in page
+
+
+def test_a_page_carries_at_most_seven_open_assumptions(db):
+    """clickI night 17 (2026-09-12): 27 assumptions on one page. The
+    interview is iterative by ruling; the count is the door's, the choice
+    of seven is the brief's. The rest stay open for the next page."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1','ship it','in_scope','decided','draft',0,1)")
+    for n in range(9):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "status, author) VALUES (?, 'i1', 'items', ?, 'open', 'vision_keeper')",
+                   (f"L{n}", f"assumption {n}"))
+    db.commit()
+    sb = build("liaison", db, mode="submit", allow=prompts.mode_tools("liaison", "submit"))
+    with pytest.raises(ValueError, match="at most 7 open assumptions"):
+        sb.call("msg.present_principal", refs=["i1"] + [f"L{n}" for n in range(9)])
+    sb.call("msg.present_principal", refs=["i1"] + [f"L{n}" for n in range(7)])

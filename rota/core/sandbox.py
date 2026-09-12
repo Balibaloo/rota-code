@@ -26,6 +26,11 @@ from typing import Any, Callable
 from ..roles import api
 from ..design import graph as graph_mod
 
+# How many open assumptions one page to the principal may carry. The
+# interview is iterative by ruling (2026-09-12); the count is a fact the
+# door holds, which seven is the presenting brief's judgement.
+PAGE_ASSUMPTIONS = 7
+
 
 # What separates an id from prose is whitespace and length, not shape. The first
 # version of this required `prefix_hex`, which is what `new_id` produces and not
@@ -895,10 +900,24 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # Never the same question twice. `interrupt_cap` states it: never
         # repeat the question, reframe or offer a default. No code read it.
         # Clarify only: a confirm or a present is a gate on rows, and its
-        # words are the rows read out. A principal who says the same thing
-        # twice gets the same echo twice, correctly. This refuses a
-        # byte-identical repeat. A reworded repeat is judgement and stays
-        # the brief's.
+        # A page carries at most seven open assumptions. clickI night 17
+        # (2026-09-12): reconcile read 37 prose files and the first page
+        # put 27 assumptions to the principal in one go. Roman ruled the
+        # interview iterative, most important first, a page after an
+        # answer showing only what is still open (DECISIONS.md, "The
+        # seat's four pages are one surface"). Which seven is the brief's
+        # judgement; the count is the door's. The rows left out stay open
+        # and the agenda puts them on the next page.
+        if recipient == "principal" and verb == "present" and refs:
+            open_rows = [r for r in refs if ctx.conn.execute(
+                "SELECT 1 FROM ledger WHERE id = ? AND status = 'open'", (r,)).fetchone()]
+            if len(open_rows) > PAGE_ASSUMPTIONS:
+                raise ValueError(
+                    f"a page carries at most {PAGE_ASSUMPTIONS} open assumptions "
+                    f"and this one carries {len(open_rows)}. Send the "
+                    f"{PAGE_ASSUMPTIONS} whose answer changes the most; the "
+                    f"rest stay open and go on the next page after the "
+                    f"principal answers this one")
         if recipient == "principal" and verb == "clarify" and text:
             words = " ".join(text.split())
             for row in ctx.conn.execute(
