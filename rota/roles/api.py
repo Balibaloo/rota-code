@@ -3913,12 +3913,30 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     f"surface is the wrong callable for this behaviour, say so "
                     f"to its owner: msg.question_terminologist with the "
                     f"criterion and the name the test needs")
-        if surface_mods and imported_from and not (surface_mods & {m.split(".")[0] for m in imported_from}):
+        # The dotted module a test imports, from the surface's path: a src
+        # layout's `src/click/core.py` is `click.core`, a root module is its
+        # stem. clickI night 23 (2026-09-12): the door compared the stem
+        # `core` with the first segment of `click.core`, refused a correct
+        # import twelve turns running, and told the Tester `from core
+        # import`, which cannot import.
+        def _dotted(path: str) -> str:
+            parts = path.replace("\\", "/").split("/")
+            if parts and parts[0] in ("src", "lib") and len(parts) > 1:
+                parts = parts[1:]
+            return ".".join(parts)[:-3] if parts and parts[-1].endswith(".py") else ".".join(parts)
+        surface_dotted = {_dotted(s.split("::", 1)[0])
+                          for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        # A root module imports by its stem; a package module by its dotted
+        # name, and the bare stem of a package module does not import.
+        imports_ok = any(m == d or ("." not in d and m.rsplit(".", 1)[-1] == d)
+                         for m in imported_from for d in surface_dotted)
+        if surface_dotted and imported_from and not imports_ok:
+            want = sorted(surface_dotted)[0]
             raise Wall(
                 f"the surface {surface[0]!r} lives in "
                 f"{sorted(surface_mods)[0]}.py and this test imports from "
                 f"{sorted(imported_from)[0]}. Import the surface from its own "
-                f"module: `from {sorted(surface_mods)[0]} import "
+                f"module: `from {want} import "
                 f"{surface[0].rsplit('::', 1)[-1]}`")
         if not (surface_names & called_names):
             raise Wall(

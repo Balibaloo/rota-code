@@ -1496,3 +1496,26 @@ def test_a_bare_surface_is_found_in_a_worktree_under_dot_rota(db, tmp_path):
             text="def close_account(a):" + chr(10) + "    return 'x'" + chr(10))
     out = sb.call("code.commit", message="the surface exists, in a new file under .rota")
     assert out.get("committed") is not False
+
+
+def test_a_src_layout_surface_is_imported_by_its_dotted_module(db, tmp_path):
+    """clickI night 23 (2026-09-12): the surface lived in src/click/core.py,
+    the test imported `from click.core import ...`, and the door compared
+    the stem `core` with the first segment `click`, refused twelve turns
+    running, and told the Tester `from core import`, which cannot import."""
+    root = tmp_path / "wt"; (root / "src" / "pkg").mkdir(parents=True)
+    (root / "src" / "pkg" / "core.py").write_text(
+        "def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"src/pkg/core.py::calculate_tip\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError, match="from pkg.core import calculate_tip"):
+        sb.call("tests.encode", id="tst_a", criterion_id="c1", path="tests/test_a.py",
+                body="from core import calculate_tip" + chr(10) + "def test_a():" + chr(10)
+                     + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    got = sb.call("tests.encode", id="tst_b", criterion_id="c1", path="tests/test_b.py",
+                  body="from pkg.core import calculate_tip" + chr(10) + "def test_b():" + chr(10)
+                       + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    assert got, "the dotted import lands"

@@ -496,12 +496,18 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                 # with no word about the quote. Say which quote, and name
                 # the block form that needs no quoting at all.
                 key, other = swallowed
+                # The hint names the argument that carries the source, the
+                # longest string, not the one the quote happened to close:
+                # night 23, "put criterion_id between triple quotes" for a
+                # test whose body broke the list.
+                longest = max((k for k, v in args.items() if isinstance(v, str)),
+                              key=lambda k: len(args[k]), default=key)
                 results.append(ToolError(
                     f"{MARKER} {name}({raw_args[:80]})",
                     f"a quote inside {key} ended it early and the arguments "
                     f"after it ({other}=...) were read as part of {key}. Source "
                     f"has quotes of its own; put it between triple quotes, "
-                    f"{other}='''...''', with the lines as they are, no "
+                    f"{longest}='''...''', with the lines as they are, no "
                     f"escaping"))
             else:
                 results.append(ToolCall(name=name, args=args, pos=pos,
