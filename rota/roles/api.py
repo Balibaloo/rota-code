@@ -4133,6 +4133,57 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # The sentence is demanded there and only there: the encode goes through
     # once a ledger row carries the literal. Walk eight's tests chose
     # 'Enter your name: ' and 'Alice' where the principal said neither.
+    # A test that uses the surface's return value asserts on a promise the
+    # material may not make. clickI night 28 (2026-09-13): the sentence said
+    # echo_json "prints an object as JSON", the one test did
+    # `result = echo_json(obj); result.split(...)`, the helper printed and
+    # returned None, and the fix loop ran to quarantine on both desks. The
+    # same shape as an invented literal: an assumption, logged where it is
+    # made, and the encode sent again unchanged.
+    surface_now = json.loads(row["surface_refs"] or "[]") if (row := ctx.conn.execute(
+        "SELECT surface_refs FROM criteria WHERE id = ?", (criterion_id,)).fetchone()) else []
+    surface_now = {s.rsplit("::", 1)[-1] for s in surface_now}
+    uses_return = None
+    for node in _ast.walk(tree):
+        call = None
+        if isinstance(node, _ast.Assign) and isinstance(node.value, _ast.Call):
+            call = node.value
+        elif isinstance(node, (_ast.Compare, _ast.Return)):
+            for sub in _ast.walk(node):
+                if isinstance(sub, _ast.Call):
+                    call = sub
+                    break
+        if call is not None:
+            fn = call.func
+            name = fn.id if isinstance(fn, _ast.Name) else getattr(fn, "attr", None)
+            if name in surface_now:
+                uses_return = name
+                break
+    if uses_return:
+        material = _material_words(ctx, criterion_id)
+        for r in ctx.conn.execute("SELECT default_taken FROM ledger WHERE about_ref = ?",
+                                  (criterion_id,)):
+            material |= _words(r["default_taken"] or "")
+        material |= {w for t, i, *rest in ctx.writes if t == "ledger"
+                     for w in _words(rest[0].get("default_taken", ""))}
+        # Only when the material's own words say the surface prints, writes
+        # or shows: a pure function is tested on its return value, and that
+        # is the normal shape of a test.
+        says_prints = {"print", "prints", "printed", "printing", "output", "outputs",
+                       "display", "displays", "show", "shows", "write", "writes", "echo",
+                       "echoes"} & material
+        says_returns = {"return", "returns", "returned", "returning", "result"} & material
+        if says_prints and not says_returns:
+            raise ValueError(
+                f"the test uses what {uses_return} returns, and the criterion, "
+                f"its ticket or the principal's words say it prints; nothing "
+                f"says it returns anything. That is an assumption, and it is "
+                f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
+                f"about_table='criteria', assumption=\"the test assumes "
+                f"{uses_return} returns what it prints\") -- then send this "
+                f"encode again unchanged. Or assert on what it prints, with "
+                f"capsys")
+
     invented = _invented_literals(ctx, criterion_id, tree)
     if invented:
         said = [w for t, i, *rest in ctx.writes if t == "ledger"

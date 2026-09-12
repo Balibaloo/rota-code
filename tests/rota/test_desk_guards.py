@@ -1612,3 +1612,26 @@ def test_a_surface_imported_from_a_module_that_lacks_it_is_pointed_at_its_file(d
     assert sb.call("tests.encode", id="tst_b", criterion_id="c1", path="tests/test_b.py",
                    body="from main import calculate_tip" + chr(10) + "def test_b():" + chr(10)
                         + "    assert calculate_tip(100, 10) == 10" + chr(10))
+
+
+def test_a_test_that_uses_a_printing_surfaces_return_value_logs_the_assumption(db, tmp_path):
+    """clickI night 28 (2026-09-13): the sentence said echo_json prints an
+    object as JSON, the one test used its return value, the helper printed
+    and returned None, and both desks ran to quarantine. Same shape as an
+    invented literal: log the assumption, then the encode goes through."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "script.py").write_text("import json" + chr(10) + "def echo_json(obj, indent=2):" + chr(10)
+                                    + "    print(json.dumps(obj, indent=indent))" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET text = 'echo_json prints the object as JSON, indented', "
+               "surface_refs = '[\"echo_json\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    body = ("from script import echo_json" + chr(10) + "def test_x():" + chr(10)
+            + "    result = echo_json({'a': 1})" + chr(10) + "    assert result.startswith('{')" + chr(10))
+    with pytest.raises(ValueError, match="uses what echo_json returns"):
+        sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+    sb.call("ledger.log", about_ref="c1", about_table="criteria",
+            assumption="the test assumes echo_json returns what it prints")
+    assert sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
