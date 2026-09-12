@@ -9,7 +9,7 @@ ollama_up() { curl -s -m 5 localhost:11434/api/tags >/dev/null || { echo "ollama
 export ROTA_MAX_ITERATIONS=24
 export WALK_WORDS="yes that all looks right, go ahead"
 echo "== onboard $(date +%H:%M)"
-python -m rota onboard clickI --root "${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}" --force --profile local 2>&1 | tail -2
+python -m rota onboard clickI --root "${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
 ollama_up
 echo "== walk 1 $(date +%H:%M)"
 python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
