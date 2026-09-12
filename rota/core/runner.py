@@ -913,7 +913,7 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             continue
         for table, cols in (
             ("statements", "id, text, status"),
-            ("items", "id, text, kind, approval"),
+            ("items", "id, text, kind, approval, provenance"),
             ("criteria", "id, ticket_id, text"),
             # A challenge names the test and the criterion, and only the
             # criterion resolved -- so Tester was woken to defend a test it was
