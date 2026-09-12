@@ -1418,8 +1418,11 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    gemma3:12b passes every Critic case 5/5 on one load, that one included.
    The lever was a different model, not a bigger one. Shipped as
    `local-gemma-critic` (d096d3c), the Critic's desk only; its Developer
-   score is 0.5. Owed: a click night on that profile, and the L3
-   failed-verdict chain on it.
+   score is 0.5. The L3 failed-verdict chain on gemma, both hops: the
+   Critic's fail verdict lands and wakes the Developer every run, which
+   no qwen judge did, and then gemma's Developer never writes. The chain
+   harness runs one model for both hops; on the profile the Developer is
+   qwen3.5:9b. Owed: a click night on that profile (night 28, queued).
 7. **G1, dynamic stacks.** The account rules the stack; the provisioner
    installs its toolchain; the floor is that stack's test runner. Prose
    repositories get judgement without a mechanical net, and the tool says
