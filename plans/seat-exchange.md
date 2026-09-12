@@ -68,6 +68,8 @@ Six pages, six replies, no merge. The whole log is
 `plans/exchanges/seat1-tipsI-2026-09-12.md`.
 
 Standing after the first exchange (same day): 2, 4 and 5 are doors
-(b6be813, a8b0c0c, the touch-path door). 1 is a register case,
+(b6be813, a8b0c0c, 48e7921). 1 is a register case,
 `L1-LI-a-question-then-a-statement-at-the-confirm-is-the-question`,
-owed its record. 3 is owed a fact: the clarify's refs.
+recorded 0/5 on both Liaison models; a brief sentence for it turned a
+green landing case red on each model and was reverted, so it stands
+attributed. 3 is owed a fact: the clarify's refs.

@@ -130,6 +130,10 @@
   # Liaison read the statement, approved the line, and the next page was
   # signoff; the question was never answered. A question beside a ruling
   # is the question (2db5969): answer it, and the page stays open.
+  # Attributed 2026-09-12: 0/5 on qwen3:8b and llama under the brief as
+  # it stands. A sentence saying "a question anywhere in the reply makes
+  # it a question" moved nothing here and turned a green landing case red
+  # on each model; reverted. The lever is not another sentence on 8B.
   inbound: {from: principal, to: liaison, verb: converse,
             body_refs: [<s1>], cause: <m_confirm>,
             body_text: "before I say yes: does each person pay an equal share, or their own order? I mean an equal share of the total including the tip."}
