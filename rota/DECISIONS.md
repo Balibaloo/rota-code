@@ -1395,3 +1395,31 @@ let pages queue. What that finds is pinned as page-sequence cases: a
 sentence, the pages it produces, the words on each, in order. Design and
 findings in `plans/seat-exchange.md`. Roman at the TUI with his own
 sentences stays the final test, after click merges cold.
+
+### The principal's flow: five rulings (2026-09-13)
+
+On `plans/principal-flow.md`, the six pages and three paths taken from
+wsff. Roman ruled:
+
+1. **Click first.** Stage 1 (one ticket per Developer session, the slice
+   read, `batches.depend`, the worked example) waits for click's first
+   cold merge on the batch unit, which is the control. If click's last
+   red is the Developer session being too large for one call, that red
+   is stage 1's case and the switch happens then.
+2. **There is no silence.** A page is a hold or a note. A hold waits on a
+   keypress and the batch defers; a note waits on nobody, stays owed on
+   the register, and a contest after the work is an amendment under law
+   9. No predicate reads a clock, wall or step. "Silence approves" is
+   gone. On the plan path the slice read is a note.
+3. **The shape holds the memory, not the repository.** Rows are the
+   callables a criterion or a design page ever named, observed from the
+   index when a page first names them. The index keeps the rest.
+4. **The Critic's cost is accepted.** The relief is band order: the
+   Developer's next ticket is offered before the Critic's review of the
+   last, so reviews queue and the model swap is per batch. The price, a
+   fail on ticket 1 found after ticket 3, is measured against the other
+   order on tipsI before either is chosen.
+5. **Defaults are measured by a person first.** Hold at design time and
+   default to the plan path do not ship as defaults until Roman has
+   driven one batch on each path at the TUI.
+
