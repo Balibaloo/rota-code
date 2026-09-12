@@ -3976,8 +3976,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 names |= {x.strip().split(" as ")[0] for x in m.group(1).split(",")}
             names.discard("*")
             defined: set[str] = set()
+            mf = None
             try:
-                mf = _worktree_of(ctx) / f"{mod}.py"
+                # The module may be a file or a package, at the root or under
+                # src/. tipsAY (2026-09-12): the Developer made a package
+                # `split_bill/` with an empty __init__.py beside a `split_bill`
+                # function in main.py, the Tester imported the name from the
+                # package, this door looked only for split_bill.py, and every
+                # test died at collection.
+                _wt = _worktree_of(ctx)
+                mf = next((p for p in (_wt / f"{mod}.py", _wt / mod / "__init__.py",
+                                       _wt / "src" / f"{mod}.py", _wt / "src" / mod / "__init__.py")
+                           if p.is_file()), _wt / f"{mod}.py")
                 if mf.is_file():
                     defined = {n.name for n in _ast.parse(
                         mf.read_text(encoding="utf-8", errors="replace")).body
@@ -4002,6 +4012,57 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     f"surface is the wrong callable for this behaviour, say so "
                     f"to its owner: msg.question_terminologist with the "
                     f"criterion and the name the test needs")
+        # The surface's own name, imported from a module that exists and does
+        # not define it. tipsAY (2026-09-12): `from split_bill import
+        # split_bill` against an empty split_bill/__init__.py while main.py
+        # held the function; four tests died at collection and the Developer
+        # challenged the Tester for it. Every `from X import` in the body is
+        # read, whatever the surface's own spelling; the tree says which file
+        # defines the name.
+        if _root is not None:
+            for m in _re2.finditer(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import\s+([^\r\n]+)", body, _re2.M):
+                mod_name, imported = m.group(1), {x.strip().split(" as ")[0]
+                                                 for x in m.group(2).split(",")}
+                rel_mod = mod_name.replace(".", "/")
+                found = next((p for p in (_root / f"{rel_mod}.py", _root / rel_mod / "__init__.py",
+                                          _root / "src" / f"{rel_mod}.py",
+                                          _root / "src" / rel_mod / "__init__.py")
+                              if p.is_file()), None)
+                if found is None:
+                    continue
+                try:
+                    tree_mod = _ast.parse(found.read_text(encoding="utf-8", errors="replace"))
+                except SyntaxError:
+                    continue
+                has = {n.name for n in tree_mod.body
+                       if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+                has |= {t.id for n in tree_mod.body if isinstance(n, _ast.Assign)
+                        for t in n.targets if isinstance(t, _ast.Name)}
+                has |= {a.name.split(".")[0] if a.asname is None else a.asname
+                        for n in tree_mod.body if isinstance(n, (_ast.Import, _ast.ImportFrom))
+                        for a in n.names}
+                misplaced = sorted(n for n in imported if n in surface_names and n not in has)
+                if not misplaced:
+                    continue
+                where = None
+                pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(misplaced[0])}(?!\w)", _re2.M)
+                for py in _root.rglob("*.py"):
+                    rel = py.relative_to(_root).parts
+                    if any(part.startswith(".") for part in rel) or "tests" in rel:
+                        continue
+                    try:
+                        if pat.search(py.read_text(encoding="utf-8", errors="replace")):
+                            where = _dotted("/".join(rel))
+                            break
+                    except OSError:
+                        continue
+                raise Wall(
+                    f"{found.relative_to(_root).as_posix()} does not define "
+                    f"{misplaced[0]}, and this test imports it from there; the "
+                    f"harness dies at collection. "
+                    + (f"It is defined in {where}: `from {where} import {misplaced[0]}`"
+                       if where else
+                       f"Nothing in the tree defines it yet; the Developer writes it first"))
         # The dotted module a test imports, from the surface's path: a src
         # layout's `src/click/core.py` is `click.core`, a root module is its
         # stem. clickI night 23 (2026-09-12): the door compared the stem

@@ -1591,3 +1591,24 @@ def test_an_assumption_whose_halves_match_is_a_restatement(db):
     out = sb.call("ledger.log", about_ref="README.md", about_table="items",
                   assumption="the README says accounts can be merged; the code shows no merge path at all")
     assert out
+
+
+def test_a_surface_imported_from_a_module_that_lacks_it_is_pointed_at_its_file(db, tmp_path):
+    """tipsAY (2026-09-12): `from split_bill import split_bill` against an
+    empty split_bill/__init__.py while main.py held the function; four tests
+    died at collection and the Developer challenged the Tester for it."""
+    root = tmp_path / "wt"; (root / "calc").mkdir(parents=True)
+    (root / "calc" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "main.py").write_text("def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"calculate_tip\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError, match="calc/__init__.py does not define calculate_tip.*from main import calculate_tip"):
+        sb.call("tests.encode", id="tst_a", criterion_id="c1", path="tests/test_a.py",
+                body="from calc import calculate_tip" + chr(10) + "def test_a():" + chr(10)
+                     + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    assert sb.call("tests.encode", id="tst_b", criterion_id="c1", path="tests/test_b.py",
+                   body="from main import calculate_tip" + chr(10) + "def test_b():" + chr(10)
+                        + "    assert calculate_tip(100, 10) == 10" + chr(10))
