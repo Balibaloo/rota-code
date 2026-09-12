@@ -1,0 +1,21 @@
+# `local` with gemma3:12b at the Critic's desk. Measured 2026-09-12 on the
+# register: gemma3:12b passes every Critic case 5/5 on one load, including
+# `CR-a-test-that-encodes-nothing-is-a-challenge`, red on every 8B model and
+# on qwen2.5:14b. 8.1 GB, so the Critic's turns swap the resident model on a
+# 10 GB card. The other desks stay as `local` has them.
+name = "local-gemma-critic"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "qwen3:8b"
+tester = "qwen3.5:9b"
+critic = "gemma3:12b"
+terminologist = "qwen3.5:9b"
+developer = "qwen3.5:9b"

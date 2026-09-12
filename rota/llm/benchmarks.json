@@ -1,11 +1,27 @@
 [
  {
+  "model": "gemma3:12b",
+  "capability": "CR",
+  "score": 1.0,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "DV",
+  "score": 0.5,
+  "cases": 10,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
   "model": "llama3.1:8b",
   "capability": "AR",
   "score": 0.867,
   "cases": 15,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -13,15 +29,15 @@
   "score": 0.75,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
   "capability": "DV",
-  "score": 0.636,
-  "cases": 11,
+  "score": 0.75,
+  "cases": 12,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -29,15 +45,15 @@
   "score": 1.0,
   "cases": 15,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
   "capability": "LI",
-  "score": 0.815,
-  "cases": 27,
+  "score": 0.821,
+  "cases": 28,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -45,15 +61,15 @@
   "score": 1.0,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
   "capability": "TE",
-  "score": 0.842,
+  "score": 0.789,
   "cases": 19,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -61,7 +77,7 @@
   "score": 0.625,
   "cases": 8,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -69,7 +85,7 @@
   "score": 0.818,
   "cases": 22,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -77,7 +93,7 @@
   "score": 0.538,
   "cases": 13,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -85,7 +101,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -93,7 +109,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -101,7 +117,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -109,7 +125,7 @@
   "score": 0.0,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -117,7 +133,15 @@
   "score": 1.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "qwen2.5:14b-instruct-q3_K_M",
+  "capability": "CR",
+  "score": 0.5,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:latest",
@@ -125,7 +149,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -133,7 +157,7 @@
   "score": 0.786,
   "cases": 14,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -141,7 +165,7 @@
   "score": 0.25,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -149,7 +173,7 @@
   "score": 0.4,
   "cases": 10,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -157,7 +181,7 @@
   "score": 0.8,
   "cases": 25,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -165,7 +189,7 @@
   "score": 0.0,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -173,7 +197,7 @@
   "score": 0.765,
   "cases": 17,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -181,7 +205,7 @@
   "score": 0.6,
   "cases": 5,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -189,7 +213,7 @@
   "score": 0.667,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -197,7 +221,7 @@
   "score": 0.714,
   "cases": 14,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -205,15 +229,15 @@
   "score": 0.25,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
   "capability": "DV",
-  "score": 0.636,
-  "cases": 11,
+  "score": 0.667,
+  "cases": 12,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -221,7 +245,7 @@
   "score": 0.857,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -229,7 +253,7 @@
   "score": 0.5,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -237,7 +261,7 @@
   "score": 0.706,
   "cases": 17,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -245,7 +269,7 @@
   "score": 0.4,
   "cases": 5,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -253,7 +277,15 @@
   "score": 0.857,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "qwen3.5:9b",
+  "capability": "chain",
+  "score": 0.333,
+  "cases": 3,
+  "source": "register",
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -261,7 +293,7 @@
   "score": 0.714,
   "cases": 14,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -269,7 +301,7 @@
   "score": 0.5,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -277,7 +309,7 @@
   "score": 0.7,
   "cases": 10,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -285,7 +317,7 @@
   "score": 0.88,
   "cases": 25,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -293,7 +325,7 @@
   "score": 0.0,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -301,7 +333,7 @@
   "score": 0.588,
   "cases": 17,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -309,7 +341,7 @@
   "score": 0.4,
   "cases": 5,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -317,7 +349,7 @@
   "score": 0.667,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -325,7 +357,7 @@
   "score": 0.786,
   "cases": 14,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -333,23 +365,23 @@
   "score": 0.75,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
   "capability": "DV",
-  "score": 0.556,
-  "cases": 9,
+  "score": 0.6,
+  "cases": 10,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
   "capability": "LI",
-  "score": 0.92,
-  "cases": 25,
+  "score": 0.885,
+  "cases": 26,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -357,7 +389,7 @@
   "score": 0.5,
   "cases": 2,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -365,7 +397,7 @@
   "score": 0.733,
   "cases": 15,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -373,7 +405,7 @@
   "score": 0.5,
   "cases": 6,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -381,7 +413,7 @@
   "score": 0.762,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -389,23 +421,31 @@
   "score": 0.625,
   "cases": 8,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "group:code",
+  "score": 0.643,
+  "cases": 14,
+  "source": "register",
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
   "capability": "group:code",
-  "score": 0.772,
-  "cases": 57,
+  "score": 0.776,
+  "cases": 58,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
   "capability": "group:prose",
-  "score": 0.815,
-  "cases": 27,
+  "score": 0.821,
+  "cases": 28,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -413,7 +453,7 @@
   "score": 0.833,
   "cases": 24,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -421,7 +461,7 @@
   "score": 0.0,
   "cases": 4,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -429,7 +469,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:14b",
@@ -437,7 +477,15 @@
   "score": 1.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "qwen2.5:14b-instruct-q3_K_M",
+  "capability": "group:code",
+  "score": 0.5,
+  "cases": 4,
+  "source": "register",
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen2.5:latest",
@@ -445,7 +493,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -453,7 +501,7 @@
   "score": 0.64,
   "cases": 50,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -461,7 +509,7 @@
   "score": 0.8,
   "cases": 25,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:4b",
@@ -469,15 +517,15 @@
   "score": 0.609,
   "cases": 23,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
   "capability": "group:code",
-  "score": 0.627,
-  "cases": 51,
+  "score": 0.635,
+  "cases": 52,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -485,7 +533,7 @@
   "score": 0.857,
   "cases": 21,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -493,7 +541,7 @@
   "score": 0.826,
   "cases": 23,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -501,7 +549,7 @@
   "score": 0.62,
   "cases": 50,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -509,7 +557,7 @@
   "score": 0.88,
   "cases": 25,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:4b",
@@ -517,23 +565,23 @@
   "score": 0.609,
   "cases": 23,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
   "capability": "group:code",
-  "score": 0.688,
-  "cases": 48,
+  "score": 0.694,
+  "cases": 49,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
   "capability": "group:prose",
-  "score": 0.92,
-  "cases": 25,
+  "score": 0.885,
+  "cases": 26,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -541,7 +589,7 @@
   "score": 0.739,
   "cases": 23,
   "source": "register",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3.5:9b",
@@ -549,7 +597,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3.5:9b",
@@ -557,7 +605,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3:8b",
@@ -565,7 +613,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3:8b",
@@ -573,7 +621,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -581,7 +629,7 @@
   "score": 0.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
@@ -589,7 +637,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -597,7 +645,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
@@ -605,7 +653,7 @@
   "score": 1.0,
   "cases": 1,
   "source": "toolcheck",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "llama3.1:8b",
@@ -613,7 +661,7 @@
   "score": 0.0,
   "cases": 2,
   "source": "walks",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3.5:9b",
@@ -621,7 +669,7 @@
   "score": 0.0,
   "cases": 2,
   "source": "walks",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "openai/qwen3:8b",
@@ -629,22 +677,22 @@
   "score": 0.0,
   "cases": 2,
   "source": "walks",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3.5:9b",
   "capability": "walk:merge",
-  "score": 0.15,
-  "cases": 20,
+  "score": 0.048,
+  "cases": 62,
   "source": "walks",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  },
  {
   "model": "qwen3:8b",
   "capability": "walk:merge",
-  "score": 0.15,
-  "cases": 20,
+  "score": 0.048,
+  "cases": 62,
   "source": "walks",
-  "recorded_on": "2026-09-11"
+  "recorded_on": "2026-09-12"
  }
 ]
