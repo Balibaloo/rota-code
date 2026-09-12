@@ -67,6 +67,28 @@ the Titan sat in one generation for twenty-five minutes; stopped there.
 Six pages, six replies, no merge. The whole log is
 `plans/exchanges/seat1-tipsI-2026-09-12.md`.
 
+| 2026-09-12 | seat2, click on the 3080, the agent at the seat | Page 2 showed click's existing behaviour under "It does today:" (finding 2's door). A question at that page ("is 2 to 5 something you will change?") landed as approve-all and was never answered. Page 3 carried nineteen reconcile findings, each "the README says X. The code shows X" in the same words; "approve 6 only, I am not reading nineteen of those" landed as approve for all twenty-five. Pages 4, 5 and 8 were clarifies that quoted the principal's own words back and asked what the question was. Page 6 asked a real question. Pages 7, 10 and 11 were agenda pages of seven restatements each, out of 81; "contest all seven" contested two observed items and the run asked the Vision Keeper to amend what the code does. Page 9 asked whether echo_json, approved twice, should proceed. Stopped at page 11, no build reached. Log: `plans/exchanges/seat2-click-2026-09-12.md`. | three doors (the hook's cap, the restatement door, the observed-item contest); the rest below |
+
+Findings from seat2, continuing the numbering:
+
+6. **A question at the signoff page lands as approve-all.** Twice. The
+   landing case for it is attributed red on both 8B Liaison models.
+7. **The principal's question comes back as a clarify quoting it.** Three
+   times: the reply went to the owner, the owner answered, and the
+   Liaison asked the principal what their question was. Owed a fact: a
+   clarify whose text quotes the principal's own last reply.
+8. **"Approve 6 only" approved everything.** A part-approval that names
+   one line and dismisses the rest landed as approve for the rest.
+   Judgement, the landing brief; a case is owed.
+9. **The reconcile flood, seen from the seat.** 81 rows, seven a page,
+   twelve pages; most restatements. The restatement door cuts the
+   duplicates at the source. What a person said at page 10, "stop, no
+   more README pages", has no ruling to land as: a ruling on a kind of
+   page. For Roman.
+10. **A contested finding contested the code.** Door landed.
+11. **The item approved twice was asked about again.** The observed
+    items' contested state (10) sent the run back through signoff.
+
 Standing after the first exchange (same day): 2, 4 and 5 are doors
 (b6be813, a8b0c0c, 48e7921). 1 is a register case,
 `L1-LI-a-question-then-a-statement-at-the-confirm-is-the-question`,
