@@ -1282,6 +1282,17 @@ merged cold in 34 steps.
    sentence teaching the `text=[text]` block form. No call ever used it.
    Reverted (819dc47); the parser's refusals still name the form. Prose
    in every prompt is measured on every desk, and this one lost on all.
+   Night 20 (2026-09-12, 09:07 to 10:30): the sentence's items batched
+   first, three criteria each for two of them, 34 tests, and the
+   Developer on the echo_json batch was refused every write for a
+   swallowed `nargs`: click's own source carries `", nargs=-1`, and the
+   swallowed-argument door read a keyword in the file as a parameter of
+   the call. Only a name in the signature is one now. The agenda stalled
+   beside it: 66 open ledger rows from reconcile, and the Liaison counted
+   its own ids up; the wake carries the first seven real ids now. tipsAW
+   the same hour: the amendment landed, the item was re-sliced, and the
+   Vision Keeper wrote tk_1, tk_2, tk_3 again for the new items, refused
+   three times a session; a colliding ticket id is derived now.
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once
