@@ -197,7 +197,7 @@ class LiveView:
         self._write(f"\n\n---\n[{how}]\n")
 
 
-def _consume_stream(lines, live: "LiveView") -> dict:
+def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> dict:
     """
     Join Ollama's streamed `/api/chat` chunks into the one body the
     non-streaming form returned: the content concatenated, the tool calls
@@ -216,7 +216,15 @@ def _consume_stream(lines, live: "LiveView") -> dict:
     # stops the generation. What was produced is kept, and the parser sees
     # three identical calls, which dispatch as one write and two "unchanged".
     line_buf, last_lines, stopped = "", [], False
+    import time as _time
     for raw in lines:
+        # The socket timeout guards a silent connection; a stream that keeps
+        # trickling never trips it. Night 27 and seat1 (2026-09-12): one
+        # generation held a card for two hours on the 3080 and twenty-five
+        # minutes on the Titan. The wall clock is the other guard.
+        if deadline is not None and _time.monotonic() > deadline:
+            live.token("\n[stopped: the reply ran past the time allowed]\n")
+            raise TimeoutError("the streamed reply ran past the time allowed")
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8", "replace")
         raw = raw.strip()
@@ -323,8 +331,10 @@ class OllamaBackend:
         )
         live = LiveView.open(pins, system, user)
         try:
+            import time as _time
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = _consume_stream(iter(resp), live)
+                body = _consume_stream(iter(resp), live,
+                                       deadline=_time.monotonic() + self.timeout)
         except TimeoutError as exc:
             # Raised bare by the socket layer rather than wrapped, so without
             # this it surfaced as `session failed: TimeoutError` — a bug report
