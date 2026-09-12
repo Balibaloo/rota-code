@@ -1445,6 +1445,12 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    page-sequence cases. `probes/seat.py` is the driver. Owed: the first
    exchanges on tipsI and click, and the cases they produce.
 
+10. **The principal's flow** (`plans/principal-flow.md`, ruled 2026-09-13).
+   Six pages and three paths from wsff. Gated on click's first cold merge
+   on the batch unit, the control. Stage 1 then: one ticket per Developer
+   session, the slice read as a note, `batches.depend`, the worked
+   example on page 1. No page reads a clock; a page is a hold or a note.
+   Defaults ship after Roman drives one batch on each path at the TUI.
 Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
 B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.
 
