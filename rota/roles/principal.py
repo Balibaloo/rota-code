@@ -287,6 +287,7 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     said: list[tuple[str, str]] = []
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
+    does_today: list[tuple[str, str]] = []
     does_not: list[tuple[str, str]] = []
     terms: list[tuple[str, str]] = []
     assumed: list[tuple[str, str]] = []
@@ -313,7 +314,16 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         text = next((row[k] for k in ("text", "headline", "body") if row.get(k)), "")
         kind = row.get("kind")
         if kind == "in_scope":
-            (account if row.get("id") == "how_it_works" else does).append((ref, text))
+            # What the repository already does is not a plan. seat1
+            # (2026-09-12): the signoff page put the account's observed
+            # behaviours under "It would:", and the person at the seat read
+            # "calculate the tip" as new work. Provenance is the fact.
+            if row.get("id") == "how_it_works":
+                account.append((ref, text))
+            elif row.get("provenance") == "observed":
+                does_today.append((ref, text))
+            else:
+                does.append((ref, text))
         elif kind == "out_of_scope":
             does_not.append((ref, text))
         elif "approval" not in row and row.get("status") in (
@@ -363,6 +373,9 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         if account:
             out.append("What we are building:")
             numbered(account)
+        if does_today:
+            out.append("It does today:")
+            numbered(does_today)
         if does:
             out.append("It would:")
             for ref, text in does:
@@ -390,14 +403,14 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("I need one thing from you before I can continue.")
         if question:
             out.append(f"  {question.strip()}")
-        context = [t for _, t in said + account + does + does_not + assumed
+        context = [t for _, t in said + account + does_today + does + does_not + assumed
                    + terms + other + touches]
         if context:
             out.append("This is about:")
             out += [f"  - {c}" for c in context]
         out.append("Reply in a sentence. I take it from there.")
     else:
-        out += [f"  {t}" for _, t in said + account + does + does_not + assumed
+        out += [f"  {t}" for _, t in said + account + does_today + does + does_not + assumed
                 + terms + touches + other]
     return chr(10).join(out), order
 
@@ -504,8 +517,9 @@ def touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
     if not t:
         return ""
     item = t["item"]
-    parts = ["the batch for " + item["id"]
-             + (f" ({item['text']})" if item.get("text") else "")]
+    # Words, no ids: the page shows none by contract, and seat1 (2026-09-12)
+    # read "the batch for s2 (...)" to the person at the seat.
+    parts = ["the work for: " + (item.get("text") or "this item")]
     parts.append("expected to touch "
                  + (", ".join(t["expected"]) if t["expected"] else "nothing named"))
     if t["possible"]:
@@ -514,7 +528,7 @@ def touch_words(conn: sqlite3.Connection, batch_id: str) -> str:
         parts.append("unsurveyed ground: " + ", ".join(t["unsurveyed"]))
     if t["commitments"]:
         parts.append("commitments: " + ", ".join(
-            f"{c['id']} {c['headline']} (bound to {c['bound_to']})"
+            f"{c['headline']} (bound to {c['bound_to']})"
             for c in t["commitments"]))
     return "; ".join(parts)
 

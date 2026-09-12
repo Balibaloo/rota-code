@@ -263,3 +263,22 @@ def test_a_page_carries_at_most_seven_open_assumptions(db):
     with pytest.raises(ValueError, match="at most 7 open assumptions"):
         sb.call("msg.present_principal", refs=["i1"] + [f"L{n}" for n in range(9)])
     sb.call("msg.present_principal", refs=["i1"] + [f"L{n}" for n in range(7)])
+
+
+def test_observed_behaviour_is_not_shown_as_a_plan(db):
+    """seat1 (2026-09-12): the signoff page put the account's observed
+    behaviours under "It would:", and the person at the seat read "calculate
+    the tip" as new work. Provenance is the fact; the heading follows it."""
+    from rota.roles.principal import render_ask
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('seen', 'the program calculates the tip', 'in_scope', "
+               "'observed', 'approved', 1, 1)")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('new', 'the program splits the bill', 'in_scope', "
+               "'decided', 'draft', 0, 1)")
+    db.commit()
+    page = render_ask(db, "present", ["seen", "new"])
+    assert "It does today:" in page and "It would:" in page
+    assert page.index("It does today:") < page.index("the program calculates the tip") < page.index("It would:")
+    assert page.index("It would:") < page.index("the program splits the bill")
