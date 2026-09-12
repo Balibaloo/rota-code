@@ -1336,7 +1336,12 @@ merged cold in 34 steps.
    qwen3.5:9b. The doors held at every step; the fork is the 8B
    judgement the register's `DV-challenge-a-test-that-contradicts-its-
    criterion` already measures red on that model. Three of the day's
-   click nights ended here, one door further each time. `a-challenge-
+   click nights ended here, one door further each time.
+   Night 27 (21:00) never ended: one Developer generation held the 3080
+   at 83% for two hours with the run's turn count frozen, the same shape
+   the Titan showed in seat1. The socket timeout never fired because the
+   stream kept trickling; the stream consumer has a wall-clock deadline
+   now (57ea562). Night 28 runs on `local-gemma-critic`. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
