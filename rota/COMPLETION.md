@@ -1261,6 +1261,11 @@ merged cold in 34 steps.
    for one of them, the Architect batched it first, and the Developer
    was quarantined trying to build what click already does. Door: the
    same words on an observed row are refused (dc4a182, `problem.assert`).
+   The same night showed the raised output cap's other face: the
+   Terminologist wrote 63 criteria for one flag, 55 in one reply. Nearly
+   the same words on one ticket are refused now (e3a6d78), and the brief
+   says three is usual and six is many; the criteria cases owe their
+   re-record.
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once
