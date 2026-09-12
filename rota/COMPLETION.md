@@ -1373,6 +1373,12 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    (`plans/greenfield-setup.md`, "Rulings and choices, 2026-09-12").
 8. **F1, budgets.** Turn caps and one page per tick exist. A money budget
    arrives with the first remote provider, not before.
+9. **The seat as an exchange** (ruled 2026-09-12, `plans/seat-exchange.md`).
+   The measurement the seat's pages lacked: the agent as the principal,
+   every page printed whole, each reply landed through the TUI's door,
+   a person's moves at each page, and what it finds pinned as
+   page-sequence cases. `probes/seat.py` is the driver. Owed: the first
+   exchanges on tipsI and click, and the cases they produce.
 
 Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
 B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.

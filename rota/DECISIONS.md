@@ -1374,3 +1374,24 @@ features.
    that disagree are put to the principal, never resolved by recency or by
    preferring code. Roman's reason: a conflict page that never appears on
    a repository with conflicts shows the tool is failing.
+
+### The seat as an exchange (2026-09-12)
+
+The register measures one desk, one turn. The walks measure the loop with
+a scripted principal that says yes and contests one numbered line on one
+page. Nothing asserted across pages, and nothing exercised the seat the
+way a person does. Night 21 showed a seat fault the register cannot see:
+the same "Here is what I understand you want" page put to the principal
+five times in a row, each one correct, together tiresome.
+
+Ruled: the seat is tested as an exchange with the Liaison, in both
+directions, with the agent as the principal. The driver prints every
+page whole with the reply under it. A turn-by-turn principal
+(`probes/seat.py`) lands each reply through `principal.land`, the door
+the TUI uses, and waits for the next. The agent chooses a person's move
+at each page: ask before approving, approve part of a page, change its
+mind at the touch note, reply with something unhelpful, repeat itself,
+let pages queue. What that finds is pinned as page-sequence cases: a
+sentence, the pages it produces, the words on each, in order. Design and
+findings in `plans/seat-exchange.md`. Roman at the TUI with his own
+sentences stays the final test, after click merges cold.

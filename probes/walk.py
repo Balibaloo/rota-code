@@ -82,7 +82,12 @@ class Principal:
                     return None
                 replied.add(ask.message_id)
                 said = reply_for(ask.rendered)
-                print(f"[{ask.message_id}] {ask.verb}: {head[:90]}  -> '{said}'")
+                if os.environ.get("WALK_FULL"):
+                    # The whole page, then the reply: a chat log a person judges.
+                    print(chr(10) + f"===== [{ask.message_id}] {ask.verb} =====" + chr(10)
+                          + (ask.rendered or "") + chr(10) + f"----- reply: {said}" + chr(10))
+                else:
+                    print(f"[{ask.message_id}] {ask.verb}: {head[:90]}  -> '{said}'")
                 return Answer(verb="reply", text=said)
             print(f"[{ask.message_id}] {ask.verb}: {head[:90]}  -> ok")
             return Answer(verb="verdict", per_item={r: "approve" for r in ask.refs})
