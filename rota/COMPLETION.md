@@ -1309,7 +1309,11 @@ merged cold in 34 steps.
    The four L3 chains red since the morning, read on the Titan with fresh
    loads and on yesterday's tree: `becomes-scope` is the bar model, 5/5
    on qwen3:8b and 0/5 on llama, pinned to qwen. `a-failed-verdict` is
-   5/5 on llama fresh and 0/5 on qwen, llama is its default. `a-challenge-
+   5/5 on llama fresh and 0/5 on qwen3:8b and qwen3.5:9b: on both qwen
+   models the Critic reads the fixture's test as hollow, challenges the
+   Tester, and the doors hold (the pass it then tries is refused, one
+   challenge is sent, no verdict lands). The case measures the fail path;
+   qwen takes the challenge path. llama is its default and carries it. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` went red on
