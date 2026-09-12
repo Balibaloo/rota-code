@@ -1223,6 +1223,19 @@ merged cold in 34 steps.
    judgements, the Developer's on a six-hundred-line module and the
    Liaison's with pages pending, and both move with the load. Fourteen
    nights, ten doors, no merge on click. Left here.
+   Night 16 (2026-09-12), with the read-the-map brief: the Developer read
+   the map, read the span, and wrote the whole 688-line module. The reply
+   stopped at the 2048-token output cap in the middle of the text, the
+   parser called it an unbalanced quote, and the Developer re-read the
+   file, judged `echo_json` already there, and met the commit door. Three
+   sessions the same, the batch given up, 93 steps. Not judgement: a cap
+   the model cannot see. Three doors (b977fc7): `code.write` takes the
+   span `code.source` showed, the runner says when a reply was cut at the
+   output budget, and the cap is 8192. The re-record then found a second
+   transport fault (db80e09): a quote inside quoted source swallowed the
+   next argument and the refusal named only the missing one; the parser
+   names the quote now and both refusals point at the `text=[text]` block
+   form, which needs no quoting. Night 17 runs on both.
    Night 9, with turns and the narrowed door: all three sentences became
    decided items, the first time on click. Then the Terminologist wrote
    thirty criteria, sixteen of them for the account against
