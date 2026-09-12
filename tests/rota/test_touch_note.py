@@ -202,3 +202,20 @@ def test_an_answered_note_is_not_a_deferred_baseline(db):
     db.execute("UPDATE items SET provenance = 'observed' WHERE id = 'i1'")
     _present(db, "m_note", ["b1", "i1"], status="answered")
     assert not [w for w in observed_entries(db) if w.kind == "do:defer_baseline"]
+
+
+def test_a_predicted_path_lives_where_the_tree_has_paths(db):
+    """seat1 (2026-09-12): the touch note put src/split_bill.py to the person
+    at the seat on a repository with no src/. The index is the fact."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) VALUES ('main.py', 'path')")
+    db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) VALUES ('tests/test_main.py', 'path')")
+    db.commit()
+    sb = build("architect", db, mode="annotate", batch_id="b1",
+               allow=prompts.mode_tools("architect", "annotate"))
+    with pytest.raises(ValueError, match="src/split_bill.py is under a directory the tree does not have"):
+        sb.call("batches.annotate", batch_id="b1", paths=["src/split_bill.py"])
+    out = sb.call("batches.annotate", batch_id="b1", paths=["split_bill.py", "main.py", "tests/test_split.py"])
+    assert out["grains"] == 3

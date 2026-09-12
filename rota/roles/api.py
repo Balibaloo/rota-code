@@ -3339,6 +3339,28 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
     argument, and a prediction that could block work would quietly become a
     permission system nobody designed.
     """
+    # A predicted path lives where the tree has paths. seat1 (2026-09-12):
+    # the touch note put "src/split_bill.py" to the person at the seat on a
+    # repository with no src/, and they had to say so. A new file beside
+    # existing ones is a prediction; a directory the index has never seen
+    # is a guess about the tree, and the index is the fact.
+    known_dirs = {""}
+    for row in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path'"):
+        parts = row["grain"].replace("\\", "/").split("/")
+        for i in range(1, len(parts)):
+            known_dirs.add("/".join(parts[:i]))
+    # Only a nested path is checked: a new file at the root is a prediction
+    # the tree can always hold.
+    strays = [p for p in paths if "/" in p.replace("\\", "/")
+              and "/".join(p.replace("\\", "/").split("/")[:-1]) not in known_dirs]
+    if strays:
+        top = sorted(d for d in known_dirs if d and "/" not in d)[:6]
+        raise ValueError(
+            f"{strays[0]} is under a directory the tree does not have. The "
+            f"directories here are {', '.join(top) or 'none: the modules sit at the root'}; "
+            f"a new file goes beside the ones that exist, and the index says "
+            f"where they are")
     for path in paths:
         ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
             "batch_id": batch_id, "grain": path, "grain_kind": "path",
