@@ -1349,9 +1349,10 @@ merged cold in 34 steps.
    name, challenged the right test with the hint's refs, got an answer,
    escalated, and was done without a write. The hints worked; the fork
    is the test's assumption, which no text of the lineage supports. A
-   door for that is next: a test that uses the surface's return value
-   when nothing in the criterion, the ticket or the principal's words
-   says "return". `a-challenge-
+   door for that landed the same hour (the return-value door, beside the
+   invented-literal one: the lineage says prints, the test uses a
+   return, so the assumption is logged or the test asserts on what is
+   printed). Night 29 runs on it. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
