@@ -1,6 +1,14 @@
 [
  {
   "model": "gemma3:12b",
+  "capability": "AR",
+  "score": 0.692,
+  "cases": 13,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
   "capability": "CR",
   "score": 1.0,
   "cases": 4,
@@ -12,6 +20,38 @@
   "capability": "DV",
   "score": 0.5,
   "cases": 10,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "LI",
+  "score": 0.8,
+  "cases": 25,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "TE",
+  "score": 0.588,
+  "cases": 17,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "TS",
+  "score": 0.6,
+  "cases": 5,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "VK",
+  "score": 0.8,
+  "cases": 20,
   "source": "register",
   "recorded_on": "2026-09-12"
  },
@@ -426,8 +466,24 @@
  {
   "model": "gemma3:12b",
   "capability": "group:code",
-  "score": 0.643,
-  "cases": 14,
+  "score": 0.632,
+  "cases": 49,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "group:prose",
+  "score": 0.8,
+  "cases": 25,
+  "source": "register",
+  "recorded_on": "2026-09-12"
+ },
+ {
+  "model": "gemma3:12b",
+  "capability": "group:rows",
+  "score": 0.8,
+  "cases": 20,
   "source": "register",
   "recorded_on": "2026-09-12"
  },
