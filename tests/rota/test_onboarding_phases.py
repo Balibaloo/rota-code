@@ -1835,3 +1835,39 @@ def test_a_claim_that_cites_nothing_is_read_by_loading_it(tmp_path):
     sb.call("challenge.load")
     got = sb.call("challenge.vacuous", why="no line could support or defeat it")
     assert got["verdict"] == "unfounded"
+
+
+def test_reconcile_reads_each_docs_file_as_its_own_area(project):
+    """A5, conflicting sources (2026-09-12): the phase read only the README,
+    so a project's real prose went unchecked. One wake per prose file now,
+    `@prose` for the README and `@prose:<path>` under docs/; `code.prose`
+    reads the wake's file, and the attest closes that area alone."""
+    from rota.core.runner import run_session
+    from rota.core.scheduler import PROSE, frontier, prose_areas, tick_reconcile
+    from rota.llm.llm import ScriptedBackend
+    from rota.roles.api import Ctx, code_prose
+
+    db, repo = project
+    docs = repo.root / "docs"
+    docs.mkdir()
+    (docs / "guide.md").write_text("# Guide" + chr(10) + "Accounts can be merged." + chr(10),
+                                   encoding="utf-8")
+    boot.onboard(db, repo.root)
+    _oriented(db)
+    db.commit()
+    assert prose_areas(db) == [PROSE, PROSE + ":docs/guide.md"]
+    assert [w.refs for w in tick_reconcile(db)] == [(PROSE,), (PROSE + ":docs/guide.md",)]
+    got = code_prose(Ctx(conn=db, role="vision_keeper", area=PROSE + ":docs/guide.md"))
+    assert got["path"] == "docs/guide.md" and "merged" in got["text"]
+    wake = next(w for w in frontier(db)
+                if w.kind == "tick:reconcile" and w.refs == (PROSE + ":docs/guide.md",))
+    out = run_session(db, wake, backend=ScriptedBackend([
+        'TOOL: ledger.log(about_ref="docs/guide.md", about_table="items", '
+        'assumption="docs/guide.md says accounts can be merged; the code shows no merge path")'
+        + chr(10) + 'TOOL: surveys.attest(outcome="found", citations=["docs/guide.md"])',
+        "done", "done",
+    ]))
+    assert out.committed, out.errors
+    areas = {r["area"] for r in db.execute("SELECT area FROM survey_records")}
+    assert PROSE + ":docs/guide.md" in areas and PROSE not in areas
+    assert [w.refs for w in tick_reconcile(db)] == [(PROSE,)], "the README is still owed"

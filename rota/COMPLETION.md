@@ -1281,7 +1281,10 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    the merged half and two tipsI walks. Level 3, invalidate by touch, is
    the measured upgrade. Design in `plans/amendment-and-conflicts.md`.
 4. **A5, conflicting sources.** Two documents that disagree are a page to
-   the principal, always. Same plan file.
+   the principal, always. The reconcile phase is that page and it reads
+   every prose file now, one session each (2026-09-12); owed is the
+   re-record and a walk on a repository seeded with one conflict. Same
+   plan file.
 5. **B5, questions at any time.** A question at a page is answered. A free
    question at any moment is the chat surface, post-core by the
    2026-09-01 ruling; the page half is core and built.

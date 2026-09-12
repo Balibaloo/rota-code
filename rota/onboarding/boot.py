@@ -171,8 +171,8 @@ def stresses(conn: sqlite3.Connection, report: OnboardReport) -> list[str]:
     ).fetchone()[0]
     if docs_prose >= 10:
         out.append(f"{docs_prose} prose files under docs/: reconcile reads "
-                   f"only the root README, so the project's real prose goes "
-                   f"unchecked and nominates no names")
+                   f"each against the account, one session per file, and a "
+                   f"disagreement is a page for you")
 
     from .areas import is_attached
     root_src = [r["grain"] for r in conn.execute(

@@ -2225,7 +2225,7 @@ def surveys_attest(ctx: Ctx, outcome: str,
 
     from ..core.scheduler import BLINDSPOTS as _BLIND
 
-    if area == _PROSE:
+    if area == _PROSE or area.startswith(_PROSE + ":"):
         owed = "ledger"
     if area == _BLIND:
         owed = "ledger"
@@ -4862,9 +4862,15 @@ def code_prose(ctx: Ctx, limit: int = 6000) -> dict:
         return {"note": "prose sources are off for this run: there is nothing "
                         "to reconcile. `surveys.attest(outcome='none_found', "
                         "citations=[])` is the answer."}
-    paths = [r["grain"] for r in ctx.conn.execute(
-        "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")]
-    readme = next((p for p in paths if _re.match(r"(?i)readme(\.|$)", p)), None)
+    from ..core.scheduler import PROSE as _PROSE
+    if ctx.area and ctx.area.startswith(_PROSE + ":"):
+        # A prose file under docs/, the wake's own subject (one file a
+        # session, `prose_areas`). The README is the bare `@prose`.
+        readme = ctx.area[len(_PROSE) + 1:]
+    else:
+        paths = [r["grain"] for r in ctx.conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' ORDER BY grain")]
+        readme = next((p for p in paths if _re.match(r"(?i)readme(\.|$)", p)), None)
     if readme is None:
         return {"note": "no README in the index: nothing to reconcile."}
     root = _worktree_of(ctx)

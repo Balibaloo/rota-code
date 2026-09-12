@@ -526,11 +526,33 @@ def _reconcile_wakes(conn: sqlite3.Connection) -> list[Wake]:
     if not conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
                         (PROGRAM,)).fetchone():
         return []
-    if PROSE in _abandoned(conn, "tick:reconcile"):
-        return []
-    done = conn.execute("SELECT 1 FROM survey_records WHERE area = ?",
-                        (PROSE,)).fetchone()
-    return [] if done else [Wake("vision_keeper", "tick:reconcile", refs=(PROSE,))]
+    # One wake per prose file, the README first as `@prose`, then each file
+    # under docs/ as `@prose:<path>`. clickI (2026-09-12): 37 prose files
+    # under docs/ went unread because the phase read only the README, and a
+    # conflict between two sources is a page the principal always sees
+    # (DECISIONS.md, "The seat's four pages are one surface"). One file a
+    # session, so an 8B reader has the whole file and the account in view.
+    abandoned = _abandoned(conn, "tick:reconcile")
+    done = {r["area"] for r in conn.execute(
+        "SELECT area FROM survey_records WHERE area = ? OR area LIKE ?",
+        (PROSE, PROSE + ":%"))}
+    wakes = []
+    for area in prose_areas(conn):
+        if area in abandoned or area in done:
+            continue
+        wakes.append(Wake("vision_keeper", "tick:reconcile", refs=(area,)))
+    return wakes
+
+
+def prose_areas(conn: sqlite3.Connection) -> list[str]:
+    """The prose the reconcile phase reads, one area each: `@prose` for the
+    root README, `@prose:<path>` for each prose file under docs/ or doc/."""
+    docs = [r["grain"] for r in conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+        "AND (grain LIKE 'docs/%' OR grain LIKE 'doc/%') "
+        "AND (grain LIKE '%.md' OR grain LIKE '%.rst' OR grain LIKE '%.txt') "
+        "ORDER BY grain")]
+    return [PROSE] + [f"{PROSE}:{p}" for p in docs]
 
 
 def pending_terms(conn: sqlite3.Connection) -> list[str]:

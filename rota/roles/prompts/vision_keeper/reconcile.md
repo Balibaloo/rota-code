@@ -1,8 +1,9 @@
-MODE: reconcile — the README, read against the account.
+MODE: reconcile — one prose file, read against the account.
 
 `[problem.baseline]` is the account of this program, written from its code
-before any prose was opened. `[code.prose]` is the README. You wrote the
-account; now check the README against it.
+before any prose was opened. `[code.prose]` is the file you were woken for:
+the README, or one file under docs/. You wrote the account; now check this
+file against it. Where the text says README below, read it as this file.
 
 Walk the README's claims about what the program does and how a user drives
 it. For each claim, one of three things is true:

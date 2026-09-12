@@ -62,18 +62,26 @@ Rule: always ask. The finding names both sources and the sentence in each.
 The page puts them to the principal in words. The answer is a ruling that
 lands as a statement. The desks read it like any other.
 
-Facts the doors need: the two rows (`findings`, `code_index` grains) and
-that both still exist at present time. The judgement, "these disagree",
-is the Researcher's or the Architect's at survey, in the brief.
+What exists (read 2026-09-12): the reconcile phase of onboarding reads
+prose against the account written from code, logs each disagreement as
+a ledger row ("README says X; the code shows Y"), and the agenda puts
+open ledger rows to the principal. That is the conflict page, and it
+already always asks. The gap was reach: the phase read only the root
+README, and clickI's 37 files under docs/ went unchecked.
 
-Build order:
+Built 2026-09-12: one reconcile wake per prose file, `@prose` for the
+README and `@prose:<path>` for each file under docs/ or doc/;
+`code.prose` reads the wake's file; the attest closes that area alone
+(`test_onboarding_phases.py`, "reads each docs file as its own area").
 
-1. A register case: the Architect surveys two files that state one fact
-   two ways and files a finding naming both.
-2. The finding's page: the Liaison presents a conflict finding, and the
-   ruling lands as a statement.
-3. A walk on a sample repository seeded with one conflict. The page
-   appears once and the ruling lands.
+Owed:
+
+1. Re-record `L1-VK-reconcile-the-readme` on the brief's new first
+   paragraph (the file you were woken for).
+2. A walk on a sample repository with a docs/ file that disagrees with
+   the code. The page appears once and the ruling lands.
+3. Code against prose inside one file (a docstring against its function)
+   is the Architect's at survey and stays a finding. Not scheduled.
 
 ## Measured changes
 
