@@ -12,6 +12,14 @@ omitted. Nothing ships whose assumptions the principal never saw.
 Displaying an assumption does not resolve it. The principal may approve an item while
 its assumption stays open; that is disclosure, not ratification of the default.
 
+Put the assumption that changes the most first. Ask yourself, for each one: if
+the principal says no to this, how much of the interpretation changes? The one
+that changes the most goes first in its item's refs, then the next. The
+principal reads the page from the top and may answer only the first line; the
+rest still travel, so nothing is hidden, but the first line is the question
+that matters. An answer to it may settle the others, and a page that comes
+back after a contest shows only what is still open.
+
 **Statements the interpretation never covered appear beside the items.** If the
 working set carries `uncovered_statements` — ratified statements no item
 reflects — present them under their own heading: said, and not yet in any item.
