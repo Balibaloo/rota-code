@@ -1361,7 +1361,7 @@ stranger installs cold.
 | 7 | Runner seam and audit | Audit written, `rota/AUDIT.md` (2026-09-10): nine items, two doors landed from it (a model-written dependency manifest is fenced; every git command rota runs has hooks off) and one line at onboard saying where prompts and code go. Seam in, `core/execute.py`, `local` default, the `runner` setting picks the name. |
 | 8 | Providers, local only | The seam measured 2026-09-11 (1d91386): `local-openai` runs every desk through litellm against Ollama's OpenAI endpoint; tipsAS ran 46 sessions on it, five pages landed, no merge (the Developer judged the code already satisfied the criteria, one-shot). llama.cpp is the same profile with its own port; no server on this machine yet. |
 | 9 | Packaging | Done 2026-09-11: the wheel installed into a fresh Python 3.12 venv under WSL from nothing but the file; `rota --help`, six shipped profiles listed from site-packages, `profile check` answering, 81 benchmark rows shipped. The root conftest still needs the old TUI's dependencies to run the tests from a checkout. |
-| 10 | The gauntlet | Goals 3 and 4 as one campaign against the full lineage, results here. |
+| 10 | The gauntlet | Goals 3 and 4 as one campaign against the full lineage, results here. The driver is `probes/walk.py` (one run, one sentence, a yes-only principal that can contest one numbered line on one page) and `probes/gauntlet_click.sh` (a night: onboard clickI, three sentences, 24 turns, Ollama watchdog); each walk writes a row to `tests/rota/walks.jsonl`. |
 
 Order: fence, then 2 with 3 overnight, then 4 while 5 and 6, then 7 to 10.
 The gauntlet is cheap to run and open-ended to act on: every fault beyond
