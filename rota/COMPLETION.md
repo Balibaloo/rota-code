@@ -1293,6 +1293,19 @@ merged cold in 34 steps.
    the same hour: the amendment landed, the item was re-sliced, and the
    Vision Keeper wrote tk_1, tk_2, tk_3 again for the new items, refused
    three times a session; a colliding ticket id is derived now.
+   Nights 21 and 22 (2026-09-12, on the 3080 with the Titan recording
+   beside it): the account items stayed observed, the sentence's batch
+   ran first, 34 tests written. The Developer defined echo_json in
+   src/click/echo_json.py and every commit was refused for a tree that
+   did not define it: the bare-surface scan dropped any path containing
+   `.rota`, and a batch worktree lives under `.rota/worktrees`, so on a
+   real run it dropped every file. Fixed. Beside it: bare id lists are
+   bracketed (the Liaison copied the wake's seven ids without brackets),
+   the refusals name triple quotes for source, a reopen must name an
+   item. And the seat fault the register cannot see: twelve "Here is
+   what I understand" pages in a row on night 22, one per seven
+   reconcile findings. The seat exchange (plans/seat-exchange.md) is the
+   measurement for that; the count of pages is a question for the seat.
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once
