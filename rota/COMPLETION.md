@@ -1253,6 +1253,18 @@ merged cold in 34 steps.
    the Critic's two reds: the same shape as 8B, encodes=True then a
    challenge to the wrong desk then a fail. Not a size boundary. The qwen
    reconcile red (0/10 on the old brief too) is qwen's, llama is 5/5.
+   Night 18 (2026-09-12, 04:40 to 05:51): the furthest click has gone.
+   The sentence became a statement, an item, four criteria and a batch.
+   Then the stall moved: delivering the sentence, the Vision Keeper
+   re-asserted the three onboarding account items word for word, a
+   decided wake wrote them decided, the Terminologist wrote 119 criteria
+   for one of them, the Architect batched it first, and the Developer
+   was quarantined trying to build what click already does. Door: the
+   same words on an observed row are refused (dc4a182, `problem.assert`).
+   The amendment walk tipsAU the same night: the contest landed, the
+   item was amended and its batch abandoned, and the driver contested
+   the next touch note too, twenty times over; the driver contests once
+   now. The Vision Keeper's contested sessions all committed.
    Night 9, with turns and the narrowed door: all three sentences became
    decided items, the first time on click. Then the Terminologist wrote
    thirty criteria, sixteen of them for the account against
