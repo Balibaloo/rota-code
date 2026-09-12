@@ -1341,7 +1341,17 @@ merged cold in 34 steps.
    at 83% for two hours with the run's turn count frozen, the same shape
    the Titan showed in seat1. The socket timeout never fired because the
    stream kept trickling; the stream consumer has a wall-clock deadline
-   now (57ea562). Night 28 runs on `local-gemma-critic`. `a-challenge-
+   now (57ea562). Night 28 runs on `local-gemma-critic`.
+   Night 28 (2026-09-13, 00:23 to 00:53, `local-gemma-critic`): the
+   Critic never got a turn. The stall is the pair before it: the Tester
+   wrote one test that uses echo_json's return value where the sentence
+   says it prints, and the Developer took every route the doors now
+   name, challenged the right test with the hint's refs, got an answer,
+   escalated, and was done without a write. The hints worked; the fork
+   is the test's assumption, which no text of the lineage supports. A
+   door for that is next: a test that uses the surface's return value
+   when nothing in the criterion, the ticket or the principal's words
+   says "return". `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
