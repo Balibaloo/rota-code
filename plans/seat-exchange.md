@@ -36,3 +36,25 @@ merges cold.
 
 | date | run | what the exchange showed | what changed |
 |---|---|---|---|
+| 2026-09-12 | seat1, tipsI on the Titan, the agent at the seat | Page 1, confirm: the agent asked a question instead of saying ok ("equal share, or their own order?"). Page 2 came as the signoff page and never answered it. Page 2 listed the program's existing behaviour under "It would:", the same heading a plan gets; a person reads "It would: calculate the tip" as new work. Page 3, after "you did not answer my question", was the right page: the sentence's items, one "would not". A part-approval ("2 and 4 fine, 3 is wrong: ...") landed. Page 4, a clarify, asked an odd question back ("including the one who paid the tip?"). Page 5, a clarify, relayed a desk's internal question to the principal: "how does this relate to the area that has not been surveyed?" A person cannot answer that. Page 6, the touch note, read "the batch for s2 (...)" and predicted src/ paths the repository does not have; a contest on that line was accepted. Then the build, tests, and the fix loop. | findings to doors and briefs below |
+
+Findings, in the order a person met them:
+
+1. **A question at the confirm page is dropped.** The reply was a question;
+   the next page was signoff with no answer. The landing session read a
+   question beside no ruling as... nothing. Owed: a case (a question at
+   confirm gets an answer page, then the confirm again).
+2. **Observed behaviour under "It would:".** The page's heading is by
+   item kind, not provenance. Mechanical: observed items render under
+   "It does today:", decided ones under "It would:".
+3. **An internal question reaches the principal.** "The area that has not
+   been surveyed" is constraint zero's bookkeeping. The clarify door
+   already refuses questions "about bookkeeping"; this one got through.
+   Owed: the words that mark it, or the fact (a clarify whose refs are
+   `@`-prefixed subjects only).
+4. **The touch note leaks ids.** "the batch for s2 (...)" is a render
+   fault: the page shows no ids by contract. Mechanical.
+5. **The touch note predicts paths that do not exist.** src/split_bill.py
+   on a repository with no src/. Judgement (the Architect), but the index
+   knows the paths: a door can refuse a touch grain under a directory the
+   index has never seen.
