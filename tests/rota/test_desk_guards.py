@@ -1559,3 +1559,17 @@ def test_a_bare_surface_s_module_is_named_from_the_tree(db, tmp_path):
                 body="from helper import calculate_tip" + chr(10) + "def test_a():" + chr(10)
                      + "    assert calculate_tip(100, 10) == 10" + chr(10))
     assert ".venv" not in str(exc.value)
+
+
+def test_a_challenge_that_names_no_test_is_told_the_failing_ones(db):
+    """clickI night 26 (2026-09-12): woken for a failing test, the Developer
+    named a criterion with no test of its own and was refused with no way
+    forward. The batch's failing tests are a fact the wake carries."""
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_x', 'b1', 'c1', 'tests/test_x.py', 'def test_x():" + chr(10) + "    assert 0')")
+    db.execute("INSERT INTO test_runs (batch_id, test_id, result, output) VALUES ('b1', 'tst_x', 'fail', 'E assert 0')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_other', 'tk1', 'another thing')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing")
+    with pytest.raises(ValueError, match=r"send refs=\['c1', 'tst_x'\]"):
+        sb.call("msg.challenge_tester", refs=["c_other"], quotes=["another thing"])

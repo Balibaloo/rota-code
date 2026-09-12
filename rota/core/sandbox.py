@@ -680,6 +680,21 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 if len(ids) == 1:
                     hint = (f". {crit[0]}'s test is {ids[0]}: send "
                             f"refs=['{crit[0]}', '{ids[0]}']")
+            if not hint and ctx.batch_id:
+                # clickI night 26 (2026-09-12): woken for a failing test,
+                # the Developer named a criterion with no test of its own
+                # and was refused with no way forward. The failing tests
+                # of the batch are a fact the wake already carries.
+                failing = ctx.conn.execute(
+                    "SELECT DISTINCT tr.test_id, t.criterion_id FROM test_runs tr "
+                    "JOIN tests t ON t.id = tr.test_id "
+                    "WHERE t.batch_id = ? AND tr.result IN ('fail', 'error') "
+                    "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id)",
+                    (ctx.batch_id,)).fetchall()
+                if failing:
+                    hint = ". The failing tests of this batch: " + "; ".join(
+                        f"send refs=['{r['criterion_id']}', '{r['test_id']}']"
+                        for r in failing[:3])
             raise ValueError(
                 f"a challenge to the tester names both sides of the conflict "
                 f"in refs -- the criterion and the test -- and yours names "
