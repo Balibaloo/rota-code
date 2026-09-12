@@ -1711,12 +1711,19 @@ def _bind(impl: Callable, ctx: api.Ctx, label: str) -> Callable:
                             f"thing from it -- if this one would only say "
                             f"that you made that edit, the edit is already "
                             f"the record and nothing more is owed")
+                    # The hint used to read "prefix it with what it is,
+                    # c_ for a criterion, tst_ for a test": tipsAX
+                    # (2026-09-12), the Vision Keeper writing a decision
+                    # took it literally and named the decision c_tst_s1,
+                    # and a later session made an item of that id. Name
+                    # the artefact being written, not two others.
+                    what = own or label.split(".", 1)[0]
                     raise ValueError(
                         f"{kwargs['id']!r} is already a row of {table}; an "
                         f"artefact id is unique across every artefact table, "
-                        f"or every ref to it is ambiguous. Prefix it with "
-                        f"what it is -- c_ for a criterion, tst_ for a test "
-                        f"-- and send again")
+                        f"or every ref to it is ambiguous. Give this {what} "
+                        f"row an id of its own, a short name for what it "
+                        f"says, and send again")
         try:
             return impl(ctx, **kwargs)
         except Exception as exc:

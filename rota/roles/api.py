@@ -547,6 +547,21 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # tip calculator was gone. Nothing slices the account, so the split was
     # never built. A fact about the words: the new account keeps none of
     # the old one's.
+    # A criterion's words are a criterion, not an item. tipsAX (2026-09-12):
+    # answering the Terminologist's challenge, the Vision Keeper asserted
+    # the challenged criterion's sentence as a new item under the
+    # criterion's own id, and the run then built "the function must divide
+    # the sum" as scope beside the item it came from.
+    crit_words = " ".join((text or "").lower().split())
+    twin_crit = ctx.conn.execute(
+        "SELECT id FROM criteria WHERE lower(trim(text)) = ?", (crit_words,)).fetchone()
+    if twin_crit:
+        raise ValueError(
+            f"those are {twin_crit['id']}'s words, a criterion of an item that "
+            f"exists. An item is what the principal asked for, in their words; "
+            f"a criterion is what done means for it. Answer the challenge about "
+            f"the criterion; do not make it scope")
+
     if id == "how_it_works":
         cur_acc = ctx.conn.execute(
             "SELECT text FROM items WHERE id = 'how_it_works'").fetchone()

@@ -1452,3 +1452,24 @@ def test_the_architect_groups_the_tickets_its_wake_named(db):
     with pytest.raises(ValueError, match="not among the tickets you were woken to group"):
         sb.call("batches.group", id="b9", ticket_ids=["tk1"], item_id="i1")
     assert sb.call("batches.group", id="b9", ticket_ids=["tk2"], item_id="i2")["id"] == "b9"
+
+
+def test_a_criterions_words_are_not_an_item(db):
+    """tipsAX (2026-09-12): answering the Terminologist's challenge, the
+    Vision Keeper asserted the challenged criterion's sentence as a new item
+    under the criterion's own id, and the run built it as scope."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i9', 'split the bill between the payers', 'in_scope', "
+               "'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split it')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_9', 'tk9', "
+               "'The function divides the sum of the bill and the tip by the number of payers.')")
+    db.commit()
+    sb = build("vision_keeper", db, mode="normal",
+               allow=prompts.mode_tools("vision_keeper", "challenge"))
+    with pytest.raises(ValueError, match="a criterion of an item that exists"):
+        sb.call("problem.assert", id="c_9_item",
+                text="The function divides the sum of the bill and the tip by the number of payers.")
+    sb.call("problem.assert", id="tip_rounding", text="The tip is rounded to the nearest cent.")
