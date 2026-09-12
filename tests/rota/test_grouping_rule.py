@@ -81,11 +81,13 @@ def test_a_ticket_id_belongs_to_one_item(db):
     from rota.core.sandbox import build
 
     sb = build("vision_keeper", db, mode="slicing")
-    with pytest.raises(ValueError, match="already calculate_tip's ticket"):
-        sb.call("tickets.slice", id="tk_1", item_id="display_results",
-                text="show the share")
+    # tipsAW (2026-09-12): refused three times a session, the tick was
+    # quarantined. A colliding handle gets the item's name on it instead.
+    out = sb.call("tickets.slice", id="tk_1", item_id="display_results",
+                  text="show the share")
+    assert out["id"] == "tk_1_display_results" and "already calculate_tip's ticket" in out["note"]
     assert sb.call("tickets.slice", id="tk_9", item_id="display_results",
-                   text="show the share")["id"] == "tk_9"
+                   text="show the shares")["id"] == "tk_9"
     # tipsAH: a ticket that went out in a merged batch is not reused when
     # its item is amended and sliced again.
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b9','calculate_tip','merged')")

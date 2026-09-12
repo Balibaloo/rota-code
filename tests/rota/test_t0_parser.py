@@ -707,10 +707,18 @@ def test_a_quote_that_swallows_the_next_argument_is_named():
     # The lenient path parses the same call into arguments, with `text=`
     # riding inside `path`; the door names the quote and the swallowed key.
     from rota.llm import toolproto
+    params = {"path", "text", "start", "end"}
     swallowed = toolproto._swallowed_argument(
-        {"path": "a.py', text='x = singular + ", "start": "11", "end": "-1"})
+        {"path": "a.py', text='x = singular + ", "start": "11", "end": "-1"}, params)
     assert swallowed == ("path", "text")
-    assert toolproto._swallowed_argument({"path": "a.py", "text": "x = 1"}) is None
+    assert toolproto._swallowed_argument({"path": "a.py", "text": "x = 1"}, params) is None
+    # Source carries keywords of its own (clickI night 20: `", nargs=-1`);
+    # only a name in the signature is a swallowed argument, and without the
+    # signature the door stays shut.
+    src = {"path": "a.py", "text": "click.argument('src', nargs=-1)\n"}
+    assert toolproto._swallowed_argument(src, params) is None
+    assert toolproto._swallowed_argument(
+        {"path": "a.py', text='x", "start": "1", "end": "2"}, None) is None
     # The block form carries the same source with no quoting at all.
     block = "TOOL: code.write(path='a.py', text=[text]\nx = singular + 's'\ny = f\"{x}\"\n"
     call = extract(block)[0]

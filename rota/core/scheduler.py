@@ -887,7 +887,16 @@ def tick_agenda(conn: sqlite3.Connection, principal_present: bool = False) -> li
     ).fetchone()["n"]
     if not open_ledger:
         return []
-    return [Wake("liaison", "tick:agenda", detail=f"ledger={open_ledger}")]
+    # The wake carries the rows a page may hold, oldest first, so the
+    # Liaison has real ids to copy. clickI night 20 (2026-09-12): 66 open
+    # rows, and the Liaison counted its own ids up, l_ab.., l_ac.., l_ad..,
+    # none of them rows, five turns running. Which of the rows in front of
+    # it lead the page is still the brief's; the ids are the wake's.
+    from .sandbox import PAGE_ASSUMPTIONS
+    first = tuple(r["id"] for r in conn.execute(
+        "SELECT id FROM ledger WHERE status = 'open' ORDER BY rowid LIMIT ?",
+        (PAGE_ASSUMPTIONS,)))
+    return [Wake("liaison", "tick:agenda", refs=first, detail=f"ledger={open_ledger}")]
 
 
 def _reorient_wakes(conn: sqlite3.Connection) -> list[Wake]:

@@ -2662,10 +2662,17 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
         row = ctx.conn.execute(
             "SELECT item_id FROM tickets WHERE id = ?", (id,)).fetchone()
         owner = row["item_id"] if row else None
+    derived_note = None
     if owner is not None and owner != item_id:
-        raise ValueError(
-            f"{id!r} is already {owner}'s ticket. Two items never share a "
-            f"ticket id; give {item_id}'s ticket a new id of your own")
+        # Derived, not refused. tipsAW (2026-09-12): the Vision Keeper,
+        # slicing three new items after an amendment, wrote tk_1, tk_2 and
+        # tk_3 again, was refused three times a session, and the tick was
+        # quarantined. The words are the identity (law 14); the id is a
+        # handle, and a handle that collides gets the item's name on it.
+        derived = f"{id}_{item_id}"[:64]
+        derived_note = (f"{id!r} was already {owner}'s ticket, so this one "
+                        f"is {derived!r}: two items never share a ticket id")
+        id = derived
     # A delivered ticket is not a ticket to reuse. An item amended after its
     # delivery is sliced again, and the Vision Keeper wrote the old id back:
     # the upsert changed nothing, three sessions did the same, and the tick
@@ -2703,7 +2710,7 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
                 "note": f"this slice already exists as {same[0][1]}; "
                         f"nothing was written"}
     ctx.writes.append(("tickets", id, {"item_id": item_id, "text": text}))
-    return {"id": id}
+    return {"id": id, **({"note": derived_note} if derived_note else {})}
 
 
 @op("tickets", "load")
@@ -3047,7 +3054,12 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             "SELECT id, text FROM criteria WHERE ticket_id = ?", (ticket_id,))]
         for other_id, other_text in others:
             theirs = set(_prose_words(other_text or ""))
-            if theirs and len(mine & theirs) >= 0.7 * len(mine | theirs):
+            # 0.85, not 0.7: at 0.7 the door refused the fifth criterion of
+            # `L3-a-challenge-reaches-the-role-that-can-answer-it` and llama
+            # fell into prose instead of the challenge the case measures.
+            # Near-verbatim only; the size of a ticket's criteria is the
+            # brief's sentence, not this door's.
+            if theirs and len(mine & theirs) >= 0.85 * len(mine | theirs):
                 raise ValueError(
                     f"this says what {other_id} says, in nearly the same words "
                     f"({other_text[:80]!r}). One criterion per thing that must "

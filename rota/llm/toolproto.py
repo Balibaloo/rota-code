@@ -301,7 +301,7 @@ def _inline_blocks(text: str) -> str:
     return "".join(out)
 
 
-def extract(text: str) -> list[ToolCall | ToolError]:
+def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolError]:
     """
     Find every `TOOL:` call in a completion, in order.
 
@@ -459,7 +459,7 @@ def extract(text: str) -> list[ToolCall | ToolError]:
             results.append(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                                      f"could not parse arguments: {exc}"))
         else:
-            swallowed = _swallowed_argument(args)
+            swallowed = _swallowed_argument(args, (signatures or {}).get(name))
             if swallowed:
                 # L1-DV-apply-the-answer (2026-09-12): llama wrote a
                 # possessive `'s` inside single-quoted source, the string
@@ -484,19 +484,30 @@ def extract(text: str) -> list[ToolCall | ToolError]:
 _SWALLOW = None
 
 
-def _swallowed_argument(args: dict) -> tuple[str, str] | None:
-    """The key whose string value carries `', name=` -- a quote in the value
-    closed it early and the next argument was read as text."""
+def _swallowed_argument(args: dict, params=None) -> tuple[str, str] | None:
+    """The key whose string value carries `', name=` where `name` is one of
+    the function's own parameters -- a quote in the value closed it early
+    and the next argument was read as text.
+
+    `params` is the function's parameter names. Without them the door
+    stays shut: source carries `", nargs=-1` and `', default=` of its own
+    (clickI night 20, 2026-09-12: every write of a click helper refused
+    for a swallowed `nargs`), and only the signature tells a parameter
+    from a keyword in the file.
+    """
     import re
 
     global _SWALLOW
     if _SWALLOW is None:
         _SWALLOW = re.compile(r"""['"]\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*=""")
+    if not params:
+        return None
     for key, value in args.items():
         if isinstance(value, str):
-            m = _SWALLOW.search(value)
-            if m and m.group(1) not in args:
-                return key, m.group(1)
+            for m in _SWALLOW.finditer(value):
+                other = m.group(1)
+                if other in params and other not in args:
+                    return key, other
     return None
 
 
@@ -768,7 +779,7 @@ def extract_lenient(text: str, allowed: set[str],
         text = re.sub(rf"(?im)^([ \t]*)({names})(?=[ \t]*[\(:\[,])",
                       lambda m: m.group(1) + m.group(2).lower(), text)
 
-    marked = extract(text)
+    marked = extract(text, signatures)
 
     # Marked calls used to win outright: if the completion had any `TOOL:`
     # line, a bare `name(...)` elsewhere in it was prose. Measured otherwise on

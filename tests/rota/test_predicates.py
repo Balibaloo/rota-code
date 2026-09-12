@@ -1794,3 +1794,21 @@ def test_constraint_zero_cannot_be_violated(tmp_path):
                 status="violated", grain="split_bill.py")
     assert sb.call("findings.find", id="f2", batch_id="b1", constraint_id="k0",
                    status="satisfied", grain="split_bill.py")["status"] == "satisfied"
+
+
+def test_the_agenda_wake_carries_the_rows_a_page_may_hold(db):
+    """clickI night 20 (2026-09-12): 66 open rows, and the Liaison counted
+    its own ids up, none of them rows. The wake carries the first seven
+    open ledger ids, oldest first, so there are real ids to copy; which
+    lead the page stays the brief's."""
+    from rota.core.sandbox import PAGE_ASSUMPTIONS
+    from rota.core.scheduler import tick_agenda
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    for n in range(10):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, author) "
+                   "VALUES (?, 'i1', 'items', ?, 'open', 'vision_keeper')", (f"L{n:02d}", f"a{n}"))
+    db.commit()
+    (wake,) = tick_agenda(db, principal_present=True)
+    assert wake.refs == tuple(f"L{n:02d}" for n in range(PAGE_ASSUMPTIONS))

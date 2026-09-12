@@ -1423,8 +1423,13 @@ def test_nearly_the_same_words_are_the_same_criterion(db):
             surface_refs=["show_python"])
     with pytest.raises(ValueError, match="nearly the same words"):
         sb.call("criteria.specify", id="c_2", ticket_id="tk9",
-                text="The usage string must explicitly include the --show-python flag as an option",
+                text="The usage string must always include the --show-python flag as an available option",
                 surface_refs=["show_python"])
+    # Two sentences that share a subject and differ in what they claim are
+    # two criteria (the door is near-verbatim only, 0.85).
+    sb.call("criteria.specify", id="c_2b", ticket_id="tk9",
+            text="The usage string must explicitly list the --show-python flag under options",
+            surface_refs=["show_python"])
     sb.call("criteria.specify", id="c_3", ticket_id="tk9",
             text="With the flag set, the message ends with the running Python version as major.minor.micro",
             surface_refs=["show_python"])
