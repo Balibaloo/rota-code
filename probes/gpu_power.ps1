@@ -67,7 +67,17 @@ if ($Mode -eq "install") {
     $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argline
     Register-ScheduledTask -TaskName "rota-gpu-power-$m" -Action $action `
       -Principal $principal -Description "GPU power limits: $m" -Force | Out-Null
-    Write-Output "registered rota-gpu-power-$m"
+    # The task's own security descriptor decides who may start it, and the
+    # default gives the user read alone: `schtasks /run` from a plain shell
+    # answered "Access is denied" after the first two installs (2026-09-12).
+    # Grant the installing user read and execute, administrators and SYSTEM
+    # everything, through the Task Scheduler's own API.
+    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $sddl = "D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;GRGX;;;$sid)"
+    $svc = New-Object -ComObject Schedule.Service
+    $svc.Connect()
+    $svc.GetFolder([char]92).GetTask("rota-gpu-power-$m").SetSecurityDescriptor($sddl, 0)
+    Write-Output "registered rota-gpu-power-$m, runnable by $who"
   }
   exit 0
 }
