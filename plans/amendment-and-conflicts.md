@@ -87,3 +87,5 @@ Owed:
 
 | date | change | register | walk |
 |---|---|---|---|
+| 2026-09-12 | tipsAU: contest at the touch note, driver contested every page after | pinned both halves | amended, abandoned, re-batched; VK contested tick quarantined under twenty contests |
+| 2026-09-12 | tipsAV: the driver contests once | | amended, four clarifies, re-approved at v2, new touch note, new batch running; stalled on the Architect grouping the wrong tickets and the Developer dropping the main guard; two doors (36a47df): the tickets its wake named, and the refusal names the appending span. No merge yet |
