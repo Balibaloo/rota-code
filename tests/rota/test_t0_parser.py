@@ -703,7 +703,7 @@ def test_a_quote_that_swallows_the_next_argument_is_named():
            "start=11, end=-1)")
     out = extract(say)
     assert len(out) == 1 and isinstance(out[0], ToolError)
-    assert "text=[text]" in out[0].reason
+    assert "triple quotes" in out[0].reason
     # The lenient path parses the same call into arguments, with `text=`
     # riding inside `path`; the door names the quote and the swallowed key.
     from rota.llm import toolproto
@@ -724,3 +724,33 @@ def test_a_quote_that_swallows_the_next_argument_is_named():
     call = extract(block)[0]
     assert isinstance(call, ToolCall) and call.args["text"] == "x = singular + 's'\ny = f\"{x}\""
 
+
+
+def test_bare_id_lists_are_bracketed_and_spans_are_not():
+    """clickI night 21 (2026-09-12): the Liaison copied the wake's seven ids
+    exactly and sent them without brackets, three turns running."""
+    call = extract("TOOL: msg.present_principal(refs=l_eb11, l_15c7, l_7f11, round_no=0)")[0]
+    assert isinstance(call, ToolCall) and call.args["refs"] == ["l_eb11", "l_15c7", "l_7f11"]
+    call = extract("TOOL: msg.present_principal(refs=l_eb11, l_15c7)")[0]
+    assert isinstance(call, ToolCall) and call.args["refs"] == ["l_eb11", "l_15c7"]
+    # Two numbers with a name between them are two arguments, not a list.
+    call = extract("TOOL: code.source(path='a.py', start=1, end=2)")[0]
+    assert isinstance(call, ToolCall) and call.args == {"path": "a.py", "start": 1, "end": 2}
+
+
+def test_triple_quoted_source_carries_its_own_quotes():
+    """The refusals name triple quotes now (night 21): a Python model writes
+    them without being taught, and the source keeps every quote it has."""
+    body = "x = 'utf-8'" + chr(10) + 'y = "q"' + chr(10) + '    """doc"""' + chr(10)
+    say = "TOOL: code.write(path='a.py', text='''" + chr(10) + body + "''', start=10, end=20)"
+    call = extract(say)[0]
+    assert isinstance(call, ToolCall)
+    assert call.args["text"] == chr(10) + body and call.args["start"] == 10
+
+
+def test_the_swallowed_door_reads_the_runner_s_signature_shape():
+    """`_param_sets` hands (required, all); the door reads the second."""
+    say = "TOOL: code.write(path='a.py', text='x = singular + " + chr(39) + "s'}, start=11, end=-1)"
+    sigs = {"code.write": ({"path", "text"}, {"path", "text", "start", "end"})}
+    out = extract(say, sigs)
+    assert len(out) == 1 and isinstance(out[0], ToolError) and "a quote inside" in out[0].reason

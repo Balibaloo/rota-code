@@ -248,6 +248,32 @@ def _scan_name(text: str, i: int) -> tuple[str, int]:
     return text[start:i], i
 
 
+_BARE_LIST = None
+
+
+def _bracket_bare_lists(text: str) -> str:
+    """
+    `refs=l_1, l_2, l_3` rewritten as `refs=[l_1, l_2, l_3]`.
+
+    clickI night 21 (2026-09-12): woken with seven ledger ids on the wake,
+    the Liaison copied them exactly and sent them unbracketed, three turns
+    running, "could not read an argument name" each time, and the agenda
+    was quarantined. Two or more bare ids in a row, ended by the next
+    `name=` or the closing bracket, are a list; a quoted value never
+    matches, and `start=1, end=2` does not either because `end` is
+    followed by `=`.
+    """
+    import re
+
+    global _BARE_LIST
+    if _BARE_LIST is None:
+        _BARE_LIST = re.compile(
+            r"(?P<key>\b[A-Za-z_][A-Za-z0-9_]*=)"
+            r"(?P<ids>[A-Za-z0-9_.@:-]+(?:\s*,\s*[A-Za-z0-9_.@:-]+)+)"
+            r"(?=\s*(?:,\s*[A-Za-z_][A-Za-z0-9_]*\s*=|\)))")
+    return _BARE_LIST.sub(lambda m: f"{m.group('key')}[{m.group('ids')}]", text)
+
+
 _BLOCK_ARG = None  # compiled on first use; the module avoids import-time regex
 
 
@@ -310,7 +336,7 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
     carrying the raw text — the model sees its own mistake.
     """
     results: list[ToolCall | ToolError] = []
-    text = _inline_blocks(text)
+    text = _bracket_bare_lists(_inline_blocks(text))
     cursor = 0
 
     while True:
@@ -446,9 +472,8 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                 f"{MARKER} {name}(...",
                 "unterminated argument list: a quote inside a quoted argument "
                 "ended the string early, or a bracket is unbalanced. Source "
-                "has quotes of its own: send it as text=[text] at the end of "
-                "the call line, then the raw lines, no quoting and no "
-                "escaping"))
+                "has quotes of its own: put it between triple quotes, "
+                "text='''...''', with the lines as they are, no escaping"))
             cursor = marker + len(MARKER)
             continue
 
@@ -459,7 +484,10 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
             results.append(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                                      f"could not parse arguments: {exc}"))
         else:
-            swallowed = _swallowed_argument(args, (signatures or {}).get(name))
+            sig = (signatures or {}).get(name)
+            # `_param_sets` hands (required, all); a bare set is accepted too.
+            params = sig[1] if isinstance(sig, tuple) and len(sig) == 2 else sig
+            swallowed = _swallowed_argument(args, params)
             if swallowed:
                 # L1-DV-apply-the-answer (2026-09-12): llama wrote a
                 # possessive `'s` inside single-quoted source, the string
@@ -472,9 +500,9 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                     f"{MARKER} {name}({raw_args[:80]})",
                     f"a quote inside {key} ended it early and the arguments "
                     f"after it ({other}=...) were read as part of {key}. Source "
-                    f"has quotes of its own; send it as {other}=[{other}] at "
-                    f"the end of the call line, then the raw lines, no quoting "
-                    f"and no escaping"))
+                    f"has quotes of its own; put it between triple quotes, "
+                    f"{other}='''...''', with the lines as they are, no "
+                    f"escaping"))
             else:
                 results.append(ToolCall(name=name, args=args, pos=pos,
                                         raw=f"{name}({raw_args})"))
