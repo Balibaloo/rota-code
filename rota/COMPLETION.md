@@ -1266,6 +1266,15 @@ merged cold in 34 steps.
    the same words on one ticket are refused now (e3a6d78), and the brief
    says three is usual and six is many; the criteria cases owe their
    re-record.
+   Night 19 (2026-09-12, 06:20 to 07:39): the criteria are sane, eight,
+   six and three for the three sentences, and 34 tests were written.
+   The account item came back a third way: the Vision Keeper paraphrased
+   it past the same-words door in deliver mode, so it was decided and
+   batched first again, and the Developer quarantined on it. Door: an
+   observed item re-asserted in a session woken with the principal's
+   statements must carry their words, or it is the desk rewording the
+   account. The Architect, refused for grouping a ticket already in a
+   batch, did not turn to the ticket its wake named in four turns.
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once

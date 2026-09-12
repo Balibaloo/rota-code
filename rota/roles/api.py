@@ -502,6 +502,24 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                     f"already does a thing to build. Assert only what the "
                     f"principal asked for; an observed item stays observed "
                     f"until their words change it")
+            # Night 19: the same three items again, paraphrased past the
+            # door above. What changes an observed item is the principal's
+            # words, and this session was woken with them: the statements
+            # on the wake. A text that shares none of their words is the
+            # desk rewording the account, not the principal changing it.
+            said: set[str] = set()
+            for ref in getattr(ctx, "wake_refs", ()) or ():
+                st = ctx.conn.execute(
+                    "SELECT text FROM statements WHERE id = ?", (ref,)).fetchone()
+                if st and st["text"]:
+                    said |= set(_prose_words(st["text"]))
+            if said and new_words and len(new_words & said) < 0.3 * len(new_words):
+                raise ValueError(
+                    f"{id} is observed, and these are not the principal's "
+                    f"words: the statement you were woken with says "
+                    f"something else. An observed item changes only when "
+                    f"their words change it; what they asked for is its "
+                    f"own item under its own name")
 
     # An item named after a grain is a sentence about that grain.
     #

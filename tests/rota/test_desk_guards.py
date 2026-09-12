@@ -1378,12 +1378,26 @@ def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
                ("When a user types a command, the toolkit parses it into arguments and "
                 "options using the script's defined commands.",))
     db.commit()
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1','principal',1,'Commands accept a --json flag that prints the parsed arguments as JSON.')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
+               "VALUES ('s1','e1',0,10,'Commands accept a --json flag that prints the parsed "
+               "arguments as JSON.','ratified')")
+    db.commit()
+    from types import SimpleNamespace
     sb = build("vision_keeper", db, mode="normal",
-               allow=prompts.mode_tools("vision_keeper", "deliver"))
+               allow=prompts.mode_tools("vision_keeper", "deliver"),
+               wake=SimpleNamespace(refs=("s1",), kind="message", message_id=None))
     with pytest.raises(ValueError, match="observed row"):
         sb.call("problem.assert", id="parses_commands",
                 text="When a user types a command, the toolkit parses it into arguments "
                      "and options using the script's defined commands.")
+    # Night 19: the same item paraphrased past the words door. Not the
+    # principal's words either: the statement on the wake says something else.
+    with pytest.raises(ValueError, match="not the principal's words"):
+        sb.call("problem.assert", id="parses_commands",
+                text="When a user runs a command, the toolkit turns it into structured "
+                     "data, options and arguments, from the commands the script defines.")
     # The principal's words change it: a different behaviour under the same name lands.
     sb.call("problem.assert", id="parses_commands",
             text="Commands accept a --json flag that prints the parsed arguments as JSON.")
