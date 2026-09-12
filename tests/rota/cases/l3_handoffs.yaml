@@ -44,6 +44,10 @@
 
 - id: L3-ratified-statement-becomes-a-term
   tier: T3
+  # The bar model. 2026-09-12, fresh on one card with the same prompt:
+  # qwen3.5:9b 5/5, llama 0/5, qwen3:8b 0/5; the `local` profile's
+  # Terminologist is qwen3.5:9b.
+  model: qwen3.5:9b
   runs: 5
   pass: 3
   first: {role: liaison, prompt: verdict, verb: verdict, refs: [<s1>]}

@@ -1316,10 +1316,13 @@ merged cold in 34 steps.
    qwen takes the challenge path. llama is its default and carries it. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
-   contradiction instead of challenging it. `becomes-a-term` went red on
-   2026-09-09 with the Terminologist's word-sense paragraph and its
-   `ledger.log` tool in deliver, hidden by replay since; withdrawn today,
-   the generator owed as a mode of its own (a1 plan).
+   contradiction instead of challenging it. `becomes-a-term` is 5/5 on
+   qwen3.5:9b, the profile's Terminologist, and 0/5 on llama and
+   qwen3:8b with the word-sense paragraph in deliver and without it;
+   pinned to qwen3.5:9b. The paragraph and its `ledger.log` tool stay
+   withdrawn from deliver: neutral on the profile's model, red on the
+   L1 case that measured them on every model, and a tool in the plain
+   mode's list. The generator is owed as a mode of its own (a1 plan).
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once

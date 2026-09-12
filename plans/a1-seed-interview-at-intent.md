@@ -143,11 +143,12 @@ facts: which assumptions are open, which the last answer resolved.
 The 2026-09-09 paragraph in `deliver.md` ("a word that could mean two
 things: take one, define it, log what you took") and the `ledger.log`
 tool it added to deliver's list turned `L3-ratified-statement-becomes-a-
-term`, the plain deliver case, red on both 8B models. Replay hid it for
-three days: the chain was green under an older recording. Measured fresh
-on two cards today, 0/5 on llama and 0/5 on qwen3:8b, and 0/5 again on
-yesterday's tree, so it is the brief and the tool, not a later door.
-Both are withdrawn. The generator is still owed, and its shape is the
+term`, the plain deliver case, red on llama and qwen3:8b. Measured fresh
+today with the paragraph and without it: the same, 0/5 on those two and
+5/5 on qwen3.5:9b, the profile's Terminologist, which now declares itself
+the case's bar model. So the paragraph did not cause that red; it was
+neutral on the profile's model and red on its own L1 case on every model.
+Both are withdrawn anyway, for the tool-in-the-list reason. The generator is still owed, and its shape is the
 rule from the tool-in-the-list finding: a branch that needs a new tool
 is a new mode keyed by its cause. Here the cause is a statement word
 with two glossary senses at deliver time, a fact the scheduler can see;
