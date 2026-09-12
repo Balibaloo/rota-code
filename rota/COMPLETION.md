@@ -1275,6 +1275,13 @@ merged cold in 34 steps.
    statements must carry their words, or it is the desk rewording the
    account. The Architect, refused for grouping a ticket already in a
    batch, did not turn to the ticket its wake named in four turns.
+   The Terminologist re-record after the criteria brief (07:39) found a
+   different fault: `survey-an-area-for-its-terms` 770/780 to 0/20 on
+   llama and the unusable-item case 385/400 to 0/5, on a mode whose
+   brief had not changed. The one change every prompt shared was a
+   sentence teaching the `text=[text]` block form. No call ever used it.
+   Reverted (819dc47); the parser's refusals still name the form. Prose
+   in every prompt is measured on every desk, and this one lost on all.
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once
