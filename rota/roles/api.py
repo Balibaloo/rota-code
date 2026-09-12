@@ -3015,6 +3015,26 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"those are {twin}'s words already, on the same ticket. The same "
             f"words are the same criterion; if the ticket needs a second "
             f"criterion, it needs a second sentence")
+    # Nearly the same words are the same criterion too. clickI night 18
+    # (2026-09-12): 63 criteria for one flag, "the usage string must
+    # include --show-python" beside "the usage string must explicitly list
+    # --show-python", 55 of them in one reply. Word overlap is a fact about
+    # two sentences; whether the ticket needs a fifth criterion is not.
+    mine = set(_prose_words(text or ""))
+    if mine:
+        others = [(w[1], w[2].get("text", "")) for w in ctx.writes
+                  if w[0] == "criteria" and isinstance(w[2], dict)
+                  and w[2].get("ticket_id") == ticket_id]
+        others += [(r["id"], r["text"]) for r in ctx.conn.execute(
+            "SELECT id, text FROM criteria WHERE ticket_id = ?", (ticket_id,))]
+        for other_id, other_text in others:
+            theirs = set(_prose_words(other_text or ""))
+            if theirs and len(mine & theirs) >= 0.7 * len(mine | theirs):
+                raise ValueError(
+                    f"this says what {other_id} says, in nearly the same words "
+                    f"({other_text[:80]!r}). One criterion per thing that must "
+                    f"be true; a second sentence for the same thing is a second "
+                    f"test of one fact")
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False)
     ctx.writes.append(("criteria", id, {

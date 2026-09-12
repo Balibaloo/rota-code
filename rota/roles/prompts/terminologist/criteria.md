@@ -30,6 +30,12 @@ work.** Writing criteria for a contradiction launders it into looking decided:
 `msg.challenge_vision_keeper` with the item, `quotes=` copying the words that
 cannot hold together, and write nothing for it.
 
+**A ticket has the few criteria a person would check.** Three is usual and
+six is many. Each one costs a test, a review, and a page if it fails. A
+criterion for an edge the item's words never mentioned is a guess, and a
+guess is a ledger entry, not a criterion. Sixty criteria for one flag
+(clickI, 2026-09-12) buried the four that mattered.
+
 Criteria describe what must be *true when it is done*, not how to build it.
 "Deleting an account tombstones it and preserves billing history" is a criterion.
 "Add a soft_delete column" is not — that is the Developer's business.

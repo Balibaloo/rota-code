@@ -1389,3 +1389,28 @@ def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
             text="Commands accept a --json flag that prints the parsed arguments as JSON.")
     sb.call("problem.assert", id="echo_json",
             text="Add an echo_json helper next to echo that prints an object as JSON.")
+
+
+def test_nearly_the_same_words_are_the_same_criterion(db):
+    """clickI night 18 (2026-09-12): 63 criteria for one flag, 55 in one
+    reply, "the usage string must include --show-python" beside "the usage
+    string must explicitly list --show-python". Word overlap is a fact."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i9', 'version_option takes a show_python flag.', "
+               "'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','the flag')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    sb.call("criteria.specify", id="c_1", ticket_id="tk9",
+            text="The usage string must include the --show-python flag as an available option",
+            surface_refs=["show_python"])
+    with pytest.raises(ValueError, match="nearly the same words"):
+        sb.call("criteria.specify", id="c_2", ticket_id="tk9",
+                text="The usage string must explicitly include the --show-python flag as an option",
+                surface_refs=["show_python"])
+    sb.call("criteria.specify", id="c_3", ticket_id="tk9",
+            text="With the flag set, the message ends with the running Python version as major.minor.micro",
+            surface_refs=["show_python"])
