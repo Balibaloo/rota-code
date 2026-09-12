@@ -1540,3 +1540,22 @@ def test_a_test_imports_only_modules_the_tree_has(db, tmp_path):
                   body="import json" + chr(10) + "from main import calculate_tip" + chr(10)
                        + "def test_b():" + chr(10) + "    assert calculate_tip(100, 10) == 10" + chr(10))
     assert got
+
+
+def test_a_bare_surface_s_module_is_named_from_the_tree(db, tmp_path):
+    """clickI night 25 (2026-09-12): the surface was bare `echo_json`, defined
+    in src/click/echo_json.py, and the refusal listed .devcontainer, .github
+    and .venv as the modules there. The tree names the module."""
+    root = tmp_path / "wt"; (root / "src" / "pkg").mkdir(parents=True); (root / ".venv").mkdir()
+    (root / "src" / "pkg" / "helper.py").write_text(
+        "def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"calculate_tip\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError, match="from pkg.helper import calculate_tip") as exc:
+        sb.call("tests.encode", id="tst_a", criterion_id="c1", path="tests/test_a.py",
+                body="from helper import calculate_tip" + chr(10) + "def test_a():" + chr(10)
+                     + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    assert ".venv" not in str(exc.value)

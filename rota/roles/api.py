@@ -3913,8 +3913,27 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if _missing_mods:
             dotted_surfaces = sorted({_dotted(s.split("::", 1)[0]) for s in surface
                                       if "::" in s and s.split("::", 1)[0].endswith(".py")})
-            want = ", ".join(dotted_surfaces
-                             or sorted(_known - set(getattr(_sys2, "stdlib_module_names", ())))[:6])
+            # A bare surface names no file; the tree does. Night 25: the
+            # hint listed .devcontainer, .github and .venv as "the modules
+            # there" and never said `from click.echo_json import echo_json`.
+            if not dotted_surfaces and _root is not None:
+                for s in surface:
+                    if "::" in s or not _re2.fullmatch(r"[A-Za-z_]\w*", s):
+                        continue
+                    pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(s)}(?!\w)", _re2.M)
+                    for py in _root.rglob("*.py"):
+                        rel = py.relative_to(_root).parts
+                        if any(part.startswith(".") for part in rel) or "tests" in rel:
+                            continue
+                        try:
+                            if pat.search(py.read_text(encoding="utf-8", errors="replace")):
+                                dotted_surfaces.append(_dotted("/".join(rel)))
+                                break
+                        except OSError:
+                            continue
+            plain = sorted(m for m in _known - set(getattr(_sys2, "stdlib_module_names", ()))
+                           if not m.startswith(".") and m not in ("tests", "docs", "pytest"))
+            want = ", ".join(dotted_surfaces or plain[:6])
             hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
                     f"import {surface[0].rsplit('::', 1)[-1]}`") if dotted_surfaces else ""
             raise Wall(
