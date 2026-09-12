@@ -120,3 +120,20 @@ on is logged; a fact that lives outside the project is asked of the Researcher
 The ranking, "which assumption changes the most", is a judgement and
 lives in the brief of the desk that presents. The door holds only the
 facts: which assumptions are open, which the last answer resolved.
+
+### Standing on 2026-09-12, against the build order
+
+- Piece 1, mechanics: built and pinned (`test_signoff_assumptions.py`).
+- Piece 2, the owner's half: none, by measurement; approve and contest
+  close at the keypress.
+- Piece 3, the generators: the account case is green; the Researcher
+  route from deliver is an open register red and needs a lever other
+  than a sentence.
+- Piece 4, never twice: built. `sandbox._bind_send` refuses a clarify
+  to the principal whose words were already put to them.
+- Piece 5, cold walks: owed.
+- The 2026-09-12 rulings: the submit brief puts the assumption that
+  changes the most first and says a page after a contest shows only what
+  is still open; `L1-LI-present-for-signoff` and
+  `L1-LI-put-the-open-assumptions-to-a-present-principal` owe their
+  re-record on it. Hold at intent time is the signoff gate as built.

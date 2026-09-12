@@ -1270,7 +1270,14 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
 
 1. **A1, the interview.** Iterative: the page shows the assumption that
    changes the most, the answer lands, the desks re-derive, the next page
-   shows what is still open. Hold at intent time only. Design in
+   shows what is still open. Hold at intent time only. What exists (read
+   2026-09-12): the signoff page carries the lineage's open assumptions,
+   approve takes the default at the keypress, contest overrules and
+   re-derives through the contested loop, the signoff gate holds slicing,
+   and an identical clarify is refused (`sandbox._bind_send`). Added
+   2026-09-12: the submit brief orders assumptions by how much a "no"
+   changes. Owed: that brief's re-record, the Researcher route from
+   deliver (an open register red), and two cold walks. Design in
    `plans/a1-seed-interview-at-intent.md`.
 2. **A7, cost before commitment.** The touch note is piece 1 (green). Piece
    2, beside each item at signoff, is built in its mechanical form
