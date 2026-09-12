@@ -1313,7 +1313,19 @@ merged cold in 34 steps.
    models the Critic reads the fixture's test as hollow, challenges the
    Tester, and the doors hold (the pass it then tries is refused, one
    challenge is sent, no verdict lands). The case measures the fail path;
-   qwen takes the challenge path. llama is its default and carries it. `a-challenge-
+   qwen takes the challenge path. llama is its default and carries it.
+   Nights 23 and 24 (2026-09-12, afternoon): past the commit wall for
+   the first time. The echo_json batch built, its tests were written
+   and ran, 34 inherited tests passed, and the fix loop began. Two
+   Tester faults stalled it, both mechanical: the encode door compared
+   a surface's stem with the first segment of a package import and
+   refused a correct `from click.core import` twelve turns running,
+   telling the Tester `from core import`, which cannot import; and
+   three tests began `from echo import echo_json` for a module that
+   does not exist, died at collection, and sent the Developer to
+   challenge the wrong test. Both are doors now (79f3e73, b0ad120).
+   The first seat exchange ran on the Titan the same afternoon
+   (plans/seat-exchange.md): five findings, two already doors. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
