@@ -11,6 +11,12 @@
   role: terminologist
   runs: 5
   pass: 3
+  # Attributed 2026-09-12: the paragraph and the `ledger.log` tool this case
+  # measured (44468f9, 2026-09-09) turned `L3-ratified-statement-becomes-a-term`
+  # red on both 8B models, the plain deliver case, and the replay hid it
+  # until today. Both are withdrawn from deliver. The lever is a mode of its
+  # own keyed by its cause, a statement word with two senses, not a tool in
+  # deliver's list (rota-tool-in-the-list). Red until that mode exists.
   # tipsAD: "rounded up to the nearest cent" and a glossary sense of "nearest
   # unit" went unreconciled for 71 questions. The word was taken one way and
   # nobody was told. Here the word is `archive`: delete, or move to cold

@@ -1306,6 +1306,16 @@ merged cold in 34 steps.
    what I understand" pages in a row on night 22, one per seven
    reconcile findings. The seat exchange (plans/seat-exchange.md) is the
    measurement for that; the count of pages is a question for the seat.
+   The four L3 chains red since the morning, read on the Titan with fresh
+   loads and on yesterday's tree: `becomes-scope` is the bar model, 5/5
+   on qwen3:8b and 0/5 on llama, pinned to qwen. `a-failed-verdict` is
+   5/5 on llama fresh and 0/5 on qwen, llama is its default. `a-challenge-
+   reaches-the-role` has had no green since seq 80706, weeks ago, and
+   stays an attributed 8B red: both models write criteria for the
+   contradiction instead of challenging it. `becomes-a-term` went red on
+   2026-09-09 with the Terminologist's word-sense paragraph and its
+   `ledger.log` tool in deliver, hidden by replay since; withdrawn today,
+   the generator owed as a mode of its own (a1 plan).
    The amendment walk tipsAU the same night: the contest landed, the
    item was amended and its batch abandoned, and the driver contested
    the next touch note too, twenty times over; the driver contests once

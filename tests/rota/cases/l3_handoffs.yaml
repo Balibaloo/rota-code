@@ -16,6 +16,10 @@
   tier: T3
   runs: 5
   pass: 3
+  # The bar model (ruled: cases declare it). 2026-09-12: fresh on the same
+  # prompt, qwen3:8b 5/5 and llama 0/5 twice on two cards; the `local`
+  # profile's Vision Keeper is qwen3:8b.
+  model: qwen3:8b
   first: {role: liaison, prompt: verdict, verb: verdict, refs: [<s1>]}
   then:  {role: vision_keeper}
   fixture:

@@ -137,3 +137,19 @@ facts: which assumptions are open, which the last answer resolved.
   is still open; `L1-LI-present-for-signoff` and
   `L1-LI-put-the-open-assumptions-to-a-present-principal` owe their
   re-record on it. Hold at intent time is the signoff gate as built.
+
+### The Terminologist's generator, withdrawn from deliver (2026-09-12)
+
+The 2026-09-09 paragraph in `deliver.md` ("a word that could mean two
+things: take one, define it, log what you took") and the `ledger.log`
+tool it added to deliver's list turned `L3-ratified-statement-becomes-a-
+term`, the plain deliver case, red on both 8B models. Replay hid it for
+three days: the chain was green under an older recording. Measured fresh
+on two cards today, 0/5 on llama and 0/5 on qwen3:8b, and 0/5 again on
+yesterday's tree, so it is the brief and the tool, not a later door.
+Both are withdrawn. The generator is still owed, and its shape is the
+rule from the tool-in-the-list finding: a branch that needs a new tool
+is a new mode keyed by its cause. Here the cause is a statement word
+with two glossary senses at deliver time, a fact the scheduler can see;
+the mode wakes the Terminologist for that word alone, with `ledger.log`
+in its own list, and the plain deliver case keeps its tools.
