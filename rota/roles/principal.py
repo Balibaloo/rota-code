@@ -656,7 +656,17 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
         else:
             said = answer.text.strip() if answer.text else "contested at signoff"
             text = f"overruled at signoff: {said} (was assumed: {row['default_taken']})"
-            per_item[row["about_ref"]] = "contest"
+            # A contested assumption contests its item, unless the item is
+            # what the repository already does. seat2 on click (2026-09-12):
+            # contesting seven reconcile findings put two observed items
+            # into the contested loop, and the run asked the Vision Keeper
+            # to amend behaviour that exists. The finding was wrong; the
+            # code is not.
+            about = conn.execute(
+                "SELECT provenance FROM items WHERE id = ?",
+                (row["about_ref"],)).fetchone()
+            if not (about and about["provenance"] == "observed"):
+                per_item[row["about_ref"]] = "contest"
         conn.execute(
             "INSERT INTO decisions (id, author, text, refs, resolves_ledger) "
             "VALUES (?, 'principal', ?, ?, ?)",

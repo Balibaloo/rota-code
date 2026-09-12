@@ -282,3 +282,26 @@ def test_observed_behaviour_is_not_shown_as_a_plan(db):
     assert "It does today:" in page and "It would:" in page
     assert page.index("It does today:") < page.index("the program calculates the tip") < page.index("It would:")
     assert page.index("It would:") < page.index("the program splits the bill")
+
+
+def test_the_signoff_hook_adds_at_most_seven_assumptions(db):
+    """seat2 on click (2026-09-12): the hook put nineteen reconcile rows under
+    one signoff page, past the seven-a-page door the model is held to. The
+    hook obeys the same rule; the rest wait for the next page."""
+    _an_item_with_an_assumption(db)
+    for n in range(10):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+                   "status, author) VALUES (?, 'how_it_works', 'items', ?, 'open', 'vision_keeper')",
+                   (f"LX{n:02d}", f"assumption {n}"))
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m8','th','vision_keeper',"
+               "'liaison','submit',?,1,'open')", (json.dumps(["how_it_works"]),))
+    db.commit()
+    out = run_session(
+        db, Wake("liaison", "message", message_id="m8", detail="submit"),
+        backend=ScriptedBackend(["TOOL: msg.present_principal(refs=['how_it_works'])", "done"]),
+        pins=PINS, instructions="present it")
+    assert out.committed, out.errors
+    refs = json.loads(db.execute("SELECT body_refs FROM messages WHERE verb = 'present'").fetchone()["body_refs"])
+    open_rows = [r for r in refs if db.execute("SELECT 1 FROM ledger WHERE id = ? AND status = 'open'", (r,)).fetchone()]
+    assert len(open_rows) == 7, refs

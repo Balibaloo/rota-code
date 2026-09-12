@@ -1573,3 +1573,21 @@ def test_a_challenge_that_names_no_test_is_told_the_failing_ones(db):
     sb = build("developer", db, batch_id="b1", mode="tests_failing")
     with pytest.raises(ValueError, match=r"send refs=\['c1', 'tst_x'\]"):
         sb.call("msg.challenge_tester", refs=["c_other"], quotes=["another thing"])
+
+
+def test_an_assumption_whose_halves_match_is_a_restatement(db):
+    """seat2 on click (2026-09-12): reconcile logged "the README says X. The
+    code shows X" nineteen times, and every one reached the person at the
+    seat as an assumption to rule on."""
+    from rota.roles import prompts
+
+    db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind) VALUES ('README.md', 'path')")
+    db.commit()
+    sb = build("vision_keeper", db, mode="normal", area="@prose",
+               allow=prompts.mode_tools("vision_keeper", "reconcile"))
+    with pytest.raises(ValueError, match="say the same words"):
+        sb.call("ledger.log", about_ref="README.md", about_table="items",
+                assumption="the README says Click parses arguments into Python objects. The code shows Click parses arguments into Python objects.")
+    out = sb.call("ledger.log", about_ref="README.md", about_table="items",
+                  assumption="the README says accounts can be merged; the code shows no merge path at all")
+    assert out

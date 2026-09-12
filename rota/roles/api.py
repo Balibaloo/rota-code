@@ -4376,6 +4376,29 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
             f"about_ref and about_table name one row together; send "
             f"about_table={home!r}")
 
+    # A disagreement names what differs. seat2 on click (2026-09-12): the
+    # reconcile phase logged "the README says X. The code shows X", nineteen
+    # times in the same words, and every one reached the person at the seat
+    # as an assumption to rule on. Two halves in the same words are a
+    # restatement, and the words are the fact.
+    halves = None
+    lower = (assumption or "").lower()
+    for cut in (". the code shows", "; the code shows", "; code shows", " the code shows"):
+        i = lower.find(cut)
+        if i > 0:
+            halves = (assumption[:i], assumption[i + len(cut):])
+            break
+    if halves:
+        frame = {"the", "readme", "says", "code", "shows", "that", "documentation", "docs"}
+        a, b = (set(_prose_words(h)) - frame for h in halves)
+        if a and b and len(a & b) >= 0.8 * len(a | b):
+            raise ValueError(
+                "the two halves of this assumption say the same words: what "
+                "the README says and what the code shows are the same "
+                "sentence. A disagreement names what differs; a README that "
+                "matches the code is nothing to log. Log only where the two "
+                "sides differ, in the words each source uses")
+
     import hashlib
 
     digest = hashlib.sha256(

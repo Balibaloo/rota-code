@@ -1349,12 +1349,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # principal signs carries what was assumed where their words
                 # were silent. Ruled 2026-09-03 (A1, intent-time): the signoff
                 # page is the seed interview's first moment.
-                if refs:
+                # The rows this hook adds obey the page rule the door below
+                # holds the model to: seven a page, the rest on the next.
+                # seat2 on click (2026-09-12): the hook put nineteen
+                # reconcile rows under one signoff page, past the door, and
+                # the person at the seat said "I am not reading nineteen of
+                # those". Oldest first; the brief orders what the model sends.
+                room = PAGE_ASSUMPTIONS - sum(1 for r in refs if ctx.conn.execute(
+                    "SELECT 1 FROM ledger WHERE id = ? AND status = 'open'", (r,)).fetchone())
+                if refs and room > 0:
                     marks = ",".join("?" * len(refs))
                     assumed = [r["id"] for r in ctx.conn.execute(
                         "SELECT id FROM ledger WHERE status = 'open' "
-                        f"AND about_ref IN ({marks}) ORDER BY id", tuple(refs))]
-                    refs += [r for r in assumed if r not in refs]
+                        f"AND about_ref IN ({marks}) ORDER BY rowid", tuple(refs))]
+                    added = [r for r in assumed if r not in refs][:room]
+                    refs += added
+                    room -= len(added)
                 # And what the other desks assumed about the words themselves.
                 # The Terminologist and the Architect log against the ratified
                 # statement, which is the lineage's root and is not on the
@@ -1363,8 +1373,9 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 # behaviour was put, before anything is sliced.
                 lineage = [r["id"] for r in ctx.conn.execute(
                     "SELECT l.id FROM ledger l JOIN statements s ON s.id = l.about_ref "
-                    "WHERE l.status = 'open' AND s.status = 'ratified' ORDER BY l.id")]
-                refs += [r for r in lineage if r not in refs]
+                    "WHERE l.status = 'open' AND s.status = 'ratified' ORDER BY l.rowid")]
+                if room > 0:
+                    refs += [r for r in lineage if r not in refs][:room]
         # And the same for a ruling's relay, with a stronger warrant: the
         # ruling's refs are the rows the principal ruled on, and the model
         # was choosing among them -- relaying one of two, five runs of five,
