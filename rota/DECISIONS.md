@@ -1347,3 +1347,30 @@ the signoff gate already blocks slicing, and the page gets fuller. "Derive
 it" stays the default and nothing waits on a question; the eager/lazy
 election, when built, is the dial. Design and build order:
 `plans/a1-seed-interview-at-intent.md`.
+
+### The seat's four pages are one surface (2026-09-12)
+
+Roman ruled four things about the pages the principal answers, and one
+thing about their cohesion: the interview, the touch guess at signoff, an
+amendment, and a conflict between sources are four kinds of page at one
+seat, answered in words through one door (`principal.land`). Not four
+features.
+
+1. **The interview is iterative, most important first.** The page shows
+   the assumption that changes the most, or the few that all do. The
+   answer lands, the desks re-derive, and the next page shows what is
+   still open. An answer that settles three questions removes all three.
+   Nothing is asked twice.
+2. **Hold at intent time only.** No batch starts until the first page is
+   answered. After that, nothing waits on a page.
+3. **Amendment at level 2 now, level 3 measured.** An amended item cancels
+   a running batch built from it and re-batches. A merged batch stays, and
+   the amendment is a new batch on top. Level 3, invalidate by touch (only
+   the criteria the amendment touches are re-tested), is the upgrade, gated
+   on a walk that shows level 2 wasting real work. Level 1 (restart all)
+   and level 4 (propagate through findings to every owner) are recorded
+   and not chosen.
+4. **Conflicting sources always ask.** Two documents in the repository
+   that disagree are put to the principal, never resolved by recency or by
+   preferring code. Roman's reason: a conflict page that never appears on
+   a repository with conflicts shows the tool is failing.

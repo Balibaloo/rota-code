@@ -103,3 +103,20 @@ regression the account-first brief caused in
 `L1-VK-an-outside-fact-is-the-researchers` (a default the principal was silent
 on is logged; a fact that lives outside the project is asked of the Researcher
 -- one sentence, then re-record).
+
+## Rulings, 2026-09-12
+
+1. The interview is iterative, most important first. One page shows the
+   assumption that changes the most, or the few that all do. The answer
+   lands, the desks re-derive, the next page shows what is still open.
+   An answer that settles three questions removes all three. Nothing is
+   asked twice.
+2. Hold at intent time only. No batch starts until the first page is
+   answered. After that, nothing waits on a page.
+3. The interview, the touch guess at signoff, amendment and conflicting
+   sources are one surface: pages in words, answered in words, one door.
+   Design each as a kind of page, never as a feature with its own verb.
+
+The ranking, "which assumption changes the most", is a judgement and
+lives in the brief of the desk that presents. The door holds only the
+facts: which assumptions are open, which the last answer resolved.

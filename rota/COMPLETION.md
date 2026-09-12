@@ -1252,31 +1252,35 @@ built, click and two more lineage repositories merge cold, and the
 register is green or attributed on the shipped profile. Roman confirmed
 the statuses and the post-core line on 2026-09-12.
 
-Partial, in budget, in order:
+Partial, in budget, in order. The first five are one surface, the seat's
+pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
 
-1. **A1, the interview.** The desks' assumptions reach the principal at
-   the start, on the signoff page, as questions in words. Dynamic: the
-   questions come from the sentence. A contest goes back to the desk that
-   assumed. Design in `plans/a1-seed-interview-at-intent.md`.
+1. **A1, the interview.** Iterative: the page shows the assumption that
+   changes the most, the answer lands, the desks re-derive, the next page
+   shows what is still open. Hold at intent time only. Design in
+   `plans/a1-seed-interview-at-intent.md`.
 2. **A7, cost before commitment.** The touch note is piece 1 (green). Piece
    2 is the Architect's coarse guess beside each item at signoff.
-3. **D3, hollow verification.** `CR-a-test-that-encodes-nothing` is red on
+3. **E1, amendment as the normal move.** Level 2: cancel a running batch
+   built from the amended item and re-batch; a merged batch stays and the
+   amendment is a new batch on it. Level 3, invalidate by touch, is the
+   measured upgrade. Design in `plans/amendment-and-conflicts.md`.
+4. **A5, conflicting sources.** Two documents that disagree are a page to
+   the principal, always. Same plan file.
+5. **B5, questions at any time.** A question at a page is answered. A free
+   question at any moment is the chat surface, post-core by the
+   2026-09-01 ruling; the page half is core and built.
+6. **D3, hollow verification.** `CR-a-test-that-encodes-nothing` is red on
    every 8B model. The lever is a 14B judge on the Critic's desk, measured
-   on the register and a walk, never more 8B wording.
-4. **E1, amendment as the normal move.** An amended item names what it
-   invalidates: the batch, its tests, its findings. Rule owed, then built.
-5. **A5, conflicting sources.** Two documents in the repository that
-   disagree are a finding put to the principal. Filed, then built.
-6. **G1, dynamic stacks.** The account rules the stack; the provisioner
+   on the register and a walk, never more 8B wording. Fits between nights.
+7. **G1, dynamic stacks.** The account rules the stack; the provisioner
    installs its toolchain; the floor is that stack's test runner. Prose
    repositories get judgement without a mechanical net, and the tool says
    so (document checks skipped, ruled 2026-09-12). Largest unbuilt piece;
-   needs a sample repository per language and its own nights.
-7. **F1, budgets.** Turn caps and one page per tick exist. A money budget
+   needs a sample repository per language and its own nights. After click
+   merges.
+8. **F1, budgets.** Turn caps and one page per tick exist. A money budget
    arrives with the first remote provider, not before.
-8. **B5, questions at any time.** A question at a page is answered. A free
-   question at any moment is the chat surface, post-core by the
-   2026-09-01 ruling; the page half is core and built.
 
 Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
 B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.
