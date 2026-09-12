@@ -1243,6 +1243,53 @@ merged cold in 34 steps.
    case and proposes the brief change, the register measures it. Today a
    person does this by hand. Kept here so it is not forgotten, not planned.
 
+## Core, by capability (ruled 2026-09-12)
+
+The ten goals below are the work. This section is the outcome the work
+serves: the audit's universe (`plans/responsibility-audit.md`), each entry
+built, partial, or post-core. Core is complete when every partial is
+built, click and two more lineage repositories merge cold, and the
+register is green or attributed on the shipped profile. Roman confirmed
+the statuses and the post-core line on 2026-09-12.
+
+Partial, in budget, in order:
+
+1. **A1, the interview.** The desks' assumptions reach the principal at
+   the start, on the signoff page, as questions in words. Dynamic: the
+   questions come from the sentence. A contest goes back to the desk that
+   assumed. Design in `plans/a1-seed-interview-at-intent.md`.
+2. **A7, cost before commitment.** The touch note is piece 1 (green). Piece
+   2 is the Architect's coarse guess beside each item at signoff.
+3. **D3, hollow verification.** `CR-a-test-that-encodes-nothing` is red on
+   every 8B model. The lever is a 14B judge on the Critic's desk, measured
+   on the register and a walk, never more 8B wording.
+4. **E1, amendment as the normal move.** An amended item names what it
+   invalidates: the batch, its tests, its findings. Rule owed, then built.
+5. **A5, conflicting sources.** Two documents in the repository that
+   disagree are a finding put to the principal. Filed, then built.
+6. **G1, dynamic stacks.** The account rules the stack; the provisioner
+   installs its toolchain; the floor is that stack's test runner. Prose
+   repositories get judgement without a mechanical net, and the tool says
+   so (document checks skipped, ruled 2026-09-12). Largest unbuilt piece;
+   needs a sample repository per language and its own nights.
+7. **F1, budgets.** Turn caps and one page per tick exist. A money budget
+   arrives with the first remote provider, not before.
+8. **B5, questions at any time.** A question at a page is answered. A free
+   question at any moment is the chat surface, post-core by the
+   2026-09-01 ruling; the page half is core and built.
+
+Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
+B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.
+
+Post-core, by ruling R2 and 2026-09-12: X1 verified qualities, X2 the
+tool measuring its own seats, the chat surface, the web cockpit, multiple
+principals.
+
+What may block core, said on 2026-09-12: the 8B judgement ceiling on
+click (lever: one desk on 14B, or a remote provider if allowed); dynamic
+stacks having no measurement yet; and the two rulings owed for the
+interview's page and amendment's invalidation rule.
+
 ## The plan (agreed 2026-09-10)
 
 The end state for the second half of the budget: a tool a careful person
@@ -1356,17 +1403,20 @@ qwen3.5:9b behind the OpenAI shape, three sessions, no commit. The
 transport holds; the judgement is the same model's. On record in the
 walks table.
 
-### Long-term list
+### Post-core list
 
-Not this budget. Kept so nothing is forgotten.
+Ruled post-core (R2, 2026-09-12). Kept so nothing is forgotten.
 
-1. A second language: shape undecided, discussion pending (Level 4).
-2. The tool tunes itself (Level 5).
-3. The web cockpit, after every interaction is TUI-simple.
-4. Goals 5 and 6 to completion.
-5. The runner seam's non-local runners.
-6. The audit document.
-7. The full gauntlet against the whole lineage.
-8. Providers on every local backend.
-9. The two seat questions still open in their attributed shape (5, 6).
-10. Multiple principals on one run.
+1. X1, verified qualities: security, performance, maintainability,
+   documentation checked by roles.
+2. X2, the tool tunes itself and measures its own seats (Level 5).
+3. The chat surface: a free question at any moment, and statements
+   relevance with it.
+4. The web cockpit, after every interaction is TUI-simple.
+5. Multiple principals on one run.
+6. The audit document as a shipped artefact.
+
+In budget, moved out of this list on 2026-09-12 because rulings put them
+in core: the full gauntlet against the lineage (goal 10), goals 5 and 6
+to completion, the container runner behind the seam (goal 7), llama.cpp
+as a proven provider (goal 8), dynamic stacks (G1).
