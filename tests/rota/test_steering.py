@@ -169,3 +169,19 @@ def test_a_reopen_needs_an_amendment_behind_it(db):
         sb.call("msg.reopen_developer", refs=["i1"])
     _revoke(db)
     sb.call("msg.reopen_developer", refs=["i1"])
+
+
+def test_a_reopen_names_an_item_not_a_statement(db):
+    """clickI night 22 (2026-09-12): reopen sent for a statement id, and the
+    Developer was woken to elect on a batch with no amended item under it."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES ('e1','principal',1,'x')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
+               "VALUES ('s2','e1',0,1,'x','ratified')")
+    db.commit()
+    sb = build("vision_keeper", db, mode="challenge",
+               allow=prompts.mode_tools("vision_keeper", "challenge"))
+    with pytest.raises(ValueError, match="is not an item"):
+        sb.call("msg.reopen_developer", refs=["s2"])

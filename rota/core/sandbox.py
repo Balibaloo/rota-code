@@ -912,7 +912,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 row = ctx.conn.execute(
                     "SELECT approval, approval_ver, version FROM items WHERE id = ?",
                     (r,)).fetchone()
-                if row and row["approval"] == "approved" and (
+                if row is None:
+                    # clickI night 22: reopen sent for a statement id. A
+                    # reopen names the amended item; nothing else can be
+                    # amended under a batch.
+                    raise ValueError(
+                        f"{r} is not an item. A reopen names the approved item "
+                        f"that changed under the batch; a statement or a "
+                        f"message is not one, and nothing else can reopen a batch")
+                if row["approval"] == "approved" and (
                         row["approval_ver"] or 0) >= (row["version"] or 0):
                     unchanged.append(r)
             if unchanged:
