@@ -694,3 +694,25 @@ def test_bare_names_and_the_pass_keyword_are_the_words_they_spell():
     kwargs, _ = toolproto.parse_args("text='all tests pass now', refs=['a']")
     assert kwargs["text"] == "all tests pass now"
 
+
+def test_a_quote_that_swallows_the_next_argument_is_named():
+    """L1-DV-apply-the-answer (2026-09-12): a possessive inside single-quoted
+    source closed the string, `text=` rode along inside `path`, and the
+    refusal said only that `text` was missing."""
+    say = ("TOOL: code.write(path='a.py', text='x = singular + \\'s'}\"', "
+           "start=11, end=-1)")
+    out = extract(say)
+    assert len(out) == 1 and isinstance(out[0], ToolError)
+    assert "text=[text]" in out[0].reason
+    # The lenient path parses the same call into arguments, with `text=`
+    # riding inside `path`; the door names the quote and the swallowed key.
+    from rota.llm import toolproto
+    swallowed = toolproto._swallowed_argument(
+        {"path": "a.py', text='x = singular + ", "start": "11", "end": "-1"})
+    assert swallowed == ("path", "text")
+    assert toolproto._swallowed_argument({"path": "a.py", "text": "x = 1"}) is None
+    # The block form carries the same source with no quoting at all.
+    block = "TOOL: code.write(path='a.py', text=[text]\nx = singular + 's'\ny = f\"{x}\"\n"
+    call = extract(block)[0]
+    assert isinstance(call, ToolCall) and call.args["text"] == "x = singular + 's'\ny = f\"{x}\""
+

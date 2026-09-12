@@ -445,9 +445,10 @@ def extract(text: str) -> list[ToolCall | ToolError]:
             results.append(ToolError(
                 f"{MARKER} {name}(...",
                 "unterminated argument list: a quote inside a quoted argument "
-                "ended the string early, or a bracket is unbalanced. Put the "
-                "text in double quotes, escape every inner double quote as \\\", "
-                "and write newlines as \\n on one line"))
+                "ended the string early, or a bracket is unbalanced. Source "
+                "has quotes of its own: send it as text=[text] at the end of "
+                "the call line, then the raw lines, no quoting and no "
+                "escaping"))
             cursor = marker + len(MARKER)
             continue
 
@@ -458,9 +459,45 @@ def extract(text: str) -> list[ToolCall | ToolError]:
             results.append(ToolError(f"{MARKER} {name}({raw_args[:80]})",
                                      f"could not parse arguments: {exc}"))
         else:
-            results.append(ToolCall(name=name, args=args, pos=pos,
-                                    raw=f"{name}({raw_args})"))
+            swallowed = _swallowed_argument(args)
+            if swallowed:
+                # L1-DV-apply-the-answer (2026-09-12): llama wrote a
+                # possessive `'s` inside single-quoted source, the string
+                # ended there, the rest of the text rode along inside
+                # `path`, and the call was refused for a missing `text`
+                # with no word about the quote. Say which quote, and name
+                # the block form that needs no quoting at all.
+                key, other = swallowed
+                results.append(ToolError(
+                    f"{MARKER} {name}({raw_args[:80]})",
+                    f"a quote inside {key} ended it early and the arguments "
+                    f"after it ({other}=...) were read as part of {key}. Source "
+                    f"has quotes of its own; send it as {other}=[{other}] at "
+                    f"the end of the call line, then the raw lines, no quoting "
+                    f"and no escaping"))
+            else:
+                results.append(ToolCall(name=name, args=args, pos=pos,
+                                        raw=f"{name}({raw_args})"))
         cursor = args_end + 1
+
+
+_SWALLOW = None
+
+
+def _swallowed_argument(args: dict) -> tuple[str, str] | None:
+    """The key whose string value carries `', name=` -- a quote in the value
+    closed it early and the next argument was read as text."""
+    import re
+
+    global _SWALLOW
+    if _SWALLOW is None:
+        _SWALLOW = re.compile(r"""['"]\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*=""")
+    for key, value in args.items():
+        if isinstance(value, str):
+            m = _SWALLOW.search(value)
+            if m and m.group(1) not in args:
+                return key, m.group(1)
+    return None
 
 
 def _labelled(text: str, allowed: set[str]) -> list[tuple[int, ToolCall, int]]:
