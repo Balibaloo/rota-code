@@ -60,3 +60,24 @@ CI, linting and formatting are the extension ring by ruling R2 and stay out.
   principal, or inferred from an empty tree).
 - The second language to prove piece 7 with, and whether the Tester's encode
   door can be shaped per stack without a second door.
+
+## Rulings and choices, 2026-09-12
+
+- Dynamic stacks are core (Roman, 2026-09-12), for new projects and for
+  existing repositories. Prose repositories get the desks' judgement
+  without a mechanical net, and the tool says so on the page; checks on
+  documents as a Tester floor were considered and skipped.
+- Piece 0, before piece 1: **stack detection on an existing repository**,
+  from its manifests. `pyproject.toml` or `setup.py` is Python and
+  pytest; `package.json` is Node and `npm test`; `Cargo.toml` is Rust and
+  `cargo test`; `go.mod` is Go and `go test`. No judgement: the manifest
+  is the fact, and the ruling row it writes is `observed`. Piece 1's
+  judged ruling is for the empty folder only.
+- The second language is **JavaScript on Node**: installed on this
+  machine (Windows and WSL), the most common manifest after Python's, and
+  its test runner prints one line per test that piece 7 can parse. The
+  sample repository is a small library with `package.json`, a `test`
+  script, and one inherited test, built the way tipsI was.
+- Build order stays. Piece 0 lands with piece 7's first adapter, since a
+  detected stack with no runner adapter changes nothing. Both after click
+  merges cold, as the completion doc orders.

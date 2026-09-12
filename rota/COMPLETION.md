@@ -1307,7 +1307,9 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    repositories get judgement without a mechanical net, and the tool says
    so (document checks skipped, ruled 2026-09-12). Largest unbuilt piece;
    needs a sample repository per language and its own nights. After click
-   merges.
+   merges. The second language is JavaScript on Node, installed here; an
+   existing repository's stack is read from its manifest, no judgement
+   (`plans/greenfield-setup.md`, "Rulings and choices, 2026-09-12").
 8. **F1, budgets.** Turn caps and one page per tick exist. A money budget
    arrives with the first remote provider, not before.
 
