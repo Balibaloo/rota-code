@@ -1454,6 +1454,18 @@ def run_session(
 
             calls = toolproto.extract_lenient(completion.text, allowed,
                                               signatures=_param_sets(sb))
+            if (completion.raw or {}).get("done_reason") == "length":
+                # clickI night 16 (2026-09-12): a 688-line whole-file write
+                # stopped at the output cap mid-string, the parser called it
+                # an unbalanced quote, and the Developer then read the file
+                # as already changed. The cap is a fact the model cannot see.
+                cut = ("your reply was cut at the output budget before it "
+                       "ended, so the last call did not run and nothing was "
+                       "written. Send less in one reply: for a long file, "
+                       "write the span you changed with start and end copied "
+                       "from code.source, not the whole file")
+                outcome.errors.append(cut)
+                feedback.append(f"ERROR reply cut: {cut}")
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
                 # Walk ten: the Developer's fix, whole and correct, inside a

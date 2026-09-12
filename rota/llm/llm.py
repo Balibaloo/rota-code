@@ -278,7 +278,7 @@ class OllamaBackend:
     # cassette is keyed by them; a guard rail on runaway generation is a
     # property of the transport, and putting it in the key would invalidate
     # every recording in the repository to record the same completions again.
-    max_tokens = 2048
+    max_tokens = 8192
 
     def __init__(self, host: str = OLLAMA_HOST, timeout: float = 300.0):
         self.host = host.rstrip("/")
@@ -375,7 +375,7 @@ class LiteLLMBackend:
     """
 
     name = "litellm"
-    default_max_tokens = 2048
+    default_max_tokens = 8192
 
     def __init__(self, api_base: str | None = None, timeout: float = 300.0):
         self.api_base = api_base or None

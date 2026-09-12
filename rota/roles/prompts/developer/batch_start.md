@@ -23,8 +23,11 @@ says what the program does for the person running it.
    last line. Read the span of the name the criteria name, once, and the
    lines around it. Do not page a long file from the top: a file read four
    hundred lines at a time is a session spent reading and nothing written.
-   Then write the whole file with your change in it
-5. `code.write` puts a file back, whole. Read it, change it, write all of it —
+   Then write the span you read back with your change in it, `start` and
+   `end` copied from the `code.source` call that showed it. A long file does
+   not fit in one reply; a whole-file write of it is cut before its end.
+5. `code.write` puts a file back. A short file whole; a long file by the
+   span you read. For a whole file: read it, change it, write all of it —
    there are no partial edits, because a patch that does not apply is a failure
    you would have to re-derive from
 6. `code.commit` — and commit as you go. An uncommitted change never existed,

@@ -1059,8 +1059,16 @@ def test_a_whole_file_write_with_source_spans_lands(db, tmp_path):
     out = sb.call("code.write", path="script.py", text="def close_account(a):\n    return 1\n",
                   start=0, end=-1)
     assert out["bytes"]
-    with pytest.raises(ValueError, match="writes the whole file"):
-        sb.call("code.write", path="script.py", text="def x():\n    pass\n", start=10, end=20)
+    # A span replaces the lines code.source showed, and the file keeps the
+    # rest (clickI night 16, 2026-09-12: a long module does not fit one reply).
+    sb.call("code.write", path="script.py", text="def close_account(a):\n    return 2\n",
+            start=0, end=2)
+    assert (root / "script.py").read_text(encoding="utf-8") == "def close_account(a):\n    return 2\n"
+    sb.call("code.write", path="script.py", text="def opened(a):\n    return 3\n", start=2, end=-1)
+    body = (root / "script.py").read_text(encoding="utf-8")
+    assert "def opened" in body and "def close_account" in body
+    with pytest.raises(ValueError, match="does not exist"):
+        sb.call("code.write", path="other.py", text="x = 1\n", start=3, end=4)
 
 
 def test_a_dependency_manifest_is_fenced(db, tmp_path):

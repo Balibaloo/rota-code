@@ -6494,18 +6494,20 @@ def code_read(ctx: Ctx, batch_id: str | None = None) -> dict:
 @op("code", "write")
 def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) -> dict:
     """
-    Write one file, whole, in this batch's worktree.
+    Write one file in this batch's worktree: whole, or the span
+    `code.source` showed.
 
-    `start` and `end` are accepted for one reason: the Developer copies
-    them from `code.source`. tipsAI (2026-09-10): three sessions running,
-    the whole file arrived with `start=0, end=-1` and was refused for the
-    two extra arguments, then the commit found nothing written. The whole
-    file is `start=0, end=-1`, and any other span is refused by name.
+    `start` and `end` are the numbers the Developer copies from
+    `code.source`. tipsAI (2026-09-10): the whole file arrived with
+    `start=0, end=-1` and was refused for the two extra arguments. The
+    whole file is `start=0, end=-1`. Any other span replaces those lines
+    with `text` (clickI night 16, 2026-09-12: a long module does not fit
+    one reply, and the whole-file write was cut at the output cap).
 
-    Whole-file rather than patch-shaped, deliberately. A patch that does not
-    apply is a failure the model must be told about and re-derive from, and
-    small models are far worse at producing a valid hunk than a correct file.
-    The diff is computed by git afterwards.
+    A line span, never a patch. A patch that does not apply is a failure
+    the model must be told about and re-derive from, and small models are
+    far worse at producing a valid hunk than a correct file or a correct
+    span of one. The diff is computed by git afterwards.
 
     Not staged through `ctx.writes`: the filesystem is outside the transaction,
     which is the carve-out law 4 already makes for the codebase. A session that
@@ -6522,12 +6524,28 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             "no batch: code is written in a batch's worktree, and this "
             "session was not woken for one. Answer the message you were "
             "woken by; the build starts when the batch does")
-    if (start, end) not in ((0, -1), (0, 0)) and end is not None:
-        raise ValueError(
-            f"code.write writes the whole file: start={start}, end={end} "
-            f"names a span, and a partial write is not offered. Send the "
-            f"whole file as text, with no start or end")
     target = _within(_batch_worktree(ctx), path)
+    span = (start, end) not in ((0, -1), (0, 0)) and end is not None
+    if span:
+        # A span, the lines `code.source` showed, replaced by `text`. clickI
+        # night 16 (2026-09-12): a 688-line module does not fit one reply,
+        # the whole-file write was cut at the output cap, and the batch
+        # stalled on it three sessions running. The span is the same
+        # slice `code.source` returns, so the numbers copy across. The
+        # doors below judge the merged file, not the fragment.
+        if not target.exists():
+            raise ValueError(
+                f"{path} does not exist, so start={start}, end={end} names "
+                f"no lines to replace. Write a new file whole, with no "
+                f"start or end")
+        lines = target.read_text(encoding="utf-8").splitlines()
+        stop = len(lines) if end < 0 else min(end, len(lines))
+        if start < 0 or start > len(lines) or stop < start:
+            raise ValueError(
+                f"start={start}, end={end} is not a span of {path}, which "
+                f"has {len(lines)} lines")
+        nl = chr(10)
+        text = nl.join(lines[:start] + text.splitlines() + lines[stop:]) + nl
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
     # A file at the root named like a standard-library module shadows it
