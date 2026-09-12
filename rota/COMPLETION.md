@@ -1276,8 +1276,10 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    2 is the Architect's coarse guess beside each item at signoff.
 3. **E1, amendment as the normal move.** Level 2: cancel a running batch
    built from the amended item and re-batch; a merged batch stays and the
-   amendment is a new batch on it. Level 3, invalidate by touch, is the
-   measured upgrade. Design in `plans/amendment-and-conflicts.md`.
+   amendment is a new batch on it. The mechanics exist (`cancel`,
+   `slicing` on a risen version, `grouping`); owed is one pinned test for
+   the merged half and two tipsI walks. Level 3, invalidate by touch, is
+   the measured upgrade. Design in `plans/amendment-and-conflicts.md`.
 4. **A5, conflicting sources.** Two documents that disagree are a page to
    the principal, always. Same plan file.
 5. **B5, questions at any time.** A question at a page is answered. A free

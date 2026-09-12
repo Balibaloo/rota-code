@@ -21,14 +21,24 @@ The desks' part, in briefs: the Vision Keeper re-derives the criteria for
 the amended text. The Architect re-predicts the touch. The touch note is
 owed again because the batch is new.
 
+What exists (read 2026-09-12, nothing here is new): a `revise` ruling at
+a page marks the item contested, the Vision Keeper amends it and its
+version rises, and the next signoff stamps `approval_ver`. The `cancel`
+predicate abandons a live batch whose item's approval is older than its
+version (law 9's ending, `test_steering.py`). The `slicing` predicate
+re-slices a delivered item whose version rose past its delivered version
+and has no live batch, and `grouping` batches the new tickets fresh. So
+level 2 is mechanics already built, and what is owed is the measurement.
+
 Build order:
 
-1. A register case per gate: an amendment with a running batch cancels
-   and re-batches; an amendment after merge opens a new batch; an
-   amendment of an item with no batch changes only the item.
-2. The door in `principal.land` for the amend verdict, and the predicate
-   that offers the re-batch.
-3. A walk on tipsI: amend the split item after its batch starts. Merge.
+1. A pinned test for the merged half: an item delivered at version 1,
+   amended to version 2 and re-approved, owes new tickets, and its old
+   tickets stay with the merged batch. (`test_steering.py` pins the
+   running half.)
+2. A walk on tipsI: amend the split item after its batch starts. The
+   batch is abandoned, the item re-sliced, the new batch merges.
+3. A walk on tipsI: amend a merged item. A new batch merges on top of it.
 4. The same on click, the night after click merges cold.
 
 ## Amendment, level 3, the measured upgrade
