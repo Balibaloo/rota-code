@@ -58,3 +58,8 @@ Findings, in the order a person met them:
    on a repository with no src/. Judgement (the Architect), but the index
    knows the paths: a door can refuse a touch grain under a directory the
    index has never seen.
+
+Standing after the first exchange (same day): 2, 4 and 5 are doors
+(b6be813, a8b0c0c, the touch-path door). 1 is a register case,
+`L1-LI-a-question-then-a-statement-at-the-confirm-is-the-question`,
+owed its record. 3 is owed a fact: the clarify's refs.
