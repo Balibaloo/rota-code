@@ -27,9 +27,7 @@ says what the program does for the person running it.
    `end` copied from the `code.source` call that showed it. A long file does
    not fit in one reply; a whole-file write of it is cut before its end.
 5. `code.write` puts a file back. A short file whole; a long file by the
-   span you read. Source has quotes of its own, so do not quote it: end the
-   call line with `text=[text]` and put the raw lines after it, exactly as
-   they go in the file. For a whole file: read it, change it, write all of it —
+   span you read. For a whole file: read it, change it, write all of it —
    there are no partial edits, because a patch that does not apply is a failure
    you would have to re-derive from
 6. `code.commit` — and commit as you go. An uncommitted change never existed,
