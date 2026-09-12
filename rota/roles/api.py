@@ -3872,8 +3872,56 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         import re as _re2
         surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
                         for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
+        def _dotted(path: str) -> str:
+            # The module a test imports, from a surface's path: a src
+            # layout's `src/click/core.py` is `click.core`, a root module
+            # is its stem.
+            parts = path.replace("\\", "/").split("/")
+            if parts and parts[0] in ("src", "lib") and len(parts) > 1:
+                parts = parts[1:]
+            return ".".join(parts)[:-3] if parts and parts[-1].endswith(".py") else ".".join(parts)
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
+        # Every module the test imports must exist where the harness will
+        # look: the worktree root, src/, an installed package, the standard
+        # library. clickI night 24 (2026-09-12): three tests began `from
+        # echo import echo_json`; `echo` is a function in click.utils, no
+        # module named echo exists, every one died at collection, and the
+        # Developer spent its fix sessions challenging the wrong test.
+        import sys as _sys2
+        try:
+            _root = _worktree_of(ctx)
+        except Exception:  # noqa: BLE001 -- no worktree yet: nothing to check against
+            _root = None
+        _known = set(getattr(_sys2, "stdlib_module_names", ())) | {"pytest"}
+        if _root is None:
+            _known |= {m.split(".")[0] for m in imported_from}
+        else:
+            _known |= {p.stem for p in _root.glob("*.py")} | {p.name for p in _root.iterdir() if p.is_dir()}
+            for base in (_root / "src", _root / "lib"):
+                if base.is_dir():
+                    _known |= {p.stem for p in base.glob("*.py")} | {p.name for p in base.iterdir() if p.is_dir()}
+        try:
+            import tomllib as _toml
+            if _root is not None and (_root / "pyproject.toml").is_file():
+                _known.add((_toml.loads((_root / "pyproject.toml").read_text(encoding="utf-8"))
+                            .get("project", {}).get("name", "") or "").replace("-", "_"))
+        except Exception:  # noqa: BLE001 -- a manifest that does not parse names nothing
+            pass
+        _missing_mods = sorted(m.split(".")[0] for m in imported_from
+                               if m.split(".")[0] not in _known)
+        if _missing_mods:
+            dotted_surfaces = sorted({_dotted(s.split("::", 1)[0]) for s in surface
+                                      if "::" in s and s.split("::", 1)[0].endswith(".py")})
+            want = ", ".join(dotted_surfaces
+                             or sorted(_known - set(getattr(_sys2, "stdlib_module_names", ())))[:6])
+            hint = (f" Import the surface from its own module: `from {dotted_surfaces[0]} "
+                    f"import {surface[0].rsplit('::', 1)[-1]}`") if dotted_surfaces else ""
+            raise Wall(
+                f"this test imports {', '.join(_missing_mods)}, and no module of "
+                f"that name exists in the tree: the import path is the worktree "
+                f"root and src/, and the modules there are {want}.{hint} If the "
+                f"surface has no module yet, the Developer writes it first")
         # And only the surface, or what the module defines today. tipsAC
         # (2026-09-09): the Tester wrote `from main import calculate_tip,
         # Bill` and asserted on a list; nothing defined `Bill`, no criterion
@@ -3919,11 +3967,6 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # `core` with the first segment of `click.core`, refused a correct
         # import twelve turns running, and told the Tester `from core
         # import`, which cannot import.
-        def _dotted(path: str) -> str:
-            parts = path.replace("\\", "/").split("/")
-            if parts and parts[0] in ("src", "lib") and len(parts) > 1:
-                parts = parts[1:]
-            return ".".join(parts)[:-3] if parts and parts[-1].endswith(".py") else ".".join(parts)
         surface_dotted = {_dotted(s.split("::", 1)[0])
                           for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
         # A root module imports by its stem; a package module by its dotted

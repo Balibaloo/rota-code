@@ -1519,3 +1519,24 @@ def test_a_src_layout_surface_is_imported_by_its_dotted_module(db, tmp_path):
                   body="from pkg.core import calculate_tip" + chr(10) + "def test_b():" + chr(10)
                        + "    assert calculate_tip(100, 10) == 10" + chr(10))
     assert got, "the dotted import lands"
+
+
+def test_a_test_imports_only_modules_the_tree_has(db, tmp_path):
+    """clickI night 24 (2026-09-12): three tests began `from echo import
+    echo_json`; no module named echo exists, every one died at collection,
+    and the Developer spent its fix sessions challenging the wrong test."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "main.py").write_text("def calculate_tip(t, p):" + chr(10) + "    return t * p / 100" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"main.py::calculate_tip\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    with pytest.raises(ValueError, match="imports echo, and no module of that name exists"):
+        sb.call("tests.encode", id="tst_a", criterion_id="c1", path="tests/test_a.py",
+                body="from echo import calculate_tip" + chr(10) + "def test_a():" + chr(10)
+                     + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    got = sb.call("tests.encode", id="tst_b", criterion_id="c1", path="tests/test_b.py",
+                  body="import json" + chr(10) + "from main import calculate_tip" + chr(10)
+                       + "def test_b():" + chr(10) + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    assert got
