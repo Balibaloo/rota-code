@@ -59,6 +59,14 @@ Findings, in the order a person met them:
    knows the paths: a door can refuse a touch grain under a directory the
    index has never seen.
 
+How seat1 ended: after page 6 the batch built, one test passed, four
+were written, the fix loop ran four attempts on the tipsI signature
+fork (one test wants `calculate_tip(total, people)`, another wants two
+arguments; the Tester wrote both), the Developer was quarantined, and
+the Titan sat in one generation for twenty-five minutes; stopped there.
+Six pages, six replies, no merge. The whole log is
+`plans/exchanges/seat1-tipsI-2026-09-12.md`.
+
 Standing after the first exchange (same day): 2, 4 and 5 are doors
 (b6be813, a8b0c0c, the touch-path door). 1 is a register case,
 `L1-LI-a-question-then-a-statement-at-the-confirm-is-the-question`,
