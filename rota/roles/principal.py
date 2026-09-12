@@ -365,7 +365,11 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
             numbered(account)
         if does:
             out.append("It would:")
-            numbered(does)
+            for ref, text in does:
+                numbered([(ref, text)])
+                near = near_code(conn, text)
+                if near:
+                    out.append("     code that names these words: " + ", ".join(near))
         if does_not:
             out.append("It would not:")
             numbered(does_not)
@@ -396,6 +400,45 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         out += [f"  {t}" for _, t in said + account + does + does_not + assumed
                 + terms + touches + other]
     return chr(10).join(out), order
+
+
+STOP_WORDS = frozenset("""
+the a an and or of to in on for with from by at as is are be can could
+should will would that this these those it its their there user users
+program system when where what which who how not no into over under
+""".split())
+
+
+def near_code(conn, text: str, cap: int = 3) -> list[str]:
+    """
+    The files whose symbols carry a word of this item's text.
+
+    P4 piece 2 (plans/p4-scope-disclosure.md), in its mechanical form: at
+    signoff nothing is sliced, so the Architect's guess is judgement the 8B
+    tier has not earned. This is not a guess. It is the index, read for the
+    item's own words, and the page labels it as that. A symbol `Invoice`
+    names the word "invoices", and the file that defines it is where a
+    change about invoices is likely to look.
+    """
+    words = set()
+    for raw in text.lower().split():
+        w = "".join(ch for ch in raw if ch.isalnum() or ch == "_")
+        if len(w) >= 4 and w not in STOP_WORDS:
+            words.add(w)
+            if w.endswith("s"):
+                words.add(w[:-1])
+    if not words:
+        return []
+    hits: dict[str, int] = {}
+    for row in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'symbol'"):
+        grain = row["grain"]
+        path, _, name = grain.partition("::")
+        lname = name.lower()
+        if any(w in lname for w in words):
+            hits[path] = hits.get(path, 0) + 1
+    ranked = sorted(hits.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [path for path, _ in ranked[:cap]]
 
 
 def render_refs(conn: sqlite3.Connection, refs: list[str]) -> str:

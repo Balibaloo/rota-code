@@ -225,3 +225,21 @@ def test_contesting_an_assumption_overrules_it_and_contests_its_row(db):
                       ).fetchone()["approval"] == "contested", (
         "the contest lands on the row at the keypress, so the contested tick fires")
     assert _owner_of_ref(db, "L1") == "vision_keeper"
+
+
+def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
+    """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
+    files whose symbols carry a word of the item's text, read from the
+    index and labelled as that. Not a prediction; the touch note is."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "approval_ver, version) VALUES ('i1',"
+               "'users can export their invoices as CSV','in_scope','decided','draft',0,1)")
+    for grain in ("src/billing/invoice.py::Invoice", "src/billing/export.py::export_csv",
+                  "src/billing/export.py::ExportError", "src/auth/login.py::login"):
+        db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')", (grain,))
+    db.commit()
+    from rota.roles.principal import render_ask
+    page = render_ask(db, "present", ["i1"])
+    assert "1. users can export their invoices as CSV" in page
+    assert "code that names these words: src/billing/export.py, src/billing/invoice.py" in page
+    assert "login" not in page

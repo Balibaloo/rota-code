@@ -81,3 +81,17 @@ at the 8B tier and needs its own measurement.
 2. Piece 2 as its own measured change; if the 8B guess proves hollow, the
    honest fallback is mechanical only — `code.probe` hits for the
    statement's terms, labelled as hits, never as judgment.
+
+### Piece 2 as built, the mechanical form (2026-09-12)
+
+The build order's fallback landed first, on purpose: at signoff nothing
+is sliced, the Architect's guess is judgement the 8B tier has not earned,
+and the fallback needs no table, no edge, no brief and no case. Beside
+each in-scope item on the signoff page, one line: "code that names these
+words: a.py, b.py", the files whose symbols carry a word of the item's
+text, read from `code_index` at render time (`principal.near_code`),
+three at most, ranked by how many symbols hit. Labelled as the index,
+never as a prediction; the touch note before the batch is the
+prediction. Pinned in `test_signoff_assumptions.py`. The judged guess
+stays open as a measured change if a walk shows the index line too
+coarse to be worth the principal's eyes.

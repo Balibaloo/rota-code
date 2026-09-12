@@ -1273,7 +1273,11 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    shows what is still open. Hold at intent time only. Design in
    `plans/a1-seed-interview-at-intent.md`.
 2. **A7, cost before commitment.** The touch note is piece 1 (green). Piece
-   2 is the Architect's coarse guess beside each item at signoff.
+   2, beside each item at signoff, is built in its mechanical form
+   (2026-09-12): the files whose symbols carry a word of the item's text,
+   read from the index and labelled as that, never as a prediction. The
+   Architect's judged guess stays a measured change for later, if the
+   index line proves too coarse on a walk.
 3. **E1, amendment as the normal move.** Level 2: cancel a running batch
    built from the amended item and re-batch; a merged batch stays and the
    amendment is a new batch on it. The mechanics exist (`cancel`,
