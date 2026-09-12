@@ -1236,6 +1236,23 @@ merged cold in 34 steps.
    next argument and the refusal named only the missing one; the parser
    names the quote now and both refusals point at the `text=[text]` block
    form, which needs no quoting. Night 17 runs on both.
+   Night 17 (2026-09-12, 02:58 to 03:36): no batch, and not the
+   Developer's fault. The sentence never became a statement: the runner
+   derived the entry to segment by name (`e_<message id>`), the driver's
+   message is `m_p1` carrying `e_p1`, and every `brief.segment` was
+   refused "no entry to segment against". The entry is the message's own
+   ref now, pinned in `test_intake_fork.py`. The same night showed the
+   reconcile flood: 37 prose files, 47 ledger rows, 27 assumptions on one
+   page. A page carries at most seven open assumptions now
+   (`sandbox.PAGE_ASSUMPTIONS`), the brief picks which, the rest come on
+   the next page. The amendment walk tipsAT the same hour never amended
+   (the driver's contest regex matched no numbered line) and stalled on
+   the Developer writing main.py as only its new functions ten times
+   against the drops-definitions door; the door now names the appending
+   span, `start=N, end=N`, with N the file's line count. The 14B judge on
+   the Critic's two reds: the same shape as 8B, encodes=True then a
+   challenge to the wrong desk then a fail. Not a size boundary. The qwen
+   reconcile red (0/10 on the old brief too) is qwen's, llama is 5/5.
    Night 9, with turns and the narrowed door: all three sentences became
    decided items, the first time on click. Then the Terminologist wrote
    thirty criteria, sixteen of them for the account against
