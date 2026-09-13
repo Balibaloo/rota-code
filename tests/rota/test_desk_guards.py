@@ -1723,3 +1723,38 @@ def test_a_commit_that_undoes_the_last_one_is_churn(db, tmp_path):
         sb.call("code.commit", message="back to a")
     sb.call("code.write", path="script.py", text=a + "def other():" + chr(10) + "    return 2" + chr(10))
     assert sb.call("code.commit", message="a real change").get("committed") is not False
+
+
+def test_a_span_that_cuts_a_statement_is_told_where_the_boundaries_are(db, tmp_path):
+    """clickI night 37 (2026-09-13): the span ended inside a multi-line
+    signature, the merged file failed to parse, and the same write came six
+    times against a refusal that named the symptom and not the cut."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text("import json\n\n\ndef echo(\n    message,\n    nl=True,\n):\n    print(message)\n\n\ndef other():\n    return 1\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match=r"cuts through echo \(lines 3 to 8.*start=8, end=8"):
+        sb.call("code.write", path="m.py", start=5, end=8, text="def echo_json(o):\n    print(json.dumps(o))\n")
+    out = sb.call("code.write", path="m.py", start=8, end=8, text="\n\ndef echo_json(o):\n    print(json.dumps(o))\n")
+    assert out["bytes"]
+    assert "def echo_json" in (root / "m.py").read_text() and "def other" in (root / "m.py").read_text()
+
+
+def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
+    """clickI night 37 (2026-09-13): one ratified statement, one item read
+    from it through the Liaison's deliver, and an empty `item_statements`."""
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES ('e_p1','principal',1,'Add echo_json next to echo.')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) VALUES "
+               "('s1','e_p1',0,28,'Add echo_json next to echo.','ratified')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, seq) "
+               "VALUES ('m_d','t1','liaison','vision_keeper','deliver','[\"s1\"]',1)")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("vision_keeper", db, mode="normal", allow=prompts.mode_tools("vision_keeper", "deliver"))
+    sb.ctx.trigger = "m_d"
+    sb.call("problem.assert", id="echo_json", text="add an echo_json helper next to echo", kind="in_scope")
+    links = [w for w in sb.ctx.writes if w[0] == "item_statements"]
+    assert [(w[2]["item_id"], w[2]["statement_id"]) for w in links] == [("echo_json", "s1")]

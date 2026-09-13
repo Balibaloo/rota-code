@@ -651,7 +651,17 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # any artefact back to the principal's words ended one hop from the
     # top, in every walk. Mechanical: the statements this session was woken
     # about are what this item reads.
-    for ref in getattr(ctx, "wake_refs", ()) or ():
+    # A message wake carries its refs on the message, not on the wake:
+    # clickI night 37 (2026-09-13) had one ratified statement, one item read
+    # from it through the Liaison's deliver, and an empty `item_statements`,
+    # so the Developer's wake said "the principal said: []".
+    named: list[str] = list(getattr(ctx, "wake_refs", ()) or ())
+    if getattr(ctx, "trigger", None):
+        from ..core.db import refs_of
+        row = ctx.conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                               (ctx.trigger,)).fetchone()
+        named += [r for r in refs_of(row["body_refs"]) if r not in named] if row else []
+    for ref in named:
         if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
                             (ref,)).fetchone():
             ctx.writes.append(("item_statements", f"{id}:{ref}", {
@@ -6891,6 +6901,28 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             raise ValueError(
                 f"start={start}, end={end} is not a span of {path}, which "
                 f"has {len(lines)} lines")
+        # A span replaces whole statements. clickI night 37 (2026-09-13):
+        # the Developer's span ended inside a multi-line signature, the
+        # merged file failed to parse at line 366, and the same write came
+        # six times with the same refusal, which named the symptom and not
+        # the cut. The original's statement boundaries are a fact.
+        if path.endswith(".py"):
+            import ast as _ast
+            try:
+                original = _ast.parse(chr(10).join(lines))
+            except SyntaxError:
+                original = None
+            for node in (original.body if original else []):
+                lo, hi = node.lineno - 1, getattr(node, "end_lineno", node.lineno)
+                cut = [b for b in (start, stop) if lo < b < hi]
+                if cut:
+                    name = getattr(node, "name", None) or type(node).__name__
+                    raise ValueError(
+                        f"start={start}, end={end} cuts through {name} "
+                        f"(lines {lo} to {hi} in code.source numbering). A span "
+                        f"replaces whole statements: to replace {name} send "
+                        f"start={lo}, end={hi}; to add after it send "
+                        f"start={hi}, end={hi}")
         nl = chr(10)
         text = nl.join(lines[:start] + text.splitlines() + lines[stop:]) + nl
     from ..core import fence as _fence
