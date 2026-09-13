@@ -315,6 +315,18 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
                     problems.append(
                         f"expected writes to {table} to carry {missing}; "
                         f"the rows carry {blob[:200]}")
+            # A value the written rows must not carry: the approval a
+            # part-approval withheld (seat2, "approve 6 only", 2026-09-12).
+            banned = spec.get("text_excludes") or [] if isinstance(spec, dict) else []
+            if banned:
+                written = delta.rows.get(table, [])
+                blob = json.dumps(written, default=str) + " " + " ".join(
+                    v for row in written for v in row.values() if isinstance(v, str))
+                present = [w for w in banned if w in blob]
+                if present:
+                    problems.append(
+                        f"expected writes to {table} not to carry {present}; "
+                        f"the rows carry {blob[:200]}")
 
     for spec in expect.get("messages") or []:
         matches = [

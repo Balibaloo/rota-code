@@ -154,3 +154,38 @@
   forbidden:
     writes: [rulings, statements, items, decisions, ledger]
     recipients: [vision_keeper, terminologist, architect]
+
+- id: L1-LI-approve-one-line-only-approves-that-line-alone
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 3
+  # seat2, click (2026-09-12): the page carried nineteen lines that said
+  # the same sentence twice each. The reply approved one line and dismissed
+  # the rest: "6 is fine, go ahead with it. 7 to 25 say the same sentence
+  # twice each; I am not reading nineteen of those. approve 6 only." The
+  # landing approved every line. A part-approval that names one line
+  # approves that line and no other. What the rest become is the brief's;
+  # that they are not approved is the case.
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <i3>], cause: <m_present>,
+            body_text: "1 is fine, go ahead with it. 2 and 3 say the same sentence twice each; I am not reading those. approve 1 only."}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the bill and the number of people.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share. The software prints each person's share.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i3>, text: "The software rounds each share to cents. The software rounds each share to cents.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present, body_refs: '["<i1>","<i2>","<i3>"]', seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1, text_includes: ['"<i1>": "approve"'],
+                text_excludes: ['"<i2>": "approve"', '"<i3>": "approve"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]

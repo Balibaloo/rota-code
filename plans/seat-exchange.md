@@ -75,8 +75,9 @@ Findings from seat2, continuing the numbering:
    landing case for it is attributed red on both 8B Liaison models.
 7. **The principal's question comes back as a clarify quoting it.** Three
    times: the reply went to the owner, the owner answered, and the
-   Liaison asked the principal what their question was. Owed a fact: a
-   clarify whose text quotes the principal's own last reply.
+   Liaison asked the principal what their question was. Door landed
+   (a62cb0e, 2026-09-13): a clarify that carries eight of the principal's
+   words in a row is their sentence pasted back, and is refused.
 8. **"Approve 6 only" approved everything.** A part-approval that names
    one line and dismisses the rest landed as approve for the rest.
    Judgement, the landing brief; a case is owed.
