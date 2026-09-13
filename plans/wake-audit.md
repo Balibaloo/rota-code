@@ -47,6 +47,7 @@ onboarding. A row is filled when its wake has been read.
 | 18 | click n38 s075 to s077 | architect boundary | `model.amend` refused four or five times a session as "what the product does, an item already says it" | the exit when no candidate is a constraint | a brief line: attest with nothing when every candidate is refused |
 | 19 | click n38 s118 | terminologist criteria | with the item and the module pushed, twenty-four criteria on one ticket (datetime, unicode, a docstring, test coverage); then a twenty-five line signoff page, a relay that mistook criteria for items, a landing cut at the output budget | the brief's own number: three is usual and six is many | a door: the seventh criterion on a ticket is refused with the route (`criteria.specify`, 2026-09-13) |
 | 20 | click n38 s011, s124 | vision_keeper relay | a relay whose resolved refs were statements and criteria; the Vision Keeper called `problem.set_approval` on them, ten refusals | which table each ref is a row of | every resolved ref carries its table (`runner._resolve_refs`, 2026-09-13) |
+| 21 | click n38 s090 | liaison blindspot | `code.gaps` and the surveys; the Liaison reached for `transcript.quote` (not in the mode) and logged a row about `tick:constraint_zero`, which names no row | the areas nobody surveyed, named as areas, are what a ledger row here is about | a brief line: the row is about an area (`@<area>`); measured later |
 
 ## To read (night 35)
 
