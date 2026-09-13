@@ -1413,6 +1413,18 @@ merged cold in 34 steps.
    regressed nothing, and the 48 are the backlog: about 35 recordings
    stale behind the week's brief and door changes, and about 15
    attributed reds. The re-record runs on the Titan when tipsBB ends.
+   It ran 13:07 to 13:26: 49 reds to 24. Of the 24, two were already
+   attributed; the rest were read one by one from their recorded runs.
+   Four were doors and fixtures: the night-29 answer-must-carry door
+   (withdrawn, measured worse: a hold is an answer in words), the
+   lookup-of-nothing door counting an empty lookup, the grouping case
+   carrying the item where the predicate carries tickets, and the
+   Critic cases on qwen3:8b where the profile's Critic is gemma3:12b.
+   Re-recorded, four of seven pass. The rest carry an attribution note
+   in the case file, dated, with the run's shape. The register under
+   qwen3:8b now stands at 19 reds, every one attributed in its case
+   file; the new-callable case passes under the ceiling of six the
+   2026-09-12 brief set.
    tipsBB (09:19 restart 11:37, killed 12:58): amended, re-sliced, the
    rebuilt batch b3 built and one test passed; then the Developer's
    batch_start went to quarantine three times over, the share written
