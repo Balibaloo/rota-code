@@ -149,7 +149,7 @@ def test_a_second_definition_of_a_name_the_tree_has_once_is_refused(db, tmp_path
                    text="def main():\n    pass\n\ndef echo_json(o):\n    print(o)\n")["bytes"], \
         "a name the tree has in several modules is a convention"
     assert sb.call("code.write", path="src/click/utils.py",
-                   text="def echo(x):\n    print(x)\n\ndef echo_json(o):\n    print(o)\n")["bytes"], \
+                   text="def echo(x):\n    print(x)\n\ndef echo_plain(o):\n    print(o)\n")["bytes"], \
         "the module that owns the name may change it"
 
 
