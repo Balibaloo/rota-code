@@ -1372,8 +1372,12 @@ merged cold in 34 steps.
    on it claimed the test did not encode the criterion, tried to fail
    it anyway, were refused, and challenged nobody; review was
    quarantined. Two facts to hold: a commit that returns the tree to
-   where it stood two commits ago is churn, and a review verdict is for
-   the head it was written on. `a-challenge-
+   where it stood two commits ago is churn (a door now), and a review
+   verdict is for the head it was written on (already so). Night 31 runs
+   on the churn door. The amendment walk tipsAZ on the Titan hung for
+   seven hours in one Tester turn with the stream deadline in place, so
+   the wait was not in the chunk loop; a watchdog thread shuts the
+   socket at twice the timeout. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on

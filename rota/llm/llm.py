@@ -331,10 +331,27 @@ class OllamaBackend:
         )
         live = LiveView.open(pins, system, user)
         try:
+            import threading as _th
             import time as _time
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = _consume_stream(iter(resp), live,
-                                       deadline=_time.monotonic() + self.timeout)
+                # A watchdog from outside the reader. tipsAZ (2026-09-13):
+                # a Tester turn held the Titan for seven hours with the
+                # stream deadline in place, so the wait was not in the chunk
+                # loop. Shutting the socket from another thread unblocks any
+                # read, and the reader reports the timeout as before.
+                def _cut():
+                    try:
+                        resp.fp.raw._sock.shutdown(2)  # noqa: SLF001 -- the only handle
+                    except Exception:  # noqa: BLE001 -- already closed, or no socket
+                        pass
+                dog = _th.Timer(self.timeout * 2, _cut)
+                dog.daemon = True
+                dog.start()
+                try:
+                    body = _consume_stream(iter(resp), live,
+                                           deadline=_time.monotonic() + self.timeout)
+                finally:
+                    dog.cancel()
         except TimeoutError as exc:
             # Raised bare by the socket layer rather than wrapped, so without
             # this it surfaced as `session failed: TimeoutError` — a bug report
