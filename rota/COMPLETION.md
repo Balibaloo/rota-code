@@ -1405,7 +1405,14 @@ merged cold in 34 steps.
    stalled at batch_start: the one-name-one-definition door read the
    three `@t.overload` stubs of `prompt` in termui.py as duplicates and
    refused every span write, three identical sessions to quarantine.
-   That door is fixed: an overload stub is not a definition. `a-challenge-
+   That door is fixed: an overload stub is not a definition.
+   The register, read honestly the same afternoon: a replay of the whole
+   L1 and L3 set under qwen3:8b fails 49 of 113, and the same replay at
+   the morning's start commit fails 48. The one difference is the new
+   part-approval landing case, not yet recorded. So the day's doors
+   regressed nothing, and the 48 are the backlog: about 35 recordings
+   stale behind the week's brief and door changes, and about 15
+   attributed reds. The re-record runs on the Titan when tipsBB ends. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
