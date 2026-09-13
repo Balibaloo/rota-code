@@ -491,6 +491,16 @@
       "depth": "index"
     },
     {
+      "s": "architect",
+      "t": "code",
+      "type": "reads",
+      "v": "callables",
+      "n": "the callables the batch's tickets name, for the prediction",
+      "rows": "query",
+      "depth": "index",
+      "label": "pushed by the tickets' words"
+    },
+    {
       "s": "terminologist",
       "t": "code",
       "type": "reads",
@@ -1062,6 +1072,16 @@
     },
     {
       "s": "tester",
+      "t": "batches",
+      "type": "reads",
+      "v": "expect",
+      "n": "the item, the principal's sentences, the predicted paths and the tests; never the code",
+      "rows": "batch",
+      "depth": "body",
+      "label": "pushed: no argument"
+    },
+    {
+      "s": "tester",
       "t": "glossary",
       "type": "reads",
       "v": "lookup",
@@ -1366,6 +1386,16 @@
       "n": "foreseen or a mistake, per stray path",
       "rows": "batch",
       "label": "the prediction never blocks; the unjudged stray holds the merge"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "reads",
+      "v": "expect",
+      "n": "the item, the principal's sentences, the prediction and the tests, for the batch judged",
+      "rows": "batch",
+      "depth": "body",
+      "label": "pushed: no argument"
     },
     {
       "s": "terminologist",

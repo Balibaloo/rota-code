@@ -126,3 +126,27 @@ def test_a_judged_path_is_not_raised_again_by_the_next_commit(db, tmp_path):
     sb.call("code.write", path="src/click/main.py", text="x = 2\n")
     out = sb.call("code.commit", message="take the copy out")
     assert out["committed"] and "outside_prediction" not in out
+
+
+def test_a_second_definition_of_a_name_the_tree_has_once_is_refused(db, tmp_path):
+    """clickI night 35 (2026-09-13): `src/click/main.py` with its own `def echo`
+    beside `echo_json`, when `src/click/utils.py::echo` is the function the
+    ticket said "next to". A unique name defined again elsewhere is a copy."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "utils.py").write_text("def echo(x):\n    print(x)\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    for grain in ("src/click/utils.py::echo", "src/click/core.py::main", "scripts/run.py::main",
+                  "tests/test_utils/test_echo.py::test_echo"):
+        db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')", (grain,))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="already defines echo in src/click/utils.py"):
+        sb.call("code.write", path="src/click/main.py",
+                text="def echo(o):\n    print(o)\n\ndef echo_json(o):\n    print(o)\n")
+    assert sb.call("code.write", path="src/click/main.py",
+                   text="def main():\n    pass\n\ndef echo_json(o):\n    print(o)\n")["bytes"], \
+        "a name the tree has in several modules is a convention"
+    assert sb.call("code.write", path="src/click/utils.py",
+                   text="def echo(x):\n    print(x)\n\ndef echo_json(o):\n    print(o)\n")["bytes"], \
+        "the module that owns the name may change it"

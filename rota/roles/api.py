@@ -6993,6 +6993,35 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         f"one definition: give the new behaviour its own "
                         f"name, or change the one definition")
                 seen[node.name] = node.lineno
+        # One name, one definition, across the tree too. clickI night 35
+        # (2026-09-13): the Developer wrote `src/click/main.py` with its own
+        # `def echo` beside `echo_json`, when `src/click/utils.py::echo` is
+        # the function the ticket said "next to"; nights 32 to 34 wrote
+        # `echo_json` a second time in `src/echo_json.py`. A name the index
+        # holds in exactly one other module is a unique surface, and a
+        # second definition of it is a copy. A name defined in several
+        # modules already (`main`, `setup`) is a convention and passes;
+        # tests and private names pass.
+        if not _is_test_path(path):
+            for node in tree.body:
+                if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                    continue
+                if node.name.startswith("_") or node.name.startswith("test"):
+                    continue
+                elsewhere = sorted({
+                    r["grain"].split("::", 1)[0] for r in ctx.conn.execute(
+                        "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+                        "AND grain LIKE ?", (f"%::{node.name}",))
+                    if r["grain"].endswith(f"::{node.name}")
+                    and r["grain"].split("::", 1)[0].replace("\\", "/") != path.replace("\\", "/")
+                    and not _is_test_path(r["grain"].split("::", 1)[0])})
+                if len(elsewhere) == 1:
+                    raise ValueError(
+                        f"{path} defines {node.name}, and the tree already defines "
+                        f"{node.name} in {elsewhere[0]}. A second definition of a "
+                        f"name the project has once is a copy, and the tests and "
+                        f"the callers reach the first one. Change {elsewhere[0]}, "
+                        f"or give the new behaviour its own name")
         # The fence: a reach outside the project is a fact about the file,
         # and the criteria are the only thing that can ask for one.
         from ..core import fence as _fence
@@ -7928,3 +7957,11 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
         "note": ("the touch set is the Architect's prediction, not a permission: a "
                  "path outside it is not refused, it is judged after the commit"),
     }
+
+
+def _is_test_path(path: str) -> bool:
+    """A test file by pytest's own rule, or anything under a tests directory."""
+    p = (path or "").replace("\\", "/")
+    name = p.rsplit("/", 1)[-1]
+    return ("/tests/" in f"/{p}" or p.startswith("tests/")
+            or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py")

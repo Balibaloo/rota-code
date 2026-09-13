@@ -153,25 +153,36 @@ database *lags* the worktree. A session that committed code and then died leaves
 the two out of step. That is not corruption — the batch's trigger is still on the
 frontier — but a cold role reads criteria, probes code, and has no reason to run
 `git log`, so it would redo finished work. Boot reconciles `batches.head_commit`
-against real HEAD and hands the divergence to the woken role.
+against real HEAD by writing the real HEAD back to the row
+(`boot.reconcile_worktrees`, 2026-09-13), so every reader of the head sees the
+commit that exists: the verdict gate, the stray check, the churn door, and the
+Developer's own reads of its worktree.
 
 **Failure is bounded.** A crashed session leaves its trigger open with its attempt
 count raised; past `message_attempt_cap` the message is quarantined. Semantic
 failures resolve themselves; these are infrastructure ones, and without a bound
 the scheduler wakes the same role with the same message forever.
 
-### 5. Completion is the default; suspension is a cache
+### 5. Completion is the default; a deferred batch restarts from its rows
 
-A suspended checkpoint must always be safely discardable. Invalidation is
-mechanical: the working set's version stamps. Receipts — artefact and row ids
-plus version bumps, refs and never prose — allow patched resume; overlap with the
-plan forces reconstruction.
+A session is woken once, acts, and ends. What it reasoned survives as the
+rows it wrote, never as a saved conversation. A deferred batch is restarted
+from its rows: the criteria, the tests, the head commit, the ledger. The
+`checkpoints` table and its invalidation by version stamp exist
+(`lifecycle.defer`, `checkpoint_invalid`); no session writes a checkpoint and
+nothing resumes from one. That was the design's promise of a patched resume,
+never built (lost-work audit, 2026-09-13), and what holds is the restart.
 
 ### 6. Escalation only climbs
 
-Developer → Architect → Vision Keeper → principal. Budget exhaustion escalates; only
-exhaustion *at the principal* converts to a ledger assumption. Cycles collapse by
-routing the counter-question into the suspended session; roles are single-instance.
+Developer → Architect → Vision Keeper → principal. Budget exhaustion escalates
+one rung; at the principal it is a page, a hold or a note, never silence and
+never a ledger row written on the principal's behalf (ruled 2026-09-13,
+`plans/principal-flow.md`). A cycle is bounded by the attempt caps and the
+ladder: a question nobody answers climbs (`unresolved`), a wake dispatched past
+its cap is quarantined and said out loud (`quarantined`). Nothing routes a
+counter-question into a suspended session; roles are single-instance, and the
+next rung is a fresh session.
 
 > Exhaustion escalates one rung at a time, because the usual *reason* a loop
 > exhausts itself is not knowing who to ask — and going straight to the principal
@@ -345,9 +356,9 @@ Not by asking. Each of these is a check that fails the build:
 | 1 | `graph.check_writers` — every artefact has a writer, and `batches` has exactly one |
 | 2 | `findings` has no `why` column; message bodies carry refs |
 | 3 | `graph.check_contacts` — derived set equals declared set, with zero exceptions |
-| 4 | `db.session_commit` is one transaction; `boot.reconcile_worktrees` for the carve-out |
-| 5 | `scheduler.sweep_checkpoints` against `artefact_versions` |
-| 6 | `predicates.exhausted` climbs `LADDER` one rung at a time |
+| 4 | `db.session_commit` is one transaction; a failed session leaves its row with `committed = 0` (`db.session_fail`); `boot.reconcile_worktrees` writes the real HEAD back for the carve-out |
+| 5 | A deferred batch restarts from its rows; `scheduler.sweep_checkpoints` against `artefact_versions` invalidates the checkpoints nothing resumes from |
+| 6 | `predicates.exhausted` climbs `LADDER` one rung at a time; `unresolved` climbs a question nobody answered; `quarantined` says out loud what passed its cap; the top rung is a page (`agenda`) |
 | 7 | `config.SETTINGS` — reading an undeclared key is an error, not a default |
 | 8 | `lifecycle.mergeable` returns the reason, in review order |
 | 9 | `scheduler.cascade_wakes`; `problem.prioritize` writes with `amends=False` |

@@ -1164,6 +1164,16 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                     r.get("headline", "") for r in rows if isinstance(r, dict))
             except Exception:                              # noqa: BLE001
                 pass
+        # The Architect predicting a batch's touch reads by the same lens.
+        # clickI night 35 (2026-09-13): the ticket said "next to echo", the
+        # Architect probed `echo_json`, found nothing, and predicted a new
+        # root file; `src/click/utils.py::echo` was one index row away.
+        if wake is not None and wake.kind == "tick:annotate" and wake.refs:
+            rows = sb.ctx.conn.execute(
+                "SELECT t.text AS text FROM batch_tickets bt "
+                "JOIN tickets t ON t.id = bt.ticket_id WHERE bt.batch_id = ?",
+                (wake.refs[0],)).fetchall()
+            hint += " " + " ".join(r["text"] or "" for r in rows)
         try:
             pushed["code.callables"] = sb.call("code.callables", hint=hint)
         except Exception:                                  # noqa: BLE001

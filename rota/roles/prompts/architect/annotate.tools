@@ -4,3 +4,4 @@ code.probe
 code.source
 batches.annotate
 batches.consult
+code.callables
