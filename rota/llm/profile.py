@@ -137,9 +137,15 @@ class Profile:
             # The environment wins; the keys file fills a gap, so a provider
             # library that reads the environment finds the key there.
             keys.export(self.api_key_env)
+        # The environment wins over the profile's timeout, as it does for the
+        # key: a walk on the slow card sets ROTA_LLM_TIMEOUT, and tipsBD
+        # (2026-09-13) lost a Terminologist turn to the profile's 300 s
+        # with the variable set.
+        import os as _os
+        timeout = float(_os.environ.get("ROTA_LLM_TIMEOUT") or self.timeout)
         if self.provider == "litellm":
-            return llm.LiteLLMBackend(api_base=self.endpoint or None, timeout=self.timeout)
-        return llm.OllamaBackend(host=self.endpoint or llm.OLLAMA_HOST, timeout=self.timeout)
+            return llm.LiteLLMBackend(api_base=self.endpoint or None, timeout=timeout)
+        return llm.OllamaBackend(host=self.endpoint or llm.OLLAMA_HOST, timeout=timeout)
 
     def check(self) -> list[str]:
         """What would fail on the first session, said before any database is
