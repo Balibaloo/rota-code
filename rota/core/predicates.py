@@ -1788,3 +1788,48 @@ if __name__ == "__main__":
             print("  -", i)
         sys.exit(1)
     print("every lifecycle state has a way out")
+
+
+@predicate("touch_strayed", wakes="architect", band="fix",
+           drains=[("touch_strays", "status", "open")])
+def touch_strayed(conn) -> list[Wake]:
+    """
+    The head commit touched paths the prediction never named, and nobody
+    has said whether that was foreseen or a mistake.
+
+    clickI night 32 (2026-09-13): `echo_json` merged in two files the
+    Architect's touch set never named, and nothing asked. The stray rows
+    are written by `code.commit`; this wakes the Architect once per batch
+    with the paths, and the merge gate waits for the judgement.
+    """
+    rows = conn.execute(
+        "SELECT b.id AS bid, GROUP_CONCAT(s.path, ', ') AS paths "
+        "FROM batches b JOIN touch_strays s ON s.batch_id = b.id "
+        "  AND s.commit_sha = b.head_commit AND s.status = 'open' "
+        "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+        "GROUP BY b.id ORDER BY b.id").fetchall()
+    return [Wake("architect", "tick:touch_strayed", refs=(r["bid"],),
+                 detail=r["paths"] or "")
+            for r in rows]
+
+
+@predicate("touch_mistaken", wakes="developer", band="fix",
+           drains=[("touch_strays", "status", "mistake")])
+def touch_mistaken(conn) -> list[Wake]:
+    """
+    The Architect judged a stray path a mistake, and the head commit still
+    carries it. The Developer takes it out; the next commit is a new head
+    and the mistake rows stay behind on the old one.
+    """
+    rows = conn.execute(
+        "SELECT b.id AS bid, GROUP_CONCAT(s.path, ', ') AS paths "
+        "FROM batches b JOIN touch_strays s ON s.batch_id = b.id "
+        "  AND s.commit_sha = b.head_commit AND s.status = 'mistake' "
+        "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+        "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'developer' "
+        "                  AND m.verb = 'escalate' AND m.status = 'open' "
+        "                  AND m.body_refs LIKE '%' || b.id || '%') "
+        "GROUP BY b.id ORDER BY b.id").fetchall()
+    return [Wake("developer", "tick:touch_mistaken", refs=(r["bid"],),
+                 detail=r["paths"] or "")
+            for r in rows]

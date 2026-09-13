@@ -1236,6 +1236,15 @@
       "depth": "body"
     },
     {
+      "s": "developer",
+      "t": "batches",
+      "type": "reads",
+      "v": "strays",
+      "n": "the paths judged a mistake on the head commit",
+      "rows": "batch",
+      "depth": "index"
+    },
+    {
       "s": "architect",
       "t": "criteria",
       "type": "reads",
@@ -1338,6 +1347,15 @@
       "n": "expected touch set",
       "rows": "batch",
       "label": "a prediction, not a permission"
+    },
+    {
+      "s": "architect",
+      "t": "batches",
+      "type": "writes",
+      "v": "judge_touch",
+      "n": "foreseen or a mistake, per stray path",
+      "rows": "batch",
+      "label": "the prediction never blocks; the unjudged stray holds the merge"
     },
     {
       "s": "terminologist",

@@ -398,6 +398,19 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
     if verdict["result"] != "pass":
         return f"verdict {verdict['result']}"
 
+    # The head commit touched ground the prediction never named, and the
+    # Architect has not said foreseen or mistake, or said mistake and the
+    # Developer has not taken it out. clickI night 32 (2026-09-13):
+    # `echo_json` merged in two unpredicted files, unasked.
+    strays = conn.execute(
+        "SELECT status, GROUP_CONCAT(path, ', ') AS paths FROM touch_strays "
+        "WHERE batch_id = ? AND commit_sha = ? AND status IN ('open', 'mistake') "
+        "GROUP BY status ORDER BY status", (batch_id, head)).fetchall()
+    for s in strays:
+        if s["status"] == "open":
+            return f"touch strayed, unjudged: {s['paths']}"
+        return f"touch strayed, a mistake still in the head commit: {s['paths']}"
+
     failing = conn.execute(
         "SELECT COUNT(*) AS n FROM test_runs "
         "WHERE batch_id = ? AND commit_sha = ? AND result != 'pass'",

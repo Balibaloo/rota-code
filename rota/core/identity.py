@@ -71,6 +71,7 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "code_edges": ("content", "derived with the index, from the same parse"),
     "code_lexicon": ("content", "derived with the index; rebuilt by repin"),
     "batch_touch": ("content", "the predicted touch set, derived per batch"),
+    "touch_strays": ("content", "paths a commit touched outside the predicted touch set, per commit"),
 
     # ---- journals: re-saying is two events, on purpose --------------------
     "entries": ("journal", "the principal's words, in order; ts_order is "

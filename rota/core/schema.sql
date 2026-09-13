@@ -233,6 +233,23 @@ CREATE TABLE IF NOT EXISTS batch_touch (
     PRIMARY KEY (batch_id, grain)
 );
 
+-- The paths a commit touched that the batch's predicted touch set never
+-- named: detected divergence, one row per path per commit, written by
+-- `code.commit` in the committing session's own transaction. The Architect
+-- judges each: foreseen (the prediction grows) or a mistake (the Developer
+-- is woken to take it out). The merge waits on the judgement. Law 12 holds:
+-- the prediction never blocks a commit; only the unjudged stray holds the
+-- merge, and only until somebody says which it is.
+CREATE TABLE IF NOT EXISTS touch_strays (
+    batch_id    TEXT NOT NULL REFERENCES batches(id),
+    commit_sha  TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open'
+                CHECK (status IN ('open','foreseen','mistake')),
+    note        TEXT,
+    PRIMARY KEY (batch_id, commit_sha, path)
+);
+
 -- Architect's structural verdict on one batch, one row per constraint checked.
 --
 -- It is a row and not a message. The old design pushed findings to Critic,

@@ -7530,8 +7530,111 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                          "comes first: code.write, then commit")}
 
     ctx.writes.append(("batches", ctx.batch_id, {"head_commit": sha}, False))
-    return {"committed": True, "head_commit": sha,
-            "touched": worktrees.touched(tree)}
+    touched = worktrees.touched(tree)
+    # Detector two (`core.divergence`): the paths this commit reached that
+    # the batch's prediction never named. Recorded, never refused (law 12).
+    # A path already judged for this batch, either way, is not raised
+    # again: the Developer's commit that takes a mistake out touches the
+    # same path.
+    strays = _outside_prediction(ctx, ctx.batch_id, touched)
+    out = {"committed": True, "head_commit": sha, "touched": touched}
+    if strays:
+        for path in strays:
+            ctx.writes.append(("touch_strays", f"{ctx.batch_id}:{sha}:{path}", {
+                "batch_id": ctx.batch_id, "commit_sha": sha, "path": path,
+                "status": "open"}))
+        out["outside_prediction"] = strays
+        out["note"] = (f"{', '.join(strays[:6])}{' and more' if len(strays) > 6 else ''}: "
+                       f"the batch's predicted touch set never named "
+                       f"{'this path' if len(strays) == 1 else 'these paths'}. "
+                       f"The commit stands. The Architect is asked whether it "
+                       f"was foreseen or a mistake before the batch merges; if "
+                       f"you know it was a mistake, take it out and commit")
+    return out
+
+
+def _predicted_touch(ctx: Ctx, batch_id: str) -> list[str]:
+    """The batch's predicted touch as ground: path grains, and the file a
+    file-qualified symbol lives in. Landed rows and the session's own
+    staged ones alike."""
+    rows = [(r["grain"], r["grain_kind"]) for r in ctx.conn.execute(
+        "SELECT grain, grain_kind FROM batch_touch WHERE batch_id = ? "
+        "ORDER BY grain", (batch_id,))]
+    rows += [(w[2].get("grain"), w[2].get("grain_kind")) for w in ctx.writes
+             if w[0] == "batch_touch" and w[2].get("batch_id") == batch_id]
+    return [g for g, kind in rows
+            if g and (kind == "path" or (kind == "symbol" and "::" in g))]
+
+
+def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str]:
+    """Detector two: the touched paths the prediction never named, less the
+    paths already judged for this batch. Empty when nothing was predicted."""
+    from ..core.divergence import stray_paths
+
+    judged = {r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
+        (batch_id,))}
+    return [p for p in stray_paths(touched, _predicted_touch(ctx, batch_id))
+            if p not in judged]
+
+
+@op("batches", "judge_touch")
+def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = None,
+                        mistakes: list[str] | None = None, reason: str = "") -> dict:
+    """
+    Say which stray paths the prediction should have named and which are a
+    mistake. A foreseen path joins the touch set as expected; a mistake
+    wakes the Developer to take it out. Every open stray on the head commit
+    is judged one way or the other, and the merge waits until then.
+    """
+    foreseen = [p.replace("\\", "/") for p in (foreseen or [])]
+    mistakes = [p.replace("\\", "/") for p in (mistakes or [])]
+    _must_exist(ctx, "batches", batch_id)
+    head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                            (batch_id,)).fetchone()["head_commit"]
+    open_rows = [r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM touch_strays WHERE batch_id = ? AND commit_sha = ? "
+        "AND status = 'open' ORDER BY path", (batch_id, head or ""))]
+    if not open_rows:
+        raise ValueError(f"{batch_id} has no unjudged stray on its head commit; "
+                         f"nothing to judge")
+    unknown = [p for p in foreseen + mistakes if p not in open_rows]
+    if unknown:
+        raise ValueError(
+            f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} not an "
+            f"open stray of {batch_id}. The open strays are {', '.join(open_rows)}")
+    both = sorted(set(foreseen) & set(mistakes))
+    if both:
+        raise ValueError(f"{', '.join(both)} cannot be both foreseen and a mistake")
+    left = [p for p in open_rows if p not in foreseen and p not in mistakes]
+    if left:
+        raise ValueError(
+            f"{', '.join(left)} {'is' if len(left) == 1 else 'are'} still unjudged. "
+            f"Every open stray is foreseen or a mistake; say which")
+    for path in foreseen:
+        ctx.writes.append(("batch_touch", f"{batch_id}:{path}", {
+            "batch_id": batch_id, "grain": path, "grain_kind": "path",
+            "confidence": "expected"}))
+        ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
+            "batch_id": batch_id, "commit_sha": head, "path": path,
+            "status": "foreseen", "note": reason or None}))
+    for path in mistakes:
+        ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
+            "batch_id": batch_id, "commit_sha": head, "path": path,
+            "status": "mistake", "note": reason or None}))
+    return {"batch": batch_id, "foreseen": foreseen, "mistakes": mistakes}
+
+
+@op("batches", "strays")
+def batches_strays(ctx: Ctx, batch_id: str) -> list[dict]:
+    """The stray paths of the batch's head commit and how each was judged."""
+    head = ctx.conn.execute("SELECT head_commit FROM batches WHERE id = ?",
+                            (batch_id,)).fetchone()
+    if head is None:
+        raise ValueError(f"{batch_id!r} is not a batch")
+    return [dict(r) for r in ctx.conn.execute(
+        "SELECT path, status, note FROM touch_strays WHERE batch_id = ? "
+        "AND commit_sha = ? ORDER BY path", (batch_id, head["head_commit"] or ""))]
 
 
 # ---------------------------------------------------------------------------

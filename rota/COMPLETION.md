@@ -1507,7 +1507,18 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    (2026-09-12): the files whose symbols carry a word of the item's text,
    read from the index and labelled as that, never as a prediction. The
    Architect's judged guess stays a measured change for later, if the
-   index line proves too coarse on a walk.
+   index line proves too coarse on a walk. Piece 3, the prediction
+   checked against the diff, was built on 2026-09-03 on a branch the
+   history rewrite left behind and was never on this branch; Roman found
+   the gap on 2026-09-13 after click merged `echo_json` in two
+   unpredicted files unasked. Ported and completed that day:
+   `code.commit` writes a `touch_strays` row per path the prediction never
+   named (the commit stands, law 12); `touch_strayed` wakes the Architect
+   with the paths, who says foreseen or mistake in one call
+   (`batches.judge_touch`); a mistake wakes the Developer
+   (`touch_mistaken`) to take it out; the merge gate holds while a stray
+   is unjudged or a mistake is still in the head commit. Unmeasured on a
+   walk yet; night 35 is the first.
 3. **E1, amendment as the normal move.** Level 2: cancel a running batch
    built from the amended item and re-batch; a merged batch stays and the
    amendment is a new batch on it. The mechanics exist (`cancel`,
