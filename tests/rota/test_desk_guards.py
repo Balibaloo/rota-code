@@ -1816,3 +1816,26 @@ def test_a_span_whose_own_lines_do_not_parse_is_told_which_line(db, tmp_path):
     with pytest.raises(ValueError, match=r"Your text itself does not parse: line 5 of it is 'def echo\('"):
         sb.call("code.write", path="m.py", start=3, end=3,
                 text="def echo_json(o):\n    print(json.dumps(o))\n\n\ndef echo(\n")
+
+
+def test_the_criterion_under_test_speaks_first_on_print_versus_return(db):
+    """clickI night 42 (2026-09-13): the criterion said "printing", a sibling
+    on the same ticket said "return behavior", the union said both, and four
+    tests asserting on the return value landed and failed."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
+               "VALUES ('i8','echo json','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk8','i8','add echo_json next to echo that prints an object as JSON')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs, surface_refs) VALUES "
+               "('c8a','tk8','echo_json prints the object as JSON with the given indent','[]','[\"echo_json\"]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs, surface_refs) VALUES "
+               "('c8b','tk8','the docstring describes the arguments and the return behavior','[]','[\"echo_json\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b8','i8','running')")
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b8','tk8')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("tester", db, batch_id="b8", mode="tests_missing",
+               allow=prompts.mode_tools("tester", "tests_missing"))
+    sb.call("tests.triage", criterion_id="c8a", verdict="encodable")
+    with pytest.raises(ValueError, match="uses what echo_json returns"):
+        sb.call("tests.encode", id="tst_8a", criterion_id="c8a", path="tests/test_echo_json.py",
+                body="from click.utils import echo_json" + chr(10) + chr(10) + "def test_echo_json_prints():" + chr(10) + "    assert echo_json({'a': 1}, indent=2) == 'x'" + chr(10))

@@ -4192,18 +4192,34 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 break
     if uses_return:
         material = _material_words(ctx, criterion_id)
+        logged: set[str] = set()
         for r in ctx.conn.execute("SELECT default_taken FROM ledger WHERE about_ref = ?",
                                   (criterion_id,)):
-            material |= _words(r["default_taken"] or "")
-        material |= {w for t, i, *rest in ctx.writes if t == "ledger"
-                     for w in _words(rest[0].get("default_taken", ""))}
+            logged |= _words(r["default_taken"] or "")
+        logged |= {w for t, i, *rest in ctx.writes if t == "ledger"
+                   for w in _words(rest[0].get("default_taken", ""))}
+        material |= logged
         # Only when the material's own words say the surface prints, writes
         # or shows: a pure function is tested on its return value, and that
         # is the normal shape of a test.
-        says_prints = {"print", "prints", "printed", "printing", "output", "outputs",
-                       "display", "displays", "show", "shows", "write", "writes", "echo",
-                       "echoes"} & material
-        says_returns = {"return", "returns", "returned", "returning", "result"} & material
+        PRINTS = {"print", "prints", "printed", "printing", "output", "outputs",
+                  "display", "displays", "show", "shows", "write", "writes", "echo",
+                  "echoes"}
+        RETURNS = {"return", "returns", "returned", "returning", "result"}
+        # The criterion under test speaks first. clickI night 42 (2026-09-13):
+        # its own words said "printing", a sibling criterion on the ticket
+        # said "return behavior", the union said both, and four tests that
+        # asserted on the return value landed and failed against a helper
+        # that printed the right JSON.
+        own_row = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                                   (criterion_id,)).fetchone()
+        own = _words(own_row["text"] or "") if own_row else set()
+        if PRINTS & own and not RETURNS & own:
+            # Only a logged assumption about this criterion lifts it.
+            says_prints, says_returns = PRINTS & own, RETURNS & logged
+        else:
+            says_prints = PRINTS & material
+            says_returns = RETURNS & material
         if says_prints and not says_returns:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion, "
