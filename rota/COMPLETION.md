@@ -1386,7 +1386,15 @@ merged cold in 34 steps.
    a Tester turn with the turn count frozen, and was likely this. Three
    fixes: a cut reply with no call goes back once, bounded; a failed
    session runs the message attempt cap inside the run; the walk driver
-   prints a failed step at once. Night 32 and tipsBB run on them. `a-challenge-
+   prints a failed step at once. Night 32 and tipsBB run on them.
+   Then the guards against the shape, not the instance: a failed session
+   leaves its row (`committed = 0`, the error as its last turn), so a
+   broken hop is a row to read and not an absence; the two wake gates
+   that ask "did a session run for this" read committed rows only; a
+   test proves no wake is dispatched past the cap when every session
+   fails; the walk driver stops after thirty minutes with no committed
+   session. pylint's used-before-assignment does not see the loop-scoped
+   pattern that caused it, so the scripted-backend test is the check. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on

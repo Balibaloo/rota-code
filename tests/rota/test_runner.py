@@ -120,8 +120,11 @@ def test_role_cannot_address_the_principal(db):
         "SELECT COUNT(*) n FROM messages WHERE to_role='principal'").fetchone()["n"] == 0
 
 
-def test_failed_session_never_happened_and_raises_attempts(db):
-    """A session that dies mid-flight commits nothing and leaves its trigger open."""
+def test_failed_session_commits_nothing_but_leaves_its_row_and_raises_attempts(db):
+    """A session that dies mid-flight commits nothing and leaves its trigger
+    open. Since night 31 (2026-09-13) it leaves its own row, `committed = 0`,
+    with the error as its last turn: 69 deaths on one error had left nothing
+    to read."""
     class Exploding:
         name = "exploding"
 
@@ -131,7 +134,8 @@ def test_failed_session_never_happened_and_raises_attempts(db):
     outcome = run_session(db, wake_vision_keeper(), backend=Exploding(), pins=Pins(model="x"))
 
     assert not outcome.committed
-    assert db.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"] == 0
+    rows = db.execute("SELECT committed FROM sessions").fetchall()
+    assert [r["committed"] for r in rows] == [0]
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
     row = db.execute("SELECT status, attempts FROM messages WHERE id='m1'").fetchone()
     assert row["status"] == "open", "trigger left the frontier despite failing"

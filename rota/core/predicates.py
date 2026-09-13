@@ -969,7 +969,7 @@ def _names_a_criterion(conn, message_id: str) -> bool:
 def _repair_attempted(conn, message_id: str) -> bool:
     return bool(conn.execute(
         "SELECT 1 FROM sessions WHERE wake_kind = 'tick:criterion_repair' "
-        "AND wake_refs LIKE ?", (f'%"{message_id}"%',)).fetchone())
+        "AND committed = 1 AND wake_refs LIKE ?", (f'%"{message_id}"%',)).fetchone())
 
 
 @predicate("criterion_repair", wakes="terminologist", band="fix",

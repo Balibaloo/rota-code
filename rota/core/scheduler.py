@@ -316,7 +316,8 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         stalled = [r["id"] for r in running if not r["head_commit"]
                    and conn.execute(
                        "SELECT 1 FROM sessions WHERE role = 'developer' "
-                       "AND wake_kind = 'tick:batch_start' AND wake_refs LIKE ?",
+                       "AND wake_kind = 'tick:batch_start' AND committed = 1 "
+                       "AND wake_refs LIKE ?",
                        (f'%"{r["id"]}"%',)).fetchone()]
         return [Wake("developer", "tick:batch_start", refs=(stalled[0],))] if stalled else []
 

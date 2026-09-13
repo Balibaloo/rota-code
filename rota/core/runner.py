@@ -30,7 +30,7 @@ from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
-from .db import OutboundMessage, SessionResult, Turn, Write, session_commit
+from .db import OutboundMessage, SessionResult, Turn, Write, session_commit, session_fail
 from .scheduler import Wake, claim, release
 
 MAX_ITERATIONS = 12
@@ -1353,6 +1353,7 @@ def run_session(
                      (wake.message_id,))
 
     outcome = RunOutcome(session_id=session_id, committed=False, iterations=0)
+    turns: list[Turn] = []
 
     try:
         # The one-wake-one-completion experiment (2026-09-02, unruled): the
@@ -1991,6 +1992,18 @@ def run_session(
         outcome.errors.append(f"session failed: {exc!r}")
         release(conn, wake.role)
         sandbox_mod.drain_calls(sb.ctx)
+        # The row a failed session leaves. Night 31 (2026-09-13): 69 deaths
+        # on one error and nothing in the database to read.
+        try:
+            session_fail(
+                conn, session_id=session_id, role=wake.role,
+                trigger_msg=wake.message_id, wake_kind=wake.kind,
+                wake_detail=wake.detail or "", wake_refs=list(wake.refs or []),
+                pins={"model": pins.model, "temperature": pins.temperature,
+                      "num_ctx": pins.num_ctx},
+                turns=turns, error=f"{exc!r}")
+        except Exception as row_exc:  # noqa: BLE001 -- the record must not hide the failure
+            outcome.errors.append(f"and the failure row was not written: {row_exc!r}")
         return outcome
 
 

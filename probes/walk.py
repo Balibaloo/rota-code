@@ -118,7 +118,20 @@ def record(merged: int, steps: int, asks: int, note: str) -> None:
 
 
 asked = 0
+import time as _time
+_last_n, _last_change = -1, _time.time()
 for i in range(cap):
+    # A walk that writes no committed session for thirty minutes is stalled,
+    # whatever the card is doing. Night 31 (2026-09-13) ran 98 minutes on
+    # one failing wake with nothing in the log. Thirty, because one honest
+    # session on the slow card can run twenty.
+    _n = conn.execute("SELECT COUNT(*) FROM sessions WHERE committed = 1").fetchone()[0]
+    if _n != _last_n:
+        _last_n, _last_change = _n, _time.time()
+    elif _time.time() - _last_change > 1800:
+        print(f"STALLED: no committed session in 30 min after {i} steps", flush=True)
+        record(0, i, asked, "stalled")
+        break
     if [a for a in pending_asks(conn) if a.message_id not in replied]:
         pump(conn, Principal())
         conn.commit()

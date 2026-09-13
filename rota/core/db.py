@@ -688,3 +688,36 @@ def set_config(conn: sqlite3.Connection, key: str, value: Any) -> None:
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, json.dumps(value)),
     )
+
+
+def session_fail(conn: sqlite3.Connection, *, session_id: str, role: str,
+                 trigger_msg: str | None, wake_kind: str, wake_detail: str,
+                 wake_refs: list, pins: dict, turns: list, error: str) -> None:
+    """
+    A failed session leaves a row.
+
+    clickI night 31 (2026-09-13): a session died on the same error 69 times
+    in 98 minutes and the database held nothing, because only a committed
+    session was written. A broken hop and no hop looked the same. The row
+    is `committed = 0`, its turns are kept, and the error is the last turn,
+    so `SELECT * FROM turns WHERE completion LIKE 'SESSION FAILED%'` is the
+    question "what died, and on what".
+    """
+    conn.execute(
+        "INSERT OR IGNORE INTO sessions (id, role, trigger_msg, mode, committed, "
+        "seq, model, temperature, num_ctx, pins_json, wake_kind, wake_detail, "
+        "wake_refs) VALUES (?, ?, ?, 'normal', 0, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, role, trigger_msg, _next_seq(conn, "sessions"),
+         pins.get("model"), pins.get("temperature"), pins.get("num_ctx"),
+         json.dumps(pins, sort_keys=True, default=str), wake_kind, wake_detail,
+         json.dumps(list(wake_refs))))
+    for turn in turns:
+        conn.execute(
+            "INSERT OR IGNORE INTO turns (session_id, seq, system, user, "
+            "completion, ms) VALUES (?, ?, ?, ?, ?, ?)",
+            (session_id, turn.seq, turn.system, turn.user, turn.completion, turn.ms))
+    conn.execute(
+        "INSERT OR IGNORE INTO turns (session_id, seq, system, user, completion, ms) "
+        "VALUES (?, ?, '', '', ?, 0)",
+        (session_id, len(turns) + 1, f"SESSION FAILED: {error}"))
+    conn.commit()
