@@ -1635,3 +1635,41 @@ def test_a_test_that_uses_a_printing_surfaces_return_value_logs_the_assumption(d
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
             assumption="the test assumes echo_json returns what it prints")
     assert sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+
+
+def test_an_answer_to_a_challenge_carries_something_new(db):
+    """clickI night 29 (2026-09-13): the Tester answered the Developer's
+    challenge with the question's own two refs and no change, the Architect
+    answered the escalation with the criterion alone, and the Developer was
+    told to act on answers that said nothing."""
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst_1', 'b1', 'c1', 'tests/test_1.py', 'def test_1():" + chr(10) + "    assert 0')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, seq, status) "
+               "VALUES ('m_ch','th','developer','tester','challenge','[\"c1\", \"tst_1\"]',1,'open')")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_failing")
+    sb.ctx.trigger = "m_ch"
+    with pytest.raises(ValueError, match="carries only the challenge's own refs"):
+        sb.call("msg.answer_developer", refs=["c1", "tst_1"])
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    sb.call("tests.encode", id="tst_1", criterion_id="c1", path="tests/test_1.py",
+            body="from main import calculate_tip" + chr(10) + "def test_1():" + chr(10)
+                 + "    assert calculate_tip(100, 10) == 10" + chr(10))
+    sb.call("msg.answer_developer", refs=["c1", "tst_1"])
+
+
+def test_a_clarify_may_quote_the_principals_own_words(db):
+    """clickI night 29 (2026-09-13): "default_on_eof" is the flag in the
+    principal's own sentence, and a clarify about it was refused as the
+    Liaison's bookkeeping."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_p9','principal',9,'Let confirm() take a default_on_eof flag.')")
+    db.commit()
+    sb = build("liaison", db, mode="normal", allow=prompts.mode_tools("liaison", "unresolved"))
+    sb.call("msg.clarify_principal", refs=["e_p9"],
+            question="Should 'default_on_eof' apply when stdin is closed by a pipe as well?")
+    with pytest.raises(ValueError, match="bookkeeping"):
+        sb.call("msg.clarify_principal", refs=["e_p9"],
+                question="What should 'batch_start_v2' do when stdin is closed?")

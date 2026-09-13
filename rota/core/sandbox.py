@@ -985,6 +985,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             for token in re.findall(r"['\"`]([a-z][a-z0-9_]{1,30})['\"`]", text):
                 if token in (refs or []) or api.ref_resolves(ctx, token):
                     continue
+                # A word the principal wrote is theirs to be asked about.
+                # clickI night 29 (2026-09-13): "default_on_eof" is the flag
+                # in the principal's own sentence, and the clarify about it
+                # was refused as the Liaison's bookkeeping.
+                if ctx.conn.execute(
+                        "SELECT 1 FROM entries WHERE author = 'principal' "
+                        "AND instr(lower(text), ?) > 0 LIMIT 1", (token.lower(),)).fetchone():
+                    continue
                 # A quoted English word is a word. tipsAM (2026-09-10): the
                 # ladder reached the Liaison, its clarify said the criterion
                 # names no term for 'share', and the door read 'share' as a
@@ -1060,6 +1068,31 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # criteria again on the next wake -- and a re-asked question forks
         # the thread the ladder is already climbing. The triage's next-step
         # says this too; here it stops being skippable.
+        # An answer to a challenge or an escalation carries something new: a
+        # row this session wrote (a rewritten test, a decision, an amended
+        # constraint) or a ref the question did not have. clickI night 29
+        # (2026-09-13): the Tester answered the Developer's challenge with
+        # the question's own two refs and no change, the Architect answered
+        # the escalation with the criterion alone, and the Developer was
+        # told to act on answers that said nothing. It never wrote.
+        if verb == "answer" and ctx.role in ("tester", "architect") and ctx.trigger:
+            asked = ctx.conn.execute(
+                "SELECT verb, body_refs FROM messages WHERE id = ?", (ctx.trigger,)).fetchone()
+            if asked and asked["verb"] in ("challenge", "escalate"):
+                from .db import refs_of
+                old = set(refs_of(asked["body_refs"]))
+                new_refs = [r for r in (refs or []) if r not in old]
+                wrote = [w for w in ctx.writes if w[0] in ("tests", "decisions", "constraints",
+                                                            "criteria", "ledger")]
+                if not new_refs and not wrote:
+                    raise ValueError(
+                        f"this answer carries only the {asked['verb']}'s own refs and "
+                        f"you wrote nothing this session, so it says nothing the "
+                        f"asker did not already have. An answer to a {asked['verb']} "
+                        f"is a change or a reason: rewrite the test (tests.encode) "
+                        f"or amend the row, or author a decision that says why the "
+                        f"row stands, and put that new row in refs")
+
         if verb == "question" and ctx.role == "tester":
             for r in (refs or []):
                 if not ctx.conn.execute(
