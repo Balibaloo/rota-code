@@ -28,7 +28,7 @@ onboarding. A row is filled when its wake has been read.
 | # | Session | Mode | Shown | Needed and missing | Fix |
 |---|---|---|---|---|---|
 | 1 | tipsBC s58, click nights 32 to 34 | developer batch_start | the ticket line, the criteria, a probe hint, a glossary miss | the item, the principal's sentences, the predicted touch set, the batch's tests | `batches.expect`, pushed (7954ef7) |
-| 2 | click n35 s115 | vision_keeper slicing | `problem.consult`: all five items, nothing marking the one in the refs | the item to slice, set apart from the account of what the program does today | owed: the push marks the wake's item, or the mode pushes `problem.consult` for the refs alone |
+| 2 | click n35 s115 | vision_keeper slicing | `problem.consult`: all five items, nothing marking the one in the refs | the item to slice, set apart from the account of what the program does today | the push sets the wake's items apart and lists the rest by id (`runner.push_working_set`, 2026-09-13) |
 | 3 | click n35 s116 | terminologist criteria | 33 callables (mostly tests), the whole glossary, one ticket headline | the item text, the principal's sentence, and the source of the callable the ticket says "next to" (`utils.py::echo`) | owed: push the item and its statements; push `code.source` of the callables the ticket names |
 | 4 | click n35 s116 | terminologist criteria | the first-turn id collision: the criterion id was the item's id | nothing missing; the refusal's route worked on the second turn | none |
 | 5 | click n35 s117 | architect grouping | batches, criteria, the model, the tickets | nothing missing for grouping; two turns lost to `batches.consult(id=...)` against a no-argument signature | the signature line in the push says `()`; a brief line, if measured |

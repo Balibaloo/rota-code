@@ -1189,6 +1189,22 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     # pushing the whole sentence would match nothing; pushed instead is one
     # search per distinctive word of the wake's subject, capped so a long
     # sentence does not become a dozen calls' worth of prompt.
+    # The slicing wake names the item to slice; the account of everything
+    # else the program does is not that wake's work. clickI night 35
+    # (2026-09-13): woken for one item and shown five, the Vision Keeper
+    # sliced all five and four were refused. The pushed account keeps the
+    # wake's items whole and the rest as one line each.
+    if (wake is not None and wake.kind == "tick:slicing" and wake.refs
+            and isinstance(pushed.get("problem.consult"), list)):
+        rows = pushed["problem.consult"]
+        mine = [r for r in rows if isinstance(r, dict) and r.get("id") in wake.refs]
+        rest = [r.get("id") for r in rows if isinstance(r, dict) and r.get("id") not in wake.refs]
+        if mine:
+            pushed["problem.consult"] = {
+                "to slice, this wake": mine,
+                "the rest of the account, not this wake's": rest,
+            }
+
     if asked and "decisions.search" in have:
         hits: dict[str, Any] = {}
         for word in _subject_words(asked)[:6]:
