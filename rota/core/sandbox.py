@@ -1111,30 +1111,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # criteria again on the next wake -- and a re-asked question forks
         # the thread the ladder is already climbing. The triage's next-step
         # says this too; here it stops being skippable.
-        # An answer to a challenge or an escalation carries something new: a
-        # row this session wrote (a rewritten test, a decision, an amended
-        # constraint) or a ref the question did not have. clickI night 29
-        # (2026-09-13): the Tester answered the Developer's challenge with
-        # the question's own two refs and no change, the Architect answered
-        # the escalation with the criterion alone, and the Developer was
-        # told to act on answers that said nothing. It never wrote.
-        if verb == "answer" and ctx.role in ("tester", "architect") and ctx.trigger:
-            asked = ctx.conn.execute(
-                "SELECT verb, body_refs FROM messages WHERE id = ?", (ctx.trigger,)).fetchone()
-            if asked and asked["verb"] in ("challenge", "escalate"):
-                from .db import refs_of
-                old = set(refs_of(asked["body_refs"]))
-                new_refs = [r for r in (refs or []) if r not in old]
-                wrote = [w for w in ctx.writes if w[0] in ("tests", "decisions", "constraints",
-                                                            "criteria", "ledger")]
-                if not new_refs and not wrote:
-                    raise ValueError(
-                        f"this answer carries only the {asked['verb']}'s own refs and "
-                        f"you wrote nothing this session, so it says nothing the "
-                        f"asker did not already have. An answer to a {asked['verb']} "
-                        f"is a change or a reason: rewrite the test (tests.encode) "
-                        f"or amend the row, or author a decision that says why the "
-                        f"row stands, and put that new row in refs")
+        # The answer-must-carry-something door (clickI night 29, 2026-09-13)
+        # stood here: an answer to a challenge with the question's own refs
+        # and no write was refused. Measured worse the same day: the two
+        # Tester hold cases went 0/5 on "you wrote nothing this session",
+        # because a hold is an answer in words with the same refs, and on
+        # click the Tester's every answer was refused until the challenge
+        # was quarantined. Whether an answer says anything is judgement,
+        # and the brief holds it.
 
         if verb == "question" and ctx.role == "tester":
             for r in (refs or []):
@@ -1302,9 +1286,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         #
         # The two situations differ by state the session already holds, so the
         # brief does not have to arbitrate and demonstrably could not.
-        if verb == "report" and getattr(ctx, "lookup_misses", None) and not any(
+        # A lookup of nothing is not a miss. Register 2026-09-13: two
+        # Terminologist cases 0/5 on "you looked up '' and the glossary had
+        # nothing" after a `glossary.lookup(term='')`.
+        misses = sorted(m for m in (getattr(ctx, "lookup_misses", None) or ())
+                        if str(m).strip())
+        if verb == "report" and misses and not any(
                 w[0] == "glossary_terms" for w in ctx.writes):
-            missing = sorted(ctx.lookup_misses)[0]
+            missing = misses[0]
             raise ValueError(
                 f"you looked up {missing!r} and the glossary had nothing, and "
                 f"you have defined nothing. There is something to add, and it "

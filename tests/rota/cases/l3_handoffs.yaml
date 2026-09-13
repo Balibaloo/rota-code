@@ -122,6 +122,8 @@
 
 - id: L3-a-failed-verdict-turns-into-a-fix
   tier: T3
+  # The Critic on gemma3:12b, the profile's Critic (2026-09-13).
+  model: gemma3:12b
   runs: 5
   pass: 3
   first: {role: critic, tick: review, refs: [<b1>]}

@@ -190,7 +190,10 @@
   runs: 5
   pass: 4
   tick: grouping
-  refs: [<i1>]
+  # The grouping wake names the tickets with no live batch, not the item
+  # (predicates.grouping). With `<i1>` here the wake-refs door refused every
+  # group as tickets it was not woken for, 0/5 on 2026-09-13.
+  refs: [<tk1>, <tk2>]
   fixture:
     items:
       - {id: <i1>, text: "delete an account", kind: in_scope, provenance: decided,
@@ -215,6 +218,9 @@
 
 - id: L1-CR-a-test-that-encodes-nothing-is-a-challenge
   tier: T1
+  # The Critic's model in the local profile is gemma3:12b, which passes
+  # all four Critic cases 5/5 (2026-09-12); qwen3:8b passes a wrong diff.
+  model: gemma3:12b
   role: critic
   runs: 5
   pass: 3
