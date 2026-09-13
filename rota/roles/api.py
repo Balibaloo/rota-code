@@ -7882,3 +7882,49 @@ def references_load(ctx: Ctx, ids: list[str] | None = None) -> list[dict]:
             f"WHERE id IN ({marks}) ORDER BY id", ids))
     return _rows(ctx.conn.execute(
         "SELECT id, url, claim, asked_by FROM references_ ORDER BY id"))
+
+
+@op("batches", "expect")
+def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
+    """
+    What the batch is for and where the Architect expects the change.
+
+    Read 2026-09-13 from a Developer's batch_start wake on tipsI: one line
+    of ticket, four criteria naming a callable that did not exist, and
+    nothing else. The item, the principal's own sentences behind it, the
+    predicted touch set and the batch's tests were all rows the Developer
+    could not reach. No argument, so the runner pushes it into the wake.
+    """
+    bid = batch_id or ctx.batch_id
+    if not bid:
+        # Pushed into every Developer wake, batch or none: a read that raises
+        # here would kill the session before its first turn.
+        return {"note": "this session works in no batch"}
+    row = ctx.conn.execute(
+        "SELECT b.id AS id, b.item_id AS item_id, i.text AS item_text "
+        "FROM batches b LEFT JOIN items i ON i.id = b.item_id WHERE b.id = ?",
+        (bid,)).fetchone()
+    if row is None:
+        raise ValueError(f"{bid!r} is not a batch")
+    said = [r["text"] for r in ctx.conn.execute(
+        "SELECT s.text AS text FROM item_statements ist "
+        "JOIN statements s ON s.id = ist.statement_id "
+        "WHERE ist.item_id = ? AND s.status != 'superseded' ORDER BY s.id",
+        (row["item_id"] or "",))]
+    touch = [dict(r) for r in ctx.conn.execute(
+        "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "
+        "ORDER BY confidence, grain_kind, grain", (bid,))]
+    tests = [dict(r) for r in ctx.conn.execute(
+        "SELECT id, criterion_id, path FROM tests WHERE batch_id = ? ORDER BY id", (bid,))]
+    return {
+        "batch": bid,
+        "item": row["item_text"] or "",
+        "the principal said": said,
+        "expected to touch": [t["grain"] for t in touch
+                              if t["grain_kind"] == "path" and t["confidence"] == "expected"],
+        "might touch": [t["grain"] for t in touch
+                        if not (t["grain_kind"] == "path" and t["confidence"] == "expected")],
+        "tests": tests,
+        "note": ("the touch set is the Architect's prediction, not a permission: a "
+                 "path outside it is not refused, it is judged after the commit"),
+    }

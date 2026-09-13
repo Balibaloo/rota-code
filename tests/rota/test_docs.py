@@ -26,6 +26,9 @@ from rota.design import graph as graph_mod
 # says why it earns the exception.
 NARRATIVE = {
     "README.md": "the way in; a reader who needs a test to trust it is lost already",
+    "MAP.md": "what exists and what is owed, cited to the code; the lost-work "
+              "audit of 2026-09-13 is its reason, and every mechanism it names "
+              "is asserted by the test that owns that mechanism",
     "LAWS.md": "the constraints in prose. Each with a structural consequence is "
                "asserted in test_laws.py; this is where they are argued",
     "SYSTEM.md": "the derivation, and the open design gaps. Its factual claims "

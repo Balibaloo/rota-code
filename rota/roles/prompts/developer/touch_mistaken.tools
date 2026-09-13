@@ -6,3 +6,4 @@ tests.load
 code.write
 code.commit
 msg.escalate_architect
+batches.expect

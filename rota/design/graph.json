@@ -1245,6 +1245,16 @@
       "depth": "index"
     },
     {
+      "s": "developer",
+      "t": "batches",
+      "type": "reads",
+      "v": "expect",
+      "n": "the item, the principal's sentences, the predicted touch set and the tests",
+      "rows": "batch",
+      "depth": "body",
+      "label": "pushed: no argument"
+    },
+    {
       "s": "architect",
       "t": "criteria",
       "type": "reads",
