@@ -661,14 +661,15 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         row = ctx.conn.execute("SELECT body_refs FROM messages WHERE id = ?",
                                (ctx.trigger,)).fetchone()
         named += [r for r in refs_of(row["body_refs"]) if r not in named] if row else []
+    ctx.writes.append(("items", id, {
+        "text": text, "kind": kind, "provenance": ctx.provenance,
+        "approval": "draft"}))
+    # After the item row: the junction's foreign key needs it first.
     for ref in named:
         if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
                             (ref,)).fetchone():
             ctx.writes.append(("item_statements", f"{id}:{ref}", {
                 "item_id": id, "statement_id": ref}))
-    ctx.writes.append(("items", id, {
-        "text": text, "kind": kind, "provenance": ctx.provenance,
-        "approval": "draft"}))
     return {"id": id}
 
 
