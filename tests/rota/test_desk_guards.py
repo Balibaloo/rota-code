@@ -219,6 +219,27 @@ def test_a_file_defines_each_name_once(db, tmp_path):
                         "def calculate_tip(t, p):\n    return t * p / 100\n")["bytes"]
 
 
+def test_an_overload_stub_is_not_a_second_definition(db, tmp_path):
+    """clickI night 32 (2026-09-13): termui.py carries three `@t.overload`
+    stubs of `prompt` above the one body. Every span write to the file was
+    refused as a duplicate, three identical sessions to quarantine."""
+    root = tmp_path / "wt"; root.mkdir()
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    text = ("import typing as t\n\n"
+            "@t.overload\ndef prompt(text: str, default: None = None) -> str: ...\n\n"
+            "@t.overload\ndef prompt(text: str, default: int) -> int: ...\n\n"
+            "def prompt(text, default=None):\n    return default\n\n"
+            "def confirm(text):\n    return True\n")
+    assert sb.call("code.write", path="termui.py", text=text)["bytes"]
+    with pytest.raises(ValueError, match="defines confirm twice"):
+        sb.call("code.write", path="termui.py",
+                text=text + "\ndef confirm(text, default_on_eof=None):\n    return default_on_eof\n")
+
+
 def test_labelled_quotes_are_read_not_crashed_on(db):
     """
     qwen2.5:14b sent `quotes={"criterion": ..., "test": ...}` on the register

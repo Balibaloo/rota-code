@@ -6963,9 +6963,25 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # later definition won, the test got the tip instead of the share,
         # and the fix loop ran to the step cap. Python keeps the last one
         # silently, which is a fact about the file.
+        def _decorator_name(d) -> str:
+            # `overload`, `t.overload`, `typing.overload`, `overload()`.
+            if isinstance(d, _ast.Call):
+                d = d.func
+            if isinstance(d, _ast.Attribute):
+                return d.attr
+            return getattr(d, "id", "") or ""
+
         seen: dict[str, int] = {}
         for node in tree.body:
             if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                # A typing overload stub is a signature, not a definition.
+                # clickI night 32 (2026-09-13): termui.py carries three
+                # `@t.overload` stubs of `prompt` above the one body, and
+                # every span write to the file was refused as a duplicate,
+                # three identical sessions to quarantine.
+                if any(_decorator_name(d).endswith("overload")
+                       for d in getattr(node, "decorator_list", [])):
+                    continue
                 if node.name in seen:
                     raise ValueError(
                         f"{path} defines {node.name} twice (lines "
