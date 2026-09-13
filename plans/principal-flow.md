@@ -366,7 +366,7 @@ budget.
 ## The audit's universe, entry by entry
 
 Checked against `plans/responsibility-audit.md` and
-`plans/responsibility-allocation.md`.
+`plans/archive/responsibility-allocation.md`.
 
 **Conflicts and corrections.**
 

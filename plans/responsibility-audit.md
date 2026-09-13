@@ -24,8 +24,8 @@ commit/split of the audit-era changes.
 ## Phase status (2026-09-02): all five phases complete
 
 Phase 1 ratified (rulings R1–R10). Phase 2:
-[responsibility-allocation.md](responsibility-allocation.md). Phase 3:
-[quality-dependency.md](quality-dependency.md). Phase 4:
+[responsibility-allocation.md](archive/responsibility-allocation.md). Phase 3:
+[quality-dependency.md](archive/quality-dependency.md). Phase 4:
 [feasibility-audit.md](feasibility-audit.md). Phase 5:
 [enforcement-verification.md](enforcement-verification.md). Findings P1–P11
 below; open decisions the audit hands back: the P11 fork ruling, P10's door,
@@ -391,7 +391,7 @@ phase 2 findings require them.)*
 
 ## Findings (accumulates from phase 2 on)
 
-Details and evidence in [responsibility-allocation.md](responsibility-allocation.md).
+Details and evidence in [responsibility-allocation.md](archive/responsibility-allocation.md).
 Two findings below were published wrong and corrected after deeper reads
 (P3 retracted, P7 reframed) — the correction note at the end says why.
 
