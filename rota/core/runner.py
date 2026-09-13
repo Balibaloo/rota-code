@@ -30,7 +30,7 @@ from . import sandbox as sandbox_mod
 from ..design import graph as graph_mod
 from ..llm import llm, toolproto, toolschema
 from ..roles import api, prompts
-from .db import OutboundMessage, SessionResult, Turn, Write, session_commit, session_fail
+from .db import OutboundMessage, SessionResult, Turn, Write, session_commit, session_fail, session_note
 from .scheduler import Wake, claim, release
 
 MAX_ITERATIONS = 12
@@ -2080,6 +2080,7 @@ def run_session(
                 m for m in result.messages
                 if not (m.to_role == "principal" and m.verb == "confirm")]
         session_commit(conn, result)
+        session_note(conn, session_id, outcome.errors)
         # A ruling the Liaison read lands now, through the one door, after
         # the reading is on record. Inside the session it would land a
         # ruling from a session that then died.

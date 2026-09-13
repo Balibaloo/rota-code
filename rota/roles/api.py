@@ -7090,10 +7090,23 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # modules already (`main`, `setup`) is a convention and passes;
         # tests and private names pass.
         if not _is_test_path(path):
+            # A name the file defined before this write is the tree's own
+            # duplicate, not this change's. tipsBF (2026-09-13): tipsI keeps
+            # `calculate_tip` in main.py and tip_calculator.py both, and a
+            # whole-file rewrite of main.py that kept it was refused as a
+            # copy, three sessions to quarantine.
+            had_before: set[str] = set()
+            if target.exists():
+                try:
+                    had_before = {n.name for n in _ast.parse(
+                        target.read_text(encoding="utf-8")).body
+                        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+                except (SyntaxError, UnicodeDecodeError):
+                    had_before = set()
             for node in tree.body:
                 if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
                     continue
-                if node.name.startswith("_") or node.name.startswith("test"):
+                if node.name.startswith("_") or node.name.startswith("test") or node.name in had_before:
                     continue
                 elsewhere = {
                     r["grain"].split("::", 1)[0] for r in ctx.conn.execute(

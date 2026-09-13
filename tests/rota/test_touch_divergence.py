@@ -183,3 +183,22 @@ def test_a_name_the_batch_itself_defined_is_seen_without_the_index(db, tmp_path)
     with pytest.raises(ValueError, match="already defines echo_json in src/click/utils.py"):
         sb.call("code.write", path="src/click/echo_json_impl.py",
                 text="import json\n\ndef echo_json(o, indent=2):\n    print(json.dumps(o, indent=indent))\n")
+
+
+def test_a_file_may_keep_a_name_it_already_defined(db, tmp_path):
+    """tipsBF (2026-09-13): tipsI defines calculate_tip in main.py and in
+    tip_calculator.py; a whole-file rewrite of main.py that kept it was
+    refused as a copy. The tree's own duplicate is not this change's."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "main.py").write_text("def calculate_tip(t, p):\n    return t * p / 100\n")
+    (root / "tip_calculator.py").write_text("def calculate_tip(t, p):\n    return t * p / 100\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="main.py",
+                  text="def calculate_tip(t, p):\n    return t * p / 100\n\n\ndef ask_people_count():\n    return 2\n")
+    assert out["bytes"]
+    with pytest.raises(ValueError, match="already defines ask_people_count in main.py"):
+        sb.call("code.write", path="tip_calculator.py",
+                text="def calculate_tip(t, p):\n    return t * p / 100\n\n\ndef ask_people_count():\n    return 3\n")

@@ -736,3 +736,23 @@ def session_fail(conn: sqlite3.Connection, *, session_id: str, role: str,
         "VALUES (?, ?, '', '', ?, 0)",
         (session_id, len(turns) + 1, f"SESSION FAILED: {error}"))
     conn.commit()
+
+
+def session_note(conn: sqlite3.Connection, session_id: str, errors: list[str]) -> None:
+    """
+    How a committed session ended, as its last turn.
+
+    The refusals of a session's last turn live in the prompt of a turn that
+    never came, so a session that ended right after a refused call showed
+    nothing in the record (the wake audit, 2026-09-13). The runner's own
+    account of the session, its errors and the reason it stopped, is
+    written as one more turn, so the reader sees the end.
+    """
+    if not errors:
+        return
+    seq = (conn.execute("SELECT COALESCE(MAX(seq), 0) FROM turns WHERE session_id = ?",
+                        (session_id,)).fetchone()[0] or 0) + 1
+    conn.execute(
+        "INSERT OR IGNORE INTO turns (session_id, seq, system, user, completion, ms) "
+        "VALUES (?, ?, '', '', ?, 0)",
+        (session_id, seq, "SESSION ENDED. The runner's account:\n" + "\n".join(f"- {e}" for e in errors)))
