@@ -144,16 +144,23 @@ def reconcile_worktrees(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
     the batch's trigger is still on the frontier, so the Developer wakes again.
     What it must not do is wake *blind* — a cold role reads criteria and probes
     code; it has no reason to run `git log` and would happily duplicate work.
-    So the divergence is recorded and handed to it in the wake payload.
+    So the database follows git: the batch's `head_commit` becomes the real
+    HEAD, and every reader of the head -- the verdict gate, the stray check,
+    the churn door, the Developer's own `code.source` of its worktree --
+    sees the commit that exists. The lost-work audit of 2026-09-13 found
+    this function computing the divergence and handing it to nothing but
+    the boot line.
     """
     diverged = []
     for r in conn.execute(
         "SELECT id, worktree, head_commit FROM batches "
         "WHERE worktree IS NOT NULL AND status IN ('running','deferred')"
-    ):
+    ).fetchall():
         actual = _git_head(r["worktree"])
         if actual and actual != (r["head_commit"] or ""):
             diverged.append((r["id"], r["head_commit"] or "<none>", actual))
+            conn.execute("UPDATE batches SET head_commit = ? WHERE id = ?",
+                         (actual, r["id"]))
     return diverged
 
 

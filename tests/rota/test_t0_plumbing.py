@@ -584,3 +584,7 @@ def test_boot_detects_worktree_divergence(db, tmp_path):
     assert len(diverged) == 1
     assert diverged[0][0] == "b1"
     assert diverged[0][1] == "0000000" and len(diverged[0][2]) == 40
+    # The database follows git (2026-09-13): the row now names the real head.
+    head = db.execute("SELECT head_commit FROM batches WHERE id = 'b1'").fetchone()[0]
+    assert head == diverged[0][2]
+    assert reconcile_worktrees(db) == [], "a second boot finds nothing to reconcile"
