@@ -1777,3 +1777,26 @@ def test_the_fence_judges_the_change_not_the_file_it_was_made_in(db, tmp_path):
     with pytest.raises(ValueError, match="reaches the process"):
         sb.call("code.write", path="utils.py", start=14, end=14,
                 text="\n\ndef run():\n    import subprocess\n    subprocess.run(['ls'])\n")
+
+
+def test_a_seventh_criterion_on_one_ticket_is_refused(db):
+    """clickI night 38 (2026-09-13): twenty-four criteria on one ticket, then
+    a signoff page of twenty-five lines. Six is many; the count is a fact."""
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
+               "VALUES ('i9','echo json','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','add echo_json next to echo')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("terminologist", db, mode="criteria", allow=prompts.mode_tools("terminologist", "criteria"))
+    texts = ["echo_json accepts an object and prints it",
+             "the indent argument defaults to two spaces",
+             "nested lists keep their order in the output",
+             "a None value prints as the JSON literal null",
+             "the output ends with one newline",
+             "strings with quotes are escaped as JSON requires"]
+    for k, text in enumerate(texts):
+        sb.call("criteria.specify", id=f"c9_{k}", ticket_id="tk9", text=text,
+                term_refs=[], surface_refs=[])
+    with pytest.raises(ValueError, match="six is many"):
+        sb.call("criteria.specify", id="c9_6", ticket_id="tk9",
+                text="echo_json also serialises datetimes as ISO 8601 strings", term_refs=[], surface_refs=[])

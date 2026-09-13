@@ -3091,6 +3091,23 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
                     f"({other_text[:80]!r}). One criterion per thing that must "
                     f"be true; a second sentence for the same thing is a second "
                     f"test of one fact")
+    # Three is usual and six is many (the criteria brief, ruled 2026-09-12).
+    # clickI night 38 (2026-09-13): twenty-four criteria on one ticket
+    # (datetime, unicode, a docstring, test coverage, "no upper limit on
+    # indent"), then a signoff page of twenty-five lines the principal
+    # would not read, a relay that mistook them for items, and a landing
+    # cut at the output budget. The count is a fact.
+    existing = {r["id"] for r in ctx.conn.execute(
+        "SELECT id FROM criteria WHERE ticket_id = ?", (ticket_id,))}
+    existing |= {w[1] for w in ctx.writes
+                 if w[0] == "criteria" and w[2].get("ticket_id") == ticket_id}
+    if id not in existing and len(existing) >= 6:
+        raise ValueError(
+            f"{ticket_id} has {len(existing)} criteria already, and six is many. "
+            f"A seventh decides scope the ticket never named. If the ticket "
+            f"holds more than one piece of work, that is the Vision Keeper's to "
+            f"slice: msg.challenge_vision_keeper with the ticket. Otherwise the "
+            f"criteria are written; end")
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
     surface = _vet_surface(ctx, surface_refs, required=False)
     ctx.writes.append(("criteria", id, {

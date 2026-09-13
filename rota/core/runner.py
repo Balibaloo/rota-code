@@ -960,7 +960,10 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             hit = conn.execute(
                 f"SELECT {cols} FROM {table} WHERE id = ?", (ref,)).fetchone()
             if hit:
-                resolved[ref] = dict(hit)
+                # The table travels with the row: a Vision Keeper handed a
+                # relay of criteria approved them as items, ten refusals
+                # (clickI night 38, 2026-09-13).
+                resolved[ref] = {**dict(hit), "table": table}
                 # A disputed test travels with its last run. S0 walk eight:
                 # the Developer challenged, the Tester held -- "the test
                 # checks the greeting is displayed" -- nine rounds, while

@@ -45,6 +45,8 @@ onboarding. A row is filled when its wake has been read.
 | 16 | click n38, 38 reconcile sessions | vision_keeper reconcile | the account and one prose file; the model logged "README says X; the code shows X" and was refused as a restatement three to ten times a session, then `attest found` was refused for having no ledger | the exit when everything agrees | the restatement refusal names the exit: attest none_found; `code.prose` takes a path |
 | 17 | click n38 s010, s099 | liaison verdict relay | the relay to each owner; after the first, every repeat refused as a second answer, three identical turns | one relay per owner with all its rows | a brief line, if measured; the fixed point ends it at three |
 | 18 | click n38 s075 to s077 | architect boundary | `model.amend` refused four or five times a session as "what the product does, an item already says it" | the exit when no candidate is a constraint | a brief line: attest with nothing when every candidate is refused |
+| 19 | click n38 s118 | terminologist criteria | with the item and the module pushed, twenty-four criteria on one ticket (datetime, unicode, a docstring, test coverage); then a twenty-five line signoff page, a relay that mistook criteria for items, a landing cut at the output budget | the brief's own number: three is usual and six is many | a door: the seventh criterion on a ticket is refused with the route (`criteria.specify`, 2026-09-13) |
+| 20 | click n38 s011, s124 | vision_keeper relay | a relay whose resolved refs were statements and criteria; the Vision Keeper called `problem.set_approval` on them, ten refusals | which table each ref is a row of | every resolved ref carries its table (`runner._resolve_refs`, 2026-09-13) |
 
 ## To read (night 35)
 
