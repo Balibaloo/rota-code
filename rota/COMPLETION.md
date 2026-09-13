@@ -1412,7 +1412,18 @@ merged cold in 34 steps.
    part-approval landing case, not yet recorded. So the day's doors
    regressed nothing, and the 48 are the backlog: about 35 recordings
    stale behind the week's brief and door changes, and about 15
-   attributed reds. The re-record runs on the Titan when tipsBB ends. `a-challenge-
+   attributed reds. The re-record runs on the Titan when tipsBB ends.
+   tipsBB (09:19 restart 11:37, killed 12:58): amended, re-sliced, the
+   rebuilt batch b3 built and one test passed; then the Developer's
+   batch_start went to quarantine three times over, the share written
+   under a name that is not the criterion's surface `split_bill`, two
+   questions to the Vision Keeper and never the unresolved exit. 9B
+   judgement on the rebuilt batch, the same stall as tipsAX. Then a
+   Tester turn on the Titan ran past the 300 s timeout three times: at
+   27 tok/s a reply that runs to the 8192-token cap cannot finish inside
+   the timeout, so on the slow card a cap-length reply is always a
+   timeout. Killed for the register re-record. Night 33 merged bg_1
+   again, the same 48 lines in the same 172 steps. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
