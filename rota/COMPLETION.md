@@ -1361,7 +1361,19 @@ merged cold in 34 steps.
    doors: an answer to a challenge or an escalation carries a new row or
    a new ref, and a clarify may quote the principal's own words (the
    flag "default_on_eof" was refused as bookkeeping). Night 30 runs on
-   them. `a-challenge-
+   them.
+   Night 30 (2026-09-13, 01:41 to 09:02): review, for the first time on
+   click. All 37 tests passed, the Critic (gemma) emitted one fail and
+   six passes, and nothing merged: each pass was on an older commit,
+   because the Developer kept committing, twelve times, flipping the
+   JSON's trailing newline back and forth between a test that passed
+   either way and a Critic that read the stream criterion differently
+   each time. The last head had no verdict; the Critic's three sessions
+   on it claimed the test did not encode the criterion, tried to fail
+   it anyway, were refused, and challenged nobody; review was
+   quarantined. Two facts to hold: a commit that returns the tree to
+   where it stood two commits ago is churn, and a review verdict is for
+   the head it was written on. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
