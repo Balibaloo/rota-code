@@ -156,6 +156,18 @@ for i in range(cap):
                      (f"m_p{n}", rep.message_id, f'["e_p{n}"]', seq))
         conn.commit()
     s = step(conn, pins=pins, backend=backend)
+    # The warm snapshot: the database at the first slicing wake, before any
+    # batch exists. Onboarding is 119 of a night's first 150 sessions and
+    # twenty of its thirty-five minutes (night 46, 2026-09-14); a night that
+    # measures the delivery loop starts from here (GAUNTLET_WARM=1).
+    if (s is not None and s.wake is not None and s.wake.kind == "tick:slicing"
+            and not os.environ.get("WALK_FROM_WARM")):
+        warm = REPO / ".rota" / f"{run}_warm.db"
+        if not warm.exists() and conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] == 0:
+            import sqlite3 as _sq
+            conn.commit()
+            dst = _sq.connect(str(warm)); conn.backup(dst); dst.close()
+            print(f"warm snapshot written: {warm}", flush=True)
     if s is not None and s.outcome is not None and not s.outcome.committed:
         # Said at once and flushed: night 31 ran 98 minutes on one failing
         # wake and the log held nothing, because the failure was silent and

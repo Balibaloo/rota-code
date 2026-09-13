@@ -21,10 +21,20 @@ echo "== onboard $(date +%H:%M)"
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
 python -c "import sqlite3, os; os.path.exists('.rota/clickI.db') and sqlite3.connect('.rota/clickI.db').backup(sqlite3.connect('.rota/clickI_prev.db'))"
+if [ "${GAUNTLET_WARM:-}" = "1" ] && [ -f "$REPO/.rota/clickI_warm.db" ]; then
+  # A warm start: the snapshot walk.py wrote at the first slicing wake of an
+  # earlier night. Onboarding's sessions are already in it; the night begins
+  # at slicing. Delete the snapshot when an onboarding brief or push changes.
+  echo "== warm start from .rota/clickI_warm.db (onboarding skipped)"
+  rm -f "$REPO/.rota/clickI.db" "$REPO/.rota/clickI.db-wal" "$REPO/.rota/clickI.db-shm"
+  python -c "import sqlite3; sqlite3.connect('.rota/clickI_warm.db').backup(sqlite3.connect('.rota/clickI.db'))"
+  export WALK_FROM_WARM=1
+else
 python -m rota onboard clickI --root "${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
+fi
 # A night starts from nothing. Night 36 (2026-09-13) ran its first sentence
 # in minutes on night 35's leftover database: the wipe had not happened.
-python -c "import sqlite3, sys; n = sqlite3.connect('.rota/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
+[ "${WALK_FROM_WARM:-}" = "1" ] || python -c "import sqlite3, sys; n = sqlite3.connect('.rota/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
 ollama_up
 echo "== walk 1 $(date +%H:%M)"
 python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
