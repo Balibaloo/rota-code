@@ -39,6 +39,8 @@ onboarding. A row is filled when its wake has been read.
 | 10 | click n35 s138 | tester answer | nineteen turns: the refusal "a quote inside id ended it early" led the model to write `'''...'''` placeholders, refused as placeholders, then the same body five times | the refusal's example is copied literally by a 9B model | the refusal names the shape without an example to copy; measured on the TS cases |
 | 11 | click n35 s099 | liaison agenda | `ledger.list`: all 51 open rows, 15,500 characters | the page's seven, which the refs name | the push shows the page's rows and counts the rest (`runner.push_working_set`, 2026-09-13) |
 | 12 | click n37 s004 | liaison quarantined | "1 abandoned" and nothing else; the Liaison sent `refs=["tick:quarantined"]` three times | what stalled: the tick's batch or item, and its attempts | the predicate carries the tick's refs and says what stalled (`predicates.quarantined`, 2026-09-13) |
+| 13 | click n37 s135 to s137 | developer batch_start | with `batches.expect` the Developer read `utils.py`, the right file, and wrote a span into it; the span ended inside a multi-line signature and the merged file failed to parse; six identical writes a session, three sessions | where the span cut: the statement's lines, and the two spans that work | the span door names the cut statement and the whole-statement spans (`code.write`, 28c26f8) |
+| 14 | click n37 s135 | developer batch_start | `the principal said: []` although one ratified statement stood behind the item | the statement the item was read from; `problem.assert` linked statements only from tick wakes' refs, never from a message's | the link is read from the trigger message too (1c30249) |
 
 ## To read (night 35)
 
