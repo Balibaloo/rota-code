@@ -141,9 +141,19 @@ def check_manifest(path: str, criteria: list[str]) -> None:
         f"otherwise leave the manifest as it is")
 
 
-def check(path: str, tree: ast.AST, criteria: list[str]) -> None:
-    """Raise ValueError for the first reach no criterion names."""
+def check(path: str, tree: ast.AST, criteria: list[str],
+          baseline: ast.AST | None = None) -> None:
+    """Raise ValueError for the first reach no criterion names.
+
+    `baseline` is the file as it stood before the write. A reach the file
+    already made is the project's, not this change's: clickI night 38
+    (2026-09-13) refused every write to `utils.py` because click's own
+    line 547 calls `os.path.expanduser`, and the batch could never commit.
+    """
+    had = {(k, w) for k, w, _ in reaches(baseline)} if baseline is not None else set()
     for kind, what, line in reaches(tree):
+        if (kind, what) in had:
+            continue
         if named(kind, criteria):
             continue
         raise ValueError(

@@ -1758,3 +1758,22 @@ def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
     sb.call("problem.assert", id="echo_json", text="add an echo_json helper next to echo", kind="in_scope")
     links = [w for w in sb.ctx.writes if w[0] == "item_statements"]
     assert [(w[2]["item_id"], w[2]["statement_id"]) for w in links] == [("echo_json", "s1")]
+
+
+def test_the_fence_judges_the_change_not_the_file_it_was_made_in(db, tmp_path):
+    """clickI night 38 (2026-09-13): click's own utils.py calls
+    os.path.expanduser at line 547, and every write to the file was refused
+    for a reach the project already made."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "utils.py").write_text("import os\n\n\ndef home():\n    return os.path.expanduser('~')\n\n\ndef echo(m):\n    print(m)\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    out = sb.call("code.write", path="utils.py", start=9, end=9,
+                  text="\n\ndef echo_json(o):\n    import json\n    print(json.dumps(o))\n")
+    assert out["bytes"], "a reach the file already made is not this change's"
+    with pytest.raises(ValueError, match="reaches the process"):
+        sb.call("code.write", path="utils.py", start=14, end=14,
+                text="\n\ndef run():\n    import subprocess\n    subprocess.run(['ls'])\n")

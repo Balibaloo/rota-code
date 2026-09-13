@@ -4523,7 +4523,9 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 "the README says and what the code shows are the same "
                 "sentence. A disagreement names what differs; a README that "
                 "matches the code is nothing to log. Log only where the two "
-                "sides differ, in the words each source uses")
+                "sides differ, in the words each source uses. If every claim "
+                "agrees, that is the answer: surveys.attest(outcome='none_found', "
+                "citations=[the file]), and no ledger row")
 
     import hashlib
 
@@ -5202,7 +5204,7 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
 
 
 @op("code", "prose")
-def code_prose(ctx: Ctx, limit: int = 6000) -> dict:
+def code_prose(ctx: Ctx, limit: int = 6000, path: str | None = None) -> dict:
     """
     The README, for the one phase whose job is to read it -- against the
     account, not instead of it. Everywhere else prose is withheld or on
@@ -5215,7 +5217,12 @@ def code_prose(ctx: Ctx, limit: int = 6000) -> dict:
                         "to reconcile. `surveys.attest(outcome='none_found', "
                         "citations=[])` is the answer."}
     from ..core.scheduler import PROSE as _PROSE
-    if ctx.area and ctx.area.startswith(_PROSE + ":"):
+    if path:
+        # Asked by path: the file the session wants beside its own. clickI
+        # night 38 (2026-09-13): `code.prose(path=...)` refused as an
+        # unexpected argument in a wake that is about one file.
+        readme = path.replace("\\", "/").lstrip("./")
+    elif ctx.area and ctx.area.startswith(_PROSE + ":"):
         # A prose file under docs/, the wake's own subject (one file a
         # session, `prose_areas`). The README is the bare `@prose`.
         readme = ctx.area[len(_PROSE) + 1:]
@@ -7058,7 +7065,15 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         # The fence: a reach outside the project is a fact about the file,
         # and the criteria are the only thing that can ask for one.
         from ..core import fence as _fence
-        _fence.check(path, tree, _criteria_texts(ctx))
+        # The file as it stood is the baseline: a reach it already made is
+        # the project's, not this change's (night 38, utils.py line 547).
+        _baseline = None
+        if target.exists():
+            try:
+                _baseline = _ast.parse(target.read_text(encoding="utf-8"))
+            except (SyntaxError, UnicodeDecodeError):
+                _baseline = None
+        _fence.check(path, tree, _criteria_texts(ctx), baseline=_baseline)
         # The tests are the Tester's. tipsR (2026-09-09): the Developer
         # rewrote tests/test_split_bill.py to import a module that does not
         # exist, the harness ran the database's copy of the test and passed,
