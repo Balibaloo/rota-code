@@ -1423,7 +1423,17 @@ merged cold in 34 steps.
    27 tok/s a reply that runs to the 8192-token cap cannot finish inside
    the timeout, so on the slow card a cap-length reply is always a
    timeout. Killed for the register re-record. Night 33 merged bg_1
-   again, the same 48 lines in the same 172 steps. `a-challenge-
+   again, the same 48 lines in the same 172 steps. Its second sentence
+   passed the overload door and built bg_2 to 36 tests with one failing:
+   the Tester's own test calls `runner.isolated_filesystem()`, which
+   click's suite runs with warnings as errors, so the test dies on a
+   DeprecationWarning in its own setup. The Developer challenged the
+   Tester; every answer the Tester sent was refused as carrying nothing;
+   the barren session marked the challenge answered; the Developer was
+   woken by the same failing test with the same prompt and challenged
+   again, three rounds to quarantine. Fixed: a barren session on an open
+   challenge leaves it unresolved and the ladder wakes the next rung.
+   Night 34 runs on it while the Titan re-records the register. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
