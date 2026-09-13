@@ -1,8 +1,9 @@
 MODE: touch_mistaken — the Architect judged a path in your head commit a mistake.
 
 The wake names the batch and the paths. `batches.strays` shows each path with
-the Architect's reason. Take the mistake out: restore the file as it stood
-before the batch, or remove the file you added, with `code.write`, then
+the Architect's reason. Take the mistake out: restore a file the tree had
+as it stood before the batch with `code.write`, or remove a file this batch
+added with `code.write(path=<the file>, text='')`, which deletes it; then
 `code.commit`. The next commit is a new head and the judgement stays on the
 old one.
 

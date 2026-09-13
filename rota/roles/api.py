@@ -6935,6 +6935,31 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
             "session was not woken for one. Answer the message you were "
             "woken by; the build starts when the batch does")
     target = _within(_batch_worktree(ctx), path)
+    # A parameter's own name where its value goes is a placeholder. tipsBG
+    # (2026-09-14): `code.write(path=path, ...)` made a file called `path`,
+    # the stray check raised it, and the Architect could not judge it.
+    if path.strip().lower() in ("path", "file", "filename", "text", "..."):
+        raise ValueError(
+            f"{path!r} is the name of the argument, not a file. Send the file's "
+            f"path, the one code.source shows")
+    # An empty write is a removal of a file this batch added, and nothing
+    # else. tipsBG (2026-09-14): told to take a mistake out, the Developer
+    # wrote the file empty; an empty module is still a module, and the
+    # stray stayed. A file the tree had before the batch is not removed
+    # this way: change it, or say why it should go.
+    if not text.strip():
+        in_tree = ctx.conn.execute(
+            "SELECT 1 FROM code_index WHERE grain = ? AND grain_kind = 'path'",
+            (path.replace("\\", "/"),)).fetchone()
+        if target.exists() and not in_tree:
+            target.unlink()
+            return {"removed": path, "note": "the file this batch added is gone; "
+                                             "commit to record it"}
+        raise ValueError(
+            f"an empty write to {path} changes nothing the tree can use. To take "
+            f"out a file this batch added, an empty write removes it; a file "
+            f"the tree had before the batch stays, and what it should hold is "
+            f"the change to send")
     span = (start, end) not in ((0, -1), (0, 0)) and end is not None
     if span:
         # A span, the lines `code.source` showed, replaced by `text`. clickI

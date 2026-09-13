@@ -202,3 +202,22 @@ def test_a_file_may_keep_a_name_it_already_defined(db, tmp_path):
     with pytest.raises(ValueError, match="already defines ask_people_count in main.py"):
         sb.call("code.write", path="tip_calculator.py",
                 text="def calculate_tip(t, p):\n    return t * p / 100\n\n\ndef ask_people_count():\n    return 3\n")
+
+
+def test_a_placeholder_path_and_an_empty_write(db, tmp_path):
+    """tipsBG (2026-09-14): `code.write(path=path, ...)` made a file called
+    `path`, and the Developer took a mistake out by writing the file empty."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "main.py").write_text("def main():\n    pass\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("INSERT INTO code_index (grain, grain_kind) VALUES ('main.py', 'path')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="name of the argument"):
+        sb.call("code.write", path="path", text="x = 1\n")
+    sb.call("code.write", path="extra.py", text="x = 1\n")
+    out = sb.call("code.write", path="extra.py", text="")
+    assert out.get("removed") == "extra.py" and not (root / "extra.py").exists()
+    with pytest.raises(ValueError, match="the tree had before the batch stays"):
+        sb.call("code.write", path="main.py", text="")
