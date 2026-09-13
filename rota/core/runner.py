@@ -1509,6 +1509,14 @@ def run_session(
         already_run: set[str] = set()
         turns: list[Turn] = []
         cut_retried = False
+        # The same call refused the same way, counted. clickI night 42
+        # (2026-09-13): a Tester session sent six encodes a turn against the
+        # same six refusals for twenty-two turns, 239 refusals; a Developer
+        # paraphrased a quote 110 times against "quote, not paraphrase".
+        # A refusal is the door's half of a conversation; the third time
+        # the same refusal answers the same call, the conversation is over.
+        refused_same: dict[tuple[str, str], int] = {}
+        stop_reason = ""
 
         # Four characters to the token is the same rough measure the cockpit
         # uses. Two thirds of the window, because the system prompt is charged
@@ -1516,6 +1524,9 @@ def run_session(
         budget = max(2000, (pins.num_ctx * 4 * 2) // 3 - len(system))
 
         for iteration in range(1, max_iterations + 1):
+            if stop_reason:
+                outcome.errors.append(stop_reason)
+                break
             outcome.iterations = iteration
             transcript = _fit(transcript, budget)
             user = "\n\n".join(transcript)
@@ -1814,6 +1825,11 @@ def run_session(
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
+                    same = (call.name, str(exc)[:160])
+                    refused_same[same] = refused_same.get(same, 0) + 1
+                    if refused_same[same] >= 3 and not stop_reason:
+                        stop_reason = (f"{call.name} was refused the same way three "
+                                       f"times; the session ended on it")
 
             if held:
                 feedback.append(

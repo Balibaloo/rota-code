@@ -840,3 +840,15 @@ def test_a_barren_session_on_a_challenge_leaves_it_unresolved(db):
     row = db.execute("SELECT status, unresolved_note FROM messages WHERE id='m2'").fetchone()
     assert row["status"] == "unresolved", dict(row)
     assert row["unresolved_note"]
+
+
+def test_the_same_refusal_three_times_ends_the_session(db):
+    """clickI night 42 (2026-09-13): six encodes a turn against the same six
+    refusals for twenty-two turns. The third identical refusal of the same
+    call ends the session, and the note says so."""
+    calls = [f"TOOL: problem.assert(id='i1', text='attempt {k}', kind='sideways')" for k in range(8)]
+    backend = ScriptedBackend(calls + ["Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+    assert outcome.iterations == 3, outcome.iterations
+    assert any("refused the same way three times" in e for e in outcome.errors)
