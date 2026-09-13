@@ -137,6 +137,11 @@
   role: tester
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5 after the batch's expectation
+  # joined the Tester's wake: encoded a test that does not parse instead of
+  # routing the criterion to the Vision Keeper, then wrote its own tool
+  # results. 9B judgement; the push stays, it made click's Developer reach
+  # the right file.
   tick: tests_missing
   refs: [<b1>]
   fixture:

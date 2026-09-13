@@ -81,9 +81,10 @@ def test_the_architect_judges_every_stray_foreseen_or_mistake(db):
                allow=prompts.mode_tools("architect", "touch_strayed"))
     with pytest.raises(ValueError, match="still unjudged"):
         sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/echo_json.py"])
-    with pytest.raises(ValueError, match="not an open stray"):
-        sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/other.py"],
-                mistakes=["src/echo_json.py", "src/click/main.py"])
+    out = sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/other.py"],
+                  mistakes=["src/echo_json.py", "src/click/main.py"])
+    assert out["mistakes"] == ["src/echo_json.py", "src/click/main.py"] and "src/other.py" in out["ignored"]
+    sb.ctx.writes.clear()
     out = sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/echo_json.py"],
                   mistakes=["src/click/main.py"], reason="the helper is new; main.py is a second copy")
     assert out == {"batch": "b1", "foreseen": ["src/echo_json.py"], "mistakes": ["src/click/main.py"]}

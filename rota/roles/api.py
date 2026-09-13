@@ -7706,11 +7706,14 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     if not open_rows:
         raise ValueError(f"{batch_id} has no unjudged stray on its head commit; "
                          f"nothing to judge")
+    # A name that is not an open stray is dropped, not refused: clickI night
+    # 41 (2026-09-13), the Architect named the test paths and the symbols
+    # of the prediction beside the one stray, three sessions of three
+    # identical refused calls. The judgement on the strays it did name is
+    # the work; the rest is noise, and is said to be.
     unknown = [p for p in foreseen + mistakes if p not in open_rows]
-    if unknown:
-        raise ValueError(
-            f"{', '.join(unknown)} {'is' if len(unknown) == 1 else 'are'} not an "
-            f"open stray of {batch_id}. The open strays are {', '.join(open_rows)}")
+    foreseen = [p for p in foreseen if p in open_rows]
+    mistakes = [p for p in mistakes if p in open_rows]
     both = sorted(set(foreseen) & set(mistakes))
     if both:
         raise ValueError(f"{', '.join(both)} cannot be both foreseen and a mistake")
@@ -7730,7 +7733,11 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
         ctx.writes.append(("touch_strays", f"{batch_id}:{head}:{path}", {
             "batch_id": batch_id, "commit_sha": head, "path": path,
             "status": "mistake", "note": reason or None}))
-    return {"batch": batch_id, "foreseen": foreseen, "mistakes": mistakes}
+    out = {"batch": batch_id, "foreseen": foreseen, "mistakes": mistakes}
+    if unknown:
+        out["ignored"] = (f"{', '.join(unknown)}: not an open stray of {batch_id}; "
+                          f"the strays were {', '.join(open_rows)}")
+    return out
 
 
 @op("batches", "strays")

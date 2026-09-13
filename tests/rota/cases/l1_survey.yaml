@@ -289,6 +289,10 @@
   role: vision_keeper
   runs: 5
   pass: 3
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: nine ledger rows against a
+  # ceiling of six, on a fixture whose account is empty so every README
+  # claim differs from "the code shows []". Overproduction on an empty
+  # account; the ceiling stays.
   tick: reconcile
   tick_unseedable: the README and the account come from repo onboarding, not fixture rows
   refs: ["@prose"]
