@@ -28,14 +28,20 @@ for s in conn.execute("SELECT * FROM sessions ORDER BY seq"):
     lines = [f"# {s['id']} {s['role']} {s['wake_kind']} {s['wake_detail'] or ''} "
              f"refs={s['wake_refs']} trigger={s['trigger_msg']} model={s['model']} "
              f"committed={s['committed']}", ""]
+    prev_user = ""
     for t in turns:
         if t["seq"] == 1:
             lines += ["## the wake, as pushed", "", "```", t["user"], "```", ""]
         else:
-            errs = [l for l in (t["user"] or "").splitlines() if l.startswith("ERROR")]
-            oks = [l[:160] for l in (t["user"] or "").splitlines() if l.startswith("OK ")]
+            # The prompt is the whole transcript; only what this turn added is
+            # this turn's feedback.
+            user = t["user"] or ""
+            new = user[len(prev_user):] if user.startswith(prev_user) else user
+            errs = [l for l in new.splitlines() if l.startswith("ERROR")]
+            oks = [l[:160] for l in new.splitlines() if l.startswith("OK ")]
             lines += [f"## feedback before turn {t['seq']}", ""]
             lines += [f"- {e}" for e in errs] + [f"- {o}" for o in oks] + [""]
+        prev_user = t["user"] or ""
         calls = re.findall(r"TOOL: ([a-z_.]+\(.{0,200})", t["completion"] or "")
         lines += [f"## turn {t['seq']} reply ({t['ms']} ms)", ""]
         lines += [f"- call: {c}" for c in calls] or ["- (no call)"]
