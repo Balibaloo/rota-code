@@ -288,9 +288,14 @@ class OllamaBackend:
     # every recording in the repository to record the same completions again.
     max_tokens = 8192
 
-    def __init__(self, host: str = OLLAMA_HOST, timeout: float = 300.0):
+    def __init__(self, host: str = OLLAMA_HOST, timeout: float | None = None):
         self.host = host.rstrip("/")
-        self.timeout = timeout
+        # The slow card cannot finish a cap-length reply in 300 s: at 27
+        # tok/s, 8192 tokens is five minutes, and tipsBB and tipsBC lost
+        # Tester turns to the timeout three times each (2026-09-13). The
+        # walk that runs there sets ROTA_LLM_TIMEOUT.
+        self.timeout = float(timeout if timeout is not None
+                             else os.environ.get("ROTA_LLM_TIMEOUT") or 300.0)
 
     def options(self, pins: Pins) -> dict:
         """The request options from the pins. An unset pin is absent, so the
