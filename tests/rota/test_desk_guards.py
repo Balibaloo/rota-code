@@ -1675,6 +1675,28 @@ def test_a_clarify_may_quote_the_principals_own_words(db):
                 question="What should 'batch_start_v2' do when stdin is closed?")
 
 
+def test_a_clarify_that_pastes_the_principals_sentence_back_is_refused(db):
+    """seat1 page 4 (2026-09-12): the reply went to its owner, the owner
+    answered, and the Liaison asked the principal what they had said, with
+    the whole reply pasted into the question. Eight of their words in a
+    row is the fact. A short quote that anchors a question passes."""
+    from rota.roles import prompts
+
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e_p10','principal',10,'3 is wrong: each share is the total with "
+               "tip divided by the number of people, and every share is equal.')")
+    db.commit()
+    sb = build("liaison", db, mode="normal", allow=prompts.mode_tools("liaison", "unresolved"))
+    with pytest.raises(ValueError, match="own sentence"):
+        sb.call("msg.clarify_principal", refs=["e_p10"],
+                question="The principal said that 3 is wrong: each share is the total "
+                         "with tip divided by the number of people, and every share "
+                         "is equal. Does this mean the split is equal for all people?")
+    sb.call("msg.clarify_principal", refs=["e_p10"],
+            question="You said 'every share is equal'. Does the person who "
+                     "paid the tip pay a share too?")
+
+
 def test_a_commit_that_undoes_the_last_one_is_churn(db, tmp_path):
     """clickI night 30 (2026-09-13): twelve commits flipping a trailing
     newline, six pass verdicts each on a head the next commit left behind,

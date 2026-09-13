@@ -31,6 +31,25 @@ from ..design import graph as graph_mod
 # door holds, which seven is the presenting brief's judgement.
 PAGE_ASSUMPTIONS = 7
 
+# A clarify that carries this many of the principal's words in a row, in
+# their order, is their sentence pasted back to them (seat1 page 4).
+QUOTE_RUN = 8
+
+
+def _longest_word_run(a, b):
+    """The longest run of words that `a` and `b` share, in order."""
+    best, best_end = 0, 0
+    prev = [0] * (len(b) + 1)
+    for i in range(1, len(a) + 1):
+        cur = [0] * (len(b) + 1)
+        for j in range(1, len(b) + 1):
+            if a[i - 1] == b[j - 1]:
+                cur[j] = prev[j - 1] + 1
+                if cur[j] > best:
+                    best, best_end = cur[j], i
+        prev = cur
+    return a[best_end - best:best_end]
+
 
 # What separates an id from prose is whitespace and length, not shape. The first
 # version of this required `prefix_hex`, which is what `new_id` produces and not
@@ -973,6 +992,30 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                         f"cannot be topped up, and reads as not having heard. "
                         f"Reframe it: decompose the question, or name a default "
                         f"they can veto. Or take the default and log the assumption")
+
+        # A clarify that pastes the principal's own sentence back to them.
+        # seat1 page 4 (2026-09-12): "The principal said that 3 is wrong:
+        # each share is the total with tip divided by the number of people,
+        # and every share is equal. Does this mean ..." The reply had gone
+        # to its owner, the owner had answered, and the Liaison asked the
+        # principal what they had said. Whether a question is worth asking
+        # is judgement. That eight words in a row are the principal's is a
+        # fact the entries hold. A short quote that anchors a question passes.
+        if recipient == "principal" and verb == "clarify" and text:
+            asked = re.findall(r"[a-z0-9']+", text.lower())
+            for row in ctx.conn.execute(
+                    "SELECT text AS said FROM entries WHERE author = 'principal' "
+                    "UNION ALL SELECT body_text AS said FROM messages "
+                    "WHERE from_role = 'principal' AND body_text IS NOT NULL"):
+                run = _longest_word_run(asked, re.findall(r"[a-z0-9']+", (row["said"] or "").lower()))
+                if len(run) >= QUOTE_RUN:
+                    raise ValueError(
+                        f"'{' '.join(run[:QUOTE_RUN])} ...' is the principal's own "
+                        f"sentence, pasted back to them. They know what they said, "
+                        f"and reading it to them again is not an answer to it. Ask "
+                        f"the one thing you do not know, in your words. If the "
+                        f"reply was an answer to a role, that role reads it, not "
+                        f"the principal")
 
         # A role's own bookkeeping is not a question for the principal. Asked
         # as the principal (tips5): "The item_id 'i_1' is invalid ... is there
