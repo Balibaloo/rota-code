@@ -22,3 +22,30 @@ def test_the_slicing_wake_sets_its_item_apart_from_the_account(tmp_path):
     account = pushed["problem.consult"]
     assert [r["id"] for r in account["to slice, this wake"]] == ["echo_json"]
     assert account["the rest of the account, not this wake's"] == ["how_it_works"]
+
+
+def test_the_criteria_wake_carries_the_item_and_the_module_the_ticket_names(tmp_path):
+    """clickI night 35 (2026-09-13): the ticket said "next to echo", the lens
+    listed `src/click/utils.py::echo`, and the criteria invented "without
+    buffering delays" without reading it."""
+    root = tmp_path / "proj"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "utils.py").write_text("def echo(message):\n    print(message)\n")
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(root),))
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES ('e1','principal',1,'Add an echo_json helper next to echo.')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) VALUES "
+               "('s1','e1',0,40,'Add an echo_json helper next to echo.','ratified')")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
+               "('echo_json','Add an echo_json helper next to echo','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO item_statements (item_id, statement_id) VALUES ('echo_json','s1')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add an echo_json helper next to echo')")
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('src/click/utils.py::echo','symbol','function')")
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('tests/test_echo.py::test_echo','symbol','function')")
+    db.commit()
+    sb = build("terminologist", db, mode="criteria",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    pushed = push_working_set("terminologist", sb, Wake("terminologist", "tick:criteria", refs=("echo_json",)))
+    assert pushed["the item"]["text"] == "Add an echo_json helper next to echo"
+    assert pushed["the item"]["the principal said"] == ["Add an echo_json helper next to echo."]
+    assert list(pushed["code.source"]) == ["src/click/utils.py"], pushed.get("code.source")
+    assert "def echo" in str(pushed["code.source"]["src/click/utils.py"])

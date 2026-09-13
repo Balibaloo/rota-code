@@ -1164,6 +1164,36 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                     r.get("headline", "") for r in rows if isinstance(r, dict))
             except Exception:                              # noqa: BLE001
                 pass
+        # Writing criteria beside a callable the ticket names, the
+        # Terminologist reads that callable's module and the item's own
+        # words. clickI night 35 (2026-09-13): the ticket said "next to
+        # echo", the lens listed `src/click/utils.py::echo`, and the criteria
+        # invented "without buffering delays" without reading it.
+        if wake is not None and wake.kind == "tick:criteria" and wake.refs:
+            conn = sb.ctx.conn
+            item = conn.execute("SELECT text FROM items WHERE id = ?", (wake.refs[0],)).fetchone()
+            said = [r["text"] for r in conn.execute(
+                "SELECT s.text AS text FROM item_statements ist JOIN statements s "
+                "ON s.id = ist.statement_id WHERE ist.item_id = ? AND s.status != 'superseded' "
+                "ORDER BY s.id", (wake.refs[0],))]
+            if item:
+                pushed["the item"] = {"text": item["text"], "the principal said": said}
+            words = {w.strip(".,;:()'\"`").lower() for w in hint.split()} - {""}
+            files: list[str] = []
+            for row in (pushed.get("code.callables") or []) if isinstance(pushed.get("code.callables"), list) else []:
+                grain = row.get("grain", "") if isinstance(row, dict) else ""
+                if "::" in grain:
+                    path, name = grain.split("::", 1)
+                    if name.lower() in words and not path.replace("\\", "/").split("/")[-1].startswith("test") \
+                            and "/tests/" not in f"/{path}" and path not in files:
+                        files.append(path)
+            if files and "code.source" in have:
+                pushed["code.source"] = {}
+                for path in files[:2]:
+                    try:
+                        pushed["code.source"][path] = sb.call("code.source", path=path, start=0, end=400)
+                    except Exception:                      # noqa: BLE001
+                        continue
         # The Architect predicting a batch's touch reads by the same lens.
         # clickI night 35 (2026-09-13): the ticket said "next to echo", the
         # Architect probed `echo_json`, found nothing, and predicted a new
