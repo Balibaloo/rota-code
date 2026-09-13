@@ -1394,7 +1394,18 @@ merged cold in 34 steps.
    test proves no wake is dispatched past the cap when every session
    fails; the walk driver stops after thirty minutes with no committed
    session. pylint's used-before-assignment does not see the loop-scoped
-   pattern that caused it, so the scripted-backend test is the check. `a-challenge-
+   pattern that caused it, so the scripted-backend test is the check.
+   Night 32 (11:38 to 12:06, 172 steps, 17 asks): click merged cold.
+   bg_1 delivered 37 tests passing, a fail and pass verdicts, one merge
+   (clickI e4dcb32). What merged is poor: `echo_json` lives in a new
+   `src/click/main.py` and again in `src/echo_json.py`, not next to
+   `echo` in `utils.py`, and the test asserts only that something was
+   written. A merge, not the merge Roman would accept; the Critic passed
+   it. The second sentence (a `default_on_eof` flag for `confirm`)
+   stalled at batch_start: the one-name-one-definition door read the
+   three `@t.overload` stubs of `prompt` in termui.py as duplicates and
+   refused every span write, three identical sessions to quarantine.
+   That door is fixed: an overload stub is not a definition. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
