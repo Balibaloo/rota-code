@@ -12,6 +12,9 @@ export ROTA_ONESHOT=
 ollama_up() { curl -s -m 5 localhost:11434/api/tags >/dev/null || { echo "ollama down at $(date +%H:%M), restarting"; powershell -NoProfile -Command "Start-Process ollama -ArgumentList serve -WindowStyle Hidden" >/dev/null 2>&1; sleep 15; }; }
 export ROTA_MAX_ITERATIONS=24
 export PYTHONUNBUFFERED=1
+# One live file per process: the register recorder on the Titan writes
+# .rota/live.md too, and the two overwrote each other (2026-09-13).
+export ROTA_LIVE="$REPO/.rota/live_click.md"
 export WALK_WORDS="yes that all looks right, go ahead"
 echo "== onboard $(date +%H:%M)"
 # The last night's run database, kept beside the new one: `onboard --force`
