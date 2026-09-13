@@ -7079,13 +7079,19 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     continue
                 if node.name.startswith("_") or node.name.startswith("test"):
                     continue
-                elsewhere = sorted({
+                elsewhere = {
                     r["grain"].split("::", 1)[0] for r in ctx.conn.execute(
                         "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
                         "AND grain LIKE ?", (f"%::{node.name}",))
                     if r["grain"].endswith(f"::{node.name}")
                     and r["grain"].split("::", 1)[0].replace("\\", "/") != path.replace("\\", "/")
-                    and not _is_test_path(r["grain"].split("::", 1)[0])})
+                    and not _is_test_path(r["grain"].split("::", 1)[0])}
+                # The index is the tree at onboarding; the batch's own commits
+                # are not in it. clickI night 42 (2026-09-13): `echo_json`
+                # landed in utils.py, then a second `echo_json` in a new
+                # module the index could not see. The worktree is the fact.
+                elsewhere |= _defined_in_tree(ctx, node.name, path)
+                elsewhere = sorted(elsewhere)
                 if len(elsewhere) == 1:
                     raise ValueError(
                         f"{path} defines {node.name}, and the tree already defines "
@@ -8047,6 +8053,28 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
                  "path outside it is not refused, it is judged after the commit"),
     }
 
+
+
+def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
+    """The non-test modules of the batch's worktree that define `name` at
+    top level, other than `path`. A regex over the files, not a parse: the
+    question is one name, and the tree is small enough to read."""
+    import re as _re
+    root = _batch_worktree(ctx)
+    if root is None or not root.is_dir():
+        return set()
+    pat = _re.compile(rf"^(?:async\s+def|def|class)\s+{_re.escape(name)}\b", _re.M)
+    found: set[str] = set()
+    for f in root.rglob("*.py"):
+        rel = f.relative_to(root).as_posix()
+        if rel == path.replace("\\", "/") or _is_test_path(rel) or rel.startswith((".venv/", ".rota/", "venv/")):
+            continue
+        try:
+            if pat.search(f.read_text(encoding="utf-8", errors="replace")):
+                found.add(rel)
+        except OSError:
+            continue
+    return found
 
 def _is_test_path(path: str) -> bool:
     """A test file by pytest's own rule, or anything under a tests directory."""

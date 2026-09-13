@@ -1813,6 +1813,6 @@ def test_a_span_whose_own_lines_do_not_parse_is_told_which_line(db, tmp_path):
     from rota.roles import prompts
     sb = build("developer", db, batch_id="b1", mode="batch_start",
                allow=prompts.mode_tools("developer", "batch_start"))
-    with pytest.raises(ValueError, match=r"Your text itself does not parse: line 4 of it is 'def echo\('"):
+    with pytest.raises(ValueError, match=r"Your text itself does not parse: line 5 of it is 'def echo\('"):
         sb.call("code.write", path="m.py", start=3, end=3,
                 text="def echo_json(o):\n    print(json.dumps(o))\n\n\ndef echo(\n")

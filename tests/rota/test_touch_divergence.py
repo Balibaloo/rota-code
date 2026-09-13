@@ -168,3 +168,18 @@ def test_a_test_file_is_never_a_stray(db, tmp_path):
     sb.call("code.write", path="src/click/utils.py", start=2, end=2, text="\n\ndef echo_json(o):\n    print(o)\n")
     out = sb.call("code.commit", message="the helper, and the Tester's file beside it")
     assert out["committed"] and "outside_prediction" not in out, out
+
+
+def test_a_name_the_batch_itself_defined_is_seen_without_the_index(db, tmp_path):
+    """clickI night 42 (2026-09-13): `echo_json` landed in utils.py by this
+    batch's own commit, and a second `echo_json` in a new module passed the
+    index, which was built at onboarding. The worktree is the fact."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "utils.py").write_text("def echo(x):\n    print(x)\n\n\ndef echo_json(o):\n    print(o)\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match="already defines echo_json in src/click/utils.py"):
+        sb.call("code.write", path="src/click/echo_json_impl.py",
+                text="import json\n\ndef echo_json(o, indent=2):\n    print(json.dumps(o, indent=indent))\n")
