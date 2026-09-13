@@ -518,6 +518,10 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
             sha = repo.commit_in(tree, spec.get("message", "the batch's work"))
             conn.execute("UPDATE batches SET head_commit = ? WHERE id = ?",
                          (sha, batch_id))
+            # A stray row a case seeds against `HEAD` names the commit the
+            # fixture just made; the case cannot know the sha.
+            conn.execute("UPDATE touch_strays SET commit_sha = ? "
+                         "WHERE batch_id = ? AND commit_sha = 'HEAD'", (sha, batch_id))
     return repo
 
 

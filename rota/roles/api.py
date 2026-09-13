@@ -7682,8 +7682,11 @@ def _outside_prediction(ctx: Ctx, batch_id: str, touched: list[str]) -> list[str
     judged = {r["path"] for r in ctx.conn.execute(
         "SELECT path FROM touch_strays WHERE batch_id = ? AND status != 'open'",
         (batch_id,))}
+    # The tests are the Tester's, and the harness commits them into the
+    # batch: clickI night 41 (2026-09-13) raised six test files as the
+    # Developer's strays. A test path is never a stray.
     return [p for p in stray_paths(touched, _predicted_touch(ctx, batch_id))
-            if p not in judged]
+            if p not in judged and not _is_test_path(p)]
 
 
 @op("batches", "judge_touch")

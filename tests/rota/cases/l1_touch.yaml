@@ -1,0 +1,97 @@
+# The stray-touch judgement (2026-09-13): a commit touched a path the
+# Architect's prediction never named. The Architect says foreseen or a
+# mistake; a mistake wakes the Developer to take it out.
+
+- id: L1-AR-judge-a-stray-foreseen-or-a-mistake
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  tick: touch_strayed
+  refs: [<b1>]
+  # clickI night 41 (2026-09-13): the Developer added `src/click/echo_json_impl.py`
+  # beside the predicted `src/click/utils.py`; the stray wake showed the diff
+  # and the prediction. Either judgement is a judgement; naming things that
+  # are not strays is dropped, not refused. The case asks for one judgement
+  # on the one stray, in one call.
+  repo:
+    batch: <b1>
+    message: "echo_json in its own module"
+    edit:
+      src/pkg/echo_json_impl.py: |
+        import json
+
+
+        def echo_json(obj, indent=2):
+            print(json.dumps(obj, indent=indent))
+  fixture:
+    items:
+      - {id: <i1>, text: "add an echo_json helper next to echo that prints an object as JSON",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add an echo_json helper next to echo"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "echo_json prints the object as JSON with the given indent",
+         term_refs: '[]', surface_refs: '["echo_json"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: HEAD}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: "src/pkg/utils.py", grain_kind: path, confidence: expected}
+    touch_strays:
+      - {batch_id: <b1>, commit_sha: HEAD, path: "src/pkg/echo_json_impl.py", status: open}
+  expect:
+    writes:
+      touch_strays: {count: "1..1"}
+    calls: [batches.judge_touch]
+  forbidden:
+    writes: [criteria, tickets, items, constraints]
+    recipients: [developer, tester, liaison, vision_keeper]
+
+- id: L1-DV-take-a-mistake-out
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 3
+  tick: touch_mistaken
+  refs: [<b1>]
+  # The Architect judged the new module a mistake: the helper belongs beside
+  # `echo` in utils.py. The Developer removes the file, or moves the helper,
+  # and commits; the next commit is a new head and the judgement stays behind.
+  repo:
+    batch: <b1>
+    message: "echo_json in its own module"
+    edit:
+      src/pkg/utils.py: |
+        def echo(message):
+            print(message)
+      src/pkg/echo_json_impl.py: |
+        import json
+
+
+        def echo_json(obj, indent=2):
+            print(json.dumps(obj, indent=indent))
+  fixture:
+    items:
+      - {id: <i1>, text: "add an echo_json helper next to echo that prints an object as JSON",
+         kind: in_scope, provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "add an echo_json helper next to echo"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "echo_json prints the object as JSON with the given indent",
+         term_refs: '[]', surface_refs: '["echo_json"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: HEAD}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    batch_touch:
+      - {batch_id: <b1>, grain: "src/pkg/utils.py", grain_kind: path, confidence: expected}
+    touch_strays:
+      - {batch_id: <b1>, commit_sha: HEAD, path: "src/pkg/echo_json_impl.py", status: mistake,
+         note: "the helper belongs beside echo in utils.py; a second module is a copy"}
+  expect:
+    calls: [code.write, code.commit]
+  forbidden:
+    writes: [tests, criteria]
+    recipients: [tester, liaison, vision_keeper]

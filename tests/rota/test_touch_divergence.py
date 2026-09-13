@@ -151,3 +151,20 @@ def test_a_second_definition_of_a_name_the_tree_has_once_is_refused(db, tmp_path
     assert sb.call("code.write", path="src/click/utils.py",
                    text="def echo(x):\n    print(x)\n\ndef echo_json(o):\n    print(o)\n")["bytes"], \
         "the module that owns the name may change it"
+
+
+def test_a_test_file_is_never_a_stray(db, tmp_path):
+    """clickI night 41 (2026-09-13): the harness commits the Tester's tests
+    into the batch, and six test files were raised as the Developer's strays."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True); (root / "tests").mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "src" / "click" / "utils.py").write_text("def echo(x):\n    print(x)\n")
+    _git(root, "add", "."); _git(root, "commit", "-q", "-m", "base")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    (root / "tests" / "test_echo_json.py").write_text("def test_x():\n    assert True\n")
+    sb.call("code.write", path="src/click/utils.py", start=2, end=2, text="\n\ndef echo_json(o):\n    print(o)\n")
+    out = sb.call("code.commit", message="the helper, and the Tester's file beside it")
+    assert out["committed"] and "outside_prediction" not in out, out
