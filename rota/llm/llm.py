@@ -198,9 +198,9 @@ class LiveView:
 
 
 def _cycling(lines: list[str]) -> bool:
-    """Three copies of one line, or of one cycle of two to eight lines, at
+    """Three copies of one line, or of one cycle of two to sixteen lines, at
     the tail. Short lines (a bare bracket, a blank marker) never count."""
-    for k in range(1, 9):
+    for k in range(1, 17):
         if len(lines) < 3 * k:
             break
         tail = lines[-3 * k:]
@@ -256,7 +256,7 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
             while "\n" in line_buf:
                 done_line, line_buf = line_buf.split("\n", 1)
                 if done_line.strip():
-                    last_lines = (last_lines + [done_line.strip()])[-24:]
+                    last_lines = (last_lines + [done_line.strip()])[-48:]
             # The same line three times, or the same cycle of up to eight
             # lines three times. clickI night 40 (2026-09-13): a reconcile
             # reply cycled five `code.source` calls for 84 seconds to the
