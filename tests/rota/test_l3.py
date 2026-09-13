@@ -67,7 +67,7 @@ def backend_factory(dev_db):
         return lambda: ReplayOnlyBackend(dev_db)
     refresh = bool(os.environ.get("ROTA_REFRESH"))
     return lambda: RecordingBackend(
-        OllamaBackend(timeout=300), dev_db, refresh=refresh)
+        OllamaBackend(), dev_db, refresh=refresh)
 
 
 @pytest.mark.parametrize("case", _chains(), ids=[c["id"] for c in _chains()])
