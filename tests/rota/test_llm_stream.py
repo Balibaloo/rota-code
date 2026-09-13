@@ -35,3 +35,15 @@ def test_a_stream_past_its_deadline_is_a_timeout():
     timeout never tripped because bytes kept trickling."""
     with pytest.raises(TimeoutError, match="ran past the time allowed"):
         _consume_stream(_chunks(50, pause=0.01), _live(), deadline=time.monotonic() + 0.05)
+
+
+def test_a_cycle_of_lines_three_times_over_is_repeating():
+    """clickI night 40 (2026-09-13): a reconcile reply cycled five
+    `code.source` calls for 84 seconds to the output cap."""
+    from rota.llm.llm import _cycling
+    line = "TOOL: code.source(path='click/utils.py', start=0, end=400)"
+    assert _cycling([line] * 3)
+    cycle = [f"TOOL: code.source(path='click/{n}.py', start=0, end=400)" for n in ("a", "b", "c", "d", "e")]
+    assert not _cycling(cycle * 2), "twice is a re-read; three times is a loop"
+    assert _cycling(cycle * 3)
+    assert not _cycling(["x)"] * 6), "short lines never count"

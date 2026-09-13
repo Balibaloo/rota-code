@@ -48,6 +48,7 @@ onboarding. A row is filled when its wake has been read.
 | 19 | click n38 s118 | terminologist criteria | with the item and the module pushed, twenty-four criteria on one ticket (datetime, unicode, a docstring, test coverage); then a twenty-five line signoff page, a relay that mistook criteria for items, a landing cut at the output budget | the brief's own number: three is usual and six is many | a door: the seventh criterion on a ticket is refused with the route (`criteria.specify`, 2026-09-13) |
 | 20 | click n38 s011, s124 | vision_keeper relay | a relay whose resolved refs were statements and criteria; the Vision Keeper called `problem.set_approval` on them, ten refusals | which table each ref is a row of | every resolved ref carries its table (`runner._resolve_refs`, 2026-09-13) |
 | 21 | click n38 s090 | liaison blindspot | `code.gaps` and the surveys; the Liaison reached for `transcript.quote` (not in the mode) and logged a row about `tick:constraint_zero`, which names no row | the areas nobody surveyed, named as areas, are what a ledger row here is about | a brief line: the row is about an area (`@<area>`); measured later |
+| 22 | click n40 s013, s015, s020, s021, s027, s029 | vision_keeper reconcile | one reply cycling five `code.source` calls for 84 seconds to the output cap, then a cut note written for a Developer | a stream that stops when it loops | the stream stops on a cycle of up to eight lines repeated three times (`llm._cycling`); the cut note is role-neutral (2026-09-13) |
 
 ## To read (night 35)
 

@@ -197,6 +197,19 @@ class LiveView:
         self._write(f"\n\n---\n[{how}]\n")
 
 
+def _cycling(lines: list[str]) -> bool:
+    """Three copies of one line, or of one cycle of two to eight lines, at
+    the tail. Short lines (a bare bracket, a blank marker) never count."""
+    for k in range(1, 9):
+        if len(lines) < 3 * k:
+            break
+        tail = lines[-3 * k:]
+        a, b, c = tail[:k], tail[k:2 * k], tail[2 * k:]
+        if a == b == c and all(len(l) > (40 if k == 1 else 20) for l in a):
+            return True
+    return False
+
+
 def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> dict:
     """
     Join Ollama's streamed `/api/chat` chunks into the one body the
@@ -243,11 +256,16 @@ def _consume_stream(lines, live: "LiveView", deadline: float | None = None) -> d
             while "\n" in line_buf:
                 done_line, line_buf = line_buf.split("\n", 1)
                 if done_line.strip():
-                    last_lines = (last_lines + [done_line.strip()])[-3:]
-            if (len(last_lines) == 3 and len(last_lines[0]) > 40
-                    and last_lines[0] == last_lines[1] == last_lines[2]):
+                    last_lines = (last_lines + [done_line.strip()])[-24:]
+            # The same line three times, or the same cycle of up to eight
+            # lines three times. clickI night 40 (2026-09-13): a reconcile
+            # reply cycled five `code.source` calls for 84 seconds to the
+            # output cap, 24,000 characters, and the cut note then blamed
+            # the reply's length. A cycle of substantial lines repeated
+            # three times is a fact about the stream.
+            if _cycling(last_lines):
                 stopped = True
-                live.token("\n[stopped: the same line three times]\n")
+                live.token("\n[stopped: the same lines three times over]\n")
                 break
         for call in msg.get("tool_calls") or []:
             tool_calls.append(call)

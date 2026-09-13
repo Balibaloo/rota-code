@@ -1550,9 +1550,10 @@ def run_session(
                 # as already changed. The cap is a fact the model cannot see.
                 cut = ("your reply was cut at the output budget before it "
                        "ended, so the last call did not run and nothing was "
-                       "written. Send less in one reply: for a long file, "
-                       "write the span you changed with start and end copied "
-                       "from code.source, not the whole file")
+                       "written. Send less in one reply: one or two calls, "
+                       "then read their results. For a long file, write the "
+                       "span you changed with start and end copied from "
+                       "code.source, not the whole file")
                 outcome.errors.append(cut)
                 cut_note = cut
             else:
