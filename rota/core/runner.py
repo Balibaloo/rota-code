@@ -1434,6 +1434,7 @@ def run_session(
                 pushed_keys.add(sb.call_key(name, (sb.ctx.area,), {}))
         already_run: set[str] = set()
         turns: list[Turn] = []
+        cut_retried = False
 
         # Four characters to the token is the same rough measure the cockpit
         # uses. Two thirds of the window, because the system prompt is charged
@@ -1479,7 +1480,21 @@ def run_session(
                        "write the span you changed with start and end copied "
                        "from code.source, not the whole file")
                 outcome.errors.append(cut)
-                feedback.append(f"ERROR reply cut: {cut}")
+                cut_note = cut
+            else:
+                cut_note = None
+            if cut_note and not calls and not cut_retried:
+                # clickI night 31 (2026-09-13): a Tester challenge reply ran
+                # to the cap with no call in it, the cut note was appended to
+                # a list the loop had not made yet, the session died on the
+                # NameError, and the same wake was dispatched 69 times over
+                # 98 minutes. A cut reply with no call is not the end: the
+                # model reads what it sent, bounded, and the cut, once.
+                cut_retried = True
+                transcript.append(_render_cut(completion.text, 4000))
+                transcript.append(f"ERROR reply cut: {cut_note} Send calls, "
+                                  f"or end with one sentence.")
+                continue
             if ("```" in completion.text and not calls
                     and "code.write" in allowed and not fence_warned):
                 # Walk ten: the Developer's fix, whole and correct, inside a
@@ -1587,6 +1602,8 @@ def run_session(
                 break
 
             feedback = []
+            if cut_note:
+                feedback.append(f"ERROR reply cut: {cut_note}")
             held = []
             # Any tool call this turn supersedes last turn's held tail -- the
             # model revised, and its new calls are its will. Cleared here,

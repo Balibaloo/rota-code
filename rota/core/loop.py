@@ -235,6 +235,17 @@ def step(
         result.cascaded = [str(w) for w in cascade_wakes(conn, result.outcome.session_id)]
     else:
         release(conn, result.wake.role)
+        # The message attempt cap ran at boot only. clickI night 31
+        # (2026-09-13): a session that died on the same error every time
+        # was dispatched 69 times on one message inside one run, and the
+        # cap never saw it. A failed session spends its attempt here.
+        from .boot import quarantine_exhausted
+
+        gone = quarantine_exhausted(conn)
+        if gone:
+            result.note = (result.note + " " if result.note else "") + \
+                f"quarantined past the attempt cap: {', '.join(gone)}"
+        conn.commit()
 
     return result
 

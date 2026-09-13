@@ -795,3 +795,28 @@ def test_a_stream_that_repeats_the_same_line_three_times_is_stopped_there():
     assert out.get("done_reason") == "repeating"
     assert len(pulled) == 3, pulled
     assert out["message"]["content"].count(line) == 3
+
+
+def test_a_cut_reply_with_no_call_is_shown_the_cut_once_and_the_session_commits(db):
+    """clickI night 31 (2026-09-13): a first reply ran to the output cap with
+    no call in it. The cut note went to a list the loop had not made yet,
+    the session died on the NameError, and the same wake was dispatched 69
+    times. The model reads what it sent, bounded, and the cut, once."""
+    from rota.llm.llm import Completion
+
+    class Cut(ScriptedBackend):
+        def complete(self, system, user, pins, tools=None):
+            c = super().complete(system, user, pins, tools)
+            if len(self.calls) == 1:
+                return Completion(text=c.text, pins=pins, backend=self.name,
+                                  raw={"done_reason": "length"})
+            return c
+
+    backend = Cut(["I keep thinking about the stream. " * 400, "Nothing to add."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    assert len(backend.calls) == 2, "the cut reply must be answered once, not ended on"
+    second = backend.calls[1][1]
+    assert "reply cut" in second
+    assert len(second) - len(backend.calls[0][1]) < 6000, "the cut reply goes back bounded"

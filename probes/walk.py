@@ -143,6 +143,11 @@ for i in range(cap):
                      (f"m_p{n}", rep.message_id, f'["e_p{n}"]', seq))
         conn.commit()
     s = step(conn, pins=pins, backend=backend)
+    if s is not None and s.outcome is not None and not s.outcome.committed:
+        # Said at once and flushed: night 31 ran 98 minutes on one failing
+        # wake and the log held nothing, because the failure was silent and
+        # stdout was block-buffered into a file.
+        print(f"FAILED {s.wake}: {(s.outcome.errors or ['?'])[-1][:200]}", flush=True)
     if s is None or s.wake is None:
         print(f"quiet after {i} steps, {asked} asks")
         record(0, i, asked, "quiet")

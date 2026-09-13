@@ -7,6 +7,7 @@ W="$P/walk.py"
 export ROTA_ONESHOT=
 ollama_up() { curl -s -m 5 localhost:11434/api/tags >/dev/null || { echo "ollama down at $(date +%H:%M), restarting"; powershell -NoProfile -Command "Start-Process ollama -ArgumentList serve -WindowStyle Hidden" >/dev/null 2>&1; sleep 15; }; }
 export ROTA_MAX_ITERATIONS=24
+export PYTHONUNBUFFERED=1
 export WALK_WORDS="yes that all looks right, go ahead"
 echo "== onboard $(date +%H:%M)"
 python -m rota onboard clickI --root "${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
