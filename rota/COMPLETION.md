@@ -44,8 +44,12 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    with the paths, who says foreseen or mistake in one call
    (`batches.judge_touch`); a mistake wakes the Developer
    (`touch_mistaken`) to take it out; the merge gate holds while a stray
-   is unjudged or a mistake is still in the head commit. Unmeasured on a
-   walk yet; night 35 is the first.
+   is unjudged or a mistake is still in the head commit. Night 38
+   (2026-09-13) is the first honest walk on it, after the wake audit
+   (`plans/wake-audit.md`) gave the Developer, Tester and Architect the
+   batch's expectation and the Architect the callables lens; nights 35
+   and 36 ran from a broken script copy and night 37 stopped on a span
+   cut the door now names.
 3. **E1, amendment as the normal move.** Level 2: cancel a running batch
    built from the amended item and re-batch; a merged batch stays and the
    amendment is a new batch on it. The mechanics exist (`cancel`,
