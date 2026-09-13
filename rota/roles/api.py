@@ -7469,6 +7469,29 @@ def code_commit(ctx: Ctx, message: str) -> dict:
             f"named, then commit. A commit without it fails every test of "
             f"it at import")
     drift = _signature_drift(ctx, tree)
+    # A commit that puts the tree back where it stood before the last one
+    # is churn. clickI night 30 (2026-09-13): twelve commits flipping a
+    # trailing newline between a test that passed either way and a Critic
+    # that read the criterion differently each time; six pass verdicts,
+    # each on a head the next commit left behind, and no merge. The tree
+    # two commits back is a fact git holds.
+    import subprocess as _sp
+    has_two = _sp.run([*worktrees.GIT, "-C", str(tree), "rev-parse", "--verify", "-q", "HEAD~1"],
+                      capture_output=True, text=True).returncode == 0
+    if has_two:
+        same_as_before = _sp.run(
+            [*worktrees.GIT, "-C", str(tree), "diff", "--quiet", "HEAD~1", "--", ".",
+             ":(exclude).venv", ":(exclude).rota"], capture_output=True, text=True).returncode == 0
+        changed_now = _sp.run(
+            [*worktrees.GIT, "-C", str(tree), "diff", "--quiet", "HEAD", "--", ".",
+             ":(exclude).venv", ":(exclude).rota"], capture_output=True, text=True).returncode != 0
+        if same_as_before and changed_now:
+            raise ValueError(
+                "this commit puts the tree back where it stood before your last "
+                "commit: you are undoing yourself. The tests pass both ways, so "
+                "the disagreement is not in the code. Say what stands and why "
+                "(a decision), challenge the test (msg.challenge_tester) or "
+                "escalate the criterion (msg.escalate_architect); do not flip")
     sha = worktrees.commit(tree, message)
     if sha is None and drift:
         raise ValueError(

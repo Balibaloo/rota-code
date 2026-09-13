@@ -1673,3 +1673,31 @@ def test_a_clarify_may_quote_the_principals_own_words(db):
     with pytest.raises(ValueError, match="bookkeeping"):
         sb.call("msg.clarify_principal", refs=["e_p9"],
                 question="What should 'batch_start_v2' do when stdin is closed?")
+
+
+def test_a_commit_that_undoes_the_last_one_is_churn(db, tmp_path):
+    """clickI night 30 (2026-09-13): twelve commits flipping a trailing
+    newline, six pass verdicts each on a head the next commit left behind,
+    no merge. The tree two commits back is a fact git holds."""
+    import subprocess
+
+    root = tmp_path / "wt"; root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    def commit_file(text, msg):
+        (root / "script.py").write_text(text, encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", msg], check=True)
+    a = "def close_account(x):" + chr(10) + "    return 1" + chr(10)
+    b = "def close_account(x):" + chr(10) + "    return 1" + chr(10) + chr(10)
+    commit_file(a, "a"); commit_file(b, "b")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = '[\"script.py::close_account\"]' WHERE id = 'c1'")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    sb.call("code.write", path="script.py", text=a)
+    with pytest.raises(ValueError, match="undoing yourself"):
+        sb.call("code.commit", message="back to a")
+    sb.call("code.write", path="script.py", text=a + "def other():" + chr(10) + "    return 2" + chr(10))
+    assert sb.call("code.commit", message="a real change").get("committed") is not False
