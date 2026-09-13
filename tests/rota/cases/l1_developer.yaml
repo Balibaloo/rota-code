@@ -393,6 +393,7 @@
   runs: 5
   pass: 3
   tick: batch_start
+  tick_unseedable: the wake state is pre-dispatch; the fixture is post-dispatch
   refs: [<b1>]
   repo:
     batch: <b1>

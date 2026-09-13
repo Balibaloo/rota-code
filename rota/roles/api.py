@@ -3352,8 +3352,11 @@ def batches_annotate(ctx: Ctx, batch_id: str, paths: list[str],
             known_dirs.add("/".join(parts[:i]))
     # Only a nested path is checked: a new file at the root is a prediction
     # the tree can always hold.
+    # No index, no fact: a run that has not scanned the tree cannot say
+    # which directories it lacks.
     strays = [p for p in paths if "/" in p.replace("\\", "/")
-              and "/".join(p.replace("\\", "/").split("/")[:-1]) not in known_dirs]
+              and "/".join(p.replace("\\", "/").split("/")[:-1]) not in known_dirs
+              ] if known_dirs != {""} else []
     if strays:
         top = sorted(d for d in known_dirs if d and "/" not in d)[:6]
         raise ValueError(
