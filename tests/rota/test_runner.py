@@ -850,5 +850,6 @@ def test_the_same_refusal_three_times_ends_the_session(db):
     backend = ScriptedBackend(calls + ["Done."])
     outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
     assert outcome.committed, outcome.errors
-    assert outcome.iterations == 3, outcome.iterations
-    assert any("refused the same way three times" in e for e in outcome.errors)
+    assert outcome.iterations == 4, outcome.iterations
+    assert any("refused the same way in four turns" in e for e in outcome.errors)
+    assert "will not be accepted again" in backend.calls[3][1], "the third turn is told once"

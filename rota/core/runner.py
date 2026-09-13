@@ -1517,6 +1517,7 @@ def run_session(
         # the same refusal answers the same call, the conversation is over.
         refused_same: dict[tuple[str, str], int] = {}
         stop_reason = ""
+        turn_refusals: set[tuple[str, str]] = set()
 
         # Four characters to the token is the same rough measure the cockpit
         # uses. Two thirds of the window, because the system prompt is charged
@@ -1825,11 +1826,23 @@ def run_session(
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     feedback.append(f"ERROR {call.name}: {exc}")
-                    same = (call.name, str(exc)[:160])
-                    refused_same[same] = refused_same.get(same, 0) + 1
-                    if refused_same[same] >= 3 and not stop_reason:
-                        stop_reason = (f"{call.name} was refused the same way three "
-                                       f"times; the session ended on it")
+                    turn_refusals.add((call.name, str(exc)[:160]))
+
+            # Counted per turn, not per call: a reply with four calls refused
+            # the same way is one turn of the conversation, not three (clickI
+            # night 43, 2026-09-13, reconcile ended before it could attest).
+            # The third turn is told once; a fourth ends the session.
+            for same in turn_refusals:
+                refused_same[same] = refused_same.get(same, 0) + 1
+                if refused_same[same] == 3:
+                    feedback.append(
+                        f"NOTE {same[0]} has been refused the same way in three turns "
+                        f"and will not be accepted again. Finish what remains "
+                        f"(attest, answer, end) without it")
+                elif refused_same[same] > 3 and not stop_reason:
+                    stop_reason = (f"{same[0]} was refused the same way in four turns; "
+                                   f"the session ended on it")
+            turn_refusals = set()
 
             if held:
                 feedback.append(
