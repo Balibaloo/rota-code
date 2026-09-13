@@ -824,3 +824,19 @@ def test_a_cut_reply_with_no_call_is_shown_the_cut_once_and_the_session_commits(
     second = backend.calls[1][1]
     assert "reply cut" in second
     assert len(second) - len(backend.calls[0][1]) < 6000, "the cut reply goes back bounded"
+
+
+def test_a_barren_session_on_a_challenge_leaves_it_unresolved(db):
+    """clickI night 33 (2026-09-13): the Tester's answers were all refused,
+    the session committed with nothing, and the challenge read as answered.
+    A challenge nobody answered goes to the ladder, not to 'answered'."""
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+               "VALUES ('m2','t1','developer','tester','challenge',2)")
+    db.commit()
+    wake = Wake(role="tester", kind="message", message_id="m2", detail="challenge")
+    outcome = run_session(db, wake, backend=ScriptedBackend(["I have nothing to add."]),
+                          pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+    row = db.execute("SELECT status, unresolved_note FROM messages WHERE id='m2'").fetchone()
+    assert row["status"] == "unresolved", dict(row)
+    assert row["unresolved_note"]

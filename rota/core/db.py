@@ -486,10 +486,24 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         # remained to carry it. Left unresolved, the ladder resumes.
         if result.trigger_msg:
             barren = not result.writes and not result.messages
-            was_unresolved = conn.execute(
-                "SELECT 1 FROM messages WHERE id = ? AND status = 'unresolved'",
+            trig = conn.execute(
+                "SELECT status, verb FROM messages WHERE id = ?",
                 (result.trigger_msg,)).fetchone()
-            if not (barren and was_unresolved):
+            was_unresolved = bool(trig and trig["status"] == "unresolved")
+            if barren and trig and trig["verb"] == "challenge" and trig["status"] == "open":
+                # A barren session on a challenge is not an answer to it.
+                # clickI night 33 (2026-09-13): the Tester's every answer was
+                # refused as carrying nothing, the session committed with
+                # nothing, the challenge read as answered, the Developer was
+                # woken by the same failing test with the same prompt and
+                # challenged again -- three rounds to quarantine, and the
+                # ladder never saw a question nobody had answered.
+                conn.execute(
+                    "UPDATE messages SET status = 'unresolved', unresolved_note = "
+                    "COALESCE(unresolved_note, 'the session woken by it wrote "
+                    "nothing and sent nothing') WHERE id = ?",
+                    (result.trigger_msg,))
+            elif not (barren and was_unresolved):
                 conn.execute(
                     "UPDATE messages SET status = 'answered' WHERE id = ?",
                     (result.trigger_msg,),
