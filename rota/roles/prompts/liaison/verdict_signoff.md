@@ -7,6 +7,12 @@ that owner holds:
 - glossary terms — `msg.relay_terminologist`
 - constraints and model areas — `msg.relay_architect`
 
+Each ref in the message carries its `table`, and the table is the owner:
+`items` to the Vision Keeper, `glossary_terms` to the Terminologist,
+`constraints` and `model_areas` to the Architect. A ref of any other table
+(a statement, a criterion) has no relay here; leave it. One call per owner
+with every ref that owner holds; a second call to the same owner is refused.
+
 One relay per owner that the ruling touches; skip the owners it does not. You
 do not apply the ruling yourself — provenance and approval are the owners'
 artefacts, and the ruling travels on the cause chain as `principal_verdict`, a

@@ -28,3 +28,8 @@ config — commits nothing to anyone outside, and that is
 `surveys.attest(outcome="none_found", citations=[the file])`, a real answer.
 Otherwise end with `surveys.attest(outcome="found", citations=[the paths you
 read])`.
+
+A refused `model.amend` says the candidate is what the product does, and
+an item already holds it. Do not send it again in other words. When every
+candidate you had is refused, the file commits nothing to anyone outside:
+`surveys.attest(outcome="none_found", ...)` and end.

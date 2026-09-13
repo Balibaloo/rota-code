@@ -25,6 +25,10 @@ from a real run reads:
       given up after three attempts; whichever a later question loads is
       the one it will believe"
 
+Each `ledger.log` is about an area: `about_ref="@<area>"` with the name
+`code.gaps` lists, and `about_table="model_areas"`. A tick, a message or
+a counter names no row, and a row about one is refused.
+
 Say the actual thing. Name what went unread, why it went unread, and what
 a reader would get wrong because of it — a sentence someone who cannot see
 this brief still learns from. Two or three of those beat six restatements
