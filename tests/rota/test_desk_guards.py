@@ -1653,9 +1653,16 @@ def test_a_test_that_uses_a_printing_surfaces_return_value_logs_the_assumption(d
             + "    result = echo_json({'a': 1})" + chr(10) + "    assert result.startswith('{')" + chr(10))
     with pytest.raises(ValueError, match="uses what echo_json returns"):
         sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+    # The criterion itself says it prints, so no ledger row lifts the door
+    # (night 45, 2026-09-14): the test reads what printed.
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
             assumption="the test assumes echo_json returns what it prints")
-    assert sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+    with pytest.raises(ValueError, match="reads what printed"):
+        sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
+    printed = ("from script import echo_json" + chr(10) + "def test_x(capsys):" + chr(10)
+               + "    echo_json({'a': 1})" + chr(10) + "    out = capsys.readouterr().out" + chr(10)
+               + "    assert out.startswith('{')" + chr(10))
+    assert sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=printed)
 
 
 def test_a_clarify_may_quote_the_principals_own_words(db):

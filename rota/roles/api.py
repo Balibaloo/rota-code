@@ -4214,12 +4214,24 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         own_row = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
                                    (criterion_id,)).fetchone()
         own = _words(own_row["text"] or "") if own_row else set()
-        if PRINTS & own and not RETURNS & own:
-            # Only a logged assumption about this criterion lifts it.
-            says_prints, says_returns = PRINTS & own, RETURNS & logged
+        own_prints = bool(PRINTS & own and not RETURNS & own)
+        if own_prints:
+            # No lift by a ledger row: clickI night 45 (2026-09-14) logged
+            # "assumes echo_json prints rather than returning a value", whose
+            # words lifted the door, and the test asserted on the return
+            # value it had just said did not exist. The criterion says it
+            # prints; the test asserts on what it prints.
+            says_prints, says_returns = PRINTS & own, set()
         else:
             says_prints = PRINTS & material
             says_returns = RETURNS & material
+        if says_prints and not says_returns and own_prints:
+            raise ValueError(
+                f"the test uses what {uses_return} returns, and the criterion "
+                f"{criterion_id} says it prints. A test of what prints reads "
+                f"what printed: def test_x(capsys): {uses_return}(...); "
+                f"out = capsys.readouterr().out; assert ... on out. Send the "
+                f"encode again that way")
         if says_prints and not says_returns:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion, "
