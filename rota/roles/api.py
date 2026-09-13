@@ -6949,6 +6949,7 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                         f"start={lo}, end={hi}; to add after it send "
                         f"start={hi}, end={hi}")
         nl = chr(10)
+        fragment = text
         text = nl.join(lines[:start] + text.splitlines() + lines[stop:]) + nl
     from ..core import fence as _fence
     _fence.check_manifest(path, _criteria_texts(ctx))
@@ -7015,9 +7016,22 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
         try:
             tree = _ast.parse(text)
         except SyntaxError as exc:
+            # A span whose own lines do not parse: clickI night 40
+            # (2026-09-13), the fragment ended with a dangling `def echo(`
+            # copied from the file to show where it goes, and the refusal
+            # named the merged file's line, not the fragment's, six times.
+            frag_note = ""
+            if span:
+                try:
+                    _ast.parse(fragment)
+                except SyntaxError as fexc:
+                    bad = (fragment.splitlines() + [""])[max((fexc.lineno or 1) - 1, 0)]
+                    frag_note = (f" Your text itself does not parse: line {fexc.lineno} "
+                                 f"of it is {bad.strip()!r}. Send only the lines you add, "
+                                 f"whole statements; the file's own lines stay where they are.")
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
-                f"the harness imports it and would die at collection") from None
+                f"the harness imports it and would die at collection.{frag_note}") from None
         # One name, one definition. tipsS (2026-09-09): the Developer put a
         # second `calculate_tip(total, people)` above the tip function, the
         # later definition won, the test got the tip instead of the share,

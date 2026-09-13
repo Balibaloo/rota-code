@@ -1800,3 +1800,19 @@ def test_a_seventh_criterion_on_one_ticket_is_refused(db):
     with pytest.raises(ValueError, match="six is many"):
         sb.call("criteria.specify", id="c9_6", ticket_id="tk9",
                 text="echo_json also serialises datetimes as ISO 8601 strings", term_refs=[], surface_refs=[])
+
+
+def test_a_span_whose_own_lines_do_not_parse_is_told_which_line(db, tmp_path):
+    """clickI night 40 (2026-09-13): the fragment ended with a dangling
+    `def echo(` copied from the file to show where it goes, and the refusal
+    named the merged file's line six times over."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "m.py").write_text("import json\n\n\ndef echo(\n    message,\n):\n    print(message)\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    with pytest.raises(ValueError, match=r"Your text itself does not parse: line 4 of it is 'def echo\('"):
+        sb.call("code.write", path="m.py", start=3, end=3,
+                text="def echo_json(o):\n    print(json.dumps(o))\n\n\ndef echo(\n")
