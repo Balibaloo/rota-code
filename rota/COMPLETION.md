@@ -1373,11 +1373,20 @@ merged cold in 34 steps.
    it anyway, were refused, and challenged nobody; review was
    quarantined. Two facts to hold: a commit that returns the tree to
    where it stood two commits ago is churn (a door now), and a review
-   verdict is for the head it was written on (already so). Night 31 runs
-   on the churn door. The amendment walk tipsAZ on the Titan hung for
-   seven hours in one Tester turn with the stream deadline in place, so
-   the wait was not in the chunk loop; a watchdog thread shuts the
-   socket at twice the timeout. `a-challenge-
+   verdict is for the head it was written on (already so). The amendment
+   walk tipsAZ on the Titan hung for seven hours in one Tester turn with
+   the stream deadline in place, so the wait was not in the chunk loop; a
+   watchdog thread shuts the socket at twice the timeout.
+   Night 31 (09:13, killed 11:30) and tipsBA (09:19, killed 11:30) both
+   froze at 09:47 with a card at full load: not a hang but a loop. A
+   Tester reply ran to the 8192-token cap with no call in it; the cut
+   note was appended to a list the loop had not made yet, the session
+   died on the NameError uncommitted, and the same wake came back 69
+   times at 90 s each. The seven-hour tipsAZ "hang" had the same shape,
+   a Tester turn with the turn count frozen, and was likely this. Three
+   fixes: a cut reply with no call goes back once, bounded; a failed
+   session runs the message attempt cap inside the run; the walk driver
+   prints a failed step at once. Night 32 and tipsBB run on them. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
