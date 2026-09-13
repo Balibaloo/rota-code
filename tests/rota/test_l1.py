@@ -89,7 +89,7 @@ def backend_factory(dev_db):
         return lambda: ReplayOnlyBackend(dev_db)
     refresh = bool(os.environ.get("ROTA_REFRESH"))
     return lambda: RecordingBackend(
-        OllamaBackend(timeout=300), dev_db, refresh=refresh)
+        OllamaBackend(), dev_db, refresh=refresh)
 
 
 @pytest.mark.parametrize("case", _cases(), ids=_ids(_cases()))
@@ -129,7 +129,7 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
             interview.record(
                 dev_db, case["id"], r.run, stamp, r.problems,
                 interview.conduct(r.outcome, called,
-                                  OllamaBackend(timeout=300), PINS),
+                                  OllamaBackend(), PINS),
                 interview.ids_in(r.outcome.user), called)
 
     # Unknown is not the same as wrong, and reporting one as the other is how a
