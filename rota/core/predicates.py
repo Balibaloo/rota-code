@@ -1267,18 +1267,34 @@ def quarantined(conn) -> list[Wake]:
                 refs.append(ref)
 
     n = len(dead)
+    # A stalled tick's key carries its refs (`role|tick:name|ref,ref`), and
+    # those are the batch or the item the work was about: the payload the
+    # brief asks the Liaison to name. clickI night 37 (2026-09-13): the wake
+    # said "1 abandoned" and nothing else, and the Liaison sent
+    # `refs=["tick:quarantined"]` three times to a door that refused it.
+    stalled: list[str] = []
     try:
-        n += conn.execute(
-            "SELECT COUNT(*) n FROM tick_attempts "
-            "WHERE quarantined = 1 AND reported = 0"
-        ).fetchone()["n"]
+        for row in conn.execute(
+                "SELECT tick_key, attempts FROM tick_attempts "
+                "WHERE quarantined = 1 AND reported = 0 ORDER BY tick_key"):
+            n += 1
+            parts = (row["tick_key"] or "").split("|")
+            role = parts[0] if parts else ""
+            kind = parts[1].replace("tick:", "") if len(parts) > 1 else ""
+            keyed = [r for r in (parts[2] if len(parts) > 2 else "").split(",") if r]
+            for ref in keyed:
+                if ref not in refs and conn.execute(
+                        "SELECT 1 FROM batches WHERE id = ? UNION SELECT 1 FROM items WHERE id = ? "
+                        "UNION SELECT 1 FROM tickets WHERE id = ?", (ref, ref, ref)).fetchone():
+                    refs.append(ref)
+            stalled.append(f"{kind} for {', '.join(keyed) or 'the run'}"
+                           f"{f' ({role})' if role and role != '-' else ''}, "
+                           f"{row['attempts']} attempts")
     except Exception:                 # a database older than the table
         pass
-    # A stalled tick has no payload to offer and that is the honest answer
-    # rather than a hole: it was never about an item, so there is nothing to
-    # name. It still wakes, because a tick that cannot drain is the worse half.
+    detail = f"{n} abandoned" + (": " + "; ".join(stalled) if stalled else "")
     return [Wake("liaison", "tick:quarantined", refs=tuple(refs),
-                 detail=f"{n} abandoned")] if n else []
+                 detail=detail)] if n else []
 
 
 @predicate("agenda", wakes="liaison", band="gate", needs_principal=True,

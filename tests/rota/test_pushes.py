@@ -49,3 +49,35 @@ def test_the_criteria_wake_carries_the_item_and_the_module_the_ticket_names(tmp_
     assert pushed["the item"]["the principal said"] == ["Add an echo_json helper next to echo."]
     assert list(pushed["code.source"]) == ["src/click/utils.py"], pushed.get("code.source")
     assert "def echo" in str(pushed["code.source"]["src/click/utils.py"])
+
+
+def test_the_agenda_wake_pushes_the_pages_seven_and_counts_the_rest(tmp_path):
+    """clickI night 35 (2026-09-13): 51 open ledger rows, 15,500 characters,
+    pushed into a wake whose refs named seven."""
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES ('i1','x','in_scope','decided')")
+    for k in range(10):
+        db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, author) "
+                   "VALUES (?, 'i1', 'items', ?, 'developer')", (f"l_{k}", f"assumed {k}"))
+    db.commit()
+    sb = build("liaison", db, mode="agenda", allow=prompts.mode_tools("liaison", "agenda"))
+    page = tuple(f"l_{k}" for k in range(7))
+    pushed = push_working_set("liaison", sb, Wake("liaison", "tick:agenda", refs=page))
+    shown = pushed["ledger.list"]
+    assert [r["id"] for r in shown["this page"]] == list(page)
+    assert shown["open and not on this page"].startswith("3 more")
+
+
+def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):
+    """clickI night 37 (2026-09-13): the wake said "1 abandoned" and nothing
+    else, and the Liaison sent refs=["tick:quarantined"] three times."""
+    from rota.core import predicates as P
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_2','i1','running')")
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
+               "VALUES ('developer|tick:batch_start|bg_2', 3, 1, 0)")
+    db.commit()
+    wakes = P.quarantined(db)
+    assert wakes and wakes[0].refs == ("bg_2",)
+    assert "batch_start for bg_2 (developer), 3 attempts" in wakes[0].detail

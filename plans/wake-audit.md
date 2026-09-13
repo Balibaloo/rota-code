@@ -37,6 +37,8 @@ onboarding. A row is filled when its wake has been read.
 | 8 | click n35 s133, s134 | developer batch_start, architect touch_strayed | the Developer wrote `src/click/main.py` with its own `def echo`; the Architect, shown the diff and the criteria but not its prediction, judged it foreseen | the Architect needs its own prediction in the stray wake; the Developer needs a fact: `echo` is defined once, in `utils.py` | `batches.expect` pushed to the Architect; a `code.write` door: a second definition of a name the tree has once is refused |
 | 9 | click n35 s135, s138 | tester tests_missing, answer | criteria, glossary, references, tests, the ticket | the item and the principal's words (as finding 1); and the first import guessed `tests.test_utils`, then `app.commands` | `batches.expect` for the Tester too; the import doors hold |
 | 10 | click n35 s138 | tester answer | nineteen turns: the refusal "a quote inside id ended it early" led the model to write `'''...'''` placeholders, refused as placeholders, then the same body five times | the refusal's example is copied literally by a 9B model | the refusal names the shape without an example to copy; measured on the TS cases |
+| 11 | click n35 s099 | liaison agenda | `ledger.list`: all 51 open rows, 15,500 characters | the page's seven, which the refs name | the push shows the page's rows and counts the rest (`runner.push_working_set`, 2026-09-13) |
+| 12 | click n37 s004 | liaison quarantined | "1 abandoned" and nothing else; the Liaison sent `refs=["tick:quarantined"]` three times | what stalled: the tick's batch or item, and its attempts | the predicate carries the tick's refs and says what stalled (`predicates.quarantined`, 2026-09-13) |
 
 ## To read (night 35)
 

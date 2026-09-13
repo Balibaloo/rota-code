@@ -1235,6 +1235,20 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "the rest of the account, not this wake's": rest,
             }
 
+    # The agenda wake names the page's seven; the rest of the open ledger is
+    # the next pages'. clickI night 35 (2026-09-13): 51 open rows, 15,500
+    # characters, pushed into a wake whose refs named seven.
+    if (wake is not None and wake.kind == "tick:agenda" and wake.refs
+            and isinstance(pushed.get("ledger.list"), list)):
+        rows = pushed["ledger.list"]
+        mine = [r for r in rows if isinstance(r, dict) and r.get("id") in wake.refs]
+        rest = sum(1 for r in rows if isinstance(r, dict) and r.get("id") not in wake.refs)
+        if mine:
+            pushed["ledger.list"] = {
+                "this page": mine,
+                "open and not on this page": f"{rest} more, on the pages after this one",
+            }
+
     if asked and "decisions.search" in have:
         hits: dict[str, Any] = {}
         for word in _subject_words(asked)[:6]:
