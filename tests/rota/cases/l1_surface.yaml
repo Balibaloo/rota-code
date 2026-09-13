@@ -28,7 +28,8 @@
       - {grain: "main.py::input_total", grain_kind: symbol, sym_kind: function}
   expect:
     writes:
-      criteria: {count: "1..4", text_includes: ["split_bill"]}
+      # raised from 1..4 on 2026-09-13: the criteria brief says six is many (2026-09-12) and qwen wrote five
+      criteria: {count: "1..6", text_includes: ["split_bill"]}
   forbidden:
     writes: [tickets, items]
     # The tip function is not the surface of a split.

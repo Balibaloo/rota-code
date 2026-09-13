@@ -165,6 +165,10 @@
   role: architect
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: model.amend refused the binding
+  # `invoice_data` (not a file this session read, no index in the fixture);
+  # the session said it would code.source the file and ended. The fixture
+  # carries no index, so the binding needs a read first; 8B did not take it.
   fixture:
     entries:
       - {id: <e1>, author: principal, ts_order: 1,

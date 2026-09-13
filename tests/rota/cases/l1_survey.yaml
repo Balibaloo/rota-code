@@ -43,6 +43,9 @@
   role: architect
   runs: 5
   pass: 3
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: the amend was written as `MODEL:
+  # amend(...)` prose, not a TOOL call, and the tick ended with nothing
+  # done. Format on 8B.
   tick: survey
   # Areas come from onboarding a real checkout, not from the fixture tables,
   # so the lint's DB-only seeding cannot produce the state this fires on.
@@ -307,6 +310,10 @@
   role: terminologist
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: four terms where the ceiling is
+  # three, and no code.source of the moved area. The 2026-09-12 criteria
+  # brief says six is many; the resurvey ceiling is not that brief's, and
+  # stays.
   tick: survey
   # Loop 5's case: the area was surveyed, the tree moved past the survey, and
   # the freshness view reopens exactly that area. The wake firing at all is

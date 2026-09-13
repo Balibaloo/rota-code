@@ -96,6 +96,9 @@
   role: tester
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: read the answer, loaded
+  # criteria, and said no criteria were mentioned; named the encode and did
+  # not perform it. 8B on an answer wake.
   inbound: {from: terminologist, to: tester, verb: answer, body_refs: [<g1>]}
   fixture:
     items:

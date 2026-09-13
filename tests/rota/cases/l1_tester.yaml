@@ -53,6 +53,10 @@
   role: tester
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5 after the answer-must-carry door
+  # was withdrawn: the Tester reads the test as sufficient and answers the
+  # challenge in words instead of narrowing the test. 8B judgement on what
+  # the criterion asserts.
   inbound: {from: developer, to: tester, verb: challenge, body_refs: [<tst1>, <c1>]}
   fixture:
     items:
@@ -171,6 +175,9 @@
   role: tester
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: encoded a test on a chosen value
+  # instead of sending the fact to the Researcher, then wrote its own tool
+  # results. 8B routing.
   tick: tests_missing
   refs: [<b1>]
   fixture:

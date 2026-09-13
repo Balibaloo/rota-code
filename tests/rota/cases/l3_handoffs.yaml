@@ -101,6 +101,9 @@
   tier: T3
   runs: 5
   pass: 3
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: the Terminologist wrote its own
+  # tool results at the criteria step and never messaged the Vision Keeper.
+  # Format on 8B; the chain harness is single-model.
   first: {role: terminologist, tick: criteria, refs: [<i1>]}
   then:  {role: vision_keeper}
   fixture:
@@ -126,6 +129,10 @@
   model: gemma3:12b
   runs: 5
   pass: 3
+  # Attributed 2026-09-13, 0/5 on qwen3:8b and on gemma3:12b: the Critic
+  # passes a diff that removes the invoices against a criterion that keeps
+  # them, so no fail verdict lands and nothing wakes the Developer. The
+  # chain's first step is the Critic's judgement.
   first: {role: critic, tick: review, refs: [<b1>]}
   # The handoff is the artefact and the frontier, not a message: the fail
   # verdict lands as a row and `verdict_failed` wakes the Developer from it.

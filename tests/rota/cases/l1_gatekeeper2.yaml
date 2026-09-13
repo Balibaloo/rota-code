@@ -9,6 +9,9 @@
   role: vision_keeper
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: authored the decision under the
+  # item's own id (an id is unique across artefact tables, refused), then
+  # reported instead of amending. 8B judgement on the amend route.
   tick: contested
   refs: [<i1>]
   fixture:
@@ -100,6 +103,8 @@
   role: vision_keeper
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: reported to the Liaison instead
+  # of answering the proposal. 8B routing.
   inbound: {from: architect, to: vision_keeper, verb: propose, body_refs: [<i1>]}
   fixture:
     items:
@@ -177,6 +182,9 @@
   role: vision_keeper
   runs: 5
   pass: 4
+  # Attributed 2026-09-13 on qwen3:8b, 0/5: asserted the item and logged the
+  # assumption itself instead of sending the fact to the Researcher;
+  # repeated the assert to the fixed point. 8B routing.
   # The state before `L1-VK-a-source-does-not-settle-scope` (l1_researcher.yaml),
   # whose fixture already carries this desk's question answered. A ratified
   # statement whose scope turns on what an outside standard requires of it:
