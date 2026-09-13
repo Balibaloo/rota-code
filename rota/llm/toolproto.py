@@ -506,9 +506,10 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                     f"{MARKER} {name}({raw_args[:80]})",
                     f"a quote inside {key} ended it early and the arguments "
                     f"after it ({other}=...) were read as part of {key}. Source "
-                    f"has quotes of its own; put it between triple quotes, "
-                    f"{longest}='''...''', with the lines as they are, no "
-                    f"escaping"))
+                    f"has quotes of its own; open {longest} with three single "
+                    f"quotes, write every line of the value as it is, and close "
+                    f"with three single quotes. No escaping, and no placeholder: "
+                    f"the value is the whole text, sent again in full"))
             else:
                 results.append(ToolCall(name=name, args=args, pos=pos,
                                         raw=f"{name}({raw_args})"))
