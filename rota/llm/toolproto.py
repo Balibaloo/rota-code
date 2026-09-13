@@ -55,6 +55,18 @@ _WORDS = {"true": True, "false": False, "null": None,
           "True": True, "False": False, "None": None}
 
 
+def _bare_path(node: ast.AST) -> bool:
+    """`a.b`, `a/b.c`, `a/b/c.d`: names joined by dots and slashes, nothing
+    else. A number, a call or a string inside it is not a path."""
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Attribute):
+        return _bare_path(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _bare_path(node.left) and _bare_path(node.right)
+    return False
+
+
 def _literal(node: ast.AST) -> Any:
     """
     `ast.literal_eval`, plus two tolerances, and nothing else.
@@ -69,6 +81,13 @@ def _literal(node: ast.AST) -> Any:
         # anything else is a string that lost its quotes, which is by far the
         # commonest way a small model malforms an id: `refs=m_dead_75b4f6`.
         return _WORDS[node.id] if node.id in _WORDS else node.id
+    if isinstance(node, (ast.Attribute, ast.BinOp)) and _bare_path(node):
+        # A path that lost its quotes: `code.source(main.py, 0, 400)`,
+        # `code.prose(path=docs/license.md)`. Python reads the first as an
+        # attribute and the second as a division; the model meant a file.
+        # tipsBE and clickI nights 38 to 40 (2026-09-13) lost turns to
+        # "malformed node or string" on exactly this.
+        return ast.unparse(node).replace(" ", "")
     if isinstance(node, (ast.List, ast.Tuple)):
         return [_literal(e) for e in node.elts]
     if isinstance(node, ast.Dict):

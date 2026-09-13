@@ -328,8 +328,10 @@ def test_square_brackets_are_read_as_the_parentheses_they_stand_for():
     got = extract("TOOL: code.concordance [term='note'] [limit=3]")
     assert isinstance(got[0], ToolCall) and got[0].args == {"term": "note", "limit": 3}
 
+    # An unquoted path inside the brackets is the path (2026-09-13): the
+    # bracket form is read as the parentheses, and a bare path as its string.
     got = extract("TOOL: code.source [src/intents/index.ts]")
-    assert isinstance(got[0], ToolError) and "round brackets" in got[0].reason
+    assert isinstance(got[0], ToolCall) and got[0].pos == ("src/intents/index.ts",)
 
 
 def test_a_labelled_block_with_colon_keys_is_a_call_beside_marked_ones():
@@ -754,3 +756,16 @@ def test_the_swallowed_door_reads_the_runner_s_signature_shape():
     sigs = {"code.write": ({"path", "text"}, {"path", "text", "start", "end"})}
     out = extract(say, sigs)
     assert len(out) == 1 and isinstance(out[0], ToolError) and "a quote inside" in out[0].reason
+
+
+def test_an_unquoted_path_is_read_as_the_path():
+    """tipsBE and clickI nights 38 to 40 (2026-09-13): `code.source(main.py, 0,
+    400)` and `code.prose(path=docs/license.md)` were refused as malformed
+    nodes, a turn each, many times."""
+    from rota.llm.toolproto import parse_args
+    args, pos = parse_args("main.py, 0, 400")
+    assert pos[0] == "main.py" and pos[1:] == (0, 400)
+    args, pos = parse_args("path=docs/license.md")
+    assert args == {"path": "docs/license.md"}
+    args, pos = parse_args("path=tests/test_calculate_tip.py, start=0")
+    assert args["path"] == "tests/test_calculate_tip.py"
