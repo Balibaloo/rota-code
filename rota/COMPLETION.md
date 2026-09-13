@@ -1352,7 +1352,16 @@ merged cold in 34 steps.
    door for that landed the same hour (the return-value door, beside the
    invented-literal one: the lineage says prints, the test uses a
    return, so the assumption is logged or the test asserts on what is
-   printed). Night 29 runs on it. `a-challenge-
+   printed). Night 29 runs on it.
+   Night 29 (2026-09-13, 00:56 to 01:36): three tests, 176 passes, eight
+   harness runs, the fix loop's longest. The Tester logged its
+   assumption when the door asked. The Developer challenged the right
+   test, was answered, escalated, was answered, and was told to act on
+   answers that carried the question's own refs and nothing else. Two
+   doors: an answer to a challenge or an escalation carries a new row or
+   a new ref, and a clarify may quote the principal's own words (the
+   flag "default_on_eof" was refused as bookkeeping). Night 30 runs on
+   them. `a-challenge-
    reaches-the-role` has had no green since seq 80706, weeks ago, and
    stays an attributed 8B red: both models write criteria for the
    contradiction instead of challenging it. `becomes-a-term` is 5/5 on
