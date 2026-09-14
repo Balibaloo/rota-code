@@ -604,3 +604,14 @@ def test_a_challenge_quote_of_the_criterion_pasted_into_a_test_comment_is_not_th
     sb.call("msg.challenge_tester", refs=["c1", "tst1"],
             quotes=["closing an account leaves its invoices in place", "assert close_account('a1') == 'gone'"])
     assert sb.ctx.outbound
+
+
+def test_the_litellm_backend_takes_an_extra_body_from_the_environment(monkeypatch):
+    """gemma-4 through llama-server (2026-09-14): the words sat in reasoning_content
+    until the request carried chat_template_kwargs enable_thinking false."""
+    from rota.llm.llm import LiteLLMBackend, Pins
+    monkeypatch.setenv('ROTA_LLM_EXTRA_BODY', '{"chat_template_kwargs": {"enable_thinking": false}}')
+    kw = LiteLLMBackend(api_base='http://127.0.0.1:8080/v1').kwargs('sys', 'user', Pins(model='openai/x', temperature=0.0))
+    assert kw['extra_body'] == {'chat_template_kwargs': {'enable_thinking': False}}
+    monkeypatch.delenv('ROTA_LLM_EXTRA_BODY')
+    assert 'extra_body' not in LiteLLMBackend().kwargs('sys', 'user', Pins(model='openai/x', temperature=0.0))

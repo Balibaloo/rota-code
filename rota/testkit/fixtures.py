@@ -34,6 +34,8 @@ deliberately rather than omitted.
 """
 from __future__ import annotations
 
+import os
+
 import json
 import re
 import sqlite3
@@ -880,7 +882,9 @@ def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None 
     a prompt regression signal, which is why the count is returned rather than a
     bare boolean.
     """
-    runs = int(case.get("runs", 1))
+    # ROTA_RUNS overrides the case for a smoke run of a new column; the
+    # threshold is the case's, so a smoke reads its rows, not its verdict.
+    runs = int(os.environ.get("ROTA_RUNS") or case.get("runs", 1))
     threshold = int(case.get("pass", runs))
     results = []
     for i in range(1, runs + 1):

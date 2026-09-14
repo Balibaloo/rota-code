@@ -455,6 +455,15 @@ class LiteLLMBackend:
             out["tools"] = tools
         if self.api_base:
             out["api_base"] = self.api_base
+        # Provider-side knobs the API does not name: ROTA_LLM_EXTRA_BODY is a
+        # JSON object merged into the request body. A llama-server takes
+        # {"chat_template_kwargs": {"enable_thinking": false}} to keep a
+        # thinking model's words in `content` (gemma-4, 2026-09-14: the
+        # reply sat in `reasoning_content` and the runner read nothing).
+        import os as _os
+        extra = _os.environ.get("ROTA_LLM_EXTRA_BODY")
+        if extra:
+            out["extra_body"] = json.loads(extra)
         return out
 
     def complete(self, system: str, user: str, pins: Pins,
