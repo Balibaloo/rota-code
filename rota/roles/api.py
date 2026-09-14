@@ -3475,12 +3475,35 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
                 "next": f"nothing -- {done['id']} already encodes it; the "
                         f"criteria you were woken for are the ones without "
                         f"a tested_by"}
+    # The ladder's rung is a fact of the message log: once the Terminologist
+    # has answered two questions on this criterion, the message door refuses
+    # a third, so the exit for `cannot` climbs. Night 63 (2026-09-14): the
+    # Tester triaged `cannot`, was told to ask the Terminologist, was refused
+    # for asking a third time, triaged `cannot` again, three sessions.
+    import json as _json
+    answered = 0
+    for row in ctx.conn.execute(
+            "SELECT m.body_refs FROM messages m JOIN messages a ON a.cause_id = m.id "
+            "WHERE m.from_role = ? AND m.to_role = 'terminologist' "
+            "AND m.verb = 'question' AND a.verb = 'answer'", (ctx.role,)):
+        try:
+            if criterion_id in set(_json.loads(row["body_refs"] or "[]")):
+                answered += 1
+        except (TypeError, ValueError):
+            continue
+    cannot_next = (
+        "say what stops you: msg.question_terminologist with the "
+        "criterion in refs and what you cannot do in the question. "
+        "You do not have to know whose problem it is -- an answer "
+        "that does not land climbs to the right desk on its own"
+        if answered < 2 else
+        f"the terminologist has answered {answered} questions on this "
+        f"criterion and it is not settled, so the question climbs: "
+        f"msg.question_vision_keeper with the criterion in refs and what "
+        f"you cannot check in the question")
     nxt = {
         "encodable": "encode it: tests.encode names this criterion",
-        "cannot": "say what stops you: msg.question_terminologist with the "
-                  "criterion in refs and what you cannot do in the question. "
-                  "You do not have to know whose problem it is -- an answer "
-                  "that does not land climbs to the right desk on its own",
+        "cannot": cannot_next,
         "ambiguous_word": "a word could mean more than one thing: "
                           "msg.question_terminologist with the criterion in "
                           "refs and the word in the question",
@@ -3925,7 +3948,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"lambda _='': 'Alice')), capsys for printed output, or "
                 f"define the fixture in the file")
     asserts = [n for n in _ast.walk(tree) if isinstance(n, _ast.Assert)]
-    if asserts and all(isinstance(a.test, _ast.Constant) for a in asserts):
+    # A check can be a raise as well as an assert: `raise AssertionError`
+    # in an except branch, `pytest.raises`, `pytest.fail`. Night 63
+    # (2026-09-14): a signature test called confirm() with the new argument,
+    # re-raised a TypeError as AssertionError, ended on `assert True`, and
+    # was refused as checking nothing.
+    def _raises_a_check(n) -> bool:
+        if isinstance(n, _ast.Raise) and n.exc is not None:
+            target = n.exc.func if isinstance(n.exc, _ast.Call) else n.exc
+            return getattr(target, "id", None) == "AssertionError"
+        if isinstance(n, _ast.Call):
+            f = n.func
+            return (isinstance(f, _ast.Attribute) and f.attr in ("raises", "fail")
+                    and getattr(f.value, "id", None) == "pytest")
+        return False
+    checks_by_raise = any(_raises_a_check(n) for n in _ast.walk(tree))
+    if (asserts and not checks_by_raise
+            and all(isinstance(a.test, _ast.Constant) for a in asserts)):
         # Walk ten: `assert True` under "unit tests must validate the
         # script's behaviour" -- a criterion that is not a behaviour, met
         # with a test that is not a check. The honest verdict was `cannot`.

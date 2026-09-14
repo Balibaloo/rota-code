@@ -152,3 +152,45 @@ def test_modes_without_the_fork_are_untouched(db):
                allow=prompts.mode_tools("tester", "answer"))
     assert not hasattr(sb.ctx, "triaged"), \
         "no triage in the mode, no gate on the encode"
+
+def test_cannot_climbs_once_the_terminologist_has_answered_twice(db):
+    """
+    Night 63 (2026-09-14): the Tester triaged `cannot`, was told to ask the
+    Terminologist, was refused a third question because two were answered,
+    triaged `cannot` again, three sessions. The rung is a fact of the message
+    log, so the hint climbs with it.
+    """
+    import json
+    refs = json.dumps(["c1"])
+    for n in (1, 2):
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, status, round_no, seq) VALUES (?, 'th1', 'tester', "
+                   "'terminologist', 'question', ?, 'answered', 0, ?)",
+                   (f"q{n}", refs, 2 * n - 1))
+        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                   "body_refs, status, round_no, seq, cause_id) VALUES (?, 'th1', "
+                   "'terminologist', 'tester', 'answer', ?, 'answered', 0, ?, ?)",
+                   (f"a{n}", refs, 2 * n, f"q{n}"))
+    db.commit()
+    out = _tester(db).call("tests.triage", criterion_id="c1", verdict="cannot")
+    assert "vision_keeper" in out["next"] and "terminologist has answered 2" in out["next"]
+
+
+def test_a_check_by_raise_is_a_check(db):
+    """A try/except that re-raises as AssertionError, ended on `assert True`,
+    checks something; the constant-assertion wall must not take it."""
+    sb = _tester(db)
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    body = """from app import register
+
+def test_register_accepts_lowercase():
+    try:
+        register('U@X')
+    except TypeError as e:
+        raise AssertionError(str(e)) from e
+    assert True
+"""
+    try:
+        sb.call("tests.encode", id="ts_raise", criterion_id="c1", path="tests/test_r.py", body=body)
+    except ValueError as exc:
+        assert "on a constant" not in str(exc), exc
