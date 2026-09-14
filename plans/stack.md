@@ -61,7 +61,11 @@ Rules:
   the 9B read it as a missing field and asked the Vision Keeper.
 - Open: ACT-CR on gemma3:12b and act 3 with the door, recording on the
   Titan; the peer told quiet after.
-- Status 2026-09-14 17:33: Titan recording.
+- Replay after the finding 68 door (18:11 to 18:20): 17 reds, all
+  known, and 10 stale: seven Developer cases (code.write's result
+  changed) and three Tester cases (the triage refusal's wording
+  changed). Re-recording the ten on the Titan.
+- Status 2026-09-14 18:22: Titan re-recording the ten stale cases.
 
 ### 6. The harness false pass
 
