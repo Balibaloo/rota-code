@@ -15,14 +15,22 @@ Rules:
 
 ## Stack
 
+### 10. Night 63: the 9B Developer with the door, on click
+
+- Why: with the door of finding 66 the 9B does act 3 in isolation 5/5,
+  the right loop, committed. The shipped profile `local-gemma-critic`
+  with the door is now the thing to measure on click sentence two.
+- Waits on: night 62 (the 3080).
+- Status 2026-09-14 17:40: queued behind frame 8.
+
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
-- Built and committed (178b255): `worktrees.changed_since`, the row
-  field "changed since this run, not run", materialised tests excluded.
-  Replay after it: 22 reds, the known set, no new stale.
-- Left: act 3 re-recorded on the 9B with the door in place (the 9B's
-  cassettes for it predate the field). Titan, after frame 7's records.
-- Status 2026-09-14 17:22: closed except the re-record.
+- Built (178b255) and measured: the 9B on the fix case 0/5 before, 5/5
+  after, on one Titan load, first matching band, committed, no
+  challenge. The recordings went to a stray file (ROTA_DEV_DB pointed at
+  .rota/cassettes.db; the register is tests/rota/cassettes.db) and were
+  merged into the register at 17:40.
+- Status: closed 2026-09-14 17:40.
 
 ### 8. Click night 62: gemma-4 at the Developer's desk, sentence two
 

@@ -137,9 +137,11 @@ door or the brief that fixes them belongs to the writer's mode.
     and nothing said the result predates the working tree. The 9B took
     the red as its fix failing, restarted from its first turn word for
     word, and the verbatim-repeat cut ended the session with no commit.
-    A mechanical fact: the result's commit and whether the file has
-    changed since. Door candidate for `tests.load` and `tests.triage`.
-    Open.
+    Door (178b255): the row carries "changed since this run, not run"
+    with the files that differ between the run's commit and the working
+    tree. Measured on the Titan: qwen3.5:9b on the fix case 0/5 before,
+    5/5 after, the loop right (first matching band) and committed.
+    Closed.
 
 67. **A wrong fix passes the fix case.** Both Qwen models wrote a loop
     that keeps the last band that matches (0.05 for 25 units, and a

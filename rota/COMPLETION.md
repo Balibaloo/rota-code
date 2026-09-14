@@ -218,7 +218,7 @@ MoE, the same wakes:
 |---|---|---|---|
 | 1 give the prompt a stream | 5/5 | 5/5 | 5/5 |
 | 2 edit inside the function | 5/5 | 5/5 | 5/5 |
-| 3 from a traceback to a change | 0/5 | 0/5 | 5/5 |
+| 3 from a traceback to a change | 0/5, then 5/5 with the door of finding 66 | 0/5 | 5/5 |
 | 4 three criteria, one per reply | 5/5 | 5/5 | 5/5 |
 | 5 the Critic quotes the test | 5/5 | 5/5 | 5/5 |
 | wall clock | 3 min | 15 min | 38 min |
@@ -239,8 +239,12 @@ hold), and both larger models sent three encodes in one reply. The
 fixtures are small; click's prompts are not, so the four acts the 9B
 passes here are not proof it passes them on click.
 
-The reading: on act 3 only gemma-4 has the capacity, and the 9B's
-failure has a mechanical half. Step 2 is the door of finding 66 first,
+The reading, corrected at 17:40: act 3 was the wake. With `tests.load`
+naming the files changed since the red run (finding 66, 178b255), the
+9B on one Titan load takes the traceback to the right change, first
+matching band, and commits, 5/5, no challenge. No model change is
+needed on this evidence. The 9B's earlier failure had a mechanical
+half, and the mechanical half was the whole of it. Step 2 is the door of finding 66 first,
 then act 3 re-measured on the 9B; gemma-4 at the Developer's desk only
 if the act stays red. The routing of the Developer to the 14B (285ee06)
 is reverted: night 60 ran on it before the count was corrected and its
