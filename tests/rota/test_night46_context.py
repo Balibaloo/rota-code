@@ -493,3 +493,53 @@ def test_the_word_stdin_in_a_comment_does_not_stand_the_input_door_down(db, tmp_
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError, match="click.termui.visible_prompt_func"):
         _encode(sb, "from click.termui import confirm\nfrom unittest.mock import patch\n\ndef test_x():\n    # when stdin is closed, confirm returns the default\n    with patch('builtins.input', side_effect=EOFError()):\n        assert confirm('ok?', default=True) is True")
+
+
+def test_a_private_helper_no_criterion_names_keeps_its_source(tmp_path):
+    """Click night 55 (2026-09-14): `_format_default` rewritten whole while
+    adding a flag to confirm(); three of click's prompt tests broke."""
+    proj = tmp_path / "proj"; (proj / "src").mkdir(parents=True)
+    original = 'def _format_default(d):\n    return d\n\n\ndef confirm(text, default=None):\n    return _format_default(default)\n'
+    (proj / "src" / "termui.py").write_text(original)
+    wt = tmp_path / "wt"; (wt / "src").mkdir(parents=True)
+    (wt / "src" / "termui.py").write_text(original)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm takes default_on_eof','[\"src/termui.py::confirm\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    rewritten = "def _format_default(d):\n    return 'yes' if d else 'no'\n\n\ndef confirm(text, default=None, default_on_eof=False):\n    return _format_default(default)\n"
+    with pytest.raises(ValueError, match="changes _format_default, and no criterion"):
+        sb.call("code.write", path="src/termui.py", text=rewritten)
+
+
+def test_a_challenge_may_not_name_the_projects_own_test(db):
+    """Click night 55 (2026-09-14): a challenge paired ce_2 with test_termui's
+    prompt test; the Tester woken by it wrote nothing; unresolved on top of
+    the fix loop."""
+    body = 'def test_prompt():\n    assert False'
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('inh_1','b1',NULL,'tests/test_termui.py',?)", (body,))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError, match="project's own test"):
+        sb.call("msg.challenge_tester", refs=["c1", "inh_1"], quotes="x")
+
+
+def test_an_import_of_a_name_the_module_lacks_is_refused_for_any_name(db, tmp_path):
+    """Click night 55 (2026-09-14): `from click._compat import _sentinel`,
+    a name nothing defines; ImportError at collection for the batch."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "_compat.py").write_text('WIN = False\n\n\ndef strip_ansi(s):\n    return s\n')
+    (root / "src" / "click" / "termui.py").write_text('def confirm(text, default=None):\n    return default\n')
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'", ('["src/click/termui.py::confirm"]',))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="_compat.py does not define _sentinel, and no criterion names it"):
+        _encode(sb, "from click.termui import confirm\nfrom click._compat import _sentinel\n\ndef test_x():\n    assert confirm('ok?', default=_sentinel) is _sentinel")

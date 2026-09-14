@@ -4143,9 +4143,20 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 has |= {a.name.split(".")[0] if a.asname is None else a.asname
                         for n in tree_mod.body if isinstance(n, (_ast.Import, _ast.ImportFrom))
                         for a in n.names}
-                misplaced = sorted(n for n in imported if n in surface_names and n not in has)
+                # Any imported name the module lacks, not only the criteria's
+                # surfaces. Click night 55 (2026-09-14): `from click._compat
+                # import _sentinel`, a name nothing defines, invented by the
+                # Tester; ImportError at collection for the whole batch.
+                misplaced = sorted(n for n in imported if n not in has and n != "*")
                 if not misplaced:
                     continue
+                if misplaced[0] not in surface_names:
+                    raise Wall(
+                        f"{found.relative_to(_root).as_posix()} does not define "
+                        f"{misplaced[0]}, and no criterion names it: this test "
+                        f"imports a name the module does not have, and the "
+                        f"harness dies at collection. Import only what the module "
+                        f"defines, or the surface the criterion names")
                 where = None
                 pat = _re2.compile(rf"^\s*(?:def|class)\s+{_re2.escape(misplaced[0])}(?!\w)", _re2.M)
                 for py in _root.rglob("*.py"):
@@ -8445,7 +8456,10 @@ def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> 
         base = {}
     changed = []
     for name, segs in after.items():
-        if name not in before or name in named or name.startswith("_"):
+        # Private helpers included: click night 55 (2026-09-14) rewrote
+        # `_format_default` whole while adding a flag to confirm(), and
+        # three of click's own prompt tests broke on the new wording.
+        if name not in before or name in named:
             continue
         if segs == before[name]:
             continue

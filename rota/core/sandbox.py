@@ -747,6 +747,18 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     f"{crit[0]!r} is not a criterion of this batch. The "
                     f"conflict you may challenge is between this batch's "
                     f"test and this batch's criterion")
+        # The project's own test has no criterion and no side to challenge.
+        # Click night 55 (2026-09-14): a challenge paired ce_2 with
+        # test_termui's prompt test, which the Developer's own rewrite had
+        # broken; the Tester woken by it wrote nothing, and the message
+        # sat unresolved on top of the fix loop.
+        owner = ctx.conn.execute(
+            "SELECT criterion_id FROM tests WHERE id = ?", (test[0],)).fetchone()
+        if owner is not None and not owner["criterion_id"]:
+            raise ValueError(
+                f"{test[0]} has no criterion: it is the project's own test and "
+                f"it passed before this batch. A challenge has no side there. "
+                f"Read code.diff and restore what your change broke")
         for r in (crit[0], test[0]):
             if not _quotes_span(rows[r][1], text):
                 # The disputed artefact is the test, and its words are what

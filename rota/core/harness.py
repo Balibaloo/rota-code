@@ -29,7 +29,7 @@ EXIT_OK, EXIT_FAILED = 0, 1
 
 def tests_for(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
     return [dict(r) for r in conn.execute(
-        "SELECT id, path, body FROM tests WHERE batch_id = ? ORDER BY id",
+        "SELECT id, path, body, criterion_id FROM tests WHERE batch_id = ? ORDER BY id",
         (batch_id,))]
 
 
@@ -104,7 +104,8 @@ def run(conn: sqlite3.Connection, batch_id: str,
     results: list[tuple[str, str]] = []
     output: dict[str, str] = {}
     for t in tests:
-        verdict, said = _run_one(root, t["path"], timeout, runner=runner)
+        verdict, said = _run_one(root, t["path"], timeout, runner=runner,
+                                 own=bool(t.get("criterion_id")))
         results.append((t["id"], verdict))
         output[t["id"]] = said
 
@@ -123,7 +124,7 @@ def run(conn: sqlite3.Connection, batch_id: str,
 
 
 def _run_one(root: Path, path: str, timeout: int,
-             runner: str | None = None) -> tuple[str, str]:
+             runner: str | None = None, own: bool = False) -> tuple[str, str]:
     """
     One test file: one word, and what the harness actually said.
 
@@ -151,7 +152,14 @@ def _run_one(root: Path, path: str, timeout: int,
         from . import execute
         from .provision import python_for
         out = execute.run(
-            root, [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header"],
+            root, [python_for(root), "-m", "pytest", shlex.quote(path), "-q", "--no-header",
+                   # The batch's own tests test criteria, not the project's
+                   # warning hygiene. Click night 55 (2026-09-14): the
+                   # project's `filterwarnings = error` turned a
+                   # DeprecationWarning inside the Tester's own test into
+                   # five red tests nobody could fix. The project's tests
+                   # keep the project's rules.
+                   *(["-W", "ignore::DeprecationWarning"] if own else [])],
             timeout=timeout, runner=runner)
     except KeyError as exc:
         return "error", str(exc)
