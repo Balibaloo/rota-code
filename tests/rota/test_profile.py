@@ -127,6 +127,11 @@ def test_a_model_on_its_own_endpoint_is_reached_there_and_only_there():
     kw = big.kwargs("s", "u", llm.Pins(model="openai/big.gguf"))
     assert kw["api_base"] == "http://127.0.0.1:8080/v1"
     assert kw["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    # No key in the environment: LiteLLM still needs one for `openai/`, and
+    # a local server checks none (night 61 died on "Missing credentials").
+    import os
+    if not os.environ.get("OPENAI_API_KEY"):
+        assert kw["api_key"] == "local"
     assert kw["timeout"] == 900
     # Round trip: what the run stores loads back to the same profile.
     assert Profile.from_dict(p.to_dict(), name="mixed").endpoints == p.endpoints

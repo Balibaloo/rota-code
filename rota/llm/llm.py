@@ -456,8 +456,15 @@ class LiteLLMBackend:
             out["seed"] = pins.seed
         if tools:
             out["tools"] = tools
+        import os as _os
         if self.api_base:
             out["api_base"] = self.api_base
+            # LiteLLM refuses an `openai/` call with no key even at a local
+            # server that checks none. Night 61 (2026-09-14) died at the
+            # Developer's first wake on "Missing credentials". A key in the
+            # environment wins; a local endpoint gets a placeholder.
+            if not _os.environ.get("OPENAI_API_KEY"):
+                out["api_key"] = "local"
         # Provider-side knobs the API does not name: ROTA_LLM_EXTRA_BODY is a
         # JSON object merged into the request body. A llama-server takes
         # {"chat_template_kwargs": {"enable_thinking": false}} to keep a
