@@ -97,7 +97,8 @@ things this repository does not:
 
 ## Moving the working checkout
 
-Do these steps in order. `<new>` is the path Roman chooses.
+Roman chose `D:eposota` on 2026-09-14 and the clone was renamed to it
+that night. The steps stay here for the next machine. `<new>` is the path.
 
 **Warning: a model run must not have its checkout moved while it is running.**
 Wait for every walk and every re-record to finish first.
