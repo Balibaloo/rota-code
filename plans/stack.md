@@ -27,7 +27,14 @@ Rules:
   fix loop ran six sessions, and at attempt 8 both batch tests and the
   inherited suite pass at 96bad2c. Further than night 58. The Liaison
   is presenting pages again; the review is next.
-- Status 2026-09-14 18:55: sentence two, tests green, review pending.
+- Nuance: the tests_failing tick was quarantined after three sessions
+  at attempt 7 (span writes refused as whole-file rewrites), and the
+  green at attempt 8 came from s153, a Developer answer session that
+  wrote and committed. Criterion ce_1 (the boolean argument) is still
+  without a test; the Tester is on it after a question to the Vision
+  Keeper.
+- Status 2026-09-14 18:57: sentence two, two of three tests green, the
+  Tester on the third.
 
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
