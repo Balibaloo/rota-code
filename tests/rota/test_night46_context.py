@@ -122,6 +122,26 @@ def test_every_invented_literal_is_named_in_one_refusal(db):
     assert re.search(r"assumes \w+_corp and \w+_corp where the material is silent", text), text
 
 
+def test_a_criterion_that_names_the_file_asks_for_the_definition_there(db, tmp_path):
+    """L1-DV-build-a-clear-criterion (2026-09-14): 'money(1999) returns
+    $19.99 from src/notify/formatting.py', templates.py already held a
+    money, and the duplicate door sent the Developer to the wrong file."""
+    root = tmp_path / "wt"; (root / "src" / "notify").mkdir(parents=True)
+    (root / "src" / "notify" / "templates.py").write_text(
+        "def money(cents):\n    return str(cents)\n\n\ndef render(t):\n    return t\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'",
+               ("money(1999) returns '$19.99' from src/notify/formatting.py",))
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    assert sb.call("code.write", path="src/notify/formatting.py",
+                   text="def money(cents):\n    return f'${cents / 100:.2f}'\n")["bytes"]
+    with pytest.raises(ValueError, match="already defines render"):
+        sb.call("code.write", path="src/notify/other.py",
+                text="def render(t):\n    return t.upper()\n")
+
+
 @pytest.fixture
 def vk_db(tmp_path):
     conn = init_db(tmp_path / "rota.db")

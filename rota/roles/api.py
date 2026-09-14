@@ -7178,7 +7178,14 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 # module the index could not see. The worktree is the fact.
                 elsewhere |= _defined_in_tree(ctx, node.name, path)
                 elsewhere = sorted(elsewhere)
-                if len(elsewhere) == 1:
+                # A criterion that names this file asked for the definition
+                # here. L1-DV-build-a-clear-criterion (2026-09-14): "money(1999)
+                # returns '$19.99' from src/notify/formatting.py", templates.py
+                # already held a `money`, and the door sent the Developer to
+                # the wrong file against the criterion's own words.
+                named_here = any(path.replace("\\", "/") in (t or "").replace("\\", "/")
+                                 for t in _criteria_texts(ctx))
+                if len(elsewhere) == 1 and not named_here:
                     raise ValueError(
                         f"{path} defines {node.name}, and the tree already defines "
                         f"{node.name} in {elsewhere[0]}. A second definition of a "

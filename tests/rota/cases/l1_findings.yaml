@@ -67,6 +67,10 @@
 # edited file as its only commit, so the drift door has no project base to
 # compare against here and llama's escalation goes through; in a run the
 # door refuses it (d4d1880). qwen3.5:9b gives the defaults 5/5.
+# Red 0/5 on the 2026-09-14 re-record (363ce42): the model read the five-
+# argument call in main.py as matching the constraint and escalated the
+# finding as wrong. A judgement flip on a re-recorded prompt, not a door;
+# the constraint names the three-argument form. Brief work, not a guard.
 - id: L1-DV-give-the-new-parameters-defaults
   tier: T1
   role: developer
