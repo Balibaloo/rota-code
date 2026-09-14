@@ -148,6 +148,72 @@ of the project's dependencies, pytest imports, git hooks, model-written
 files, model-written tests, the repository's own text in prompts, the
 cockpit's inputs, and the profile files. Each finding becomes a door.
 
+### The order from here (2026-09-14)
+
+Where the nights stand. Sentence one on click merges (nights 49 and 50,
+click's 34 tests green at the first harness). Sentence two, the confirm()
+default-on-EOF flag, has stuck on every night since. Night 58 went the
+furthest: three criteria tested, harness 37 green, the fix loop converged,
+the Critic's review reached; the Critic then sent a challenge with an
+empty quote and an invented ref, four sessions. Sentence three has never
+run on click. Every stuck night became a door or a brief line, unit-tested,
+replayed on the register and committed (plans/wake-audit.md, findings 36
+to 63). The register holds at 23 known reds, no stale.
+
+The diagnosis. The doors that held were facts of the language: definitions,
+imports, spans, parse, cycles. Those are finite per language and hold on
+any repository. The stdin family was coaching: five clauses in two days on
+one repository, each catching the model's next wrong guess, and that is
+infinite by construction. What remains is the 8B model's competence at five
+acts:
+
+1. The Tester gives a prompt a stream under pytest.
+2. The Developer edits inside a function without rewriting it.
+3. The Developer takes the step from a traceback to a change.
+4. The Tester encodes one criterion per reply within the budget.
+5. The Critic quotes the test's code and names rows that exist.
+
+The order.
+
+1. **The benchmark.** No more clauses on the stdin door; one brief line in
+   the Tester's brief names the one shape (`monkeypatch.setattr('sys.stdin',
+   io.StringIO(''))`), measured on the Tester cases. The five acts become
+   register cases with self-contained fixtures. The register runs in three
+   columns (the 9B, a 14B, a larger model), interleaved on one load, so a
+   difference is the model and not the load. The result says whether the
+   reason is capacity or the wake.
+2. **Routing.** If the larger model passes what the 9B fails, the profile
+   routes it to the desks that need it and the 8B keeps the rest. Goal 8's
+   seam is the provider: llama.cpp is about a day's build (the seam was
+   measured on Ollama's OpenAI endpoint only), and an MoE with small active
+   experts is what fits a 10 GB card once the offload split is measured.
+   A night that swaps models per desk pays ten to twenty seconds a swap.
+   First on register cases, never on a night.
+3. **Finding 42.** The code index is built at onboarding and never refreshed
+   after a commit. A batch's own symbols are invisible to later probes, and
+   sentence three's first prediction reads that index. This is a core fact,
+   not a rewrite, and it lands before breadth.
+4. **The language seam.** One `language.facts(path)` interface: definitions,
+   imports, spans, parse, stdin readers. Python on `ast`; tree-sitter, already
+   in the index, for the rest; the same seam for the harness. The doors stay;
+   a new language is one implementation.
+5. **Breadth before depth.** The other two lineage repositories cold with
+   what exists, then one non-Python repository behind the seam. Only that
+   measures which doors were facts and which were click's shapes.
+6. **The long-run noise test** (the section below), after sentence three
+   merges.
+7. **Ship the loop.** The wake dump, the register discipline and the audit
+   table, so a person runs the loop without an agent.
+
+Not done: rewriting the core (roles, artefacts, predicates, ledger, merge
+gate, register carried every fix unchanged); lowering the loop cap (it is
+what a night measures); more nights on sentence two as if more doors were
+the answer.
+
+Roman owns this order. Standing permission covers the loop's own speed
+(memory: rota-iteration-speed) and the doors that hold a fact; the model
+change, the seam and breadth are his to start.
+
 ### Model setup, one modal, one profile (2026-09-11)
 
 Roman's extension to the plan, persisted as `plans/model-setup.md`: one TUI
