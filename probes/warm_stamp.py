@@ -109,6 +109,24 @@ def write(run: str) -> Path:
     return stamp
 
 
+def relocate(run: str, root: str) -> int:
+    """Point the restored run database at the checkout it runs on. A
+    snapshot bakes the project root it was onboarded on; a night on another
+    checkout (2026-09-15: the sample repo moved to C:) rewrites that one
+    row and is warm. Batches carry worktree paths too, and an onboard-only
+    snapshot has none; refuse when it has."""
+    db = Path(os.environ.get("ROTA_RUNS", REPO / ".rota")) / f"{run}.db"
+    conn = sqlite3.connect(db)
+    if conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0]:
+        print("COLD: the snapshot holds batches with worktree paths; it cannot move")
+        return 1
+    old = conn.execute("SELECT value FROM config WHERE key = 'project_root'").fetchone()
+    conn.execute("UPDATE config SET value = ? WHERE key = 'project_root'", (str(Path(root)),))
+    conn.commit()
+    print(f"relocated: project_root {old[0] if old else None!r} -> {str(Path(root))!r}")
+    return 0
+
+
 def check(run: str) -> int:
     """Print one line. Return 0 to start warm, 1 to start cold."""
     db, stamp = _paths(run)
@@ -126,6 +144,28 @@ def check(run: str) -> int:
         db.unlink()
         stamp.unlink()
         return 1
+    # The snapshot's routing is the profile it was onboarded on. Night 62
+    # (2026-09-14) started warm from a snapshot of another profile and ran
+    # the Developer on the wrong model with no error. A named profile that
+    # routes differently is a cold start.
+    wanted = os.environ.get("GAUNTLET_PROFILE")
+    if wanted:
+        sys.path.insert(0, str(REPO))
+        from rota.llm import profile as profile_mod
+        try:
+            expected = profile_mod.find(wanted).routing()
+        except Exception as exc:
+            print(f"COLD: profile {wanted!r} did not load: {exc}")
+            return 1
+        conn = sqlite3.connect(db)
+        row = conn.execute("SELECT value FROM config WHERE key = 'model_routing'").fetchone()
+        conn.close()
+        have = json.loads(row[0]) if row and row[0] and row[0].startswith('"') else (row[0] if row else None)
+        if have != expected:
+            print(f"COLD: the snapshot routes {have!r}; profile {wanted!r} routes {expected!r}")
+            db.unlink()
+            stamp.unlink()
+            return 1
     if data.get("warm_nights", 0) >= MAX_WARM:
         print(f"COLD: {data['warm_nights']} warm nights since {data['rota_head']}; onboarding is measured again")
         db.unlink()
@@ -140,7 +180,9 @@ def check(run: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] != "check":
-        print(__doc__)
-        sys.exit(2)
-    sys.exit(check(sys.argv[2]))
+    if len(sys.argv) == 3 and sys.argv[1] == "check":
+        sys.exit(check(sys.argv[2]))
+    if len(sys.argv) == 4 and sys.argv[1] == "relocate":
+        sys.exit(relocate(sys.argv[2], sys.argv[3]))
+    print(__doc__)
+    sys.exit(2)

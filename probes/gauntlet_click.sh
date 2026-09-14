@@ -54,6 +54,7 @@ if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check c
   echo "== warm start from $STATE/clickI_warm.db (onboarding skipped)"
   rm -f "$STATE/clickI.db" "$STATE/clickI.db-wal" "$STATE/clickI.db-shm"
   python -c "import sqlite3; import os; d = os.environ['ROTA_RUNS']; sqlite3.connect(d + '/clickI_warm.db').backup(sqlite3.connect(d + '/clickI.db'))"
+  python "$REPO/probes/warm_stamp.py" relocate clickI "$CLICK_ROOT" || exit 3
   export WALK_FROM_WARM=1
 else
 python -m rota onboard clickI --root "$CLICK_ROOT" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
