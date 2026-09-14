@@ -13,11 +13,16 @@ tree-sitter==0.25.2
 tree-sitter-language-pack==1.14.3
 watchfiles==1.1.1
 
+# The litellm provider. Optional for an installed wheel
+# (`pip install rota[litellm]`), required for a development checkout since
+# 2026-09-14: the register's benchmark column runs through it
+# (`ROTA_BACKEND=litellm` in tests/rota/test_l1.py), and the first column on
+# a venv without it died on ModuleNotFound and left 25 bogus case_runs rows.
+litellm==1.100.1
+
 # Optional, and not pinned. `rota.llm.discover` reports host memory when
-# psutil is present, and the litellm profile needs litellm. The suite runs
-# without either.
+# psutil is present. The suite runs without it.
 #   psutil
-#   litellm==1.96.0
 
 # Tests.
 pytest==9.0.3
