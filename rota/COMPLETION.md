@@ -252,8 +252,12 @@ does not gate the core: every working checkout already holds the file.
    The files are staged at `D:\repos\rota\.rota\release\`. The command:
 
    ```
-   gh release create cassettes-20260914 --repo Balibaloo/rota-code --title cassettes-20260914 --latest --notes "cassettes 2026-09-14: 17686 cassettes, 127184 case runs" D:\repos\rota\.rota\release\cassettes.db.gz D:\repos\rota\.rota\release\cassettes.json
+   gh release create cassettes-20260914 --repo Balibaloo/rota-code --title cassettes-20260914 --latest --notes "cassettes 2026-09-14: 17693 cassettes, 128499 case runs" D:\repos\rota\.rota\release\cassettes.db.gz D:\repos\rota\.rota\release\cassettes.json
    ```
+
+   The counts in the notes are the manifest's at the time of writing. If a
+   re-record has run since, `rota cassettes pack --out .rota/release` first,
+   and read the counts from `tests/rota/cassettes.json`.
 
    Or set `GITHUB_TOKEN` and run `rota cassettes publish`, which does the
    same through the API. After that, each re-record ends with
