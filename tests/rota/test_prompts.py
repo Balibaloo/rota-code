@@ -313,6 +313,16 @@ def test_a_mode_names_no_function_it_does_not_offer():
     """
     import re
 
+    # The tool's own functions: what any mode of any role offers. A dotted
+    # name outside that set, `builtins.input` or `sys.stdin` in the Tester's
+    # stream line, is Python the brief quotes, not a function of the tool
+    # (2026-09-14: rewording `builtins.input` to "the built-in `input`" to
+    # pass this test took qwen3.5:9b from 5/5 to 0/15 on the stream act).
+    known = set()
+    for role in graph_mod.load().roles:
+        for mode in prompts.available(role):
+            known.update(prompts.mode_tools(role, mode) or ())
+
     named_but_absent = {}
     for role in sorted(graph_mod.load().roles):
         for mode in prompts.available(role):
@@ -320,7 +330,7 @@ def test_a_mode_names_no_function_it_does_not_offer():
             if offered is None:
                 continue                  # un-narrowed: the role's whole namespace
             named = set(re.findall(r"`([a-z_]+\.[a-z_]+)`", prompts.piece(role, mode)))
-            missing = sorted(named - set(offered))
+            missing = sorted((named & known) - set(offered))
             if missing:
                 named_but_absent[f"{role}/{mode}"] = missing
     assert not named_but_absent, named_but_absent
