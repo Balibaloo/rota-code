@@ -87,7 +87,9 @@ def test_the_architect_judges_every_stray_foreseen_or_mistake(db):
     sb.ctx.writes.clear()
     out = sb.call("batches.judge_touch", batch_id="b1", foreseen=["src/echo_json.py"],
                   mistakes=["src/click/main.py"], reason="the helper is new; main.py is a second copy")
-    assert out == {"batch": "b1", "foreseen": ["src/echo_json.py"], "mistakes": ["src/click/main.py"]}
+    assert {k: v for k, v in out.items() if k != "next"} == {
+        "batch": "b1", "foreseen": ["src/echo_json.py"], "mistakes": ["src/click/main.py"]}
+    assert "End with one sentence" in out["next"], "tipsBH s59: the judgement is done; say so"
     touch = [w for w in sb.ctx.writes if w[0] == "batch_touch"]
     assert [w[2]["grain"] for w in touch] == ["src/echo_json.py"], "a foreseen path joins the touch set"
     statuses = {w[2]["path"]: w[2]["status"] for w in sb.ctx.writes if w[0] == "touch_strays"}

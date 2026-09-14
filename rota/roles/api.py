@@ -7839,6 +7839,10 @@ def batches_judge_touch(ctx: Ctx, batch_id: str, foreseen: list[str] | None = No
     if unknown:
         out["ignored"] = (f"{', '.join(unknown)}: not an open stray of {batch_id}; "
                           f"the strays were {', '.join(open_rows)}")
+    # tipsBH s59 (2026-09-14): the judgement landed on turn one and the
+    # Architect sent it twice more, ended by the repeat rule. Say it is done.
+    out["next"] = ("recorded; nothing else is owed this wake. End with one "
+                   "sentence and no call")
     return out
 
 
