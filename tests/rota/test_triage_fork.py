@@ -51,7 +51,7 @@ def test_an_encode_with_no_branch_claim_is_refused(db):
     """The gate arms with the mode, not with usage: the very first encode of
     a session that never triaged anything is the case that matters most."""
     sb = _tester(db)
-    with pytest.raises(ValueError, match="branch claim"):
+    with pytest.raises(ValueError, match="triage verdict"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="assert True")
 
@@ -85,7 +85,7 @@ def test_a_routing_verdict_does_not_license_an_encode(db):
     both-doors-in-one-turn disease, refused."""
     sb = _tester(db)
     sb.call("tests.triage", criterion_id="c1", verdict="no_machine_check")
-    with pytest.raises(ValueError, match="branch claim"):
+    with pytest.raises(ValueError, match="triage verdict"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="assert True")
 
@@ -104,7 +104,7 @@ def test_a_bare_cannot_is_a_complete_verdict_at_the_nearest_desk(db):
     out = sb.call("tests.triage", criterion_id="c1", verdict="cannot")
     assert "terminologist" in out["next"], out
     assert "climbs" in out["next"], "the promise is the point: no diagnosis owed"
-    with pytest.raises(ValueError, match="branch claim"):
+    with pytest.raises(ValueError, match="triage verdict"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="def test_x():\n    assert True")
 

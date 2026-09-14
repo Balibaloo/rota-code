@@ -3624,10 +3624,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # for a criterion this session has claimed encodable. The other three
     # verdicts name their owner, and taking that door is equally a completion.
     if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) != "encodable":
+        # Said as the step, not as a name for it. qwen3.5:9b on the Titan
+        # (2026-09-14) read "has no branch claim" as a field the criterion
+        # lacked, triaged it `cannot` and asked the Vision Keeper what a
+        # branch claim is, fifteen runs of fifteen.
         raise ValueError(
-            f"{criterion_id} has no branch claim. tests.triage it first -- "
-            f"verdict 'encodable' and then encode, or 'cannot', which routes "
-            f"the criterion to the desk that can repair it instead")
+            f"{criterion_id} has no triage verdict from you yet. Call "
+            f"tests.triage(criterion_id='{criterion_id}', verdict='encodable') "
+            f"and then tests.encode in the same reply. The verdict 'cannot' "
+            f"sends the criterion to the desk that can repair it instead")
 
     # A test is Python the harness can run. S0 measured the alternative: the
     # criterion restated as an English sentence, path 'script', harness says
