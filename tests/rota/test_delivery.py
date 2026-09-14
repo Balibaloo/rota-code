@@ -583,3 +583,20 @@ def test_it_goes_quiet_once_the_election_is_in_flight(tmp_path):
                "body_refs, seq) VALUES "
                "('m1','t1','developer','vision_keeper','elect','[\"b1\"]',1)")
     assert not _revoked_wakes(db)
+
+def test_a_finding_against_an_id_that_is_no_constraint_is_a_tool_error(db):
+    """
+    Night 64 (2026-09-14): the Architect filed findings against inherited
+    test ids as constraints. The tool said OK and the foreign key refused the
+    whole session at commit, three times. Law 14 belongs at the door.
+    """
+    from rota.core.sandbox import build
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','no data loss','decided')")
+    db.commit()
+    sb = build("architect", db, batch_id="b1")
+    with pytest.raises(ValueError, match="constraints"):
+        sb.call("findings.find", id="f1", batch_id="b1",
+                constraint_id="inh_51d478df", status="violated", grain="src/x.py")
+    out = sb.call("findings.find", id="f1", batch_id="b1",
+                  constraint_id="k1", status="violated", grain="src/x.py")
+    assert out["id"] == "f1"

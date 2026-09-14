@@ -2093,6 +2093,13 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     # batch's own new files stood between green tests and the merge, and
     # the Developer had nothing to restore.
     from ..onboarding.boot import ZERO
+    # Law 14 at the door, not at the commit. Night 64 (2026-09-14): the
+    # Architect filed findings against inherited test ids as constraints;
+    # the tool said OK, the foreign key refused the session at commit,
+    # three sessions, the night stuck.
+    _must_exist(ctx, "batches", batch_id)
+    if constraint_id != ZERO:
+        _must_exist(ctx, "constraints", constraint_id)
     if constraint_id == ZERO and status == "violated":
         raise ValueError(
             f"{ZERO} is constraint zero, the area no survey has read. It is "
