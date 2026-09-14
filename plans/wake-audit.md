@@ -177,3 +177,14 @@ door or the brief that fixes them belongs to the writer's mode.
     AssertionError or calls pytest.raises or pytest.fail counts as a
     check. Open until night 64 measures it.
 
+70. **A finding against a test id passes the tool and fails the commit.**
+    Night 64 (2026-09-14, warm, the shipped profile): the build and the
+    Critic's review passed. The Architect's structural review filed
+    `findings.find(constraint_id="inh_51d478df", ...)`, an inherited
+    test's id, and the tool said OK. The session's commit hit the
+    foreign key on findings.constraint_id and the whole session was lost,
+    three times, quarantined, the night stuck. `findings.find` had no
+    `_must_exist` on its batch or its constraint. Door: both ids are
+    checked at the call, a tool error the model corrects on its next
+    turn. Open until a night measures it.
+

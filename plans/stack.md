@@ -15,14 +15,21 @@ Rules:
 
 ## Stack
 
-### 11. Night 64: the shipped profile with the finding 69 doors, warm
+### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
 
 - Why: night 63 ended stuck on one criterion because two doors
   contradicted. Both are fixed. The night's snapshot is warm and carries
   the profile, so sentence two runs again from onboarding at no cost.
 - How: `GAUNTLET_WARM=1`, `GAUNTLET_FROM=2`, profile `local-gemma-critic`.
 - Ends when: the night prints done and its sessions are read.
-- Status 2026-09-14 19:52: tests green, committing, launching.
+- Night 64 (19:48 to 19:59, warm): the build and the Critic's review
+  passed; the Architect's structural review failed three times at commit
+  with a foreign key error. findings.find took inherited test ids as
+  constraint ids and said OK; the database refused at commit. Stuck.
+  Finding 70. Fix: findings.find checks its batch and constraint ids at
+  the door.
+- Status 2026-09-14 20:06: night 65 launched warm at 20:04 with the
+  findings.find door (finding 70).
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 

@@ -126,3 +126,5 @@
 {"run": "clickI", "profile": "local-gemma-dev", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 28, "asks": 5, "note": "quiet", "oneshot": false, "date": "2026-09-14"}
 {"run": "clickI", "profile": "local-gemma-critic", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 76, "asks": 10, "note": "quiet", "oneshot": false, "date": "2026-09-14"}
 {"run": "clickI", "profile": "local-gemma-critic", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 24, "asks": 4, "note": "quiet", "oneshot": false, "date": "2026-09-14"}
+{"run": "clickI", "profile": "local-gemma-critic", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 48, "asks": 8, "note": "quiet", "oneshot": false, "date": "2026-09-14"}
+{"run": "clickI", "profile": "local-gemma-critic", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 21, "asks": 3, "note": "quiet", "oneshot": false, "date": "2026-09-14"}
