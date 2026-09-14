@@ -15,13 +15,15 @@ Rules:
 
 ## Stack
 
-### 10. Night 63: the 9B Developer with the door, on click
+### 10. Night 63: the 9B Developer with both doors, on click
 
-- Why: with the door of finding 66 the 9B does act 3 in isolation 5/5,
-  the right loop, committed. The shipped profile `local-gemma-critic`
-  with the door is now the thing to measure on click sentence two.
-- Waits on: night 62 (the 3080).
-- Status 2026-09-14 17:40: queued behind frame 8.
+- Why: with the doors of findings 66 and 68 the 9B does act 3 in
+  isolation 5/5. The shipped profile `local-gemma-critic` with the doors
+  is the thing to measure on click sentence two.
+- How: cold, `GAUNTLET_FROM=2`, the gemma server stopped so the 3080 is
+  Ollama's alone.
+- Ends when: the night prints done and its sessions are read.
+- Status 2026-09-14 18:14: launched.
 
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
@@ -36,30 +38,15 @@ Rules:
 
 ### 8. Click night 62: gemma-4 at the Developer's desk, sentence two
 
-- Why: the benchmark says the 9B does four acts of five in isolation and
-  gemma-4 does all five; only the Developer's act 3 separates them. One
-  night with gemma-4 at that desk and the small models elsewhere keeps
-  the measured control and decides which limit we face: a merge means
-  route act 3 and ship; a stall means the wakes are the limit and the
-  strong model's transcripts say where. Roman asked not to run every
-  desk on gemma-4; per-model endpoints were added for it (02a16d3).
-- Night 61 (17:18 to 17:23): died at the Developer's first wake, LiteLLM
-  "Missing credentials" at the local server. Fixed: a local endpoint
-  gets a placeholder key. Its onboarding snapshot is warm and carries
-  the routing, so night 62 starts warm at sentence two.
-- How: profile `local-gemma-dev`, `GAUNTLET_WARM=1`, `GAUNTLET_FROM=2`,
-  `ROTA_LLM_TIMEOUT=900`.
-- Ends when: the night prints done and its sessions are read.
-- Night 62's first start (17:24) was warm from a stale snapshot of 12:14
-  with the Developer on qwen3.5:9b: cold nights never replaced the
-  snapshot on disk. Killed. walk.py now overwrites the snapshot after a
-  cold onboarding. Relaunched cold at 17:26.
-- First Developer session (s139, 17:46 to 18:03, 24 turns, first turn
-  384 s of prompt processing): implemented confirm() right at turn 9,
-  then fifteen turns on the project's test file, no commit. Finding 68:
-  a landed write is not a commit and nothing says so. The edit stays in
-  the worktree; the second session runs now.
-- Status 2026-09-14 18:06: sentence two, second Developer session.
+- Read: two Developer sessions on gemma-4. s139 implemented confirm()
+  right at turn 9, then fifteen turns on the project's test file, no
+  commit (finding 68, door 1682628). s140 found the edit in the
+  worktree, re-read it until the repeat cut, no commit. Both without
+  the door, which landed after the process started. Killed 18:13.
+- What it says: a strong model needs the same worktree facts as the
+  small one; the wake, not the model, was the limit in both sessions.
+- Status: closed 2026-09-14 18:14; frame 10 runs the shipped profile
+  with the doors. gemma-4 stays the control to rerun if the 9B stalls.
 
 ### 7. Register hygiene after today's fixes
 
