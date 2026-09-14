@@ -69,7 +69,16 @@ Rules:
   version; night 70 measures the final one.
 - Register at 21:24: 20 reds, all known, no stale; the peer can re-pack
   from this file when it returns.
-- Status 2026-09-14 21:25: night 69 running warm since 21:08.
+- Night 69 (21:08 to 21:41, warm): one step further again. The first
+  review passed, the structural review landed, the Developer answered
+  and committed twice, 37 tests green at 21a2386. The Critic's
+  re-review misread the diff, challenged the Tester, and the Tester's
+  challenge mode had no answer verb to the Critic (finding 73).
+  Quarantined on review. Stuck.
+- Fixed: a tester-to-critic answer edge in the graph, msg.answer_critic in
+  the Tester's challenge mode, and a Critic answer mode that finishes the
+  review with the answer in hand. Night 70 warm measures it.
+- Status 2026-09-14 21:53: night 70 launched warm.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 

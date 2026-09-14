@@ -237,3 +237,18 @@ door or the brief that fixes them belongs to the writer's mode.
     files door also refused bare-symbol grains in find-against-a-
     constraint; it now checks path-shaped grains only.
 
+73. **The Tester cannot answer the Critic's challenge.** Night 69
+    (2026-09-14, warm, the shipped profile with the doors of 69 to 72):
+    the build, the tests, the first review, the structural review and a
+    second commit all landed, 37 tests green at 21a2386. The Critic's
+    re-review read the diff (a removed isatty pre-check) as "the diff
+    removes the EOF handling", claimed the two EOF tests do not encode
+    their criteria, and challenged the Tester with the exact refs the
+    door named. The Tester's challenge mode offers `msg.answer_developer`
+    and the challenger was the Critic: the working set had no answer
+    verb, the Tester reached for msg.answer_developer three times, asked
+    the Terminologist and the Vision Keeper instead, and the review
+    re-fired until quarantined. Stuck. The mode is written for the
+    Developer's challenge; a challenge from the Critic needs
+    `msg.answer_critic` in the list. Open until measured.
+
