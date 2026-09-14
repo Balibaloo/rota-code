@@ -146,7 +146,20 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
     batch has no further claim on a port, and holding one would walk the range
     forward for the lifetime of the project.
     """
-    from . import environments, worktrees
+    from . import environments, harness, worktrees
+
+    # The Tester's bodies as they stand, delivered in a commit of their
+    # own. The Developer's commits exclude the test paths, so the diff
+    # under review is the code; the merge carries the tests the harness
+    # last ran, not the version a Developer commit happened to catch
+    # (click night 50, 2026-09-14).
+    tree = harness.worktree_of(conn, batch_id)
+    tests = harness.tests_for(conn, batch_id)
+    if tree and tests:
+        from pathlib import Path as _Path
+        if _Path(tree).is_dir():
+            harness.materialise(_Path(tree), tests)
+            worktrees.commit(tree, f"rota: tests of {batch_id}")
 
     # The merge merges. A conflict leaves the batch deferred -- paused, its
     # worktree and commits intact -- rather than marked delivered.

@@ -165,7 +165,7 @@ def head(path: str | Path) -> str | None:
     return out.stdout.strip() or None if out.returncode == 0 else None
 
 
-def commit(path: str | Path, message: str) -> str | None:
+def commit(path: str | Path, message: str, exclude: tuple[str, ...] = ()) -> str | None:
     """
     Stage everything and commit. Returns the sha, or None if nothing changed.
 
@@ -177,8 +177,12 @@ def commit(path: str | Path, message: str) -> str | None:
     # run's state live inside the worktree and are not the project's:
     # under WSL (2026-09-10) `add -A` staged 952 files of `.venv` into the
     # first commit and the Critic reviewed them as the diff.
+    # `exclude` names paths the caller does not own: the Tester's test
+    # files under a Developer commit (2026-09-14). They stay in the
+    # worktree and out of the commit.
+    specs = [":(exclude)" + p.replace(chr(92), "/") for p in exclude if p]
     subprocess.run([*GIT, "-C", str(path), "add", "-A", "--", ".",
-                    ":(exclude).venv", ":(exclude).rota"],
+                    ":(exclude).venv", ":(exclude).rota", *specs],
                    capture_output=True, text=True)
     staged = subprocess.run([*GIT, "-C", str(path), "diff", "--cached", "--name-only"],
                             capture_output=True, text=True).stdout.strip()

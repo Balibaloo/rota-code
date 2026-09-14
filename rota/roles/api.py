@@ -3651,6 +3651,22 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             "Feed the name in instead -- monkeypatch.setattr('builtins.input', "
             "lambda _='': 'Alice') -- or test the function that takes the "
             "name as an argument")
+    # Closing the process's stdin is the same trap from the other side.
+    # Click night 50, walk 2 (2026-09-14): two EOF tests did
+    # `sys.stdin.close()`, the pytest process lost its stdin, both failed
+    # against a correct confirm(), the Developer challenged, the Tester
+    # held, ten rounds to the cap.
+    closes_stdin = any(
+        isinstance(n.func, _ast.Attribute) and n.func.attr == "close"
+        and isinstance(n.func.value, _ast.Attribute) and n.func.value.attr == "stdin"
+        for n in calls)
+    if closes_stdin:
+        raise Wall(
+            "this test closes sys.stdin, and pytest's own stdin goes with it: "
+            "the test fails against any code and can break the tests after "
+            "it. An EOF is an empty stream: monkeypatch.setattr('sys.stdin', "
+            "io.StringIO('')) -- then the call under test reads EOF and the "
+            "assertion runs")
     # Same trap, one hop indirect: the test does not call input() itself, it
     # calls a function that does. `get_user_name()` reading input()
     # internally and a test asserting `get_user_name() == "User"` hits the
@@ -7771,7 +7787,16 @@ def code_commit(ctx: Ctx, message: str) -> dict:
                 "the disagreement is not in the code. Say what stands and why "
                 "(a decision), challenge the test (msg.challenge_tester) or "
                 "escalate the criterion (msg.escalate_architect); do not flip")
-    sha = worktrees.commit(tree, message)
+    # The Tester's test files are not the Developer's diff. The harness
+    # writes the bodies at run time (harness.materialise) and `add -A`
+    # was staging whatever version lay there. Click night 50 (2026-09-14):
+    # a first encode was committed and merged, the Tester's re-encode
+    # reached only the database, and walk 2 inherited a test that could
+    # never pass. The merge delivers the current bodies in a commit of
+    # their own (lifecycle.merge).
+    test_paths = tuple(r["path"] for r in ctx.conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (ctx.batch_id,)) if r["path"])
+    sha = worktrees.commit(tree, message, exclude=test_paths)
     if sha is None and drift:
         raise ValueError(
             "nothing changed, and the finding stands. " + " ".join(drift)

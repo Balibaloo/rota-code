@@ -343,3 +343,45 @@ def test_a_relative_import_protects_what_a_rewrite_would_drop(tmp_path):
     cut = 'def confirm(text, default_on_eof=False):\n    return default_on_eof\n'
     with pytest.raises(ValueError, match=r"drops style"):
         sb.call("code.write", path="src/click/termui.py", text=cut)
+
+
+def test_a_test_that_closes_stdin_is_refused(db):
+    """Click night 50, walk 2 (2026-09-14): two EOF tests did sys.stdin.close()
+    and failed against a correct confirm() for ten rounds."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="closes sys.stdin"):
+        _encode(sb, "import sys\nfrom script import close_account\ndef test_x():\n    sys.stdin.close()\n    assert close_account('a1') is None")
+
+
+def test_the_developer_commit_leaves_the_testers_files_out_and_the_merge_delivers_them(tmp_path):
+    """Click night 50 (2026-09-14): a first encode was committed and merged,
+    the Tester's re-encode reached only the database, and walk 2 inherited
+    a test that could never pass."""
+    import subprocess
+    from rota.core import lifecycle, worktrees
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    proj = tmp_path / "proj"; proj.mkdir()
+    (proj / "app.py").write_text('def add(a, b):\n    return a + b\n')
+    subprocess.run([*git, "init", "-q", "-b", "main"], cwd=proj, check=True)
+    subprocess.run([*git, "add", "."], cwd=proj, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], cwd=proj, check=True)
+    subprocess.run([*git, "worktree", "add", "-q", "-b", "batch/b1", str(tmp_path / "wt")], cwd=proj, check=True)
+    wt = tmp_path / "wt"
+    (wt / "tests").mkdir()
+    (wt / "tests" / "test_add.py").write_text('def test_add():\n    assert False  # the first encode\n')
+    (wt / "app.py").write_text('def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n')
+    sha = worktrees.commit(wt, "add sub", exclude=("tests/test_add.py",))
+    assert sha
+    committed = subprocess.run([*git, "show", "--name-only", "--format=", "HEAD"], cwd=wt, capture_output=True, text=True).stdout.split()
+    assert committed == ["app.py"], committed
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES ('b1','i1','running',?,?)", (sha, str(wt)))
+    body = 'from app import add\n\ndef test_add():\n    assert add(1, 2) == 3\n'
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('t1','b1',NULL,'tests/test_add.py',?)", (body,))
+    db.commit()
+    lifecycle.merge(db, "b1")
+    delivered = subprocess.run([*git, "show", "main:tests/test_add.py"], cwd=proj, capture_output=True, text=True).stdout
+    assert "add(1, 2) == 3" in delivered, delivered
+    assert "the first encode" not in delivered
