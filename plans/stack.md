@@ -81,8 +81,13 @@ Rules:
 - Register after the Tester challenge brief change (21:47 to 21:54):
   20 reds, all known, two stale Tester challenge cases re-recording on
   the Titan.
-- Status 2026-09-14 21:54: night 70 running cold since 21:47; the Titan
-  re-records two cases.
+- Register at 21:55: 20 reds, all known, no stale.
+- Paused by Roman at 21:57. Night 70 stopped during its cold onboarding;
+  its measurement (does the Critic accept the Tester's answer) is not
+  taken. 25 commits sit unpushed on rota/foundation; the peer that
+  pushed and re-packed has been offline since about 19:00.
+- Resume with: night 70 again (cold, the graph changed), then read it.
+- Status 2026-09-14 21:57: paused.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
