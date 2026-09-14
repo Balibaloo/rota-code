@@ -31,6 +31,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 HARD = ["rota/design/graph.json", "rota/core/boot.py", "rota/core/predicates.py",
         "rota/core/scheduler.py", "rota/core/schema.sql", "rota/core/db.py"]
+# The profiles too: onboarding copies the profile's routing into the run
+# database, so a warm snapshot keeps the desks' models from the night it was
+# taken. Night 60 (2026-09-14) moved the Developer to qwen2.5:14b in the
+# profile and a warm start would have run the 9B.
+HARD += sorted(str(f.relative_to(REPO)).replace(chr(92), "/")
+               for f in (REPO / "rota/llm/profiles").glob("*.toml"))
 SOFT = ["rota/core/runner.py", "rota/roles/api.py", "rota/core/sandbox.py"]
 MAX_WARM = 4
 
