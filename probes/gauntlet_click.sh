@@ -55,14 +55,14 @@ if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check c
   export WALK_FROM_WARM=1
 else
 python -m rota onboard clickI --root "$CLICK_ROOT" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
-# Onboarding alone, then the snapshot: no sentence in it, so a warm night
-# can start at any sentence (GAUNTLET_FROM). The yes-only principal answers
-# onboarding's pages the same way.
-WALK_ONBOARD_ONLY=1 python "$W" clickI "" "" 250
 fi
 # A night starts from nothing. Night 36 (2026-09-13) ran its first sentence
 # in minutes on night 35's leftover database: the wipe had not happened.
 [ "${WALK_FROM_WARM:-}" = "1" ] || python -c "import sqlite3, sys; n = sqlite3.connect('.rota/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
+# After the fresh check, which counts sessions: onboarding alone, then the snapshot: no sentence in it, so a warm night
+# can start at any sentence (GAUNTLET_FROM). The yes-only principal answers
+# onboarding's pages the same way.
+[ "${WALK_FROM_WARM:-}" = "1" ] || WALK_ONBOARD_ONLY=1 python "$W" clickI "" "" 250
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"
