@@ -126,8 +126,16 @@ def write_snapshot() -> None:
     snapshot taken at the first slicing wake carried sentence one, and
     GAUNTLET_FROM=2 re-ran it)."""
     warm = REPO / ".rota" / f"{run}_warm.db"
-    if warm.exists() or conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] != 0:
+    if conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] != 0:
         return
+    # A cold onboarding is the freshest snapshot there is, so it replaces
+    # the one on disk. Nights 60 and 61 (2026-09-14) onboarded cold on new
+    # profiles and left the snapshot of 12:14 in place; night 62 started
+    # warm from it with the Developer on the wrong model.
+    if warm.exists():
+        if not ONBOARD_ONLY:
+            return
+        warm.unlink()
     import sqlite3 as _sq
     conn.commit()
     dst = _sq.connect(str(warm)); conn.backup(dst); dst.close()
