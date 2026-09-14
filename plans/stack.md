@@ -20,14 +20,14 @@ Rules:
 - Why: the 9B wrote the fix, loaded the tests, read the run from before
   its write as its fix failing, and restarted until the loop cut it. A
   mechanical fact, so a door.
-- State: half-built in `rota/roles/api.py` and `rota/core/worktrees.py`,
-  uncommitted; the unit test in `tests/rota/test_developer.py` fails
-  after `code.write` (the field is absent). Materialised test files are
-  excluded as furniture.
-- Ends when: the unit test passes, the register replays green or stale
-  only where the tool's output changed, act 3 re-recorded on the 9B.
-- Waits on: nothing, but runs beside frame 8 on CPU only.
-- Status 2026-09-14 17:05: paused; frame 8 first.
+- State: built. `worktrees.changed_since(path, sha)` and the row field
+  "changed since this run, not run" in `tests.load`, materialised test
+  files excluded as furniture. Unit test green (the test lands the
+  batch head the way a session does; `code.commit` stages that write).
+  Uncommitted, measured by the replay of frame 7.
+- Ends when: the replay says green or stale only where the tool's output
+  changed; then act 3 re-recorded on the 9B; commit.
+- Status 2026-09-14 17:16: waiting on the replay.
 
 ### 8. Click night 61: gemma-4 at the Developer's desk, sentence two
 
@@ -47,16 +47,21 @@ Rules:
 
 ### 7. Register hygiene after today's fixes
 
-- Why: my full replay ran without `ROTA_MODEL=qwen3:8b` and reported 85
-  meaningless failures (no junk rows were written: a stale case records
-  nothing). Two Tester cases showed red on qwen3:8b after a wording-only
-  brief reword: the outside-fact case is red on qwen3:8b under every
-  prompt it ever had, a known red; the stream act had never been
-  recorded on qwen3:8b. Neither is the reword. The four act cases are
-  now held by the desks' models (b80742c).
-- Ends when: the replay on qwen3:8b is read, the four act cases are
-  re-recorded on their models, the peer is told cassettes is quiet.
-- Status 2026-09-14 17:30: replay running; Titan re-record launched.
+- Why: the first scoring fix (91f1928) was wrong in the other direction.
+  `_bind` logs a tool call before its guards, `stage` logged a send after
+  its guards; counting every logged call as landed turned every refused
+  generic call into a red. The replay on qwen3:8b showed 38 reds, 15 new,
+  all of that kind. Fixed the other way: `stage` logs before its guards,
+  the subtraction returns. The 14B's act 3 stays 0/5 under it.
+- Also: the Titan re-record put the stream act at 0/5 on qwen3.5:9b, the
+  model that was 5/5 on the 3080 load. Per-load determinism: the 9B's
+  four acts are not a stable fact yet. The outside-fact Tester case is a
+  known red on qwen3:8b under every prompt it ever had.
+- Ends when: the replay after the symmetric fix reads 23 known reds and
+  no stale (the door of frame 9 may stale the act 3 cassettes, expected),
+  the stream act re-recorded on the 3080 after night 61, the peer told
+  cassettes is quiet.
+- Status 2026-09-14 17:16: replay running.
 
 ### 6. The harness false pass
 
