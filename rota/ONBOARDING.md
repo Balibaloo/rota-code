@@ -556,7 +556,7 @@ to read `frontmatter.ts` and `providers/note.ts` for.
 ## Onboarding v1.0.0 -- the process, to build and validate
 
 What follows is the onboarding process as the original design
-(`rota_tui/team-graph.html`, "Before you start") has it, reconciled with what
+(`design/team-graph.html`, "Before you start") has it, reconciled with what
 the runs above taught, written as the specification we build and validate
 against. Steps 1-4, 6 and 9 exist and are measured; the rest exists as
 charters, modes and a story, and has never run as a sequence. "Validated" for

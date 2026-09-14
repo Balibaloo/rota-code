@@ -157,18 +157,31 @@ ROTA_L1=1 ROTA_REFRESH=1 python -m pytest tests/rota/test_l1.py -q  # re-record
 a recording session writes a new version of it most days. Tracking it had put
 153 versions, or 57 GB, into Git LFS.
 
-Put the file at `tests/rota/cassettes.db` in the checkout. `.gitignore` already
-holds that path, so the file never reaches a commit. Copy it from another
-checkout, or set `ROTA_DEV_DB` to a path on a fast disk.
+It is published instead, as a 33 MB gzip on a GitHub release, and the checkout
+carries a pointer to it in `tests/rota/cassettes.json`. A checkout that lacks
+the file fetches it on the first `pytest` run. By hand:
 
-A suite that finds no database records instead of replaying, which costs model
-time and needs a GPU. Check the file is there before a long run.
+```bash
+rota cassettes status     # what is published, what is local, whether they match
+rota cassettes pull       # fetch and verify; refuses to replace a local file
+rota cassettes publish    # after a re-record: snapshot, gzip, upload, point at it
+```
+
+`pull` never overwrites a database that exists, because a re-record that has
+not been published exists in exactly one place. `publish` needs `GITHUB_TOKEN`
+with write access to the repository, or prints the `gh` command that does the
+same. `ROTA_DEV_DB` still moves the file to a fast disk, and `ROTA_NO_FETCH=1`
+keeps a test run offline.
+
+A suite that finds no database and cannot fetch one records instead of
+replaying, which costs model time and needs a GPU. `rota cassettes status`
+before a long run.
 
 Rebuilding the graph from the design viewer (only needed if `team-graph.html`
 changes):
 
 ```bash
-node rota/tools/extract_graph.js rota_tui/team-graph.html rota/design
+node rota/tools/extract_graph.js rota/design/team-graph.html rota/design
 python rota/tools/amend_graph.py        # Planner out, Tester in, backlog reads
 python rota/tools/amend_graph2.py       # backlog split, fact artefacts, missing edges
 ```

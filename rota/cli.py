@@ -515,6 +515,33 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cassettes(args: argparse.Namespace) -> int:
+    """
+    The cassette database is published as a release asset and fetched on
+    demand; `rota/testkit/cassette_store.py` says why and what is checked.
+    """
+    from pathlib import Path as _Path
+
+    from .testkit import cassette_store as store
+
+    if args.action == "status":
+        return store.status()
+    if args.action == "pull":
+        store.pull(force=args.force)
+        return 0
+    out = _Path(args.out).resolve() if args.out else None
+    if args.action == "pack":
+        gz, m = store.pack(out_dir=out, tag=args.tag)
+        print(f"{gz}  {m.bytes_gz/1e6:.0f} MB gzip of {m.bytes_db/1e6:.0f} MB, "
+              f"{m.cassettes} cassettes, {m.case_runs} case runs")
+        print(f"manifest written: {store.MANIFEST}")
+        return 0
+    if args.action == "publish":
+        gz, m = store.pack(out_dir=out, tag=args.tag)
+        return store.publish(gz, m)
+    raise SystemExit(f"rota cassettes: unknown action {args.action}")
+
+
 def cmd_profile(args: argparse.Namespace) -> int:
     import json as _json
 
@@ -916,6 +943,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("assignment", nargs="?", help="set: dotted.key=value")
     p.add_argument("--root", help="a project whose .rota/profiles to include")
     p.set_defaults(func=cmd_profile)
+
+    p = sub.add_parser("cassettes", help="the recorded model turns: status, pull, pack, publish")
+    p.add_argument("action", choices=("status", "pull", "pack", "publish"))
+    p.add_argument("--force", action="store_true",
+                   help="pull: replace a local database (it may hold unpublished recordings)")
+    p.add_argument("--tag", help="pack/publish: release tag, default cassettes-YYYYMMDD")
+    p.add_argument("--out", help="pack/publish: directory for the gzip, default the temp dir")
+    p.set_defaults(func=cmd_cassettes)
 
     p = sub.add_parser("tui", help="talk to it, with the register beside you")
     p.add_argument("name", nargs="?", help="omit to open the run list")

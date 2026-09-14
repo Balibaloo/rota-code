@@ -59,6 +59,8 @@ DEV_DB = Path(os.environ.get("ROTA_DEV_DB",
 # so a tool reading recorded runs can tell a live case from a renamed one.
 CASES = REPO / "tests" / "rota" / "cases"
 
-# The design documents this was built from. Outside the package on purpose —
-# they are the source, not the product.
-DOCS = REPO / "rota_tui"
+# The design documents this was built from: HANDOFF.md and TESTS.md, filed
+# beside the other documents at the top of the package. They lived outside
+# it as `rota_tui/` until the split of 2026-09-14, when that name stopped
+# meaning anything. The graph they describe is `design/team-graph.html`.
+DOCS = PACKAGE

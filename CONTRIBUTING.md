@@ -1,4 +1,42 @@
-# Commit message standard
+# Contributing
+
+## Checking out
+
+```bash
+git clone https://github.com/Balibaloo/rota-code.git
+cd rota-code
+pip install -r requirements.txt
+```
+
+**Line endings need nothing from you.** The repository is LF, and
+`.gitattributes` says `* text=auto eol=lf`, which overrides `core.autocrlf`
+in both directions. Measured on a clone that left the Git for Windows
+default of `core.autocrlf=true` in place: `git ls-files --eol` reports 512
+files `i/lf` and 12 binary, no file holds a `0x0D` byte in the index or the
+working tree, and `git status` is clean. Do not "fix" this with a config
+change or a renormalise commit.
+
+**`Path.write_text` is the real trap.** On Windows it turns every `\n` into
+`\r\n` in the content you write. Git normalises the file again on staging,
+so the damage hides from `git diff` and shows up in a byte comparison. Write
+bytes, or pass `newline=""`, when a script edits a tracked file.
+
+**`tests/rota/cassettes.db` is not tracked, and a raw file copy of it is
+unsafe.** Copying 590 MB with `cp` while any process holds the database open
+produces a file that opens and then fails with "database disk image is
+malformed", and a suite run against it invents failures. Use SQLite's backup
+API, then check the copy:
+
+```python
+import sqlite3
+s = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+s.backup(sqlite3.connect(dst))          # about 26 s for 590 MB
+c = sqlite3.connect(f"file:{dst}?mode=ro", uri=True)
+c.execute("pragma quick_check").fetchall()          # ('ok',)
+c.execute("select count(*) from cassettes").fetchone()   # match the source
+```
+
+## Commit message standard
 
 This repo uses [Conventional Commits](https://www.conventionalcommits.org/)
 for the summary line, with a plain-prose body. No author or co-author

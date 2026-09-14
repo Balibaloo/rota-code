@@ -66,18 +66,32 @@ def pytest_configure(config):
 
     os.environ.update(GIT_ENV)
 
+    # The cassette database is not tracked. A checkout that lacks it fetches
+    # the published one, once, on the controller, before xdist spawns workers
+    # that would each try. A present file is never touched: it may hold
+    # recordings nobody has published (rota/testkit/cassette_store.py).
+    if not hasattr(config, "workerinput"):
+        from rota.testkit import cassette_store
+
+        config._rota_cassette_note = cassette_store.ensure_for_tests()
+
 
 def pytest_report_header(config):
     """An estimate before the run, from the last one on this machine."""
     from rota.llm.cassettes import Tally, _clock
 
+    lines = []
+    note = getattr(config, "_rota_cassette_note", None)
+    if note:
+        lines.append(note)
     last = Tally.previous()
-    if not last or not last.get("records"):
-        return []
-    each = last["record_seconds"] / last["records"]
-    return [f"cassettes: last recording ran {last['records']} completions in "
+    if last and last.get("records"):
+        each = last["record_seconds"] / last["records"]
+        lines.append(
+            f"cassettes: last recording ran {last['records']} completions in "
             f"{_clock(last['record_seconds'])} ({each:.1f}s each) on "
-            f"{last.get('model') or 'an unnamed model'}, {last.get('when', '')}"]
+            f"{last.get('model') or 'an unnamed model'}, {last.get('when', '')}")
+    return lines
 
 
 def pytest_sessionfinish(session, exitstatus):

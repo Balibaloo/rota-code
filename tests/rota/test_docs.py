@@ -75,6 +75,10 @@ LOAD_BEARING = {
     "COMPLETION.md": "test_docs.py below -- the unified remaining-work "
                      "document; its claims about what is green are asserted "
                      "so a closed debt cannot keep reading as open",
+    "HANDOFF.md": "tools/vocabulary.py reads it at runtime for the bolded "
+                  "terms; the design document this was built from, filed "
+                  "here since the split of 2026-09-14",
+    "TESTS.md": "tools/vocabulary.py reads it at runtime, as HANDOFF.md",
 }
 
 
