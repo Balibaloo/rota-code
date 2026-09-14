@@ -3675,7 +3675,15 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # appears in this file's own text. Only checked against files already in
     # the worktree: a function the Developer has not written yet cannot be
     # inspected, and the ordinary NameError guard covers that case anyway.
-    if ("monkeypatch" not in body and "builtins" not in body and ctx.batch_id):
+    # A patch of builtins.input does not reach a module that bound `input`
+    # to its own name at import. Click night 53 (2026-09-14): the test
+    # patched builtins.input, confirm() read through visible_prompt_func,
+    # and pytest raised OSError for the whole loop. The scan runs when the
+    # body patches nothing, or patches builtins.input only.
+    patches_builtin_only = ("builtins.input" in body
+                            and "sys.stdin" not in body and "stdin" not in body)
+    unpatched = "monkeypatch" not in body and "builtins" not in body
+    if (unpatched or patches_builtin_only) and ctx.batch_id:
         try:
             root = _worktree_of(ctx)
         except Exception:                     # noqa: BLE001 -- no worktree yet
@@ -3704,21 +3712,41 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     for t in (n.targets if isinstance(n, _ast.Assign) else [n.target])
                     if isinstance(t, _ast.Name)}
                 for node in _ast.walk(fn_tree):
-                    if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
-                            and node.name in called_bare
-                            and any(isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
-                                   and c.id in readers
-                                   for c in _ast.walk(node))):
+                    if not (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                            and node.name in called_bare):
+                        continue
+                    via = {c.id for c in _ast.walk(node)
+                           if isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
+                           and c.id in readers}
+                    if not via:
+                        continue
+                    aliases = sorted(via - {"input"})
+                    if patches_builtin_only and not aliases:
+                        continue                 # the patch reaches input() itself
+                    module = rel[:-3].replace("/", ".")
+                    if module.startswith("src."):
+                        module = module[4:]
+                    if aliases:
                         raise Wall(
-                            f"{node.name}() reads input() internally "
-                            f"({pyfile.name}), and this test calls "
-                            f"{node.name}() directly under pytest, where "
-                            f"stdin is captured: the call raises OSError "
-                            f"before any assertion runs, against any code. "
-                            f"Feed the name in instead -- "
-                            f"monkeypatch.setattr('builtins.input', "
-                            f"lambda _='': 'Alice') before calling "
-                            f"{node.name}()")
+                            f"{node.name}() reads input() through {aliases[0]}, a name "
+                            f"{pyfile.name} bound to input at import, and this test "
+                            f"calls {node.name}() under pytest, where stdin is captured: "
+                            f"the call raises OSError before any assertion runs. A patch "
+                            f"of builtins.input does not reach {aliases[0]}. Patch the "
+                            f"name it reads through -- monkeypatch.setattr("
+                            f"'{module}.{aliases[0]}', lambda _='': 'y') -- or give it "
+                            f"an empty stream: monkeypatch.setattr('sys.stdin', "
+                            f"io.StringIO(''))")
+                    raise Wall(
+                        f"{node.name}() reads input() internally "
+                        f"({pyfile.name}), and this test calls "
+                        f"{node.name}() directly under pytest, where "
+                        f"stdin is captured: the call raises OSError "
+                        f"before any assertion runs, against any code. "
+                        f"Feed the name in instead -- "
+                        f"monkeypatch.setattr('builtins.input', "
+                        f"lambda _='': 'Alice') before calling "
+                        f"{node.name}()")
     # And a third harness fact, from walk nine: `assert test_valid_input()`
     # against a name the test neither imports nor defines is a NameError
     # before any code is consulted. The floor puts the project root on the
@@ -7184,6 +7212,29 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     frag_note = (f" Your text itself does not parse: line {fexc.lineno} "
                                  f"of it is {bad.strip()!r}. Send only the lines you add, "
                                  f"whole statements; the file's own lines stay where they are.")
+                    # A fragment that begins with the tail of a compound
+                    # statement. Click night 53 (2026-09-14): `except ...:`
+                    # sent alone, three sessions, against a try statement
+                    # the door had already located. Name the whole statement.
+                    first = next((l.strip() for l in fragment.splitlines() if l.strip()), "")
+                    tail_kw = next((k for k in ("except", "elif", "else", "finally")
+                                    if first.startswith(k) and first.rstrip(":").split(" ")[0] == k), None)
+                    if tail_kw:
+                        try:
+                            orig = _ast.parse(chr(10).join(lines))
+                        except SyntaxError:
+                            orig = None
+                        holder = None
+                        for n in (_ast.walk(orig) if orig else []):
+                            lo, hi = getattr(n, "lineno", 0) - 1, getattr(n, "end_lineno", 0)
+                            if isinstance(n, (_ast.Try, _ast.If, _ast.For, _ast.While)) and lo <= start < hi:
+                                if holder is None or lo >= holder[0]:
+                                    holder = (lo, hi, type(n).__name__.lower())
+                        if holder:
+                            lo, hi, kind = holder
+                            frag_note += (f" `{tail_kw}` is the tail of the {kind} statement at lines "
+                                          f"{lo} to {hi}; send that whole statement, with your "
+                                          f"change in it: start={lo}, end={hi}.")
             raise ValueError(
                 f"{path} is not valid Python ({exc.msg}, line {exc.lineno}); "
                 f"the harness imports it and would die at collection.{frag_note}") from None

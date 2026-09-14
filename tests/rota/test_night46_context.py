@@ -420,7 +420,7 @@ def test_a_function_reading_input_by_another_name_is_seen(db, tmp_path):
     db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
     db.commit()
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
-    with pytest.raises(ValueError, match=r"confirm\(\) reads input\(\) internally"):
+    with pytest.raises(ValueError, match=r"confirm\(\) reads input\(\) through visible_prompt_func"):
         _encode(sb, "from click.termui import confirm\n\ndef test_x():\n    assert confirm('ok?', default=True) is True")
 
 
@@ -446,3 +446,38 @@ def test_a_span_that_covers_whole_inner_statements_is_a_legal_edit(tmp_path):
     # the try statement is lines 2 to 7: whole inner statements, a legal edit of confirm
     fix = '        try:\n            value = input(text)\n        except (EOFError, OSError):\n            return None\n'
     assert sb.call("code.write", path="src/termui.py", text=fix, start=2, end=7)["bytes"]
+
+
+def test_a_patch_of_builtins_input_does_not_reach_an_alias(db, tmp_path):
+    """Click night 53 (2026-09-14): the test patched builtins.input, confirm()
+    read through visible_prompt_func bound at import, OSError all loop."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text("visible_prompt_func = input\n\n\ndef confirm(text, default=None):\n    return visible_prompt_func(text) == 'y'\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="click.termui.visible_prompt_func"):
+        _encode(sb, "from click.termui import confirm\n\ndef test_x(monkeypatch):\n    monkeypatch.setattr('builtins.input', lambda _='': 'y')\n    assert confirm('ok?') is True")
+    # patching the alias, or stdin, passes the door
+    ok = "from click.termui import confirm\n\ndef test_x(monkeypatch):\n    monkeypatch.setattr('click.termui.visible_prompt_func', lambda _='': 'y')\n    assert confirm('ok?') is True"
+    sb2 = build("tester", db, batch_id="b1", mode="tests_missing")
+    assert _encode(sb2, ok)
+
+
+def test_a_fragment_that_is_the_tail_of_a_try_names_the_whole_statement(tmp_path):
+    """Click night 53 (2026-09-14): `except ...:` sent alone, three sessions."""
+    wt = tmp_path / "wt"; (wt / "src").mkdir(parents=True)
+    src = 'def confirm(text):\n    while True:\n        try:\n            value = input(text)\n        except EOFError:\n            raise SystemExit()\n        return value\n'
+    (wt / "src" / "termui.py").write_text(src)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/termui.py::confirm\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    tail = '        except (EOFError, OSError):\n            return None\n'
+    with pytest.raises(ValueError, match=r"tail of the try statement at lines 2 to 6; send that whole statement"):
+        sb.call("code.write", path="src/termui.py", text=tail, start=3, end=6)  # leaves `try:` with no body: the merge fails

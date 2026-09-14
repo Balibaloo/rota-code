@@ -4,7 +4,8 @@ MODE: tests_missing — every criterion gets a verdict, then its door.
 The wake says which criteria have no test. A criterion with `tested_by` has
 its test already. Leave it. A criterion without one is yours: you choose the
 test id and the path. Nobody assigns them. The triage and the encode of one
-criterion go in the same reply, triage first.
+criterion go in the same reply, triage first. One criterion per reply:
+six encodes in one reply run past the output budget and none lands.
 The verdict is one judgement — **could a machine check this sentence?**
 `encodable` and you `tests.encode` it; `cannot` and you route it:
 `msg.question_terminologist` with the criterion in refs and what stops you in
