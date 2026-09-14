@@ -409,3 +409,40 @@ def test_a_module_may_not_import_its_own_package_at_module_level(tmp_path):
         sb.call("code.write", path="src/click/utils.py", text=cyclic)
     relative = 'from .core import command\n\n\ndef echo(m):\n    print(m)\n\n\ndef echo_json(o):\n    print(o)\n'
     assert sb.call("code.write", path="src/click/utils.py", text=relative)["bytes"]
+
+
+def test_a_function_reading_input_by_another_name_is_seen(db, tmp_path):
+    """Click night 52 (2026-09-14): `visible_prompt_func = input` at module
+    level, confirm() reads through it, a test called confirm() directly and
+    pytest raised OSError for the whole loop."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text("visible_prompt_func = input\n\n\ndef _readline_prompt(func, text):\n    return func(text)\n\n\ndef confirm(text, default=None):\n    value = _readline_prompt(visible_prompt_func, text)\n    return value == 'y'\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match=r"confirm\(\) reads input\(\) internally"):
+        _encode(sb, "from click.termui import confirm\n\ndef test_x():\n    assert confirm('ok?', default=True) is True")
+
+
+def test_a_span_that_covers_whole_inner_statements_is_a_legal_edit(tmp_path):
+    """Click night 52 (2026-09-14): a span inside confirm() was refused as
+    cutting through confirm, three sessions running, with only the
+    whole-function spans offered."""
+    wt = tmp_path / "wt"; (wt / "src").mkdir(parents=True)
+    src = "def confirm(text):\n    while True:\n        try:\n            value = input(\n                text)\n        except EOFError:\n            raise SystemExit()\n        if value == 'y':\n            return True\n        return False\n"
+    (wt / "src" / "termui.py").write_text(src)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/termui.py::confirm\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    # line 4 is inside the two-line assignment (lines 3 to 5): a cut, named at its own depth
+    with pytest.raises(ValueError, match=r"cuts through assign .*lines 3 to 5"):
+        sb.call("code.write", path="src/termui.py", text="            pass", start=3, end=4)
+    # the try statement is lines 2 to 7: whole inner statements, a legal edit of confirm
+    fix = '        try:\n            value = input(text)\n        except (EOFError, OSError):\n            return None\n'
+    assert sb.call("code.write", path="src/termui.py", text=fix, start=2, end=7)["bytes"]

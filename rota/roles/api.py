@@ -3691,12 +3691,23 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                     fn_tree = _ast.parse(pyfile.read_text(encoding="utf-8"))
                 except (OSError, SyntaxError, UnicodeDecodeError):
                     continue
+                # A module-level name bound to input() is input() by another
+                # name: click's `visible_prompt_func = input`, passed down
+                # into `_readline_prompt`. Click night 52 (2026-09-14): a
+                # test called confirm() directly, the door saw no `input`,
+                # pytest raised OSError, and the loop ran to the cap.
+                readers = {"input"} | {
+                    t.id for n in fn_tree.body
+                    if isinstance(n, (_ast.Assign, _ast.AnnAssign))
+                    and isinstance(getattr(n, "value", None), _ast.Name)
+                    and n.value.id == "input"
+                    for t in (n.targets if isinstance(n, _ast.Assign) else [n.target])
+                    if isinstance(t, _ast.Name)}
                 for node in _ast.walk(fn_tree):
                     if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                             and node.name in called_bare
-                            and any(isinstance(c, _ast.Call)
-                                   and isinstance(c.func, _ast.Name)
-                                   and c.func.id == "input"
+                            and any(isinstance(c, _ast.Name) and isinstance(c.ctx, _ast.Load)
+                                   and c.id in readers
                                    for c in _ast.walk(node))):
                         raise Wall(
                             f"{node.name}() reads input() internally "
@@ -7052,11 +7063,40 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                 original = _ast.parse(chr(10).join(lines))
             except SyntaxError:
                 original = None
-            for node in (original.body if original else []):
-                lo, hi = node.lineno - 1, getattr(node, "end_lineno", node.lineno)
-                cut = [b for b in (start, stop) if lo < b < hi]
-                if cut:
-                    name = getattr(node, "name", None) or type(node).__name__
+            # At every nesting level: a span that covers whole statements
+            # inside a function is a legal edit of that function. Click
+            # night 52 (2026-09-14): the Developer's span inside confirm()
+            # was refused three sessions running as "cuts through confirm",
+            # with only the whole-function spans offered, and the loop
+            # never landed a line. The refusal names the innermost
+            # statement a boundary falls inside.
+            def _children(n):
+                out = []
+                for field in ("body", "orelse", "finalbody", "handlers"):
+                    part = getattr(n, field, None)
+                    if isinstance(part, list):
+                        out.extend(x for x in part if hasattr(x, "lineno"))
+                return out
+
+            def _cut(nodes, b):
+                for n in nodes:
+                    lo, hi = n.lineno - 1, getattr(n, "end_lineno", n.lineno)
+                    if lo < b < hi:
+                        kids = _children(n)
+                        if any(k.lineno - 1 == b or getattr(k, "end_lineno", k.lineno) == b
+                               for k in kids):
+                            return "aligned"     # on a child's boundary: whole statements
+                        inner = _cut(kids, b)
+                        if inner == "aligned":
+                            return "aligned"
+                        return inner or (n, lo, hi)
+                return None
+
+            for b in (start, stop):
+                hit = _cut(original.body if original else [], b)
+                if hit and hit != "aligned":
+                    n, lo, hi = hit
+                    name = getattr(n, "name", None) or type(n).__name__.lower()
                     raise ValueError(
                         f"start={start}, end={end} cuts through {name} "
                         f"(lines {lo} to {hi} in code.source numbering). A span "
