@@ -30,7 +30,9 @@ Rules:
   challenge. The recordings went to a stray file (ROTA_DEV_DB pointed at
   .rota/cassettes.db; the register is tests/rota/cassettes.db) and were
   merged into the register at 17:40.
-- Status: closed 2026-09-14 17:40.
+- Re-recorded into the register on a second Titan load 17:35 to 17:56:
+  5/5 again, the same loop, and it replays green.
+- Status: closed 2026-09-14 17:57.
 
 ### 8. Click night 62: gemma-4 at the Developer's desk, sentence two
 
