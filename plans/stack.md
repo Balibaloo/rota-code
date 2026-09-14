@@ -87,7 +87,9 @@ Rules:
   taken. 25 commits sit unpushed on rota/foundation; the peer that
   pushed and re-packed has been offline since about 19:00.
 - Resume with: night 70 again (cold, the graph changed), then read it.
-- Status 2026-09-14 21:57: paused.
+- Resumed 2026-09-15 00:32. Night 70 launched cold at 00:33 (the
+  stopped onboarding took the snapshot with it).
+- Status 2026-09-15 00:33: night 70 onboarding.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
