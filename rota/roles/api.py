@@ -2108,8 +2108,12 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     if status == "violated":
         from ..core import worktrees as _wt
         files = _wt.batch_files(ctx.conn, batch_id)
+        # A grain is a path, a path::symbol, or a bare symbol; only a path
+        # can be checked against the diff (L1-AR-find-against-a-constraint
+        # names bare symbols and passed before this door).
         grain_file = grain.split("::", 1)[0]
-        if files is not None and grain_file not in files:
+        path_shaped = "/" in grain_file or grain_file.endswith(".py")
+        if files is not None and path_shaped and grain_file not in files:
             raise ValueError(
                 f"the batch's diff does not touch {grain_file!r}; it changed "
                 f"{files}. A finding names what the diff broke, on a file the "

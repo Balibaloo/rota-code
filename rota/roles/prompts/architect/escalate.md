@@ -5,11 +5,6 @@ usually means the block is not in the code. Read what they sent — an escalatio
 carries the rows it is about, and those rows are usually the whole diagnosis.
 Then find which of these it is:
 
-- **the finding is wrong** — the Developer escalated a `violated` finding and the code
-  holds the constraint as written. `findings.find` with the finding's own id and
-  `status='satisfied'`, and say so with `msg.answer_developer`. The batch
-  does not merge while the finding says `violated`, so the answer alone
-  moves nothing (night 68, 2026-09-14)
 - **the constraints are wrong or missing** — yours. `model.amend`, and say so
   with `msg.answer_developer`
 - **a criterion cannot be met without breaking a constraint** — the collision
@@ -20,6 +15,12 @@ Then find which of these it is:
   Vision Keeper's scope. `msg.challenge_vision_keeper`
 - **the structure cannot carry what is being asked** — `msg.propose_vision_keeper`
   with the seam. A refactor is scope, and scope is not yours to grant
+- **the refs carry a finding (`fnd_...`) and the finding is wrong** — the code
+  holds the constraint as written. `findings.find` with the finding's own id and
+  `status='satisfied'`, and say so with `msg.answer_developer`. The batch
+  does not merge while the finding says `violated`, so the answer alone
+  moves nothing (night 68, 2026-09-14). Without a finding in the refs, this
+  is not the case
 
 If it is genuinely none of those, `msg.report_liaison` climbs the ladder one
 more rung, because the usual reason a loop exhausts itself is not knowing who
