@@ -27,7 +27,7 @@ Rules:
   repo, made 00:40). The first night there is cold.
 - Ends when: night 71 runs there and its onboarding time is read
   against night 70's.
-- Status 2026-09-15 00:45: knob built (ROTA_RUNS in rota/paths.py, the
+- Status 2026-09-15 00:41: knob built (ROTA_RUNS in rota/paths.py, the
   cli, walk.py, warm_stamp.py and the night script); waits on night 70.
 
 ### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
