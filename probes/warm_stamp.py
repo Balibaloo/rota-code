@@ -21,6 +21,7 @@ night regardless.
 
     python probes/warm_stamp.py check clickI     # exit 0 warm, 1 cold
 """
+import os
 import hashlib
 import json
 import sqlite3
@@ -85,7 +86,8 @@ def prompt_files(conn) -> list[str]:
 
 
 def _paths(run: str) -> tuple[Path, Path]:
-    return REPO / ".rota" / f"{run}_warm.db", REPO / ".rota" / f"{run}_warm.json"
+    runs = Path(os.environ.get("ROTA_RUNS", REPO / ".rota"))
+    return runs / f"{run}_warm.db", runs / f"{run}_warm.json"
 
 
 def write(run: str) -> Path:

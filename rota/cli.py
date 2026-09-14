@@ -48,7 +48,7 @@ from . import paths
 # Where named runs live. This repository's state directory, not the target
 # project's: the databases are about work *on* a checkout and several of them
 # can be about the same one, so they cannot be identified by it.
-RUNS = paths.REPO / ".rota"
+RUNS = paths.RUNS
 
 
 class WipeRefused(Exception):

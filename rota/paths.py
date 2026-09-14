@@ -52,6 +52,11 @@ TIMINGS_FILE = REPO / ".rota-timings.json"
 # `rota/README.md` says how to get one. Overridable because the repo may live
 # on a slow drive: point ROTA_DEV_DB at an SSD and the recorder's write storm
 # moves with it.
+# The runs directory: run databases, warm snapshots, live files. ROTA_RUNS
+# moves it off the D: HDD for a night (2026-09-15: onboarding sat on WAL
+# fsyncs at 13 a second while the GPU idled; C: does 279).
+RUNS = Path(os.environ.get("ROTA_RUNS", REPO / ".rota"))
+
 DEV_DB = Path(os.environ.get("ROTA_DEV_DB",
                              REPO / "tests" / "rota" / "cassettes.db"))
 

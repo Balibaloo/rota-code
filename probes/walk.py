@@ -23,7 +23,8 @@ from rota.roles.principal import Answer, pending_asks, pump, render_state
 run, first = sys.argv[1], sys.argv[2]
 answer = sys.argv[3] if len(sys.argv) > 3 else "yes to all of it. keep it simple."
 cap = int(sys.argv[4]) if len(sys.argv) > 4 else 250
-conn = connect(REPO / ".rota" / f"{run}.db")
+from rota import paths
+conn = connect(paths.RUNS / f"{run}.db")
 
 last = conn.execute("SELECT text FROM entries WHERE author = 'principal' "
                     "AND id LIKE 'e_p%' ORDER BY ts_order DESC LIMIT 1").fetchone()
@@ -125,7 +126,7 @@ def write_snapshot() -> None:
     else and a night can start at any sentence (night 51, 2026-09-14: the
     snapshot taken at the first slicing wake carried sentence one, and
     GAUNTLET_FROM=2 re-ran it)."""
-    warm = REPO / ".rota" / f"{run}_warm.db"
+    warm = paths.RUNS / f"{run}_warm.db"
     if conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] != 0:
         return
     # A cold onboarding is the freshest snapshot there is, so it replaces

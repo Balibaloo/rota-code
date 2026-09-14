@@ -4,8 +4,9 @@
 # Absolute, so a copy of this script run from anywhere still runs the
 # repository's driver on the repository's database. Nights 35 and 36
 # (2026-09-13) ran from a scratchpad copy, found no `rota` module there,
-# ran an old walk.py beside the copy, and never onboarded.
-REPO="${ROTA_REPO:-D:/repos/_AI/Custom_AI_TUI}"
+# ran an old walk.py beside the copy, and never onboarded. The default
+# path moved on 2026-09-14, when rota left Custom_AI_TUI (plans/rota-split.md).
+REPO="${ROTA_REPO:-D:/repos/rota}"
 cd "$REPO"
 W="$REPO/probes/walk.py"
 export ROTA_ONESHOT=
@@ -14,7 +15,8 @@ export ROTA_MAX_ITERATIONS=24
 export PYTHONUNBUFFERED=1
 # One live file per process: the register recorder on the Titan writes
 # .rota/live.md too, and the two overwrote each other (2026-09-13).
-export ROTA_LIVE="$REPO/.rota/live_click.md"
+STATE="${ROTA_RUNS:-$REPO/.rota}"; mkdir -p "$STATE"; export ROTA_RUNS="$STATE"
+export ROTA_LIVE="$STATE/live_click.md"
 export WALK_WORDS="yes that all looks right, go ahead"
 # The sample repository starts every night at its base commit. Night 50
 # (2026-09-14) ran on the main that night 49 had merged echo_json into, so
@@ -43,22 +45,22 @@ echo "== onboard $(date +%H:%M)"
 # The last night's run database, kept beside the new one: `onboard --force`
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
-python -c "import sqlite3, os; os.path.exists('.rota/clickI.db') and sqlite3.connect('.rota/clickI.db').backup(sqlite3.connect('.rota/clickI_prev.db'))"
+python -c "import sqlite3, os; d = os.environ['ROTA_RUNS']; os.path.exists(d + '/clickI.db') and sqlite3.connect(d + '/clickI.db').backup(sqlite3.connect(d + '/clickI_prev.db'))"
 if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check clickI; then
   # A warm start: the snapshot walk.py wrote at the first slicing wake of an
   # earlier night. Onboarding's sessions are already in it; the night begins
   # at slicing. The stamp check above goes cold on its own when a brief, a
   # tool list, the graph or a predicate changed, or after four warm nights.
-  echo "== warm start from .rota/clickI_warm.db (onboarding skipped)"
-  rm -f "$REPO/.rota/clickI.db" "$REPO/.rota/clickI.db-wal" "$REPO/.rota/clickI.db-shm"
-  python -c "import sqlite3; sqlite3.connect('.rota/clickI_warm.db').backup(sqlite3.connect('.rota/clickI.db'))"
+  echo "== warm start from $STATE/clickI_warm.db (onboarding skipped)"
+  rm -f "$STATE/clickI.db" "$STATE/clickI.db-wal" "$STATE/clickI.db-shm"
+  python -c "import sqlite3; import os; d = os.environ['ROTA_RUNS']; sqlite3.connect(d + '/clickI_warm.db').backup(sqlite3.connect(d + '/clickI.db'))"
   export WALK_FROM_WARM=1
 else
 python -m rota onboard clickI --root "$CLICK_ROOT" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
 fi
 # A night starts from nothing. Night 36 (2026-09-13) ran its first sentence
 # in minutes on night 35's leftover database: the wipe had not happened.
-[ "${WALK_FROM_WARM:-}" = "1" ] || python -c "import sqlite3, sys; n = sqlite3.connect('.rota/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
+[ "${WALK_FROM_WARM:-}" = "1" ] || python -c "import sqlite3, sys; import os; n = sqlite3.connect(os.environ['ROTA_RUNS'] + '/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
 # After the fresh check, which counts sessions: onboarding alone, then the snapshot: no sentence in it, so a warm night
 # can start at any sentence (GAUNTLET_FROM). The yes-only principal answers
 # onboarding's pages the same way.
