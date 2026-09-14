@@ -78,8 +78,11 @@ Rules:
 - Fixed: a tester-to-critic answer edge in the graph, msg.answer_critic in
   the Tester's challenge mode, and a Critic answer mode that finishes the
   review with the answer in hand. Night 70 measures it.
-- Status 2026-09-14 21:47: night 70 launched cold (the graph is in the
-  warm stamp's hard set).
+- Register after the Tester challenge brief change (21:47 to 21:54):
+  20 reds, all known, two stale Tester challenge cases re-recording on
+  the Titan.
+- Status 2026-09-14 21:56: night 70 running cold since 21:47; the Titan
+  re-records two cases.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
