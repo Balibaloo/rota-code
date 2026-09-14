@@ -188,3 +188,20 @@ door or the brief that fixes them belongs to the writer's mode.
     checked at the call, a tool error the model corrects on its next
     turn. Open until a night measures it.
 
+71. **A finding on a file the diff never touched, against a constraint
+    that says nothing.** Night 65 (2026-09-14, warm, the shipped profile):
+    the build, the tests and the Critic's review passed, and the
+    structural review landed. The Architect (qwen3:8b) filed three
+    `violated` findings against the constraint `termui`, whose whole text
+    is "users of the termui example", one of 22 constraints the survey
+    named after the example directories. Two findings named test files
+    the batch's diff never touched; the diff changed src/click/termui.py
+    alone. The Developer, given `violated` and no reason, read the code,
+    found it held the criteria, called code.commit six times on nothing,
+    and did not take the escalate exit its brief offers. Three sessions,
+    quarantined, stuck. Two parts. Mechanical: a finding's grain is a
+    file the batch's diff changed, a fact of the worktree, now a door on
+    `findings.find`. Judgement, for Roman: the survey's constraints carry
+    no content to review against, and the Developer does not escalate a
+    finding it cannot act on. Both are the briefs' work.
+

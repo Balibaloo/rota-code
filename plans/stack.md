@@ -28,8 +28,15 @@ Rules:
   constraint ids and said OK; the database refused at commit. Stuck.
   Finding 70. Fix: findings.find checks its batch and constraint ids at
   the door.
-- Status 2026-09-14 20:00: night 65 launched warm at 19:58 with the
-  findings.find door (finding 70).
+- Night 65 (19:58 to 20:13, warm): build, tests, Critic's review and
+  the structural review all landed. Stuck one step later: three
+  `violated` findings against the vacuous constraint `termui`, two on
+  test files the diff never touched; the Developer looped on nothing to
+  fix and did not escalate (finding 71). Door: a finding's grain is a
+  file the diff changed. The rest is the briefs: the survey's
+  constraints say nothing, and the Developer does not take the escalate
+  exit. For Roman.
+- Status 2026-09-14 20:27: door built and green; night 66 launched warm.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
