@@ -231,3 +231,9 @@ door or the brief that fixes them belongs to the writer's mode.
     in the escalate mode's tools, and a first branch in the brief, the
     finding is wrong, file it satisfied and say so. Open until measured.
 
+    Measured on the register (21:14 to 21:18): with the branch first, the
+    8B took it for every escalation, route-an-escalation 0/5. Last, and
+    conditioned on a finding in the refs, both cases 5/5. The changed-
+    files door also refused bare-symbol grains in find-against-a-
+    constraint; it now checks path-shaped grains only.
+

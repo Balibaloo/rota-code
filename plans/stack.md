@@ -62,8 +62,12 @@ Rules:
 - Register after the escalate brief change (21:07 to 21:14): 20 reds,
   all known, and two stale Architect cases (find-against-a-constraint,
   route-an-escalation), re-recording on the Titan.
-- Status 2026-09-14 21:15: night 69 running warm since 21:08; the Titan
-  re-records the two cases.
+- The escalate branch measured worse first (route-an-escalation 0/5:
+  the 8B took the first bullet for every escalation) and holds last,
+  conditioned on a finding in the refs: both cases 5/5. The changed-
+  files door checks path-shaped grains only. Night 69 runs the first
+  version; night 70 measures the final one.
+- Status 2026-09-14 21:19: night 69 running warm since 21:08.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
