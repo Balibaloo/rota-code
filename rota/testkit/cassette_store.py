@@ -149,7 +149,11 @@ def pack(db: Path = paths.DEV_DB, out_dir: Path | None = None,
         raise SystemExit(f"snapshot failed quick_check: {check}")
 
     gz = out_dir / ASSET
-    with open(snap, "rb") as f, gzip.open(gz, "wb", compresslevel=6) as g:
+    # mtime=0: the gzip header carries a timestamp, so two packs of the same
+    # database were two different files with two different checksums, and
+    # the pointer changed when nothing had. With it pinned, an unchanged
+    # database packs to the same bytes and the manifest stays put.
+    with open(snap, "rb") as f, open(gz, "wb") as raw,             gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=6, mtime=0) as g:
         shutil.copyfileobj(f, g, CHUNK)
 
     cassettes, runs = _counts(snap)
