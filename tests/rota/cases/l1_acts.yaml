@@ -17,6 +17,7 @@
 # blind. A landed test is the act: the encode door refuses every other shape.
 - id: ACT-TS-give-the-prompt-a-stream
   tier: T1
+  model: qwen3.5:9b
   role: tester
   runs: 5
   pass: 4
@@ -77,6 +78,7 @@
 # criteria on a plain function; three landed tests is the act.
 - id: ACT-TS-three-criteria-one-per-reply
   tier: T1
+  model: qwen3.5:9b
   role: tester
   runs: 5
   pass: 4
@@ -125,6 +127,7 @@
 # the definition door and the drops door hold the rest of the file.
 - id: ACT-DV-edit-inside-the-function
   tier: T1
+  model: qwen3.5:9b
   role: developer
   runs: 5
   pass: 4
@@ -253,6 +256,7 @@
 # criterion's sentence in a comment, so only a quote of the code passes.
 - id: ACT-CR-quote-the-tests-code
   tier: T1
+  model: gemma3:12b
   role: critic
   runs: 5
   pass: 4
