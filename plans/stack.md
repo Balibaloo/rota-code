@@ -15,26 +15,28 @@ Rules:
 
 ## Stack
 
+### 11. Night 64: the shipped profile with the finding 69 doors, warm
+
+- Why: night 63 ended stuck on one criterion because two doors
+  contradicted. Both are fixed. The night's snapshot is warm and carries
+  the profile, so sentence two runs again from onboarding at no cost.
+- How: `GAUNTLET_WARM=1`, `GAUNTLET_FROM=2`, profile `local-gemma-critic`.
+- Ends when: the night prints done and its sessions are read.
+- Status 2026-09-14 19:52: tests green, committing, launching.
+
 ### 10. Night 63: the 9B Developer with both doors, on click
 
-- Why: with the doors of findings 66 and 68 the 9B does act 3 in
-  isolation 5/5. The shipped profile `local-gemma-critic` with the doors
-  is the thing to measure on click sentence two.
-- How: cold, `GAUNTLET_FROM=2`, the gemma server stopped so the 3080 is
-  Ollama's alone.
-- Ends when: the night prints done and its sessions are read.
-- 18:55: the Developer wrote and committed at batch_start (s139), the
-  fix loop ran six sessions, and at attempt 8 both batch tests and the
-  inherited suite pass at 96bad2c. Further than night 58. The Liaison
-  is presenting pages again; the review is next.
-- Nuance: the tests_failing tick was quarantined after three sessions
-  at attempt 7 (span writes refused as whole-file rewrites), and the
-  green at attempt 8 came from s153, a Developer answer session that
-  wrote and committed. Criterion ce_1 (the boolean argument) is still
-  without a test; the Tester is on it after a question to the Vision
-  Keeper.
-- Status 2026-09-14 18:57: sentence two, two of three tests green, the
-  Tester on the third.
+- Read: the Developer committed at batch_start, the fix loop converged,
+  both batch tests and the inherited suite green at 96bad2c. Then the
+  Tester looped on the third criterion ("confirm() accepts a boolean
+  argument named default_on_eof"): its try/except test was refused as
+  "every assertion on a constant", it triaged `cannot`, the hint said
+  ask the Terminologist, the message door refused a third question,
+  three identical sessions, quarantined. Stuck at 19:00 (finding 69).
+- Fixed, uncommitted: the `cannot` hint climbs to the Vision Keeper once
+  the Terminologist has answered twice, and a body that raises
+  AssertionError or uses pytest.raises counts as a check.
+- Status: closed 2026-09-14 19:46; frame 11 reruns it warm.
 
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
@@ -76,7 +78,11 @@ Rules:
   known, and 10 stale: seven Developer cases (code.write's result
   changed) and three Tester cases (the triage refusal's wording
   changed). Re-recording the ten on the Titan.
-- Status 2026-09-14 18:22: Titan re-recording the ten stale cases.
+- Replay after the re-records (18:55 to 19:00): 20 reds, all known, no
+  stale. The peer re-packs from that file.
+- The pack: the peer session that re-packs is offline since about
+  19:00, so the release pointer still carries the 17:56 file.
+- Status: closed 2026-09-14 19:52; the re-pack waits on the peer.
 
 ### 6. The harness false pass
 

@@ -163,3 +163,17 @@ door or the brief that fixes them belongs to the writer's mode.
     `code.diff` names the uncommitted files beside the committed diff.
     Same family as finding 66. Open.
 
+69. **Two doors contradict on the third question.** Night 63 (2026-09-14,
+    the shipped profile, click sentence two): the Tester's test for
+    "confirm() accepts a boolean argument named default_on_eof" called
+    confirm() in a try/except, re-raised TypeError as AssertionError and
+    ended on `assert True`. The constant-assertion wall refused it as
+    checking nothing. The Tester triaged `cannot`; the hint said ask the
+    Terminologist; the message door refused, two questions on the
+    criterion were already answered; the Tester triaged `cannot` again.
+    Three identical sessions, quarantined, the night stuck. Doors: the
+    `cannot` hint reads the message log and climbs to the Vision Keeper
+    once the Terminologist has answered twice; a body that raises
+    AssertionError or calls pytest.raises or pytest.fail counts as a
+    check. Open until night 64 measures it.
+
