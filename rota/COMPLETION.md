@@ -239,3 +239,24 @@ In budget, moved out of this list on 2026-09-12 because rulings put them
 in core: the full gauntlet against the lineage (goal 10), goals 5 and 6
 to completion, the container runner behind the seam (goal 7), llama.cpp
 as a proven provider (goal 8), dynamic stacks (G1).
+
+### After the split (2026-09-14)
+
+One task, Roman's, placed here by his ruling so it is not forgotten. It
+does not gate the core: every working checkout already holds the file.
+
+1. Publish the cassette database as the first release. The repository
+   carries the pointer to it in `tests/rota/cassettes.json` already, so
+   the moment the release exists a fresh clone's first `pytest` fetches
+   and verifies it. Until then a fresh clone records instead of replaying.
+   The files are staged at `D:\repos\rota\.rota\release\`. The command:
+
+   ```
+   gh release create cassettes-20260914 --repo Balibaloo/rota-code --title cassettes-20260914 --latest --notes "cassettes 2026-09-14: 17686 cassettes, 127184 case runs" D:\repos\rota\.rota\release\cassettes.db.gz D:\repos\rota\.rota\release\cassettes.json
+   ```
+
+   Or set `GITHUB_TOKEN` and run `rota cassettes publish`, which does the
+   same through the API. After that, each re-record ends with
+   `rota cassettes publish` and a commit of the JSON pointer;
+   `rota/testkit/cassette_store.py` says what is checked and why a local
+   file is never overwritten.
