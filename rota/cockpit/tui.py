@@ -3,11 +3,10 @@ Talking to rota, with the roles' work visible while it happens.
 
     python -m rota.cockpit.tui --db run.db
 
-Built from the existing TUI's widgets rather than beside them: `ChatMessage` is
-the same bubble the chat app uses, and `Collapsible` is the same disclosure. The
-point of reuse here is not saving work -- it is that a session's tool calls and
-an assistant turn are the same *kind* of thing to look at, and giving them two
-appearances would be a claim that they are not.
+The chat bubble came from the old TUI and now lives in `widgets.py` beside this
+module. It was reused rather than rewritten, and the point was never saving
+work. A session's tool calls and an assistant turn are the same *kind* of thing
+to look at. Two appearances would be a claim that they are not.
 
 Two panes, because there are two things happening and only one of them is a
 conversation.
@@ -64,14 +63,7 @@ from ..llm import llm
 from ..onboarding import boot
 from ..roles.principal import Answer, Ask, pending_replies
 from ..tools.talk import open_with
-
-# The repo root again, for the chat app's widgets, which live outside the
-# package. Taken from the anchor rather than counted out of this module's own
-# path a second time: by here `rota` is imported and `paths` is the thing that
-# knows where it is. The shim above is the one place that cannot ask it,
-# because it runs before there is a package to ask.
-sys.path.insert(0, str(paths.REPO))
-from src.ui.widgets import ChatMessage                      # noqa: E402
+from .widgets import ChatMessage
 
 
 def _now() -> str:
@@ -192,7 +184,7 @@ class RotaApp(App):
     }
 
     /* `#confirmation_container` had no rule anywhere in the repository, while
-       both its siblings in `src/ui/modals.py` carry the same four. So the
+       both its siblings in the old TUI's modals carry the same four. So the
        confirm dialog rendered as a bare label and two buttons over the dimmed
        backdrop -- which looks like the modal failing to appear, and quit is the
        worst place to learn that. */
@@ -820,7 +812,7 @@ class RotaApp(App):
         accident forty sessions in. The confirmation has to be able to say no,
         which is why the quit happens in the callback rather than beside it.
         """
-        from src.ui.modals import ConfirmationModal
+        from .modals import ConfirmationModal
 
         def answered(confirmed: bool) -> None:
             if confirmed:

@@ -43,12 +43,15 @@ COVERAGE_FILE = REPO / ".rota-coverage.json"
 TIMINGS_FILE = REPO / ".rota-timings.json"
 
 # Cassettes are *evidence*, not runtime state, so they live with the tests and
-# are committed. `.rota/` is the state directory and is gitignored, which is
-# correct for a database about a running project and wrong for a record of what
-# a model did on a given prompt.
-# Overridable because the repo may live on a slow drive: point ROTA_DEV_DB
-# at an SSD and the recorder's write storm moves with it. The tracked copy
-# in the repo is then whatever was last synced back for committing.
+# not in `.rota/`. `.rota/` is the state directory, which is correct for a
+# database about a running project and wrong for a record of what a model did
+# on a given prompt.
+#
+# The file is not tracked by Git. It is about 590 MB and a recording session
+# writes a new version most days, so 153 versions had reached 57 GB of LFS.
+# `rota/README.md` says how to get one. Overridable because the repo may live
+# on a slow drive: point ROTA_DEV_DB at an SSD and the recorder's write storm
+# moves with it.
 DEV_DB = Path(os.environ.get("ROTA_DEV_DB",
                              REPO / "tests" / "rota" / "cassettes.db"))
 

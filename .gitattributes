@@ -5,9 +5,12 @@
 # noise to bury anything worth reading in the same output.
 * text=auto eol=lf
 
-# Binary, and the one that matters: the cassette database is committed as
-# evidence and must never be touched by eol conversion.
+# Binary, so that eol conversion never touches these.
+#
+# `tests/rota/cassettes.db` is not tracked here. The file is 590 MB and a new
+# version lands most days, so 153 versions of it had reached 57 GB of Git LFS.
+# The database is gitignored and lives beside the checkout. `rota/README.md`
+# says where to get it.
 *.db binary
 *.zip binary
 *.png binary
-tests/rota/cassettes.db filter=lfs diff=lfs merge=lfs -text

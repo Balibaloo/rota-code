@@ -22,11 +22,14 @@ env/
 .rota-coverage.json
 .rota-timings.json
 
+# The cassette database, untracked on purpose. See `.gitattributes`.
+tests/rota/cassettes.db
 tests/rota/cassettes.db-wal
 tests/rota/cassettes.db-shm
 
-# a TUI database written at the repo root by an old default
+# a TUI database written by an old default, at the repo root and in rota/cockpit/
 rota-tui.db*
+rota/cockpit/rota-tui.db*
 build/
 dist/
 *.egg-info/

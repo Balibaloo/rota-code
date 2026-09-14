@@ -142,14 +142,27 @@ For local-model hardware profiles, context budgeting, cache distinctions, and
 the evidence required before adopting a new model, see
 [HARDWARE_GUIDE.md](HARDWARE_GUIDE.md).
 
-Against a real model — these cost model time, and replay from committed
-cassettes when the prompts have not changed:
+Against a real model. These cost model time, and replay from the cassette
+database when the prompts have not changed:
 
 ```bash
 ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q   # one case per mode
 ROTA_L1=1 python -m pytest tests/rota/test_l3.py -q   # handoffs, two sessions
 ROTA_L1=1 ROTA_REFRESH=1 python -m pytest tests/rota/test_l1.py -q  # re-record
 ```
+
+### The cassette database
+
+`tests/rota/cassettes.db` is not tracked by Git. The file is about 590 MB, and
+a recording session writes a new version of it most days. Tracking it had put
+153 versions, or 57 GB, into Git LFS.
+
+Put the file at `tests/rota/cassettes.db` in the checkout. `.gitignore` already
+holds that path, so the file never reaches a commit. Copy it from another
+checkout, or set `ROTA_DEV_DB` to a path on a fast disk.
+
+A suite that finds no database records instead of replaying, which costs model
+time and needs a GPU. Check the file is there before a long run.
 
 Rebuilding the graph from the design viewer (only needed if `team-graph.html`
 changes):

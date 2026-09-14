@@ -232,7 +232,7 @@ def _register(word: str) -> str:
 # ---------------------------------------------------------------------------
 # Steps 2-4 of the system-glossary pass: purpose, hierarchy, duplication.
 #
-# The method is from plans/system-prompt-fixer.md, which had five steps to my
+# The method is from plans/archive/system-prompt-fixer.md, which had five steps to my
 # one and a half. Steps 2 and 4 (purpose, name synthesis) are judgement and stay
 # judgement -- the tool surfaces candidates and structure; a person names things.
 # Pretending otherwise produces a dictionary that is internally consistent and

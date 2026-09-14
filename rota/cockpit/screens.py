@@ -11,9 +11,10 @@ also means switching runs is the app rebinding its own database rather than a
 process restart, which is what makes "look at that one instead" cheap enough to
 do while thinking.
 
-Confirmation comes from `src/ui/modals.py`, which has had `ConfirmationModal`,
-`InputModal` and `ChoiceModal` since long before any of this. The level is set
-by whether an action is reversible and whether it names a target:
+Confirmation comes from `modals.py`, which carries `ConfirmationModal` and
+`InputModal`. Both came from the old TUI, where they had existed long before
+any of this. The level is set by whether an action is reversible and whether it
+names a target:
 
   * **reversible** -> a yes/no modal. Quitting stops a run, and that is all.
   * **irreversible and aimed at one run** -> type the run's name. A button
@@ -446,7 +447,7 @@ class RunList(ModalScreen):
         row = self.selected
         if row is None:
             return
-        from src.ui.modals import InputModal
+        from .modals import InputModal
 
         def confirmed(value) -> None:
             if (value or "").strip() != row["name"]:
