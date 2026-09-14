@@ -7578,6 +7578,20 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     f"{changed[0]} as it is. Leave it: write only your new definition "
                     f"with start={after}, end={after}, which inserts after {changed[0]}. "
                     f"A change to {changed[0]} needs a criterion that names it")
+    # A module-level import of the file's own package is a cycle when the
+    # package imports this file. Click night 51 (2026-09-14): `from click
+    # import command` at the top of utils.py, which click/__init__.py
+    # imports; every test failed at import and the loop ran to the cap.
+    if path.endswith(".py"):
+        cycle = _own_package_import(root, path, tree)
+        if cycle:
+            pkg, init_rel, name = cycle
+            raise ValueError(
+                f"{path} imports {name} from {pkg} at module level, and "
+                f"{init_rel} imports {path}: a cycle, and every import of "
+                f"{pkg} fails. Import {name} from the module that defines it "
+                f"(a relative import, `from .core import ...`), or import "
+                f"inside the function that uses it")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "
@@ -8228,6 +8242,51 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
                  "path outside it is not refused, it is judged after the commit"),
     }
 
+
+
+def _own_package_import(root, path: str, tree) -> tuple[str, str, str] | None:
+    """
+    (package, init path, name) when `path` imports its own package at
+    module level and the package's __init__ imports `path`. Else None.
+
+    `src/click/utils.py` holding `from click import command` while
+    `src/click/__init__.py` holds `from .utils import echo` is the shape:
+    importing click runs __init__, which imports utils, which imports
+    click half-initialised. Module level only; an import inside a function
+    runs after the package is whole.
+    """
+    import ast as _ast
+    from pathlib import Path as _Path
+    rel = _Path(path.replace("\\", "/"))
+    if rel.name == "__init__.py" or len(rel.parts) < 2:
+        return None
+    pkg_dir = rel.parent
+    init = root / pkg_dir / "__init__.py"
+    if not init.exists():
+        return None
+    pkg = pkg_dir.name
+    stem = rel.stem
+    imports_me = False
+    try:
+        init_tree = _ast.parse(init.read_text(encoding="utf-8", errors="replace"))
+    except SyntaxError:
+        return None
+    for node in init_tree.body:
+        if isinstance(node, _ast.ImportFrom):
+            mod = node.module or ""
+            if (node.level == 1 and (mod == stem or mod.startswith(stem + "."))) \
+                    or mod == f"{pkg}.{stem}":
+                imports_me = True
+            if node.level == 1 and mod == "" and any(a.name == stem for a in node.names):
+                imports_me = True
+    if not imports_me:
+        return None
+    for node in tree.body:
+        if isinstance(node, _ast.ImportFrom) and node.level == 0 and node.module == pkg:
+            return (pkg, (pkg_dir / "__init__.py").as_posix(), node.names[0].name)
+        if isinstance(node, _ast.Import) and any(a.name == pkg for a in node.names):
+            return (pkg, (pkg_dir / "__init__.py").as_posix(), pkg)
+    return None
 
 
 def _criteria_surface_names(ctx: Ctx) -> set[str]:

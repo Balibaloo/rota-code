@@ -385,3 +385,27 @@ def test_the_developer_commit_leaves_the_testers_files_out_and_the_merge_deliver
     delivered = subprocess.run([*git, "show", "main:tests/test_add.py"], cwd=proj, capture_output=True, text=True).stdout
     assert "add(1, 2) == 3" in delivered, delivered
     assert "the first encode" not in delivered
+
+
+def test_a_module_may_not_import_its_own_package_at_module_level(tmp_path):
+    """Click night 51 (2026-09-14): `from click import command` at the top of
+    utils.py, which click/__init__.py imports; every test failed at import
+    and the loop ran to the cap."""
+    wt = tmp_path / "wt"; (wt / "src" / "click").mkdir(parents=True)
+    (wt / "src" / "click" / "__init__.py").write_text('from .utils import echo as echo\nfrom .core import command as command\n')
+    (wt / "src" / "click" / "core.py").write_text('def command():\n    return None\n')
+    (wt / "src" / "click" / "utils.py").write_text('def echo(m):\n    print(m)\n')
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','echo_json prints','[\"src/click/utils.py::echo_json\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    cyclic = 'from click import command\n\n\ndef echo(m):\n    print(m)\n\n\ndef echo_json(o):\n    print(o)\n'
+    with pytest.raises(ValueError, match="a cycle"):
+        sb.call("code.write", path="src/click/utils.py", text=cyclic)
+    relative = 'from .core import command\n\n\ndef echo(m):\n    print(m)\n\n\ndef echo_json(o):\n    print(o)\n'
+    assert sb.call("code.write", path="src/click/utils.py", text=relative)["bytes"]

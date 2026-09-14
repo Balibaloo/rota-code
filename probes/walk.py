@@ -27,7 +27,8 @@ conn = connect(REPO / ".rota" / f"{run}.db")
 
 last = conn.execute("SELECT text FROM entries WHERE author = 'principal' "
                     "AND id LIKE 'e_p%' ORDER BY ts_order DESC LIMIT 1").fetchone()
-if not last or last["text"] != first:
+ONBOARD_ONLY = bool(os.environ.get("WALK_ONBOARD_ONLY"))   # onboarding alone, then the snapshot
+if not ONBOARD_ONLY and (not last or last["text"] != first):
     # A new sentence into a run that may already have merged: the next
     # principal entry and message, in the same thread, after every seq so far.
     n = 1 + conn.execute("SELECT COUNT(*) FROM entries WHERE id LIKE 'e_p%'").fetchone()[0]
@@ -117,6 +118,24 @@ def record(merged: int, steps: int, asks: int, note: str) -> None:
         fh.write(_json.dumps(row) + chr(10))
 
 
+def write_snapshot() -> None:
+    """The database as it stands, and its stamp (probes/warm_stamp.py). A
+    warm night starts here. In onboard-only mode (WALK_ONBOARD_ONLY=1) no
+    sentence has been posted, so the snapshot holds onboarding and nothing
+    else and a night can start at any sentence (night 51, 2026-09-14: the
+    snapshot taken at the first slicing wake carried sentence one, and
+    GAUNTLET_FROM=2 re-ran it)."""
+    warm = REPO / ".rota" / f"{run}_warm.db"
+    if warm.exists() or conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] != 0:
+        return
+    import sqlite3 as _sq
+    conn.commit()
+    dst = _sq.connect(str(warm)); conn.backup(dst); dst.close()
+    import warm_stamp
+    warm_stamp.write(run)
+    print(f"warm snapshot written: {warm}", flush=True)
+
+
 asked = 0
 import time as _time
 _last_n, _last_change = -1, _time.time()
@@ -161,24 +180,18 @@ for i in range(cap):
     # twenty of its thirty-five minutes (night 46, 2026-09-14); a night that
     # measures the delivery loop starts from here (GAUNTLET_WARM=1).
     if (s is not None and s.wake is not None and s.wake.kind == "tick:slicing"
-            and not os.environ.get("WALK_FROM_WARM")):
-        warm = REPO / ".rota" / f"{run}_warm.db"
-        if not warm.exists() and conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] == 0:
-            import sqlite3 as _sq
-            conn.commit()
-            dst = _sq.connect(str(warm)); conn.backup(dst); dst.close()
-            # The stamp: what onboarding ran under. A later warm start
-            # checks it (probes/warm_stamp.py) and goes cold when a brief,
-            # a tool list, the graph or a predicate changed.
-            import warm_stamp
-            warm_stamp.write(run)
-            print(f"warm snapshot written: {warm}", flush=True)
+            and not os.environ.get("WALK_FROM_WARM") and not ONBOARD_ONLY):
+        write_snapshot()
     if s is not None and s.outcome is not None and not s.outcome.committed:
         # Said at once and flushed: night 31 ran 98 minutes on one failing
         # wake and the log held nothing, because the failure was silent and
         # stdout was block-buffered into a file.
         print(f"FAILED {s.wake}: {(s.outcome.errors or ['?'])[-1][:200]}", flush=True)
     if s is None or s.wake is None:
+        if ONBOARD_ONLY:
+            write_snapshot()
+            print(f"ONBOARDED after {i} steps, {asked} asks", flush=True)
+            break
         print(f"quiet after {i} steps, {asked} asks")
         record(0, i, asked, "quiet")
         break
