@@ -48,8 +48,12 @@ Rules:
   Developer does not escalate a finding it cannot act on. The briefs of
   the survey, the structural review and the Developer's
   finding_violated mode are where the work is.
-- Status 2026-09-14 20:37: furniture excluded, green; night 67 warm
-  to measure the src-only finding, then this frame closes.
+- Night 67 (20:37) overlapped night 66's sentence three, launched on
+  the Stuck line and not on GAUNTLET-DONE: both wrote one database and
+  one checkout for two minutes. Killed. A night ends at GAUNTLET-DONE.
+- Night 68 launched 20:39, cold (the fourth warm night spent the
+  snapshot), to measure the src-only finding, then this frame closes.
+- Status 2026-09-14 20:42: night 68 onboarding.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
