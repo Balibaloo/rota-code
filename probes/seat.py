@@ -33,7 +33,7 @@ from rota.roles.principal import Answer, pending_asks, pending_replies, pump, re
 run, first, out = sys.argv[1], sys.argv[2], Path(sys.argv[3])
 cap = int(sys.argv[4]) if len(sys.argv) > 4 else 400
 out.mkdir(parents=True, exist_ok=True)
-conn = connect(REPO / ".rota" / f"{run}.db")
+conn = connect(Path(os.environ.get("ROTA_RUNS", REPO / ".rota")) / f"{run}.db")
 
 last = conn.execute("SELECT text FROM entries WHERE author = 'principal' "
                     "AND id LIKE 'e_p%' ORDER BY ts_order DESC LIMIT 1").fetchone()

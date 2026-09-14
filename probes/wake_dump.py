@@ -9,16 +9,24 @@ is the reader for the wake audit (2026-09-13): a person reads each session
 against the rows the database held at that moment and says what the role
 should have been shown and was not.
 """
+import os
 import re
 import sqlite3
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+# The reader follows the runs directory. A night that ran with ROTA_RUNS on
+# the SSD leaves nothing in the repository's `.rota/`, and a dump that read
+# the default found the previous night's database and said nothing.
+RUNS = Path(os.environ.get("ROTA_RUNS", REPO / ".rota"))
 run = sys.argv[1]
-out = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO / ".rota" / f"wakes_{run}"
+out = Path(sys.argv[2]) if len(sys.argv) > 2 else RUNS / f"wakes_{run}"
 out.mkdir(parents=True, exist_ok=True)
-conn = sqlite3.connect(REPO / ".rota" / f"{run}.db")
+db = RUNS / f"{run}.db"
+if not db.exists():
+    sys.exit(f"no run database at {db} (ROTA_RUNS names the runs directory)")
+conn = sqlite3.connect(db)
 conn.row_factory = sqlite3.Row
 
 index = []
