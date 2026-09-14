@@ -67,6 +67,21 @@ to about 3 MB. `rota/README.md` says where to put the file.
 `D:\repos\_AI\Custom_AI_TUI` and its `.git/lfs` until you are sure no earlier
 recording is ever needed again.
 
+## What stayed behind, and must not be lost
+
+Several sessions shared the old checkout. At the time of the split it held three
+things this repository does not:
+
+  * `stash@{0}`, "Stop gate" of 2026-08-30, over `rota/core/runner.py`,
+    `rota/roles/api.py`, `tests/rota/test_runner.py` and
+    `tests/rota/test_t0_sandbox.py`. Later commits supersede it. It was not
+    carried.
+  * The `rota/seat2` worktree. It was empty and clean. The branch came across.
+    Recreate the worktree here.
+  * A re-record of 28 stale register cases, and the Titan walk `tipsBH`. Both
+    were running when the split was taken. Each writes a database that Git does
+    not track, so each had to be copied across by hand when it finished.
+
 ## What to check after cloning
 
 1. Set `core.autocrlf` to `false`. The old repository set it locally, and a
