@@ -36,7 +36,20 @@ Rules:
   file the diff changed. The rest is the briefs: the survey's
   constraints say nothing, and the Developer does not take the escalate
   exit. For Roman.
-- Status 2026-09-14 20:22: door built and green; night 66 launched warm.
+- Night 66 (20:22 to 20:36, warm): the same wall one step in. The door
+  held on the project's tests; the review filed on the batch's own
+  materialised test files (furniture, now excluded), and on
+  src/click/termui.py against `termui`. The Developer read it and
+  looped without escalating, three times. Stuck.
+- For Roman: three nights on the shipped profile now reach the
+  structural review and stop at the same judgement: the survey's 22
+  constraints are the example directories' names with the text "users
+  of the X example"; the Architect files `violated` against them; the
+  Developer does not escalate a finding it cannot act on. The briefs of
+  the survey, the structural review and the Developer's
+  finding_violated mode are where the work is.
+- Status 2026-09-14 20:44: furniture excluded, green; night 67 warm
+  to measure the src-only finding, then this frame closes.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 

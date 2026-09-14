@@ -205,3 +205,13 @@ door or the brief that fixes them belongs to the writer's mode.
     no content to review against, and the Developer does not escalate a
     finding it cannot act on. Both are the briefs' work.
 
+    Night 66 (20:22 to 20:36, warm, with the door): the project's own test
+    files were refused, and the review filed its findings on the batch's
+    materialised test files instead, untracked in the worktree and so
+    counted as changed. Those are the harness's furniture and now leave
+    the list. The finding on src/click/termui.py against `termui` stood,
+    and the Developer read it, found the criteria held, and ended at the
+    output budget three times without escalating. The wall is the
+    judgement: a constraint with no content, a review that files against
+    it, a Developer that does not take the escalate exit. Briefs.
+
