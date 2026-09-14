@@ -427,9 +427,12 @@ class LiteLLMBackend:
     name = "litellm"
     default_max_tokens = 8192
 
-    def __init__(self, api_base: str | None = None, timeout: float = 300.0):
+    def __init__(self, api_base: str | None = None, timeout: float = 300.0,
+                 extra_body: dict | None = None):
         self.api_base = api_base or None
         self.timeout = timeout
+        # A profile's per-endpoint body, under the environment's (below).
+        self.extra_body = dict(extra_body or {})
 
     def kwargs(self, system: str, user: str, pins: Pins,
                tools: list | None = None) -> dict:
@@ -462,8 +465,9 @@ class LiteLLMBackend:
         # reply sat in `reasoning_content` and the runner read nothing).
         import os as _os
         extra = _os.environ.get("ROTA_LLM_EXTRA_BODY")
-        if extra:
-            out["extra_body"] = json.loads(extra)
+        body = {**self.extra_body, **(json.loads(extra) if extra else {})}
+        if body:
+            out["extra_body"] = body
         return out
 
     def complete(self, system: str, user: str, pins: Pins,
@@ -501,6 +505,32 @@ class ScriptedBackend:
 
 class LLMUnavailable(RuntimeError):
     """Infrastructure failure, not a semantic one — the caller counts an attempt."""
+
+
+class RoutedBackend:
+    """
+    One backend per model, chosen by the pins of each call.
+
+    A profile names a model per desk, and until 2026-09-14 every desk had to
+    reach its model through one server. The five-act benchmark put the
+    Developer's act on gemma-4 behind a llama-server while the other desks
+    stay on Ollama, so a profile now maps a model to its own endpoint and
+    this backend sends each call where its model lives. The default takes
+    every model the map does not name.
+    """
+
+    name = "routed"
+
+    def __init__(self, default: Backend, by_model: dict[str, Backend]):
+        self.default = default
+        self.by_model = dict(by_model)
+
+    def for_model(self, model: str) -> Backend:
+        return self.by_model.get(model, self.default)
+
+    def complete(self, system: str, user: str, pins: Pins,
+                 tools: list | None = None) -> Completion:
+        return self.for_model(pins.model).complete(system, user, pins, tools)
 
 
 def default_backend() -> Backend:

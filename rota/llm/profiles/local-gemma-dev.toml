@@ -1,0 +1,32 @@
+# `local-gemma-critic` with gemma-4-26B-A4B at the Developer's desk, through
+# the llama-server in WSL (the turboquant build, port 8080). The five-act
+# benchmark (2026-09-14): gemma-4 is the one model that takes the step from
+# a traceback to a change 5/5; qwen3.5:9b and qwen2.5:14b are 0/5. The
+# other desks' acts pass on the small models, so they stay where `local`
+# has them. The Developer's wakes run at about 12 tokens a second.
+#
+# The endpoint's extra_body keeps gemma-4's words in `content`: with
+# thinking on, the reply sat in `reasoning_content` and the runner read
+# nothing.
+name = "local-gemma-dev"
+
+[provider]
+kind = "ollama"
+timeout = 300
+
+[pins]
+temperature = 0.0
+num_ctx = 12288
+
+[models]
+default = "qwen3:8b"
+tester = "qwen3.5:9b"
+critic = "gemma3:12b"
+terminologist = "qwen3.5:9b"
+developer = "openai/gemma-4-26B-A4B-it-UD-Q8_K_XL.gguf"
+
+[[endpoints]]
+model = "openai/gemma-4-26B-A4B-it-UD-Q8_K_XL.gguf"
+endpoint = "http://127.0.0.1:8080/v1"
+timeout = 900
+extra_body = { chat_template_kwargs = { enable_thinking = false } }

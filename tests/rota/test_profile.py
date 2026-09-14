@@ -101,3 +101,33 @@ def test_keys_live_outside_the_profile(tmp_path, monkeypatch):
     assert not any("set neither" in x for x in problems)
     prof.backend()
     assert __import__("os").environ.get("ACME_KEY") == "s3cret"
+
+
+def test_a_model_on_its_own_endpoint_is_reached_there_and_only_there():
+    """
+    2026-09-14: gemma-4 lives behind a llama-server while every other desk
+    stays on Ollama. The profile maps the model to its endpoint; the backend
+    sends each call where its model lives; the Ollama check does not ask
+    Ollama for a model it does not serve.
+    """
+    from rota.llm import llm
+    from rota.llm.profile import Profile
+    p = Profile.from_dict({
+        "provider": {"kind": "ollama"},
+        "models": {"default": "qwen3:8b", "developer": "openai/big.gguf"},
+        "endpoints": [{"model": "openai/big.gguf", "endpoint": "http://127.0.0.1:8080/v1",
+                       "timeout": 900,
+                       "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}],
+    }, name="mixed")
+    b = p.backend()
+    assert isinstance(b, llm.RoutedBackend)
+    assert isinstance(b.for_model("qwen3:8b"), llm.OllamaBackend)
+    big = b.for_model("openai/big.gguf")
+    assert isinstance(big, llm.LiteLLMBackend)
+    kw = big.kwargs("s", "u", llm.Pins(model="openai/big.gguf"))
+    assert kw["api_base"] == "http://127.0.0.1:8080/v1"
+    assert kw["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert kw["timeout"] == 900
+    # Round trip: what the run stores loads back to the same profile.
+    assert Profile.from_dict(p.to_dict(), name="mixed").endpoints == p.endpoints
+

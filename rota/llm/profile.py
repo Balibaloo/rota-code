@@ -51,6 +51,11 @@ class Profile:
     default_model: str = llm.DEFAULT_MODEL
     roles: dict = field(default_factory=dict)
     native_tools: bool = False
+    # Models that live on their own server: model -> {"endpoint", "timeout",
+    # "extra_body"}. Each is reached through LiteLLM at that endpoint; every
+    # other model goes to the provider above. Written in the file as
+    # [[endpoints]] tables with a `model` key.
+    endpoints: dict = field(default_factory=dict)
     source: str = ""
 
     # -- construction -------------------------------------------------------
@@ -81,10 +86,27 @@ class Profile:
             default_model=str(default),
             roles={str(k): str(v) for k, v in roles.items()},
             native_tools=bool(d.get("native_tools", False)),
+            endpoints=cls._endpoints_of(d),
             source=source,
         )
         p.pins_for(None)          # refuse a bad pin at load, not at the first session
         return p
+
+    @staticmethod
+    def _endpoints_of(d: dict) -> dict:
+        raw = d.get("endpoints") or {}
+        entries = raw if isinstance(raw, list) else [
+            {"model": m, **(v if isinstance(v, dict) else {"endpoint": v})}
+            for m, v in raw.items()]
+        out = {}
+        for e in entries:
+            model = str(e.get("model") or "")
+            if not model or not e.get("endpoint"):
+                raise ValueError("an endpoints entry needs `model` and `endpoint`")
+            out[model] = {"endpoint": str(e["endpoint"]),
+                          "timeout": float(e["timeout"]) if e.get("timeout") is not None else None,
+                          "extra_body": dict(e.get("extra_body") or {})}
+        return out
 
     @classmethod
     def from_toml(cls, path: Path) -> "Profile":
@@ -102,6 +124,7 @@ class Profile:
             "pins": dict(self.pins),
             "models": {"default": self.default_model, **self.roles},
             "native_tools": self.native_tools,
+            "endpoints": [{"model": m, **v} for m, v in self.endpoints.items()],
         }
 
     def with_override(self, *, model: str | None = None,
@@ -144,8 +167,17 @@ class Profile:
         import os as _os
         timeout = float(_os.environ.get("ROTA_LLM_TIMEOUT") or self.timeout)
         if self.provider == "litellm":
-            return llm.LiteLLMBackend(api_base=self.endpoint or None, timeout=timeout)
-        return llm.OllamaBackend(host=self.endpoint or llm.OLLAMA_HOST, timeout=timeout)
+            default = llm.LiteLLMBackend(api_base=self.endpoint or None, timeout=timeout)
+        else:
+            default = llm.OllamaBackend(host=self.endpoint or llm.OLLAMA_HOST, timeout=timeout)
+        if not self.endpoints:
+            return default
+        return llm.RoutedBackend(default, {
+            m: llm.LiteLLMBackend(
+                api_base=e["endpoint"],
+                timeout=float(_os.environ.get("ROTA_LLM_TIMEOUT") or e["timeout"] or timeout),
+                extra_body=e["extra_body"])
+            for m, e in self.endpoints.items()})
 
     def check(self) -> list[str]:
         """What would fail on the first session, said before any database is
@@ -158,7 +190,8 @@ class Profile:
         if self.remote:
             problems.append(f"remote: prompts and the repository's code are sent to "
                             f"{self.endpoint} (AUDIT items 8 and 9)")
-        wanted = sorted({self.default_model, *self.roles.values()})
+        wanted = sorted({m for m in {self.default_model, *self.roles.values()}
+                         if m not in self.endpoints})
         if self.provider == "ollama":
             host = self.endpoint or llm.OLLAMA_HOST
             have = llm.available_models(host)
