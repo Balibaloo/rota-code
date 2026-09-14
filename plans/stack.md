@@ -15,6 +15,21 @@ Rules:
 
 ## Stack
 
+### 12. Night 71 on the SSD
+
+- Why: Roman saw no GPU use during night 70's onboarding. The click
+  checkout, the worktree, the index and the run database's WAL all sit
+  on the D: HDD (13 fsyncs a second; C: does 279). Roman: move them for
+  the next night, not this one.
+- How: `ROTA_RUNS=C:/Users/roman/rota_night/state` (the runs directory:
+  run db, warm snapshot, live file) and
+  `CLICK_ROOT=C:/Users/roman/rota_night/clickI` (a clone of the sample
+  repo, made 00:40). The first night there is cold.
+- Ends when: night 71 runs there and its onboarding time is read
+  against night 70's.
+- Status 2026-09-15 00:45: knob built (ROTA_RUNS in rota/paths.py, the
+  cli, walk.py, warm_stamp.py and the night script); waits on night 70.
+
 ### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
 
 - Why: night 63 ended stuck on one criterion because two doors
