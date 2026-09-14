@@ -53,7 +53,7 @@ Rules:
   one checkout for two minutes. Killed. A night ends at GAUNTLET-DONE.
 - Night 68 launched 20:39, cold (the fourth warm night spent the
   snapshot), to measure the src-only finding, then this frame closes.
-- Status 2026-09-14 20:42: night 68 onboarding.
+- Status 2026-09-14 20:40: night 68 onboarding.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
