@@ -238,7 +238,12 @@ def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
         files |= set(changed_since(wt, None))
     except Exception:
         return None
-    return sorted(files)
+    # The batch's materialised test files are the harness's furniture, not
+    # the diff (night 66, 2026-09-14: the review moved its findings onto
+    # them once the project's own tests were refused).
+    furniture = {r[0].replace(chr(92), "/") for r in conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (batch_id,))}
+    return sorted(f for f in files if f.replace(chr(92), "/") not in furniture)
 
 
 def diff(path: str | Path, against: str = "HEAD~1") -> str:

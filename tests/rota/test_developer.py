@@ -515,10 +515,19 @@ def test_a_finding_names_a_file_the_diff_changed(project):
     sb = build("developer", db, batch_id="b1")
     src = sb.call("code.source", path="src/billing/charges.py", start=0, end=400)
     sb.call("code.write", path="src/billing/charges.py", text=src["text"] + "# touched" + chr(10), start=0, end=-1)
+    # The batch's own materialised test file is furniture, not the diff.
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
+               "('tst1','b1','c1','tests/test_prorate.py','def test_x(): assert 1')")
+    db.commit()
+    from rota.core import harness
+    harness.run(db, "b1")
     arch = build("architect", db, batch_id="b1")
     with pytest.raises(ValueError, match="does not touch"):
         arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
                   status="violated", grain="tests/test_charges.py")
+    with pytest.raises(ValueError, match="does not touch"):
+        arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
+                  status="violated", grain="tests/test_prorate.py")
     out = arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
                     status="violated", grain="src/billing/charges.py::total_of")
     assert out["status"] == "violated"
