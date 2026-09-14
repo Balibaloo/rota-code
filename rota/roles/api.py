@@ -3680,8 +3680,9 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # patched builtins.input, confirm() read through visible_prompt_func,
     # and pytest raised OSError for the whole loop. The scan runs when the
     # body patches nothing, or patches builtins.input only.
-    patches_builtin_only = ("builtins.input" in body
-                            and "sys.stdin" not in body and "stdin" not in body)
+    # `sys.stdin` as code, not the word in a comment: night 54 (2026-09-14)
+    # wrote "when stdin is closed" in a comment and the scan stood down.
+    patches_builtin_only = "builtins.input" in body and "sys.stdin" not in body
     unpatched = "monkeypatch" not in body and "builtins" not in body
     if (unpatched or patches_builtin_only) and ctx.batch_id:
         try:

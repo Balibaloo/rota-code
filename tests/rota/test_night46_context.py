@@ -481,3 +481,15 @@ def test_a_fragment_that_is_the_tail_of_a_try_names_the_whole_statement(tmp_path
     tail = '        except (EOFError, OSError):\n            return None\n'
     with pytest.raises(ValueError, match=r"tail of the try statement at lines 2 to 6; send that whole statement"):
         sb.call("code.write", path="src/termui.py", text=tail, start=3, end=6)  # leaves `try:` with no body: the merge fails
+
+
+def test_the_word_stdin_in_a_comment_does_not_stand_the_input_door_down(db, tmp_path):
+    """Click night 54 (2026-09-14): a comment said "when stdin is closed",
+    the body patched builtins.input, and the alias scan stood down."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text("visible_prompt_func = input\n\n\ndef confirm(text, default=None):\n    return visible_prompt_func(text) == 'y'\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError, match="click.termui.visible_prompt_func"):
+        _encode(sb, "from click.termui import confirm\nfrom unittest.mock import patch\n\ndef test_x():\n    # when stdin is closed, confirm returns the default\n    with patch('builtins.input', side_effect=EOFError()):\n        assert confirm('ok?', default=True) is True")
