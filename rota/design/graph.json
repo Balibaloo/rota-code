@@ -1361,6 +1361,14 @@
       "rows": "single"
     },
     {
+      "s": "tester",
+      "t": "critic",
+      "type": "messages",
+      "v": "answer",
+      "n": "the test stands, and what in the criterion the assertion comes from",
+      "rows": "single"
+    },
+    {
       "s": "architect",
       "t": "findings",
       "type": "writes",

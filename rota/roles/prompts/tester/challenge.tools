@@ -5,3 +5,4 @@ msg.answer_developer
 msg.question_terminologist
 msg.question_vision_keeper
 batches.expect
+msg.answer_critic
