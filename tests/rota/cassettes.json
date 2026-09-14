@@ -2,11 +2,11 @@
  "repo": "Balibaloo/rota-code",
  "tag": "cassettes-20260914",
  "asset": "cassettes.db.gz",
- "sha256_gz": "2fd190035084f79e29bd2f4b512638f1419f7200121e734552802b9365dd3def",
- "sha256_db": "f817409dc262663d6aa2da8a78adc5df7a9be7d27ce9675b7e72a02b6d78cb5a",
- "bytes_gz": 33976214,
- "bytes_db": 609538048,
+ "sha256_gz": "fde2f681ae9d59d3cb69ccfcbe68a81ef256af76a3435e18ab61f7fce62c78c3",
+ "sha256_db": "f077ca1283b692dd1d3bcf9ea9a002f5840c12bd6ff12d3b733178958a9f9325",
+ "bytes_gz": 34070074,
+ "bytes_db": 610746368,
  "recorded": "2026-09-14",
  "cassettes": 17745,
- "case_runs": 134069
+ "case_runs": 134624
 }
