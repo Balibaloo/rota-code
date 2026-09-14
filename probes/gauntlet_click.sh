@@ -16,6 +16,26 @@ export PYTHONUNBUFFERED=1
 # .rota/live.md too, and the two overwrote each other (2026-09-13).
 export ROTA_LIVE="$REPO/.rota/live_click.md"
 export WALK_WORDS="yes that all looks right, go ahead"
+# The sample repository starts every night at its base commit. Night 50
+# (2026-09-14) ran on the main that night 49 had merged echo_json into, so
+# the first sentence asked for what already existed and the Developer
+# read nine test files it had not written. Worktrees, batch branches and
+# the merge go; the base is the commit the snapshot was onboarded at.
+CLICK_ROOT="${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}"
+CLICK_BASE="${CLICK_BASE:-2c8cd3a}"
+restore_click() {
+  local r="$CLICK_ROOT"
+  for w in $(git -C "$r" worktree list --porcelain | grep "^worktree " | grep "/.rota/" | cut -d" " -f2); do
+    git -C "$r" worktree remove --force "$w" 2>/dev/null
+  done
+  git -C "$r" worktree prune
+  git -C "$r" checkout -q main && git -C "$r" reset -q --hard "$CLICK_BASE"
+  for b in $(git -C "$r" branch --list "batch/*" | sed "s/^[+* ]*//"); do git -C "$r" branch -D -q "$b"; done
+  rm -rf "$r/.rota"
+  git -C "$r" clean -fdq
+  echo "== click restored to $(git -C "$r" log --oneline -1)"
+}
+restore_click
 echo "== onboard $(date +%H:%M)"
 # The last night's run database, kept beside the new one: `onboard --force`
 # replaces it, and night 34's sessions were lost to night 35's start
@@ -31,7 +51,7 @@ if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check c
   python -c "import sqlite3; sqlite3.connect('.rota/clickI_warm.db').backup(sqlite3.connect('.rota/clickI.db'))"
   export WALK_FROM_WARM=1
 else
-python -m rota onboard clickI --root "${CLICK_ROOT:-D:/repos/_AI/sample_repos/clickI}" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
+python -m rota onboard clickI --root "$CLICK_ROOT" --force --profile "${GAUNTLET_PROFILE:-local}" 2>&1 | tail -2
 fi
 # A night starts from nothing. Night 36 (2026-09-13) ran its first sentence
 # in minutes on night 35's leftover database: the wipe had not happened.
