@@ -275,6 +275,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     body = [f"You were woken by: {wake.kind}"]
     if wake.message_id:
         body.append(f"Inbound message: {wake.message_id} ({wake.detail})")
+    subject_word = ""
     if wake.refs:
         body.append(f"Refs: {', '.join(wake.refs)}")
         # The subject, said plainly. A define session read `Refs: @term:note`
@@ -283,11 +284,21 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
 
         subject = wake.refs[0]
         if term_of(subject):
-            body.append(f"The word: {term_of(subject)}")
+            subject_word = term_of(subject)
+            body.append(f"The word: {subject_word}")
         elif subject == PROGRAM:
             body.append("The subject: the whole program")
         elif is_area(subject) and wake.kind == "tick:survey":
             body.append(f"The area: {subject}")
+    if (wake.kind.startswith("tick:") and wake.detail
+            and wake.detail not in (wake.kind.split(":", 1)[1], subject_word)):
+        # What the predicate knows about the subject, said to the role:
+        # "without a test: c1, c2", "attempt 2 of 10". clickI night 46
+        # (2026-09-14): the Tester had to diff six criteria against three
+        # tests to find the three it was woken for, and got it wrong. Not
+        # the tick's own name (a case wake's default detail) and not the
+        # word already said above.
+        body.append(wake.detail)
     if inbound:
         body.append("\nThe reports that came back:" if "reports" in inbound
                     else "\nThe message that woke you:")
@@ -1085,6 +1096,67 @@ def _resolve_round(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     return out
 
 
+_TAG_ARGS = ("id", "criterion_id", "term", "path", "about_ref", "batch_id")
+
+
+def _call_tag(call: Any, n_calls: int) -> str:
+    """`tests.encode(id='tst_x')` on a multi-call turn; the bare name alone."""
+    if n_calls < 2:
+        return call.name
+    args = getattr(call, "args", None) or {}
+    for key in _TAG_ARGS:
+        value = args.get(key)
+        if isinstance(value, str) and value:
+            return f"{call.name}({key}={value!r})"
+    return call.name
+
+
+def _source_the_tests_call(sb: sandbox_mod.Sandbox,
+                           tests: list[dict]) -> dict[str, Any]:
+    """The definitions a failing test imports, read at their lines.
+
+    Each `from pkg.mod import name` in a red test body names a module; the
+    index's path grains say which file that is; `code.source` says where in
+    it `name` is defined. Two files and three spans at most, so the push
+    stays a working set and not the repository.
+    """
+    import ast as _ast
+
+    paths = [r["grain"] for r in sb.ctx.conn.execute(
+        "SELECT grain FROM code_index WHERE grain_kind = 'path'")]
+    wanted: dict[str, set[str]] = {}
+    for row in tests:
+        try:
+            tree = _ast.parse(row.get("body") or "")
+        except SyntaxError:
+            continue
+        for node in _ast.walk(tree):
+            if not isinstance(node, _ast.ImportFrom) or not node.module:
+                continue
+            tail = node.module.replace(".", "/")
+            path = next((p for p in paths if p.replace("\\", "/").endswith(f"{tail}.py")
+                         or p.replace("\\", "/").endswith(f"{tail}/__init__.py")), None)
+            if path:
+                wanted.setdefault(path, set()).update(a.name for a in node.names)
+    spans: dict[str, Any] = {}
+    for path, names in list(wanted.items())[:2]:
+        try:
+            head = sb.call("code.source", path=path, start=0, end=1)
+        except Exception:                                  # noqa: BLE001
+            continue
+        defs = head.get("defs") or {} if isinstance(head, dict) else {}
+        for name in sorted(names):
+            if name not in defs or len(spans) >= 3:
+                continue
+            start, end = defs[name]
+            try:
+                spans[f"{path}::{name}"] = sb.call(
+                    "code.source", path=path, start=max(0, start - 2), end=end + 2)
+            except Exception:                              # noqa: BLE001
+                continue
+    return spans
+
+
 def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                      g: graph_mod.Graph | None = None,
                      asked: str = "") -> dict[str, Any]:
@@ -1251,6 +1323,31 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                 "this page": mine,
                 "open and not on this page": f"{rest} more, on the pages after this one",
             }
+
+    # The fix wake pushes the red tests and the code they call, not the
+    # inherited suite. clickI night 46 (2026-09-14): `tests.load` pushed 34
+    # inherited bodies (467,000 characters), the push was cut at 20,000, the
+    # one failing test and what the harness said about it never arrived,
+    # and three sessions read `src/click/utils.py` seven times each and
+    # wrote nothing. `code.probe` with no pattern is a note, not a read.
+    if (wake is not None and wake.kind == "tick:tests_failing"
+            and isinstance(pushed.get("tests.load"), list)):
+        rows = pushed["tests.load"]
+        red = [r for r in rows if isinstance(r, dict)
+               and r.get("last_result") in ("fail", "error")]
+        if red:
+            green = len(rows) - len(red)
+            pushed["tests.load"] = {
+                "not passing": red,
+                "passing, not shown": f"{green} test(s)",
+            }
+            if "code.source" in have:
+                spans = _source_the_tests_call(sb, red)
+                if spans:
+                    pushed["code.source"] = spans
+    probe = pushed.get("code.probe")
+    if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
+        pushed.pop("code.probe")
 
     if asked and "decisions.search" in have:
         hits: dict[str, Any] = {}
@@ -1707,6 +1804,12 @@ def run_session(
                     "are real. Send the calls alone and stop; I will answer.")
             for i, call in enumerate(calls):
                 if isinstance(call, toolproto.ToolError):
+                    if cut_note and i == len(calls) - 1:
+                        # The cut is the cause and the cut note says so. clickI
+                        # night 46 (2026-09-14): the parse error's own hint
+                        # ("put it between triple quotes") was followed
+                        # literally, and four encodes arrived as a docstring.
+                        continue
                     outcome.errors.append(call.reason)
                     feedback.append(f"ERROR {call.raw}: {call.reason}")
                     continue
@@ -1825,7 +1928,11 @@ def run_session(
                         feedback.append(f"OK {call.name} -> {_render(result)}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
-                    feedback.append(f"ERROR {call.name}: {exc}")
+                    # Six encodes in one reply, three refused: which three?
+                    # clickI night 46 (2026-09-14): the Tester re-sent all
+                    # six for four turns. On a multi-call turn the refusal
+                    # names the call by its identifying argument.
+                    feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
                     turn_refusals.add((call.name, str(exc)[:160]))
 
             # Counted per turn, not per call: a reply with four calls refused

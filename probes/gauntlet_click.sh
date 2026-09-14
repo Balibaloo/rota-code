@@ -21,10 +21,11 @@ echo "== onboard $(date +%H:%M)"
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
 python -c "import sqlite3, os; os.path.exists('.rota/clickI.db') and sqlite3.connect('.rota/clickI.db').backup(sqlite3.connect('.rota/clickI_prev.db'))"
-if [ "${GAUNTLET_WARM:-}" = "1" ] && [ -f "$REPO/.rota/clickI_warm.db" ]; then
+if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check clickI; then
   # A warm start: the snapshot walk.py wrote at the first slicing wake of an
   # earlier night. Onboarding's sessions are already in it; the night begins
-  # at slicing. Delete the snapshot when an onboarding brief or push changes.
+  # at slicing. The stamp check above goes cold on its own when a brief, a
+  # tool list, the graph or a predicate changed, or after four warm nights.
   echo "== warm start from .rota/clickI_warm.db (onboarding skipped)"
   rm -f "$REPO/.rota/clickI.db" "$REPO/.rota/clickI.db-wal" "$REPO/.rota/clickI.db-shm"
   python -c "import sqlite3; sqlite3.connect('.rota/clickI_warm.db').backup(sqlite3.connect('.rota/clickI.db'))"

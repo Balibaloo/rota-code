@@ -168,9 +168,12 @@ def test_every_predicate_is_either_spine_or_register():
     # the scheduler, drained the moment it fires), 39 with `cancel` (spine,
     # the same authority ending a batch whose approval was withdrawn), 40 with
     # `touch_note` (register: a batch's predicted touch is owed to the
-    # principal until presented -- P4, 2026-09-03). The pin forced each
-    # classification before the count moved.
-    assert len(every) == 41, (
+    # principal until presented -- P4, 2026-09-03), 43 with `touch_strayed`
+    # and `touch_mistaken` (spine: a stray in a batch's diff is the batch's
+    # own fix loop, drained by the Architect's judgement and the Developer's
+    # removal, and the merge gate holds until then -- 2026-09-13). The pin
+    # forced each classification before the count moved.
+    assert len(every) == 43, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

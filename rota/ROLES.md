@@ -153,7 +153,8 @@ passing it to Liaison spends a rung of the ladder and answers nobody.
 **Reaches** developer (answer), vision_keeper (challenge, propose), liaison
 (answer, report), researcher (question), terminologist (question).
 
-**Woken by** annotate, boundary, frame, grouping, structural_review.
+**Woken by** annotate, boundary, frame, grouping, structural_review,
+touch_strayed.
 
 ## developer
 
@@ -166,7 +167,8 @@ undiscoverable afterwards is the exact failure this system exists to prevent.
 **Reaches** architect (escalate), vision_keeper (elect, question), researcher
 (question), terminologist (question), tester (challenge).
 
-**Woken by** batch_start, reopen, tests_failing, verdict_failed, finding_violated.
+**Woken by** batch_start, reopen, tests_failing, verdict_failed, finding_violated,
+touch_mistaken.
 
 **Its `answer` mode cannot ask anything, deliberately.** Asking a second role
 the same question is how one question becomes three answers; asking the same

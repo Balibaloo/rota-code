@@ -3751,6 +3751,21 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                        and c.func.value.id not in defined
                        and not hasattr(_builtins, c.func.value.id)})
     if unbound:
+        # A library module used and never imported gets the line to add.
+        # clickI night 46 (2026-09-14): `json.loads` with no `import json`,
+        # the hint said "import the function the criterion's surface names",
+        # the test already imported that function, and the same refusal
+        # ended the session on its fourth turn.
+        import importlib.util as _ilu
+        try:
+            is_module = _ilu.find_spec(unbound[0]) is not None
+        except (ImportError, ValueError):
+            is_module = False
+        if is_module:
+            raise Wall(
+                f"the test uses {unbound[0]} and never imports it: a NameError "
+                f"against any code. Add the line `import {unbound[0]}` at the "
+                f"top of the body and send the encode again")
         raise Wall(
             f"the test uses {unbound[0]} and never imports or defines it: a "
             f"NameError against any code. A test calls the program -- import "
@@ -4256,12 +4271,17 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         owed = [lit for lit in invented
                 if _words(lit) - covered - _STOP - _material_words(ctx, criterion_id)]
         if owed:
+            # All of them in one refusal, one log covering all. clickI night
+            # 46 (2026-09-14): 'key', then 'nested', then 'array', one per
+            # turn, each logged and re-sent, and the session ran out.
+            named = ", ".join(repr(w) for w in owed[:6])
+            joined = " and ".join(owed[:6])
             raise ValueError(
-                f"the test chooses {owed[0]!r}, and nothing in the criterion, "
+                f"the test chooses {named}, and nothing in the criterion, "
                 f"its ticket, the glossary or the principal's words says it. "
                 f"That is an assumption, and it is logged where it is made: "
                 f"ledger.log(about_ref={criterion_id!r}, about_table='criteria', "
-                f"assumption=\"the test assumes {owed[0]} where the material "
+                f"assumption=\"the test assumes {joined} where the material "
                 f"is silent\") -- then send this encode again unchanged")
 
     batch_id = batch_id or ctx.batch_id or _batch_of_criterion(ctx, criterion_id)

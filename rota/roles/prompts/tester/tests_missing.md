@@ -1,6 +1,10 @@
 MODE: tests_missing — every criterion gets a verdict, then its door.
 
 `tickets.load` and `criteria.load`, then per criterion: `tests.triage` first.
+The wake says which criteria have no test. A criterion with `tested_by` has
+its test already. Leave it. A criterion without one is yours: you choose the
+test id and the path. Nobody assigns them. The triage and the encode of one
+criterion go in the same reply, triage first.
 The verdict is one judgement — **could a machine check this sentence?**
 `encodable` and you `tests.encode` it; `cannot` and you route it:
 `msg.question_terminologist` with the criterion in refs and what stops you in

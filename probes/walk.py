@@ -167,6 +167,11 @@ for i in range(cap):
             import sqlite3 as _sq
             conn.commit()
             dst = _sq.connect(str(warm)); conn.backup(dst); dst.close()
+            # The stamp: what onboarding ran under. A later warm start
+            # checks it (probes/warm_stamp.py) and goes cold when a brief,
+            # a tool list, the graph or a predicate changed.
+            import warm_stamp
+            warm_stamp.write(run, conn)
             print(f"warm snapshot written: {warm}", flush=True)
     if s is not None and s.outcome is not None and not s.outcome.committed:
         # Said at once and flushed: night 31 ran 98 minutes on one failing

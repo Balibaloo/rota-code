@@ -629,8 +629,11 @@ def tests_missing(conn) -> list[Wake]:
     # fork is per criterion, so the debt is: a criterion with no test and no
     # open question of the Tester's about it (routed is done; the answer
     # wakes it).
+    # The wake names the criteria it is about. clickI night 46 (2026-09-14):
+    # shown six criteria and three tests, the Tester re-encoded the three
+    # that had tests and asked the Terminologist about one that had none.
     rows = conn.execute(
-        "SELECT DISTINCT bt.batch_id AS bid FROM batch_tickets bt "
+        "SELECT bt.batch_id AS bid, c.id AS cid FROM batch_tickets bt "
         "JOIN batches b ON b.id = bt.batch_id "
         "JOIN criteria c ON c.ticket_id = bt.ticket_id "
         "WHERE b.status = 'running' "
@@ -638,9 +641,15 @@ def tests_missing(conn) -> list[Wake]:
         "  AND NOT EXISTS (SELECT 1 FROM tests t WHERE t.criterion_id = c.id) "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'tester' "
         "                  AND m.verb = 'question' AND m.status IN ('open', 'unresolved') "
-        "                  AND m.body_refs LIKE '%\"' || c.id || '\"%')"
+        "                  AND m.body_refs LIKE '%\"' || c.id || '\"%') "
+        "ORDER BY bt.batch_id, c.id"
     ).fetchall()
-    return [Wake("tester", "tick:tests_missing", refs=(r["bid"],)) for r in rows]
+    missing: dict[str, list[str]] = {}
+    for r in rows:
+        missing.setdefault(r["bid"], []).append(r["cid"])
+    return [Wake("tester", "tick:tests_missing", refs=(bid,),
+                 detail="without a test: " + ", ".join(cids))
+            for bid, cids in missing.items()]
 
 
 @predicate("harness", wakes=SCHEDULER, band="gate",
