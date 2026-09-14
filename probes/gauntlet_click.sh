@@ -36,6 +36,9 @@ restore_click() {
   echo "== click restored to $(git -C "$r" log --oneline -1)"
 }
 restore_click
+# GAUNTLET_FROM=2 starts at the second sentence. Sentence one merged on
+# nights 49 and 50 (2026-09-14); a night that measures sentences two and
+# three need not spend forty minutes re-proving it.
 echo "== onboard $(date +%H:%M)"
 # The last night's run database, kept beside the new one: `onboard --force`
 # replaces it, and night 34's sessions were lost to night 35's start
@@ -57,12 +60,18 @@ fi
 # in minutes on night 35's leftover database: the wipe had not happened.
 [ "${WALK_FROM_WARM:-}" = "1" ] || python -c "import sqlite3, sys; n = sqlite3.connect('.rota/clickI.db').execute('SELECT COUNT(*) FROM sessions').fetchone()[0]; sys.exit(0 if n == 0 else print(f'NOT FRESH: {n} sessions already in .rota/clickI.db; the wipe did not happen') or 3)" || exit 3
 ollama_up
+if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"
 python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
+fi
 ollama_up
+if [ "${GAUNTLET_FROM:-1}" -le 2 ]; then
 echo "== walk 2 $(date +%H:%M)"
 python "$W" clickI "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting." "the flag defaults to False so nothing changes for existing callers" 250
+fi
 ollama_up
+if [ "${GAUNTLET_FROM:-1}" -le 3 ]; then
 echo "== walk 3 $(date +%H:%M)"
 python "$W" clickI "Give version_option a show_python flag that appends the running Python version to the message." "the Python version comes from sys.version_info as major.minor.micro" 250
+fi
 echo "GAUNTLET-DONE $(date +%H:%M)"
