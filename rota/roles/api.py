@@ -4468,15 +4468,38 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     bid = batch_id or ctx.batch_id
     if not bid:
         return []
-    return _rows(ctx.conn.execute(
+    rows = _rows(ctx.conn.execute(
         "SELECT t.id AS id, t.criterion_id AS criterion_id, t.path AS path, "
         "       t.body AS body, r.result AS last_result, "
-        "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said "
+        "       CASE WHEN r.result = 'pass' THEN NULL ELSE r.output END AS said, "
+        "       r.commit_sha AS run_sha "
         "FROM tests t "
         "LEFT JOIN test_runs r ON r.id = ("
         "    SELECT id FROM test_runs WHERE test_id = t.id "
         "    ORDER BY attempt DESC, rowid DESC LIMIT 1) "
         "WHERE t.batch_id = ?", (bid,)))
+    # A run is a statement about one commit. Finding 66 (2026-09-14): the
+    # 9B wrote the fix, loaded the tests, read the old red as its fix
+    # failing, and started over until the loop cut it. The files that
+    # changed since the run are a fact of the worktree, so the row says
+    # them. Nothing is said when nothing changed.
+    from ..core import worktrees as _wt
+    root = _worktree_of(ctx, bid)
+    # The harness materialises the batch's tests into the worktree at run
+    # time and the Developer's commits leave them out, so a test file is
+    # the harness's furniture, not a change.
+    furniture = {_grain_path(r["path"]) for r in rows if r.get("path")}
+    seen: dict[str | None, list[str]] = {}
+    for row in rows:
+        sha = row.pop("run_sha", None)
+        if row.get("last_result") in (None, "pass"):
+            continue
+        if sha not in seen:
+            seen[sha] = [p for p in _wt.changed_since(root, sha)
+                         if _grain_path(p) not in furniture]
+        if seen[sha]:
+            row["changed since this run, not run"] = seen[sha]
+    return rows
 
 
 @op("tests", "consult")

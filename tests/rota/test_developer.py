@@ -424,6 +424,62 @@ def test_a_test_run_keeps_what_the_harness_said(project):
     assert "12345" in mine["said"]
 
 
+def test_a_red_run_names_the_files_changed_since_it(project):
+    """
+    Finding 66 (2026-09-14). The 9B wrote the band loop, loaded the tests,
+    and read the run from before its write as the present: the fix had
+    failed, so it started over, until the verbatim-repeat cut ended it. A
+    run is a statement about one commit, and the files changed since are
+    a fact of the worktree.
+    """
+    from rota.core import harness
+    from rota.core.sandbox import build
+
+    db, _ = project
+    lifecycle.start(db, "b1")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+               "VALUES ('tst1','b1','c1','test_prorate.py',?)",
+               ("from src.billing.charges import prorate\n\n"
+                "def test_rounds():\n    assert prorate(999, 1, 3) == 12345\n",))
+    # `code.commit` moves the batch's head when the session lands; a direct
+    # sandbox call lands nothing, so the test moves it the way the session
+    # would. The harness records a run against that commit.
+    wt = db.execute("SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"]
+
+    def land_head():
+        db.execute("UPDATE batches SET head_commit = ? WHERE id = 'b1'",
+                   (worktrees.head(wt),))
+
+    build("developer", db, batch_id="b1").call("code.commit", message="baseline")
+    land_head()
+    harness.run(db, "b1")
+
+    def load():
+        loaded = build("developer", db, batch_id="b1").call("tests.load")
+        return next(r for r in loaded if r["id"] == "tst1")
+
+    # Nothing changed: the row says nothing about it.
+    assert "changed since this run, not run" not in load()
+
+    sb = build("developer", db, batch_id="b1")
+    src = sb.call("code.source", path="src/billing/charges.py", start=0, end=400)
+    wrote = sb.call("code.write", path="src/billing/charges.py",
+                    text=src["text"] + "\n\nCHANGED_SINCE_THE_RUN = True\n", start=0, end=-1)
+    row = load()
+    assert "changed since this run, not run" in row, (wrote, row, db.execute(
+        "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"], db.execute(
+        "SELECT test_id, result, commit_sha FROM test_runs").fetchall())
+    assert row["changed since this run, not run"] == ["src/billing/charges.py"]
+
+    # Committed and still not run: the fact stays until the harness runs.
+    sb.call("code.commit", message="a change the tests have not seen")
+    land_head()
+    assert load()["changed since this run, not run"] == ["src/billing/charges.py"]
+
+    harness.run(db, "b1")
+    assert "changed since this run, not run" not in load()
+
+
 def test_a_passing_test_says_nothing(project):
     """Green output is noise in the scarcest context there is."""
     from rota.core import harness

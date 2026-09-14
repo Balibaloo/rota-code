@@ -195,6 +195,34 @@ def commit(path: str | Path, message: str, exclude: tuple[str, ...] = ()) -> str
     return head(path)
 
 
+def changed_since(path: str | Path, sha: str | None) -> list[str]:
+    """
+    The files that differ between a commit and the working tree now, the
+    working tree's uncommitted and untracked files included.
+
+    The fact behind finding 66 (2026-09-14): a test run is a statement about
+    one commit, and a Developer that wrote a file and loaded the tests read
+    the old red as the present. An unknown `sha` (a fixture's, or a
+    rewritten history) counts the working tree alone. The harness's own
+    furniture, `.venv` and `.rota`, is never a change.
+    """
+    root = str(path)
+    out: set[str] = set()
+    if sha:
+        run = subprocess.run([*GIT, "-C", root, "diff", "--name-only", sha],
+                             capture_output=True, text=True)
+        if run.returncode == 0:
+            out.update(line.strip() for line in run.stdout.splitlines() if line.strip())
+    run = subprocess.run([*GIT, "-C", root, "status", "--porcelain", "--untracked-files=all"],
+                         capture_output=True, text=True)
+    if run.returncode == 0:
+        for line in run.stdout.splitlines():
+            if len(line) > 3:
+                out.add(line[3:].strip().strip('"'))
+    return sorted(p for p in out
+                  if not p.startswith((".venv/", ".rota/")) and p not in (".venv", ".rota"))
+
+
 def diff(path: str | Path, against: str = "HEAD~1") -> str:
     out = subprocess.run([*GIT, "-C", str(path), "diff", against, "HEAD"],
                          capture_output=True, text=True)
