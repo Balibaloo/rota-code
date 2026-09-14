@@ -1665,6 +1665,16 @@
       "label": "its own worktree, including what it has not committed"
     },
     {
+      "s": "developer",
+      "t": "code",
+      "type": "reads",
+      "v": "diff",
+      "n": "the batch's own change",
+      "label": "what this batch changed, against the base: the fix loop reads its own diff when the project's own tests fail (click night 47, 2026-09-14)",
+      "rows": "batch",
+      "depth": "body"
+    },
+    {
       "s": "researcher",
       "t": "references",
       "type": "writes",

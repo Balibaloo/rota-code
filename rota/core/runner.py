@@ -1345,14 +1345,42 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                and r.get("last_result") in ("fail", "error")]
         if red:
             green = len(rows) - len(red)
-            pushed["tests.load"] = {
-                "not passing": red,
-                "passing, not shown": f"{green} test(s)",
-            }
-            if "code.source" in have:
-                spans = _source_the_tests_call(sb, red)
+            # The batch's own tests and the project's own are two facts.
+            # click night 47 (2026-09-14): 19 of click's tests failed at the
+            # Developer's commit, the push read their imports and pushed
+            # 20,000 characters of `types.py`, and the Developer wrote an
+            # essay about Choice and File. A project test with no criterion
+            # fails because of the diff; the diff is what to push.
+            own = [r for r in red if r.get("criterion_id")]
+            project = [r for r in red if not r.get("criterion_id")]
+            shown: dict[str, Any] = {}
+            if own:
+                shown["the batch's tests, not passing"] = own
+            if project:
+                shown["the project's own tests, not passing at your commit"] = [
+                    {k: r.get(k) for k in ("id", "path", "said")} for r in project]
+                shown["what that means"] = (
+                    f"{len(project)} test(s) with no criterion are the project's, and "
+                    f"they passed before this batch. Your diff broke them. Read "
+                    f"code.diff below and restore what it changed; a challenge has "
+                    f"no side here")
+            shown["passing, not shown"] = f"{green} test(s)"
+            pushed["tests.load"] = shown
+            if own and "code.source" in have:
+                spans = _source_the_tests_call(sb, own)
                 if spans:
                     pushed["code.source"] = spans
+            if project and "code.diff" in have and "code.diff" not in pushed:
+                try:
+                    pushed["code.diff"] = sb.call("code.diff")
+                except Exception:                          # noqa: BLE001
+                    pass
+            if not project:
+                # The diff is for the project's own tests only. Pushed on
+                # every fix wake, L1-DV-challenge-a-test-that-contradicts-
+                # its-criterion went 5/5 to 0/5: with its diff in view the
+                # Developer wrote code and challenged, both (2026-09-14).
+                pushed.pop("code.diff", None)
     probe = pushed.get("code.probe")
     if isinstance(probe, list) and probe and isinstance(probe[0], dict) and "note" in probe[0]:
         pushed.pop("code.probe")

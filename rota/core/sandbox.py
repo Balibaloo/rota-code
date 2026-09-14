@@ -682,10 +682,18 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 row = ctx.conn.execute(
                     "SELECT criterion_id FROM tests WHERE id = ?",
                     (test[0],)).fetchone()
-                if row:
+                if row and row["criterion_id"]:
                     hint = (f". {test[0]}'s criterion is "
                             f"{row['criterion_id']}: send "
                             f"refs=['{row['criterion_id']}', '{test[0]}']")
+                elif row:
+                    # click night 47 (2026-09-14): "send refs=['None', ...]"
+                    # was sent as written, four turns, on nineteen of the
+                    # project's own tests.
+                    hint = (f". {test[0]} has no criterion: it is the project's "
+                            f"own test and it passed before this batch. A "
+                            f"challenge has no side there. Read code.diff and "
+                            f"restore what your change broke")
             # The other direction of the same derivation. Measured the day
             # the Critic's structural fork landed: `verdicts.claim_encodes`
             # correctly named the criterion, the challenge that followed
@@ -710,10 +718,20 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                     "WHERE t.batch_id = ? AND tr.result IN ('fail', 'error') "
                     "AND tr.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id)",
                     (ctx.batch_id,)).fetchall()
-                if failing:
+                # A test with no criterion is the project's own, broken by
+                # the diff. click night 47 (2026-09-14): the hint said
+                # "send refs=['None', 'inh_5f7b1750']" and the Developer
+                # sent exactly that, four turns, on nineteen such tests.
+                owned = [r for r in failing if r["criterion_id"]]
+                if owned:
                     hint = ". The failing tests of this batch: " + "; ".join(
                         f"send refs=['{r['criterion_id']}', '{r['test_id']}']"
-                        for r in failing[:3])
+                        for r in owned[:3])
+                elif failing:
+                    hint = (f". The {len(failing)} failing test(s) have no criterion: "
+                            f"they are the project's own and passed before this "
+                            f"batch. A challenge has no side there. Read code.diff "
+                            f"and restore what your change broke")
             raise ValueError(
                 f"a challenge to the tester names both sides of the conflict "
                 f"in refs -- the criterion and the test -- and yours names "

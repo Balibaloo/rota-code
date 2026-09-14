@@ -67,7 +67,7 @@ def test_the_fix_wake_pushes_the_red_tests_and_the_code_they_call(tmp_path):
     sb = build("developer", db, batch_id="b1", mode="tests_failing",
                allow=prompts.mode_tools("developer", "tests_failing"))
     pushed = push_working_set("developer", sb, Wake("developer", "tick:tests_failing", refs=("b1",)))
-    red = pushed["tests.load"]["not passing"]
+    red = pushed["tests.load"]["the batch's tests, not passing"]
     assert [r["id"] for r in red] == ["tst_red"]
     assert "AssertionError" in red[0]["said"]
     assert pushed["tests.load"]["passing, not shown"] == "1 test(s)"
@@ -204,3 +204,60 @@ def test_a_bare_list_of_refs_may_hold_a_path():
     call = calls[0]
     assert not isinstance(call, toolproto.ToolError), getattr(call, "reason", call)
     assert call.args["refs"] == ["argument", "choice", ".", "src/click"], call.args
+
+
+def test_the_fix_wake_separates_the_projects_own_tests_and_pushes_the_diff(tmp_path):
+    """click night 47 (2026-09-14): 19 of click's own tests failed at the
+    Developer's commit; the push read their imports and pushed 20,000
+    characters of types.py; the Developer wrote an essay about Choice."""
+    import subprocess
+    root = tmp_path / "proj"; (root / "src" / "click").mkdir(parents=True)
+    utils = root / "src" / "click" / "utils.py"
+    utils.write_text('def echo(message):\n    print(message)\n')
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q"], cwd=root, check=True)
+    subprocess.run([*git, "add", "."], cwd=root, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], cwd=root, check=True)
+    utils.write_text('def echo(message):\n    return message\n')
+    subprocess.run([*git, "commit", "-q", "-am", "broke echo"], cwd=root, check=True)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(root),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
+               "('echo_json','Add an echo_json helper','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add echo_json')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','tk1','echo_json prints JSON')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES "
+               "('b1','echo_json','running','abc123',?)", (str(root),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.execute("INSERT INTO code_index (grain, grain_kind) VALUES ('src/click/utils.py','path')")
+    body = 'from click.utils import echo\n\ndef test_echo(capsys):\n    echo(1)\n    assert capsys.readouterr().out'
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('inh_1','b1',NULL,'tests/test_echo.py',?)", (body,))
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, output, attempt) VALUES "
+               "('r1','b1','inh_1','abc123','fail','AssertionError',1)")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    pushed = push_working_set("developer", sb, Wake("developer", "tick:tests_failing", refs=("b1",)))
+    shown = pushed["tests.load"]
+    assert "the batch's tests, not passing" not in shown
+    assert [r["id"] for r in shown["the project's own tests, not passing at your commit"]] == ["inh_1"]
+    assert "Your diff broke them" in shown["what that means"]
+    assert "code.source" not in pushed, "the project's own tests do not pull their imports' source"
+    assert "-    print(message)" in pushed["code.diff"]["diff"]
+
+
+def test_a_challenge_hint_never_names_a_test_with_no_criterion(db):
+    """click night 47 (2026-09-14): "send refs=['None', 'inh_5f7b1750']",
+    sent exactly that, four turns."""
+    body = 'def test_x():\n    assert False'
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('inh_1','b1',NULL,'tests/test_x.py',?)", (body,))
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, output, attempt) VALUES "
+               "('r1','b1','inh_1','abc123','fail','AssertionError',1)")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.challenge_tester", refs=["tk1", "inh_1"], quotes="x")
+    text = str(exc.value)
+    assert "'None'" not in text, text
+    assert "project's own" in text and "code.diff" in text, text

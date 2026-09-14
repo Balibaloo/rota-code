@@ -10,3 +10,4 @@ msg.escalate_architect
 references.load
 msg.question_researcher
 batches.expect
+code.diff
