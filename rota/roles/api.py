@@ -2831,7 +2831,8 @@ def ref_resolves(ctx: Ctx, ref: str) -> bool:
                             (ref,)).fetchone() is not None
 
 
-def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
+def _vet_surface(ctx: Ctx, surface_refs, *, required: bool,
+                 ticket_id: str | None = None) -> list[str]:
     """
     The surface a criterion names, checked against the index that knows.
 
@@ -2893,7 +2894,29 @@ def _vet_surface(ctx: Ctx, surface_refs, *, required: bool) -> list[str]:
                 f"callable a test would exercise; near matches: {near}")
         # No neighbour anywhere in the index: this reads as a callable that
         # does not exist *yet*, and naming the intended entry point is exactly
-        # the design decision a criterion is for. Kept as written.
+        # the design decision a criterion is for. Kept as written -- when the
+        # item or the ticket gives the name, or the worktree defines it.
+        # Click night 56 (2026-09-14): a repair named `inspect_signature`,
+        # a library function the program does not have, and every test of
+        # the criterion was refused for never calling it.
+        bare = ref.split("::")[-1].rsplit(".", 1)[-1]
+        given = set(_named_new_callables(ctx, ticket_id)) if ticket_id else set()
+        in_tree = False
+        try:
+            in_tree = bool(_defined_in_tree(ctx, bare, ""))
+        except Exception:                                  # noqa: BLE001
+            in_tree = False
+        # At the repair only: a first criterion may name the entry point a
+        # new feature will have (test_a_name_with_no_neighbour_is_a_design
+        # _not_a_typo); a repair exists because a test could not be written,
+        # and a surface the program lacks cannot be the fix.
+        if required and ticket_id and bare not in given and not in_tree:
+            raise ValueError(
+                f"{ref!r} is not a symbol the index knows, not a name the item "
+                f"or the ticket gives, and nothing in the worktree defines it. "
+                f"A surface is a callable of this program that a test would "
+                f"exercise: name the one that exists, or the new name the "
+                f"ticket asks for")
         vetted.append(ref)
     return vetted
 
@@ -3109,7 +3132,7 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
             f"slice: msg.challenge_vision_keeper with the ticket. Otherwise the "
             f"criteria are written; end")
     _surface_names_what_the_item_names(ctx, ticket_id, surface_refs)
-    surface = _vet_surface(ctx, surface_refs, required=False)
+    surface = _vet_surface(ctx, surface_refs, required=False, ticket_id=ticket_id)
     ctx.writes.append(("criteria", id, {
         "ticket_id": ticket_id, "text": text,
         "term_refs": json.dumps(term_refs or []),
@@ -3151,7 +3174,7 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     # Rewording with the same words repairs nothing. The repair session on
     # walk twenty-eight respecified three criteria with their own text and
     # left the fourth, which was the one that could not be encoded.
-    cur = ctx.conn.execute("SELECT text FROM criteria WHERE id = ?", (id,)).fetchone()
+    cur = ctx.conn.execute("SELECT text, ticket_id FROM criteria WHERE id = ?", (id,)).fetchone()
     if cur and _same_words(text, cur["text"]):
         return {"id": id, "unchanged": True,
                 "note": "those are the criterion's own words; a repair changes "
@@ -3160,7 +3183,8 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                         "be encoded is a different row"}
     payload: dict = {"text": text,
                      "surface_refs": json.dumps(
-                         _vet_surface(ctx, surface_refs, required=True))}
+                         _vet_surface(ctx, surface_refs, required=True,
+                                      ticket_id=cur["ticket_id"] if cur else None))}
     if term_refs is not None:
         payload["term_refs"] = json.dumps(term_refs)
     ctx.writes.append(("criteria", id, payload, False))
@@ -3983,6 +4007,11 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         called_names = {n.func.id for n in calls if isinstance(n.func, _ast.Name)}
         called_names |= {n.func.attr for n in calls
                          if isinstance(n.func, _ast.Attribute)}
+        # A reference is a use too: `inspect.signature(confirm)` exercises
+        # confirm's signature without calling it. Click night 56
+        # (2026-09-14): a signature criterion, refused as "never calls".
+        called_names |= {n.id for n in _ast.walk(tree)
+                         if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Load)}
         # A surface ref is `path::name`. The test calls the name. Compared
         # whole, `from main import calculate_tip` + `calculate_tip(100, 10)`
         # was refused as never calling `main.py::calculate_tip`, three

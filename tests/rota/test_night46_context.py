@@ -543,3 +543,32 @@ def test_an_import_of_a_name_the_module_lacks_is_refused_for_any_name(db, tmp_pa
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     with pytest.raises(ValueError, match="_compat.py does not define _sentinel, and no criterion names it"):
         _encode(sb, "from click.termui import confirm\nfrom click._compat import _sentinel\n\ndef test_x():\n    assert confirm('ok?', default=_sentinel) is _sentinel")
+
+
+def test_a_reference_to_the_surface_counts_as_using_it(db, tmp_path):
+    """Click night 56 (2026-09-14): a signature criterion; the test did
+    inspect.signature(confirm) and was refused for never calling confirm."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text('def confirm(text, default=None, default_on_eof=False):\n    return default\n')
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET text = ?, surface_refs = ? WHERE id = 'c1'",
+               ("confirm takes a boolean parameter named default_on_eof", '["src/click/termui.py::confirm"]'))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    body = "import inspect\nfrom click.termui import confirm\n\ndef test_signature():\n    params = inspect.signature(confirm).parameters\n    assert 'default_on_eof' in params\n    assert params['default_on_eof'].default is False"
+    assert _encode(sb, body)["id"] == "tst_new"
+
+
+def test_a_repair_may_not_name_a_surface_the_program_does_not_have(db):
+    """Click night 56 (2026-09-14): a repair named `inspect_signature` as the
+    surface; every test of the criterion was refused for never calling it."""
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('src/click/termui.py::confirm','symbol','function')")
+    db.commit()
+    sb = build("terminologist", db, batch_id="b1", mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    with pytest.raises(ValueError, match="not a name the item or the ticket gives"):
+        sb.call("criteria.respecify", id="c1", text="confirm has a boolean parameter named default_on_eof",
+                surface_refs=["inspect_signature"])
+    out = sb.call("criteria.respecify", id="c1", text="confirm keeps a boolean parameter named default_on_eof",
+                  surface_refs=["src/click/termui.py::confirm"])
+    assert out["id"] == "c1"
