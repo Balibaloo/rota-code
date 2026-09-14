@@ -261,3 +261,62 @@ def test_a_challenge_hint_never_names_a_test_with_no_criterion(db):
     text = str(exc.value)
     assert "'None'" not in text, text
     assert "project's own" in text and "code.diff" in text, text
+
+
+def test_a_write_may_not_change_a_definition_no_criterion_names(tmp_path):
+    """Click nights 47 and 48 (2026-09-14): asked for echo_json next to echo,
+    the Developer's span write replaced echo with a simplified copy; 19 of
+    click's own tests failed; nine fix rounds called it unrelated."""
+    proj = tmp_path / "proj"; (proj / "src" / "click").mkdir(parents=True)
+    original = "import sys\n\n\ndef echo(message, nl=True):\n    sys.stdout.write(str(message) + (chr(10) if nl else ''))\n    sys.stdout.flush()\n"
+    (proj / "src" / "click" / "utils.py").write_text(original)
+    wt = tmp_path / "wt"; (wt / "src" / "click").mkdir(parents=True)
+    (wt / "src" / "click" / "utils.py").write_text(original)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
+               "('i1','Add echo_json next to echo','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','add echo_json next to echo')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
+               "('c1','tk1','echo_json prints an object as JSON','[\"src/click/utils.py::echo_json\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    simplified = 'import sys\n\n\ndef echo(message):\n    print(message)\n\n\ndef echo_json(obj, indent=2):\n    import json\n    print(json.dumps(obj, indent=indent))\n'
+    with pytest.raises(ValueError, match=r"changes echo, and no criterion of this batch names it") as exc:
+        sb.call("code.write", path="src/click/utils.py", text=simplified)
+    assert "start=6, end=6" in str(exc.value), str(exc.value)
+    added = original + '\n\ndef echo_json(obj, indent=2):\n    import json\n    print(json.dumps(obj, indent=indent))\n'
+    assert sb.call("code.write", path="src/click/utils.py", text=added)["bytes"]
+    # After a bad write landed elsewhere, the restoring write passes: echo back to the project's own, echo_json kept.
+    assert sb.call("code.write", path="src/click/utils.py", text=added)["bytes"], "restoring the project's own echo passes"
+
+
+def test_the_diff_names_the_definitions_the_batch_changed_unasked(tmp_path):
+    import subprocess
+    proj = tmp_path / "proj"; (proj / "src").mkdir(parents=True)
+    original = 'def echo(m):\n    print(m)\n'
+    (proj / "src" / "utils.py").write_text(original)
+    wt = tmp_path / "wt"; (wt / "src").mkdir(parents=True)
+    (wt / "src" / "utils.py").write_text(original)
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q"], cwd=wt, check=True)
+    subprocess.run([*git, "add", "."], cwd=wt, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], cwd=wt, check=True)
+    (wt / "src" / "utils.py").write_text('def echo(m):\n    return m\n\n\ndef echo_json(o):\n    print(o)\n')
+    subprocess.run([*git, "commit", "-q", "-am", "change"], cwd=wt, check=True)
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
+               "('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','echo_json prints','[\"src/utils.py::echo_json\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES ('b1','i1','running','abc',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="tests_failing",
+               allow=prompts.mode_tools("developer", "tests_failing"))
+    out = sb.call("code.diff")
+    assert out["definitions this batch changed that no criterion names"] == {"src/utils.py": ["echo"]}, out

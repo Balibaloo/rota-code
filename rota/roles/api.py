@@ -6733,7 +6733,33 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         out = subprocess.run(
             [*GIT, "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
             capture_output=True, text=True, timeout=30)
-        return {"batch": bid, "diff": out.stdout[:20000]}
+        result = {"batch": bid, "diff": out.stdout[:20000]}
+        # The definitions the batch changed that no criterion names, read
+        # from the worktree against the project's own file. Click night 48
+        # (2026-09-14): the diff was in front of the Developer and it
+        # called 19 red project tests unrelated; the fact is one line.
+        from pathlib import Path as _Path
+        root = ctx.conn.execute(
+            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+        changed: dict[str, list[str]] = {}
+        if root and root[0]:
+            for line in out.stdout.splitlines():
+                if not line.startswith("+++ b/") or not line.endswith(".py"):
+                    continue
+                rel = line[6:]
+                base_file, head_file = _Path(root[0]) / rel, _Path(row["worktree"]) / rel
+                if not (base_file.exists() and head_file.exists()):
+                    continue
+                names = _changed_unnamed_defs(
+                    ctx, rel, base_file.read_text(encoding="utf-8", errors="replace"),
+                    head_file.read_text(encoding="utf-8", errors="replace"))
+                if names:
+                    changed[rel] = names
+        if changed:
+            result["definitions this batch changed that no criterion names"] = changed
+            result["what that means"] = ("the project's tests call these as they were; "
+                                         "restore them and add only what the criteria name")
+        return result
     except Exception as exc:
         return {"batch": bid, "error": str(exc)}
 
@@ -7509,6 +7535,26 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     f"the new definitions with start={n_old}, end={n_old}: "
                     f"{path} has {n_old} lines and that span appends after "
                     f"them, keeping the rest")
+            # A definition the criteria do not name keeps its source. Click
+            # nights 47 and 48 (2026-09-14): `echo` replaced by a simplified
+            # copy while adding `echo_json`; 19 project tests red; nine fix
+            # rounds called it unrelated.
+            old_text = target.read_text(encoding="utf-8", errors="replace")
+            changed = _changed_unnamed_defs(ctx, path, old_text, text)
+            if changed:
+                named = sorted(_criteria_surface_names(ctx)) or ["nothing"]
+                old_lines = old_text.splitlines()
+                spans = {n.name: (n.lineno - 1, getattr(n, "end_lineno", n.lineno))
+                         for n in old_tree.body
+                         if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))}
+                after = spans.get(changed[0], (len(old_lines), len(old_lines)))[1]
+                raise ValueError(
+                    f"this write changes {', '.join(changed)}, and no criterion of "
+                    f"this batch names {'it' if len(changed) == 1 else 'them'}: the "
+                    f"criteria name {', '.join(named)}. The project's own tests call "
+                    f"{changed[0]} as it is. Leave it: write only your new definition "
+                    f"with start={after}, end={after}, which inserts after {changed[0]}. "
+                    f"A change to {changed[0]} needs a criterion that names it")
     if missing and path.endswith(".py") and not target.exists()             and stem not in wanted and not stem.startswith("test"):
         raise ValueError(
             f"the batch's tests import {', '.join(missing)} and no such "
@@ -8150,6 +8196,80 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
                  "path outside it is not refused, it is judged after the commit"),
     }
 
+
+
+def _criteria_surface_names(ctx: Ctx) -> set[str]:
+    """The names the batch's criteria name as surfaces, bare."""
+    import json as _json
+    names: set[str] = set()
+    if not getattr(ctx, "batch_id", None):
+        return names
+    for row in ctx.conn.execute(
+            "SELECT c.surface_refs FROM criteria c "
+            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+            "WHERE bt.batch_id = ?", (ctx.batch_id,)):
+        try:
+            refs = _json.loads(row["surface_refs"] or "[]")
+        except (ValueError, TypeError):
+            continue
+        names |= {str(r).rsplit("::", 1)[-1].rsplit(".", 1)[-1] for r in refs if r}
+    return names
+
+
+def _def_sources(text: str) -> dict[str, list[str]]:
+    """Top-level definition name to its source segments, in order."""
+    import ast as _ast
+    out: dict[str, list[str]] = {}
+    try:
+        tree = _ast.parse(text)
+    except SyntaxError:
+        return out
+    for node in tree.body:
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+            out.setdefault(node.name, []).append(_ast.get_source_segment(text, node) or "")
+    return out
+
+
+def _changed_unnamed_defs(ctx: Ctx, path: str, old_text: str, new_text: str) -> list[str]:
+    """
+    Definitions the write changes that no criterion names, and that the
+    write does not restore to the project's own version.
+
+    Click nights 47 and 48 (2026-09-14): asked for `echo_json` next to
+    `echo`, the Developer's span write replaced `echo` with a simplified
+    copy of its own, 19 of click's tests failed at the commit, and nine
+    fix rounds judged the failures unrelated. The criteria name
+    `echo_json`; `echo` is the project's, and the project's tests call it
+    as it is. A definition the file had, whose source the write changes
+    or duplicates, is refused unless a criterion names it or the new
+    source is the project's own (a restoration).
+    """
+    from pathlib import Path as _Path
+    named = _criteria_surface_names(ctx)
+    if not named:
+        return []          # no stated scope to hold the write to
+    before = _def_sources(old_text)
+    after = _def_sources(new_text)
+    base: dict[str, list[str]] = {}
+    try:
+        root = ctx.conn.execute(
+            "SELECT value FROM config WHERE key = 'project_root'").fetchone()
+        if root and root[0]:
+            base_file = _Path(root[0]) / path
+            if base_file.exists():
+                base = _def_sources(base_file.read_text(encoding="utf-8", errors="replace"))
+    except Exception:                                      # noqa: BLE001
+        base = {}
+    changed = []
+    for name, segs in after.items():
+        if name not in before or name in named or name.startswith("_"):
+            continue
+        if segs == before[name]:
+            continue
+        if base.get(name) and segs == base[name]:
+            continue                                       # restored
+        changed.append(name)
+    return changed
 
 
 def _defined_in_tree(ctx: Ctx, name: str, path: str) -> set[str]:
