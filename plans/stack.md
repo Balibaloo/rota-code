@@ -59,8 +59,11 @@ Rules:
   branch for a wrong finding (finding 72). Fixed: the tool in the list,
   the branch first in the brief. The survey's constraints read better
   cold ("WHO BREAKS: ..."), and `termui` is still the empty one.
-- Status 2026-09-14 21:09: night 69 launched warm at 21:08; the register's
-  Architect escalate cases need a replay.
+- Register after the escalate brief change (21:07 to 21:14): 20 reds,
+  all known, and two stale Architect cases (find-against-a-constraint,
+  route-an-escalation), re-recording on the Titan.
+- Status 2026-09-14 21:15: night 69 running warm since 21:08; the Titan
+  re-records the two cases.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
