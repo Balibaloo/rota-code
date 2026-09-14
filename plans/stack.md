@@ -17,17 +17,12 @@ Rules:
 
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
-- Why: the 9B wrote the fix, loaded the tests, read the run from before
-  its write as its fix failing, and restarted until the loop cut it. A
-  mechanical fact, so a door.
-- State: built. `worktrees.changed_since(path, sha)` and the row field
-  "changed since this run, not run" in `tests.load`, materialised test
-  files excluded as furniture. Unit test green (the test lands the
-  batch head the way a session does; `code.commit` stages that write).
-  Uncommitted, measured by the replay of frame 7.
-- Ends when: the replay says green or stale only where the tool's output
-  changed; then act 3 re-recorded on the 9B; commit.
-- Status 2026-09-14 17:16: waiting on the replay.
+- Built and committed (178b255): `worktrees.changed_since`, the row
+  field "changed since this run, not run", materialised tests excluded.
+  Replay after it: 22 reds, the known set, no new stale.
+- Left: act 3 re-recorded on the 9B with the door in place (the 9B's
+  cassettes for it predate the field). Titan, after frame 7's records.
+- Status 2026-09-14 17:22: closed except the re-record.
 
 ### 8. Click night 61: gemma-4 at the Developer's desk, sentence two
 
@@ -47,21 +42,18 @@ Rules:
 
 ### 7. Register hygiene after today's fixes
 
-- Why: the first scoring fix (91f1928) was wrong in the other direction.
-  `_bind` logs a tool call before its guards, `stage` logged a send after
-  its guards; counting every logged call as landed turned every refused
-  generic call into a red. The replay on qwen3:8b showed 38 reds, 15 new,
-  all of that kind. Fixed the other way: `stage` logs before its guards,
-  the subtraction returns. The 14B's act 3 stays 0/5 under it.
-- Also: the Titan re-record put the stream act at 0/5 on qwen3.5:9b, the
-  model that was 5/5 on the 3080 load. Per-load determinism: the 9B's
-  four acts are not a stable fact yet. The outside-fact Tester case is a
-  known red on qwen3:8b under every prompt it ever had.
-- Ends when: the replay after the symmetric fix reads 23 known reds and
-  no stale (the door of frame 9 may stale the act 3 cassettes, expected),
-  the stream act re-recorded on the 3080 after night 61, the peer told
-  cassettes is quiet.
-- Status 2026-09-14 17:16: replay running.
+- The scoring fix is symmetric now (8effc28): the message stage logs a
+  send before its guards, like the tool wrapper, and the subtraction of
+  the refused count returns. Replay on qwen3:8b: 22 reds, the known set;
+  the 14B's act 3 stays 0/5.
+- Open: the stream act is 0/15 on qwen3.5:9b on the Titan under the
+  reworded brief, and was 5/5 on the 3080 under the old one. Two
+  variables. Running the old brief on the Titan from a temporary
+  worktree separates them: 0/5 says the load, 5/5 says the reword.
+  ACT-CR on gemma3:12b never recorded (stale); recording on the Titan.
+- Ends when: the stream act is attributed, ACT-CR recorded, the peer
+  told quiet again.
+- Status 2026-09-14 17:22: the Titan runs both.
 
 ### 6. The harness false pass
 
