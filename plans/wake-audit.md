@@ -215,3 +215,19 @@ door or the brief that fixes them belongs to the writer's mode.
     judgement: a constraint with no content, a review that files against
     it, a Developer that does not take the escalate exit. Briefs.
 
+72. **The Architect cannot withdraw the finding it is asked about.** Night
+    68 (2026-09-14, cold, the shipped profile, with the doors of 69 to
+    71): one finding left, `termui` violated on src/click/termui.py. The
+    Developer took the escalate exit this time, with the finding and the
+    constraint in refs. The Architect's escalate mode read them, decided
+    the constraint was stale and the code right, tried
+    `msg.challenge_vision_keeper` three times with quotes that were not
+    the constraint's words, and answered the Developer with refs and no
+    change. Its mode offered `model.amend` and no `findings.find`, and
+    its brief had no branch for a finding that is wrong: the mode was
+    written for the tests-and-verdict loop. The Developer, told to act on
+    an answer that changed nothing, re-escalated, was refused, and the
+    cap carried the batch to the principal: Stuck. Fix: `findings.find`
+    in the escalate mode's tools, and a first branch in the brief, the
+    finding is wrong, file it satisfied and say so. Open until measured.
+

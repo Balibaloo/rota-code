@@ -53,7 +53,14 @@ Rules:
   one checkout for two minutes. Killed. A night ends at GAUNTLET-DONE.
 - Night 68 launched 20:39, cold (the fourth warm night spent the
   snapshot), to measure the src-only finding, then this frame closes.
-- Status 2026-09-14 20:40: night 68 onboarding.
+- Night 68 (20:39 to 21:03, cold): one finding left, and the Developer
+  escalated it. The Architect agreed the code was right and could not
+  withdraw the finding: its escalate mode had no findings.find and no
+  branch for a wrong finding (finding 72). Fixed: the tool in the list,
+  the branch first in the brief. The survey's constraints read better
+  cold ("WHO BREAKS: ..."), and `termui` is still the empty one.
+- Status 2026-09-14 21:06: fix in, night 69 warm next; the register's
+  Architect escalate cases need a replay.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
