@@ -28,7 +28,7 @@ Rules:
   constraint ids and said OK; the database refused at commit. Stuck.
   Finding 70. Fix: findings.find checks its batch and constraint ids at
   the door.
-- Status 2026-09-14 20:06: night 65 launched warm at 20:04 with the
+- Status 2026-09-14 20:00: night 65 launched warm at 19:58 with the
   findings.find door (finding 70).
 
 ### 10. Night 63: the 9B Developer with both doors, on click
