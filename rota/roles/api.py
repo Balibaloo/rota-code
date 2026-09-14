@@ -3707,7 +3707,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # `sys.stdin` as code, not the word in a comment: night 54 (2026-09-14)
     # wrote "when stdin is closed" in a comment and the scan stood down.
     patches_builtin_only = "builtins.input" in body and "sys.stdin" not in body
-    unpatched = "monkeypatch" not in body and "builtins" not in body
+    # A body that replaces sys.stdin, by monkeypatch or by assignment, has
+    # given the reader a stream: night 57 (2026-09-14) assigned
+    # `sys.stdin = io.StringIO('')` with a restore and was refused three
+    # times as if it had patched nothing.
+    unpatched = ("monkeypatch" not in body and "builtins" not in body
+                 and "sys.stdin" not in body)
     if (unpatched or patches_builtin_only) and ctx.batch_id:
         try:
             root = _worktree_of(ctx)

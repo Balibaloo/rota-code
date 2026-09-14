@@ -572,3 +572,16 @@ def test_a_repair_may_not_name_a_surface_the_program_does_not_have(db):
     out = sb.call("criteria.respecify", id="c1", text="confirm keeps a boolean parameter named default_on_eof",
                   surface_refs=["src/click/termui.py::confirm"])
     assert out["id"] == "c1"
+
+
+def test_replacing_sys_stdin_by_assignment_satisfies_the_input_door(db, tmp_path):
+    """Click night 57 (2026-09-14): `sys.stdin = io.StringIO('')` with a
+    restore in finally, refused three times as if nothing were patched."""
+    root = tmp_path / "wt"; (root / "src" / "click").mkdir(parents=True)
+    (root / "src" / "click" / "termui.py").write_text("visible_prompt_func = input\n\n\ndef confirm(text, default=None):\n    return visible_prompt_func(text) == 'y'\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = ? WHERE id = 'c1'", ('["src/click/termui.py::confirm"]',))
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    body = "from click.termui import confirm\nimport io\nimport sys\n\ndef test_eof():\n    old = sys.stdin\n    try:\n        sys.stdin = io.StringIO('')\n        assert confirm('ok?', default=True) is True\n    finally:\n        sys.stdin = old"
+    assert _encode(sb, body)["id"] == "tst_new"
