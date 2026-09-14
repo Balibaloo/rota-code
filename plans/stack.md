@@ -24,7 +24,7 @@ Rules:
   cassettes for it predate the field). Titan, after frame 7's records.
 - Status 2026-09-14 17:22: closed except the re-record.
 
-### 8. Click night 61: gemma-4 at the Developer's desk, sentence two
+### 8. Click night 62: gemma-4 at the Developer's desk, sentence two
 
 - Why: the benchmark says the 9B does four acts of five in isolation and
   gemma-4 does all five; only the Developer's act 3 separates them. One
@@ -32,28 +32,34 @@ Rules:
   the measured control and decides which limit we face: a merge means
   route act 3 and ship; a stall means the wakes are the limit and the
   strong model's transcripts say where. Roman asked not to run every
-  desk on gemma-4; the mixed profile needed per-model endpoints, added.
-- How: profile `local-gemma-dev` (Ollama desks as `local-gemma-critic`,
-  the Developer on `openai/gemma-4-...` through the llama-server on
-  8080, thinking off in the endpoint's extra_body), cold,
-  `GAUNTLET_FROM=2`, `ROTA_LLM_TIMEOUT=900`.
+  desk on gemma-4; per-model endpoints were added for it (02a16d3).
+- Night 61 (17:18 to 17:23): died at the Developer's first wake, LiteLLM
+  "Missing credentials" at the local server. Fixed: a local endpoint
+  gets a placeholder key. Its onboarding snapshot is warm and carries
+  the routing, so night 62 starts warm at sentence two.
+- How: profile `local-gemma-dev`, `GAUNTLET_WARM=1`, `GAUNTLET_FROM=2`,
+  `ROTA_LLM_TIMEOUT=900`.
 - Ends when: the night prints done and its sessions are read.
-- Status 2026-09-14 17:25: launched.
+- Night 62's first start (17:24) was warm from a stale snapshot of 12:14
+  with the Developer on qwen3.5:9b: cold nights never replaced the
+  snapshot on disk. Killed. walk.py now overwrites the snapshot after a
+  cold onboarding. Relaunched cold at 17:26.
+- Status 2026-09-14 17:33: night 62 onboarding, cold.
 
 ### 7. Register hygiene after today's fixes
 
-- The scoring fix is symmetric now (8effc28): the message stage logs a
-  send before its guards, like the tool wrapper, and the subtraction of
-  the refused count returns. Replay on qwen3:8b: 22 reds, the known set;
-  the 14B's act 3 stays 0/5.
-- Open: the stream act is 0/15 on qwen3.5:9b on the Titan under the
-  reworded brief, and was 5/5 on the 3080 under the old one. Two
-  variables. Running the old brief on the Titan from a temporary
-  worktree separates them: 0/5 says the load, 5/5 says the reword.
-  ACT-CR on gemma3:12b never recorded (stale); recording on the Titan.
-- Ends when: the stream act is attributed, ACT-CR recorded, the peer
-  told quiet again.
-- Status 2026-09-14 17:22: the Titan runs both.
+- The scoring fix is symmetric now (8effc28). Replay on qwen3:8b: 22
+  reds, the known set; the 14B's act 3 stays 0/5.
+- The stream act attributed: on the same Titan load, qwen3.5:9b is 5/5
+  under the old brief line ("do not patch `builtins.input`") and 0/15
+  under the reword ("the built-in `input`"). The reword did it, not the
+  load. Reverted; the prompt test that rejected `builtins.input` as a
+  function the mode does not offer now counts only the tool's own
+  functions. The triage refusal no longer says "branch claim" (8efa18c):
+  the 9B read it as a missing field and asked the Vision Keeper.
+- Open: ACT-CR on gemma3:12b and act 3 with the door, recording on the
+  Titan; the peer told quiet after.
+- Status 2026-09-14 17:33: Titan recording.
 
 ### 6. The harness false pass
 
