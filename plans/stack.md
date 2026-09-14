@@ -34,7 +34,7 @@ Rules:
   warm. Night 70's snapshot (00:54) copied to C:; night 71 starts warm.
   Left for later: the hard set keyed on whole files (graph.json forced
   night 70 cold for a non-onboarding edge) and the blind 4-night cap.
-- Status 2026-09-15 00:58: built and tested; waits on night 70.
+- Status 2026-09-15 00:57: built and tested; waits on night 70.
 
 ### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
 
