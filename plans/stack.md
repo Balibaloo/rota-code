@@ -27,8 +27,14 @@ Rules:
   repo, made 00:40). The first night there is cold.
 - Ends when: night 71 runs there and its onboarding time is read
   against night 70's.
-- Status 2026-09-15 00:41: knob built (ROTA_RUNS in rota/paths.py, the
-  cli, walk.py, warm_stamp.py and the night script); waits on night 70.
+- Warm start hardened for the move (Roman's briefing 00:45): the check
+  goes cold when the snapshot's routing differs from the named profile's
+  (night 62's wrong-model start), and a `relocate` step rewrites the
+  snapshot's project_root to CLICK_ROOT on restore, so a moved night is
+  warm. Night 70's snapshot (00:54) copied to C:; night 71 starts warm.
+  Left for later: the hard set keyed on whole files (graph.json forced
+  night 70 cold for a non-onboarding edge) and the blind 4-night cap.
+- Status 2026-09-15 00:58: built and tested; waits on night 70.
 
 ### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
 
