@@ -240,6 +240,71 @@ in core: the full gauntlet against the lineage (goal 10), goals 5 and 6
 to completion, the container runner behind the seam (goal 7), llama.cpp
 as a proven provider (goal 8), dynamic stacks (G1).
 
+### Long runs: does the 8B model compound noise (asked 2026-09-14)
+
+Every session reads what earlier sessions wrote: criteria from tickets,
+tests from criteria, ledger rows from every desk, glossary senses from
+onboarding and from define wakes. A small model adds a little noise to
+each row it writes. The question is whether the noise grows over a long
+run, so that sentence twelve costs more than sentence two for the same
+work, or whether the doors and the reconcile passes hold it flat. The
+nights so far are three sentences long and cannot answer this. This is
+the design for the test. It runs on the 3080 after sentence three merges
+on click.
+
+**What noise is, measured.** Five numbers per sentence, read from the run
+database by a probe (`probes/drift.py <run>`), no model in the loop:
+
+1. Cost: steps, sessions and model seconds from the sentence's first wake
+   to its merge or its quarantine.
+2. Growth: rows added per artefact (criteria per ticket, tests per
+   criterion, ledger rows per batch, glossary senses, messages per batch).
+3. Provenance: rows that trace to no principal statement and no code
+   grain. Every artefact row carries provenance already (law 11); the
+   probe counts the rows whose provenance chain ends in another model row.
+4. Restatement: words in new rows that appear in no principal statement,
+   no ticket and no code identifier. A rising share is the model talking
+   to itself.
+5. Refusals: doors fired per session. A rising count means later sessions
+   arrive with worse material.
+
+**The arms.** Two runs of the same twelve sentences on the same base
+commit of click, the sentences taken from click's own changelog so each
+has a real answer:
+
+- Carried: one run database, twelve sentences in order, the way a person
+  uses the tool. Every sentence reads the rows of the ones before it.
+- Fresh: twelve runs, one sentence each, each from the warm snapshot.
+  Nothing carries over. The difference between the arms, sentence by
+  sentence, is the compounding. The fresh arm also says what each sentence
+  costs alone, so a sentence that is hard on its own is not read as drift.
+
+Both arms on one card, the same model load, interleaved sentence by
+sentence, because temperature-zero results are stable within a load and
+not across (2026-09-12 finding). Twelve sentences because three showed
+nothing and the register's cap on loop rounds is ten: a run has to be
+long enough for a slow rise to clear the noise of one bad sentence.
+
+**The reading.** For each of the five numbers, the carried arm's trend
+over sentence index against the fresh arm's. Flat, or a difference that
+does not grow: the model does not compound noise at this length, and the
+result goes in the audit as a measured fact with the numbers. A rise in
+cost or refusals with a rise in provenance-less or restated rows: it
+compounds, and the rows that grew name the desk whose writes carry the
+noise. The fix is then on that desk's writes, measured the same way: a
+door where the fact is mechanical (a row whose provenance ends in a model
+row is refused or marked), a brief line where it is a judgement, and a
+reconcile pass where the rows are stale rather than wrong.
+
+**What it does not test.** Whether a person can read the result. That is
+the seat's work and the walk log's. And it says nothing about a 14B rung;
+if the 8B compounds and the desk-level fixes do not hold it, the same two
+arms run once on the 14B profile before anything is ruled.
+
+**Cost.** Two arms of twelve sentences at forty minutes a sentence is
+sixteen hours on the 3080, one night's worth of two nights. The probe is
+an afternoon: the numbers are all in tables the cockpit already reads.
+
 ### After the split (2026-09-14)
 
 One task, Roman's, placed here by his ruling so it is not forgotten. It
