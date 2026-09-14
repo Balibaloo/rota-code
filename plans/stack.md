@@ -67,7 +67,9 @@ Rules:
   conditioned on a finding in the refs: both cases 5/5. The changed-
   files door checks path-shaped grains only. Night 69 runs the first
   version; night 70 measures the final one.
-- Status 2026-09-14 21:19: night 69 running warm since 21:08.
+- Register at 21:24: 20 reds, all known, no stale; the peer can re-pack
+  from this file when it returns.
+- Status 2026-09-14 21:25: night 69 running warm since 21:08.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
