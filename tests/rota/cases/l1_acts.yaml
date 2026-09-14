@@ -134,6 +134,40 @@
     batch: <b1>
     onboard: true
     message: "confirm takes default_on_eof"
+    # The base holds confirm() without the flag, so the index knows the
+    # file and the fix wake can push its source; the batch adds the
+    # parameter and leaves the EOF branch unchanged, which is the red test.
+    change:
+      src/ui.py: |
+        import sys
+
+        visible_prompt_func = input
+
+
+        def _readline_prompt(func, text):
+            return func(text)
+
+
+        def confirm(text, default=None):
+            while True:
+                try:
+                    value = _readline_prompt(visible_prompt_func, text).lower().strip()
+                except (KeyboardInterrupt, EOFError):
+                    raise SystemExit(1)
+                if value in ("y", "yes"):
+                    return True
+                if value in ("n", "no"):
+                    return False
+                if default is not None and value == "":
+                    return default
+
+
+        def style(text, fg=None):
+            return text if fg is None else f"<{fg}>{text}</{fg}>"
+
+
+        def echo(message):
+            sys.stdout.write(str(message) + chr(10))
     edit:
       src/ui.py: |
         import sys
