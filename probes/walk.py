@@ -113,8 +113,7 @@ def record(merged: int, steps: int, asks: int, note: str) -> None:
            "merged": merged, "steps": steps, "asks": asks, "note": note[:120],
            "oneshot": bool(os.environ.get("ROTA_ONESHOT")),
            "date": datetime.date.today().isoformat()}
-    with open(REPO / "tests" / "rota" / "walks.jsonl", "a", encoding="utf-8", newline="
-") as fh:
+    with open(REPO / "tests" / "rota" / "walks.jsonl", "a", encoding="utf-8", newline="\n") as fh:
         fh.write(_json.dumps(row) + chr(10))
 
 
