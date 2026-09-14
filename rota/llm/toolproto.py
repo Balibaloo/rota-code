@@ -280,7 +280,9 @@ def _bracket_bare_lists(text: str) -> str:
     was quarantined. Two or more bare ids in a row, ended by the next
     `name=` or the closing bracket, are a list; a quoted value never
     matches, and `start=1, end=2` does not either because `end` is
-    followed by `=`.
+    followed by `=`. A slash is part of an id: click night 47 (2026-09-14),
+    the observed refs ended `., src/click`, the run broke at the slash, and
+    the Liaison's present was refused three times to quarantine.
     """
     import re
 
@@ -288,9 +290,14 @@ def _bracket_bare_lists(text: str) -> str:
     if _BARE_LIST is None:
         _BARE_LIST = re.compile(
             r"(?P<key>\b[A-Za-z_][A-Za-z0-9_]*=)"
-            r"(?P<ids>[A-Za-z0-9_.@:-]+(?:\s*,\s*[A-Za-z0-9_.@:-]+)+)"
+            r"(?P<ids>[A-Za-z0-9_.@:/-]+(?:\s*,\s*[A-Za-z0-9_.@:/-]+)+)"
             r"(?=\s*(?:,\s*[A-Za-z_][A-Za-z0-9_]*\s*=|\)))")
-    return _BARE_LIST.sub(lambda m: f"{m.group('key')}[{m.group('ids')}]", text)
+    # Quoted as it is bracketed: a bare `.` or `src/click` is not Python,
+    # and the ids are strings by the model's own reading of the wake.
+    def quoted(m):
+        ids = ", ".join(repr(x.strip()) for x in m.group("ids").split(","))
+        return f"{m.group('key')}[{ids}]"
+    return _BARE_LIST.sub(quoted, text)
 
 
 _BLOCK_ARG = None  # compiled on first use; the module avoids import-time regex

@@ -200,6 +200,14 @@ def _briefs_hash(instructions: str) -> str:
     return hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:16]
 
 
+# The tick wakes whose detail is said to the role. Only these: a detail
+# line on every tick changed the Liaison's observed_entries reply from a
+# bracketed list to a bare one (click night 47, 2026-09-14), on a wake no
+# register case carries the live detail of. A kind joins this set with a
+# case that carries its detail (`detail:` in the case file).
+DETAIL_SHOWN = {"tick:tests_missing"}
+
+
 def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
                  pushed: dict[str, Any], instructions: str,
                  inbound: dict[str, Any] | None = None,
@@ -290,7 +298,7 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             body.append("The subject: the whole program")
         elif is_area(subject) and wake.kind == "tick:survey":
             body.append(f"The area: {subject}")
-    if (wake.kind.startswith("tick:") and wake.detail
+    if (wake.kind in DETAIL_SHOWN and wake.detail
             and wake.detail not in (wake.kind.split(":", 1)[1], subject_word)):
         # What the predicate knows about the subject, said to the role:
         # "without a test: c1, c2", "attempt 2 of 10". clickI night 46

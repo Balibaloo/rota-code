@@ -133,6 +133,8 @@
   runs: 5
   pass: 4
   tick: tests_missing
+  # The live wake names the criteria without a test (night 46).
+  detail: "without a test: <c1>"
   refs: [<b1>]
   fixture:
     items:

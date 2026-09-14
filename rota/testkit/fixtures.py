@@ -672,7 +672,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     wake = Wake(role=case["role"], kind=f"tick:{tick}" if tick else "message",
                 message_id=msg_id if inbound else None,
                 refs=tuple(case.get("refs") or ()),
-                detail=inbound.get("verb", tick or ""))
+                detail=inbound.get("verb", case.get("detail") or tick or ""))
 
     # The same resolution the loop does, for the same reason: a role that works
     # in a worktree needs to be told which one, and it is never the role's to
@@ -753,7 +753,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
                     kind=f"tick:{tick}" if tick and not message_id else "message",
                     message_id=message_id,
                     refs=tuple(spec.get("refs") or ()),
-                    detail=spec.get("verb") or tick or "")
+                    detail=spec.get("verb") or spec.get("detail") or tick or "")
         seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
         versions = snapshot_versions(conn)
         out = run_session(

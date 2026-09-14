@@ -193,3 +193,14 @@ def test_a_cut_reply_does_not_also_report_the_cut_call_as_a_parse_error(vk_db):
     assert "reply cut" in second
     assert "unterminated argument list" not in second, second[-1500:]
     assert vk_db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, "the whole call before the cut ran"
+
+
+def test_a_bare_list_of_refs_may_hold_a_path():
+    """click night 47 (2026-09-14): the Liaison copied 44 observed refs
+    unbracketed, ending `., src/click`; the slash broke the run and the
+    present was refused three times to quarantine."""
+    from rota.llm import toolproto
+    calls = toolproto.extract("TOOL: msg.present_principal(refs=argument, choice, ., src/click, text='the page')")
+    call = calls[0]
+    assert not isinstance(call, toolproto.ToolError), getattr(call, "reason", call)
+    assert call.args["refs"] == ["argument", "choice", ".", "src/click"], call.args

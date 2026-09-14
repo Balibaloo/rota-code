@@ -143,6 +143,8 @@
   # results. 9B judgement; the push stays, it made click's Developer reach
   # the right file.
   tick: tests_missing
+  # The live wake names the criteria without a test (night 46).
+  detail: "without a test: <c1>"
   refs: [<b1>]
   fixture:
     items:
@@ -184,6 +186,8 @@
   # instead of sending the fact to the Researcher, then wrote its own tool
   # results. 8B routing.
   tick: tests_missing
+  # The live wake names the criteria without a test (night 46).
+  detail: "without a test: <c1>"
   refs: [<b1>]
   fixture:
     items:
