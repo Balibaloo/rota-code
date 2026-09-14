@@ -883,6 +883,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
     from .runner import new_id
 
     def stage(refs: list[str], round_no: int = 0, text: str | None = None):
+        # Logged first, before any guard, as `_bind` logs a tool call: the
+        # register subtracts the refused count from the log, so a reach
+        # that a guard threw out must be in the log or a landed send
+        # scores as none (qwen2.5:14b, 2026-09-14, the forbidden challenge).
+        _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
         # Required, not defaulted. A message carries refs and nothing else —
         # there is no prose field on purpose — so `refs=None` advertised a
         # legal call that communicates the fact that something happened and
@@ -1694,7 +1699,6 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "body_text": text,
                 "round_no": round_no, "cause_id": ctx.trigger,
             })
-        _CALL_LOG.setdefault(id(ctx), []).append((label, f"refs={refs or []}"))
         out = {"id": msg_id, "to": recipient, "verb": verb}
         if len(recipients) > 1:
             # Said back, so the session knows it has finished asking. Left
