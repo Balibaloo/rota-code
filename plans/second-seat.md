@@ -37,9 +37,10 @@ brief is for a second agent working on the rest at the same time. Read
 
 ## How to work
 
-- Branch `rota/seat2` off `rota/foundation`, in its own git worktree, so
-  no half-written file is swept into the other session's commit
-  (`git worktree add ../Custom_AI_TUI-seat2 -b rota/seat2`).
+- Branch `rota/seat2` off `rota/foundation`, in its own checkout, so
+  no half-written file is swept into the other session's commit. Since
+  the split of 2026-09-14 the second seat is a clone at
+  `D:\repos\rota-code-seat2` (plans/rota-split.md).
 - Commit by explicit path. Never push. Never amend the other branch.
 - The first session merges `rota/seat2` into `rota/foundation` at quiet
   moments and runs the suite then.
