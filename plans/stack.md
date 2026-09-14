@@ -47,15 +47,16 @@ Rules:
 
 ### 7. Register hygiene after today's fixes
 
-- Why: my full replay ran without `ROTA_MODEL=qwen3:8b`, so it wrote
-  junk `case_runs` rows on llama3.1:8b and reported 85 meaningless
-  failures. Two Tester cases are red on qwen3:8b after a wording-only
-  brief reword (stream act 0/5, outside-fact 0/5), unchecked against
-  their history.
-- Ends when: junk rows gone, replay rerun on qwen3:8b, the two reds
-  explained (reword reverted if it caused them), peer told cassettes is
-  quiet.
-- Status 2026-09-14 17:05: running beside frame 8.
+- Why: my full replay ran without `ROTA_MODEL=qwen3:8b` and reported 85
+  meaningless failures (no junk rows were written: a stale case records
+  nothing). Two Tester cases showed red on qwen3:8b after a wording-only
+  brief reword: the outside-fact case is red on qwen3:8b under every
+  prompt it ever had, a known red; the stream act had never been
+  recorded on qwen3:8b. Neither is the reword. The four act cases are
+  now held by the desks' models (b80742c).
+- Ends when: the replay on qwen3:8b is read, the four act cases are
+  re-recorded on their models, the peer is told cassettes is quiet.
+- Status 2026-09-14 17:30: replay running; Titan re-record launched.
 
 ### 6. The harness false pass
 
@@ -113,5 +114,4 @@ Rules:
 - The cassette publish is Roman's, held. The staged snapshot of 16:13
   carries the false 5/5 rows; the next pack replaces it.
 - The Ollama 300 s timeout on the 14B if it returns to a desk.
-- Per-desk endpoints in a profile, if a mixed gemma-4 night is wanted.
 - Post-core list in COMPLETION.md.
