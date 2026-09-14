@@ -54,7 +54,12 @@ Rules:
   with the Developer on qwen3.5:9b: cold nights never replaced the
   snapshot on disk. Killed. walk.py now overwrites the snapshot after a
   cold onboarding. Relaunched cold at 17:26.
-- Status 2026-09-14 17:33: night 62 onboarding, cold.
+- First Developer session (s139, 17:46 to 18:03, 24 turns, first turn
+  384 s of prompt processing): implemented confirm() right at turn 9,
+  then fifteen turns on the project's test file, no commit. Finding 68:
+  a landed write is not a commit and nothing says so. The edit stays in
+  the worktree; the second session runs now.
+- Status 2026-09-14 18:06: sentence two, second Developer session.
 
 ### 7. Register hygiene after today's fixes
 

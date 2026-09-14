@@ -150,3 +150,16 @@ door or the brief that fixes them belongs to the writer's mode.
     the test. gemma-4 alone wrote the loop with a `break`. Whether a
     repo case can carry the test's verdict after the commit, the way
     the harness does in a run, is a register question. Open.
+
+68. **A landed write is not a commit, and nothing says so.** Night 62
+    (2026-09-14, gemma-4 at the Developer's desk, click sentence two,
+    `tick:batch_start`): the Developer implemented `confirm()` at turn 9,
+    the EOF branch right, `code.write` said `bytes: 35701`. It then spent
+    fifteen turns on the project's `tests/test_termui.py`, four span
+    writes refused as invalid Python, and the cap ended it with no
+    commit. The edit stays in the worktree; the next Developer session
+    reads a diff of nothing. Two facts of the worktree the tools can say:
+    `code.write` returns what is written and not committed, and
+    `code.diff` names the uncommitted files beside the committed diff.
+    Same family as finding 66. Open.
+
