@@ -88,6 +88,15 @@ def backend_factory(dev_db):
     if not os.environ.get("ROTA_L1"):
         return lambda: ReplayOnlyBackend(dev_db)
     refresh = bool(os.environ.get("ROTA_REFRESH"))
+    # A column of the benchmark (COMPLETION.md, the order from here, step
+    # 1): ROTA_BACKEND=litellm with ROTA_ENDPOINT records the same cases
+    # against an OpenAI-compatible server, a llama-server holding a model
+    # Ollama does not. Model names then carry litellm's `openai/` prefix.
+    if os.environ.get("ROTA_BACKEND") == "litellm":
+        from rota.llm.llm import LiteLLMBackend
+        live = LiteLLMBackend(api_base=os.environ.get("ROTA_ENDPOINT") or None,
+                              timeout=int(os.environ.get("ROTA_LLM_TIMEOUT", "600")))
+        return lambda: RecordingBackend(live, dev_db, refresh=refresh)
     return lambda: RecordingBackend(
         OllamaBackend(), dev_db, refresh=refresh)
 
@@ -103,7 +112,10 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # The ruling (2026-08-29): we are not locked to a model -- one model
     # carrying the capability is enough. A case that declares `model:` is
     # held by that model; the default stays the recording reference.
-    pins = Pins(model=case.get("model", MODEL), temperature=0.0)
+    # ROTA_MODEL_FORCE=1 puts every case on ROTA_MODEL, pins included: a
+    # benchmark column measures one model across the register.
+    pinned = MODEL if os.environ.get("ROTA_MODEL_FORCE") else case.get("model", MODEL)
+    pins = Pins(model=pinned, temperature=0.0)
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 

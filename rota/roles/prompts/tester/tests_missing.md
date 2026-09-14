@@ -21,6 +21,13 @@ which is precisely the failure Critic cannot catch.
 
 **Write in glossary terms.** `glossary.lookup` any term the criterion uses.
 
+**A test of a prompt gives the prompt a stream.** pytest captures stdin, so a
+call that reads it raises before any assertion. Give it an empty stream for
+EOF, `monkeypatch.setattr("sys.stdin", io.StringIO(""))`, or a line for an
+answer, `io.StringIO("y\n")`. Do not close stdin and do not patch
+`builtins.input`: a module that bound `input` to its own name at import
+does not see the patch.
+
 **A test is a file pytest can run.** The body is a `def test_...():` holding
 real assertions, and the path is `tests/test_<thing>.py`:
 

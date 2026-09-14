@@ -1,0 +1,273 @@
+# The five acts (rota/COMPLETION.md, "The order from here", 2026-09-14).
+#
+# Click nights 50 to 59 stuck on sentence two, and every stuck night became
+# a door or a brief line. What remained after the doors was the 8B model's
+# competence at five acts. Each act is a case with a self-contained
+# fixture, so the register can run them in columns: one model per column,
+# one load per column, every case on that model (ROTA_MODEL_FORCE=1). The
+# columns say whether the reason is capacity or the wake.
+#
+# Act 3, the step from a traceback to a change, is L1-DV-fix-the-code-not-
+# the-test in l1_developer.yaml, red on the 9B since the index carried
+# JS/TS exports; it runs in the same columns.
+
+# Act 1. The Tester gives a prompt a stream under pytest. Click night 52
+# to 57: confirm() reads input() through a module name bound at import;
+# the tests closed stdin, patched builtins.input, or called the prompt
+# blind. A landed test is the act: the encode door refuses every other shape.
+- id: ACT-TS-give-the-prompt-a-stream
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  detail: "without a test: <c1>"
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    onboard: true
+    message: "confirm takes default_on_eof"
+    edit:
+      src/ui.py: |
+        import sys
+
+        visible_prompt_func = input
+
+
+        def _readline_prompt(func, text):
+            return func(text)
+
+
+        def confirm(text, default=None, default_on_eof=False):
+            while True:
+                try:
+                    value = _readline_prompt(visible_prompt_func, text).lower().strip()
+                except (KeyboardInterrupt, EOFError):
+                    if default_on_eof:
+                        return default
+                    raise SystemExit(1)
+                if value in ("y", "yes"):
+                    return True
+                if value in ("n", "no"):
+                    return False
+                if default is not None and value == "":
+                    return default
+  fixture:
+    items:
+      - {id: <i1>, text: "confirm returns the default when stdin is closed", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "confirm takes a default_on_eof flag"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When stdin is at EOF and default_on_eof is True, confirm() returns the provided default instead of exiting",
+         term_refs: '[]', surface_refs: '["src/ui.py::confirm"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    writes:
+      tests: {count: "1..1"}
+  forbidden:
+    writes: [criteria, items, tickets]
+
+# Act 4. One criterion per reply, within the output budget. Click nights 53
+# and 56: eight encodes in one reply, cut at the budget, none landed. Three
+# criteria on a plain function; three landed tests is the act.
+- id: ACT-TS-three-criteria-one-per-reply
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  tick: tests_missing
+  detail: "without a test: <c1>, <c2>, <c3>"
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    onboard: true
+    message: "prorate charges"
+    edit:
+      src/billing/prorate.py: |
+        def prorate(cents, days_used, days_in_period):
+            if days_in_period <= 0:
+                raise ValueError("days_in_period must be positive")
+            if days_used <= 0:
+                return 0
+            return cents * min(days_used, days_in_period) // days_in_period
+  fixture:
+    items:
+      - {id: <i1>, text: "prorate charges on upgrade", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "prorate on upgrade"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "prorate(999, 1, 3) returns 333",
+         term_refs: '[]', surface_refs: '["src/billing/prorate.py::prorate"]'}
+      - {id: <c2>, ticket_id: <tk1>, text: "prorate(999, 0, 3) returns 0",
+         term_refs: '[]', surface_refs: '["src/billing/prorate.py::prorate"]'}
+      - {id: <c3>, ticket_id: <tk1>, text: "prorate(999, 5, 3) returns 999: days beyond the period count as the whole period",
+         term_refs: '[]', surface_refs: '["src/billing/prorate.py::prorate"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    writes:
+      tests: {count: "3..3"}
+  forbidden:
+    writes: [criteria, items, tickets]
+
+# Act 2. The Developer edits inside a function without rewriting it. Click
+# nights 47 to 53: confirm() replaced by a simplified copy, or the fix sent
+# as an `except` clause alone, or the whole file. The test says what is
+# missing; the change is one branch inside confirm(). A commit is the act;
+# the definition door and the drops door hold the rest of the file.
+- id: ACT-DV-edit-inside-the-function
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 4
+  tick: tests_failing
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    onboard: true
+    message: "confirm takes default_on_eof"
+    edit:
+      src/ui.py: |
+        import sys
+
+        visible_prompt_func = input
+
+
+        def _readline_prompt(func, text):
+            return func(text)
+
+
+        def confirm(text, default=None, default_on_eof=False):
+            while True:
+                try:
+                    value = _readline_prompt(visible_prompt_func, text).lower().strip()
+                except (KeyboardInterrupt, EOFError):
+                    raise SystemExit(1)
+                if value in ("y", "yes"):
+                    return True
+                if value in ("n", "no"):
+                    return False
+                if default is not None and value == "":
+                    return default
+
+
+        def style(text, fg=None):
+            return text if fg is None else f"<{fg}>{text}</{fg}>"
+
+
+        def echo(message):
+            sys.stdout.write(str(message) + chr(10))
+  fixture:
+    items:
+      - {id: <i1>, text: "confirm returns the default when stdin is closed", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "confirm takes a default_on_eof flag"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "When stdin is at EOF and default_on_eof is True, confirm() returns the provided default instead of exiting",
+         term_refs: '[]', surface_refs: '["src/ui.py::confirm"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_confirm_eof.py
+        body: |
+          import io
+          import sys
+
+          from ui import confirm
+
+
+          def test_confirm_returns_default_at_eof(monkeypatch):
+              monkeypatch.setattr("sys.stdin", io.StringIO(""))
+              assert confirm("Continue?", default=True, default_on_eof=True) is True
+    test_runs:
+      - id: <r1>
+        batch_id: <b1>
+        test_id: <tst1>
+        commit_sha: abc123
+        result: fail
+        output: |
+          tests/test_confirm_eof.py:9: in test_confirm_returns_default_at_eof
+              assert confirm("Continue?", default=True, default_on_eof=True) is True
+          src/ui.py:15: in confirm
+              raise SystemExit(1)
+          E   SystemExit: 1
+          1 failed in 0.05s
+  expect:
+    calls: [code.write, code.commit]
+  forbidden:
+    writes: [tests, criteria]
+    calls: [msg.challenge_tester]
+
+# Act 5. The Critic quotes the test's code and names rows that exist. Click
+# night 58: a challenge with an empty test-side quote and a ref invented
+# from a path. The test here contradicts its criterion and carries the
+# criterion's sentence in a comment, so only a quote of the code passes.
+- id: ACT-CR-quote-the-tests-code
+  tier: T1
+  role: critic
+  runs: 5
+  pass: 4
+  tick: review
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+    message: "prorate charges"
+    edit:
+      src/billing/prorate.py: |
+        def prorate(cents, days_used, days_in_period):
+            if days_in_period <= 0:
+                raise ValueError("days_in_period must be positive")
+            if days_used <= 0:
+                return 0
+            # Wrong on purpose: the whole charge for any use at all. The test
+            # agrees with this code and contradicts its criterion.
+            return cents
+  fixture:
+    items:
+      - {id: <i1>, text: "prorate charges on upgrade", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "prorate on upgrade"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "prorate(999, 1, 3) returns 333",
+         term_refs: '[]', surface_refs: '["src/billing/prorate.py::prorate"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    tests:
+      - id: <tst1>
+        batch_id: <b1>
+        criterion_id: <c1>
+        path: tests/test_prorate.py
+        body: |
+          from billing.prorate import prorate
+
+
+          def test_prorate_first_day():
+              # prorate(999, 1, 3) returns 333
+              assert prorate(999, 1, 3) == 999
+    test_runs:
+      # Green: the code below agrees with the wrong test. The review fires on
+      # a green batch, and the contradiction is the Critic's to see.
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: pass}
+  expect:
+    messages:
+      - {to: tester, verb: challenge, count: 1}
+  forbidden:
+    writes: [criteria, tests]
