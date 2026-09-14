@@ -320,3 +320,26 @@ def test_the_diff_names_the_definitions_the_batch_changed_unasked(tmp_path):
                allow=prompts.mode_tools("developer", "tests_failing"))
     out = sb.call("code.diff")
     assert out["definitions this batch changed that no criterion names"] == {"src/utils.py": ["echo"]}, out
+
+
+def test_a_relative_import_protects_what_a_rewrite_would_drop(tmp_path):
+    """Click night 49, walk 2 (2026-09-14): a span write cut termui.py after
+    confirm, dropping style and nineteen more; core.py imports them with
+    `from .termui import style`, which the importer scan did not read; all
+    43 tests failed at import for the rest of the batch."""
+    wt = tmp_path / "wt"; (wt / "src" / "click").mkdir(parents=True)
+    (wt / "src" / "click" / "termui.py").write_text('def confirm(text):\n    return True\n\n\ndef style(text):\n    return text\n')
+    (wt / "src" / "click" / "core.py").write_text('from .termui import style\n\n\ndef render(t):\n    return style(t)\n')
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
+               "('i1','confirm takes a default_on_eof flag','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','the flag')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/click/termui.py::confirm\"]')")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
+    db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1", mode="batch_start",
+               allow=prompts.mode_tools("developer", "batch_start"))
+    cut = 'def confirm(text, default_on_eof=False):\n    return default_on_eof\n'
+    with pytest.raises(ValueError, match=r"drops style"):
+        sb.call("code.write", path="src/click/termui.py", text=cut)

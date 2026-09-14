@@ -7501,11 +7501,18 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     src = other.read_text(encoding="utf-8", errors="replace")
                 except OSError:
                     continue
+                # Relative and package-qualified imports count: `from
+                # .termui import style`, `from click.termui import secho`.
+                # Click night 49, walk 2 (2026-09-14): a span write cut
+                # termui.py after `confirm`, twenty definitions gone, core.py
+                # imports them with a leading dot, and all 43 tests failed
+                # at import for the rest of the batch.
                 for m in _re.finditer(
-                        r"^\s*from\s+" + _re.escape(stem) + r"\s+import\s+([^\r\n]+)",
+                        r"^\s*from\s+(?:[\w.]*\.)?" + _re.escape(stem)
+                        + r"\s+import\s+\(?([^\r\n)]+)",
                         src, _re.M):
                     imported |= {x.strip().split(" as ")[0]
-                                 for x in m.group(1).split(",")}
+                                 for x in m.group(1).split(",") if x.strip()}
                 imported |= set(_re.findall(r"\b" + _re.escape(stem) + r"\.(\w+)", src))
             # The entry point keeps every definition. tipsS, tipsT, tipsU,
             # tipsV (2026-09-09): four walks lost the interactive program to
