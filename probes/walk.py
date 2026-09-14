@@ -171,7 +171,7 @@ for i in range(cap):
             # checks it (probes/warm_stamp.py) and goes cold when a brief,
             # a tool list, the graph or a predicate changed.
             import warm_stamp
-            warm_stamp.write(run, conn)
+            warm_stamp.write(run)
             print(f"warm snapshot written: {warm}", flush=True)
     if s is not None and s.outcome is not None and not s.outcome.committed:
         # Said at once and flushed: night 31 ran 98 minutes on one failing

@@ -23,6 +23,7 @@ night regardless.
 """
 import hashlib
 import json
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -56,7 +57,6 @@ def prompt_files(conn) -> list[str]:
     from rota.core.runner import _mode_key
     from rota.core.scheduler import Wake
 
-    conn.row_factory = None
     files = set()
     for role, kind, trigger, detail, refs in conn.execute(
             "SELECT DISTINCT role, wake_kind, trigger_msg, wake_detail, wake_refs "
@@ -82,9 +82,16 @@ def _paths(run: str) -> tuple[Path, Path]:
     return REPO / ".rota" / f"{run}_warm.db", REPO / ".rota" / f"{run}_warm.json"
 
 
-def write(run: str, conn) -> Path:
-    _db, stamp = _paths(run)
-    hard = prompt_files(conn) + HARD
+def write(run: str) -> Path:
+    """Stamp the snapshot at `.rota/<run>_warm.db`. Reads the snapshot file
+    through its own connection: the walk's connection is the walk's, and
+    changing its row factory crashed the next step (night 47, 2026-09-14)."""
+    db, stamp = _paths(run)
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        hard = prompt_files(conn) + HARD
+    finally:
+        conn.close()
     stamp.write_text(json.dumps({
         "rota_head": _head(),
         "hard": {f: _sha(f) for f in hard},
