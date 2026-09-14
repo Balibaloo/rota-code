@@ -77,8 +77,9 @@ Rules:
   Quarantined on review. Stuck.
 - Fixed: a tester-to-critic answer edge in the graph, msg.answer_critic in
   the Tester's challenge mode, and a Critic answer mode that finishes the
-  review with the answer in hand. Night 70 warm measures it.
-- Status 2026-09-14 21:53: night 70 launched warm.
+  review with the answer in hand. Night 70 measures it.
+- Status 2026-09-14 21:47: night 70 launched cold (the graph is in the
+  warm stamp's hard set).
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
