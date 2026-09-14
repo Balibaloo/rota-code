@@ -629,6 +629,18 @@ _QUOTABLE = (("criteria", "text"), ("tests", "body"), ("items", "text"),
              ("constraints", "text"))
 
 
+def _code_only(source: str) -> str:
+    """A test body without its comments: the lines a quote of the test
+    can stand on. A `#` comment is dropped from the hash on; docstrings
+    stay, a quote of one is at least a quote of the file."""
+    out = []
+    for line in (source or "").splitlines():
+        stripped = line.split("#", 1)[0] if "#" in line and not line.lstrip().startswith(("'", '"')) else line
+        if stripped.strip():
+            out.append(stripped)
+    return chr(10).join(out)
+
+
 def _quotes_span(source: str, text: str, n: int = 12) -> bool:
     """A contiguous span of the source appears verbatim in the message.
 
@@ -760,7 +772,13 @@ def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
                 f"it passed before this batch. A challenge has no side there. "
                 f"Read code.diff and restore what your change broke")
         for r in (crit[0], test[0]):
-            if not _quotes_span(rows[r][1], text):
+            # The test's side is its code. Click night 58 (2026-09-14): the
+            # Tester had pasted the criterion sentence into a comment, so
+            # the criterion quote spanned the test row too, and a challenge
+            # with an empty test-side quote went through; the Tester woken
+            # by it had nothing to defend.
+            source = _code_only(rows[r][1]) if r == test[0] else rows[r][1]
+            if not _quotes_span(source, text):
                 # The disputed artefact is the test, and its words are what
                 # the bar is for. A criterion quote that is another criterion
                 # of this batch, verbatim, is real evidence misfiled -- and
@@ -1755,6 +1773,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             f"def send(refs: list[str], {arg}: {ann}, round_no: int = 0):\n"
             f"    if isinstance({arg}, dict):\n"
             f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
+            f"    if isinstance({arg}, list) and any(not str(x).strip() for x in {arg}):\n"
+            "        raise ValueError('quotes= has an empty entry: each side of a challenge is a span copied from its row, and an empty string quotes nothing (click night 58, 2026-09-14)')\n"
             f"    if isinstance({arg}, list):\n"
             f"        {arg} = ' ... '.join(str(x) for x in {arg})\n"
             f"    if not {arg}:\n"

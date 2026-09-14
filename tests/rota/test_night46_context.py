@@ -585,3 +585,22 @@ def test_replacing_sys_stdin_by_assignment_satisfies_the_input_door(db, tmp_path
     sb = build("tester", db, batch_id="b1", mode="tests_missing")
     body = "from click.termui import confirm\nimport io\nimport sys\n\ndef test_eof():\n    old = sys.stdin\n    try:\n        sys.stdin = io.StringIO('')\n        assert confirm('ok?', default=True) is True\n    finally:\n        sys.stdin = old"
     assert _encode(sb, body)["id"] == "tst_new"
+
+
+def test_a_challenge_quote_of_the_criterion_pasted_into_a_test_comment_is_not_the_tests_words(db):
+    """Click night 58 (2026-09-14): the Tester pasted the criterion sentence
+    into a comment; the Critic's challenge with an empty test-side quote
+    went through; the Tester woken by it had nothing to defend."""
+    body = "from script import close_account\n\ndef test_close():\n    # closing an account leaves its invoices in place\n    assert close_account('a1') == 'gone'"
+    db.execute("UPDATE tests SET body = ? WHERE id = 'tst1'", (body,))
+    db.commit()
+    sb = build("critic", db, batch_id="b1", mode="review")
+    with pytest.raises(ValueError, match="has an empty entry"):
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                quotes=["closing an account leaves its invoices in place", ""])
+    with pytest.raises(ValueError, match="must copy tst1's exact words"):
+        sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+                quotes=["closing an account leaves its invoices in place", "closing an account leaves its invoices in place"])
+    sb.call("msg.challenge_tester", refs=["c1", "tst1"],
+            quotes=["closing an account leaves its invoices in place", "assert close_account('a1') == 'gone'"])
+    assert sb.ctx.outbound
