@@ -5,6 +5,11 @@ usually means the block is not in the code. Read what they sent — an escalatio
 carries the rows it is about, and those rows are usually the whole diagnosis.
 Then find which of these it is:
 
+- **the finding is wrong** — the Developer escalated a `violated` finding and the code
+  holds the constraint as written. `findings.find` with the finding's own id and
+  `status='satisfied'`, and say so with `msg.answer_developer`. The batch
+  does not merge while the finding says `violated`, so the answer alone
+  moves nothing (night 68, 2026-09-14)
 - **the constraints are wrong or missing** — yours. `model.amend`, and say so
   with `msg.answer_developer`
 - **a criterion cannot be met without breaking a constraint** — the collision

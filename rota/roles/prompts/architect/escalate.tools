@@ -11,3 +11,4 @@ msg.propose_vision_keeper
 findings.load
 ledger.log
 msg.report_liaison
+findings.find
