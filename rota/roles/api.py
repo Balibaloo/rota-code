@@ -6863,6 +6863,15 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
             [*GIT, "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
             capture_output=True, text=True, timeout=30)
         result = {"batch": bid, "diff": out.stdout[:20000]}
+        # The diff above is HEAD~1 against the working tree, so it shows an
+        # edit that no commit holds as if it were committed. Night 62
+        # (2026-09-14, finding 68): a Developer session ended at the cap
+        # with confirm() written and nothing committed. The next session
+        # needs the fact, not the diff alone.
+        dirty = _uncommitted(ctx, row["worktree"], bid)
+        if dirty:
+            result["not committed"] = dirty
+            result["lands with"] = "code.commit"
         # The definitions the batch changed that no criterion names, read
         # from the worktree against the project's own file. Click night 48
         # (2026-09-14): the diff was in front of the Developer and it
@@ -6952,6 +6961,18 @@ def _batch_worktree(ctx) -> "Path":
             f"committed in a batch's worktree and nowhere else. Nothing can "
             f"be written until the batch has one; say so and end")
     return _P(row["worktree"])
+
+
+def _uncommitted(ctx, root, batch_id=None) -> list[str]:
+    """The files that differ between HEAD and the working tree, the batch's
+    materialised test files excluded: the harness writes those at run time
+    and the Developer's commits leave them out, so they are furniture."""
+    from ..core import worktrees as _wt
+    bid = batch_id or ctx.batch_id
+    furniture = {_grain_path(r[0]) for r in ctx.conn.execute(
+        "SELECT path FROM tests WHERE batch_id = ?", (bid,))} if bid else set()
+    return [f for f in _wt.changed_since(root, _wt.head(root))
+            if _grain_path(f) not in furniture]
 
 
 def _worktree_of(ctx, batch_id=None) -> "Path":
@@ -7777,6 +7798,12 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
     target.write_text(text, encoding="utf-8")
     out = {"path": path, "bytes": len(text.encode("utf-8")),
            "created": not existed}
+    # A landed write is not a commit, and the result says so. Night 62
+    # (2026-09-14, finding 68): the Developer implemented confirm() at
+    # turn 9, spent fifteen turns on a test file, and the cap ended the
+    # session with the edit in the worktree and nothing committed.
+    out["written, not committed"] = _uncommitted(ctx, root)
+    out["lands with"] = "code.commit"
     if missing and stem not in missing:
         out["note"] = (f"the batch's tests import {', '.join(missing)} and no "
                        f"such module exists in the worktree yet")

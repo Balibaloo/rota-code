@@ -465,6 +465,10 @@ def test_a_red_run_names_the_files_changed_since_it(project):
     src = sb.call("code.source", path="src/billing/charges.py", start=0, end=400)
     wrote = sb.call("code.write", path="src/billing/charges.py",
                     text=src["text"] + "\n\nCHANGED_SINCE_THE_RUN = True\n", start=0, end=-1)
+    # Finding 68: a landed write is not a commit, and both the write's
+    # result and the diff say which files wait for one.
+    assert wrote["written, not committed"] == ["src/billing/charges.py"]
+    assert sb.call("code.diff")["not committed"] == ["src/billing/charges.py"]
     row = load()
     assert "changed since this run, not run" in row, (wrote, row, db.execute(
         "SELECT worktree FROM batches WHERE id='b1'").fetchone()["worktree"], db.execute(
