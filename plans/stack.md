@@ -23,7 +23,11 @@ Rules:
 - How: cold, `GAUNTLET_FROM=2`, the gemma server stopped so the 3080 is
   Ollama's alone.
 - Ends when: the night prints done and its sessions are read.
-- Status 2026-09-14 18:14: launched.
+- 18:55: the Developer wrote and committed at batch_start (s139), the
+  fix loop ran six sessions, and at attempt 8 both batch tests and the
+  inherited suite pass at 96bad2c. Further than night 58. The Liaison
+  is presenting pages again; the review is next.
+- Status 2026-09-14 18:55: sentence two, tests green, review pending.
 
 ### 9. Finding 66 door: `tests.load` names the files changed since the red run
 
