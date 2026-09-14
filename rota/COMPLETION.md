@@ -218,28 +218,33 @@ MoE, the same wakes:
 |---|---|---|---|
 | 1 give the prompt a stream | 5/5 | 5/5 | 5/5 |
 | 2 edit inside the function | 5/5 | 5/5 | 5/5 |
-| 3 from a traceback to a change | 0/5 | 5/5 | 5/5 |
+| 3 from a traceback to a change | 0/5 | 0/5 | 5/5 |
 | 4 three criteria, one per reply | 5/5 | 5/5 | 5/5 |
 | 5 the Critic quotes the test | 5/5 | 5/5 | 5/5 |
 | wall clock | 3 min | 15 min | 38 min |
 
 The 9B passes four of the five acts on the fixed wakes and fails the
 one it has always failed, the step from a traceback to a change (the
-fix case, red since the index carried JS/TS exports). Both larger
-models pass it 5/5, and gemma-4 wrote the band loop exactly. Two
-caveats read from the outputs, not the counts: gemma-4's stream test
-named the prompt parameter wrong (a signature fact a door could hold),
-and both larger models sent three encodes in one reply and landed them
-only because their replies were short enough not to be cut. The
+fix case, red since the index carried JS/TS exports). The 14B's first
+count on that act was 5/5 and was false: the harness subtracted refused
+calls from a log that holds landed calls only, so its forbidden
+challenge after the commit scored as none (finding 65). Re-scored,
+0/5. Read from the transcripts, not the counts: both Qwen models wrote
+the same wrong loop, the last band that matches instead of the first,
+and the 9B then lost the thread when `tests.load` showed the old red
+with no word that the result predates its write (finding 66). gemma-4
+alone wrote the loop with a `break`. Two more caveats: gemma-4's stream
+test named the prompt parameter wrong (a signature fact a door could
+hold), and both larger models sent three encodes in one reply. The
 fixtures are small; click's prompts are not, so the four acts the 9B
 passes here are not proof it passes them on click.
 
-The reading: capacity, on act 3 alone. Step 2 routes the Developer's fix
-mode to a larger model and keeps the 8B on the rest. qwen2.5:14b on
-Ollama is the cheap first choice (already resident, four times the
-speed of the MoE on this card); gemma-4 is the stronger one at the
-price of the CPU experts and the RAM. The next measurement is one
-click night with the fix mode routed, warm, sentence two.
+The reading: on act 3 only gemma-4 has the capacity, and the 9B's
+failure has a mechanical half. Step 2 is the door of finding 66 first,
+then act 3 re-measured on the 9B; gemma-4 at the Developer's desk only
+if the act stays red. The routing of the Developer to the 14B (285ee06)
+is reverted: night 60 ran on it before the count was corrected and its
+row stands as one measurement, nothing more.
 
 Roman owns this order. Standing permission covers the loop's own speed
 (memory: rota-iteration-speed) and the doors that hold a fact; the model
