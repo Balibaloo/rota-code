@@ -500,3 +500,25 @@ def test_a_passing_test_says_nothing(project):
 
     loaded = build("developer", db, batch_id="b1").call("tests.load")
     assert loaded[0]["last_result"] == "pass" and loaded[0]["said"] is None
+
+def test_a_finding_names_a_file_the_diff_changed(project):
+    """
+    Night 65 (2026-09-14): the structural review filed violated findings on
+    two test files the batch's diff never touched. The Developer read them,
+    found nothing to fix, and looped. The changed files are a fact of the
+    worktree, so the finding's grain is checked against them.
+    """
+    db, _ = project
+    lifecycle.start(db, "b1")
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','charges stay','decided')")
+    db.commit()
+    sb = build("developer", db, batch_id="b1")
+    src = sb.call("code.source", path="src/billing/charges.py", start=0, end=400)
+    sb.call("code.write", path="src/billing/charges.py", text=src["text"] + "# touched" + chr(10), start=0, end=-1)
+    arch = build("architect", db, batch_id="b1")
+    with pytest.raises(ValueError, match="does not touch"):
+        arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
+                  status="violated", grain="tests/test_charges.py")
+    out = arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
+                    status="violated", grain="src/billing/charges.py::total_of")
+    assert out["status"] == "violated"

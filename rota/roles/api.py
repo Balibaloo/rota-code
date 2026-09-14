@@ -2100,6 +2100,21 @@ def findings_find(ctx: Ctx, id: str, batch_id: str, constraint_id: str,
     _must_exist(ctx, "batches", batch_id)
     if constraint_id != ZERO:
         _must_exist(ctx, "constraints", constraint_id)
+    # A finding says what the batch's diff broke, so its grain is a file
+    # the diff changed. Night 65 (2026-09-14): three findings against one
+    # constraint, two on test files the diff never touched; the Developer
+    # read them, found nothing to fix, and looped. The list of changed
+    # files is a fact of the worktree.
+    if status == "violated":
+        from ..core import worktrees as _wt
+        files = _wt.batch_files(ctx.conn, batch_id)
+        grain_file = grain.split("::", 1)[0]
+        if files is not None and grain_file not in files:
+            raise ValueError(
+                f"the batch's diff does not touch {grain_file!r}; it changed "
+                f"{files}. A finding names what the diff broke, on a file the "
+                f"diff changed. A constraint the diff did not reach is not "
+                f"violated by this batch")
     if constraint_id == ZERO and status == "violated":
         raise ValueError(
             f"{ZERO} is constraint zero, the area no survey has read. It is "

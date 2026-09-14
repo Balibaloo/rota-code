@@ -223,6 +223,24 @@ def changed_since(path: str | Path, sha: str | None) -> list[str]:
                   if not p.startswith((".venv/", ".rota/")) and p not in (".venv", ".rota"))
 
 
+def batch_files(conn: sqlite3.Connection, batch_id: str) -> list[str] | None:
+    """The files the batch's diff changed: the worktree, committed and not,
+    against its merge base with the project's HEAD. None when the batch has
+    no worktree. A batch can hold several commits, so HEAD~1 is not it."""
+    row = conn.execute("SELECT worktree FROM batches WHERE id = ?", (batch_id,)).fetchone()
+    if not row or not row["worktree"] or not Path(row["worktree"]).is_dir():
+        return None
+    wt = Path(row["worktree"])
+    try:
+        base = _git(project_root(conn), "rev-parse", "HEAD").strip()
+        mb = _git(wt, "merge-base", "HEAD", base).strip()
+        files = set(_git(wt, "diff", "--name-only", mb).split())
+        files |= set(changed_since(wt, None))
+    except Exception:
+        return None
+    return sorted(files)
+
+
 def diff(path: str | Path, against: str = "HEAD~1") -> str:
     out = subprocess.run([*GIT, "-C", str(path), "diff", against, "HEAD"],
                          capture_output=True, text=True)
