@@ -36,7 +36,7 @@ Rules:
   file the diff changed. The rest is the briefs: the survey's
   constraints say nothing, and the Developer does not take the escalate
   exit. For Roman.
-- Status 2026-09-14 20:27: door built and green; night 66 launched warm.
+- Status 2026-09-14 20:22: door built and green; night 66 launched warm.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
