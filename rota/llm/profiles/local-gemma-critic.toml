@@ -3,6 +3,14 @@
 # `CR-a-test-that-encodes-nothing-is-a-challenge`, red on every 8B model and
 # on qwen2.5:14b. 8.1 GB, so the Critic's turns swap the resident model on a
 # 10 GB card. The other desks stay as `local` has them.
+#
+# qwen2.5:14b at the Developer's desk since 2026-09-14. The five-act
+# benchmark (COMPLETION.md, the order from here, step 1): the 9B fails the
+# step from a traceback to a change 0/5, the 14B passes it 5/5. The whole
+# desk moves, not the one tick: a role pair wins over a tick pair in
+# `model_routing`, and a desk that writes on one model and defends on
+# another is the cross-model swap tipsAA measured. The cost is the
+# Developer's other wakes at the 14B's speed.
 name = "local-gemma-critic"
 
 [provider]
@@ -18,4 +26,4 @@ default = "qwen3:8b"
 tester = "qwen3.5:9b"
 critic = "gemma3:12b"
 terminologist = "qwen3.5:9b"
-developer = "qwen3.5:9b"
+developer = "qwen2.5:14b"
