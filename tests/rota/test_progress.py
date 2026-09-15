@@ -23,9 +23,9 @@ def test_the_block_reads_the_stage_the_count_and_the_reference(tmp_path, monkeyp
     conn.commit()
     m.finish("clickI", "sentence 2", 42, 10.0, "merged", "70")
     out = m.render("clickI", "sentence 2", 0, time.time() - 120, "[m9] present: x -> 'yes'")
-    assert "stage: fix loop (attempt 2 of 3)" in out
-    assert "wakes: 2 so far / 42 on night 70 (merged) = 4%; left: about 40" in out
-    assert "minutes: 2 so far / 10 on night 70" in out
-    assert "last page: [m9] present: x -> 'yes'" in out and "last wake: developer:tick:tests_failing attempt 2" in out
+    assert "stage       fix loop (attempt 2 of 3)" in out
+    assert "wakes       2 / 42   4%" in out and "left        about 40" in out and "night 70, merged" in out
+    assert "minutes     2 / 10" in out and max(len(l) for l in out.splitlines()) <= 44
+    assert "last page   [m9] present: x -> 'yes'" in out and "last wake   developer:tick:tests_failing" in out
     ref = json.loads((tmp_path / "progress_ref_clickI.json").read_text())
     assert ref["sentence 2 / merged"]["wakes"] == 42

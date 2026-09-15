@@ -36,6 +36,21 @@ STAGES = {
     "tick:quarantined": "stuck",
 }
 PAGES = {"present", "confirm", "converse", "verdict", "submit", "clarify", "report"}
+WIDTH = 44
+KEY = 11
+RULE = "-" * WIDTH
+
+
+def _wrap(text: str, width: int = WIDTH) -> list[str]:
+    import textwrap
+    return textwrap.wrap(text, width) or [""]
+
+
+def _row(key: str, value: str) -> list[str]:
+    body = _wrap(str(value), WIDTH - KEY - 1)
+    out = [f"{key:<{KEY}} {body[0]}"]
+    out += [" " * (KEY + 1) + more for more in body[1:]]
+    return out
 
 
 def _ref_path(run: str) -> Path:
@@ -105,27 +120,40 @@ def render(run: str, phase: str, n0: int = 0, t0: float | None = None,
             if v.get("outcome") == want:
                 pick = (k, v); break
         if pick: break
-    lines = [f"# {run}: {phase}", f"stage: {stage}"]
+    # A slim table: a key column and a value column, values wrapped, no
+    # line past WIDTH (Roman, 2026-09-15: it has to fit a narrow window).
+    rows = [("stage", stage)]
     if pick:
         k, v = pick
         est, mins = v["wakes"], v["minutes"]
         left = est - so_far
-        left_s = f"about {left}" if left >= 0 else f"past the estimate by {-left}"
         pct = int(100 * so_far / est) if est else 0
-        lines += [f"wakes: {so_far} so far / {est} on night {v.get('night') or '?'} ({v['outcome']}) = {pct}%; left: {left_s} (a ceiling: a stuck night ends at three failed attempts of one tick)",
-                  f"minutes: {minutes:.0f} so far / {mins:.0f} on night {v.get('night') or '?'} for this phase"]
+        rows += [("wakes", f"{so_far} / {est}   {pct}%"),
+                 ("left", f"about {left}" if left >= 0 else f"past by {-left}"),
+                 ("minutes", f"{minutes:.0f} / {mins:.0f}"),
+                 ("reference", f"night {v.get('night') or '?'}, {v['outcome']}")]
     else:
-        lines += [f"wakes: {so_far} so far; no reference for this phase yet",
-                  f"minutes: {minutes:.0f} so far"]
-    lines.append(f"last page: {last_page or '(none yet)'}")
+        rows += [("wakes", f"{so_far}, no reference yet"),
+                 ("minutes", f"{minutes:.0f}")]
+    rows.append(("last page", last_page or "(none yet)"))
     if last:
-        lines.append(f"last wake: {last['role']}:{last['wake_kind']}{' ' + last['wake_detail'] if last['wake_detail'] else ''}"
-                     f"{'' if last['committed'] else ' (failed)'}")
+        wake = f"{last['role']}:{last['wake_kind']}"
+        if last["wake_detail"]:
+            wake += f" {last['wake_detail']}"
+        if not last["committed"]:
+            wake += " (failed)"
+        rows.append(("last wake", wake))
     if tries:
         q = " (quarantined)" if tries["quarantined"] else ""
-        lines.append(f"attempts on {tries['tick_key']}: {tries['attempts']} of 3{q}")
-    lines += ["", "reference: one night, one sample; the shape changes between nights (night 69 ran the review three times, night 70 once), so the same count can mean different distances. The raw counts stand beside the percentage.",
-              f"written: {time.strftime('%H:%M:%S')}"]
+        rows.append(("attempts", f"{tries['tick_key']}: {tries['attempts']} of 3{q}"))
+    rows.append(("written", time.strftime("%H:%M:%S")))
+    lines = [f"{run} / {phase}", RULE]
+    for key, value in rows:
+        lines += _row(key, value)
+    lines += [RULE] + _wrap("left is a ceiling: a stuck night ends at three failed "
+                            "attempts of one tick. The reference is one night, "
+                            "one sample, and the shape changes between nights, so "
+                            "the same count can mean different distances.")
     conn.close()
     return chr(10).join(lines) + chr(10)
 
