@@ -411,3 +411,18 @@ door or the brief that fixes them belongs to the writer's mode.
     by passes could climb the ladder while nothing failed. Fixed to the
     latest run per test, with a test. Closed.
 
+85. **A def in the test body was an unimported name.** Night 81
+    (2026-09-16, sentence three, the answer door in place): the Developer
+    challenged the test that cannot run, and the Tester took the
+    concession exit and re-encoded, twice. Its second body defined
+    `def cmd(): pass` and invoked it, and the import door refused it for
+    using cmd without importing it: the door's binding walk took a def's
+    arguments and not its name. Fixed with a test. Closed.
+
+86. **The Developer's window overran on sentence three.** Same night:
+    the fix-loop wake carried the whole function (finding 82) and three
+    tests, 32 KB, 11480 tokens against a 12288 window; the reply was cut
+    three sessions running. The profile now names a window per role,
+    `[context] developer = 16384`, and the runner carries it to the
+    session with or without a routed model. Measured from night 82.
+

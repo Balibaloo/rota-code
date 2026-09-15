@@ -289,7 +289,13 @@ Rules:
   by reading; both fixed with tests (findings 83 and 84): the escalation
   door excluded every worktree file on absolute .rota parts, and
   `exhausted` counted superseded fails. They land from night 82.
-- Status 2026-09-16 00:05: night 81 onboarding on C: (47% at 00:03).
+- Night 81 (23:48 to 00:37, cold on C:): the answer door worked as meant,
+  the Tester took the concession exit and re-encoded; its re-encode died
+  on the import door (a def's own name uncounted, finding 85), and the
+  Developer's fix-loop wake overran the 12k window (finding 86). Both
+  fixed: the door counts defs, the profile names a 16k window for the
+  Developer, carried by the runner. Stuck at attempt 4, 39 steps.
+- Status 2026-09-16 00:48: night 82 launching cold (the profile changed).
 
 ### 12. Night 71 on the SSD
 
