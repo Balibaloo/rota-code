@@ -395,3 +395,19 @@ door or the brief that fixes them belongs to the writer's mode.
     Finding 82 closed. The night stuck one step later on the Tester's
     tests and its answer to the Developer's challenge: judgement.
 
+83. **The escalation door excluded every file of the worktree.** Found by
+    the read-only review session (2026-09-16), verified by reading:
+    `_escalation_over_removed_grain` filtered ".rota" on absolute parts
+    from root.rglob, and a batch worktree is <project>/.rota/worktrees/
+    <batch>, so every file was excluded, no name was ever defined, and
+    every escalation over a violated finding with an identifier grain was
+    refused as undefined. code.commit fixed the same bug on night 22; the
+    door's one test used tmp_path/wt and could not see it. Fixed on
+    relative parts, with a test whose worktree lives under .rota. Closed.
+
+84. **`exhausted` counted fails a later pass superseded.** Same review:
+    `tests_failing` reads each test's latest run; `exhausted` took
+    MAX(attempt) over every fail row. A batch whose fails were superseded
+    by passes could climb the ladder while nothing failed. Fixed to the
+    latest run per test, with a test. Closed.
+
