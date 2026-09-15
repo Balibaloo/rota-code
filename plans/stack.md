@@ -345,8 +345,12 @@ Rules:
   refusal recommends parses with a lone quote inside.
 - Register after the parser rescan (03:03 to 03:09): 20 reds, all known,
   no stale, 97 green (the peer's survey cases are in the count now).
-- Status 2026-09-15 03:10: no night running; waiting on the peer's word
-  about the 3080 and the C: runs directory.
+- The measurement the frame asked for: night 73's cold onboarding on C:
+  took 17 minutes (02:36 to 02:53, 132 steps) against night 70's 22 on
+  the HDD (135 steps); the sentence phases are the model's time either
+  way. The runs directory and the click checkout stay on C:.
+- Status: closed 2026-09-15 10:35. Nights 74 to 80 ran on C: from the
+  other session; frames 13 to 15 are theirs.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
