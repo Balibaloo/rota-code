@@ -25,7 +25,9 @@ Rules:
   peer session and runs the tree as of 01:59; I watch it.
 - Door: the drops refusal names the insert-at-top span beside the
   append span. Measured on the next sentence-three run.
-- Status 2026-09-15 02:01: door in progress; night 72 running.
+- Door committed (ef06e79); the register after it: 20 reds, all known,
+  no stale (02:07).
+- Status 2026-09-15 02:08: night 72 running sentence three, warm on C:.
 
 ### 12. Night 71 on the SSD
 
