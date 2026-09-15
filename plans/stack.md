@@ -125,7 +125,14 @@ Rules:
   wall; finding 74's door is the fix.
 - Night 72 launched 01:59, warm on C:, sentence three only
   (GAUNTLET_FROM=3), to measure the door.
-- Status 2026-09-15 02:00: night 72 in sentence three.
+- Night 72 (01:59 to 02:36, warm on C:, sentence three only): the surface
+  door held, two of three tests green, the third is a test that cannot
+  run (a bare function invoked as a click command), defended by the
+  Tester, with no desk able to rule on it; quarantined at 87 steps
+  (finding 75, judgement, for Roman).
+- A night 73 started at 02:36 on C:, cold, not launched by me; asked
+  the peer. Night 72's data is in clickI_prev.db on C:.
+- Status 2026-09-15 02:40: night 73 running (launcher unknown).
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 

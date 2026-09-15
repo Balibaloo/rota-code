@@ -281,3 +281,25 @@ door or the brief that fixes them belongs to the writer's mode.
     which is the one an import needs. Door: the refusal names both.
     Open until a night measures it.
 
+    Night 72 (2026-09-15, 01:59 to 02:36, warm on C:, sentence three
+    only): the door held, the criteria name version_option, the
+    Developer built at batch_start, two of three tests green. Finding 74
+    closed.
+
+75. **A test that cannot run is defended, and nobody can rule on it.**
+    Night 72, sentence three: the Tester's output test decorated a bare
+    function with `@version_option(show_python=True)` and invoked it with
+    CliRunner; it is not a click command, invoke raises KeyError
+    'prog_name' before any output, and the assertion on the output fails
+    whatever the code does. The Developer read that, challenged the
+    Tester (m77), the Tester answered and kept the test, a second
+    challenge was refused as the same argument, the escalation to the
+    Architect found no branch for a wrong test, and the fix loop ran to
+    quarantine at 87 steps. Two of the Developer's challenges also died
+    on the tool-call parser: the test's source inside a quoted argument
+    ended the string early, three sessions, the same call. Judgement,
+    for Roman: the Tester's challenge brief lets it keep a test whose own
+    call raises before the assertion; the Architect's escalate mode has
+    no ruling on a test. Mechanical, open: the parser could take a
+    quoted argument to the last closing bracket.
+
