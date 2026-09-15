@@ -266,8 +266,16 @@ Rules:
   of re-encoding; the challenge brief offers both. Two judgements for
   Roman: the capsys clause of the encode door, and the challenge
   brief's fix-or-answer fork when the Tester concedes.
-- Status 2026-09-15 06:50: no night running; sentence three waits on
-  Roman's reading of the Tester.
+- Recommendations given to Roman at 20:35 (this session), in order:
+  (2) give `msg.answer_developer` in the Tester's challenge mode the
+  challenge's own fact door, a verbatim span of the criterion the
+  assertion comes from, so a conceding answer cannot travel and the
+  exits are defend-with-the-words or `tests.encode`; (1) cut the capsys
+  clause from the encode door, keep the fact, and measure any shape as
+  one brief line on the Tester cases; (3) count survey constraints per
+  commitment with a path::symbol grain. Roman has not decided.
+- Status 2026-09-15 21:21: no night running; sentence three waits on
+  Roman's decision on the three calls.
 
 ### 12. Night 71 on the SSD
 
