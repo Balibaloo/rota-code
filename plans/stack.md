@@ -349,7 +349,7 @@ Rules:
   took 17 minutes (02:36 to 02:53, 132 steps) against night 70's 22 on
   the HDD (135 steps); the sentence phases are the model's time either
   way. The runs directory and the click checkout stay on C:.
-- Status: closed 2026-09-15 10:35. Nights 74 to 80 ran on C: from the
+- Status: closed 2026-09-15 20:21. Nights 74 to 80 ran on C: from the
   other session; frames 13 to 15 are theirs.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
