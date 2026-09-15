@@ -155,7 +155,7 @@ Rules:
   session over 12k tokens still loses its head: the fix wake with five
   red tests ran 12.6k on one turn; num_ctx or the pushes budget is
   Roman's call. Night 77 launched warm on C: with the full window.
-- Status 2026-09-15 04:14: night 77 running sentence three.
+- Status 2026-09-15 04:08: night 77 running sentence three, warm on C:.
 
 ### 12. Night 71 on the SSD
 
