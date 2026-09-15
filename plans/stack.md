@@ -47,10 +47,12 @@ Rules:
   database as clickI_n70_merged.db, clickI_n42, the warm snapshot, the
   register backup of 02:00 until the pack is verified, and the six tips
   walks COMPLETION.md cites.
-- Status 2026-09-15 01:22: night 71 in sentence two on C:, warm, 19 wakes
-  at 01:20 against 42; the progress file is live in the runs directory.
-  Its page capture fix (bc8b573) landed after the walk started and
-  shows from night 72.
+- Night 71 (01:19, warm on C:): the relocate pointed the snapshot at the
+  C: checkout and sentence two MERGED in 42 steps, 33 sessions, 10.5
+  minutes, the same time as on the HDD: the sentence phase is the
+  model's, the disk's cost sits in onboarding, unmeasured tonight
+  (warm). Sentence three runs now against night 70's 44-step stuck.
+- Status 2026-09-15 01:31: sentence three on C:.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
