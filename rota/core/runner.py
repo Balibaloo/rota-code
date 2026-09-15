@@ -380,6 +380,14 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
 # silent cut is indistinguishable from a short answer, and the model has no
 # reason to ask for the rest of something it does not know was cut.
 RESULT_CHARS = 6000
+# A source span is the one result that has to arrive whole: a function the
+# Developer is about to edit. Night 79 (2026-09-15, finding 82): version_option
+# is 207 lines and 8692 characters; at 6000 the 9B fetched it in two cut
+# pieces, asked for the same cut span five more times and never wrote.
+# Sentence two's function fitted in one result and it wrote at turn 9.
+# 14000 characters is about 3500 tokens of a 12288 window, and the
+# estimate flag on the completion says when a prompt outgrows it.
+SOURCE_CHARS = 14000
 # A pushed read is the wake, not a result the session asked for, and it is
 # rendered at its own cap. Measured on `cnt_14b`: `[code.area]` had been
 # repacked to show an area its own files -- 13,726 characters for
@@ -1995,7 +2003,7 @@ def run_session(
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session; the answer is above.")
                     else:
-                        feedback.append(f"OK {call.name} -> {_render(result)}")
+                        feedback.append(f"OK {call.name} -> {_render(result, SOURCE_CHARS if call.name == 'code.source' else RESULT_CHARS)}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     # Six encodes in one reply, three refused: which three?
