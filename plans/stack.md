@@ -190,7 +190,14 @@ Rules:
   the case's blocks plus the expect page and 34 inherited tests. The
   flood is the load, not the brief; reading whether the 3080 offloads
   the 9B partially and differently each time.
-- Status 2026-09-15 05:19: no night running.
+- Isolated (05:25): through the runner's own backend the 3080 floods
+  (34k characters, no call, twice) and the Titan answers (five calls,
+  294 characters, twice). On the 3080 the knob is `think: false`: with
+  it, prose; with thinking on, ten calls. On the Titan `think: false`
+  works. The loads differ in flash attention, auto on the 3080 and
+  disabled on the Titan; testing with it off on the 3080 (finding 81).
+- Status 2026-09-15 05:26: the 3080's server restarting with flash
+  attention off.
 
 ### 12. Night 71 on the SSD
 
