@@ -252,3 +252,7 @@ door or the brief that fixes them belongs to the writer's mode.
     Developer's challenge; a challenge from the Critic needs
     `msg.answer_critic` in the list. Open until measured.
 
+    Night 70 (2026-09-15, 00:32 to 01:04, the shipped profile, findings 69
+    to 73 in place): sentence two MERGED at 3c17d35. The one finding was
+    escalated, answered and set satisfied. Findings 69 to 73 closed.
+

@@ -36,81 +36,20 @@ Rules:
   night 70 cold for a non-onboarding edge) and the blind 4-night cap.
 - Status 2026-09-15 00:57: built and tested; waits on night 70.
 
-### 11. Nights 64 and 65: the shipped profile with the finding 69 and 70 doors, warm
+### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
-- Why: night 63 ended stuck on one criterion because two doors
-  contradicted. Both are fixed. The night's snapshot is warm and carries
-  the profile, so sentence two runs again from onboarding at no cost.
-- How: `GAUNTLET_WARM=1`, `GAUNTLET_FROM=2`, profile `local-gemma-critic`.
-- Ends when: the night prints done and its sessions are read.
-- Night 64 (19:48 to 19:59, warm): the build and the Critic's review
-  passed; the Architect's structural review failed three times at commit
-  with a foreign key error. findings.find took inherited test ids as
-  constraint ids and said OK; the database refused at commit. Stuck.
-  Finding 70. Fix: findings.find checks its batch and constraint ids at
-  the door.
-- Night 65 (19:58 to 20:13, warm): build, tests, Critic's review and
-  the structural review all landed. Stuck one step later: three
-  `violated` findings against the vacuous constraint `termui`, two on
-  test files the diff never touched; the Developer looped on nothing to
-  fix and did not escalate (finding 71). Door: a finding's grain is a
-  file the diff changed. The rest is the briefs: the survey's
-  constraints say nothing, and the Developer does not take the escalate
-  exit. For Roman.
-- Night 66 (20:22 to 20:36, warm): the same wall one step in. The door
-  held on the project's tests; the review filed on the batch's own
-  materialised test files (furniture, now excluded), and on
-  src/click/termui.py against `termui`. The Developer read it and
-  looped without escalating, three times. Stuck.
-- For Roman: three nights on the shipped profile now reach the
-  structural review and stop at the same judgement: the survey's 22
-  constraints are the example directories' names with the text "users
-  of the X example"; the Architect files `violated` against them; the
-  Developer does not escalate a finding it cannot act on. The briefs of
-  the survey, the structural review and the Developer's
-  finding_violated mode are where the work is.
-- Night 67 (20:37) overlapped night 66's sentence three, launched on
-  the Stuck line and not on GAUNTLET-DONE: both wrote one database and
-  one checkout for two minutes. Killed. A night ends at GAUNTLET-DONE.
-- Night 68 launched 20:39, cold (the fourth warm night spent the
-  snapshot), to measure the src-only finding, then this frame closes.
-- Night 68 (20:39 to 21:03, cold): one finding left, and the Developer
-  escalated it. The Architect agreed the code was right and could not
-  withdraw the finding: its escalate mode had no findings.find and no
-  branch for a wrong finding (finding 72). Fixed: the tool in the list,
-  the branch first in the brief. The survey's constraints read better
-  cold ("WHO BREAKS: ..."), and `termui` is still the empty one.
-- Register after the escalate brief change (21:07 to 21:14): 20 reds,
-  all known, and two stale Architect cases (find-against-a-constraint,
-  route-an-escalation), re-recording on the Titan.
-- The escalate branch measured worse first (route-an-escalation 0/5:
-  the 8B took the first bullet for every escalation) and holds last,
-  conditioned on a finding in the refs: both cases 5/5. The changed-
-  files door checks path-shaped grains only. Night 69 runs the first
-  version; night 70 measures the final one.
-- Register at 21:24: 20 reds, all known, no stale; the peer can re-pack
-  from this file when it returns.
-- Night 69 (21:08 to 21:41, warm): one step further again. The first
-  review passed, the structural review landed, the Developer answered
-  and committed twice, 37 tests green at 21a2386. The Critic's
-  re-review misread the diff, challenged the Tester, and the Tester's
-  challenge mode had no answer verb to the Critic (finding 73).
-  Quarantined on review. Stuck.
-- Fixed: a tester-to-critic answer edge in the graph, msg.answer_critic in
-  the Tester's challenge mode, and a Critic answer mode that finishes the
-  review with the answer in hand. Night 70 measures it.
-- Register after the Tester challenge brief change (21:47 to 21:54):
-  20 reds, all known, two stale Tester challenge cases re-recording on
-  the Titan.
-- Register at 21:55: 20 reds, all known, no stale.
-- Paused by Roman at 21:57. Night 70 stopped during its cold onboarding;
-  its measurement (does the Critic accept the Tester's answer) is not
-  taken. 25 commits sit unpushed on rota/foundation; the peer that
-  pushed and re-packed has been offline since about 19:00.
-- Resume with: night 70 again (cold, the graph changed), then read it.
-- Resumed 2026-09-15 00:32. Night 70 launched cold at 00:33 (the
-  stopped onboarding took the snapshot with it).
-- Status 2026-09-15 00:33: night 70 onboarding.
+- Night 70 (00:32 to 01:04, cold): MERGED. Sentence two on the shipped
+  profile: onboarding 22 minutes on the HDD, then 42 steps in 10
+  minutes. The Developer built and committed at batch_start, the tests
+  went green, the Critic passed, the structural review filed one finding
+  against `termui`, the Developer escalated it, the Architect answered
+  and set it satisfied (finding 72's branch), the batch merged at
+  3c17d35 and click's main carries "rota: deliver bg_1".
+- The road: nights 64 to 69 each stuck one step further, and each step
+  was a missing fact or a missing tool, findings 69 to 73. None was
+  the model.
+- Status: closed 2026-09-15 01:06. Sentence three runs to GAUNTLET-DONE;
+  then frame 12.
 
 ### 10. Night 63: the 9B Developer with both doors, on click
 
