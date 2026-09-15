@@ -243,7 +243,7 @@ Rules:
   9B thinking does every act on the card the nights run on.
 - Door (finding 82): code.source renders whole up to 14000 characters.
   Night 80 launched warm on C: to measure it on sentence three.
-- Status 2026-09-15 06:33: night 80 running sentence three.
+- Status 2026-09-15 06:32: night 80 running sentence three, warm on C:.
 
 ### 12. Night 71 on the SSD
 
