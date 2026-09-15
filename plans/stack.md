@@ -274,8 +274,14 @@ Rules:
   clause from the encode door, keep the fact, and measure any shape as
   one brief line on the Tester cases; (3) count survey constraints per
   commitment with a path::symbol grain. Roman has not decided.
-- Status 2026-09-15 23:33: no night running; sentence three waits on
-  Roman's decision on the three calls.
+- Roman took the recommendations (23:4x). Built: (2) the Tester's answer
+  edges carry quotes=, optional at the binder, required by a door when
+  the wake was a challenge, a concession named as tests.encode; (1)
+  the encode door's three capsys recipes cut, the print fact kept.
+  Suites green. The register replays; night 81 runs sentence three
+  cold on C: (the graph changed). (3) waits on the other session's
+  spike.
+- Status 2026-09-15 23:50: night 81 launching; register replaying.
 
 ### 12. Night 71 on the SSD
 
