@@ -116,7 +116,14 @@ Rules:
   from tick_attempts, as tests_failing does. Night 74 launched 03:03 on
   sentence three, cold (survey.md and scheduler.py are in the warm
   stamp's hard set).
-- Status 2026-09-15 03:07: night 74 onboarding on C:.
+- Night 74 (03:03 to 03:25, cold on C:, onboarding 15 minutes again):
+  stuck at batch_start as night 73. The attempt line reached the wake
+  ("attempt 2 of 3: the last session ended with nothing written") and
+  the sessions kept their shape: 22 turns, version_option (207 lines,
+  420 to 627) read six times, a fabricated copy of it in the reply, no
+  write. Sentence two's function was 65 lines and it wrote at turn 9.
+  Reading whether code.source cuts the span.
+- Status 2026-09-15 03:28: reading the span size.
 
 ### 12. Night 71 on the SSD
 
