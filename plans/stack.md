@@ -160,8 +160,15 @@ Rules:
   some known reds are recordings of headless sessions. The Titan's
   server went down with the 3080's restart and is back with one slot;
   the twenty reds re-record on it with ROTA_REFRESH=1.
-- Status 2026-09-15 04:11: night 77 on the 3080, the reds re-recording
-  on the Titan.
+- Night 77 (04:08 to 04:32, warm, one slot): the behaviour changed. The
+  Developer took the challenge exit twice with the raised-at fact in
+  front of it, the Tester fixed one of the five tests (tst_c1 green),
+  and the fix loop reached its third attempt with four tests still
+  wrong. Stuck on attempts, not on a loop: one test fixed per round,
+  three rounds. The last Developer session judged the code already
+  satisfies the criteria and committed nothing, which is right.
+- Status 2026-09-15 04:35: night 77 read; the reds re-recording on the
+  Titan.
 
 ### 12. Night 71 on the SSD
 
