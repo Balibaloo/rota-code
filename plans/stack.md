@@ -59,8 +59,16 @@ Rules:
   onboarding gain is measured on the next cold night on C:.
 - The reference file counts sessions, not the log's steps; night 71's
   33 replaces the seeded 42 for sentence two.
-- Status 2026-09-15 01:32: night 71 in sentence three on C:; the slim
-  table is live at .rota/progress.md.
+- Sentence three's first wall (night 70, 44 steps): the criteria named
+  custom_version_option as their surface while the item and their own
+  text say version_option, and the duplicate-name door refused the
+  Developer's right change (finding 74). Door built and committed
+  (43b0322): criteria authoring refuses a surface on another existing
+  callable when the item names one the index holds. Night 71's
+  sentence three carries the same criteria and will stick the same
+  way; night 72 measures the door.
+- Status 2026-09-15 01:36: night 71 in sentence three on C:; the register
+  replays the surface door.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
