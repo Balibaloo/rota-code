@@ -182,7 +182,15 @@ Rules:
   5 on the 9B in isolation, beside the three-criteria one on the same
   load. The count is not the wall; night 77's flood comes from the
   wake's content on click. Reading what that wake carries.
-- Status 2026-09-15 05:14: no night running.
+- Night 77's Tester wake replayed verbatim: on the Titan ten calls in
+  2,900 characters, three times identical; on the 3080's fresh load six
+  calls in 2,400; the night's own reply on the 04:10 load was 37,518
+  characters of prose with no call. One prompt, three loads, three
+  behaviours at temperature zero. The wake is 3.3k tokens and holds
+  the case's blocks plus the expect page and 34 inherited tests. The
+  flood is the load, not the brief; reading whether the 3080 offloads
+  the 9B partially and differently each time.
+- Status 2026-09-15 05:21: no night running.
 
 ### 12. Night 71 on the SSD
 
