@@ -139,7 +139,9 @@ Rules:
   diff touched that file (finding 78, next).
 - Door (finding 78): tests.load says where a red run raised and
   whether the diff touched that file. Night 76 launched warm on C:.
-- Status 2026-09-15 03:47: night 76 running sentence three, warm on C:.
+- Register after the raised-at field (03:48 to 03:55): 20 reds, all
+  known, no stale.
+- Status 2026-09-15 03:56: night 76 running sentence three, warm on C:.
 
 ### 12. Night 71 on the SSD
 
