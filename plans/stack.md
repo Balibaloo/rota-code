@@ -295,7 +295,7 @@ Rules:
   Developer's fix-loop wake overran the 12k window (finding 86). Both
   fixed: the door counts defs, the profile names a 16k window for the
   Developer, carried by the runner. Stuck at attempt 4, 39 steps.
-- Status 2026-09-16 00:48: night 82 launching cold (the profile changed).
+- Status 2026-09-16 00:43: night 82 onboarding cold on C: (the profile changed).
 
 ### 12. Night 71 on the SSD
 
