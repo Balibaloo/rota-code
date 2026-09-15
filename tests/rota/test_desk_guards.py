@@ -1891,3 +1891,16 @@ def test_a_surface_on_another_existing_callable_is_refused(db):
                   text="When show_python is True, version_option appends the Python version",
                   surface_refs=["src/click/decorators.py::version_option"])
     assert out["id"] == "c_70"
+
+def test_a_name_the_body_defines_is_not_an_unimported_one(db):
+    """Night 81 (2026-09-16): the Tester defined `def cmd(): pass` in the body,
+    invoked it, and was refused for using cmd without importing it, twice."""
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    body = ("def cmd():" + chr(10) + "    return 'x'" + chr(10) + chr(10)
+            + "def test_x():" + chr(10) + "    assert cmd() == 'x'" + chr(10))
+    try:
+        sb.call("tests.encode", id="tst_def", criterion_id="c1", path="tests/test_d.py", body=body)
+    except ValueError as exc:
+        assert "never imports it" not in str(exc), exc
+

@@ -3916,7 +3916,14 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             defined |= set(n.names)
         elif isinstance(n, _ast.ExceptHandler) and n.name:
             defined.add(n.name)
+        elif isinstance(n, _ast.ClassDef):
+            defined.add(n.name)
         elif isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Lambda)):
+            # The def's own name is a binding too. Night 81 (2026-09-16): the
+            # Tester defined `def cmd(): pass` in the body and invoked it, and
+            # was refused for using cmd without importing it, twice.
+            if not isinstance(n, _ast.Lambda):
+                defined.add(n.name)
             a = n.args
             defined |= {x.arg for x in a.args + a.kwonlyargs + a.posonlyargs}
             if a.vararg:
