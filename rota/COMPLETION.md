@@ -160,6 +160,19 @@ run on click. Every stuck night became a door or a brief line, unit-tested,
 replayed on the register and committed (plans/wake-audit.md, findings 36
 to 63). The register holds at 23 known reds, no stale.
 
+Update 2026-09-15 01:10. Night 70 merged sentence two on the shipped
+profile, `local-gemma-critic`, at 3c17d35: onboarding 22 minutes on the
+HDD, then 42 steps in ten minutes through the build, the tests, the
+Critic's review, one structural finding escalated and set satisfied, and
+the merge. The benchmark of step 1 answered the question the other way:
+with the file list of finding 66 in `tests.load`, the 9B does act 3 in
+isolation 5/5, and gemma-4 at the Developer's desk (night 62) failed the
+same way the 9B did without it. Nights 63 to 69 each stuck one step
+further on a missing fact or a missing tool, findings 66 to 73, none on
+the model. Step 2, routing a larger model, is not needed on this
+evidence. The register holds at 20 known reds, no stale. Sentence three
+runs on click for the first time as this is written; finding 42 is next.
+
 The diagnosis. The doors that held were facts of the language: definitions,
 imports, spans, parse, cycles. Those are finite per language and hold on
 any repository. The stdin family was coaching: five clauses in two days on
