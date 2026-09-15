@@ -223,8 +223,12 @@ Rules:
   and the register's prompts are short; the launcher takes -Parallel,
   default two, and the runner flags a prompt over the window. The acts
   record after the Titan restarts.
-- Status 2026-09-15 05:48: night 79 onboarding on C:; the Titan
-  restarting at two slots.
+- The Titan is out: at two slots too, a six-token prompt gets "the
+  launch timed out", the card at 61 degrees and idle. A hung context
+  under WDDM; it clears with a reboot, Roman's. The acts column with
+  the 9B thinking records on the 3080 after night 79 instead.
+- Status 2026-09-15 05:55: night 79 onboarding on C:; the Titan down
+  until a reboot.
 
 ### 12. Night 71 on the SSD
 
