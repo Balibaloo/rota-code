@@ -113,3 +113,20 @@ def test_a_namespace_label_is_the_call_it_names():
     calls = toolproto.extract("MODEL: describe(account='x')\n" + "MODEL: amend(headline='h', text='t')\n" + "NOTE: nothing(here)", sigs)
     names = [c.name for c in calls if hasattr(c, "name")]
     assert names == ["model.describe", "model.amend"], calls
+
+def test_an_argument_list_the_first_scan_cannot_close_is_read_again():
+    """
+    Night 72 (2026-09-15): the Developer's challenge carried a test's source
+    in a quoted argument and died as unterminated three sessions running.
+    The scanner counts quotes by parity, and a lone quote inside triple
+    quotes, the very form the refusal recommends, breaks it. A second scan
+    reads triple quotes as one token; its answer stands only when the
+    arguments parse."""
+    raw1 = "TOOL: msg.challenge_tester(refs=['c1', 't1'], quotes=['''it's a test''', 'def f():'], round_no=0)"
+    got = toolproto.extract(raw1)
+    assert len(got) == 1 and not isinstance(got[0], toolproto.ToolError), got
+    assert got[0].args["refs"] == ["c1", "t1"] and got[0].args["round_no"] == 0
+    raw2 = "TOOL: tests.encode(id='t', criterion_id='c1', path='tests/test_x.py', body='''x = 'y'\ndef test_x():\n    assert x\n''')"
+    got = toolproto.extract(raw2)
+    assert len(got) == 1 and not isinstance(got[0], toolproto.ToolError), got
+    assert "def test_x" in got[0].args["body"]

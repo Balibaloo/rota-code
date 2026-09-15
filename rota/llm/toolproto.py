@@ -124,6 +124,50 @@ def _literal(node: ast.AST) -> Any:
     return value
 
 
+
+def _rescan_args(text: str, start: int, marker: str) -> int | None:
+    """A second scan of an argument list the first one could not close.
+
+    Triple quotes are one token here, so a lone quote inside them does not
+    flip the state. The answer is accepted only when `parse_args` parses
+    what it encloses."""
+    i, depth = start, 1
+    quote = None            # the active string delimiter: ', ", ''', or """
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if text.startswith(quote, i):
+                i += len(quote)
+                quote = None
+                continue
+            if ch == chr(92) and len(quote) == 1:
+                i += 2
+                continue
+        else:
+            if text.startswith("'''", i) or text.startswith('"""', i):
+                quote = text[i:i + 3]
+                i += 3
+                continue
+            if ch in ("'", '"'):
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+        i += 1
+    # The last closing bracket is not a candidate: a value that swallowed
+    # its neighbours can still parse, and the refusal with its hint is worth
+    # more than a call with the wrong arguments (test_toolproto_quotes).
+    if depth == 0 and i < len(text):
+        try:
+            parse_args(text[start:i])
+            return i
+        except Exception:
+            return None
+    return None
+
 def parse_args(args_str: str) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """
     Parse the argument list. JSON object form, or Python keyword form.
@@ -510,6 +554,13 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                         break
             i += 1
 
+        if args_end is None:
+            # Second reading: triple-quoted strings as one token, then the
+            # last closing bracket of this call's region. Night 72
+            # (2026-09-15): a challenge carrying a test's source in a quoted
+            # argument died here three sessions running, the same call each
+            # time. The fallback holds only when the arguments then parse.
+            args_end = _rescan_args(text, args_start, MARKER)
         if args_end is None:
             # Say why, or the model retries the same call. tipsAH (2026-09-09):
             # ten writes of main.py refused as "unterminated argument list",
