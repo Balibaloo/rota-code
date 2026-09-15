@@ -1812,3 +1812,22 @@ def test_the_agenda_wake_carries_the_rows_a_page_may_hold(db):
     db.commit()
     (wake,) = tick_agenda(db, principal_present=True)
     assert wake.refs == tuple(f"L{n:02d}" for n in range(PAGE_ASSUMPTIONS))
+
+def test_a_fail_a_later_pass_superseded_does_not_exhaust(db):
+    """Found by reading (2026-09-16): `exhausted` took MAX(attempt) over every
+    fail row, `tests_failing` over each test's latest run only. A batch whose
+    fails a later pass superseded could climb the ladder while nothing failed."""
+    from rota.core.predicates import exhausted
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval) VALUES ('i1','x','in_scope','decided','approved')")
+    db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','i1','running','abc123')")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','x')")
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('tst1','b1','c1','p','b')")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) VALUES ('r1','b1','tst1','fail',99)")
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) VALUES ('r2','b1','tst1','pass',100)")
+    db.commit()
+    assert not [w for w in exhausted(db) if w.refs and "b1" in w.refs], "a passing batch climbed the ladder"
+    db.execute("INSERT INTO test_runs (id, batch_id, test_id, result, attempt) VALUES ('r3','b1','tst1','fail',101)")
+    db.commit()
+    assert [w for w in exhausted(db) if w.refs and "b1" in w.refs]
+

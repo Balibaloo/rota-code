@@ -1183,6 +1183,24 @@ def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path)
     assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]
 
 
+def test_an_escalation_reads_a_worktree_that_lives_under_dot_rota(db, tmp_path):
+    """Found by reading (2026-09-16): the door excluded '.rota' on absolute
+    parts, and a batch worktree is <project>/.rota/worktrees/<batch>, so every
+    file was excluded and every escalation over an identifier grain was refused
+    as undefined, whatever the code held."""
+    root = tmp_path / ".rota" / "worktrees" / "b1"; root.mkdir(parents=True)
+    (root / "main.py").write_text("def calculate_tip(t, p):" + chr(10) + "    return t * p" + chr(10), encoding="utf-8")
+    db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(root),))
+    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','calculate_tip is called by main','observed')")
+    db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+               "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
+    db.commit()
+    from rota.roles import prompts
+    sb = build("developer", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("developer", "finding_violated"))
+    assert sb.call("msg.escalate_architect", refs=["f1", "k1"])["id"]
+
+
 def test_an_empty_commit_under_a_finding_names_the_signature_drift(db, tmp_path):
     """tipsAL (2026-09-10): display_results gained three required parameters
     and the Developer committed nothing three times, saying the constraint

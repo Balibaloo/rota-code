@@ -828,7 +828,11 @@ def exhausted(conn) -> list[Wake]:
     cap = config.get(conn, "loop_cap")
     rows = conn.execute(
         "SELECT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
-        "WHERE result IN ('fail','error') GROUP BY batch_id"
+        "WHERE result IN ('fail','error') "
+        # Each test's latest run only, like tests_failing: a fail that a later
+        # pass superseded is not an attempt still failing (2026-09-16 review).
+        "AND rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
+        "GROUP BY batch_id"
     ).fetchall()
 
     wakes = []
