@@ -110,17 +110,25 @@ def routed_pins(conn: sqlite3.Connection, pins: "llm.Pins", wake: Wake) -> "llm.
     import dataclasses as _dc
     routed = config_mod.routed_model(
         config_mod.get(conn, "model_routing"), wake.kind, wake.role)
-    if not routed:
-        return pins
+    model = routed or pins.model
     think = None
+    window = None
     try:
         from ..llm import profile as _profile
         prof = _profile.of_run(conn)
-        think = (prof.think or {}).get(routed) if prof else None
+        think = (prof.think or {}).get(model) if prof else None
+        # The role's own window, when the profile names one. Night 81
+        # (2026-09-16): the Developer's fix-loop wake ran 11480 tokens
+        # against the shared 12288. It applies with or without a routed
+        # model for the role.
+        window = (prof.context or {}).get(wake.role) if prof else None
     except Exception:
         think = None
-    return _dc.replace(pins, model=routed,
-                       think=think if think is not None else pins.think)
+    if not routed and not window:
+        return pins
+    return _dc.replace(pins, model=model,
+                       think=think if think is not None else pins.think,
+                       num_ctx=window if window else pins.num_ctx)
 
 def session_mode(wake: Wake) -> str:
     """

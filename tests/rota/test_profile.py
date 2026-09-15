@@ -158,9 +158,23 @@ def test_a_wake_runs_with_the_profiles_think_for_its_model(tmp_path):
     db = init_db(tmp_path / "r.db")
     P.bind(db, P.Profile.from_dict({"provider": {"kind": "ollama"},
                                     "models": {"default": "qwen3:8b", "tester": "qwen3.5:9b"},
-                                    "think": {"qwen3.5:9b": True}}, name="t"))
-    tester = routed_pins(db, llm.Pins(model="qwen3:8b"), Wake("tester", "tick:tests_missing"))
-    liaison = routed_pins(db, llm.Pins(model="qwen3:8b"), Wake("liaison", "tick:agenda"))
-    assert tester.model == "qwen3.5:9b" and tester.think is True
+                                    "think": {"qwen3.5:9b": True},
+                                    "context": {"developer": 16384}}, name="t"))
+    tester = routed_pins(db, llm.Pins(model="qwen3:8b", num_ctx=12288), Wake("tester", "tick:tests_missing"))
+    liaison = routed_pins(db, llm.Pins(model="qwen3:8b", num_ctx=12288), Wake("liaison", "tick:agenda"))
+    developer = routed_pins(db, llm.Pins(model="qwen3:8b", num_ctx=12288), Wake("developer", "tick:batch_start"))
+    assert tester.model == "qwen3.5:9b" and tester.think is True and tester.num_ctx == 12288
     assert liaison.model == "qwen3:8b" and liaison.think is None
+    # The role's own window reaches the session (night 81, 2026-09-16).
+    assert developer.num_ctx == 16384
+
+def test_a_role_can_have_its_own_context_window():
+    """Night 81 (2026-09-16): the Developer's wake overran the shared window."""
+    from rota.llm.profile import Profile
+    p = Profile.from_dict({"provider": {"kind": "ollama"}, "pins": {"num_ctx": 12288},
+                           "models": {"default": "qwen3:8b", "developer": "qwen3.5:9b"},
+                           "context": {"developer": 16384}}, name="t")
+    assert p.pins_for("developer").num_ctx == 16384
+    assert p.pins_for("tester").num_ctx == 12288
+    assert p.to_dict()["context"] == {"developer": 16384}
 

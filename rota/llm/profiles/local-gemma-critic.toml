@@ -25,3 +25,9 @@ developer = "qwen3.5:9b"
 # with thinking on, ten calls. The 8B and gemma3 keep the runner's default.
 [think]
 "qwen3.5:9b" = true
+
+# The Developer's window. Night 81 (2026-09-16): the fix-loop wake on
+# click sentence three, the whole function and three tests, ran 11480
+# tokens against 12288 and the reply was cut. The 9B at 16k fits the 3080.
+[context]
+developer = 16384

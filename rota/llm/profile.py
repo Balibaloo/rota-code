@@ -48,6 +48,10 @@ class Profile:
     keep_alive: str = ""
     budget_usd: float | None = None
     pins: dict = field(default_factory=dict)
+    # Per-role context windows: {role: num_ctx}. Night 81 (2026-09-16): the
+    # Developer's fix-loop wake on click sentence three ran 11480 tokens
+    # against a 12288 window, the whole function and three tests.
+    context: dict = field(default_factory=dict)
     default_model: str = llm.DEFAULT_MODEL
     roles: dict = field(default_factory=dict)
     # Thinking per model, `[think]` in the file: "qwen3.5:9b" = true. A
@@ -68,6 +72,7 @@ class Profile:
         prov = dict(d.get("provider") or {})
         models = dict(d.get("models") or {})
         pins = {k: v for k, v in (d.get("pins") or {}).items() if k in PIN_KEYS}
+        context = {str(k): int(v) for k, v in (d.get("context") or {}).items()}
         unknown = set(d.get("pins") or {}) - set(PIN_KEYS)
         if unknown:
             raise ValueError(f"unknown pins {sorted(unknown)}; the pins are {list(PIN_KEYS)}")
@@ -86,6 +91,7 @@ class Profile:
             keep_alive=str(prov.get("keep_alive") or ""),
             budget_usd=(float(prov["budget_usd"]) if prov.get("budget_usd") is not None else None),
             pins=pins,
+            context=context,
             default_model=str(default),
             roles={str(k): str(v) for k, v in roles.items()},
             think={str(k): bool(v) for k, v in (d.get("think") or {}).items()},
@@ -127,6 +133,7 @@ class Profile:
                          "api_key_env": self.api_key_env, "timeout": self.timeout,
                          "keep_alive": self.keep_alive, "budget_usd": self.budget_usd},
             "pins": dict(self.pins),
+            "context": dict(self.context),
             "models": {"default": self.default_model, **self.roles},
             "native_tools": self.native_tools,
             "endpoints": [{"model": m, **v} for m, v in self.endpoints.items()],
@@ -149,6 +156,8 @@ class Profile:
     def pins_for(self, role: str | None) -> llm.Pins:
         model = self.model_for(role)
         pins = dict(self.pins)
+        if role and role in (self.context or {}):
+            pins["num_ctx"] = self.context[role]
         think = (self.think or {}).get(model)
         if think is not None and "think" not in pins:
             pins["think"] = bool(think)
