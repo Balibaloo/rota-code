@@ -314,3 +314,12 @@ door or the brief that fixes them belongs to the writer's mode.
     constraints on the largest area. The parser reads `MODEL: amend(`
     as the call now (cf0aecb). The count is the judgement left.
 
+76. **A re-fired tick at temperature zero is the same session.** Night
+    73 (2026-09-15, sentence three): three identical 22-turn Developer
+    sessions at batch_start, decorators.py read twenty times, no write,
+    two ledger calls refused with the exact fix, the verbatim-repeat cut,
+    quarantined. The wake was byte-identical each time; tests_failing
+    carries "attempt N" and batch_start carried nothing. Door: the
+    re-fired batch_start wake names its attempt and that the last
+    session wrote nothing. Open until night 74 measures it.
+

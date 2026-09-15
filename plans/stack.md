@@ -111,7 +111,12 @@ Rules:
 - Register after the survey wording (02:54 to 03:00): 20 reds, no stale;
   the old survey case is 5 of 5 on qwen3:8b now (it was the MODEL: amend
   prose red), and the spike's billing case is the twentieth.
-- Status 2026-09-15 03:01: reading the attempt path for batch_start.
+- Door (finding 76): a re-fired batch_start wake carries "attempt N of
+  3: the last session ended with nothing written and nothing committed",
+  from tick_attempts, as tests_failing does. Night 74 launched 03:03 on
+  sentence three, cold (survey.md and scheduler.py are in the warm
+  stamp's hard set).
+- Status 2026-09-15 03:07: night 74 onboarding on C:.
 
 ### 12. Night 71 on the SSD
 
