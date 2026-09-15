@@ -129,7 +129,7 @@ Rules:
   line it had to change (finding 77). Door: the note names the line the
   cut fell at and the call that fetches the rest. Night 75 launched
   warm on C: to measure it.
-- Status 2026-09-15 03:33: night 75 running sentence three.
+- Status 2026-09-15 03:28: night 75 running sentence three, warm on C:.
 
 ### 12. Night 71 on the SSD
 
