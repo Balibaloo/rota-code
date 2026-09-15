@@ -42,6 +42,11 @@ Rules:
   the frontier tick. Night 70 seeded the reference: onboarding 135
   wakes in 22 minutes, sentence two 42 in 10 (merged), sentence three
   44 in 12 (stuck). probes/progress.py, tested.
+- .rota tidied on Roman's word (01:25): 337 run databases and WAL files
+  from August to the tips walks deleted, 302 MB. Kept: night 70's
+  database as clickI_n70_merged.db, clickI_n42, the warm snapshot, the
+  register backup of 02:00 until the pack is verified, and the six tips
+  walks COMPLETION.md cites.
 - Status 2026-09-15 01:22: night 71 in sentence two on C:, warm, 19 wakes
   at 01:20 against 42; the progress file is live in the runs directory.
   Its page capture fix (bc8b573) landed after the walk started and
