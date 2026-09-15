@@ -160,7 +160,7 @@ Rules:
   some known reds are recordings of headless sessions. The Titan's
   server went down with the 3080's restart and is back with one slot;
   the twenty reds re-record on it with ROTA_REFRESH=1.
-- Status 2026-09-15 04:15: night 77 on the 3080, the reds re-recording
+- Status 2026-09-15 04:11: night 77 on the 3080, the reds re-recording
   on the Titan.
 
 ### 12. Night 71 on the SSD
