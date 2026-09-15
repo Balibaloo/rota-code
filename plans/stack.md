@@ -101,7 +101,17 @@ Rules:
   without the door): stuck at the fix loop after 87 steps. Night 73
   launched 02:38 on sentence three with the door, cold on C: (the graph
   changed), which also measures onboarding on the SSD.
-- Status 2026-09-15 02:40: night 73 onboarding on C:.
+- Night 73 (02:38 to 03:00, cold on C:, onboarding 15 minutes): sentence
+  three stuck at batch_start, earlier than 70 to 72. Three identical
+  22-turn Developer sessions: decorators.py read twenty times, no write,
+  two ledger calls refused with the exact fix, the verbatim-repeat cut.
+  At temperature zero a re-fired tick with the same wake is the same
+  session; tests_failing carries "attempt N" in its wake, batch_start
+  carries nothing (finding 76, next).
+- Register after the survey wording (02:54 to 03:00): 20 reds, no stale;
+  the old survey case is 5 of 5 on qwen3:8b now (it was the MODEL: amend
+  prose red), and the spike's billing case is the twentieth.
+- Status 2026-09-15 03:03: reading the attempt path for batch_start.
 
 ### 12. Night 71 on the SSD
 
