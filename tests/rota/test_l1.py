@@ -39,7 +39,19 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # cases were still reporting `8192 tokens evaluated against a 8192 window`
 # long after that was supposed to be impossible, and a prompt is truncated
 # from the front, where the role is told who it is.
-PINS = Pins(model=MODEL, temperature=0.0)
+# ROTA_PROFILE names a profile whose [think] table sets the think pin per
+# model (finding 81, 2026-09-15): the nights run qwen3.5:9b thinking, and
+# a column recorded with ROTA_PROFILE=local-gemma-critic measures that.
+# Without it the pin stays None and every earlier recording keeps its key.
+def _think_for(model: str):
+    name = os.environ.get("ROTA_PROFILE")
+    if not name:
+        return None
+    from rota.llm import profile as _profile
+    return (_profile.find(name).think or {}).get(model)
+
+
+PINS = Pins(model=MODEL, temperature=0.0, think=_think_for(MODEL))
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),
@@ -115,7 +127,7 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # ROTA_MODEL_FORCE=1 puts every case on ROTA_MODEL, pins included: a
     # benchmark column measures one model across the register.
     pinned = MODEL if os.environ.get("ROTA_MODEL_FORCE") else case.get("model", MODEL)
-    pins = Pins(model=pinned, temperature=0.0)
+    pins = Pins(model=pinned, temperature=0.0, think=_think_for(pinned))
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 
