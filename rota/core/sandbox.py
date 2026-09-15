@@ -655,6 +655,32 @@ def _quotes_span(source: str, text: str, n: int = 12) -> bool:
     return any(src[i:i + n] in msg for i in range(len(src) - n + 1))
 
 
+def _answer_evidence(ctx: api.Ctx, refs, text: str) -> None:
+    """The Tester's answer to a challenge quotes the criterion it stands on.
+
+    Only when the wake was a challenge: the trigger message's verb says so.
+    The answer's `text` must hold a verbatim span of a criterion named in
+    refs; the exit for a test that asserts more than its criterion is
+    `tests.encode`, and this door names it."""
+    trig = ctx.conn.execute(
+        "SELECT verb FROM messages WHERE id = ?", (getattr(ctx, "trigger", None),)).fetchone()
+    if not trig or trig["verb"] != "challenge":
+        return
+    crit = [(r, row["text"]) for r in (refs or [])
+            for row in [ctx.conn.execute("SELECT text FROM criteria WHERE id = ?", (r,)).fetchone()]
+            if row]
+    if not crit:
+        raise ValueError(
+            "an answer to a challenge names the criterion the test stands on "
+            "in refs, beside the test, and yours names no criterion")
+    if not any(_quotes_span(words or "", text) for _, words in crit):
+        raise ValueError(
+            f"an answer that keeps the test carries the criterion's words: "
+            f"quotes= copying the span of {crit[0][0]} your assertion comes "
+            f"from, verbatim. If the test asserts more than the criterion "
+            f"asks, the exit is tests.encode, not an answer")
+
+
 def _challenge_evidence(ctx: api.Ctx, recipient: str, refs, text: str) -> None:
     """
     A challenge quotes the thing it disputes.
@@ -1208,6 +1234,14 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # tester channel, quote the disputed row everywhere else.
         if verb == "challenge":
             _challenge_evidence(ctx, recipient, refs, text or "")
+        # The Tester's answer to a challenge pays the same reading. Night 80
+        # (2026-09-15): the answer said "the developer is right, the test
+        # asserts more than the criterion asks" and the test stood; the
+        # Developer then bent the code to it, fourteen writes, quarantine.
+        # An answer that keeps the test carries the criterion's words the
+        # assertion comes from; a concession is tests.encode (Roman).
+        if verb == "answer" and ctx.role == "tester":
+            _answer_evidence(ctx, refs, text or "")
         if verb in ("challenge", "escalate"):
             # And the same challenge twice is the same argument twice. S0
             # walk eight: nine rounds of challenge, answer, harness, with
@@ -1772,9 +1806,13 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         # A dict of labelled spans is the same thing with names on it.
         # qwen2.5:14b sent `quotes={"criterion": ..., "diff": ...}` and the
         # door crashed on `.split` instead of reading the spans (2026-09-09).
-        ann = "str | list | dict" if verb == "challenge" else "str"
+        ann = "str | list | dict" if verb == "challenge" or arg == "quotes" else "str"
+        # An answer's words are optional at the binder: the Tester answers
+        # questions as well as challenges, and only the answer to a challenge
+        # must quote the criterion (_answer_evidence reads the trigger).
+        default = " = None" if verb == "answer" else ""
         src = (
-            f"def send(refs: list[str], {arg}: {ann}, round_no: int = 0):\n"
+            f"def send(refs: list[str], {arg}: {ann}{default}, round_no: int = 0):\n"
             f"    if isinstance({arg}, dict):\n"
             f"        {arg} = ' ... '.join(str(v) for v in {arg}.values())\n"
             f"    if isinstance({arg}, list) and any(not str(x).strip() for x in {arg}):\n"

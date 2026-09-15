@@ -467,7 +467,8 @@ def test_a_tester_cannot_hold_a_test_whose_run_reached_stdin(db):
                allow=prompts.mode_tools("tester", "challenge"),
                wake=Wake("tester", "message", message_id="m1", refs=("m1",)))
     with pytest.raises(ValueError, match="cannot pass against any implementation"):
-        sb.call("msg.answer_developer", refs=["c1", "tst1"])
+        sb.call("msg.answer_developer", refs=["c1", "tst1"],
+                quotes="leaves its invoices in place")
 
 
 def test_a_commit_resets_the_failing_ticks_attempts(db):
@@ -1657,7 +1658,7 @@ def test_a_test_that_uses_a_printing_surfaces_return_value_logs_the_assumption(d
     # (night 45, 2026-09-14): the test reads what printed.
     sb.call("ledger.log", about_ref="c1", about_table="criteria",
             assumption="the test assumes echo_json returns what it prints")
-    with pytest.raises(ValueError, match="reads what printed"):
+    with pytest.raises(ValueError, match="says it prints"):
         sb.call("tests.encode", id="tst_r", criterion_id="c1", path="tests/test_r.py", body=body)
     printed = ("from script import echo_json" + chr(10) + "def test_x(capsys):" + chr(10)
                + "    echo_json({'a': 1})" + chr(10) + "    out = capsys.readouterr().out" + chr(10)

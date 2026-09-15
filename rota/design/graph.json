@@ -1368,7 +1368,8 @@
       "type": "messages",
       "v": "answer",
       "n": "test intent",
-      "rows": "single"
+      "rows": "single",
+      "prose": "quotes"
     },
     {
       "s": "tester",
@@ -1376,7 +1377,8 @@
       "type": "messages",
       "v": "answer",
       "n": "the test stands, and what in the criterion the assertion comes from",
-      "rows": "single"
+      "rows": "single",
+      "prose": "quotes"
     },
     {
       "s": "architect",

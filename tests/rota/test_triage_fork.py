@@ -194,3 +194,24 @@ def test_register_accepts_lowercase():
         sb.call("tests.encode", id="ts_raise", criterion_id="c1", path="tests/test_r.py", body=body)
     except ValueError as exc:
         assert "on a constant" not in str(exc), exc
+
+def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
+    """
+    Night 80 (2026-09-15): the Tester's answer to the Developer's challenge said
+    the developer is right and kept the test; the Developer bent the code to it.
+    An answer that keeps the test carries the criterion's words; a concession is
+    tests.encode (Roman)."""
+    from rota.roles import prompts
+    db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('ts1','b1','c1','tests/test_r.py','def test_x(): assert 1')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, status, round_no, seq) "
+               "VALUES ('m1','th1','developer','tester','challenge','[\"c1\", \"ts1\"]','open',0,1)")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="normal",
+               allow=prompts.mode_tools("tester", "challenge"))
+    sb.ctx.trigger = "m1"
+    with pytest.raises(ValueError, match="carries the criterion's words"):
+        sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
+                quotes="the developer is right, the test asserts more than the criterion asks")
+    out = sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
+                  quotes="the assertion comes from: stores the email lowercased")
+    assert out["to"] == "developer"
