@@ -173,6 +173,14 @@ the model. Step 2, routing a larger model, is not needed on this
 evidence. The register holds at 20 known reds, no stale. Sentence three
 runs on click for the first time as this is written; finding 42 is next.
 
+Update 2026-09-15 05:10. Finding 79: Ollama's default two slots halved
+num_ctx to 6146, and every session over that lost its brief, silently,
+since 2026-09-12. One slot now, both servers. Nights 73 to 76 on
+sentence three were headless sessions; night 77 with the full window
+took the challenge exit and fixed one test a round until the attempt
+cap. The register's reds re-recorded with the full window: 17, from 20.
+What remains on sentence three is judgement (findings 80 and the cap).
+
 The diagnosis. The doors that held were facts of the language: definitions,
 imports, spans, parse, cycles. Those are finite per language and hold on
 any repository. The stdin family was coaching: five clauses in two days on

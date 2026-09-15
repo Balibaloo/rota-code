@@ -174,8 +174,12 @@ Rules:
   different shape (finding 80). Judgement: the brief's one-criterion-
   per-reply line against five, and the fix loop's cap of three attempts
   while the Tester repairs one test a round. Both for Roman.
-- Status 2026-09-15 04:33: no night running; the reds re-recording on
-  the Titan.
+- The reds re-recorded with the full window (04:11 to 05:09): 17 red,
+  3 green. The three were headless recordings: the survey spike's
+  billing case, DV-give-the-new-parameters-defaults and
+  TE-challenge-an-unusable-item. The register holds at 17 known reds.
+- Status 2026-09-15 05:10: no night running; the next waits on Roman's
+  rulings on finding 80 and the attempt cap.
 
 ### 12. Night 71 on the SSD
 
