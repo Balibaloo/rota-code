@@ -10,11 +10,14 @@ them: `model.describe(account=<those sentences>)`. That account is a model
 row; the constraints below are the rest of it.
 
 Then one question, and it is a counterfactual: **what here could a maintainer
-rename, remove or change without anything in this repository failing — and who
-outside would break, with an error or in silence?** That is what a commitment
-looks like from inside: a key a user writes in files this repository never
-sees, an identifier another program reaches for, a name or version a registry
-knows this project by, a format something else parses.
+rename, remove or change without this area failing — and who outside the
+area would break, with an error or in silence?** Outside the area is another
+area of this repository that calls or imports it, a test that patches a name
+in it, a program that imports this package, a user who writes a key, a file
+or a format this area parses, a registry that knows this project by a name
+and a version. A commitment is a name at a place: a function and its
+parameters and their defaults, an exception a caller catches, a module-level
+name a caller patches, a helper two areas share, a name a package exports.
 
 Answer it in three lines before you write anything, for each candidate:
 
@@ -22,16 +25,13 @@ Answer it in three lines before you write anything, for each candidate:
     WHO BREAKS:    who outside this repository, by name
     WHAT HAPPENS:  the error they see, or the silence they do not
 
-A candidate whose WHO BREAKS is "a maintainer", "the tests" or "the build" is
-inside, and is not a constraint. So is anyone who would have to import or name
-an identifier from this repository to be affected — a type, a class, an
-exported function — whatever you call them: a user of a plugin writes notes,
-not its source, and a renamed type breaks nobody who never read it. What a
-user writes is a key, a value, a file name, a format; what a registry knows is
-an id and a version. A build script, a settings panel, a layout you would not
-have chosen — nobody outside notices if those change. Most areas hold none,
-and when the question has no answer you are finished, and this is the whole of
-what is left to do:
+A candidate whose WHO BREAKS is only "a maintainer" or "the build" is
+inside, and is not a constraint. A build script, a settings panel, a layout
+you would not have chosen — nobody outside notices if those change. Name
+the surface as `path::symbol` in the headline, and cite the line that keeps
+it in `source_refs`. An area with no caller, no test and no importer holds
+none, and when the question has no answer you are finished, and this is
+the whole of what is left to do:
 
     surveys.attest(outcome="none_found", citations=[the paths you read])
 

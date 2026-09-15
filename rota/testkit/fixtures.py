@@ -330,6 +330,17 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
                             problems.append(
                                 f"a {table} row without {f}: "
                                 f"{json.dumps(row, default=str)[:160]}")
+            # One of several values the rows must carry: the survey spike
+            # accepts any called symbol of the area as the surface, not one.
+            anyw = spec.get("text_includes_any") or [] if isinstance(spec, dict) else []
+            if anyw:
+                written = delta.rows.get(table, [])
+                blob = json.dumps(written, default=str) + " " + " ".join(
+                    v for row in written for v in row.values() if isinstance(v, str))
+                if not any(w in blob for w in anyw):
+                    problems.append(
+                        f"expected writes to {table} to carry one of {anyw}; "
+                        f"the rows carry {blob[:200]}")
             banned = spec.get("text_excludes") or [] if isinstance(spec, dict) else []
             if banned:
                 written = delta.rows.get(table, [])

@@ -2000,6 +2000,18 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"binds the grains it governs, and it cannot govern what nobody "
             f"opened -- `code.source` them first, or bind only what you read.")
 
+    # A survey's constraint binds a grain of the area it surveyed. The survey
+    # spike (2026-09-15, qwen3:8b, two wordings, ten sessions): every
+    # constraint came with no bindings, global by default, and so pointed at
+    # nothing a review could check. The brief said to bind; the tool now
+    # says it, with the area's paths in hand.
+    if ctx.area and not bindings:
+        raise ValueError(
+            f"a constraint from the survey of {ctx.area} binds the grain that "
+            f"keeps it: bindings=['{ctx.area}/<file>.py::<name>'], a path "
+            f"[code.area] printed and you opened. A commitment nobody can "
+            f"point at is not one; send the amend again with its bindings")
+
     # `source_refs` is the clause this constraint encodes, and the column has
     # existed all along: "constraints are where external obligations actually
     # land, so a constraint that cannot point at the clause it encodes is the

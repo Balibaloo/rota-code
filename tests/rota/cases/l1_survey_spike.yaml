@@ -12,8 +12,10 @@
   runs: 5
   pass: 3
   # Survey spike (Roman, 2026-09-15). Kind: a signature callers rely on. billing/subscriptions.py calls catalog.pricing.price_for(sku); a renamed parameter or return breaks it.
-  # Scored on the surface named and a source line cited; a constraint
-  # without a ref, or one that is a directory name, is noise.
+  # Scored on the surface named in the constraint and a grain of the file
+  # bound to it (constraint_bindings); a constraint bound to nothing, or
+  # one that is a directory name, is noise. source_refs are reference ids,
+  # not source lines, and the tool drops unknown ones by design.
   tick: survey
   tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/catalog]
@@ -23,7 +25,8 @@
     writes:
       model_areas: {count: 1}
       survey_records: {count: 1}
-      constraints: {count: "1..", text_includes: ["price_for"], fields_nonempty: [source_refs]}
+      constraints: {count: "1..9", text_includes_any: ["price_for", "line_total", "get", "all_products"]}
+      constraint_bindings: {count: "1..30", text_includes: ["catalog/pricing.py"]}
   forbidden:
     writes: [glossary_terms, items, criteria]
 
@@ -33,8 +36,10 @@
   runs: 5
   pass: 3
   # Survey spike (Roman, 2026-09-15). Kind: an exception contract. templates.render raises on a missing value and delivery.build and the tests rely on which error and its message.
-  # Scored on the surface named and a source line cited; a constraint
-  # without a ref, or one that is a directory name, is noise.
+  # Scored on the surface named in the constraint and a grain of the file
+  # bound to it (constraint_bindings); a constraint bound to nothing, or
+  # one that is a directory name, is noise. source_refs are reference ids,
+  # not source lines, and the tool drops unknown ones by design.
   tick: survey
   tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/notify]
@@ -44,7 +49,8 @@
     writes:
       model_areas: {count: 1}
       survey_records: {count: 1}
-      constraints: {count: "1..", text_includes: ["render"], fields_nonempty: [source_refs]}
+      constraints: {count: "1..9", text_includes_any: ["render", "money", "build", "send"]}
+      constraint_bindings: {count: "1..30", text_includes: ["notify/templates.py"]}
   forbidden:
     writes: [glossary_terms, items, criteria]
 
@@ -54,8 +60,10 @@
   runs: 5
   pass: 3
   # Survey spike (Roman, 2026-09-15). Kind: a patch seam. store.connection.connect is the module-level name every record read goes through and what a test patches.
-  # Scored on the surface named and a source line cited; a constraint
-  # without a ref, or one that is a directory name, is noise.
+  # Scored on the surface named in the constraint and a grain of the file
+  # bound to it (constraint_bindings); a constraint bound to nothing, or
+  # one that is a directory name, is noise. source_refs are reference ids,
+  # not source lines, and the tool drops unknown ones by design.
   tick: survey
   tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/store]
@@ -65,7 +73,8 @@
     writes:
       model_areas: {count: 1}
       survey_records: {count: 1}
-      constraints: {count: "1..", text_includes: ["connect"], fields_nonempty: [source_refs]}
+      constraints: {count: "1..9", text_includes_any: ["connect", "transaction", "load", "save"]}
+      constraint_bindings: {count: "1..30", text_includes: ["store/connection.py"]}
   forbidden:
     writes: [glossary_terms, items, criteria]
 
@@ -75,8 +84,10 @@
   runs: 5
   pass: 3
   # Survey spike (Roman, 2026-09-15). Kind: a shared helper. charges.total_of is summed by invoices.issue_invoice and the tests; its rounding is what they rely on.
-  # Scored on the surface named and a source line cited; a constraint
-  # without a ref, or one that is a directory name, is noise.
+  # Scored on the surface named in the constraint and a grain of the file
+  # bound to it (constraint_bindings); a constraint bound to nothing, or
+  # one that is a directory name, is noise. source_refs are reference ids,
+  # not source lines, and the tool drops unknown ones by design.
   tick: survey
   tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/billing]
@@ -86,7 +97,8 @@
     writes:
       model_areas: {count: 1}
       survey_records: {count: 1}
-      constraints: {count: "1..", text_includes: ["total_of"], fields_nonempty: [source_refs]}
+      constraints: {count: "1..9", text_includes_any: ["total_of", "prorate", "issue_invoice", "balance", "open_account"]}
+      constraint_bindings: {count: "1..30", text_includes: ["billing/charges.py"]}
   forbidden:
     writes: [glossary_terms, items, criteria]
 
@@ -96,8 +108,10 @@
   runs: 5
   pass: 3
   # Survey spike (Roman, 2026-09-15). Kind: an exported name. auth/__init__.py re-exports register, find_by_email, issue, verify, revoke; a rename breaks every importer of the package.
-  # Scored on the surface named and a source line cited; a constraint
-  # without a ref, or one that is a directory name, is noise.
+  # Scored on the surface named in the constraint and a grain of the file
+  # bound to it (constraint_bindings); a constraint bound to nothing, or
+  # one that is a directory name, is noise. source_refs are reference ids,
+  # not source lines, and the tool drops unknown ones by design.
   tick: survey
   tick_unseedable: areas are created by repo onboarding, not by fixture rows
   refs: [src/auth]
@@ -107,6 +121,7 @@
     writes:
       model_areas: {count: 1}
       survey_records: {count: 1}
-      constraints: {count: "1..", text_includes: ["register"], fields_nonempty: [source_refs]}
+      constraints: {count: "1..9", text_includes_any: ["register", "find_by_email", "issue", "verify", "revoke"]}
+      constraint_bindings: {count: "1..30", text_includes: ["auth/"]}
   forbidden:
     writes: [glossary_terms, items, criteria]

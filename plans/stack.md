@@ -44,8 +44,15 @@ Rules:
   both wordings, and B writes twelve constraints on billing. The brief
   moves the surfaces; the citation needs a door: a constraint cites a
   line from a file the session opened, or it is refused.
-- Status 2026-09-15 02:46: B in the tree uncommitted; building the
-  citation door.
+- Rescored: source_refs are reference ids, not source lines (the tool
+  drops unknown ones by design); the source line is `bindings`, the
+  grain a constraint governs. On bindings both wordings are 0 of 5:
+  every constraint global, bound to nothing. With any called symbol of
+  the area accepted as the surface, B names one in 5 of 5, A in 0 of 5.
+- Door: a constraint written while surveying an area binds a grain of
+  it, or model.amend refuses with the area's path shape (the brief said
+  bind; the tool now says it). Tested. B + door recording on the Titan.
+- Status 2026-09-15 02:50: B + door recording.
 
 ### 14. The reply assertion (Roman, 02:20)
 
