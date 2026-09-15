@@ -354,3 +354,13 @@ door or the brief that fixes them belongs to the writer's mode.
     thousand tokens. The model was answering a prompt with no brief in
     it. Fact of the server, not of the model or the wording.
 
+80. **Five criteria flood the reply.** Night 77 (2026-09-15, sentence
+    three, one slot): the Tester's tests_missing session sent sixty
+    encode and triage calls in one reply and was cut at the output
+    budget; its two challenge sessions sent one and twenty-four. One
+    test lands per session at most, and the Developer's fix loop reaches
+    its third attempt with four tests still wrong. The register's act
+    case (three criteria, one per reply) is 5 of 5; five criteria is a
+    shape the register does not hold. Judgement: the brief's line and
+    the attempt cap. For Roman.
+

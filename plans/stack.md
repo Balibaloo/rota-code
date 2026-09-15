@@ -167,8 +167,15 @@ Rules:
   wrong. Stuck on attempts, not on a loop: one test fixed per round,
   three rounds. The last Developer session judged the code already
   satisfies the criteria and committed nothing, which is right.
-- Status 2026-09-15 04:35: night 77 read; the reds re-recording on the
-  Titan.
+- The Tester's side of night 77: with five criteria it writes twenty
+  to sixty encode and triage calls in one reply and the reply is cut at
+  the output budget, so one test lands per session at most. The
+  register's act case has three criteria and passes; five is a
+  different shape (finding 80). Judgement: the brief's one-criterion-
+  per-reply line against five, and the fix loop's cap of three attempts
+  while the Tester repairs one test a round. Both for Roman.
+- Status 2026-09-15 04:36: no night running; the reds re-recording on
+  the Titan.
 
 ### 12. Night 71 on the SSD
 
