@@ -190,7 +190,7 @@ Rules:
   the case's blocks plus the expect page and 34 inherited tests. The
   flood is the load, not the brief; reading whether the 3080 offloads
   the 9B partially and differently each time.
-- Status 2026-09-15 05:21: no night running.
+- Status 2026-09-15 05:19: no night running.
 
 ### 12. Night 71 on the SSD
 
