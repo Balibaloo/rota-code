@@ -237,8 +237,13 @@ Rules:
   and not the Developer's build. The last mechanical lever is the
   6000-character result cap that cuts a 207-line function in two;
   sentence two's function fitted in one.
-- Status 2026-09-15 06:23: raising the cap for source spans; the acts column recording
-  on the 3080.
+- The acts column with the 9B thinking, on the 3080 (06:23 to 06:31):
+  the stream act, the edit inside a function, three and five criteria
+  one per reply, and act 3 (fix the code) all green. In isolation the
+  9B thinking does every act on the card the nights run on.
+- Door (finding 82): code.source renders whole up to 14000 characters.
+  Night 80 launched warm on C: to measure it on sentence three.
+- Status 2026-09-15 06:33: night 80 running sentence three.
 
 ### 12. Night 71 on the SSD
 
