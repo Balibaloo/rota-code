@@ -99,6 +99,29 @@ def new_id(prefix: str, conn: sqlite3.Connection | None = None,
 READONLY_VERBS = {"ask"}
 
 
+
+def routed_pins(conn: sqlite3.Connection, pins: "llm.Pins", wake: Wake) -> "llm.Pins":
+    """
+    The pins a wake's session runs with: the routed model for the role, and
+    the run's pins for that model. Rebuilding Pins from three fields dropped
+    every other pin on the way to a night; the profile's per-model think
+    (finding 81, 2026-09-15) is the one that mattered.
+    """
+    import dataclasses as _dc
+    routed = config_mod.routed_model(
+        config_mod.get(conn, "model_routing"), wake.kind, wake.role)
+    if not routed:
+        return pins
+    think = None
+    try:
+        from ..llm import profile as _profile
+        prof = _profile.of_run(conn)
+        think = (prof.think or {}).get(routed) if prof else None
+    except Exception:
+        think = None
+    return _dc.replace(pins, model=routed,
+                       think=think if think is not None else pins.think)
+
 def session_mode(wake: Wake) -> str:
     """
     Whether this session may write, decided by what woke it.
@@ -1500,10 +1523,7 @@ def run_session(
     # Passed only by tests that are testing the mode itself; every real caller
     # leaves it to the wake.
     mode = mode or session_mode(wake)
-    routed = config_mod.routed_model(
-        config_mod.get(conn, "model_routing"), wake.kind, wake.role)
-    if routed:
-        pins = llm.Pins(routed, pins.temperature, pins.num_ctx)
+    pins = routed_pins(conn, pins, wake)
 
     # Instructions = base + the piece for whatever woke this session. A role's
     # modes are enumerable from the graph, so which piece loads is derived rather

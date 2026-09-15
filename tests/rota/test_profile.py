@@ -149,3 +149,18 @@ def test_a_profile_can_turn_thinking_on_per_model():
     assert "think" in p.pins_for("tester").extras() and "think" not in p.pins_for("liaison").extras()
     assert p.to_dict()["think"] == {"qwen3.5:9b": True}
 
+def test_a_wake_runs_with_the_profiles_think_for_its_model(tmp_path):
+    """The runner rebuilt Pins from three fields and dropped the rest; the
+    profile's think for the routed model reaches the session now."""
+    from rota.core.runner import routed_pins
+    from rota.core.scheduler import Wake
+    from rota.llm import llm
+    db = init_db(tmp_path / "r.db")
+    P.bind(db, P.Profile.from_dict({"provider": {"kind": "ollama"},
+                                    "models": {"default": "qwen3:8b", "tester": "qwen3.5:9b"},
+                                    "think": {"qwen3.5:9b": True}}, name="t"))
+    tester = routed_pins(db, llm.Pins(model="qwen3:8b"), Wake("tester", "tick:tests_missing"))
+    liaison = routed_pins(db, llm.Pins(model="qwen3:8b"), Wake("liaison", "tick:agenda"))
+    assert tester.model == "qwen3.5:9b" and tester.think is True
+    assert liaison.model == "qwen3:8b" and liaison.think is None
+
