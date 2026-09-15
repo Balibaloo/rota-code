@@ -178,8 +178,11 @@ Rules:
   3 green. The three were headless recordings: the survey spike's
   billing case, DV-give-the-new-parameters-defaults and
   TE-challenge-an-unusable-item. The register holds at 17 known reds.
-- Status 2026-09-15 05:10: no night running; the next waits on Roman's
-  rulings on finding 80 and the attempt cap.
+- Finding 80 measured: a five-criteria act case (one per reply) is 5 of
+  5 on the 9B in isolation, beside the three-criteria one on the same
+  load. The count is not the wall; night 77's flood comes from the
+  wake's content on click. Reading what that wake carries.
+- Status 2026-09-15 05:14: no night running.
 
 ### 12. Night 71 on the SSD
 

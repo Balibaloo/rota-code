@@ -364,3 +364,8 @@ door or the brief that fixes them belongs to the writer's mode.
     shape the register does not hold. Judgement: the brief's line and
     the attempt cap. For Roman.
 
+    Measured (05:13): ACT-TS-five-criteria-one-per-reply, five prorate
+    criteria on the sample repository, is 5 of 5 on qwen3.5:9b beside the
+    three-criteria act on one load. Five is not the wall; the night's
+    wake on click carries something the case does not.
+
