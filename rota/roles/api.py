@@ -4603,7 +4603,12 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     # changed since the run are a fact of the worktree, so the row says
     # them. Nothing is said when nothing changed.
     from ..core import worktrees as _wt
-    root = _worktree_of(ctx, bid)
+    try:
+        root = _worktree_of(ctx, bid)
+    except Exception:
+        # No project root or worktree (a synthetic fixture): the
+        # changed-since fact has nothing to read and says nothing.
+        root = None
     # The harness materialises the batch's tests into the worktree at run
     # time and the Developer's commits leave them out, so a test file is
     # the harness's furniture, not a change.
@@ -4614,7 +4619,7 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         if row.get("last_result") in (None, "pass"):
             continue
         if sha not in seen:
-            seen[sha] = [p for p in _wt.changed_since(root, sha)
+            seen[sha] = [p for p in (_wt.changed_since(root, sha) if root else [])
                          if _grain_path(p) not in furniture]
         if seen[sha]:
             row["changed since this run, not run"] = seen[sha]

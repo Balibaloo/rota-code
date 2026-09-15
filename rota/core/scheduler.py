@@ -319,7 +319,19 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
                        "AND wake_kind = 'tick:batch_start' AND committed = 1 "
                        "AND wake_refs LIKE ?",
                        (f'%"{r["id"]}"%',)).fetchone()]
-        return [Wake("developer", "tick:batch_start", refs=(stalled[0],))] if stalled else []
+        if not stalled:
+            return []
+        # A re-fire at temperature zero with the same wake is the same
+        # session again. Night 73 (2026-09-15): three identical 22-turn
+        # sessions at batch_start, no write, quarantined. The attempt count
+        # is a fact of this table and the wake carries it, as tests_failing
+        # does, so the second session is not the first one verbatim.
+        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                           (f"developer|tick:batch_start|{stalled[0]}",)).fetchone()
+        n = int(row["attempts"]) + 1 if row else 2
+        return [Wake("developer", "tick:batch_start", refs=(stalled[0],),
+                     detail=f"attempt {n} of 3: the last session ended with "
+                            f"nothing written and nothing committed")]
 
     candidates = [r["id"] for r in conn.execute(
         "SELECT b.id AS id FROM batches b JOIN items i ON i.id = b.item_id "
