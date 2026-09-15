@@ -210,11 +210,11 @@ Rules:
   model; local-gemma-critic thinks for qwen3.5:9b. Night 78 launched
   cold on C: (the profile is in the hard set) to measure it on sentence
   three. The 9B's register cases re-record with the pin after.
-- Night 78 killed at 05:44: the runner rebuilt a wake's pins from
+- Night 78 killed at 05:41: the runner rebuilt a wake's pins from
   three fields and dropped the rest, so the pin never left the
   profile. `routed_pins` carries the profile's think for the routed
   model, tested. Night 79 launched cold on C: with it.
-- Status 2026-09-15 05:47: night 79 onboarding.
+- Status 2026-09-15 05:42: night 79 onboarding, cold on C:.
 
 ### 12. Night 71 on the SSD
 
