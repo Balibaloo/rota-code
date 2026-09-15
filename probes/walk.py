@@ -83,6 +83,7 @@ class Principal:
     name = "walk"
 
     def respond(self, ask):
+        global _last_page
         head = ask.rendered.splitlines()[0] if ask.rendered else ask.verb
         if ask.verb in ("confirm", "present"):
             if WORDS:

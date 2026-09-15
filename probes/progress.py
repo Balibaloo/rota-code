@@ -84,8 +84,18 @@ def render(run: str, phase: str, n0: int = 0, t0: float | None = None,
     minutes = (time.time() - t0) / 60 if t0 else 0.0
     stage = _stage(conn, last)
     # attempts on the frontier tick: the scheduler's own count
-    tries = conn.execute("SELECT tick_key, attempts, quarantined FROM tick_attempts "
-                         "WHERE attempts > 0 ORDER BY attempts DESC, rowid DESC LIMIT 1").fetchone()         if conn.execute("SELECT name FROM sqlite_master WHERE name = 'tick_attempts'").fetchone() else None
+    # attempts on the frontier tick: the scheduler's count for the tick that
+    # fired last; a quarantined tick from an earlier phase is not the frontier
+    tries = None
+    if conn.execute("SELECT name FROM sqlite_master WHERE name = 'tick_attempts'").fetchone():
+        if last and last["wake_kind"].startswith("tick:"):
+            tries = conn.execute("SELECT tick_key, attempts, quarantined FROM tick_attempts "
+                                 "WHERE tick_key LIKE ? ORDER BY rowid DESC LIMIT 1",
+                                 (f"%|{last['wake_kind']}|%",)).fetchone()
+        if tries is None:
+            tries = conn.execute("SELECT tick_key, attempts, quarantined FROM tick_attempts "
+                                 "WHERE attempts > 0 AND quarantined = 0 "
+                                 "ORDER BY attempts DESC, rowid DESC LIMIT 1").fetchone()
     ref = reference(run)
     refs = {k: v for k, v in ref.items() if k.startswith(phase + " /")}
     # the reference for this phase: prefer the outcome that ends the phase well
