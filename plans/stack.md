@@ -217,7 +217,7 @@ Rules:
 - The register's think column: ROTA_PROFILE=local-gemma-critic sets the
   pin per model in the harness (cc1a791); the five acts and act 3
   record with the 9B thinking on the Titan now.
-- Status 2026-09-15 05:50: night 79 onboarding on C:; the acts recording
+- Status 2026-09-15 05:44: night 79 onboarding on C:; the acts recording
   on the Titan.
 
 ### 12. Night 71 on the SSD
