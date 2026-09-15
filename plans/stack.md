@@ -147,7 +147,15 @@ Rules:
   tokens (num_ctx 12288 split over two parallel slots), 208 times in
   its log; the fix sessions run 7 to 12 thousand tokens and lose the
   brief (finding 79). The wall of nights 73 to 76 is the server.
-- Status 2026-09-15 04:08: reading the server's settings for the fix.
+- Fixed 04:10: OLLAMA_NUM_PARALLEL=1 as a user environment variable,
+  the 3080's Ollama app restarted, the 9B loads with context_length
+  12288; the Titan launcher pins one slot too. The runner's truncation
+  flag now also fires when the prompt's estimated tokens exceed
+  num_ctx, so a cut session says so instead of running headless. A
+  session over 12k tokens still loses its head: the fix wake with five
+  red tests ran 12.6k on one turn; num_ctx or the pushes budget is
+  Roman's call. Night 77 launched warm on C: with the full window.
+- Status 2026-09-15 04:14: night 77 running sentence three.
 
 ### 12. Night 71 on the SSD
 

@@ -15,6 +15,10 @@ param(
     [int]$Port = 11435,
     [string]$Log = "$env:TEMP\ollama-titan.log"
 )
+# One slot: Ollama defaults to two parallel slots and splits num_ctx between
+# them, so 12288 became 6146 and the brief fell off every long session
+# (finding 79, 2026-09-15: "truncating input prompt" 208 times in the log).
+$env:OLLAMA_NUM_PARALLEL = "1"
 $env:OLLAMA_VULKAN = "0"
 $env:CUDA_VISIBLE_DEVICES = $Gpu
 $env:OLLAMA_HOST = "127.0.0.1:$Port"

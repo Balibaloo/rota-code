@@ -392,7 +392,14 @@ class OllamaBackend:
         # ever say so — the session just behaves as though it had been briefed
         # differently, which is indistinguishable from a role misbehaving.
         used = body.get("prompt_eval_count") or 0
-        truncated = used >= pins.num_ctx * 0.98
+        # The server can also cut from the front and report a count far
+        # below the window: Ollama's two default slots split num_ctx
+        # (finding 79, 2026-09-15: limit 6146 of 12288, 208 sessions cut,
+        # the brief gone first). An estimate of the prompt's tokens against
+        # the window catches that shape; chars over 3.5 is within a fifth
+        # for these models and errs toward saying so.
+        estimate = int((len(system) + len(user)) / 3.5)
+        truncated = used >= pins.num_ctx * 0.98 or estimate > pins.num_ctx
 
         message = body.get("message", {}) or {}
         native = []
