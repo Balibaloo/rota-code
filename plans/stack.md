@@ -42,7 +42,7 @@ Rules:
   the frontier tick. Night 70 seeded the reference: onboarding 135
   wakes in 22 minutes, sentence two 42 in 10 (merged), sentence three
   44 in 12 (stuck). probes/progress.py, tested.
-- Status 2026-09-15 01:23: night 71 in sentence two on C:, warm, 19 wakes
+- Status 2026-09-15 01:22: night 71 in sentence two on C:, warm, 19 wakes
   at 01:20 against 42; the progress file is live in the runs directory.
   Its page capture fix (bc8b573) landed after the walk started and
   shows from night 72.
