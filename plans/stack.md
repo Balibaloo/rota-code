@@ -281,7 +281,12 @@ Rules:
   Suites green. The register replays; night 81 runs sentence three
   cold on C: (the graph changed). (3) waits on the other session's
   spike.
-- Status 2026-09-15 23:50: night 81 launching; register replaying.
+- Register after the two calls (23:48 to 23:55): 16 known reds, no stale;
+  hold-a-test-that-is-right re-recorded 5/5 with quotes=; fix-a-test-that-
+  asserts-more stays 0/5 (the Tester quotes the criterion and keeps the
+  test: the door blocks a concession, not a wrong defence).
+- Status 2026-09-15 23:58: night 81 onboarding cold on C: (both Ollama
+  servers were down at 23:48 and are up again).
 
 ### 12. Night 71 on the SSD
 
