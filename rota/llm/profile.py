@@ -50,6 +50,9 @@ class Profile:
     pins: dict = field(default_factory=dict)
     default_model: str = llm.DEFAULT_MODEL
     roles: dict = field(default_factory=dict)
+    # Thinking per model, `[think]` in the file: "qwen3.5:9b" = true. A
+    # pin the model's sessions carry (finding 81, 2026-09-15).
+    think: dict = field(default_factory=dict)
     native_tools: bool = False
     # Models that live on their own server: model -> {"endpoint", "timeout",
     # "extra_body"}. Each is reached through LiteLLM at that endpoint; every
@@ -85,6 +88,7 @@ class Profile:
             pins=pins,
             default_model=str(default),
             roles={str(k): str(v) for k, v in roles.items()},
+            think={str(k): bool(v) for k, v in (d.get("think") or {}).items()},
             native_tools=bool(d.get("native_tools", False)),
             endpoints=cls._endpoints_of(d),
             source=source,
@@ -118,6 +122,7 @@ class Profile:
         """JSON-serialisable and complete; what the run stores."""
         return {
             "name": self.name,
+            "think": dict(self.think),
             "provider": {"kind": self.provider, "endpoint": self.endpoint,
                          "api_key_env": self.api_key_env, "timeout": self.timeout,
                          "keep_alive": self.keep_alive, "budget_usd": self.budget_usd},
@@ -142,7 +147,12 @@ class Profile:
         return self.roles.get(role or "", self.default_model)
 
     def pins_for(self, role: str | None) -> llm.Pins:
-        return llm.Pins(model=self.model_for(role), **self.pins).check()
+        model = self.model_for(role)
+        pins = dict(self.pins)
+        think = (self.think or {}).get(model)
+        if think is not None and "think" not in pins:
+            pins["think"] = bool(think)
+        return llm.Pins(model=model, **pins).check()
 
     def routing(self) -> str:
         """The `model_routing` string the runner already understands."""

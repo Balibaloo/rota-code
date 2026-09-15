@@ -63,6 +63,12 @@ class Pins:
     top_p: float | None = None
     seed: int | None = None
     repeat_penalty: float | None = None
+    # Thinking on or off. None is the provider's default and the runner's
+    # off; a set value keys the recording, like every other pin that is set.
+    # Finding 81 (2026-09-15): qwen3.5:9b on the 3080 with thinking off
+    # answered a Tester wake with 34k characters of prose and no call, and
+    # with thinking on in ten calls; on the Titan it works either way.
+    think: bool | None = None
 
     def with_prompt(self, prompt: str) -> "Pins":
         import dataclasses
@@ -75,13 +81,15 @@ class Pins:
             "num_ctx": self.num_ctx, "prompt_hash": self.prompt_hash,
             "max_tokens": self.max_tokens, "top_p": self.top_p,
             "seed": self.seed, "repeat_penalty": self.repeat_penalty,
+            "think": self.think,
         }
 
     def extras(self) -> dict:
         """The optional pins that are set. Empty for the original three."""
         return {k: v for k, v in (("max_tokens", self.max_tokens),
                                   ("top_p", self.top_p), ("seed", self.seed),
-                                  ("repeat_penalty", self.repeat_penalty))
+                                  ("repeat_penalty", self.repeat_penalty),
+                                  ("think", self.think))
                 if v is not None}
 
     def check(self) -> "Pins":
@@ -338,7 +346,7 @@ class OllamaBackend:
             # tokens at the acting register's expense -- measured at 0.1
             # visible tok/s on the bench. The system speaks in acts, so
             # thinking is off; a template that ignores the flag is unharmed.
-            "think": False,
+            "think": pins.think if pins.think is not None else False,
             "options": self.options(pins),
             "messages": [
                 {"role": "system", "content": system},

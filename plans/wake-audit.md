@@ -369,3 +369,13 @@ door or the brief that fixes them belongs to the writer's mode.
     three-criteria act on one load. Five is not the wall; the night's
     wake on click carries something the case does not.
 
+81. **Thinking off floods on the 3080.** The same Tester wake, verbatim,
+    through the runner's own backend: the 3080 answers with 34,000
+    characters of prose and no call, twice identically; the Titan with
+    five calls in 294 characters, twice. On the 3080 the knob is
+    `think: false`: with it, prose; with thinking on, ten calls. Flash
+    attention off on the 3080 is not viable (the 9B takes the whole 10
+    GB and one reply did not come in ten minutes). Door: thinking is a
+    pin the profile sets per model, on for qwen3.5:9b. Open until night
+    78 measures it; the register's 9B cases re-record with the pin.
+

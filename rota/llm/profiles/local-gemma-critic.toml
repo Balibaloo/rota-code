@@ -19,3 +19,9 @@ tester = "qwen3.5:9b"
 critic = "gemma3:12b"
 terminologist = "qwen3.5:9b"
 developer = "qwen3.5:9b"
+
+# Thinking on for the 9B. Finding 81 (2026-09-15): on the 3080 with thinking
+# off it answered a Tester wake with 34k characters of prose and no call;
+# with thinking on, ten calls. The 8B and gemma3 keep the runner's default.
+[think]
+"qwen3.5:9b" = true

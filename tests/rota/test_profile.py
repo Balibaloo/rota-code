@@ -136,3 +136,16 @@ def test_a_model_on_its_own_endpoint_is_reached_there_and_only_there():
     # Round trip: what the run stores loads back to the same profile.
     assert Profile.from_dict(p.to_dict(), name="mixed").endpoints == p.endpoints
 
+def test_a_profile_can_turn_thinking_on_per_model():
+    """Finding 81 (2026-09-15): qwen3.5:9b on the 3080 with thinking off wrote
+    prose and no call; with thinking on it called. The [think] table sets it
+    per model, and the pin keys the recording only when it is set."""
+    from rota.llm.profile import Profile
+    p = Profile.from_dict({"provider": {"kind": "ollama"},
+                           "models": {"default": "qwen3:8b", "tester": "qwen3.5:9b"},
+                           "think": {"qwen3.5:9b": True}}, name="t")
+    assert p.pins_for("tester").think is True
+    assert p.pins_for("liaison").think is None
+    assert "think" in p.pins_for("tester").extras() and "think" not in p.pins_for("liaison").extras()
+    assert p.to_dict()["think"] == {"qwen3.5:9b": True}
+

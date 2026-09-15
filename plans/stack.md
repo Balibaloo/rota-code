@@ -205,7 +205,12 @@ Rules:
   Cost: about 600 tokens of thinking a turn. The register's 9B
   cassettes were recorded with think off on the Titan, where it works;
   they re-record with the pin.
-- Status 2026-09-15 05:42: reverting flash attention; building the pin.
+- The think pin (finding 81): `Pins.think`, None by default so no
+  recording's key moves; the profile's `[think]` table sets it per
+  model; local-gemma-critic thinks for qwen3.5:9b. Night 78 launched
+  cold on C: (the profile is in the hard set) to measure it on sentence
+  three. The 9B's register cases re-record with the pin after.
+- Status 2026-09-15 05:48: night 78 onboarding.
 
 ### 12. Night 71 on the SSD
 
