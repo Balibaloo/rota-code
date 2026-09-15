@@ -4078,10 +4078,12 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         # moved inside a comparison and the guard on the bare call missed it.
         if any(isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
                and n.func.id == "print" for n in _ast.walk(a.test)):
+            # The fact and no recipe (Roman, 2026-09-15: the capsys clause
+            # was the stdin family again; night 80's Tester wrote the shape
+            # it was handed and no command ran).
             raise Wall(
-                "`assert print(...)` is always False -- print returns None. "
-                "Capture what was printed (capsys.readouterr().out) and "
-                "assert on that, or assert on the value the function returns")
+                "`assert print(...)` is always False: print returns None, so "
+                "the assertion compares None")
         # `mock_x.called_with(...)` -- not a real Mock method. Mock invents
         # an attribute for any name asked of it, so this silently returns a
         # new mock (always true) instead of raising AttributeError; the
@@ -4463,10 +4465,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         if says_prints and not says_returns and own_prints:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion "
-                f"{criterion_id} says it prints. A test of what prints reads "
-                f"what printed: def test_x(capsys): {uses_return}(...); "
-                f"out = capsys.readouterr().out; assert ... on out. Send the "
-                f"encode again that way")
+                f"{criterion_id} says it prints")
         if says_prints and not says_returns:
             raise ValueError(
                 f"the test uses what {uses_return} returns, and the criterion, "
@@ -4475,8 +4474,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"logged where it is made: ledger.log(about_ref={criterion_id!r}, "
                 f"about_table='criteria', assumption=\"the test assumes "
                 f"{uses_return} returns what it prints\") -- then send this "
-                f"encode again unchanged. Or assert on what it prints, with "
-                f"capsys")
+                f"encode again unchanged. Or assert on what it prints")
 
     invented = _invented_literals(ctx, criterion_id, tree)
     if invented:
