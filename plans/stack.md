@@ -42,7 +42,7 @@ Rules:
   the frontier tick. Night 70 seeded the reference: onboarding 135
   wakes in 22 minutes, sentence two 42 in 10 (merged), sentence three
   44 in 12 (stuck). probes/progress.py, tested.
-- Status 2026-09-15 01:24: night 71 launched warm on C: with the
+- Status 2026-09-15 01:19: night 71 launched warm on C: with the
   progress file at C:/Users/roman/rota_night/state/progress_clickI.md.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
