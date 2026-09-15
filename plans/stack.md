@@ -15,6 +15,23 @@ Rules:
 
 ## Stack
 
+### 15. The survey spike (Roman, 02:30)
+
+- Why: the survey wrote 22 constraints named after directories, and
+  everything downstream (the review filing against `termui`, the
+  Developer unable to act, the escalation) inherited them. The brief
+  asks "who outside this repository breaks" and rules importers out,
+  which is the right question for an application and the wrong one for
+  a library, whose outside is its importers. Is the wall the brief?
+- How: five register cases on the sample repository, one kind each (a
+  signature callers rely on, an exception contract, a patch seam, a
+  shared helper, an exported name), scored on the surface named and a
+  source line cited (`fields_nonempty: [source_refs]`, new in the
+  harness). Wording A as shipped, then wording B (outside the area:
+  callers, tests that patch, importers of the package; name the surface
+  as path::symbol), both on one Titan load of qwen3:8b.
+- Status 2026-09-15 02:40: wording A recording; B drafted.
+
 ### 14. The reply assertion (Roman, 02:20)
 
 - Why: finding 73 was data without an assertion. Every asking edge in
@@ -41,7 +58,11 @@ Rules:
   append span. Measured on the next sentence-three run.
 - Door committed (ef06e79); the register after it: 20 reds, all known,
   no stale (02:07).
-- Status 2026-09-15 02:08: night 72 running sentence three, warm on C:.
+- Night 72 (01:59 to 02:36, the peer's, sentence three, tree of 01:59
+  without the door): stuck at the fix loop after 87 steps. Night 73
+  launched 02:38 on sentence three with the door, cold on C: (the graph
+  changed), which also measures onboarding on the SSD.
+- Status 2026-09-15 02:40: night 73 onboarding on C:.
 
 ### 12. Night 71 on the SSD
 

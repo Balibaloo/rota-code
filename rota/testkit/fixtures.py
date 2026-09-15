@@ -317,8 +317,19 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
                     problems.append(
                         f"expected writes to {table} to carry {missing}; "
                         f"the rows carry {blob[:200]}")
-            # A value the written rows must not carry: the approval a
-            # part-approval withheld (seat2, "approve 6 only", 2026-09-12).
+            # A field every written row must carry non-empty: the survey
+            # spike (2026-09-15) scores a constraint by whether it cites a
+            # source line, so a row with source_refs '[]' is noise.
+            fields = spec.get("fields_nonempty") or [] if isinstance(spec, dict) else []
+            if fields:
+                written = delta.rows.get(table, [])
+                for row in written:
+                    for f in fields:
+                        v = row.get(f)
+                        if v in (None, "", "[]", "{}", []):
+                            problems.append(
+                                f"a {table} row without {f}: "
+                                f"{json.dumps(row, default=str)[:160]}")
             banned = spec.get("text_excludes") or [] if isinstance(spec, dict) else []
             if banned:
                 written = delta.rows.get(table, [])

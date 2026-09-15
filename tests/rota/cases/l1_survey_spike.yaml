@@ -1,0 +1,112 @@
+# The survey spike (Roman, 2026-09-15): does the survey brief make the model
+# write constraints that bind? Five areas of the sample repository, one kind
+# each: a signature callers rely on, an exception contract, a patch seam, a
+# shared helper, an exported name. Pass: a constraint names the surface and
+# cites a source line. The wording under test is the brief's 'who outside
+# this repository breaks', which rules importers out; for a library the
+# importers are the outside.
+
+- id: L1-AR-survey-a-signature-callers-rely-on
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  # Survey spike (Roman, 2026-09-15). Kind: a signature callers rely on. billing/subscriptions.py calls catalog.pricing.price_for(sku); a renamed parameter or return breaks it.
+  # Scored on the surface named and a source line cited; a constraint
+  # without a ref, or one that is a directory name, is noise.
+  tick: survey
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/catalog]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      model_areas: {count: 1}
+      survey_records: {count: 1}
+      constraints: {count: "1..", text_includes: ["price_for"], fields_nonempty: [source_refs]}
+  forbidden:
+    writes: [glossary_terms, items, criteria]
+
+- id: L1-AR-survey-an-exception-contract
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  # Survey spike (Roman, 2026-09-15). Kind: an exception contract. templates.render raises on a missing value and delivery.build and the tests rely on which error and its message.
+  # Scored on the surface named and a source line cited; a constraint
+  # without a ref, or one that is a directory name, is noise.
+  tick: survey
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/notify]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      model_areas: {count: 1}
+      survey_records: {count: 1}
+      constraints: {count: "1..", text_includes: ["render"], fields_nonempty: [source_refs]}
+  forbidden:
+    writes: [glossary_terms, items, criteria]
+
+- id: L1-AR-survey-a-patch-seam
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  # Survey spike (Roman, 2026-09-15). Kind: a patch seam. store.connection.connect is the module-level name every record read goes through and what a test patches.
+  # Scored on the surface named and a source line cited; a constraint
+  # without a ref, or one that is a directory name, is noise.
+  tick: survey
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/store]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      model_areas: {count: 1}
+      survey_records: {count: 1}
+      constraints: {count: "1..", text_includes: ["connect"], fields_nonempty: [source_refs]}
+  forbidden:
+    writes: [glossary_terms, items, criteria]
+
+- id: L1-AR-survey-a-shared-helper
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  # Survey spike (Roman, 2026-09-15). Kind: a shared helper. charges.total_of is summed by invoices.issue_invoice and the tests; its rounding is what they rely on.
+  # Scored on the surface named and a source line cited; a constraint
+  # without a ref, or one that is a directory name, is noise.
+  tick: survey
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/billing]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      model_areas: {count: 1}
+      survey_records: {count: 1}
+      constraints: {count: "1..", text_includes: ["total_of"], fields_nonempty: [source_refs]}
+  forbidden:
+    writes: [glossary_terms, items, criteria]
+
+- id: L1-AR-survey-an-exported-name
+  tier: T1
+  role: architect
+  runs: 5
+  pass: 3
+  # Survey spike (Roman, 2026-09-15). Kind: an exported name. auth/__init__.py re-exports register, find_by_email, issue, verify, revoke; a rename breaks every importer of the package.
+  # Scored on the surface named and a source line cited; a constraint
+  # without a ref, or one that is a directory name, is noise.
+  tick: survey
+  tick_unseedable: areas are created by repo onboarding, not by fixture rows
+  refs: [src/auth]
+  repo:
+    onboard: true
+  expect:
+    writes:
+      model_areas: {count: 1}
+      survey_records: {count: 1}
+      constraints: {count: "1..", text_includes: ["register"], fields_nonempty: [source_refs]}
+  forbidden:
+    writes: [glossary_terms, items, criteria]
