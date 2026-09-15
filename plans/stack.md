@@ -285,7 +285,7 @@ Rules:
   hold-a-test-that-is-right re-recorded 5/5 with quotes=; fix-a-test-that-
   asserts-more stays 0/5 (the Tester quotes the criterion and keeps the
   test: the door blocks a concession, not a wrong defence).
-- Status 2026-09-15 23:58: night 81 onboarding cold on C: (both Ollama
+- Status 2026-09-15 23:55: night 81 onboarding cold on C: (both Ollama
   servers were down at 23:48 and are up again).
 
 ### 12. Night 71 on the SSD
