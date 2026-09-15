@@ -174,7 +174,7 @@ Rules:
   different shape (finding 80). Judgement: the brief's one-criterion-
   per-reply line against five, and the fix loop's cap of three attempts
   while the Tester repairs one test a round. Both for Roman.
-- Status 2026-09-15 04:36: no night running; the reds re-recording on
+- Status 2026-09-15 04:33: no night running; the reds re-recording on
   the Titan.
 
 ### 12. Night 71 on the SSD
