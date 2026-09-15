@@ -52,7 +52,15 @@ Rules:
   minutes, the same time as on the HDD: the sentence phase is the
   model's, the disk's cost sits in onboarding, unmeasured tonight
   (warm). Sentence three runs now against night 70's 44-step stuck.
-- Status 2026-09-15 01:31: sentence three on C:.
+- Night 71 (01:19, warm on C:): sentence two MERGED again at 302f8be,
+  42 steps and 33 sessions in 10.5 minutes, the one finding escalated
+  and satisfied as on night 70. Two samples on the shipped profile.
+  Sentence two is model-bound, so the SSD gained nothing there; the
+  onboarding gain is measured on the next cold night on C:.
+- The reference file counts sessions, not the log's steps; night 71's
+  33 replaces the seeded 42 for sentence two.
+- Status 2026-09-15 01:32: night 71 in sentence three on C:; the slim
+  table is live at .rota/progress.md.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
