@@ -181,7 +181,14 @@ Rules:
   (finding 75, judgement, for Roman).
 - A night 73 started at 02:36 on C:, cold, not launched by me; asked
   the peer. Night 72's data is in clickI_prev.db on C:.
-- Status 2026-09-15 02:38: night 73 running (launcher unknown).
+- Night 73 (02:36 to 03:00, cold: the graph changed under the peer's
+  survey spike, frame 15) was the peer's; its sentence three stuck at
+  batch_start, the Developer looping on a ledger.log refusal without a
+  write. Finding 75's mechanical half is in: the tool-call scanner
+  reads triple quotes as one token on a second pass, so the form the
+  refusal recommends parses with a lone quote inside.
+- Status 2026-09-15 03:12: no night running; waiting on the peer's word
+  about the 3080 and the C: runs directory.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
