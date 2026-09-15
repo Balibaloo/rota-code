@@ -131,8 +131,15 @@ def render(run: str, phase: str, n0: int = 0, t0: float | None = None,
 
 
 def write(run: str, phase: str, n0: int = 0, t0: float | None = None, last_page: str = "") -> Path:
+    """The run's own file in the runs directory, and one fixed path in the
+    repository's .rota for the current run, whatever ROTA_RUNS is (Roman,
+    2026-09-15: "so I can always see the current run")."""
+    text = render(run, phase, n0, t0, last_page)
     out = RUNS / f"progress_{run}.md"
-    out.write_text(render(run, phase, n0, t0, last_page), encoding="utf-8")
+    out.write_text(text, encoding="utf-8")
+    current = REPO / ".rota" / "progress.md"
+    current.parent.mkdir(parents=True, exist_ok=True)
+    current.write_text(text, encoding="utf-8")
     return out
 
 
