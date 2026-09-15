@@ -192,7 +192,9 @@ Rules:
   write. Finding 75's mechanical half is in: the tool-call scanner
   reads triple quotes as one token on a second pass, so the form the
   refusal recommends parses with a lone quote inside.
-- Status 2026-09-15 03:03: no night running; waiting on the peer's word
+- Register after the parser rescan (03:03 to 03:09): 20 reds, all known,
+  no stale, 97 green (the peer's survey cases are in the count now).
+- Status 2026-09-15 03:10: no night running; waiting on the peer's word
   about the 3080 and the C: runs directory.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
