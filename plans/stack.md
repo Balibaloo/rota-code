@@ -210,7 +210,7 @@ Rules:
   model; local-gemma-critic thinks for qwen3.5:9b. Night 78 launched
   cold on C: (the profile is in the hard set) to measure it on sentence
   three. The 9B's register cases re-record with the pin after.
-- Status 2026-09-15 05:48: night 78 onboarding.
+- Status 2026-09-15 05:39: night 78 onboarding, cold on C:.
 
 ### 12. Night 71 on the SSD
 
