@@ -69,9 +69,14 @@ Rules:
   way; night 72 measures the door.
 - Register after the surface door (01:34 to 01:39): 20 reds, all known,
   no stale; the Critic answer mode's new case recorded 5/5 (cb53120).
-- Status 2026-09-15 01:42: night 71 in sentence three on C:, the
-  Developer's escalation with the Architect; the slim table is live at
-  .rota/progress.md.
+- Night 71's sentence three (01:30 to 01:58): the Developer escalated,
+  the Vision Keeper was challenged and proposed, the Architect relayed,
+  and the criteria kept custom_version_option; the fix loop ended
+  quarantined at 76 steps (night 70: 44). The wrong surface is the
+  wall; finding 74's door is the fix.
+- Night 72 launched 01:59, warm on C:, sentence three only
+  (GAUNTLET_FROM=3), to measure the door.
+- Status 2026-09-15 02:00: night 72 in sentence three.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
