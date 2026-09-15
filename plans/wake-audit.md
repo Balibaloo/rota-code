@@ -256,3 +256,17 @@ door or the brief that fixes them belongs to the writer's mode.
     to 73 in place): sentence two MERGED at 3c17d35. The one finding was
     escalated, answered and set satisfied. Findings 69 to 73 closed.
 
+74. **The criteria name one surface in words and another in refs.** Night
+    70 (2026-09-15), sentence three on click, the first run: the ticket
+    says "give version_option a show_python flag". The three criteria
+    say `version_option` in their text and carry
+    `src/click/decorators.py::custom_version_option` in surface_refs, a
+    real companion function whose docstring offers itself for "the
+    Python version". The Developer wrote the flag into version_option and
+    the duplicate-name door refused it, rightly by its rule: no criterion
+    of the batch names version_option. Three sessions, quarantined,
+    stuck at 44 steps. The fact is in the rows: a backticked name in a
+    criterion's text that resolves to a definition, and surface_refs that
+    name a different one. Door: criteria authoring refuses that pair and
+    names both. Open until built and measured.
+

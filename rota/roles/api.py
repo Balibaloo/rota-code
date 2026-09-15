@@ -2996,11 +2996,47 @@ def _named_new_callables(ctx: Ctx, ticket_id: str) -> list[str]:
     return out
 
 
+def _named_existing_callables(ctx: Ctx, ticket_id: str) -> list[str]:
+    """Callable names the item or its ticket give in words that the index
+    holds: a snake_case word that is a definition. Night 70 (2026-09-15),
+    click sentence three: "give version_option a show_python flag" names
+    version_option, a definition; show_python is not one and drops out."""
+    import re as _re
+
+    row = ctx.conn.execute(
+        "SELECT t.text AS ticket, i.text AS item FROM tickets t "
+        "JOIN items i ON i.id = t.item_id WHERE t.id = ?", (ticket_id,)).fetchone()
+    if not row:
+        return []
+    text = f"{row['item'] or ''} {row['ticket'] or ''}"
+    words = set(_re.findall(r"[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+", text))
+    return sorted(w for w in words if ctx.conn.execute(
+        "SELECT 1 FROM code_index WHERE grain = ? OR grain LIKE ?",
+        (w, f"%::{w}")).fetchone())
+
+
 def _surface_names_what_the_item_names(ctx: Ctx, ticket_id: str, surface_refs) -> None:
     """A fact about three texts: the item names a callable the index does not
-    hold, and the surface names only callables it does."""
+    hold, and the surface names only callables it does. Or the item names a
+    callable the index holds, and the surface names another one."""
     new = _named_new_callables(ctx, ticket_id)
     if not new:
+        # Night 70 (2026-09-15), click sentence three: the item said "give
+        # version_option a show_python flag", the criteria carried
+        # custom_version_option as their surface, a real companion whose
+        # docstring offers itself for the Python version. The Developer
+        # changed version_option and the duplicate-name door refused it:
+        # no criterion named it. Three sessions, stuck.
+        named = _named_existing_callables(ctx, ticket_id)
+        refs = [str(r) for r in (surface_refs or [])]
+        tails = {r.split("::")[-1] for r in refs}
+        if named and refs and not (tails & set(named)):
+            raise ValueError(
+                f"the item names {', '.join(named)}, a callable the index holds, "
+                f"and this surface names {', '.join(sorted(tails))}. A criterion "
+                f"on another callable tests another behaviour, and the Developer's "
+                f"change to {named[0]} is refused as a change no criterion names. "
+                f"Name {named[0]} as the surface, in its own file")
         return
     refs = [str(r) for r in (surface_refs or [])]
     tails = {r.split("::")[-1] for r in refs}

@@ -1846,3 +1846,29 @@ def test_the_criterion_under_test_speaks_first_on_print_versus_return(db):
     with pytest.raises(ValueError, match="uses what echo_json returns"):
         sb.call("tests.encode", id="tst_8a", criterion_id="c8a", path="tests/test_echo_json.py",
                 body="from click.utils import echo_json" + chr(10) + chr(10) + "def test_echo_json_prints():" + chr(10) + "    assert echo_json({'a': 1}, indent=2) == 'x'" + chr(10))
+
+def test_a_surface_on_another_existing_callable_is_refused(db):
+    """Night 70 (2026-09-15), click sentence three: the item said give
+    version_option a show_python flag; the criteria carried custom_version_option,
+    a real companion, as their surface; the Developer's change to version_option
+    was refused as a change no criterion names. Both names are in the index."""
+    from rota.roles import prompts
+
+    for name in ("version_option", "custom_version_option"):
+        db.execute("INSERT INTO code_index (grain, grain_kind, area, fan_in, sym_kind, content_hash) "
+                   "VALUES (?, 'symbol', 'src/click', 0, 'function', 'h')", (f"src/click/decorators.py::{name}",))
+    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "version) VALUES ('i70', 'give version_option a show_python flag that appends the running Python version', "
+               "'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk70','i70','give version_option a show_python flag')")
+    db.commit()
+    sb = build("terminologist", db, mode="normal",
+               allow=prompts.mode_tools("terminologist", "criteria"))
+    with pytest.raises(ValueError, match="the item names version_option"):
+        sb.call("criteria.specify", id="c_70", ticket_id="tk70",
+                text="When show_python is True, version_option appends the Python version",
+                surface_refs=["src/click/decorators.py::custom_version_option"])
+    out = sb.call("criteria.specify", id="c_70", ticket_id="tk70",
+                  text="When show_python is True, version_option appends the Python version",
+                  surface_refs=["src/click/decorators.py::version_option"])
+    assert out["id"] == "c_70"
