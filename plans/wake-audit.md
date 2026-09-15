@@ -379,3 +379,14 @@ door or the brief that fixes them belongs to the writer's mode.
     pin the profile sets per model, on for qwen3.5:9b. Open until night
     78 measures it; the register's 9B cases re-record with the pin.
 
+82. **A function that does not fit one result is never edited.** Nights
+    73, 74 and 79 (2026-09-15, sentence three, batch_start, the last
+    with the 9B thinking): version_option is 207 lines and 8692
+    characters, the result cap 6000. The Developer fetched it in two cut
+    pieces, asked for the same cut span five more times, wrote nothing,
+    and the verbatim-repeat cut ended each session. Sentence two's
+    function was 65 lines, fitted one result, and it wrote at turn 9.
+    Door: code.source renders whole up to 14000 characters; every other
+    result keeps the cap; the estimate flag says when a prompt outgrows
+    the window. Open until night 80 measures it.
+
