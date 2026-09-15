@@ -36,7 +36,16 @@ Rules:
   rule. src/billing: `MODEL: amend(` written as prose, nothing landed.
   src/auth: none found, as the wording asks. Two walls, then: the
   question, and the call format.
-- Status 2026-09-15 02:42: wording B recording on the same load.
+- Wording B, qwen3:8b, same load: 0 of 5 by the strict rule, and the
+  content moved. The target surface is named in three of five areas
+  (store: connect; billing: total_of among twelve; auth: register in a
+  bundle) against none under A; the `MODEL: amend(` failure is gone.
+  What neither wording gets: `source_refs` is empty in every constraint,
+  both wordings, and B writes twelve constraints on billing. The brief
+  moves the surfaces; the citation needs a door: a constraint cites a
+  line from a file the session opened, or it is refused.
+- Status 2026-09-15 02:46: B in the tree uncommitted; building the
+  citation door.
 
 ### 14. The reply assertion (Roman, 02:20)
 
