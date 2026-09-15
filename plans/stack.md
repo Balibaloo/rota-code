@@ -123,7 +123,13 @@ Rules:
   420 to 627) read six times, a fabricated copy of it in the reply, no
   write. Sentence two's function was 65 lines and it wrote at turn 9.
   Reading whether code.source cuts the span.
-- Status 2026-09-15 03:28: reading the span size.
+- Found: a tool result is cut at 6000 characters and the note said "ask
+  for the next range" with no number. version_option is 8692
+  characters; the 9B saw the same first 6000 six times and never the
+  line it had to change (finding 77). Door: the note names the line the
+  cut fell at and the call that fetches the rest. Night 75 launched
+  warm on C: to measure it.
+- Status 2026-09-15 03:33: night 75 running sentence three.
 
 ### 12. Night 71 on the SSD
 

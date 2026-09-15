@@ -323,3 +323,13 @@ door or the brief that fixes them belongs to the writer's mode.
     re-fired batch_start wake names its attempt and that the last
     session wrote nothing. Open until night 74 measures it.
 
+77. **A cut span with no line number is no range.** Nights 73 and 74
+    (2026-09-15, sentence three, batch_start): the Developer read
+    version_option, lines 420 to 627, six times a session. A tool result
+    is cut at 6000 characters and version_option is 8692, so every read
+    showed the same first 140 lines and "ask for the next range if you
+    need it", with no number to ask for. The line where the message is
+    built was never in front of it. Door: the note names the line the cut
+    fell at and the exact code.source call for the rest. Open until night
+    75 measures it.
+

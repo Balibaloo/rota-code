@@ -537,7 +537,21 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
         return text
     note = (f"... TRUNCATED after {limit} of {len(text)} characters. "
             f"Ask for the next range if you need it.")
-    return text[:limit] + "\n" + note
+    # A source span cut mid-function: say the line the cut fell at and the
+    # call that fetches the rest. Night 74 (2026-09-15, finding 77): the 9B
+    # read version_option (207 lines, 8692 characters) six times, saw the
+    # same first 6000 each time, and never reached the line it had to
+    # change. "Ask for the next range" without the number is no range.
+    if isinstance(result, dict) and "text" in result and isinstance(result.get("start"), int):
+        marker = "[text]" + chr(10)
+        at = text.find(marker)
+        if 0 <= at < limit:
+            emitted = text[at + len(marker):limit].count(chr(10))
+            cut_line = result["start"] + emitted
+            note += (f" The cut fell at line {cut_line}: the rest is "
+                     f"code.source(path='{result.get('path')}', start={cut_line}, "
+                     f"end={result.get('end')})")
+    return text[:limit] + chr(10) + note
 
 
 def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
