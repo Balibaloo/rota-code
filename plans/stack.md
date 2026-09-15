@@ -141,7 +141,13 @@ Rules:
   whether the diff touched that file. Night 76 launched warm on C:.
 - Register after the raised-at field (03:48 to 03:55): 20 reds, all
   known, no stale.
-- Status 2026-09-15 03:56: night 76 running sentence three, warm on C:.
+- Night 76 (03:47 to 04:05, warm): the raised-at fact reached the wake
+  and the fix sessions kept their shape, ten turns, no write, no
+  challenge. Then the cause: Ollama truncates the prompt at 6146
+  tokens (num_ctx 12288 split over two parallel slots), 208 times in
+  its log; the fix sessions run 7 to 12 thousand tokens and lose the
+  brief (finding 79). The wall of nights 73 to 76 is the server.
+- Status 2026-09-15 04:08: reading the server's settings for the fix.
 
 ### 12. Night 71 on the SSD
 

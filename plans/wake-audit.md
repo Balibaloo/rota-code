@@ -343,3 +343,14 @@ door or the brief that fixes them belongs to the writer's mode.
     assertion ran and whether the diff touched that file. Open until
     night 76 measures it.
 
+79. **The brief is cut off by the server.** Nights 73 to 76 (2026-09-15,
+    sentence three): the Developer read version_option in a loop, wrote
+    a summary of click's decorators into its reply, and never fixed or
+    challenged, through three doors that each reached the wake. Ollama's
+    log says why: "truncating input prompt limit=6146 prompt=13193", 208
+    times. The profile asks for num_ctx 12288 and the server splits it
+    across two parallel slots, 6146 each, so a session over 6100 tokens
+    loses its head, which is the brief. The fix sessions run 7 to 12
+    thousand tokens. The model was answering a prompt with no brief in
+    it. Fact of the server, not of the model or the wording.
+
