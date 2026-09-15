@@ -237,7 +237,7 @@ Rules:
   and not the Developer's build. The last mechanical lever is the
   6000-character result cap that cuts a 207-line function in two;
   sentence two's function fitted in one.
-- Status 2026-09-15 06:26: reading the cap; the acts column recording
+- Status 2026-09-15 06:23: raising the cap for source spans; the acts column recording
   on the 3080.
 
 ### 12. Night 71 on the SSD
