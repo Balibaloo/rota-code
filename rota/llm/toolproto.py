@@ -353,6 +353,27 @@ def _inline_blocks(text: str) -> str:
     return "".join(out)
 
 
+def _namespace_labels(text: str, signatures: dict | None) -> str:
+    """
+    `MODEL: amend(headline=...)` -- the namespace as the marker, the verb as
+    the call. The survey brief says `model.amend(...)` inline and qwen3:8b
+    (the survey spike, 2026-09-15) wrote every call that way, in prose, and
+    the area closed with nothing done. The spelling is unambiguous when the
+    namespace and verb name a function the session has: only then is the
+    line rewritten to `TOOL: namespace.verb(`; prose like `NOTE: ...` has no
+    such function and is left alone.
+    """
+    if not signatures:
+        return text
+    allowed = {n.lower() for n in signatures}
+    pat = re.compile(r"(?im)^[ \t]*([A-Za-z_]+)[ \t]*:[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(")
+
+    def fix(m):
+        name = f"{m.group(1).lower()}.{m.group(2).lower()}"
+        return f"{MARKER} {name}(" if name in allowed else m.group(0)
+    return pat.sub(fix, text)
+
+
 def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolError]:
     """
     Find every `TOOL:` call in a completion, in order.
@@ -362,7 +383,7 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
     carrying the raw text — the model sees its own mistake.
     """
     results: list[ToolCall | ToolError] = []
-    text = _bracket_bare_lists(_inline_blocks(text))
+    text = _bracket_bare_lists(_inline_blocks(_namespace_labels(text, signatures)))
     cursor = 0
 
     while True:

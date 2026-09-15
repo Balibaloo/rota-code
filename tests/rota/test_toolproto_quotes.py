@@ -103,3 +103,13 @@ def test_something_genuinely_malformed_is_still_an_error(  ):
     got = toolproto.extract("TOOL: msg.challenge_tester(refs=[unclosed, 'x'")
 
     assert any(isinstance(g, toolproto.ToolError) for g in got), got
+
+def test_a_namespace_label_is_the_call_it_names():
+    """`MODEL: amend(...)`: the namespace as the marker (the survey spike,
+    2026-09-15, qwen3:8b, every call in prose). Read as model.amend when the
+    session has that function; `NOTE: x(` with no such function stays prose."""
+    from rota.llm import toolproto
+    sigs = {"model.amend": None, "model.describe": None}
+    calls = toolproto.extract("MODEL: describe(account='x')\n" + "MODEL: amend(headline='h', text='t')\n" + "NOTE: nothing(here)", sigs)
+    names = [c.name for c in calls if hasattr(c, "name")]
+    assert names == ["model.describe", "model.amend"], calls
