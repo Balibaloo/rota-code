@@ -257,7 +257,16 @@ Rules:
   the first night it could see the function whole. What is left is the
   Tester's tests and its answer to a challenge, and the attempt cap.
   Judgement, for Roman, with the transcripts named here.
-- Status 2026-09-15 06:52: no night running; sentence three waits on
+- The Tester in night 80, precisely: its tests call the decorator
+  factory `version_option(show_python=True)` and read stdout, the shape
+  the encode door coached ("a test of what prints reads what printed:
+  capsys"), which is the stdin family Roman closed as coaching. Its
+  answer to the Developer's challenge says "the developer is right, the
+  test asserts more than the criterion asks" and then answers instead
+  of re-encoding; the challenge brief offers both. Two judgements for
+  Roman: the capsys clause of the encode door, and the challenge
+  brief's fix-or-answer fork when the Tester concedes.
+- Status 2026-09-15 06:50: no night running; sentence three waits on
   Roman's reading of the Tester.
 
 ### 12. Night 71 on the SSD

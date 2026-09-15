@@ -181,6 +181,16 @@ took the challenge exit and fixed one test a round until the attempt
 cap. The register's reds re-recorded with the full window: 17, from 20.
 What remains on sentence three is judgement (findings 80 and the cap).
 
+Update 2026-09-15 06:55. Sentence three: the Developer's side is done.
+With the function whole in one result (finding 82) and the 9B thinking
+(finding 81) the build landed right on night 80 at e1ba094. The wall is
+the Tester: it tests a decorator factory by reading stdout, the shape
+the encode door's capsys clause coached, and when the Developer
+challenges it concedes in words and answers instead of re-encoding.
+That is brief work, the same family as the stdin clauses. The acts
+column with the 9B thinking on the 3080 is green across all five and
+act 3; the register holds at 17 reds.
+
 The diagnosis. The doors that held were facts of the language: definitions,
 imports, spans, parse, cycles. Those are finite per language and hold on
 any repository. The stdin family was coaching: five clauses in two days on
