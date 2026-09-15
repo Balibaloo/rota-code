@@ -230,8 +230,15 @@ Rules:
 - Night 79 onboarded 05:42 to 06:15, 33 minutes against 15: the pin
   reached every 9B session (23 Terminologist sessions, think True) and
   thinking doubles their time. Sentence three runs with it now.
-- Status 2026-09-15 06:16: night 79 in sentence three; the Titan down
-  until a reboot.
+- Night 79 (sentence three 06:15 to 06:22, the 9B thinking): stuck at
+  batch_start in three sessions of the same shape as 73 and 74: the
+  function fetched in two cut pieces, then the same cut span asked for
+  five times, no prose, no write. Thinking fixed the Tester's flood
+  and not the Developer's build. The last mechanical lever is the
+  6000-character result cap that cuts a 207-line function in two;
+  sentence two's function fitted in one.
+- Status 2026-09-15 06:26: reading the cap; the acts column recording
+  on the 3080.
 
 ### 12. Night 71 on the SSD
 
