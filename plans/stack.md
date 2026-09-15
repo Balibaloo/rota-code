@@ -217,8 +217,14 @@ Rules:
 - The register's think column: ROTA_PROFILE=local-gemma-critic sets the
   pin per model in the harness (cc1a791); the five acts and act 3
   record with the 9B thinking on the Titan now.
-- Status 2026-09-15 05:44: night 79 onboarding on C:; the acts recording
-  on the Titan.
+- The Titan at one slot hits Windows' display-driver timeout: "CUDA
+  error: the launch timed out" on the first act's prompt (05:46), the
+  card cool and unthrottled. It ran all evening at two slots, 6146 each,
+  and the register's prompts are short; the launcher takes -Parallel,
+  default two, and the runner flags a prompt over the window. The acts
+  record after the Titan restarts.
+- Status 2026-09-15 05:52: night 79 onboarding on C:; the Titan
+  restarting at two slots.
 
 ### 12. Night 71 on the SSD
 
