@@ -333,3 +333,13 @@ door or the brief that fixes them belongs to the writer's mode.
     fell at and the exact code.source call for the rest. Open until night
     75 measures it.
 
+78. **A red run's frame is a fact the wake can carry.** Night 75
+    (2026-09-15, sentence three): the build was right and committed;
+    five tests failed at src/click/testing.py:387 (AttributeError, a bare
+    function has no name) because the Tester invoked a function, not a
+    command. The Developer's fix sessions read version_option seven
+    times and never challenged. Door: tests.load carries "raised at":
+    the test's own assertion, or the frame that raised before any
+    assertion ran and whether the diff touched that file. Open until
+    night 76 measures it.
+

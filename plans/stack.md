@@ -137,7 +137,9 @@ Rules:
   Developer in the fix loop read version_option seven times and never
   challenged. Missing fact: where the traceback raised and whether the
   diff touched that file (finding 78, next).
-- Status 2026-09-15 03:47: building finding 78.
+- Door (finding 78): tests.load says where a red run raised and
+  whether the diff touched that file. Night 76 launched warm on C:.
+- Status 2026-09-15 03:50: night 76 running sentence three.
 
 ### 12. Night 71 on the SSD
 

@@ -4614,6 +4614,13 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     # the harness's furniture, not a change.
     furniture = {_grain_path(r["path"]) for r in rows if r.get("path")}
     seen: dict[str | None, list[str]] = {}
+    # Where a red run raised, and whether the diff reached that file. Night
+    # 75 (2026-09-15, finding 78): five tests failed inside click's own
+    # test runner because the Tester invoked a bare function; the Developer
+    # read its function seven times and never challenged. The frame is a
+    # fact of the output, the touched files a fact of the worktree.
+    import re as _re
+    touched = set(_wt.batch_files(ctx.conn, bid) or []) if bid and root else set()
     for row in rows:
         sha = row.pop("run_sha", None)
         if row.get("last_result") in (None, "pass"):
@@ -4623,6 +4630,17 @@ def tests_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
                          if _grain_path(p) not in furniture]
         if seen[sha]:
             row["changed since this run, not run"] = seen[sha]
+        said = row.get("said") or ""
+        frames = _re.findall(r"^(?P<path>[^\s:]+\.py):(?P<line>\d+): (?P<err>\w+(?:Error|Exception|Exit))", said, _re.M)
+        if frames:
+            path, line, err = frames[-1]
+            path = path.replace(chr(92), "/")
+            if err == "AssertionError":
+                row["raised at"] = f"{path}:{line}, the test's own assertion"
+            else:
+                reach = "a file your diff touched" if path in touched else "a file your diff did not touch"
+                row["raised at"] = (f"{path}:{line} ({err}) before any assertion ran, "
+                                    f"in {reach}")
     return rows
 
 

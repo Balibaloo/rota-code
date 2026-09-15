@@ -458,6 +458,10 @@ def test_a_red_run_names_the_files_changed_since_it(project):
         loaded = build("developer", db, batch_id="b1").call("tests.load")
         return next(r for r in loaded if r["id"] == "tst1")
 
+    # Finding 78: where the red run raised, a fact of the output.
+    raised = load()["raised at"]
+    assert "test_prorate.py" in raised and "the test's own assertion" in raised, raised
+
     # Nothing changed: the row says nothing about it.
     assert "changed since this run, not run" not in load()
 
