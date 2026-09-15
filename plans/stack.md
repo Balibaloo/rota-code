@@ -1,5 +1,10 @@
 # The task stack
 
+> Read what the model sent before trusting any number about it. What it
+> lacked is a fact, which becomes a tool result, or a judgement, which
+> becomes a measurement brought with a wording. The model is the last
+> suspect (Roman, 2026-09-15).
+
 The open work, in order, in one file that survives a context compaction
 (Roman, 2026-09-14). Top frame first. A frame changes by push, pop, or a
 status line. "Where are we" is answered from this file.
