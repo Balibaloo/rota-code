@@ -132,7 +132,7 @@ Rules:
   (finding 75, judgement, for Roman).
 - A night 73 started at 02:36 on C:, cold, not launched by me; asked
   the peer. Night 72's data is in clickI_prev.db on C:.
-- Status 2026-09-15 02:40: night 73 running (launcher unknown).
+- Status 2026-09-15 02:38: night 73 running (launcher unknown).
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
