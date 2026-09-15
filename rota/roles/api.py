@@ -2000,15 +2000,16 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
             f"binds the grains it governs, and it cannot govern what nobody "
             f"opened -- `code.source` them first, or bind only what you read.")
 
-    # A survey's constraint binds a grain of the area it surveyed. The survey
-    # spike (2026-09-15, qwen3:8b, two wordings, ten sessions): every
-    # constraint came with no bindings, global by default, and so pointed at
-    # nothing a review could check. The brief said to bind; the tool now
-    # says it, with the area's paths in hand.
-    if ctx.area and not bindings:
+    # A survey's constraint binds a grain of the area it surveyed. The brief
+    # says so; the tool says it too, with the area's path shape in hand, so
+    # an amend that forgets its bindings is a tool error and not a global
+    # constraint by accident (the survey spike, 2026-09-15: qwen3:8b bound
+    # every constraint it wrote, at file grain, under both wordings).
+    surveyed = ctx.area or next((r for r in (ctx.wake_refs or ()) if "/" in str(r) and not str(r).startswith("@")), None)
+    if surveyed and not bindings:
         raise ValueError(
-            f"a constraint from the survey of {ctx.area} binds the grain that "
-            f"keeps it: bindings=['{ctx.area}/<file>.py::<name>'], a path "
+            f"a constraint from the survey of {surveyed} binds the grain that "
+            f"keeps it: bindings=['{surveyed}/<file>.py::<name>'], a path "
             f"[code.area] printed and you opened. A commitment nobody can "
             f"point at is not one; send the amend again with its bindings")
 

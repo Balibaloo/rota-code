@@ -303,3 +303,14 @@ door or the brief that fixes them belongs to the writer's mode.
     no ruling on a test. Mechanical, open: the parser could take a
     quoted argument to the last closing bracket.
 
+75. **The survey brief asks the wrong question for a library.** The
+    survey spike (2026-09-15): five register cases on the sample
+    repository, one kind each, scored on a called symbol of the area
+    named and the constraint bound to a grain. The shipped wording asks
+    who outside the repository breaks and rules importers out: qwen3:8b
+    3 of 5 (one `MODEL: amend(` in prose, one none found). The wording
+    that asks who outside the area breaks, callers and tests and
+    importers included: 4 of 5 on the same load, the miss twelve
+    constraints on the largest area. The parser reads `MODEL: amend(`
+    as the call now (cf0aecb). The count is the judgement left.
+

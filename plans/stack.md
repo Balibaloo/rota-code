@@ -52,7 +52,19 @@ Rules:
 - Door: a constraint written while surveying an area binds a grain of
   it, or model.amend refuses with the area's path shape (the brief said
   bind; the tool now says it). Tested. B + door recording on the Titan.
-- Status 2026-09-15 02:50: B + door recording.
+- Corrected 02:55: the harness cannot read constraint_bindings (no id
+  column), so "bound to nothing" was the harness's blind spot. Scored
+  on is_global, which the tool sets from bindings: wording A 3 of 5,
+  wording B 4 of 5, same load; the model binds at file grain under
+  both. B's miss is billing, twelve constraints against a cap of nine.
+  A's misses: the `MODEL: amend(` prose on billing and none found on
+  auth. The bindings door never fired and stays as a tool error for an
+  amend that omits them.
+- Night 73 onboarded on the SSD in 15 minutes (132 steps); night 70 on
+  the HDD took 22 (135 steps). One sample each.
+- Status 2026-09-15 02:55: B is the wording in the tree; the billing
+  count is the open judgement (one constraint per commitment, not per
+  function); Roman decides the wording.
 
 ### 14. The reply assertion (Roman, 02:20)
 
