@@ -67,9 +67,11 @@ Rules:
   callable when the item names one the index holds. Night 71's
   sentence three carries the same criteria and will stick the same
   way; night 72 measures the door.
-- Status 2026-09-15 01:35: night 71 in sentence three on C:; the slim
-  table is live at .rota/progress.md; the register replays the surface
-  door.
+- Register after the surface door (01:34 to 01:39): 20 reds, all known,
+  no stale; the Critic answer mode's new case recorded 5/5 (cb53120).
+- Status 2026-09-15 01:42: night 71 in sentence three on C:, the
+  Developer's escalation with the Architect; the slim table is live at
+  .rota/progress.md.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
