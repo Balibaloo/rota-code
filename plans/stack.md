@@ -196,8 +196,16 @@ Rules:
   it, prose; with thinking on, ten calls. On the Titan `think: false`
   works. The loads differ in flash attention, auto on the 3080 and
   disabled on the Titan; testing with it off on the 3080 (finding 81).
-- Status 2026-09-15 05:26: the 3080's server restarting with flash
-  attention off.
+- Flash attention off on the 3080: the 9B then takes 10,035 MB, the
+  whole card, and one reply did not come in ten minutes. Not viable;
+  reverted. The knob that measured is thinking: on the 3080 with
+  `think: false` the 9B writes prose, with thinking on it calls. The
+  runner sets `think: false` for every model; it becomes a pin the
+  profile sets per role, and the 9B on the shipped profile thinks.
+  Cost: about 600 tokens of thinking a turn. The register's 9B
+  cassettes were recorded with think off on the Titan, where it works;
+  they re-record with the pin.
+- Status 2026-09-15 05:42: reverting flash attention; building the pin.
 
 ### 12. Night 71 on the SSD
 
