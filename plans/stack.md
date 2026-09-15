@@ -244,7 +244,21 @@ Rules:
 - Door (finding 82): code.source renders whole up to 14000 characters.
   Night 80 launched warm on C: to measure it on sentence three.
 - Register after the cap (06:32 to 06:38): 17 reds, all known, no stale.
-- Status 2026-09-15 06:39: night 80 at the build on sentence three.
+- Night 80 (06:31 to 06:49, warm, the 9B thinking, the whole function
+  in one result): the build landed at attempt 2, show_python added and
+  the version appended, committed at e1ba094, right. Finding 82 closed.
+  Then the fix loop: two of four tests fail at their own assertions,
+  the Developer challenged the Tester, the Tester answered that the
+  tests stand, the Developer escalated, then made fourteen writes in
+  one session to bend the code to the tests, refused as span cuts and
+  whole-file rewrites, nothing committed. Stuck on tests_failing.
+- Where sentence three stands: every fact door on the Developer's side
+  has landed (66, 68, 74, 76, 77, 78, 82) and the build is right on
+  the first night it could see the function whole. What is left is the
+  Tester's tests and its answer to a challenge, and the attempt cap.
+  Judgement, for Roman, with the transcripts named here.
+- Status 2026-09-15 06:52: no night running; sentence three waits on
+  Roman's reading of the Tester.
 
 ### 12. Night 71 on the SSD
 

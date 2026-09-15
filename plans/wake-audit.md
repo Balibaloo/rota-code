@@ -390,3 +390,8 @@ door or the brief that fixes them belongs to the writer's mode.
     result keeps the cap; the estimate flag says when a prompt outgrows
     the window. Open until night 80 measures it.
 
+    Night 80 (2026-09-15, 06:31 to 06:49): with the function whole in one
+    result the build landed at attempt 2, right, committed at e1ba094.
+    Finding 82 closed. The night stuck one step later on the Tester's
+    tests and its answer to the Developer's challenge: judgement.
+
