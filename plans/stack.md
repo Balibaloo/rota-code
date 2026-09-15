@@ -227,7 +227,10 @@ Rules:
   launch timed out", the card at 61 degrees and idle. A hung context
   under WDDM; it clears with a reboot, Roman's. The acts column with
   the 9B thinking records on the 3080 after night 79 instead.
-- Status 2026-09-15 05:49: night 79 onboarding on C:; the Titan down
+- Night 79 onboarded 05:42 to 06:15, 33 minutes against 15: the pin
+  reached every 9B session (23 Terminologist sessions, think True) and
+  thinking doubles their time. Sentence three runs with it now.
+- Status 2026-09-15 06:16: night 79 in sentence three; the Titan down
   until a reboot.
 
 ### 12. Night 71 on the SSD
