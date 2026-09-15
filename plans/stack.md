@@ -30,7 +30,13 @@ Rules:
   harness). Wording A as shipped, then wording B (outside the area:
   callers, tests that patch, importers of the package; name the surface
   as path::symbol), both on one Titan load of qwen3:8b.
-- Status 2026-09-15 02:40: wording A recording; B drafted.
+- Wording A, qwen3:8b: 0 of 5. src/catalog, src/notify, src/store: a
+  constraint each, headline a bare name (all_products, money, applied),
+  not the target symbol, and source_refs empty: noise by the spike's
+  rule. src/billing: `MODEL: amend(` written as prose, nothing landed.
+  src/auth: none found, as the wording asks. Two walls, then: the
+  question, and the call format.
+- Status 2026-09-15 02:42: wording B recording on the same load.
 
 ### 14. The reply assertion (Roman, 02:20)
 
