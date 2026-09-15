@@ -270,3 +270,14 @@ door or the brief that fixes them belongs to the writer's mode.
     name a different one. Door: criteria authoring refuses that pair and
     names both. Open until built and measured.
 
+74. **An import is a whole-file write.** Nights 70 and 71 (2026-09-15),
+    sentence three on click ("give version_option a show_python flag"):
+    the Developer's fix loop stuck at three attempts on both nights. The
+    9B wants `import sys` at the top of the 623-line decorators.py and
+    sends `code.write(text="import sys", start=0, end=-1)`, the whole
+    file replaced by two words, refused for dropping every definition,
+    five times in one session. The refusal names the append span
+    (start=623, end=623) and not the insert-at-top span, start=0, end=0,
+    which is the one an import needs. Door: the refusal names both.
+    Open until a night measures it.
+

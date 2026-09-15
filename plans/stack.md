@@ -15,6 +15,18 @@ Rules:
 
 ## Stack
 
+### 13. Sentence three on click
+
+- Why: sentence two merges (nights 70 and 71). Sentence three, the
+  show_python flag on version_option, stuck in the fix loop on both
+  nights at the same shape: the 9B cannot insert an import into a
+  623-line file (finding 74).
+- Night 72 (01:59, warm on C:, sentence three only) was launched by the
+  peer session and runs the tree as of 01:59; I watch it.
+- Door: the drops refusal names the insert-at-top span beside the
+  append span. Measured on the next sentence-three run.
+- Status 2026-09-15 02:01: door in progress; night 72 running.
+
 ### 12. Night 71 on the SSD
 
 - Why: Roman saw no GPU use during night 70's onboarding. The click

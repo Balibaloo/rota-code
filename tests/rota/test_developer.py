@@ -531,3 +531,15 @@ def test_a_finding_names_a_file_the_diff_changed(project):
     out = arch.call("findings.find", id="f1", batch_id="b1", constraint_id="k1",
                     status="violated", grain="src/billing/charges.py::total_of")
     assert out["status"] == "violated"
+
+def test_the_drops_refusal_names_the_insert_at_top_span(project):
+    """
+    Finding 74, nights 70 and 71: the 9B sent `import sys` as a whole-file
+    write of a 623-line module, five times. The refusal named the append
+    span and not the insert-at-top span an import needs.
+    """
+    db, _ = project
+    lifecycle.start(db, "b1")
+    sb = build("developer", db, batch_id="b1")
+    with pytest.raises(ValueError, match="start=0, end=0"):
+        sb.call("code.write", path="src/billing/charges.py", text="import sys", start=0, end=-1)

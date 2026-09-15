@@ -7844,7 +7844,9 @@ def code_write(ctx: Ctx, path: str, text: str, start: int = 0, end: int = -1) ->
                     f"definition kept and your change added, or write only "
                     f"the new definitions with start={n_old}, end={n_old}: "
                     f"{path} has {n_old} lines and that span appends after "
-                    f"them, keeping the rest")
+                    f"them, keeping the rest. A line for the top of the "
+                    f"file, an import, is start=0, end=0: that span inserts "
+                    f"before the first line and drops nothing")
             # A definition the criteria do not name keeps its source. Click
             # nights 47 and 48 (2026-09-14): `echo` replaced by a simplified
             # copy while adding `echo_json`; 19 project tests red; nine fix
