@@ -155,7 +155,13 @@ Rules:
   session over 12k tokens still loses its head: the fix wake with five
   red tests ran 12.6k on one turn; num_ctx or the pushes budget is
   Roman's call. Night 77 launched warm on C: with the full window.
-- Status 2026-09-15 04:08: night 77 running sentence three, warm on C:.
+- The register too: 603 of 17966 cassettes hold prompts over the
+  halved window (llama 264, qwen3:4b 253, the 9B 41, the 8B 23), so
+  some known reds are recordings of headless sessions. The Titan's
+  server went down with the 3080's restart and is back with one slot;
+  the twenty reds re-record on it with ROTA_REFRESH=1.
+- Status 2026-09-15 04:15: night 77 on the 3080, the reds re-recording
+  on the Titan.
 
 ### 12. Night 71 on the SSD
 
