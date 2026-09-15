@@ -34,7 +34,16 @@ Rules:
   warm. Night 70's snapshot (00:54) copied to C:; night 71 starts warm.
   Left for later: the hard set keyed on whole files (graph.json forced
   night 70 cold for a non-onboarding edge) and the blind 4-night cap.
-- Status 2026-09-15 00:57: built and tested; waits on night 70.
+- The run progress file (Roman, 01:10): one block, rewritten each step
+  by the walk, at <runs dir>/progress_clickI.md: phase, the stage from
+  the tick that fired last, wakes so far against the previous night's
+  count for the same phase and outcome, minutes so far against that
+  night's minutes, the last page, the last wake, and the attempts on
+  the frontier tick. Night 70 seeded the reference: onboarding 135
+  wakes in 22 minutes, sentence two 42 in 10 (merged), sentence three
+  44 in 12 (stuck). probes/progress.py, tested.
+- Status 2026-09-15 01:24: night 71 launched warm on C: with the
+  progress file at C:/Users/roman/rota_night/state/progress_clickI.md.
 
 ### 11. Nights 64 to 70: the shipped profile with the doors, on click
 
