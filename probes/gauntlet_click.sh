@@ -17,6 +17,7 @@ export PYTHONUNBUFFERED=1
 # .rota/live.md too, and the two overwrote each other (2026-09-13).
 STATE="${ROTA_RUNS:-$REPO/.rota}"; mkdir -p "$STATE"; export ROTA_RUNS="$STATE"
 export ROTA_LIVE="$STATE/live_click.md"
+export WALK_NIGHT="${GAUNTLET_NIGHT:-}"
 export WALK_WORDS="yes that all looks right, go ahead"
 # The sample repository starts every night at its base commit. Night 50
 # (2026-09-14) ran on the main that night 49 had merged echo_json into, so
@@ -65,20 +66,20 @@ fi
 # After the fresh check, which counts sessions: onboarding alone, then the snapshot: no sentence in it, so a warm night
 # can start at any sentence (GAUNTLET_FROM). The yes-only principal answers
 # onboarding's pages the same way.
-[ "${WALK_FROM_WARM:-}" = "1" ] || WALK_ONBOARD_ONLY=1 python "$W" clickI "" "" 250
+[ "${WALK_FROM_WARM:-}" = "1" ] || WALK_PHASE=onboarding WALK_ONBOARD_ONLY=1 python "$W" clickI "" "" 250
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"
-python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
+WALK_PHASE="sentence 1" python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
 fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 2 ]; then
 echo "== walk 2 $(date +%H:%M)"
-python "$W" clickI "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting." "the flag defaults to False so nothing changes for existing callers" 250
+WALK_PHASE="sentence 2" python "$W" clickI "Let confirm() take a default_on_eof flag: when stdin is closed it returns the default instead of aborting." "the flag defaults to False so nothing changes for existing callers" 250
 fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 3 ]; then
 echo "== walk 3 $(date +%H:%M)"
-python "$W" clickI "Give version_option a show_python flag that appends the running Python version to the message." "the Python version comes from sys.version_info as major.minor.micro" 250
+WALK_PHASE="sentence 3" python "$W" clickI "Give version_option a show_python flag that appends the running Python version to the message." "the Python version comes from sys.version_info as major.minor.micro" 250
 fi
 echo "GAUNTLET-DONE $(date +%H:%M)"
