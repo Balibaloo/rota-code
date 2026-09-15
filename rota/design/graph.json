@@ -753,6 +753,7 @@
       "t": "vision_keeper",
       "type": "messages",
       "v": "challenge",
+      "expects": "decision",
       "n": "contradiction",
       "rows": "single",
       "prose": "quotes"
@@ -762,6 +763,7 @@
       "t": "vision_keeper",
       "type": "messages",
       "v": "challenge",
+      "expects": "decision",
       "n": "infeasibility",
       "rows": "single",
       "prose": "quotes"
@@ -779,6 +781,7 @@
       "t": "architect",
       "type": "messages",
       "v": "escalate",
+      "expects": "answer",
       "n": "constraint conflict",
       "rows": "single"
     },
@@ -787,6 +790,7 @@
       "t": "vision_keeper",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "criterion or scope gap, in words; the refs say what it is about",
       "rows": "single",
       "prose": "question"
@@ -796,6 +800,7 @@
       "t": "terminologist",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "term ambiguity, in words; the refs say what it is about",
       "rows": "single",
       "prose": "question"
@@ -805,6 +810,7 @@
       "t": "developer",
       "type": "messages",
       "v": "challenge",
+      "expects": "commit",
       "n": "failed criterion",
       "rows": "single",
       "prose": "quotes"
@@ -1132,6 +1138,7 @@
       "t": "tester",
       "type": "messages",
       "v": "challenge",
+      "expects": "answer",
       "n": "test disputes criterion",
       "rows": "single",
       "prose": "quotes"
@@ -1141,6 +1148,7 @@
       "t": "tester",
       "type": "messages",
       "v": "challenge",
+      "expects": "answer",
       "n": "test does not encode criterion",
       "rows": "single",
       "prose": "quotes"
@@ -1150,6 +1158,7 @@
       "t": "vision_keeper",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "criterion or scope gap, in words; the refs say what it is about",
       "rows": "single",
       "prose": "question"
@@ -1159,6 +1168,7 @@
       "t": "terminologist",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "term ambiguity, in words; the refs say what it is about",
       "rows": "single",
       "prose": "question"
@@ -1648,6 +1658,7 @@
       "t": "terminologist",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "term ambiguity, in words; the refs say what it is about",
       "rows": "single",
       "label": "it reads the glossary; it could not ask",
@@ -1733,6 +1744,7 @@
       "t": "researcher",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "a question of fact about something outside this repository",
       "prose": "question",
       "rows": "single"
@@ -1759,6 +1771,7 @@
       "t": "researcher",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "a question of fact about something outside this repository",
       "prose": "question",
       "rows": "single"
@@ -1785,6 +1798,7 @@
       "t": "researcher",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "a question of fact about something outside this repository",
       "prose": "question",
       "rows": "single"
@@ -1811,6 +1825,7 @@
       "t": "researcher",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "a question of fact about something outside this repository",
       "prose": "question",
       "rows": "single"
@@ -1837,6 +1852,7 @@
       "t": "researcher",
       "type": "messages",
       "v": "question",
+      "expects": "answer",
       "n": "a question of fact about something outside this repository",
       "prose": "question",
       "rows": "single"

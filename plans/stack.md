@@ -15,6 +15,20 @@ Rules:
 
 ## Stack
 
+### 14. The reply assertion (Roman, 02:20)
+
+- Why: finding 73 was data without an assertion. Every asking edge in
+  the graph now carries `expects`: `answer` (a message back), `commit`
+  (the Developer's challenge brief: the answer is the next commit) or
+  `decision` (the Vision Keeper's: amend, or author a decision).
+  tests/rota/test_graph_reply.py checks each: the answer edge back and
+  msg.answer_<sender> in the receiving mode's list, or the tool that
+  makes the reply. It names the three edges finding 73 belongs to on
+  first run; two of them were the briefs' design, not gaps.
+- Left: graph.json is in the warm stamp's hard set, so the next night
+  is cold for a metadata field.
+- Status: closed 2026-09-15 02:26.
+
 ### 13. Sentence three on click
 
 - Why: sentence two merges (nights 70 and 71). Sentence three, the
