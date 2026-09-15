@@ -27,7 +27,7 @@ Rules:
   first run; two of them were the briefs' design, not gaps.
 - Left: graph.json is in the warm stamp's hard set, so the next night
   is cold for a metadata field.
-- Status: closed 2026-09-15 02:26.
+- Status: closed 2026-09-15 02:25.
 
 ### 13. Sentence three on click
 
