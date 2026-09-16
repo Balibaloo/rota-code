@@ -40,25 +40,24 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 05:05 (rota-bc): Roman answered. LAWS P1 to P8, P11,
-  P12 landed. P9 and P10 held. Cockpit ruled a dashboard, placed under
-  Purpose (d95e28e). Greenfield: Roman proposes a provenance `reasoned`
-  for a seat's own inference. Done before: stack slimmed, six plans
-  archived and three placed (b1a2242), ROLES (3b3e205, cfa9f60), facts in
-  STE (5dff9eb), Liaison brief in two cycles (51af9f1, b0d92ae), all 28
-  non-landing cases 5/5, reports in
+- Status 2026-09-16 05:20 (rota-bc): Roman ratified `reasoned`. The page
+  sentence (dcb4877), LAWS P10 (840a60b) and greenfield piece 1 (6e40d84)
+  landed. LAWS: eleven of twelve in, P9 waits on the checkpoint ruling.
+  Cockpit ruled a dashboard (d95e28e). Done before: stack slimmed, six
+  plans archived and three placed (b1a2242), ROLES (3b3e205, cfa9f60),
+  facts in STE (5dff9eb), Liaison brief in two cycles (51af9f1, b0d92ae),
+  28 non-landing cases 5/5, reports in
   `plans/archive/liaison-rerecord-2026-09-16.md`. Older reds, not this
-  frame: landing case `a-question-then-a-statement` 0/5; T1 I1 red before
-  and after; test_roles_doc's answer verb splits on prose since e3cbfbb.
-  Blocked on Roman, two answers: (1) the checkpoint. Roman thought it
-  pauses a readonly seat to answer a question. No code writes one and the
-  page has no snapshot. Recommended: keep the page, remove predicate and
-  table in a code frame, then P9 lands. (2) Ratify the page sentence "A
-  record says whether it was observed from the code or the world, reasoned
-  by a seat, or decided by the Principal." Then P10 lands with `reasoned`,
-  greenfield piece 1 writes the Architect's guess as `reasoned`, and a
-  code frame renames role-made `decided` rows. Proposed frame 19: the
-  three agent brief skeletons on disk, `plans/agent-briefs.md`.
+  frame: landing case `a-question-then-a-statement` 0/5; T1 I1 red
+  before and after; test_roles_doc's answer verb splits on prose since
+  e3cbfbb. Blocked on Roman, one answer: the checkpoint. Roman asks about
+  pausing a Developer mid-batch. Today the Developer asks and ends, the
+  worktree and the open batch hold the state, and the answer wakes a
+  fresh Developer in answer mode. Recommended: keep the page, remove the
+  predicate and the table in a code frame, then P9 lands and the page's
+  Open check closes. Frames to push after 18: the `reasoned` rename of
+  role-made `decided` rows; the checkpoint removal; the agent brief
+  skeletons (`plans/agent-briefs.md`, waits on Roman's yes).
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
