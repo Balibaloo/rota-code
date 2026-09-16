@@ -1,0 +1,280 @@
+# Operating facts
+
+Facts about the rota box, models, runs, and measurement, moved from the assistant's memory on 2026-09-16. A fact keeps its date and who ruled it.
+
+## Repositories and history
+
+- The composition page is `plans/composition.md`. Read it first, before any other rota document.
+- On 2026-09-14 rota split out of Custom_AI_TUI into github.com/Balibaloo/rota-code. A bare copy is at `//ROMANHOST/Raid/Dev/bare_repos/rota-code.git`. The bare copy needs its own `safe.directory` entry, as Custom_AI_TUI.git does.
+- The split work ran on a clone at `D:\repos\rota-split` (not found 2026-09-16). Roman renamed the clone to `D:\repos\rota` on 2026-09-14. Check which checkout you are in before any commit.
+- The workspace is `D:\repos\rota` (Roman, 2026-09-14 ~03:00). Commit there.
+- The root commit is the old e1281f5. That commit added rota_tui/HANDOFF.md (not found 2026-09-16), TESTS.md (not found 2026-09-16), and team-graph.html (not found 2026-09-16). Nothing before it is rota.
+- Every SHA changed in the split. `plans/archive/commit-map-rota-split-20260914.tsv` maps old to new (363ce42 -> 7f35bd4, 400c27b -> 09891c3). A commit made in the old checkout after the split travels as a patch and adds a line to the map.
+- The old checkout `D:\repos\_AI\Custom_AI_TUI` stayed as it was. Its rota/foundation was 304 commits ahead of origin, and only the split pushed it.
+- The old checkout holds the only copy of the 57 GB recording history. Treat it as an archive, not a checkout. Do not delete it.
+- `plans/rota-split.md` records what moved and what did not. That includes stash@{0} "Stop gate" of 2026-08-30, which was superseded and left behind.
+- rota no longer imports the old TUI. The sys.path insert to the repository root is gone.
+- ChatMessage is in `rota/cockpit/widgets.py`. ConfirmationModal and InputModal are in `rota/cockpit/modals.py`.
+- The second seat (`plans/second-seat.md`) works from its own clone, `D:\repos\rota-code-seat2` on rota/seat2. The seat never pushes. The seat logs findings in `plans/second-seat-log.md` (not found 2026-09-16), and the first session merges the branch.
+- Line endings need no config. `.gitattributes` (`* text=auto eol=lf`) overrides core.autocrlf in both directions. Do not "fix" it with a renormalise commit.
+- The line-ending check ran on a clone left at the Git for Windows default autocrlf=true. `git ls-files --eol` gave 512 i/lf and 12 i/none, with no 0x0D byte in index or worktree. `git status` was clean.
+- Never measure line endings with `grep -c $'\r'` in the Bash tool. ANSI-C quoting does not apply there, so the pattern is the literal regex `r` and counts every line with the letter r. That false reading cost an hour on 2026-09-14.
+- Count byte 0x0D in Python, or read `git ls-files --eol`.
+- `tests/rota/cassettes.db` is gitignored in the new repository. 153 LFS versions had reached 57 GB.
+- `git checkout -- tests/rota/cassettes.db` no longer restores the file. `rota cassettes pull` restores it.
+- A re-record's output lives only on disk until `rota cassettes publish` puts it on a release. Back the file up beside the run databases (`.rota/cassettes_backup_<date>.db`) after each re-record. Then announce the re-record to any peer session working on the split.
+- Never stash or checkout cassettes.db during a replay.
+- cassettes.db travels as a GitHub release asset. `rota cassettes status` compares the local file with the published one. `rota cassettes publish` (needs GITHUB_TOKEN) snapshots, gzips, uploads, and rewrites `tests/rota/cassettes.json`, which is committed with the re-record.
+- `rota cassettes pull` never overwrites an existing file. `--force` is the operator's say.
+- Copy cassettes.db with SQLite's backup API, not `cp`. A raw copy of the 590 MB file, taken while any process holds it open, opens and then fails with "database disk image is malformed". A suite run against such a copy reports invented failures (116 instead of the real count).
+- `sqlite3.connect(f"file:{src}?mode=ro", uri=True).backup(dst)` takes 26 s. To verify the copy, compare `pragma quick_check` and the row counts of `cassettes` and `case_runs` against the source.
+- There is no `rota/STATUS.md` (checked 2026-08-12) (not found 2026-09-16). An earlier memory claimed there was.
+- `rota/MAP.md` is the map: what exists and what is owed, cited to code (2026-09-13). `rota/COMPLETION.md` is the core list and the plan. The walk diary is `plans/archive/completion-diary.md`.
+- Roman ruled on 2026-09-14 that the task stack must survive a context compaction. The stack is `D:\repos\rota\plans\stack.md`, committed like everything else. "Where are we" is answered from that file, never from memory.
+- Three compactions in two days lost the thread from "is this band-aiding" through the benchmark to the harness false pass. Roman had to ask for the stack twice. A summary is not a stack.
+- The stack holds the top frame first. Each frame has why, state, ends-when, waits-on, and a dated status line. A frame changes by push, pop, or a status line with the date.
+- Push a frame before starting it. Pop it when "ends when" holds. Write the status line before any compaction and at every "how far are we".
+- The core session (2c) owns the frames: it opens, orders, and closes them. Roman's asks are frames marked "(Roman)". Roman can pop or reorder anything.
+- Read the stack before any work, and before asking a peer what they are doing.
+- The validation repos, in order: oauthlib, icalendar, cnt, click. Sureness about onboarding needs a repo the briefs were not tuned on, measured against a key written before the run.
+- oauthlib is the early-era repo. The partition fixes derive from it.
+- icalendar is the control. Its preregistered answer key is `rota/ANSWER_KEY_icalendar.md`, written before any session ran.
+- cnt is the current repo at `D:\tmp\rota-live\repo`, runs `cnt_v1` and `cnt_v1_14b`.
+- click was cloned 2026-08-24 to `D:\tmp\rota-live\click`. Run `click_v0` holds the mechanical layer only: 6 areas after the examples-attach fix, zero keys, docs/-heavy. It is the library-shaped stressor in `rota/ASSUMPTIONS.md`.
+- Preregistered keys exist for both new repos: `probes/click/answer_key.yaml` (+ questions.py) and `probes/ical/answer_key.yaml` (+ questions.py), committed before their understanding runs. `consult.py --questions probes.<repo>.questions` measures them.
+- Both understanding runs completed 2026-08-24. The results are in the keys' recorded_run_result sections.
+- click_v0: 43 sessions, 6/10 terms, 0 traps, consult 2/8 (one flat src area capped it), 0/2 required constraints, pyproject none_found.
+- ical_v0: 105 sessions, 8/10 terms, 0 traps, consult ~5.5/8 including the rename question from the model layer, 0/2 substantive constraints. Half the glossary is a Vale word-list area.
+- Cross-repo invariants: traps 0-for-22 since v1.0.0. Furniture areas (dot-dirs, docs) produce stamped constraints on every repo. Granular areas are what consult strength is made of.
+- Before any click or other new-repo understanding run, write the answer key cold from the source, commit it, then run. That is the discipline of `ANSWER_KEY_icalendar.md`. First-contact findings go into `rota/ASSUMPTIONS.md`, not scattered notes.
+- clickI build nights (2026-09-10/11): a fresh clone at `D:\repos\_AI\sample_repos\clickI`, driver `gauntlet_click.sh` (three sentences, yes-only principal). The `_turns` variant sets ROTA_ONESHOT= empty.
+- Nine nights, seven doors, no merge. Night 9 got all three sentences to decided items. The next layer is the Terminologist writing criteria for the account against `examples/` on a big repo, a brief matter.
+- Restore the click checkout before a night: remove `.rota/worktrees/*`, delete `batch/*`, `rm -rf .rota`.
+- Node sample (2026-09-12): `D:\repos\_AI\sample_repos\nodeI`, a two-file library `tally` with `package.json`. `npm test` = `node --test`, one inherited test file, first commit e3de5c9.
+- The Node sample is for the second-language work (G1, `plans/greenfield-setup.md`, "Rulings and choices, 2026-09-12"), which starts after click merges cold. Node 26 and npm 11 are on Windows and WSL. cargo and go are not installed.
+
+## Hardware and drives
+
+- Roman's box: RTX 3080 with 10 GB VRAM, 32 GB RAM. Measured, not assumed.
+- Two cards since 2026-09-12, and driver 581.80 serves both. The RTX 3080 has 10 GB, compute 8.6, ~123 tok/s on llama3.1:8b alone. The GTX TITAN X, Maxwell, has 12 GB, compute 5.2, ~27 tok/s on the same model.
+- The 3080 sits at PCIe 3 x8 now (was x16). That costs a few percent in games. There is nothing to do in software.
+- The PSU is an RM850. The 3080's limit had been raised to 370 W. With the Titan at 250 W that is over the line under transients.
+- Ask for 320 W on the 3080 and 200 W on the Titan (`nvidia-smi -pl`, needs admin, resets on reboot, Afterburner to persist). The Titan draws ~115 W under inference.
+- Power modes the agent can flip (2026-09-12): `probes/gpu_power.ps1 -Mode install`, run once by Roman elevated, registers two scheduled tasks. His account owns them at highest run level, with execute granted on the task itself.
+- Run the tasks from PowerShell, not Git Bash, whose slashes break schtasks. `Start-ScheduledTask -TaskName rota-gpu-power-game` sets 3080 370 W, Titan 150 W. `... rota-gpu-power-work` sets 3080 320 W, Titan 200 W, proven both ways.
+- When Roman says he is gaming: game mode, and pause the 3080's queue. The Titan keeps working at its floor. Limits reset on reboot, so run the work task first in any queue after a restart.
+- `tests/rota/cassettes.db` (about 590 MB) sits on the D: HDD. WAL is on. It was git LFS until the split of 2026-09-14 and is now untracked, so it moves between checkouts as a file copy.
+- `ROTA_DEV_DB` points the recorder at a copy on the SSD when the HDD is the bottleneck. Symlinks on Windows need admin, so copy instead.
+- Corruption, 2026-09-12: the rota suite ran under WSL over `/mnt/d` (a 9p mount, no byte-range locks) while `ROTA_L1=1` recorded on Windows. The record came back with btree errors ("Rowid out of order", "2nd reference to page"). Every recorded session failed with "database disk image is malformed".
+- Recovery on 2026-09-12: `git checkout -- tests/rota/cassettes.db`, delete the `-wal` and `-shm`, `PRAGMA integrity_check` says ok, re-record what was lost.
+- SQLite's locking does not cross the WSL mount. One writer and one cross-mount reader is enough to corrupt.
+- One process on cassettes.db at a time. A WSL suite run and a recorder never overlap. Before trusting a red after any overlap, run `PRAGMA integrity_check` (it takes minutes on the HDD, so background it).
+- WSL is on the HDD too (measured 2026-09-14): the Ubuntu vhdx is at `D:\wsl`. fsync rate: WSL `/tmp` and `/root` 6 per second, Windows `D:` 13, Windows `C:` 279, WSL `/dev/shm` 216 000.
+- The rota suite on WSL sat 22 minutes in ext4 journal waits with 16 workers idle. `tests/rota/conftest.py` sets `TMPDIR=/dev/shm` when it exists. The git fixture's guard follows `tempfile.gettempdir()`, so `--basetemp` alone breaks it.
+- A `rota run` under WSL writes its database at 6 fsyncs a second. Put `ROTA_HOME` on `/dev/shm` for a throwaway run, or run on Windows.
+- A guessed ROTA_DEV_DB is a silent new database (2026-09-14). The register is `tests/rota/cassettes.db` (`rota/paths.py`), not `.rota/cassettes.db`. A Titan chain run with `ROTA_DEV_DB=.rota/cassettes.db` recorded four cases into a fresh empty file, and the peer saw an unchanged pack checksum.
+- Never set `ROTA_DEV_DB` unless it names a copy you made on purpose. The merge back was by rows. Keys shared with an older load kept the old completions, so the moved case still needed a `ROTA_REFRESH=1` re-record.
+- A night on the SSD (2026-09-15): onboarding showed no GPU use for minutes. The click checkout restore, the worktree add, the index, and the run database's WAL all sat on D:. Roman: move them for the next night.
+- `ROTA_RUNS=C:/Users/roman/rota_night/state` moves the runs directory (run db, warm snapshot, live file, rota/paths.py RUNS). `CLICK_ROOT=C:/Users/roman/rota_night/clickI` moves the sample checkout (a clone of the D: one). The warm snapshot lives in the runs directory, so the first night there is cold.
+
+## Models and Ollama
+
+- `llama3.1:8b` was the only viable local model for the test suites when first measured: 4.9 GB, 0.2s warm round-trip, fits entirely in VRAM at `num_ctx=12288`. It is now only the code default.
+- Ruled out by an early measurement: `qwen3.5:9b` has native tool calling but spills ~27% to CPU once its KV cache is allocated. It then takes >100s per turn. `gemma4:31b` needs ~20 GB and swaps the machine to a standstill.
+- Since the 2026-08-25 bakeoff (probes/bench/), `qwen3:8b` with `think: false` is the understanding engine. The flag goes in the ollama payload in rota/llm/llm.py. The `/no_think` prompt prefix does NOT work.
+- qwen3:8b: 5.2 GB, fits fully, ~12.5 s/turn, frame 34/38, define 12/12. It ran the full nine-stage click spine in 11 min against the 14B's 2.5 h. Without think:false it decodes at 0.1 tok/s and scores 0 on frame, which is thinking contamination, not model quality.
+- `qwen2.5:14b-instruct-q3_K_M` (75% GPU, 153 s/turn) keeps judgement parity and stays only for cross-family reads. `gemma3:12b` is the frame-specialist reserve (36/38).
+- The practical budget is ~8 GB, not 10. The desktop steals ~2 GB, so only ≤5.2 GB models fit fully at 12k context. Swapping models costs a reload each way, so queue GPU work serially.
+- Never unload an Ollama model with a request that names it. `/api/generate` loads the model to serve the request, including one whose only purpose is `keep_alive: 0`, so an eviction attempt reloads 26 GB. Kill the runner process instead (`Get-Process ollama` and stop the large one), or `ollama stop`.
+- A leftover client with an open connection makes Ollama reload the model right after the runner is killed. Check for stray processes connected to port 11434 before concluding the model is stuck.
+- Fit table, 2026-09-09 (RTX 3080, 10 GB, walks at num_ctx 12288, about 1 GB of cache): qwen3.5:4b 3.4 GB fits with room. qwen3.5:9b 6.6 GB fits. qwen2.5:14b 9.0 GB spills a little and runs 40–90 s/turn.
+- qwen3.5:27b 17 GB and qwen3.6:27b 18 GB overflow by ~8 GB and would run minutes per turn. Roman asked about 3.5-4B and 3.6-27B. qwen3.5:4b and qwen3.5:9b are pulled as the candidate mechanical and judgement tiers.
+- `model_routing` takes `role=model` pairs since e6e2435.
+- The register replays under qwen3:8b, and the default is not it (2026-09-14). `tests/rota/test_l1.py` takes the model from `ROTA_MODEL`, default `llama3.1:8b`. By 2026-09-14 the newest recording for 78 of 101 L1 cases was qwen3:8b (2635 of the last 3000 case_runs).
+- A shell without `ROTA_MODEL=qwen3:8b` replays the wrong model and reads about 80 cases as `STALE: no recording for the current prompt`. That message says "prompt changed", not "wrong model", and looked like a split regression for an hour. Peers' sessions carry the variable, a fresh shell does not.
+- Keep `ROTA_MODEL=qwen3:8b` for every suite run. A gate full of `STALE` is usually the wrong model, not the split. Before calling anything STALE, check `select model, max(rowid) from case_runs group by model` against the pins the shell produces.
+- The Critic's lever (2026-09-12): gemma3:12b (8.1 GB) passes every Critic register case 5/5 on one load. That includes `CR-a-test-that-encodes-nothing`, red on every 8B and on qwen2.5:14b-q3. Its Developer score is 0.5, so only the Critic's desk moves: profile `local-gemma-critic`.
+- On a 10 GB card the Critic's turns swap the resident model. On the Titan the Critic recorded at ~15 tok/s. A different model, not a bigger one, was the lever.
+- Ollama halves num_ctx by default (found 2026-09-15, finding 79). With OLLAMA_NUM_PARALLEL unset the server runs two slots and splits num_ctx between them, so a profile's 12288 is 6146 per request. A prompt over that is cut from the front: the brief goes first and the model answers as a generic assistant.
+- The tell is `truncating input prompt limit=6146 prompt=...` in %LOCALAPPDATA%\Ollama\server.log (208 times between 2026-09-12 and 2026-09-15). The fix is OLLAMA_NUM_PARALLEL=1 as a user environment variable (set 2026-09-15 04:10, the app restarted) and in probes/titan_ollama.ps1. Read that log line before blaming a looping session on the model or the brief.
+- Ollama's Vulkan backend ignores `CUDA_VISIBLE_DEVICES` and put models on the Titan whatever the CUDA filter said. The main server once spread one model across both cards and hit "CUDA error: the launch timed out".
+- User env `CUDA_VISIBLE_DEVICES=<3080 UUID>` and `OLLAMA_VULKAN=0` (setx) pin the tray app's server (port 11434) to the 3080. `probes/titan_ollama.ps1` starts a second `ollama serve` on 127.0.0.1:11435 bound to the Titan's UUID. UUIDs come from `nvidia-smi -L`, and the numeric index is not stable across the two enumerations.
+- Stray `llama-server.exe` runners survive a killed server and hold the card. Kill them by name before restarting.
+- The register recorder goes to the Titan with `OLLAMA_HOST=http://127.0.0.1:11435` (the recorder reads it, no code change). A click night runs on the 3080 through the default port. That doubles what a day yields.
+- "One GPU, never a walk alongside a recorder" is now "one card each". Ollama's cross-card spread is off the table for a 30B judge on Maxwell until measured. The CUDA runner accepts compute 5.2 but timed out when spread.
+- Hang, 2026-09-12 evening: a qwen3.5:9b generation on the Titan ran 25+ minutes at 95% utilisation with no turn landing. The turn was the seat exchange's Developer at its fourth fix attempt. `ollama stop <model>` on port 11435 freed the Titan.
+- Maxwell with an 8192-token cap can sit in one reply for the whole cap at ~20 tok/s. Once it did not come back at all. A driver on the Titan needs a per-request timeout shorter than the profile's 300 s, or a lower `max_tokens` pin for that card.
+- The 3080 hangs too (night 27, 2026-09-12): a qwen3.5:9b Developer turn held the fast card at 83% for two hours with no turn landing. That is not a Maxwell fault. The socket timeout never fired because the stream trickled bytes.
+- `_consume_stream` now has a wall-clock deadline equal to the backend timeout, and the session sees "no answer in 300s". If a card sits at high utilisation with the run's `turns` count frozen for more than five minutes, `ollama stop <model>` on that server frees it.
+- The deadline was not enough. tipsAZ (2026-09-13) hung seven hours in one Tester turn with it in place, so the wait was outside the chunk loop. Since 4715b23 a daemon `Timer` in `OllamaBackend` shuts the response socket at twice the timeout from another thread (`resp.fp.raw._sock.shutdown(2)`).
+- The real cause (2026-09-13, night 31 + tipsBA, both cards) was not a hang. A reply ran to the 8192-token cap with no call, and the runner's cut-note path raised `UnboundLocalError`. The session failed uncommitted.
+- The same message wake was re-dispatched 69 times at 90 s each, because the message attempt cap only ran at boot. Fixed in a8ce330.
+- Diagnose a "hang" by `py-spy dump --pid` on the walk python and the Ollama server.log, not by utilisation alone. `sim = 1.000` on repeated `task` lines in the log means the same prompt was re-sent.
+- Titan timeout (2026-09-13): at 27 tok/s a cap-length reply (8192 tokens) takes five minutes, so the 300 s default times out every such turn. tipsBB and tipsBC each lost three Tester turns to it. `OllamaBackend` reads `ROTA_LLM_TIMEOUT` (b442e2e), Titan walk scripts export it as 900, and the register recorder passes `timeout=300` explicitly and is unaffected.
+- The Titan can hang (2026-09-15 05:46). A wholesale kill of ollama.exe processes, done to restart the 3080's app, took the Titan's `ollama serve` down mid-run. The Titan came back at one slot with the full 12288 window.
+- Every request then failed with `CUDA error: the launch timed out and was terminated`, even a six-token prompt at two slots, the card cool and idle. That failure is a hung context under WDDM and needs a reboot.
+- Two rules from it: stop only the 3080's server (its parent is `ollama app.exe`, the Titan's parent is powershell). Keep the Titan at `-Parallel 2` (probes/titan_ollama.ps1 default), since its register prompts are short and the runner flags a cut one.
+- Both servers can be down after an idle day (2026-09-15 23:48): night 81 failed its onboarding on "no ollama at localhost:11434". The night script's ollama_up restart runs only after the onboarding step.
+- Before a night or a re-record, curl both /api/tags. Start the 3080's server with `Start-Process ollama -ArgumentList serve -WindowStyle Hidden` and the Titan's with `powershell -File probes/titan_ollama.ps1`.
+
+## Running rota
+
+- `python -m rota` is the one way in (added 2026-08-19). A run is a named database in `<repo>/.rota/<name>.db`. It records the checkout it is about in `config.project_root`, so every verb takes the name and derives the rest.
+- The verbs: `rota ls | onboard <name> --root <checkout> | run | tui | cockpit | report | wipe`. Two runs against one checkout are two names, not two wipes. That is what comparing a branch against its main needs.
+- In the TUI (the seat): `alt+p` run/pause, `alt+r` wipe-and-reindex, `alt+w` wipe, `alt+b` cockpit on the current run. Bindings are `alt+` and never `ctrl+`, because the Input widget holds focus and its bindings win. `ctrl+w` is its delete-word, and an eaten binding is advertised in the footer and performed by nothing (`test_every_binding_survives_the_input_having_focus` guards this).
+- Inspect with the cockpit, not a SQLite browser. The three questions worth asking are not rows. Keep a SQL prompt beside the cockpit for ad-hoc queries only.
+- Idle or stuck is `frontier`/`outstanding` (computed). What the role was shown is the built prompt (`/prompts.json`). Why did this happen is the `cause_id` chain.
+- Wipe is a command, never `rm`. A worktree lives in the target project, and the only proof it is ours is a row in the database. A spawned process is the same shape, and the WAL survives the file.
+- Worktrees are created at dispatch by `lifecycle.start`, never by a role, so an onboarding-only run has none.
+- Old runs in `.rota/` are usually behind the schema and unopenable. `ls` says `stale` and why. They are not migrated on purpose: databases here are throwaway and rebuilt by `init_db` at boot.
+- Profiles (2026-09-09): `rota profile list|show|check|set`, `rota onboard <run> --root <dir> --profile <name>`, `rota run <run> --model M --role tester=M`.
+- A profile is a TOML in `<project>/.rota/profiles/` (not found 2026-09-16), `~/.rota/profiles/` (`ROTA_HOME`) (not found 2026-09-16), or `rota/llm/profiles/`. The shipped `local` profile has qwen3:8b as default and the four judging desks on qwen3.5:9b.
+- The profile is bound at onboarding into config `profile`, and `model_routing` is derived from it. The walk driver's manual `config.set(... "model_routing" ...)` is the old way.
+- `probes/gauntlet_click.sh` on rota/foundation still defaults `REPO` to the old checkout. Export `ROTA_REPO=D:/repos/rota` for a night.
+- The Bash tool's shell has the old checkout's venv on PATH and in VIRTUAL_ENV. To run the new one, prefix PATH in POSIX form: `PATH="/d/repos/rota/.venv/Scripts:$PATH" VIRTUAL_ENV="D:\repos\rota\.venv"`.
+- A Windows-form prefix (D:/repos/...) is ignored and the old python runs the new code (night 47's first launch, 2026-09-14). Check the process's command line after a launch.
+- A night ends at GAUNTLET-DONE, not at Stuck (2026-09-14). The gauntlet script runs sentence three after sentence two sticks. Wait for the GAUNTLET-DONE line, or kill the night, before launching the next.
+- Night 67 was launched on the Stuck line while night 66's sentence three was still writing .rota/clickI.db and the click checkout. The restore under its feet gave a foreign-key failure and a contaminated start.
+- In rota a broken hop and a working hop produce the same observable output: a committed session, a well-formed message (measured 2026-08-26). Three of the five faults found that day were invisible from every surface except the per-turn transcript. Each had stood for months behind a green-looking system.
+- An `ask` sent with `refs=[]` woke an owner with an empty inbox, and the owner still sent a well-formed `answer`, from memory.
+- Refs that named a transcript entry resolved to nothing (`_resolve_refs` had no `entries` row), and again the owner sent a well-formed `answer` from memory.
+- A stray `converse` made the commit path discard every statement the session had written: `sessions.committed = 1`, `receipts` empty.
+- When a rota hop looks like it works, check the thing the hop was for, not that it happened. `SELECT seq, user, completion FROM turns WHERE session_id = ?` is the only view that shows what the model was handed and what it said. `messages` and `sessions.committed` agree with you either way.
+- Check `receipts` against the writes you expected. Empty `receipts` on a committed session means something dropped them.
+- The same property makes cases lie. `L3-a-maintainers-question-reaches-the-owner` passed while the question reached nobody, because it asserted an answer was sent, not that it named anything. Assert on refs into the artefact the role owns: that is the difference between "it replied" and "it replied from somewhere".
+- Never let a fixture give a message and its entry matching ids. `entry_for` looks up `e_{message_id}` and matches by accident, which hides exactly this class of bug.
+- Night 31 (2026-09-13) was the worst case of this shape. A session that raised (`UnboundLocalError` on the first-iteration cut-note path) was never written at all. The run looked frozen with the card at full load, and the same wake was re-dispatched 69 times.
+- Since 2026-09-13 a failed session leaves a `sessions` row with `committed = 0` and its error as the last `turns` row (`db.session_fail`). Wake gates that ask "did a session already run for this" filter `committed = 1`. The message attempt cap runs in `loop.step` after a failed session, not only at boot.
+- `probes/walk.py` prints `FAILED <wake>: <error>` flushed and stops after 30 min with no committed session. Diagnose a frozen run with `py-spy dump --pid` on the walk python and `sim = 1.000` repeats in the Ollama server.log, never from utilisation alone.
+- pylint's used-before-assignment does not catch the loop-scoped pattern that caused night 31. The test with a scripted backend does.
+- The last turn's refusals are invisible (2026-09-13). A session's refusals live in the next turn's prompt. A session that ends right after a turn of refused calls (turns=1, receipts empty, committed=1) shows no ERROR line in `probes/wake_dump.py`.
+- Night 43's reconcile sessions looked clean and had every call refused. Read `receipts` for the session. Empty receipts after write calls means refusals, and the session must be replayed in a sandbox to see them.
+
+## The register and measurement
+
+- The live failure list comes from the `case_runs` table in `tests/rota/cassettes.db`. The query is `SELECT case_id, COUNT(*) runs, SUM(passed) p, MAX(seq) s FROM case_runs GROUP BY case_id, model, prompt_hash ORDER BY s DESC`.
+- Group by `(model, prompt_hash)` and keep the newest group per case. That is what `pass_rate_history()` in `rota/llm/cassettes.py` does.
+- `problems` and `transcript` on each row hold the failure reason and the role's actual tool calls. That tells a bad brief from a broken fixture without a re-run.
+- Re-deriving the failure list costs a full live suite run against the local model. The table has every run ever recorded, including the transcripts. Query it before running anything.
+- A `0/N` is categorically different from a low pass rate. 0 usually means the case is impossible as fixtured, not that the role is unreliable. Open the transcript first.
+- Live pass/fail is the `case_runs` table, never a status line in a document (2026-09-13).
+- Ollama at temperature 0 is deterministic within a model load and not across two. A bench score is a fact about a load, not only about a model. llama.cpp's batching/KV layout and what was resident before both move it.
+- Measured 2026-08-26 on the challenge battery with the identical prompt, byte for byte, same model, same pins. `llama3.1:8b` scored 3 of 4 in one process and 1 of 4 in another an hour later. Three repeats inside each process were identical every time.
+- Never compare numbers taken in different runs. Any A/B over prompts or names must interleave its arms in one process on one loaded model. It should run the whole set twice to show it replicated, and `scratchpad/ab_replicate.py` (not found 2026-09-16) is the shape.
+- Wide gaps survive the drift (frame 34/38 vs 5/38 is real). Narrow gaps do not: a 4-item battery moved 2 items across loads, so `challenge 2/3` vs `3/3` in the bakeoff table ranks nothing.
+- Grow small batteries before reading them. Prefer a name/format that scores the same under every load over one that merely scores well once.
+- `probes/bench/run.py` evicts between candidates, and that does not make its columns comparable. Each model is measured under its own fresh load.
+- Register evidence, 2026-09-09, from `case_runs.load_id`, with Ollama 0.33.3 unchanged since Aug 30 and the app server and a manual `ollama serve` both tried. `L1-VK-the-account-before-the-behaviours` passed 20/20 on load `@248394` and 0/45 on `@248459` + `@248460`. `L1-DV-fix-what-the-verdict-names` was green on 18 loads, red on `@248383` and `@248460`, with the same briefs and the same prompts.
+- The manual server on 127.0.0.1:11434 was stopped on 2026-09-09. The app's server on 0.0.0.0:11434 stays.
+- Boundary cases flip per load, and the red signature is one shape: the model re-reads until the verbatim-repeat guard ends it. The six to eight register reds of 2026-09-09 are this, not code. A runner-transcript nudge tried against it changed behaviour on passing cases and was reverted.
+- Record every case on ONE load for comparable numbers. Never attribute a flip to a brief without a second load. Never edit runner transcript text without a register run first.
+- `case_runs.load_id` is the column that answers "which load". An empty `load_id` is a pre-September recording.
+- `L1-LI-present-the-touch` was red 0/5 on three models for a week and listed as a judgement boundary. The predicate wakes the Liaison with `refs=(batch, item)`, and the case had no `refs:`. So the prompt showed no `Refs:` line, and the brief's "copy the two ids" had nothing to copy.
+- With the predicate's refs in the case, `L1-LI-present-the-touch` is 5/5 on both Liaison models (2026-09-12). A register case's wake must carry what the predicate's wake carries (refs, detail). A wake the system never produces measures nothing, and "red on every model" then reads as a model boundary when it is the fixture.
+- Before authoring or attributing a tick case, read the predicate that produces the wake and copy its `refs` and `detail` shape into the case. Before calling a red a boundary, render the case's prompt and check the wake lines match a real run's.
+- A STALE case (no cassette for the current prompt) renders identically to a red under `--tb=no`. Classify stale-vs-red before reading a baseline.
+
+## The cockpit
+
+- One writer per state axis (2026-08-24): the lens changes only through `setLens()` in graphview.js. It clears `GV.blast` and closes the case (`GV.caseId`, moved out of panels.js's old `CASE_ID`). It opens the lens's home subtab (story/run → steps, coverage → coverage, design/case → none).
+- Do not set `GV.source` directly from new code.
+- Stage listeners attach once in `gvWireStage()`. `gvControls()` is rebuilt freely and must never touch `window`/`document` listeners. They used to accumulate, and wheel zoom compounded per settings click.
+- Layouts are plural. `layout.json` is `main`, and others live in `rota/design/layouts/<name>.json` via `GET/POST /layout.json?name=` + `/layouts.json`. `auto: flow/grid/force` are generated client-side and own no file until saved-as.
+- `placeStrays` parks nodes a layout omits instead of letting them vanish.
+- Layout files are deliberately excluded from `source_fingerprint()` and the watchfiles filter (`is_layout_file`). Before that, every "save layout" reloaded the page and restarted the server under it. Do not "simplify" that exclusion away.
+- provenance's "WHAT IT WAS SHOWN" prefers recorded `turns` (verbatim) over the rebuilt brief. `provenance_check.js` picks its fifth needle by whether the session recorded turns.
+- Dropdowns are the hand-rolled `dd()` component (graphview.js), not native selects. Callers write the `<div class="dd" id="...">` wrapper with the id literal in source, because `test_every_element_the_scripts_write_to_exists` reads source text and cannot see interpolated ids. The layout dropdown carries per-row deletes and a "+ add layout…" action row.
+- The inspector panel starts collapsed by contract (`PANEL` in panels.js). `showTab(t, quiet)` has the quiet flag so the localStorage tab restore does not open the panel at load. Only width persists, never open-state.
+- The key sits bottom-left. The legend is mode-aware (chat gets its own).
+- Pill states (2026-08-26): QUIESCENT / WORK PENDING / NO RUNNER / STUCK. STUCK requires a held claim plus stillness. Frontier-nonempty + still + no claim is NO RUNNER (nothing is running the db, and the fix is `rota run`, not a debugger).
+- Claims carry no pid in the current schema, so presence is the whole signal. Stillness is server-side `quiet_secs` = seconds since the newer of db/-wal mtime (never -shm, because readers touch it). Thresholds are 30s (NO RUNNER) and 180s (STUCK, which waits out two slow 90s local turns).
+- The schema gate (`prepare_db`, `_switch_run`) runs `init_db` only when the read-only drift check finds something missing. An unconditional init_db stamps the WAL and resets the very clock the pill reads.
+- Coverage bars use `gradeColor` (stop→warn→ok ramp anchored to the palette). Milestone bars deliberately stay two-tone, because early planned work is not a fault.
+- The cable (owner's call, 2026-08-26): a role↔artefact pair carrying both a read and a write draws as ONE connection of two strands at every zoom. Each strand is ±2.2px and keeps its kind's colour/dash/head/label/click. This amends the old "never fold across types" note, and the strands keep its spirit.
+- A pair carrying exactly one line (both directions counted) draws straight, never bowed. `lens_check` asserts both cable rules.
+- `.title =` is banned in panels.js by a lint. Use `setAttribute('title', …)`.
+- Visual preferences (2026-08-24): sober, low radii, 2–4px on chrome, no pill capsules. Rounding above that only where shape carries meaning (the principal's stadium). Newcomers are smart, so orientation, not instruction.
+- No node search. The URL is the query (`#/graph?lens=…&node=…`, written via `syncHash`/`applyHash` in panels.js).
+- No row timestamps ever (law 13): rows carry order, not wall time. Time appears only where the OS records it (run-file mtimes in the header run selector).
+- Run selector: header `#rundb` dropdown. `GET /runs.json` lists sibling `.db`s newest-first, and `POST /run?name=` switches the served run in place (schema-drift → 409).
+- `rota cockpit` with no name delegates to the server's chooser: the newest run that opens. Behind-schema siblings are skipped by name, not refused outright, because the schema moves under runs when parallel work edits schema.sql.
+- The design direction lives in `plans/cockpit-presentation.md` and the "Glass Cockpit" artifact.
+- Verify with `node tests/rota/lens_check.js` (needs a cockpit serving). It also checks the three layout generators and placeStrays. `node tests/rota/provenance_check.js <table> <row>` verifies provenance on a row that exists.
+- Run `node tests/rota/lens_check.js` before claiming a cockpit change works. It reports how many edges each lens lights, in what states, and whether every key row resolves to something. A green `node --check` is necessary and not sufficient for a viewer change.
+- The coverage lens "looked broken" three separate times while the logic under it was correct. The faults were no positive mark, then a halo too faint to see, then key rows that resolved to nothing. Reading the code proved nothing every time.
+- A scripted edit once shipped a call to a function that had never been written. `node --check` passes that happily, and only the lens check caught it.
+- Assert the anchor matched before any scripted `str.replace` on source. One session had three silent no-ops, one of which was that broken reference.
+
+## Rulings on briefs and doors
+
+- Roman ruled prompts over guards: no rule-bounding of LLM judgements. On 2026-09-02, after ~35 S0 walks and ~30 guards, Roman said: "these deterministic checks I'm not so sure about their quality, the system prompt is where the real work is I believe".
+- Earlier Roman said "slicing should be an intelligent LLM operation" (no bounding of tickets by rule). He also said "I'm not sure a deterministic guard is able to fix this" (the criterion-word detector, backed out).
+- The walks showed every judgement-shaped guard regressing a register case or buying nothing. The mutation probe showed the loop-level tests do not notice when guards vanish. The brief is the model's whole world.
+- What moved the 8B was prompt structure (headline act, worked example, no escape hatch), not fences.
+- Before adding a guard, ask whether the brief's structure could carry it. Prefer the brief unless the thing is a fact about the harness (stdin, imports, stale runs) or state semantics. Do not bound LLM judgements (slicing, triage, review) by rule.
+- Measure brief changes with the register case that owns the behaviour plus a cold walk.
+- The shared prose is every desk's prompt (2026-09-12). One sentence added to the runner's tool-format prose (teaching the `text=[text]` block form) changed the hash of every mode.
+- Measured the same day, that sentence took the Terminologist's survey case from 770/780 to 0/20 on llama and 0/5 on qwen3.5:9b. No call ever used the form, and the sentence was reverted.
+- A change to `runner.py`'s format prose is a brief change on eight desks at once. It owes a re-record of the whole register, not the mode it was written for. The parser's refusal is the place for a transport hint.
+- The Level 1 walks tipsJ..tipsS (2026-09-09) were each unblocked by a door that holds a fact an 8B model cannot see and Python enforces silently. The facts are all in `api.py`.
+- Doors of 2026-09-09, in `code.write`: a whole-file write drops a name the tests, the criteria's surfaces, or other files import. A file defines one name twice, and Python keeps the last. An entry point loses its `__main__` guard.
+- Also in `code.write`: the Developer writes a test file, the harness runs the database's copy, and the merge carries the file.
+- More doors of 2026-09-09: a surface ref `path::name` compared whole against bare call names (`tests.encode`). A test named as a surface (`criteria.specify`). A ledger row about a ledger row, or a rota row under another table's name (`ledger.log`).
+- More doors of 2026-09-09: a frame ruling's body is `reason`, and the frame cites paths it need not open (`surveys.attest`). A claim that cites nothing, because loading it is the reading (`challenge.load`). The Critic's ledger id over 64 chars (`_challenge_ledger_id`).
+- More doors of 2026-09-09: a merged batch is done (`tests_missing`). A batch with no worktree cannot be written to (`_batch_worktree`). A stale worktree at a new batch's path.
+- Before writing a door, ask: would this refuse a correct act by a stronger model? If yes, it is a judgement, belongs in the brief, and is measured on the register.
+- If the check names a state of the file or the database that is wrong under every model, it is a door. Its message names the exact call that passes.
+- A refusal that names one argument at a time makes an 8B model flip between two fixes (criteria id / ticket id). Name both in one message.
+- Read a quarantined session's refusals in the next turn's `user` text. A single-turn session stores none.
+- Doors added 2026-09-10/11 (the merge re-earned, tipsAP): the fence (`core/fence.py`, reaches and dependency manifests). A root file may not carry a stdlib name. Criteria go to the wake's item.
+- More doors of 2026-09-10/11: the surface must name the callable the item names in words (`_surface_names_what_the_item_names`). Constraint zero (k0) cannot be violated. An empty commit under a finding names the signature drift.
+- More doors of 2026-09-10/11: an escalation over a removed or drifted name is refused. A deliver waits for onboarding. An assert that replaces the account's words is refused.
+- More doors of 2026-09-10/11: a running batch with no commit re-owes its start. A quoted word in a clarify is a word. A new batch never inherits an old run's branch.
+- More doors of 2026-09-10/11: git runs with hooks off. A batch commit excludes `.venv` and `.rota`. Each is a fact about files, the index, or the database.
+- Doors of 2026-09-12 (all facts, no judgement): the 2048-token output cap cut a whole-file write and the parser called it a quote error. Now the cap is 8192, the runner names a cut reply, and `code.write` takes the span `code.source` showed.
+- More doors of 2026-09-12: a quote inside quoted source swallowed the next argument, so the parser names the quote and the `text=[text]` block form. The runner derived a converse session's entry by name `e_<msg>`, and now uses the message's own ref.
+- More doors of 2026-09-12: a page to the principal carries at most seven open assumptions (`sandbox.PAGE_ASSUMPTIONS`, and which seven is the brief's). A `reopen` needs the item's version above its approval. The drops-definitions refusal names the appending span `start=N, end=N`.
+- More doors of 2026-09-12: reconcile wakes once per prose file (`@prose:<path>`).
+- On 2026-09-12 the ruled Critic review order and a brief sentence teaching the block form both measured worse on 8B and were reverted. Doors held, prose did not.
+- When adding a guard to rota's sandbox or ops, look for existing guards that key on the same signal and make them agree. Guards run in binder-then-op order, and a refusal's repair text is an instruction the model follows literally. Two guards on one signal that disagree turn the first into a tutorial for evading the second.
+- Measured 2026-09-01: the cross-table id guard (Law 14) fired first on a Vision Keeper passing an item's id as a decision id. Its hint said "prefix it with what it is". The model did, `c_` + item id, and the older "minuting your own edit" guard, keyed on id equality, no longer matched.
+- A case green across five loads went 0/5, and the cause was a hint, not a model. After any guard, re-record L1+L3 before banking it. Read the per-load history of every case that flips (case_runs, grouped by load_id) before attributing the flip to the model.
+- Key semantic guards on the subject (the row written this session) rather than on the literal id. Make a collision hint say what the collision means when the colliding row is the session's own write.
+- A guard inferred from one transcript can be a wall elsewhere (2026-09-02). Two walk-era guards each sent a green register case 5/5 -> 0/5, and neither bought the case it was written for. One scoped the post-send notice away from build modes, and one redirected a challenge that quotes a test to the Tester.
+- If a guard's distinction is not mechanical in every mode it fires in, it is a judgement in disguise. Leave it to the desk. At review the tests are green by construction.
+- Third instance, 2026-09-02 (responsibility audit): the verdict-after-challenge guard sent `CR-fail-names-its-criterion` 0/5. The model produced the correct fail-naming-its-criterion verdict four times, and the guard refused each. The model had first reached for `msg.challenge_developer`, a tool in review's namespace that no brief sentence governs.
+- The compound shape is unguided tool + sequencing guard = mode locked out of its required act (findings P10/P11 in plans/responsibility-audit.md).
+- A brief that closes on an unconditional escape hatch scores ~7% median, and every other ending style ~80%. The measurement (2026-08-12) covered 60 L1/L2/L3 cases, grouped by how the mode brief's final paragraph ends.
+- Terminal ending ("one submit, then stop"): 9 cases, mean 81%, median 83%. Prohibition ending ("do not ..."): 9 cases, mean 75%, median 80%.
+- Ordinary action ending: 34 cases, mean 67%, median 76%. Unconditional escape hatch: 8 cases, mean 31%, median 7%.
+- An escape hatch is a closing "if it is none of those, hand it on / ask / escalate on". Examples: `architect/escalate.md`, `developer/answer.md`, `vision_keeper/contested.md`.
+- Treat the escape-hatch result as a lead, not a result. The broader claim "the last paragraph becomes the default action" is disconfirmed, because prohibition endings score fine. Controlling for role, the effect reverses in places: Architect's escape-hatch brief beats its own others (64% vs 57%).
+- The headline number is carried almost entirely by Liaison's two cases at 5.6%. Those two were separately found to be starved by the tick-wake harness bug, not by their ending.
+- When a case sits near 0 and the transcript shows the role doing something reasonable-but-not-asked, read the brief's last paragraph early. Rule out a starved fixture first, which is what the two clearest "escape hatch" failures turned out to be.
+- The sharper signal from the same table is per-role: developer 50%, tester 39%, researcher 33%, against terminologist 78% and liaison 94%.
+- The reverse also fails (2026-09-09). `architect/boundary.md` ends on `none_found` as the last sentence, and the Architect on a live walk never took it (pyproject.toml, three sessions, quarantine). Moving the none_found decision to the front took the register case from 5/5 to 0/5 on the same load, interleaved.
+- With the exit first, llama3.1:8b amended five times and never attested at all, so the change was reverted. A first-paragraph exit is not a cure for a last-paragraph exit. The live failure was qwen3:8b and the register is llama3.1:8b, so the lever for the walk is unmeasured.
+- Adding a tool to a mode's `.tools` file changes what the model does on the plain case. Three measurements, all 5/5 on one load, show the same shape.
+- `decisions.author` added to Vision Keeper relay: the plain relay wrote 14 decisions. Relay tools added to Terminologist relay: adopt wrote 2 rows (reverted).
+- Relay tools added to Liaison `converse` for the "answering a clarify" branch (2026-09-09): qwen3:8b relayed a plain question to the Vision Keeper. G1 went 10/10 to 0/5.
+- The fix was a new mode `answering`, keyed in `runner._mode_key` on the cause verb (`converse` caused by `clarify`). `verdict_signoff` and `batch_start`-from-`elect` are keyed the same way.
+- An 8B model reads the tool list as the menu of what this session is for. A tool that only one branch needs is an invitation on every other branch.
+- When a brief grows an "if X is in the message" branch that needs tools the mode does not have, do not add the tools. Add a mode: brief, `.tools`, `_mode_key` branch, an `obligations.py` line, and a register case with `prompt: <mode>` (test_edge_coverage demands the case). Re-earn the old mode's cases after the split.
+- A bare id in the prompt carries no table, and the owner is a fact about the table. Resolve rows the brief must route on (`about_rows` with `table`). Do not list owners in the brief and hope.
+- Read what the model sent before trusting any number about it. What it lacked is either a fact, which becomes a tool result, or a judgement, which becomes a measurement you bring with a proposed wording. (Agreed with Roman, 2026-09-15.)
+- Roman's line: the model's capability is sound until disproven. The model is the last suspect, not an innocent one. On 2026-09-14/15 the instrument, the wake, the brief, and a mode's tool list were each wrong before the model was, and the model never was.
+- Disproof has a shape: the facts in front of the model, the wording measured, the load the same, and no run does the thing.
+- Finding 79 (2026-09-15): four nights of a looping Developer were sessions whose brief the server had cut off (Ollama halves num_ctx across two slots). The instrument was the wall and the model never was. Twice Roman had to propose the spike himself.
+- Three times in one hour on 2026-09-15 a score lied while the transcript was plain: source_refs held reference ids, not lines. The harness could not read constraint_bindings. The parser did not read `MODEL: amend(`.
+- When a night sticks, read the transcript and name what the role produced. A fact (a file list, a span, a reply edge, a tool in a mode's list) becomes a door or a structural test. The door or test is unit-tested and replayed on the register.
+- A judgement is read across nights first. Spike it only when the model produced the thing on some load. The spike is wording A against B on one model load (Ollama unloads an idle model in about five minutes).
+- The scoring rule is taken from the good answers and checked against the tool's own field. The report is numbers plus a wording, never the open question. Start a spike without asking, and stop when a door is being built ahead of a measurement that asked for it.
+
+## The principal flow
+
+- On 2026-09-12 Roman saw a talk on humanlayer's "Why Software Factories Fail" (wsff.md in github.com/humanlayer/advanced-context-engineering-for-coding-agents). He asked to redesign the principal's flow from it.
+- The design is `plans/principal-flow.md`: six pages (cut+path, product, commitments, design, slice read, got-it), three paths (oneshot, plan, full), holds at intent and design time.
+- rota held the principal only at the cut and signoff. The three moments that decide the shape of code (design, slice, merge read) had no page.
+- Two dead ends: `merge_gate=review` waits on a page nothing presents. The grouping brief's "declare a dependency fact" has no tool (`batch_dep_facts` has no writer).
+- Treat the plan as the frame for pre-build work. It amends ruling 2 of 2026-09-12 (hold at intent only) and R7 (touch note never blocks) on the plan and full paths.
+- Build order is deterministic pieces first, then one brief sentence at a time on the register.
