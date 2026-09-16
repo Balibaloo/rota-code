@@ -216,7 +216,7 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
         problems.append(f"did not commit: {outcome.errors}")
 
     sent = messages_from(db, "liaison")
-    briefed = {m["to_role"] for m in sent if m["verb"] == "brief"}
+    briefed = {m["to_role"] for m in sent if m["verb"] == "deliver"}
     if briefed != {"vision_keeper", "terminologist", "architect"}:
         problems.append(f"broadcast reached {briefed or 'nobody'}, expected all three")
     if any(m["verb"] == "clarify" for m in sent):

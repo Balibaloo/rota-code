@@ -15,15 +15,7 @@ files may witness the project's most important contract; one quarantined
 survey may be the area the next question lands on. A fact that hides
 nothing — a lockfile no parser reads — is not worth an entry.
 
-For each gap that matters, one entry, `ledger.log(about_ref=<the path or
-subject>, about_table="items", assumption=...)`. Written out, an entry
-from a real run reads:
-
-    about_ref="terminologist|tick:term_collision|context,context#src_click"
-    assumption="two senses of `context` were written and never
-      reconciled, because the collision that would have merged them was
-      given up after three attempts; whichever a later question loads is
-      the one it will believe"
+For each gap that matters, one entry with `ledger.log`.
 
 Each `ledger.log` is about an area: `about_ref="@<area>"` with the name
 `code.gaps` lists, and `about_table="model_areas"`. A tick, a message or

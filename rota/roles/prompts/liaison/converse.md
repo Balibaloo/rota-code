@@ -38,8 +38,8 @@ Reply naturally with **one** `msg.converse_principal(reply='...')`.
 write X?", "what does this word mean here?", "which kinds are there?", "what is
 this module for?" — the principal is asking about the program that has been
 onboarded, and the answer already exists in somebody's artefact. You do not know
-it and you do not guess it. Route it, with one ask per owner that could hold
-part of it:
+it and you do not guess it. Route it with one ask; the wiring carries it to every
+owner. The owners are:
 
 - `msg.ask_vision_keeper` — what the program does for the person using it:
   behaviours, promises, what was in scope.
@@ -48,8 +48,8 @@ part of it:
 - `msg.ask_architect` — what an area of the code is for, where something lives,
   and what outside things depend on it.
 
-Ask **every** owner that might hold part of the answer, not just the likeliest
-one. An owner whose artefact does not carry it says so, and that costs nothing:
+One ask reaches **every** owner; you do not pick the likeliest one. An owner
+whose artefact does not carry it says so, and that costs nothing:
 these are read-only sessions and they change nothing. Their answers come back to
 you and you relay them; nothing here is a request for the principal to confirm.
 

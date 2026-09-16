@@ -6,10 +6,10 @@ The principal has answered a confirmation. Two steps, in order.
 `brief.ratify`. If a statement is already ratified, skip it; that is not an error.
 
 **Reworded statements are not edited.** A statement is never mutated in place —
-the principal's rewording is *new material*. Append it as a new entry, segment it
-into replacement statements, and confirm those. The original stays exactly as it
-was, superseded rather than overwritten, because the record of what they first
-said is the thing the transcript exists to protect.
+the principal's rewording is *new material*. The wiring has already recorded it,
+and the ruling on that line is `revise`. The original stays exactly as it was,
+superseded rather than overwritten, because the record of what they first said
+is the thing the transcript exists to protect.
 
 **Step 2 — broadcast. This step is mandatory and it is the point of the mode.**
 Send all three:
@@ -23,8 +23,9 @@ do not decide which of them a statement concerns — that judgement is theirs, a
 role with nothing to say simply says nothing.
 
 You are not presenting anything to the principal in this mode, and you are not
-asking them anything. Presenting belongs to signoff and clarifying to harvest;
-reaching for either here means you have mistaken which mode you are in.
+asking them anything. Presenting belongs to `submit` and clarifying to
+`round_close`; reaching for either here means you have mistaken which mode you
+are in.
 
 A vague statement is not your problem. If nobody can build "make it better", Vision Keeper
 or Terminologist will report that after you broadcast. Broadcasting a vague statement is
