@@ -38,6 +38,25 @@ answers to the scope report's questions; Roman can overrule any line).
 - Q12. Frame 20's two brief lines (`terminologist/base.md:13-14`, `:36`)
   land in stage 4 with the three words of `rota/LAWS.md:279-285`.
 
+## Stage 1 deviations (observed: the agent's report, commit ac1b83e)
+
+- Q11 moves to stage 4. An op's signature is in the prompt, so a new
+  parameter re-keys every Vision Keeper and Terminologist case.
+- `refs.src_table` and `refs.kind` carry no CHECK. The vocabulary lint
+  reads every CHECK value as a state word. `api.stage_ref` refuses any
+  other value. Stage 3 decides whether the CHECK lands with a lint exemption.
+- `glossary.same` leaves the old `term` ref beside the repointed one.
+  Stage 3 adds the delete door: a dropped row's refs go with it.
+- `_adopt_rows` writes the ruling ref only when a landed `rulings` row
+  exists on the cause chain. Stage 3 rules that adopt without one refuses.
+- Two fixtures in `l1_liaison2.yaml` put statement ids in `source_refs`.
+  The view says `decided` where the column says `observed`. Stage 2
+  accepts the view and lists the cases that go STALE from it.
+- `check_predicates_can_fire` flags a predicate that reads a view.
+  Stage 2 adds a rule for views.
+- In stage 2 a result renders `cited` for `basis = 'world'`, today's word,
+  so prompts stay the same. Stage 4 decides the rendered word.
+
 ## The shape
 
 Section H of the scope report holds the SQL: the `refs` table, the
