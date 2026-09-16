@@ -55,8 +55,8 @@ head. The structure holds it in rows.
 - The built unit is a set of tasks formed once, then built, judged, and
   merged whole.
 - A seat restarts from records. There is no snapshot.
-- A record says whether it was observed from the code or the world, or
-  decided by the Principal.
+- A record says whether it was observed from the code or the world,
+  reasoned by a seat, or decided by the Principal (ratified 2026-09-16).
 - A record's identity derives from its content, not from when it was
   made.
 - A ruling is a record. The Principal rules, the Liaison writes it, and
