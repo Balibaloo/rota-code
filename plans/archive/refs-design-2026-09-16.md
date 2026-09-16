@@ -153,6 +153,25 @@ artefact; the loop schedules no cascade wake today, so the readers need
 the artefact stripped when it does. The order of a criterion's `term`
 refs is the rowid order, a set, not the list the column held.
 
+## The walk that cycled (observed: the diagnosis agent's report on `.rota/clickI.db` and night 70's database)
+
+The onboard-only walk of clickI after stage 4 cycled on the collision
+`option` and `option#src_click`. No frame 21 change caused it: night 70
+had no collision, and today's survey minted seven second senses under the
+same brief and model (per-load variance). The `glossary.same` door refused
+the merge 24 times on the word "distinct" inside a negation. The driver's
+empty converse landed as a ruling of nothing through stage 1's `land()`
+row, adopt refused, and `term_collision` re-fired because every message on
+its path closed. Fixes (reasoned: silence is not consent): an empty answer
+lands nothing and the ask stays open; the driver does not pump an open ask
+twice; the door reads a negation.
+
+Open, rota workflow, not this frame: `term_collision` counts an id as
+ruled when a `decisions` row names it, not when a `ruling` ref rests on it.
+Recommended: a `ruling` basis counts as ruled, since decided cascades from
+a ruling. The old adopt stamped `decided` on an empty answer; the new one
+refuses, which is the composition's rule.
+
 ## The shape
 
 Section H of the scope report holds the SQL: the `refs` table, the
