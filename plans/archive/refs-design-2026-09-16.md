@@ -57,6 +57,38 @@ answers to the scope report's questions; Roman can overrule any line).
 - In stage 2 a result renders `cited` for `basis = 'world'`, today's word,
   so prompts stay the same. Stage 4 decides the rendered word.
 
+## Stage 1 review (observed: the reviewer's report on ac1b83e, probes in the session scratchpad)
+
+The view agrees with the columns on every row of a copy of `clickI_n42.db`
+(82 refs rows, 0 rows differ). A point lookup builds the whole view and
+takes under 1 ms at that size. A cycle terminates. Fixes, in one brief
+after stage 2 lands (reasoned: the fixes and stage 2 edit the same files):
+
+1. `land()` writes a second landed `rulings` row when the Liaison's own
+   row is open on the same ask (`principal.py:746-751`, `:779-784`).
+   Fix: land the open Liaison row, and create `r_<msg>` only when no row
+   exists for the ask.
+2. The fixture ask `m_fixture_ruling` is `answered` with no answer, so
+   `rota/tools/audit.py:143-147` flags every seeded database with a
+   `decided` row. Fix: seed a record the audit accepts and no prompt,
+   wake or predicate reads. The STALE set must stay empty.
+3. A duplicate refs row written in a later session bumps the artefact
+   counter and receipts the source row for no change (`db.py:279-287`,
+   `:436-456`). Fix: a refs write that changes nothing is not a change.
+4. A refs write staged before its source row's write bumps the counter
+   twice (`db.py:441-450`). Fix: one bump per receipt key per commit.
+5. `tests/rota/test_refs.py:298-299` asserts nothing: `"cite"` against
+   dotted names. Fix: no offered name ends with `.cite`.
+6. The `provenance` view reads `target` unqualified in three correlated
+   subqueries (`schema.sql:131-138`). Fix: `reach.target`.
+7. `artefact_of_write` (`db.py:97-101`) has no caller. Delete it.
+8. The `cite` door (`api.py:511-524`) accepts a target that names no row.
+   Fix: the door checks the target per kind, as the owner ops do.
+
+Accepted as designed: `glossary.same` lifts the kept row to `decided`
+when the dropped row rested on a ruling (ruled: decided cascades along
+the refs). Stage 2 lists any case that goes STALE from it.
+
 ## The shape
 
 Section H of the scope report holds the SQL: the `refs` table, the
