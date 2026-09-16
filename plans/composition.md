@@ -108,7 +108,11 @@ and the memory directory.
 
 ## Open
 
-Placement test, 2026-09-16. Two agents placed every item under a line on
+Marks, ruled 2026-09-16: every conclusion here and in the stack carries
+(observed), (reasoned), or (ruled: a reason the size of a commit headline).
+Ruled because a ruling and a judgement looked the same in prose.
+
+Placement test, 2026-09-16 (observed). Two agents placed every item under a line on
 this page. Laws and rulings: 112 of 140 items place. Briefs: 272 of 390.
 Plans: 10 of 15. Most misfits are detail with no parent. The rest are
 below.
@@ -116,18 +120,21 @@ below.
 Roman ruled on 2026-09-16: the five masses the test found are in the
 body (the project, the outside world, provenance, verification,
 identity). The Liaison originates questions. A ruling is a record. The
-clean-workspace rule returns.
+clean-workspace rule returns (ruled: the test found them and the page
+lacked them).
 
-The checkpoint check, 2026-09-16: the register's checkpoint_invalid entry
+The checkpoint check, 2026-09-16 (observed): the register's checkpoint_invalid entry
 is the discharge half of the suspend-and-resume design. No code writes
 the row it reads. The check is in `plans/archive/checkpoint-check-2026-09-16.md`.
-Roman ruled the same day: a seat's question to another seat does not end
-the seat's session. The ask waits for the answer in the same session, with
+Roman ruled the same day (ruled: a seat's question should not cost its
+session): a seat's question to another seat does not end the seat's
+session. The ask waits for the answer in the same session, with
 a depth cap and a timeout. A seat that waits on the Principal ends, and
 resumes from its recorded turns while its working set is unchanged. The
 `checkpoints` table stays for that path. Roman holds the ruling
-tentative and low priority until the code confirms the reading. Two
-candidate sentences for Records, not yet in the body:
+tentative and low priority until the code confirms the reading (ruled:
+the code has not confirmed the reading). Two candidate sentences for
+Records, not yet in the body (reasoned, the assistant's wording):
 
 - A seat that asks another seat waits for the answer in the same session.
 - A seat that waits on the Principal ends. It resumes from its recorded
@@ -136,7 +143,8 @@ candidate sentences for Records, not yet in the body:
 
 ### Docs behind the page
 
-The page wins. The docs change. This is the work of the docs refactor.
+The page wins. The docs change. This is the work of the docs refactor
+(observed).
 
 - LAWS, ROLES and the Liaison brief: placed and changed 2026-09-16, frame
   18. Laws 4, 5 and 6 change again when the blocking ask lands.
