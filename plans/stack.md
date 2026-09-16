@@ -311,10 +311,10 @@ Rules:
   Developer, carried by the runner. Stuck at attempt 4, 39 steps.
 - Register after the import door and the window (00:43 to 00:49): 17
   known reds (fix-a-test-that-asserts-more back in the count), no stale.
-- Paused by Roman at 00:53 (a workflow change may follow). Night 82 runs
+- Paused by Roman at 01:08 (a workflow change may follow). Night 82 runs
   on unattended; its result waits in gauntlet_click82.log and the C: run
   database. The hourly stack reminder is cancelled.
-- Status 2026-09-16 00:53: paused; night 82 running.
+- Status 2026-09-16 01:08: paused; night 82 running.
 
 ### 12. Night 71 on the SSD
 
