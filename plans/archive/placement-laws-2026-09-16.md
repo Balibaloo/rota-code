@@ -352,6 +352,25 @@ ruling a scribe: the Liaison. This proposal removes the role-made `decided`
 entry. The Principal rules on that. The `cited` amendment (lines 274–282)
 is unchanged.
 
+### P10-r. Provenance with `reasoned` (drafted after Roman's question, 2026-09-16)
+
+Roman asked on 2026-09-16: "provenance reasoned?" If the page gains the
+sentence "A record says whether it was observed from the code or the world,
+reasoned by a seat, or decided by the Principal", P10 lands as:
+
+> Entries in the model, glossary and problem statement are `observed`,
+> `reasoned` or `decided`. An `observed` entry is extracted from an onboarded
+> codebase: found, not chosen. A `reasoned` entry is a seat's own inference.
+> The seat writes it in the same session, with the reason on file. A
+> `decided` entry rests on a ruling of the principal. The Liaison writes the
+> ruling as a record with a version. A challenge to an `observed` or
+> `reasoned` entry forces its first ruling. The decision record accretes
+> lazily.
+
+Code follows in a frame: role-made `decided` rows in `decisions` and
+`frame_rulings` become `reasoned`. Greenfield piece 1 writes the Architect's
+stack guess as `reasoned`; the principal's approval makes it `decided`.
+
 ### P11. Journals and identity (L83, lines 341–343)
 
 Page: "A record's identity derives from its content, not from when it was
