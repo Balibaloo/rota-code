@@ -20,7 +20,42 @@ Rules:
 
 ## Stack
 
-### 16. The composition (Roman, 2026-09-16)
+### 17. Define the assistant (Roman, 2026-09-16) [1405fbdf]
+
+- Roman's plan for the session: place the assistant on the composition,
+  write its workflow, give it the memories a fresh session needs, then
+  trim and refactor the docs. Roman is grilled, one question at a time.
+- Ends when: the brief is in the rota repo's CLAUDE.md and Roman
+  ratifies it.
+- Waits on: the grill.
+- Reasoning: the session of 2026-09-16. Rulings land in this status line.
+- Status 2026-09-16: Q1 ruled. The brief lives in the rota repo's
+  CLAUDE.md, derives from `plans/composition.md`, and is short because
+  it is push. The page's build-session paragraph becomes a pointer.
+  Q2 ruled: the assistant sits above rota. In the smart zone it decides
+  on judgement and completion. It may write its own instruction files
+  and checks them with Roman. Reading the docs is fine. The no-read rule
+  was provisional, for a separate identity. Every permission is
+  conditional on the smart zone. The open question is how to stay in it.
+  Q3 and Q4 ruled: context thresholds 200k light warning, 300k fine,
+  400k hand off. Roman sees the count. A frame is the unit of work and
+  of record. The threshold is the unit of clearing. Agreed: a frame has
+  an observable ends-when, a visible end, countable attempts or a loop
+  through agents, and a named wait. The stack stays markdown, five lines
+  per frame, closed frames leave, peer marker. Loop: one frame per wall,
+  one status line per cycle, fresh session from the stack at 300k.
+  Escalation: a blocked frame with a question and a recommended answer.
+  Q5 ruled: the assistant diagnoses and writes the fix brief. An agent
+  implements, re-records the touched cases, and returns the diff and the
+  result. The assistant reviews from a context that never read the
+  files, then launches the night. A one-line door is the exception.
+  Q6 to Q8 ruled: Roman assigns the frame at session start and the
+  assistant claims it with its session id. On wake: the page, the open
+  frames, the named memories, then the state as the first message.
+  Grill every time. Brief written into CLAUDE.md, waiting on Roman's
+  check.
+
+### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
 - The low-frequency page of rota: `plans/composition.md`. Written from a
   re-grill and three blind readings of LAWS, ROLES, SYSTEM, REGISTER. A
