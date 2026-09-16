@@ -20,7 +20,7 @@ Rules:
 
 ## Stack
 
-### 18. The docs under the page (Roman, 2026-09-16)
+### 18. The docs under the page (Roman, 2026-09-16) [836a1517]
 
 - Roman's plan, step four: trim the noise and refactor the docs under
   `plans/composition.md`. LAWS, ROLES, and the Liaison brief place under
@@ -37,7 +37,10 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17's
   status.
-- Status 2026-09-16: pushed by session 1405fbdf for the hand-off.
+- Peer name now: rota-bc.
+- Status 2026-09-16: claimed by session 836a1517 from the hand-off. Agents
+  launched: placement of LAWS, ROLES, and the Liaison brief, the
+  checkpoint_invalid check, the STE pass, and the plans placement.
   Unclaimed.
 
 ### 17. Define the assistant (Roman, 2026-09-16) [1405fbdf]
