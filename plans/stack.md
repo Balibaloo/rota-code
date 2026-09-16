@@ -40,6 +40,17 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
+- Status 2026-09-16 05:40 (rota-bc): closing. Roman ruled the checkpoint:
+  a seat's ask to another seat blocks in the same session, the Principal
+  path ends and resumes from turns, the table stays, P9 is dropped. The
+  ruling is on the page's Open section (next commit). Frame 18 closes, and
+  16 with it, when Roman checks the two Records sentences there. Frames
+  for Roman to assign next: (a) the blocking ask between seats, with a
+  depth cap, a timeout and laws 4 to 6 amended; (b) the Principal path,
+  checkpoint written at the ask, resume from turns, commit-before-ask in
+  the Developer brief, measured on one case; (c) the `reasoned` rename of
+  role-made `decided` rows; (d) the agent brief skeletons,
+  `plans/agent-briefs.md`; (e) DECISIONS with a writer and a version.
 - Status 2026-09-16 05:20 (rota-bc): Roman ratified `reasoned`. The page
   sentence (dcb4877), LAWS P10 (840a60b) and greenfield piece 1 (6e40d84)
   landed. LAWS: eleven of twelve in, P9 waits on the checkpoint ruling.
