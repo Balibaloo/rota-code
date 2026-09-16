@@ -2,7 +2,8 @@
 
 > Placed 2026-09-16 under `plans/composition.md`, The parties, "The project".
 > The page has no line for a project with no code. Piece 1 changed the same
-> day: the Principal approves the stack for an empty folder.
+> day: the Architect's stack guess is `reasoned`, the Principal's approval
+> makes it `decided`.
 Status: a first enumeration, filed at Roman's request after the tips runs;
 not yet ruled beyond "add it to the plan". Refine before building.
 
@@ -23,7 +24,7 @@ measurement (a register case and a cold walk). Only 2 and 11 exist.
 
 | # | Component | What it does | Today | Owner |
 |---|---|---|---|---|
-| 1 | **Stack ruling** | From the account (`how_it_works`): language, runtime, package manager, test runner, program shape (script, library, service, web), run command | None; `frame` does this for an *existing* repo by reading the front | The Principal approves the stack on the intent page. The Architect drafts the guess at intent-time, the twin of what `deliver` got for the account |
+| 1 | **Stack ruling** | From the account (`how_it_works`): language, runtime, package manager, test runner, program shape (script, library, service, web), run command | None; `frame` does this for an *existing* repo by reading the front | The Architect writes the guess at intent-time with provenance `reasoned`, the twin of what `deliver` got for the account. The Principal's approval on the intent page makes it `decided` |
 | 2 | **Program floor** | The minimum tree for that stack: manifest, entry point with a `__main__`, README run line, `tests/` | Built, Python only, test floor only, no entry point | Machinery: `scaffold.py` as a registry keyed by the ruling |
 | 3 | **Floor must run** | Smoke check before any behaviour: the run command executes on the empty floor; the runner finds zero tests cleanly | None | Machinery, in `do:harness` on the floor commit |
 | 4 | **Test shape from the account** | Script -> subprocess with stdin/args; service -> start it and call it; library -> import | None; the encode door refuses constant asserts but offers no shape | A push to the Tester plus a door; S0 3.29 generalised |
@@ -56,11 +57,11 @@ CI, linting and formatting are the extension ring by ruling R2 and stay out.
 
 ## Open questions for the refinement
 
-- Where the stack ruling lives: `frame_rulings` with provenance `decided`
-  and the Principal as the author, written after the Principal approves the
-  page. The Architect's guess is not a ruling. Check what the frame mode
-  writes today before adding anything. Changed 2026-09-16: the composition
-  page reserves `decided` for the Principal.
+- Where the stack ruling lives: `frame_rulings`. The Architect's guess is a
+  `reasoned` row. The Principal's approval on the page makes it `decided`.
+  Check what the frame mode writes today before adding anything. Changed
+  2026-09-16: the composition page reserves `decided` for the Principal and
+  names a seat's inference `reasoned`.
 - Whether piece 9 needs an election ("this is a new project" said by the
   principal, or inferred from an empty tree).
 - The second language to prove piece 7 with, and whether the Tester's encode
