@@ -22,16 +22,18 @@ Rules:
 6. The session that holds a frame writes the first eight characters of
    its session id in the heading. A popped frame moves verbatim to
    `plans/archive/stack-<date>.md`.
-7. Every conclusion carries a mark: (observed), (reasoned), or (ruled: a
-   reason the size of a commit headline). Say which workflow it is about,
-   the meta workflow or the rota workflow (ruled 2026-09-16).
+7. Every conclusion carries a mark with a headline-long reason:
+   (observed: where), (reasoned: why), or (ruled: why). Say which
+   workflow it is about, the meta workflow or the rota workflow (ruled
+   2026-09-16: a ruling and a judgement looked the same in prose).
 
 ## Stack
 
 ### 22. Provenance marks on the build session's records (Roman, 2026-09-16) [836a1517]
 
 - Meta workflow. Every conclusion in the stack and on the page carries
-  (observed), (reasoned), or (ruled: a headline-sized reason). The
+  (observed: where), (reasoned: why), or (ruled: why), each a headline
+  long. The
   convention goes into the assistant's brief in CLAUDE.md and into rule 7
   above (ruled: a ruling and a judgement looked the same in prose).
 - Ends when: the open frames, the page's Open section, and CLAUDE.md
@@ -40,6 +42,9 @@ Rules:
 - Reasoning: this conversation, 2026-09-16, Q3 of the grill.
 - Status 2026-09-16 07:05 (rota-bc): pushed and done in one pass. Waits
   on Roman's check.
+- Status 2026-09-16 07:15 (rota-bc): Roman ruled all three marks carry
+  the headline (ruled: a mark says who; the headline says on what
+  ground). Applied to CLAUDE.md, the page and this file. Closed.
 
 ### 21. Provenance by reference (Roman, 2026-09-16)
 
@@ -77,7 +82,7 @@ Rules:
 
 ### 3. Click sentence two (nights 50 to 60)
 
-- (observed) Every night stuck; each became a door or a brief line (findings 36 to
+- (observed: nights 50 to 60, findings 36 to 64) Every night stuck; each became a door or a brief line (findings 36 to
   64). Night 60: the 14B Developer timed out at its first wake; sentence
   three then ran once, quiet, no merge.
 - Ends when: one night merges sentence two.
