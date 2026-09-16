@@ -40,25 +40,25 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 04:35 (rota-bc): done and committed: stack slimmed,
-  six plans archived and three placed (b1a2242), ROLES rewritten (3b3e205,
-  cfa9f60), facts in STE (5dff9eb), Liaison brief in two cycles (51af9f1,
-  b0d92ae): all 28 non-landing cases 5/5 and the six landing cases as
-  before, reports in `plans/archive/liaison-rerecord-2026-09-16.md`.
-  Not landed: LAWS. Rewordings P1 to P12 wait in
-  `plans/archive/placement-laws-2026-09-16.md`. Checkpoint check done,
-  change set in `plans/archive/checkpoint-check-2026-09-16.md`. Older
-  reds, not this frame: landing case `a-question-then-a-statement` 0/5
-  before and after; T1 I1 red before and after, now asks a term question
-  after a greeting; test_roles_doc's answer verb splits on prose since
-  e3cbfbb. Blocked on Roman, four questions: (1) rule on P1 to P12,
-  recommended accept all, P10 opens a code frame for role-made `decided`
-  rows; (2) rule the checkpoint entry the dropped snapshot, recommended
-  yes, a frame removes predicate, table and readers and re-records I4;
-  (3) the cockpit's reader, recommended the build session, page silent;
-  (4) greenfield piece 1 now has the Principal approve the empty-folder
-  stack, recommended keep. On (1) and (2) the frame closes in one agent
-  pass: apply the accepted items, close the page's Open check, commit.
+- Status 2026-09-16 05:05 (rota-bc): Roman answered. LAWS P1 to P8, P11,
+  P12 landed. P9 and P10 held. Cockpit ruled a dashboard, placed under
+  Purpose (d95e28e). Greenfield: Roman proposes a provenance `reasoned`
+  for a seat's own inference. Done before: stack slimmed, six plans
+  archived and three placed (b1a2242), ROLES (3b3e205, cfa9f60), facts in
+  STE (5dff9eb), Liaison brief in two cycles (51af9f1, b0d92ae), all 28
+  non-landing cases 5/5, reports in
+  `plans/archive/liaison-rerecord-2026-09-16.md`. Older reds, not this
+  frame: landing case `a-question-then-a-statement` 0/5; T1 I1 red before
+  and after; test_roles_doc's answer verb splits on prose since e3cbfbb.
+  Blocked on Roman, two answers: (1) the checkpoint. Roman thought it
+  pauses a readonly seat to answer a question. No code writes one and the
+  page has no snapshot. Recommended: keep the page, remove predicate and
+  table in a code frame, then P9 lands. (2) Ratify the page sentence "A
+  record says whether it was observed from the code or the world, reasoned
+  by a seat, or decided by the Principal." Then P10 lands with `reasoned`,
+  greenfield piece 1 writes the Architect's guess as `reasoned`, and a
+  code frame renames role-made `decided` rows. Proposed frame 19: the
+  three agent brief skeletons on disk, `plans/agent-briefs.md`.
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
