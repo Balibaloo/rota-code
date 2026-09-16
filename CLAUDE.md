@@ -43,8 +43,11 @@ Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change
 touches the composition, or the budget is spent.
 
-Records: a conclusion goes to a record when it forms. Five lines per
-frame: what, ends when, waits on, a pointer to the reasoning, a dated
+Records: a conclusion goes to a record when it forms. Every conclusion
+carries a mark: (observed), (reasoned), or (ruled: a reason the size of
+a commit headline). Say which workflow a statement is about: the meta
+workflow, this build session, or the rota workflow, the seats. Five lines
+per frame: what, ends when, waits on, a pointer to the reasoning, a dated
 status. Closed frames leave the file. Commit the stack alone after every
 change. Never edit another session's frame, except to add a waits-on
 line. In the smart zone you decide judgement and completion. You write
