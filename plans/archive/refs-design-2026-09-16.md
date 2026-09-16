@@ -89,6 +89,48 @@ Accepted as designed: `glossary.same` lifts the kept row to `decided`
 when the dropped row rested on a ruling (ruled: decided cascades along
 the refs). Stage 2 lists any case that goes STALE from it.
 
+## Stage 2 review (observed: the reviewer's report on 948c436, probes in the session scratchpad)
+
+Rendered words match the column for every row that has refs. Two high
+findings, both in the writers, land in stage 3a:
+
+1. `glossary.amend` and `model.amend` stage no `statement` ref on a
+   delivery wake, so a row written for a ratified statement derives as
+   `reasoned` (`api.py:1496-1508`, `:2238-2250`). Fix: both stage a
+   `statement` ref for every statement the wake names, as `problem.assert`
+   does with `named`. A row the wake ties to no statement is `reasoned`
+   (ruled: decided cascades from a ratified statement along the refs).
+   Cases whose later turn reads such a row back change prompt and re-record.
+2. A run database from before stage 1 opens with an empty `refs` table
+   and every gate reads `reasoned`: the guards pass, slicing offers
+   observed items, a Tester sees `term_refs: []`. Fix: `init_db` refuses
+   a database whose owner tables still carry a `provenance` column, with
+   a sentence that says to start a fresh run (reasoned: a silent regression
+   on every gate is worse than a refused open; run databases are throwaway).
+
+Medium and low, also stage 3a: cascade wakes collapse to one `refs=()`
+wake per owner (fix: `refs=(artefact, *row_ids)`, one wake per artefact
+as before); `glossary.same` leaves the old `term` ref (fix: the delete
+door, and the repoint replaces); `_adopt_rows` reads the column (fix:
+the view, and adopt without a landed ruling refuses); `problem.consult`
+orders `from_statements` by target (fix: rowid, the insertion order).
+
+Accepted as designed: constraint zero leaves `observed_entries` once
+every area is surveyed and its grain refs are cleared (reasoned: a row
+that names no unsurveyed area has nothing to present). Noted, no change:
+`cascade_rows` computes rows for `reference` and `ruling` receipts that
+no graph edge carries; a real grain under a top-level `@` directory would
+be skipped by `challenge.load` as a fixture sigil.
+
+Stage 3 splits (reasoned: 3a changes prompts and lists them; 3b must not):
+
+- 3a. Writer semantics: the six fixes above, and the refs CHECK question.
+  Acceptance: FAILED equals the baseline plus the listed STALE cases,
+  each with the reason.
+- 3b. The drop: the five provenance columns, the five JSON columns,
+  `item_statements`, `ctx.provenance`, every old write, the seed helper.
+  Acceptance: no new STALE case.
+
 ## The shape
 
 Section H of the scope report holds the SQL: the `refs` table, the
