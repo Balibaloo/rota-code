@@ -40,23 +40,25 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 03:58 (rota-bc): stack slimmed. Six plans archived,
-  three placed (b1a2242). ROLES rewritten and committed (3b3e205,
-  cfa9f60), test_roles_doc has one red left, older than this frame: the
-  Tester's answer edges carry prose=quotes since e3cbfbb and the others
-  do not. LAWS: rewordings P1 to P12 in
+- Status 2026-09-16 04:20 (rota-bc): stack slimmed. Six plans archived,
+  three placed (b1a2242). ROLES rewritten (3b3e205, cfa9f60). Facts in
+  STE (5dff9eb). LAWS rewordings P1 to P12 in
   `plans/archive/placement-laws-2026-09-16.md`, none landed. Checkpoint
   check done, change set in `plans/archive/checkpoint-check-2026-09-16.md`.
-  Liaison brief: 13 of 175 lines contradict, 14 rewrites in
-  `plans/archive/placement-liaison-2026-09-16.md`. An agent applies them
-  and re-records the 34 Liaison cases on the Titan, cycle 1. The STE pass
-  on the facts runs. Blocked on Roman, four questions: (1) rule on P1 to
-  P12, recommended accept all, P10 opens a code frame for role-made
-  `decided` rows; (2) rule the checkpoint entry the dropped snapshot,
-  recommended yes, a frame removes predicate, table and readers and
-  re-records I4; (3) the cockpit's reader, recommended the build session,
-  page silent; (4) greenfield piece 1 now has the Principal approve the
-  empty-folder stack, recommended keep.
+  Liaison brief cycle 1 landed (51af9f1): 32 of 34 cases hold 5/5,
+  `L1-LI-no-report-no-question` fell to 0/5, the model clarifies a vague
+  ask instead of segmenting it. Cycle 2 runs: two base.md paragraphs say
+  the check is the confirm of a reading, then 28 cases re-record. Older
+  reds, not this frame: the landing case `a-question-then-a-statement`
+  0/5 before and after; T1 I1 miscounts a span on qwen3:8b under the old
+  brief too; test_roles_doc's answer verb splits on prose since e3cbfbb.
+  Blocked on Roman, four questions: (1) rule on P1 to P12, recommended
+  accept all, P10 opens a code frame for role-made `decided` rows; (2)
+  rule the checkpoint entry the dropped snapshot, recommended yes, a
+  frame removes predicate, table and readers and re-records I4; (3) the
+  cockpit's reader, recommended the build session, page silent; (4)
+  greenfield piece 1 now has the Principal approve the empty-folder
+  stack, recommended keep.
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
