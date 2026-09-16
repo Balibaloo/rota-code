@@ -1,18 +1,17 @@
 # rota — the engagement, and the laws
 
-Every other document in this repo presupposes this one. `HANDOFF.md` opens at the
-laws; `schema.sql` opens at the tables; the prompts open at "You are Vision Keeper."
-Not one of them says what the whole thing *is*, which is why the vocabulary drifted
-in the first place — there was no level above the parts for the parts to hang from.
-
-Two parts, then. **L0**: what this is. **The laws**: what it may never do.
+This document derives from `plans/composition.md`. The page wins where the
+two differ. Every other document in `rota/` presupposes this one.
+`HANDOFF.md` opens at the laws. `schema.sql` opens at the tables. The
+prompts open at "You are Vision Keeper." This document has two parts.
+**L0** says what rota is. **The laws** say what rota may never do.
 
 ---
 
 ## L0 — the engagement
 
-> **An engagement is the whole relationship with one principal, from their first
-> ask to a milestone.**
+> **An engagement is the whole relationship with one principal. It runs from
+> their first ask to the finish the principal declares.**
 
 Everything in the system is a fragment of that relationship, and every term below
 means something only inside one.
@@ -24,9 +23,10 @@ sense of seniority. They are not a customer being served and not a manager being
 reported to. They are the one who knows what they want and is the only one who
 can say whether they got it.
 
-**The team** is eight roles that never share context and communicate only by
-artefact and message. Each is answerable for one thing. Each is woken, acts, and
-ends, with no memory of having been woken before. That is not a limitation being
+**The team** is the principal and eight roles. The roles never share context.
+They communicate only by artefact and message. Each is answerable for one thing.
+Each is woken, acts, and ends, with no memory of having been woken before. That
+is not a limitation being
 worked around: it is what makes a role's output attributable to its brief rather
 than to the accumulated drift of a long conversation.
 
@@ -45,10 +45,12 @@ The nine, and what each is answerable for:
 | **Researcher** | what is true outside this repository, and where that is written |
 
 **The understanding loop** — *hear, shape, agree* — turns what was said into what
-is meant. The principal speaks; Liaison records it verbatim and cuts it into
-statements; the principal confirms the cut; Vision Keeper, Terminologist and
-Architect each read the same words against different artefacts and write what
-they mean for scope, for terms, for structure; the principal approves.
+is meant. The principal speaks. The wiring records the words verbatim before the
+Liaison wakes. The Liaison infers the intent and cuts the words into
+statements. The principal confirms the cut. Vision Keeper, Terminologist
+and Architect each read the same words against different artefacts. Each
+writes what the words mean for scope, for terms, for structure. The
+principal approves.
 
 **The delivery loop** — *plan, build, judge* — turns what is meant into what
 exists. Vision Keeper slices tickets, Terminologist writes criteria in glossary
@@ -67,9 +69,10 @@ becoming a constraint that blocks real work forever. It is contained rather than
 distributed for one reason, and it is the same reason the roles are separated at
 all: a boundary you can see is a boundary you can check.
 
-**A milestone** is quiescence with an empty ledger: no predicate fires and no
-assumption is open. There is nothing to "close" — a milestone is a state the
-system is observed to be in, not an event anyone declares.
+**A milestone candidate** is quiescence with an empty ledger: no predicate
+fires and no assumption is open. The system observes the candidate and
+declares nothing. The principal declares finished. Only that declaration
+ends the engagement.
 
 ### What an engagement is not
 
@@ -163,6 +166,10 @@ count raised; past `message_attempt_cap` the message is quarantined. Semantic
 failures resolve themselves; these are infrastructure ones, and without a bound
 the scheduler wakes the same role with the same message forever.
 
+**A session commits or discards before it ends.** Its output stays
+attributable to the session. A worktree with uncommitted changes at session
+end is a fault. The uncommitted change never existed (law 9, commit-first).
+
 ### 5. Completion is the default; a deferred batch restarts from its rows
 
 A session is woken once, acts, and ends. What it reasoned survives as the
@@ -175,14 +182,15 @@ never built (lost-work audit, 2026-09-13), and what holds is the restart.
 
 ### 6. Escalation only climbs
 
-Developer → Architect → Vision Keeper → principal. Budget exhaustion escalates
-one rung; at the principal it is a page, a hold or a note, never silence and
-never a ledger row written on the principal's behalf (ruled 2026-09-13,
-`plans/principal-flow.md`). A cycle is bounded by the attempt caps and the
-ladder: a question nobody answers climbs (`unresolved`), a wake dispatched past
-its cap is quarantined and said out loud (`quarantined`). Nothing routes a
-counter-question into a suspended session; roles are single-instance, and the
-next rung is a fresh session.
+The ladder is Developer → Architect → Vision Keeper → Liaison. Only the
+Liaison faces the principal. Budget exhaustion escalates one rung. At the
+Liaison it is a page, a hold or a note for the principal. It is never
+silence. It is never a ledger row written on the principal's behalf (ruled
+2026-09-13, `plans/principal-flow.md`). The attempt caps and the ladder
+bound a cycle. A question nobody answers climbs (`unresolved`). A wake
+dispatched past its cap is quarantined and said out loud (`quarantined`).
+Nothing routes a counter-question into a suspended session. Roles are
+single-instance. The next rung is a fresh session.
 
 > Exhaustion escalates one rung at a time, because the usual *reason* a loop
 > exhausts itself is not knowing who to ask — and going straight to the principal
@@ -192,9 +200,11 @@ next rung is a fresh session.
 
 ### 7. Budgets are structural
 
-Every cap is declared in `rota/config.py` and owned by the principal. A number
-written into a predicate is a decision made by whoever typed it, at a moment
-nobody remembers, that nobody can change without reading code.
+Every cap is a ruling of the principal. The ruling is a record with a
+writer and a version. `rota/config.py` declares every cap and points to
+its ruling. A number written into a predicate is a decision made by
+whoever typed it. Nobody remembers the moment. Nobody can change the
+number without reading code.
 
 `loop_cap` and `interrupt_cap` are both "how many times before we stop", and they
 are deliberately not one number: **one spends compute and the other spends the
@@ -230,7 +240,8 @@ answered yet.
 
 ### 9. Amendment ⇒ revocation ⇒ cascade
 
-Any write to an approved item drops it to pending and stops its batches.
+A ratified amendment to an approved item drops it to pending and stops
+its batches.
 Resolution descends the refs DAG through each artefact's owner in dependency
 order before the Developer resumes and elects amend or restart.
 
@@ -338,9 +349,10 @@ The sharp edges, stated so a future table cannot rediscover them:
 * **Some keys are cardinality, not content.** One item's open work is one
   batch; one pinned area, one row. The declaration is a uniqueness rule
   over a relationship.
-* **Journals are exempt, by declaration.** The ledger, messages, decisions
-  record events; saying a thing twice is two events, and deduplication
-  would falsify history.
+* **Journals record events.** The ledger and messages key on the event.
+  Saying a thing twice is two events. Deduplication would falsify history.
+  A ruling in `decisions` is a record. Its identity derives from its
+  content, and it carries a version.
 
 `rota/core/identity.py` is the declaration; a table absent from it fails
 the build, and `unkeyed` is a legal answer that stays counted and must
