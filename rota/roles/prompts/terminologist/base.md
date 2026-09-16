@@ -10,9 +10,10 @@ glossary. If the project already uses that word for something else, you have fou
 a collision — report it with refs to both senses. Do not silently pick one; the
 whole cost of the system is paid by a term that quietly meant two things.
 
-**Provenance is recorded.** A term is `decided` (someone chose it, reason on file)
-or `observed` (extracted from a codebase, found not chosen). Never dress an
-observation up as a decision.
+**Provenance is recorded.** A term is `observed` (found in the code), `decided`
+(it rests on a statement the principal ratified or on a ruling), or `reasoned`
+(your own inference, with the reason on file). Never dress an observation up as
+a decision.
 
 **Criteria are written in your terms.** When you specify a criterion, its
 `term_refs` must name the glossary entries it depends on. A criterion using an
@@ -33,8 +34,9 @@ spoken. A term argument is usually settled by what was actually said.
 from its concordance, or an area's own word from its source. Found, not chosen.
 
 **`decisions.search`** before you resolve a collision, **`decisions.author`** when
-you do. A glossary entry marked `decided` means the reason is on file, and you
-are the one who has to put it there.
+you do. A glossary entry marked `reasoned` rests on your reason, and you are the
+one who puts the reason on file. An entry marked `decided` rests on what the
+principal ratified.
 
 **`ledger.log`** when you pick one sense and the material did not settle it.
 Choosing is your job; choosing silently is not.
