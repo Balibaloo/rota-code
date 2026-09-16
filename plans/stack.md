@@ -25,65 +25,29 @@ Rules:
 
 ## Stack
 
-### 18. The docs under the page (Roman, 2026-09-16) [836a1517]
+### 19. Agent brief skeletons (Roman, 2026-09-16) [836a1517]
 
-- Roman's plan, step four: refactor the docs under `plans/composition.md`.
-  LAWS, ROLES, and the Liaison brief place under the page or change. The
-  stack slims to five lines per frame. Closed frames move to
-  `plans/archive/stack-2026-09-16.md`. The five unplaced plans are placed
-  or archived. An agent checks the register's checkpoint_invalid entry
-  against the page. `plans/operating-facts.md` gets its STE pass, facts
-  held fixed.
-- Ends when: every law, role line, and Liaison brief line places under
-  a line on the page or is changed, the stack holds only open frames of
-  five lines, and the checkpoint entry is ruled.
-- Waits on: nothing. Roman rules on a change to LAWS before it lands.
-- Reasoning: `plans/composition.md`, Open section, and frame 17 in
-  `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 05:40 (rota-bc): closing. Roman ruled the checkpoint:
-  a seat's ask to another seat blocks in the same session, the Principal
-  path ends and resumes from turns, the table stays, P9 is dropped. The
-  ruling is on the page's Open section (next commit). Frame 18 closes, and
-  16 with it, when Roman checks the two Records sentences there. Frames
-  for Roman to assign next: (a) the blocking ask between seats, with a
-  depth cap, a timeout and laws 4 to 6 amended; (b) the Principal path,
-  checkpoint written at the ask, resume from turns, commit-before-ask in
-  the Developer brief, measured on one case; (c) the `reasoned` rename of
-  role-made `decided` rows; (d) the agent brief skeletons,
-  `plans/agent-briefs.md`; (e) DECISIONS with a writer and a version.
-- Status 2026-09-16 05:20 (rota-bc): Roman ratified `reasoned`. The page
-  sentence (dcb4877), LAWS P10 (840a60b) and greenfield piece 1 (6e40d84)
-  landed. LAWS: eleven of twelve in, P9 waits on the checkpoint ruling.
-  Cockpit ruled a dashboard (d95e28e). Done before: stack slimmed, six
-  plans archived and three placed (b1a2242), ROLES (3b3e205, cfa9f60),
-  facts in STE (5dff9eb), Liaison brief in two cycles (51af9f1, b0d92ae),
-  28 non-landing cases 5/5, reports in
-  `plans/archive/liaison-rerecord-2026-09-16.md`. Older reds, not this
-  frame: landing case `a-question-then-a-statement` 0/5; T1 I1 red
-  before and after; test_roles_doc's answer verb splits on prose since
-  e3cbfbb. Blocked on Roman, one answer: the checkpoint. Roman asks about
-  pausing a Developer mid-batch. Today the Developer asks and ends, the
-  worktree and the open batch hold the state, and the answer wakes a
-  fresh Developer in answer mode. Recommended: keep the page, remove the
-  predicate and the table in a code frame, then P9 lands and the page's
-  Open check closes. Frames to push after 18: the `reasoned` rename of
-  role-made `decided` rows; the checkpoint removal; the agent brief
-  skeletons (`plans/agent-briefs.md`, waits on Roman's yes).
+- `plans/agent-briefs.md`: the reader, lander and recorder skeletons, the
+  fixed pointers into `plans/operating-facts.md`, the rules frame 18
+  learned, and where the case-to-mode maps live. Roman: do this first so
+  the frames after it are cheap.
+- Ends when: the file is committed and a fresh session can brief a
+  recorder from it without reading the facts.
+- Waits on: nothing.
+- Reasoning: frame 18's briefs, and `plans/archive/liaison-rerecord-2026-09-16.md`.
+- Status 2026-09-16 05:50 (rota-bc): pushed and started.
 
-### 16. The composition (Roman, 2026-09-16) [1405fbdf]
+### 20. The `reasoned` rename (Roman, 2026-09-16) [836a1517]
 
-- The low-frequency page of rota: `plans/composition.md`. Written from a
-  re-grill and three blind readings of LAWS, ROLES, SYSTEM, REGISTER. A
-  placement test put 112 of 140 law items, 272 of 390 brief items, and
-  10 of 15 plans under it.
-- Ends when: Roman ratifies the page, each of the five missing masses is
-  in the body or refused, and LAWS, ROLES, and the Liaison brief place
-  under it.
-- Waits on: frame 18, for the placement of LAWS, ROLES, and the Liaison
-  brief. Roman ratified the page in frame 17.
-- Reasoning: the session of 2026-09-15 and 16, and the page's Open
-  section. Not here.
-- Status 2026-09-16: page written, placement done, waiting on Roman.
+- Role-made `decided` rows become `reasoned`: every writer, the schema
+  checks, the tests, and the docs that name the provenance. Ruled
+  2026-09-16 with the page's Records sentence.
+- Ends when: no seat writes `decided`, `tests/rota/` passes, and the
+  touched cases are re-recorded.
+- Waits on: frame 19. A reader agent scopes the writers meanwhile.
+- Reasoning: `plans/archive/placement-laws-2026-09-16.md`, P10-r, and the
+  scope report the agent writes to `plans/archive/`.
+- Status 2026-09-16 05:50 (rota-bc): pushed. Scope agent launched.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
