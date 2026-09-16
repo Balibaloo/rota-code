@@ -1,0 +1,350 @@
+diff --git a/rota/core/predicates.py b/rota/core/predicates.py
+index f0bed4d..5c85a51 100644
+--- a/rota/core/predicates.py
++++ b/rota/core/predicates.py
+@@ -155,6 +155,13 @@ TERMINAL: dict[tuple[str, str, str], str] = {
+         "someone chose it and the reason is on file",
+     ("glossary_terms", "provenance", "decided"): "reason on file",
+     ("constraints", "provenance", "decided"): "reason on file",
++    # `reasoned` is a seat's own inference, written in the same session with
++    # the reason on file. Terminal for the same reason `decided` is: provenance
++    # records where a row came from, not a stage anything moves through.
++    ("items", "provenance", "reasoned"):
++        "a seat inferred it and the reason is on file",
++    ("glossary_terms", "provenance", "reasoned"): "the seat's reason is on file",
++    ("constraints", "provenance", "reasoned"): "the seat's reason is on file",
+     # `cited` is law 11's third value: found outside the repository, attributable
+     # to a source. Terminal for the same reason the other two are — provenance
+     # records where a row came from and is not a stage anything moves through.
+diff --git a/rota/core/runner.py b/rota/core/runner.py
+index b79b262..8c9478d 100644
+--- a/rota/core/runner.py
++++ b/rota/core/runner.py
+@@ -1573,10 +1573,12 @@ def run_session(
+             entry_id = row["id"] if row else None
+ 
+     # Law 11, decided by the wake rather than by the role: a survey is reading
+-    # a codebase, so what it writes was found. Everything else was chosen.
++    # a codebase, so what it writes was found. Everything else is the seat's
++    # own inference, `reasoned`. `decided` rests on a ruling of the principal
++    # and is written by `adopt` alone.
+     from .scheduler import ONBOARDING_TICKS
+ 
+-    provenance = "observed" if wake.kind in ONBOARDING_TICKS else "decided"
++    provenance = "observed" if wake.kind in ONBOARDING_TICKS else "reasoned"
+ 
+     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
+                            session_id=session_id, entry_id=entry_id,
+diff --git a/rota/core/sandbox.py b/rota/core/sandbox.py
+index bb9954c..b5daed7 100644
+--- a/rota/core/sandbox.py
++++ b/rota/core/sandbox.py
+@@ -77,7 +77,7 @@ class ArgumentError(SandboxError):
+ ENUMS: dict[str, tuple[str, ...]] = {
+     "approval":   ("draft", "pending", "approved", "contested"),
+     "kind":       ("in_scope", "out_of_scope"),
+-    "provenance": ("observed", "decided"),
++    "provenance": ("observed", "reasoned", "decided"),
+     "outcome":    ("found", "none_found"),
+     "result":     ("pass", "fail"),
+     "author":     ("principal", "liaison"),
+@@ -447,7 +447,7 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
+ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
+           batch_id: str | None = None, session_id: str = "",
+           area: str | None = None,
+-          entry_id: str | None = None, provenance: str = "decided",
++          entry_id: str | None = None, provenance: str = "reasoned",
+           allow: list[str] | None = None,
+           wake: object | None = None,
+           g: graph_mod.Graph | None = None) -> Sandbox:
+diff --git a/rota/core/schema.sql b/rota/core/schema.sql
+index 6dc0465..3924f6a 100644
+--- a/rota/core/schema.sql
++++ b/rota/core/schema.sql
+@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS items (
+     id            TEXT PRIMARY KEY,
+     text          TEXT NOT NULL,
+     kind          TEXT NOT NULL CHECK (kind IN ('in_scope','out_of_scope')),
+-    provenance    TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
++    provenance    TEXT NOT NULL CHECK (provenance IN ('observed','reasoned','decided','cited')),
+     approval      TEXT NOT NULL DEFAULT 'draft'
+                   CHECK (approval IN ('draft','pending','approved','contested')),
+     approval_ver  INTEGER,                  -- version the approval was granted at
+@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
+     term         TEXT NOT NULL,
+     sense_short  TEXT NOT NULL,             -- the index row: one line, always loaded
+     sense_body   TEXT,                      -- fetched singly, never in bulk
+-    provenance   TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
++    provenance   TEXT NOT NULL CHECK (provenance IN ('observed','reasoned','decided','cited')),
+     source_refs  TEXT NOT NULL DEFAULT '[]',
+     -- Which area the session that wrote this sense was surveying. Evidence,
+     -- never authority: two senses written while reading the same area are one
+@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS constraints (
+     id                   TEXT PRIMARY KEY,
+     headline             TEXT NOT NULL,     -- the index row
+     text                 TEXT,              -- fetched singly
+-    provenance           TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
++    provenance           TEXT NOT NULL CHECK (provenance IN ('observed','reasoned','decided','cited')),
+     -- Where a `cited` constraint came from. Glossary terms already carried this;
+     -- constraints are where external obligations actually land, so a constraint
+     -- that cannot point at the clause it encodes is the one that most needed to.
+@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS model_areas (     -- Architect: what each area is for
+     account     TEXT NOT NULL,
+     source_refs TEXT NOT NULL DEFAULT '[]',
+     provenance  TEXT NOT NULL DEFAULT 'observed'
+-                CHECK (provenance IN ('observed','decided','ratified')),
++                CHECK (provenance IN ('observed','reasoned','decided','ratified')),
+     version     INTEGER NOT NULL DEFAULT 1
+ );
+ 
+diff --git a/rota/roles/api.py b/rota/roles/api.py
+index 0cc9061..81f8d71 100644
+--- a/rota/roles/api.py
++++ b/rota/roles/api.py
+@@ -42,10 +42,13 @@ class Ctx:
+     mode: str = "normal"
+     # Law 11 in one field. `observed` means extracted from an onboarded
+     # codebase — found, not chosen — and that is true of a survey session and
+-    # of nothing else. It was an argument the model supplied, and Architect
+-    # filled it with `deliver`: the name of the mode it was woken in. A field
+-    # whose value is a fact about the session should be filled by the session.
+-    provenance: str = "decided"
++    # of nothing else. `reasoned` is the seat's own inference, the default on
++    # every other wake. `decided` rests on a ruling of the principal and is
++    # written by `adopt` alone. It was an argument the model supplied, and
++    # Architect filled it with `deliver`: the name of the mode it was woken
++    # in. A field whose value is a fact about the session should be filled by
++    # the session.
++    provenance: str = "reasoned"
+     session_id: str = ""
+     batch_id: str | None = None
+     # Which area a survey session is surveying. Decided by the scheduler, which
+@@ -467,24 +470,26 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
+             f"this says {kind}. Those are the two answers this call chooses "
+             f"between, so both is not an answer; decide, and send the one")
+ 
+-    # Found never overwrites decided. tipsU (2026-09-09): the principal's
+-    # `split_bill` was delivered as decided, then orient and reorient
+-    # asserted it again from the code as observed, and the slicing rule
+-    # read it as a record of what exists. An observed session records the
+-    # code; a decided item is the principal's, and it stays as it is.
+-    if getattr(ctx, "provenance", "decided") == "observed":
+-        decided = ctx.conn.execute(
+-            "SELECT 1 FROM items WHERE id = ? AND provenance = 'decided'",
++    # Found never overwrites decided or reasoned. tipsU (2026-09-09): the
++    # principal's `split_bill` was delivered as decided, then orient and
++    # reorient asserted it again from the code as observed, and the slicing
++    # rule read it as a record of what exists. An observed session records
++    # the code; a decided item is the principal's, a reasoned item is a
++    # seat's, and both stay as they are.
++    if getattr(ctx, "provenance", "reasoned") == "observed":
++        held = ctx.conn.execute(
++            "SELECT provenance FROM items WHERE id = ? "
++            "AND provenance IN ('decided', 'reasoned')",
+             (id,)).fetchone()
+-        if decided:
+-            return {"id": id, "note": (f"{id} is decided by the principal and "
++        if held:
++            return {"id": id, "note": (f"{id} is {held['provenance']} and "
+                                        f"stays as it is; an observation does "
+                                        f"not amend it")}
+     else:
+         # The other direction. clickI night 18 (2026-09-12): delivering
+         # the principal's one sentence, the Vision Keeper asserted its item
+         # and then the three account items from onboarding again, word for
+-        # word. A decided wake writes decided, so the account became
++        # word. A reasoned wake writes reasoned, so the account became
+         # buildable: 119 criteria for behaviour the repository already has,
+         # a batch for it ahead of the sentence's, and the Developer
+         # quarantined on it. The words are the fact: the same words on an
+@@ -1517,16 +1522,20 @@ def glossary_synthesise(ctx: Ctx, ids: list[str], sense_short: str,
+     term = rows.get(keep, next(iter(rows.values())))["term"]
+     # Composed from observed readings is still observed.
+     #
+-    # `ctx.provenance` is `observed` only on a `tick:survey` wake and `decided`
++    # `ctx.provenance` is `observed` only on an onboarding tick and `reasoned`
+     # everywhere else, this mode included -- so a synthesised sense would arrive
+-    # claiming someone chose it with the reason on file. Nobody did: it was
++    # claiming the seat inferred it with the reason on file. Nobody did: it was
+     # assembled from rows that were themselves found in the code, plus the
+     # concordance. Law 11 splits these on *found not chosen*, and this is found.
+     #
+-    # Taken from the readings rather than asserted, so a synthesis over anything
+-    # decided stays decided.
+-    provenance = ("decided" if any(r["provenance"] == "decided"
+-                                   for r in rows.values()) else "observed")
++    # Taken from the readings rather than asserted. A synthesis over anything
++    # decided stays decided; over anything reasoned it stays reasoned.
++    if any(r["provenance"] == "decided" for r in rows.values()):
++        provenance = "decided"
++    elif any(r["provenance"] == "reasoned" for r in rows.values()):
++        provenance = "reasoned"
++    else:
++        provenance = "observed"
+     ctx.writes.append(("glossary_terms", keep, {
+         "term": term, "sense_short": sense_short, "sense_body": sense_body,
+         "provenance": provenance,
+@@ -2716,7 +2725,7 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
+         raise ValueError(
+             f"{item_id} is observed: it is what the repository already does, "
+             f"and a ticket for it would build what exists. Slice the items "
+-            f"the principal asked for, the decided ones")
++            f"the principal asked for")
+     # An id you invent is yours once. tipsT (2026-09-09): every slicing
+     # session wrote tk_1 and tk_2, the ids re-parented to whichever items
+     # the wake named, the other items lost their tickets, and the two sets
+@@ -5222,13 +5231,13 @@ _NOT_VOCABULARY = {
+ # `glossary_amend`. None of them is ever what a word means.
+ # Left to the duplicate-sense guard below, which has the message earned for
+ # them: `sense` names which meaning, and provenance is not a meaning.
+-_PROVENANCE_WORDS = {"observed", "decided", "provenance"}
++_PROVENANCE_WORDS = {"observed", "reasoned", "decided", "provenance"}
+ 
+ _FRAME_WORDS = {
+     "area", "survey", "surveys", "mode", "session", "repository", "repo",
+     "code", "source", "index", "glossary", "term", "terms", "project",
+-    "observed", "decided", "provenance", "vocabulary", "grain", "collision",
+-    "error", "data_storage", "storage",
++    "observed", "reasoned", "decided", "provenance", "vocabulary", "grain",
++    "collision", "error", "data_storage", "storage",
+     # The system prompt's own nouns. A per-area session wrote `artefact: a data
+     # structure or type representing variables or properties` -- the word the
+     # prompt uses for what the role owns, defined as if the project said it.
+diff --git a/tests/rota/test_laws.py b/tests/rota/test_laws.py
+index 5d339fa..a7a74b5 100644
+--- a/tests/rota/test_laws.py
++++ b/tests/rota/test_laws.py
+@@ -222,10 +222,10 @@ def test_everyone_who_can_assume_can_log_it(g):
+     assert {"terminologist", "tester"} <= g.writer_of("ledger")
+ 
+ 
+-def test_everyone_who_writes_decided_can_author_the_reason(g):
++def test_everyone_who_writes_reasoned_can_author_the_reason(g):
+     """
+-    Law 11: a `decided` entry has its reason on file, written by the decider in
+-    the same session. Terminologist marks glossary rows `decided` and could not
++    Law 11: a `reasoned` entry has its reason on file, written by the seat in
++    the same session. Terminologist marks glossary rows `reasoned` and could not
+     write the reason that makes them so.
+     """
+     for role, artefact in (("terminologist", "glossary"),
+@@ -233,7 +233,7 @@ def test_everyone_who_writes_decided_can_author_the_reason(g):
+                            ("vision_keeper", "problem")):
+         assert artefact in g.write_set(role)
+         assert "decisions" in g.write_set(role), \
+-            f"{role} writes `decided` rows into {artefact} and cannot say why"
++            f"{role} writes `reasoned` rows into {artefact} and cannot say why"
+ 
+ 
+ def test_logging_the_same_assumption_twice_is_one_entry(db):
+diff --git a/tests/rota/test_onboarding_phases.py b/tests/rota/test_onboarding_phases.py
+index ccb3b25..9246c18 100644
+--- a/tests/rota/test_onboarding_phases.py
++++ b/tests/rota/test_onboarding_phases.py
+@@ -973,6 +973,28 @@ def test_an_observed_session_never_amends_a_decided_item(project):
+     assert (row["provenance"], row["text"]) == ("decided", "the bill is split")
+ 
+ 
++def test_an_observed_session_never_amends_a_reasoned_item(project):
++    """
++    Frame 20 (2026-09-16): a seat's own inference is `reasoned`. The guard
++    that holds a decided item against an observed session holds a reasoned
++    item the same way. Found never overwrites reasoned.
++    """
++    from rota.roles.api import Ctx, problem_assert
++
++    db, repo = project
++    boot.onboard(db, repo.root)
++    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
++               "approval_ver, version) VALUES ('split_bill', 'the bill is split', "
++               "'in_scope', 'reasoned', 'approved', 1, 1)")
++    db.commit()
++    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
++    got = problem_assert(ctx, id="split_bill", text="the program splits the bill")
++    assert got["id"] == "split_bill" and "reasoned" in got.get("note", ""), got
++    assert not [w for w in ctx.writes if w[0] == "items"], "observed wrote over reasoned"
++    row = db.execute("SELECT provenance, text FROM items WHERE id='split_bill'").fetchone()
++    assert (row["provenance"], row["text"]) == ("reasoned", "the bill is split")
++
++
+ def test_a_behaviour_never_folds_into_the_account(project):
+     """
+     tipsL, 2026-09-09: on an existing repo the Vision Keeper rewrote the
+diff --git a/tests/rota/test_runner.py b/tests/rota/test_runner.py
+index d14311f..11fa066 100644
+--- a/tests/rota/test_runner.py
++++ b/tests/rota/test_runner.py
+@@ -584,6 +584,51 @@ def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
+     assert "NOT RUN" not in second
+ 
+ 
++def test_the_wake_sets_the_provenance(db, tmp_path):
++    """
++    Law 11 by the wake (frame 20, 2026-09-16). A message wake is the seat's
++    own inference, so its rows are `reasoned`. An onboarding tick reads the
++    code, so its rows are `observed`. `decided` rests on a ruling of the
++    principal and is written by `adopt` alone.
++    """
++    from rota.core import config
++    from rota.onboarding import boot
++    from rota.testkit import gitfixture
++
++    backend = ScriptedBackend([
++        "TOOL: problem.assert(id='i1', text='users can delete their account', kind='in_scope')",
++        "Done.",
++    ])
++    outcome = run_session(db, wake_vision_keeper(), backend=backend,
++                          pins=Pins(model="scripted"))
++    assert outcome.committed, outcome.errors
++    row = db.execute("SELECT provenance FROM items WHERE id='i1'").fetchone()
++    assert row["provenance"] == "reasoned"
++
++    repo = gitfixture.make(tmp_path)
++    try:
++        conn = init_db(tmp_path / "onboard.db")
++        boot.onboard(conn, repo.root)
++        config.set(conn, "onboarding_phases", "survey")
++        conn.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
++                     "('terminologist:src/billing', 'src/billing', 'none_found')")
++        conn.commit()
++        out = run_session(conn, Wake("architect", "tick:survey", refs=("src/billing",)),
++                          backend=ScriptedBackend([
++                              "TOOL: model.describe(account='Computes what an account "
++                              "owes and issues invoices for it; charges come in, "
++                              "invoices go out.')\n"
++                              "TOOL: surveys.attest(outcome='none_found', "
++                              "citations=['src/billing/charges.py'])",
++                              "done", "done"]),
++                          pins=Pins(model="scripted"))
++        assert out.committed, out.errors
++        row = conn.execute("SELECT provenance FROM model_areas WHERE id='src/billing'").fetchone()
++        assert row["provenance"] == "observed"
++    finally:
++        gitfixture.cleanup(repo)
++
++
+ def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):
+     """
+     The push was raw while every requested result was capped.
+diff --git a/tests/rota/test_t0_sandbox.py b/tests/rota/test_t0_sandbox.py
+index 4bedc6b..1979757 100644
+--- a/tests/rota/test_t0_sandbox.py
++++ b/tests/rota/test_t0_sandbox.py
+@@ -139,7 +139,7 @@ def test_s9_writes_are_staged_not_applied(db):
+     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
+     assert sb.ctx.writes == [("items", "i1", {
+         "text": "delete account", "kind": "in_scope",
+-        "provenance": "decided", "approval": "draft"})]
++        "provenance": "reasoned", "approval": "draft"})]
+ 
+ 
+ def test_s9_positional_arguments_are_bound_by_signature(db):
+@@ -155,7 +155,7 @@ def test_s9_positional_arguments_are_bound_by_signature(db):
+ 
+     assert sb.ctx.writes == [("items", "i1", {
+         "text": "delete account", "kind": "in_scope",
+-        "provenance": "decided", "approval": "draft"})]
++        "provenance": "reasoned", "approval": "draft"})]
+ 
+ 
+ def test_s9_positional_and_keyword_for_the_same_argument_is_an_error(db):
