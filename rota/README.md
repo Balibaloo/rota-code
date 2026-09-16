@@ -178,7 +178,8 @@ replaying, which costs model time and needs a GPU. `rota cassettes status`
 before a long run.
 
 Rebuilding the graph from the design viewer (only needed if `team-graph.html`
-changes):
+changes). Historical since 2026-09-16: `graph.json` is edited directly, and a
+re-extraction would drop those edits.
 
 ```bash
 node rota/tools/extract_graph.js rota/design/team-graph.html rota/design

@@ -90,7 +90,8 @@ depend on. Contracts and data shapes are what law 12 already calls a
 commitment. Sequence diagrams are out. wsff says they can be overkill, and
 an 8B model cannot draw one that holds.
 
-**Rulings.** Approve confirms provenance decided. Contest sends the words to
+**Rulings.** Approve does not stamp. A `reasoned` row becomes `decided` when a
+ruling ref lands through adopt. Contest sends the words to
 Architect. On the plan path this page is the bottom half of page 1.
 
 **Hold.** No. A wrong commitment is caught at page 3 or by structural review.
@@ -208,9 +209,11 @@ is.
 - One writer, the Architect (law 1).
 - Rows keyed by callable, not by batch (law 14). A signature row is the
   same row across batches.
-- Provenance: `observed` when a design page first names a callable and its
-  signature is read from the index, which already holds every callable.
-  `decided` when the principal approves the page (law 11). The artefact
+- Provenance derives from refs (law 11). A row is `observed` when a design
+  page first names a callable and the row rests on its grain in the index.
+  The index already holds every callable. A row is `decided` when a ruling
+  ref lands through adopt after the principal approves the page. Approve
+  does not stamp. The artefact
   holds only what was ruled on or drafted for a ruling. Click has 885
   callables. The index is the 885. The shape is the ones a criterion or a
   design ever named, filled in as batches touch them. That is the size of

@@ -583,7 +583,7 @@ its outcome the one named in the last column.
 | 14 | baseline signoff -- one page, corrections, lgtm; approvals set | Liaison, Vision Keeper (Vision), principal | items + open assumptions | `approval` per item | modes exist; not sequenced |
 | 15 | lazy periphery to the ledger | machine / Vision Keeper (Vision) | the election | `ledger` rows | not built |
 | 16 | seam plan (optional) -- boundaries from fan-in and k0's residue, as structural items for signoff | Architect, Vision Keeper (Vision) | fan-in, k0 | proposal, items | not built |
-| 17 | ready -- the frontier quiet; gauges: observed:decided, k0's shrink | machine | -- | -- | k0 shrink exists; ratio not surfaced; "done" today is quiescence, not signoff |
+| 17 | ready -- the frontier quiet; gauges: observed:decided from the provenance view, k0's shrink | machine | -- | -- | k0 shrink exists; ratio not surfaced; "done" today is quiescence, not signoff |
 | 18 | stay true -- our changes through the shape team before the Developer; foreign commits re-survey; new grains regrow k0 | machine, shape team | diffs | re-survey wakes | not built |
 
 ### Two questions the table had to settle
@@ -687,7 +687,9 @@ for cnt is the right answer.
 3. **Harvest, election, signoff** (10-15): with a principal present -- a
    scripted one first, a person second -- the questions arrive deduped and
    ordered, the election lands, the page is signed, `observed` becomes decided
-   where they said so and ledger where they deferred.
+   where they said so and ledger where they deferred. (2026-09-16: adopt lands
+   a `ruling` ref, and the provenance view says `decided`. No seat writes the
+   word.)
 
    *Status (2026-08-26):* the signoff spine runs. `observed` has its exit --
    `glossary.adopt` / `model.adopt`, the split relay, a row put to the
@@ -1143,8 +1145,8 @@ The stages, in order:
 
 ### Stage 2, as built (2026-08-24)
 
-The deterministic half first: `frame_rulings` (id, kind, provenance) with
-the partition consulting it -- most specific prefix wins, decided outranks
+The deterministic half first: `frame_rulings` (id, kind; provenance derived
+from `refs` since 2026-09-16) with the partition consulting it -- most specific prefix wins, decided outranks
 observed, unruled paths keep the heuristics' answer -- and `repin()`
 re-deriving partition, lexicon and constraint zero over the ruled table.
 Then the session: `tick:frame` wakes the Architect first, pushed

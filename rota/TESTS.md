@@ -90,19 +90,28 @@ The schema (migration step 1) must provide at least:
 ```
 utterances        (id, author, text, ts_order)                      -- transcript
 statements        (id, span_utterance, span, text, status, ratified) -- brief
-items             (id, text, kind[scope|non_goal], provenance[observed|decided],
+items             (id, text, kind[scope|non_goal],
                    approval[draft|pending|approved|contested], approval_ver)
-glossary_terms    (id, term, sense_short, sense_body, provenance, source_refs)
+refs              (src_table, src_id, kind[statement|reference|term|grain|ruling],
+                   target, resolves)
+                   -- [A] what a row rests on, one row per pair. Replaces the
+                   -- provenance columns and the JSON ref columns (2026-09-16).
+provenance        view over refs: (src_table, src_id,
+                   provenance[decided|observed|reasoned],
+                   basis[ruling|statement|world|code|none])
+                   -- [A] item_provenance, term_provenance, constraint_provenance,
+                   -- area_provenance and frame_provenance join it per table.
+glossary_terms    (id, term, sense_short, sense_body)
                    -- [A] index/body split: `full` returns headlines, not text
-business_rules    (id, text, term_refs)
-constraints       (id, headline, text, provenance, is_global, rationale_decision)
+business_rules    (id, text)
+constraints       (id, headline, text, is_global, rationale_decision)
 constraint_bindings (constraint_id, grain, grain_kind, resolves)
                    -- [A] bindings are rows, so the trigger is a join. Zero
                    -- bindings = global; resolves=0 promotes back to global.
 survey_citations  (survey_id, grain, resolves)   -- [A] evidence, not claims
 survey_records    (id, area, outcome[constraints_found|none_found], refs)
 tickets           (id, item_id, text)
-criteria          (id, ticket_id, text, term_refs[])
+criteria          (id, ticket_id, text)   -- [A] term refs are rows in refs
 batches           (id, item_id, worktree, head_commit, status[pending|running|
                    deferred|merged], priority)
                    -- [A] head_commit is what boot reconciles the worktree against
@@ -315,8 +324,8 @@ Forbidden: silently picking a sense; writing criteria.
 **D2 — Criteria in glossary terms.**
 Fixture: glossary terms t1..t4; approved item i1; tickets on i1.
 Inbound: criteria tick.
-Expect: `criteria` rows each with non-empty `term_refs` ⊆ {t1..t4} (schema
-enforces the column; the test asserts it's used).
+Expect: each `criteria` row has `term` rows in `refs` ⊆ {t1..t4} (the
+relation exists; the test asserts it is used).
 Forbidden: criteria referencing undefined terms (validator cross-checks).
 
 **D3 — Term question answered from the artefact, in the building.**

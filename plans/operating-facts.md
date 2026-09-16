@@ -128,6 +128,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - Wipe is a command, never `rm`. A worktree is in the target project. The only proof that the worktree is ours is a row in the database. A spawned process has the same shape. The WAL survives the file.
 - `lifecycle.start` creates worktrees at dispatch. A role never creates a worktree. An onboarding-only run has no worktree.
 - Old runs in `.rota/` are usually behind the schema and cannot open. `ls` says `stale` and gives the reason. The runs are not migrated on purpose. Databases here are throwaway, and `init_db` rebuilds them at boot.
+- Run databases from before 2026-09-16 (the `refs` relation, code through 056995d) open read-only in the cockpit and refuse a run. `init_db` refuses a database whose owner tables still carry a `provenance` column, with a sentence that says to start a fresh run. The warm snapshot `.rota/clickI_warm.db` is re-created the same day.
 - Profiles (2026-09-09): `rota profile list|show|check|set`, `rota onboard <run> --root <dir> --profile <name>`, `rota run <run> --model M --role tester=M`.
 - A profile is a TOML file in `<project>/.rota/profiles/` (not found 2026-09-16), `~/.rota/profiles/` (`ROTA_HOME`) (not found 2026-09-16), or `rota/llm/profiles/`. The shipped `local` profile has qwen3:8b as the default and the four judging desks on qwen3.5:9b.
 - Onboarding binds the profile into config `profile`. `model_routing` derives from the profile. The walk driver's manual `config.set(... "model_routing" ...)` is the old method.

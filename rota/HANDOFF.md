@@ -144,11 +144,15 @@ assumption ledger through the client gates.
     function does not exist. A model reaching for one gets an ordinary tool error
     and carries on. Only a ratified amendment to an
     approved item escalates an inquiry into change.
-11. **Provenance is explicit.** Model/glossary/problem entries are `decided`
-    (authored reason on file, written by the decider *in the same session as the
-    decision* — no recording steps, no scribe role) or `observed` (extracted from
-    an onboarded codebase; found, not chosen). Challenging an observed entry
-    forces its first decision. The decision record accretes lazily.
+11. **Provenance is explicit.** [A] Since 2026-09-16 a model/glossary/problem
+    row rests on what it cites in the `refs` relation: a statement, a
+    reference, a term, a grain or a ruling. Provenance is a view over the refs.
+    A row is `decided` when they reach a ratified statement or a landed ruling.
+    A row is `observed` when they reach a grain or a reference: found, not
+    chosen. Every other row is `reasoned`: a seat's own inference, with the
+    reason on file. No seat writes the word. Challenging an observed or
+    reasoned entry forces its first ruling. The decision record accretes
+    lazily.
 12. **Constraints protect external commitments only** (blast radius exits the
     module: persisted data, published APIs, high fan-in contracts, compliance).
     Each declares **bindings** — the addressable grain it governs (paths,
@@ -298,8 +302,11 @@ that will not fit under the cap is a *finding* (no internal seam to cut on — t
 mechanical detection of a true monolith); and survey order comes from the cluster
 graph, highest fan-in first. An LLM sits *over* the deterministic base, not in
 place of it: it reads cluster summaries only and proposes merges, splits and
-names, and the partition is written as a `decided` entry so re-running the
-algorithm never silently moves a boundary. Cross-area coupling stays visible
+names, and the partition is written as a `frame_rulings` row so re-running the
+algorithm never silently moves a boundary. [A] The judge's row rests on a grain
+ref, so the provenance view says `observed`. A principal's ruling on the prefix
+rests the row on a ruling ref, so the view says `decided`. Decided outranks the
+judge (2026-09-16). Cross-area coupling stays visible
 because fan-in is global index data — no session sees the whole repo, but the
 index does.
 
@@ -431,8 +438,9 @@ config (TOML), schema migration (plain DDL).
    annoying. What survives is the *actively wrong but resolvable* binding — points
    at a real grain, the wrong one — which still wants the operational check.
 7. **Suspension count cap** per task (context re-bloat through repeated resume).
-8. **[A] Area partition re-cutting.** Boundaries are pinned by a `decided` entry so
-   they cannot drift between runs. Additions self-heal (new modules fall into
+8. **[A] Area partition re-cutting.** Boundaries are pinned by a `frame_rulings`
+   row so they cannot drift between runs. The judge's row is `observed` by its
+   grain ref, and the principal's ruling ref makes it `decided` (2026-09-16). Additions self-heal (new modules fall into
    constraint zero and trigger review until surveyed); a boundary that was thin
    when cut and has since grown heavy does not. Probably a maturity gauge — cut
    weight across pinned boundaries — rather than a tick.

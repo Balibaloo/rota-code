@@ -762,7 +762,7 @@
       {
         "title": "Constraint zero",
         "round": "survey",
-        "text": "`Architect` reads the module graph and writes the bootstrap entry: this codebase is not yet understood — bound globally, provenance observed. From this moment every diff would trigger structural review, which is exactly right for total ignorance. Surveying is the act of shrinking this constraint.",
+        "text": "`Architect` reads the module graph and writes the bootstrap entry: this codebase is not yet understood — bound globally, resting on grain refs, so the provenance view says observed. From this moment every diff would trigger structural review, which is exactly right for total ignorance. Surveying is the act of shrinking this constraint.",
         "edges": [
           [
             "architect",

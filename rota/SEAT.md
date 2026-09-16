@@ -462,7 +462,7 @@ gathered at.** Now the omission:
 
 ```
 survey_records   id · area · outcome · refs · version          — no commit
-glossary_terms   id · term · sense_short · provenance · refs   — no commit
+glossary_terms   id · term · sense_short · refs → provenance   — no commit
 constraints      ...                                            — no commit
 config           project_root · run_state                       — no commit
 ```
@@ -560,8 +560,8 @@ today's system. Nothing blocks, nothing waits, headless runs never see a
 question.
 
 **Answers are decided rows in artefacts that already exist.** frame_rulings,
-constraints, the ledger, nominations -- with provenance `decided` and author
-`principal`, so the record always shows which understanding was provided and
+constraints, the ledger, nominations -- each resting on a `ruling` ref (the
+provenance view says `decided`) with author `principal`, so the record always shows which understanding was provided and
 which was earned, and a consult can honestly say "per the principal". The
 seat stores nothing of its own; it is intake and lens, never a second
 database.

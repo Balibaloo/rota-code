@@ -242,12 +242,14 @@ answered yet.
 
 A ratified amendment to an approved item drops it to pending and stops
 its batches.
-Resolution descends the refs DAG through each artefact's owner in dependency
-order before the Developer resumes and elects amend or restart.
+Resolution walks the `refs` relation through each artefact's owner in
+dependency order. Each wake names the artefact first, then the rows of that
+artefact that cite what changed. The Developer resumes after the walk and
+elects amend or restart.
 
 Cascade wakes are scheduler events carrying receipts. No role-to-role notification
-exists anywhere in the cascade: the scheduler walks the refs DAG and summons each
-owner itself.
+exists anywhere in the cascade: the scheduler walks the `refs` relation and
+summons each owner itself.
 
 **Priority is a different lever than scope, and never blurs into it.** Batches are
 complete feature sets, immutable once formed. A priority change alters no approved
@@ -276,23 +278,44 @@ Only a ratified amendment to an approved item escalates an inquiry into change.
 
 ### 11. Provenance is explicit
 
-Entries in the model, glossary and problem statement are `observed`, `reasoned`
-or `decided`. An `observed` entry is extracted from an onboarded codebase: found,
-not chosen. A `reasoned` entry is a seat's own inference. The seat writes it in
-the same session, with the reason on file. A `decided` entry rests on a ruling of
-the principal. The Liaison writes the ruling as a record with a version. A
-challenge to an `observed` or `reasoned` entry forces its first ruling. The
-decision record accretes lazily (`reasoned` ratified 2026-09-16).
+A row in the model, the glossary, the problem statement and the frame rests
+on what it cites. The `refs` relation holds the citations: a statement, a
+reference (the world), a term, a grain (the code) or a ruling. Provenance
+derives from the refs. No seat writes a provenance word.
 
-> **Amended.** A third value, `cited`: found outside the repository, attributable
-> to a source. It is neither of the other two — nobody chose it and it was not
-> extracted from the code — and it is the only provenance that can become false
-> without anyone touching the project, because the page it rests on can change.
-> A `cited` entry carries `source_refs` to the reference rows that support it,
-> and a reference carries the passage as well as the URL: elsewhere conclusions
-> travel and reasoning stays home, but for an outside source the passage *is* the
-> evidence, and a confident sentence with a link after it is indistinguishable
-> from an invention.
+A row is `decided` when its refs reach a ratified statement or a landed
+ruling. A row is `observed` when its refs reach a grain or a reference:
+found, not chosen. Every other row is `reasoned`: a seat's own inference,
+with the reason on file. `decided` outranks `observed`, and `observed`
+outranks `reasoned`. The `basis` beside the word names the source that won:
+`ruling`, `statement`, `world`, `code` or `none`.
+
+The Liaison writes a ruling as a record with a version. A challenge to an
+`observed` or `reasoned` entry forces its first ruling. The decision record
+accretes lazily (`reasoned` ratified 2026-09-16).
+
+> **Amended.** The world is a basis of `observed`. A row that rests on a
+> reference row is found outside the repository and attributable to a source.
+> Nobody chose it, and it was not extracted from the code. It is the only
+> provenance that can become false without anyone touching the project,
+> because the page it rests on can change. The `reference` ref names the
+> reference row that supports the entry, and a reference carries the passage
+> as well as the URL: elsewhere conclusions travel and reasoning stays home,
+> but for an outside source the passage *is* the evidence, and a confident
+> sentence with a link after it is indistinguishable from an invention.
+>
+> A result shows `cited` for a row whose basis is `world`: `observed` from
+> the world under this law. The word in results changes with the briefs that
+> name it (Q4 of the design record: today's behaviour holds in this frame).
+
+> **Note, 2026-09-16.** Ruled: `decided` cascades from a ratified statement
+> along the refs. The `refs` relation replaced the five provenance columns and
+> the five JSON ref columns, and provenance is a view over it. The old third
+> value `cited` is `observed` with basis `world`. Law 9's cascade and this
+> law's view read the same relation. A run database from before the relation
+> opens read-only with a sentence, and a run refuses it. Why: a word a seat
+> writes can say `decided` with nothing behind it, and a word derived from
+> the refs cannot.
 
 > A ledger entry is resolved by a decision that names it, in the same commit, and
 > by nothing else. There is no `ledger.resolve`: an assumption that could close
@@ -375,9 +398,9 @@ Not by asking. Each of these is a check that fails the build:
 | 6 | `predicates.exhausted` climbs `LADDER` one rung at a time; `unresolved` climbs a question nobody answered; `quarantined` says out loud what passed its cap; the top rung is a page (`agenda`) |
 | 7 | `config.SETTINGS` — reading an undeclared key is an error, not a default |
 | 8 | `lifecycle.mergeable` returns the reason, in review order |
-| 9 | `scheduler.cascade_wakes`; `problem.prioritize` writes with `amends=False` |
+| 9 | `scheduler.cascade_wakes` walks the `refs` relation, one wake per owner and artefact, the row ids after the artefact; `problem.prioritize` writes with `amends=False` |
 | 10 | `sandbox.build(mode="readonly")` constructs no write functions at all |
-| 11 | `provenance` is `NOT NULL CHECK` on every artefact that has one |
+| 11 | `provenance` is a view over `refs`, joined per table by `item_provenance`, `term_provenance`, `constraint_provenance`, `area_provenance` and `frame_provenance`; no artefact table carries a provenance column |
 | 12 | `check_structure` — a non-owner may take every row, or bodies, never both |
 | 13 | no date, duration or timestamp column exists in `schema.sql` |
 

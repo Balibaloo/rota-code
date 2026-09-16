@@ -61,7 +61,7 @@
       "id": "brief",
       "label": "Brief (statements)",
       "type": "artefact",
-      "note": "Atomised statements, each with provenance into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the principal, so segmentation can be aggressive."
+      "note": "Atomised statements, each with a span into the transcript and a status: asserted, clarified, superseded, contradicted. Ratified by the principal, so segmentation can be aggressive."
     },
     {
       "id": "problem",
@@ -73,7 +73,7 @@
       "id": "glossary",
       "label": "Glossary + rules",
       "type": "artefact",
-      "note": "Canonical meaning of every term. Entries carry provenance: ratified by the principal, or observed \u2014 extracted from an onboarded codebase and awaiting confirmation."
+      "note": "Canonical meaning of every term. An entry rests on refs: a statement, a term, a grain, a reference or a ruling. The provenance view derives decided, observed or reasoned from them. An observed entry is extracted from an onboarded codebase and awaits confirmation."
     },
     {
       "id": "challenge",
@@ -91,7 +91,7 @@
       "id": "model",
       "label": "System model",
       "type": "artefact",
-      "note": "Constraints, and what is buildable here. Each constraint declares bindings \u2014 the modules it governs \u2014 so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries carry provenance: decided (authored reason on file) or observed (inherited from an onboarded codebase \u2014 found, not chosen). Challenging an observed entry forces its first decision."
+      "note": "Constraints, and what is buildable here. Each constraint declares bindings \u2014 the modules it governs \u2014 so the structural-review trigger is a path intersection the scheduler computes, not a judgement anyone makes. Unbound constraints are global and trigger on every diff. Entries rest on refs, and the provenance view derives the word. Decided rests on a landed ruling or a ratified statement. Observed rests on a grain or a reference: found, not chosen. Reasoned is a seat's own inference. Challenging an observed or reasoned entry forces its first ruling."
     },
     {
       "id": "decisions",

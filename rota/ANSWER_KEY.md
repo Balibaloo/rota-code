@@ -71,9 +71,11 @@ opposite sides of the wire.
 
 *Expectation, researcher off:* Architect writes constraints naming RFC numbers
 from directory names and docstrings, with no clause text behind them.
-*Expectation, researcher on:* at least one constraint carries `provenance =
-'cited'` with a `source_refs` pointing at a reference row whose quote is real
-RFC text. **This is the single comparison the two runs exist to make.**
+*Expectation, researcher on:* at least one constraint rests on a `reference`
+ref, so the provenance view says `observed` with basis `world`. The reference
+row's quote is real RFC text. (Before 2026-09-16: `provenance = 'cited'` with
+a `source_refs`.) **This is the single comparison the two runs exist to
+make.**
 
 ### 4. Real external commitments exist and are findable
 
@@ -103,7 +105,7 @@ key made only of things I expect to be found measures nothing.
 
 - A constraint naming an RFC clause that does not say what the constraint says.
 - A glossary sense not traceable to a symbol in the area being surveyed.
-- `provenance = 'cited'` with no reference row behind it, or a reference row
+- A `reference` ref with no reference row behind it, or a reference row
   whose quote is not in the fetched page.
 - Any constraint whose "who outside would notice" cannot be answered from the
   cited text.

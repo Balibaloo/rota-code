@@ -757,6 +757,13 @@ and the only kind of claim that can become false without anyone touching the
 project. `provenance` is a `NOT NULL CHECK` on every artefact that has one, so
 this is a schema change, not a convention.
 
+*Landed differently, 2026-09-16.* `cited` is not a value. The `refs`
+relation holds what a row rests on, and the `provenance` view derives the
+word from the refs. A row that rests on a reference row is `observed` with
+basis `world`. The provenance columns are gone, and no `NOT NULL CHECK`
+remains. Ruled the same day: `decided` cascades from a ratified statement
+along the refs. The design is `plans/archive/refs-design-2026-09-16.md`.
+
 ### Law 13 — the retrieval date
 
 Law 13 forbids it: *"no date, duration or timestamp column exists in
@@ -898,6 +905,11 @@ stays because `batches.worktree = NULL` still cannot say *why*.
 decision record in a settings table: unversioned, unreceipted, outside every
 artefact law. Law 11 has never been asked about it.
 
+*Note, 2026-09-16.* Law 11 has been asked. A principal's verdict lands as a
+`rulings` row with `status = 'landed'` (`principal.land`). Adopt writes a
+`ruling` ref from each adopted row to it. The `provenance` view derives
+`decided` from that ref. A ruling is a record a row rests on, with a version.
+
 **Interview finding, 2026-08-27, on the adjacent question — may the system
 tune its own meta-config?** Three facts anchor it. Roles are config-blind and
 config-mute today: no op writes the table, none shows it, and the handful of
@@ -922,6 +934,11 @@ question; the chat interfaces, when built, map it to the proposal words. And
 `config_history` shipped memo-free: the typed-cause field was designed and
 removed the same day on the principal's one-line review — "it will never be
 used". What is recorded is only what the machine knows for free.
+
+*Note, 2026-09-16.* The internal stamp is gone. `glossary.adopt` and
+`model.adopt` write a `ruling` ref to the landed `rulings` row, and the
+`provenance` view derives `decided` from it. An adopt with no landed ruling
+refuses. The proposal words on the human-facing surfaces stay.
 
 ### Harness facts are refused at the door; judgement stays with the roles
 
@@ -1074,6 +1091,8 @@ brief's "name what done means" becoming checkable rather than hoped. Where
 the surface does not exist yet (greenfield), naming the *intended* surface is
 precisely the design decision a criterion is for. Not built tonight; the
 repair path is the corrective loop it would feed.
+
+*Note, 2026-09-16.* The `term_refs` column is gone, and the reason holds for `term` rows in `refs`.
 
 ### The frontier, when several things are ready — the big one
 

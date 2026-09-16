@@ -138,6 +138,8 @@ A guard that refuses non-strings was tried twice and reverted twice (undated in 
 
 (undated in source) "Proposed: **`cited`** — found outside the repository, attributable to a source, and the only kind of claim that can become false without anyone touching the project." This is a schema change, not a convention.
 
+2026-09-16. Landed differently. `cited` is not a value. The `refs` relation holds what a row rests on, and the `provenance` view derives the word. A row is `decided` when the refs reach a ratified statement or a landed ruling. A row is `observed` when they reach a grain or a reference. Every other row is `reasoned`. A row that rests on a reference row is `observed` with basis `world`. Ruled: `decided` cascades from a ratified statement along the refs. No seat writes a provenance word.
+
 ### Law 13 — the retrieval date
 
 (undated in source) "Resolution without amending the law: **the date is for a human, not the system.**" `references` carries `content_hash` and a retrieval sequence. The real timestamp lives in the fetch cache, which is evidence and therefore outside the law.
@@ -155,6 +157,8 @@ A guard that refuses non-strings was tried twice and reverted twice (undated in 
 2026-08-27. At the interview, on whether the system may tune its own meta-config. The principal's floor: "approval is the minimum." Roles stay config-blind and config-mute, and the design rule is to keep not building that door. "State may heal itself under caps (quarantine, deferral — already true); policy may at most be *proposed*, by mechanical detectors, as evidence-bearing trail rows that wait on a ruling."
 
 2026-08-27. Vocabulary, same interview. "Human-facing surfaces say *proposed* / *preliminary* for what onboarding extracts, and *adopt* for the accepting act — `rota adopt` (elect kept as an alias), matching `glossary.adopt` and `model.adopt`. The internal stamp stays `provenance='observed'`". `config_history` shipped memo-free on the principal's one-line review: "it will never be used".
+
+2026-09-16. The internal stamp is gone. Adopt writes a `ruling` ref, and the `provenance` view derives `decided` from it.
 
 ### Harness facts are refused at the door; judgement stays with the roles
 

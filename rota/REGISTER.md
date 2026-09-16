@@ -135,8 +135,9 @@ out.
    principle, and not applying it was the inconsistency. A batch whose criteria
    turn on a word with two live senses is not offered to Tester, because a test
    written from the wrong sense passes and pins the wrong promise. Narrow on
-   purpose: only this obligation, because `criteria.term_refs` is a join that
-   exists and there is no general way to say what a wake's work rests on.
+   purpose: only this obligation, because a criterion's `term` rows in `refs`
+   are a join that exists and there is no general way to say what a wake's
+   work rests on.
 5. ~~**The declaration.**~~ Built as `schedule.reask`, in `answer` mode for
    every role that can receive one. Everything after the declaration is derived
    as before: the next rung is the first role that has not spoken in the thread
