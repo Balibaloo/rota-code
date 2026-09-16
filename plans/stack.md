@@ -29,23 +29,6 @@ Rules:
 
 ## Stack
 
-### 22. Provenance marks on the build session's records (Roman, 2026-09-16) [836a1517]
-
-- Meta workflow. Every conclusion in the stack and on the page carries
-  (observed: where), (reasoned: why), or (ruled: why), each a headline
-  long. The
-  convention goes into the assistant's brief in CLAUDE.md and into rule 7
-  above (ruled: a ruling and a judgement looked the same in prose).
-- Ends when: the open frames, the page's Open section, and CLAUDE.md
-  carry the marks, committed, and Roman checks the CLAUDE.md sentences.
-- Waits on: Roman's check of CLAUDE.md.
-- Reasoning: this conversation, 2026-09-16, Q3 of the grill.
-- Status 2026-09-16 07:05 (rota-bc): pushed and done in one pass. Waits
-  on Roman's check.
-- Status 2026-09-16 07:15 (rota-bc): Roman ruled all three marks carry
-  the headline (ruled: a mark says who; the headline says on what
-  ground). Applied to CLAUDE.md, the page and this file. Closed.
-
 ### 21. Provenance by reference (Roman, 2026-09-16)
 
 - Rota workflow. Roman ruled 2026-09-16 (ruled: a ratified statement's
