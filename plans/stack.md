@@ -53,6 +53,13 @@ Rules:
 - Status 2026-09-16 12:57 (rota-b9): claimed by session 32a42b78. A
   scope agent reads the tree for the refs relation and writes
   `plans/archive/refs-scope-2026-09-16.md`. No code touched yet.
+- Status 2026-09-16 13:45 (rota-b9): scope report (86af8ce) and design
+  record (402df39) in `plans/archive/`. Four stages, each at a tested
+  boundary. Stage 1 (additive) is with an agent. Three design lines
+  Roman can overrule (reasoned: the page says observed covers the code
+  and the world): a `grain` kind carries the code half of observed;
+  `frame_rulings.provenance` folds in; `land()` writes a `rulings` row
+  on every verdict so a ruling ref has a target.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
