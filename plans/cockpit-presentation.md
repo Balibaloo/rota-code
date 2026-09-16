@@ -1,8 +1,9 @@
 # Glass Cockpit — how the system is presented
 
-> Placed 2026-09-16 under `plans/composition.md`, The build session. The page
-> is silent on rendering. Whether the Principal reads the cockpit, or only the
-> assistant does, is a question for Roman.
+> Placed 2026-09-16 under `plans/composition.md`, Purpose: "no work stays
+> invisible". Roman ruled the same day: the cockpit is a dashboard. It shows
+> the records and writes none. Its only writes are layouts and the run switch.
+> The principal's interface is the seat in `rota/cockpit/tui.py`.
 *2026-08-24, after the consistency and layout passes. The designed rendering of
 this document lives as the "Glass Cockpit" artifact; this file is the version
 the repo enforces against.*
