@@ -741,14 +741,22 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         record_entry(conn, msg_id, answer.text)
     # The ruling as a row with a version. The Liaison's reading has its own
     # row and `apply_rulings` marks it landed after this returns. A verdict
-    # from the seat has none, so the door writes one here, landed, keyed by
-    # the verdict message so a replay lands the same id.
+    # from the seat lands the Liaison's open row when one is on the same
+    # ask. `apply_rulings` then finds no open row and marks no second one.
+    # When no row exists for the ask, the door writes one here, landed,
+    # keyed by the verdict message so a replay lands the same id.
     if ruling_id is None:
         conn.execute(
-            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
-            "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
-            (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
-             (answer.text or "").strip(), msg_id))
+            "UPDATE rulings SET status = 'landed', verdict_id = ? "
+            "WHERE ask_id = ? AND status = 'open'", (msg_id, ask.message_id))
+        on_file = conn.execute(
+            "SELECT 1 FROM rulings WHERE ask_id = ?", (ask.message_id,)).fetchone()
+        if on_file is None:
+            conn.execute(
+                "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+                "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+                (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
+                 (answer.text or "").strip(), msg_id))
     return msg_id
 
 

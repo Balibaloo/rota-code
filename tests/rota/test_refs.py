@@ -226,6 +226,53 @@ def test_a_refs_write_beside_the_row_bumps_the_version_once(db):
     assert version_of(db, "refs") == 0, "the relation carries no version of its own"
 
 
+def test_a_refs_write_staged_before_its_row_bumps_the_version_once(db):
+    """One bump per receipt key per commit, in any order of the writes."""
+    _statement(db, "s1", "ratified")
+    session_commit(db, SessionResult(
+        session_id="s1", role="vision_keeper",
+        writes=[_refs_write("items", "i1", "statement", "s1"),
+                Write("items", "i1", {"text": "x", "kind": "in_scope",
+                                      "provenance": "decided"})]))
+    assert version_of(db, "items") == 1
+    receipts = db.execute("SELECT table_name, row_id, new_version FROM receipts "
+                          "WHERE session_id = 's1'").fetchall()
+    assert [(r["table_name"], r["row_id"], r["new_version"])
+            for r in receipts] == [("items", "i1", 1)]
+
+
+def test_the_same_refs_row_again_is_not_a_change(db):
+    """A refs write whose row is on file, `resolves` and all, moves no
+    version, writes no receipt and keeps the row's rowid. A write that
+    flips `resolves` is a change, and the row keeps its rowid."""
+    _item(db, "i1")
+    _statement(db, "s1", "ratified")
+    session_commit(db, SessionResult(
+        session_id="s_first", role="vision_keeper",
+        writes=[_refs_write("items", "i1", "statement", "s1")]))
+    rowid = db.execute("SELECT rowid FROM refs").fetchone()[0]
+    assert version_of(db, "items") == 1
+
+    session_commit(db, SessionResult(
+        session_id="s_again", role="vision_keeper",
+        writes=[_refs_write("items", "i1", "statement", "s1")]))
+    assert version_of(db, "items") == 1
+    assert db.execute("SELECT COUNT(*) n FROM receipts "
+                      "WHERE session_id = 's_again'").fetchone()["n"] == 0
+    assert db.execute("SELECT rowid FROM refs").fetchone()[0] == rowid
+
+    flipped = _refs_write("items", "i1", "statement", "s1")
+    flipped.values["resolves"] = 0
+    session_commit(db, SessionResult(
+        session_id="s_flip", role="vision_keeper", writes=[flipped]))
+    assert version_of(db, "items") == 2
+    assert [(r["table_name"], r["row_id"]) for r in db.execute(
+        "SELECT table_name, row_id FROM receipts WHERE session_id = 's_flip'")] \
+        == [("items", "i1")]
+    row = db.execute("SELECT rowid, resolves FROM refs").fetchone()
+    assert (row[0], row["resolves"]) == (rowid, 0)
+
+
 # --- the writers ------------------------------------------------------------
 
 def test_problem_assert_writes_a_statement_ref_beside_item_statements(db):
@@ -296,9 +343,10 @@ def test_the_cite_door_stages_a_ref_for_a_row_of_its_artefact(db):
     from rota.roles import api
 
     _item(db, "i1")
+    _statement(db, "s1", "ratified")
     sb = build("vision_keeper", db, mode="deliver")
-    assert "cite" not in (sb.functions() if callable(getattr(sb, "functions", None))
-                          else []), "no session is offered the door"
+    assert not any(name.endswith(".cite") for name in sb.functions()), \
+        "no session is offered the door"
     cite = api.REGISTRY[("problem", "cite")]
     cite(sb.ctx, id="i1", kind="statement", target="s1")
     assert sb.ctx.writes == [("refs", "items:i1:statement:s1", {
@@ -308,6 +356,13 @@ def test_the_cite_door_stages_a_ref_for_a_row_of_its_artefact(db):
         cite(sb.ctx, id="nope", kind="statement", target="s1")
     with pytest.raises(ValueError, match="kind is one of"):
         cite(sb.ctx, id="i1", kind="wish", target="s1")
+    # The target names a row of its kind, as the owner ops check.
+    with pytest.raises(ValueError, match="names no statement: a statement ref "
+                                         "targets a row of statements"):
+        cite(sb.ctx, id="i1", kind="statement", target="s_none")
+    with pytest.raises(ValueError, match="names no grain: a grain ref targets "
+                                         "a grain of the index"):
+        cite(sb.ctx, id="i1", kind="grain", target="src/nowhere.py")
     # The schema carries no CHECK for the two columns; the door holds it.
     with pytest.raises(ValueError, match="not a table that carries refs"):
         api.stage_ref(sb.ctx, "tickets", "tk1", "term", "g1")
@@ -327,6 +382,27 @@ def test_the_seat_verdict_lands_a_ruling_row_for_the_ref_to_target(db):
     assert mid
     row = db.execute("SELECT id, ask_id, status, verdict_id FROM rulings").fetchone()
     assert (row["ask_id"], row["status"], row["verdict_id"]) == ("m_ask", "landed", mid)
+
+
+def test_the_seat_verdict_lands_the_liaisons_open_row_and_writes_no_second(db):
+    """A verdict from the seat on an ask the Liaison has read lands the
+    Liaison's own row. `apply_rulings` then finds no open row: the ask ends
+    with one landed row, and no `r_<msg>` beside it."""
+    from rota.roles.principal import Answer, Ask, apply_rulings, land
+
+    _item(db, "i1")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m_ask', 't1', 'liaison', "
+               "'principal', 'present', '[\"i1\"]', 1, 'open')")
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words) "
+               "VALUES ('r_li', 'm_ask', '{\"i1\": \"approve\"}', 'ok')")
+    mid = land(db, Ask(message_id="m_ask", verb="present", refs=["i1"]),
+               Answer(verb="verdict", per_item={"i1": "approve"}))
+    assert mid
+    assert apply_rulings(db) == []
+    rows = db.execute("SELECT id, status, verdict_id FROM rulings").fetchall()
+    assert [(r["id"], r["status"], r["verdict_id"]) for r in rows] == \
+        [("r_li", "landed", mid)]
 
 
 # --- the fixture loader -----------------------------------------------------
@@ -372,6 +448,25 @@ def test_the_loader_seeds_nothing_for_a_fixture_with_no_refs(db):
                            "ts_order": 1}]})
     assert db.execute("SELECT COUNT(*) n FROM refs").fetchone()["n"] == 0
     assert db.execute("SELECT COUNT(*) n FROM messages").fetchone()["n"] == 0
+
+
+def test_the_seeded_ruling_is_a_record_the_audit_accepts(db):
+    """A seeded `decided` row rests on the fixture ruling. The ruling's ask
+    is answered and the verdict that answers it is on file, so the audit
+    finds nothing. Nothing seeded is open."""
+    from rota.testkit.fixtures import FIXTURE_ASK, FIXTURE_VERDICT, seed
+    from rota.tools.audit import audit
+
+    seed(db, {"items": [{"id": "i1", "text": "a", "kind": "in_scope",
+                         "provenance": "decided"}]})
+    assert audit(db) == []
+    rows = db.execute("SELECT id, cause_id, status, to_role FROM messages "
+                      "ORDER BY id").fetchall()
+    assert [(r["id"], r["cause_id"], r["status"], r["to_role"]) for r in rows] == [
+        (FIXTURE_ASK, None, "answered", "liaison"),
+        (FIXTURE_VERDICT, FIXTURE_ASK, "answered", "liaison")]
+    assert db.execute("SELECT verdict_id FROM rulings").fetchone()["verdict_id"] \
+        == FIXTURE_VERDICT
 
 
 # --- the readers (stage 2) --------------------------------------------------

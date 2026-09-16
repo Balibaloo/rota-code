@@ -128,13 +128,13 @@ WITH RECURSIVE reach(src_table, src_id, kind, target, resolves, depth) AS (
 basis AS (
     SELECT src_table, src_id,
         MAX(kind = 'ruling' AND EXISTS (
-            SELECT 1 FROM rulings u WHERE u.id = target AND u.status = 'landed'))
+            SELECT 1 FROM rulings u WHERE u.id = reach.target AND u.status = 'landed'))
           AS ruled,
         MAX(kind = 'statement' AND EXISTS (
-            SELECT 1 FROM statements s WHERE s.id = target AND s.status = 'ratified'))
+            SELECT 1 FROM statements s WHERE s.id = reach.target AND s.status = 'ratified'))
           AS ratified,
         MAX(kind = 'reference' AND EXISTS (
-            SELECT 1 FROM references_ x WHERE x.id = target))
+            SELECT 1 FROM references_ x WHERE x.id = reach.target))
           AS world,
         MAX(kind = 'grain' AND resolves = 1) AS code
     FROM reach GROUP BY src_table, src_id

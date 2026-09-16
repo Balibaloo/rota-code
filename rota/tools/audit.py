@@ -149,9 +149,14 @@ def audit(conn: sqlite3.Connection) -> list[str]:
             findings.append(f"glossary {r['id']}: superseded_by dangles "
                             f"({r['superseded_by']!r})")
 
-    # 5. Answered means an answer exists.
+    # 5. Answered means an answer exists. A verdict from the principal is
+    #    the one message that is answered with no answer by design:
+    #    `principal.land` writes a settled verdict as answered at the
+    #    keypress, and nothing relays it (nothing waits on it).
     for r in _rows(conn, "SELECT m.id AS mid FROM messages m "
-                         "WHERE m.status = 'answered' AND NOT EXISTS "
+                         "WHERE m.status = 'answered' "
+                         "AND NOT (m.from_role = 'principal' AND m.verb = 'verdict') "
+                         "AND NOT EXISTS "
                          "(SELECT 1 FROM messages a WHERE a.cause_id = m.id)"):
         findings.append(f"messages: {r['mid']} is 'answered' and nothing "
                         f"answers it")

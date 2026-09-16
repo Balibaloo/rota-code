@@ -97,10 +97,13 @@ def _encode(value: Any) -> Any:
 # fixture ruling. A seeded `observed` row rests on one fixture grain. A
 # seeded `cited` row with no reference on file rests on one fixture
 # reference. The fixture ruling needs an ask: `rulings.ask_id` is a foreign
-# key, so one answered message is seeded with it, in a thread of its own.
+# key, so one answered message is seeded with it, in a thread of its own,
+# and the settled verdict that answers it: the audit reads "answered means
+# an answer exists".
 FIXTURE_GRAIN = "@fixture"
 FIXTURE_RULING = "r_fixture"
 FIXTURE_ASK = "m_fixture_ruling"
+FIXTURE_VERDICT = "m_fixture_verdict"
 FIXTURE_REFERENCE = "ref_fixture"
 
 _PROVENANCE_TABLES = ("items", "glossary_terms", "constraints", "model_areas",
@@ -173,15 +176,26 @@ def _seed_refs(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None
     if not refs:
         return
     if need_ruling:
+        # The ask, and the verdict that answers it, as `principal.land`
+        # writes a settled verdict. No prompt, wake or predicate reads
+        # either row: `status = 'answered'`, `to_role = 'liaison'`,
+        # `body_text IS NULL`, `body_refs = '[]'`, and a thread of their
+        # own. The ask has no cause. The verdict's cause is the ask, and a
+        # reader follows a cause from a wake's own message only.
         conn.execute(
             "INSERT OR IGNORE INTO messages (id, cause_kind, thread_id, "
             "from_role, to_role, verb, body_refs, seq, status) VALUES "
             "(?, 'conversation', ?, 'principal', 'liaison', 'converse', '[]', "
             "0, 'answered')", (FIXTURE_ASK, FIXTURE_ASK))
         conn.execute(
-            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, status) "
-            "VALUES (?, ?, '{}', 'seeded as decided', 'landed')",
-            (FIXTURE_RULING, FIXTURE_ASK))
+            "INSERT OR IGNORE INTO messages (id, cause_id, cause_kind, "
+            "thread_id, from_role, to_role, verb, body_refs, seq, status) "
+            "VALUES (?, ?, 'message', ?, 'principal', 'liaison', 'verdict', "
+            "'[]', 0, 'answered')", (FIXTURE_VERDICT, FIXTURE_ASK, FIXTURE_ASK))
+        conn.execute(
+            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+            "status, verdict_id) VALUES (?, ?, '{}', 'seeded as decided', "
+            "'landed', ?)", (FIXTURE_RULING, FIXTURE_ASK, FIXTURE_VERDICT))
     if need_reference:
         conn.execute(
             "INSERT OR IGNORE INTO references_ (id, url, claim, asked_by) "

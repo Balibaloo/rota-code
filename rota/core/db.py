@@ -123,19 +123,12 @@ def shown_provenance(provenance: str, basis: str) -> str:
     return "cited" if basis == "world" else provenance
 
 
-def artefact_of_write(table: str, values: dict | None = None) -> str | None:
-    """The artefact a write touches. A refs row resolves by its source table."""
-    if table == REFS_TABLE:
-        return ARTEFACT_OF_TABLE.get(str((values or {}).get("src_table", "")))
-    return ARTEFACT_OF_TABLE.get(table)
-
-
 def receipt_of(w: "Write") -> tuple[str, str]:
     """The (table, row id) a write is receipted under.
 
-    A refs write is receipted under its source row. Stage a refs write after
-    the source row's own write: the row's receipt then already exists, and
-    the refs write bumps no second version."""
+    A refs write is receipted under its source row. The row's own write and
+    its refs writes in one commit bump the version once, in any order:
+    `session_commit` bumps once per receipt key."""
     if w.table == REFS_TABLE:
         return (str(w.values.get("src_table", "")),
                 str(w.values.get("src_id", "")))
@@ -305,7 +298,38 @@ def refs_of(raw) -> list[str]:
     return [x for x in loaded if isinstance(x, str)]
 
 
-def _apply_write(conn: sqlite3.Connection, w: Write) -> None:
+def _apply_ref(conn: sqlite3.Connection, w: Write) -> bool:
+    """
+    Write one refs row in place. Returns False when the row is on file.
+
+    The same row again is not a change: no version moves, no receipt is
+    written, and the row keeps its rowid. `criteria.load` reads term refs
+    in rowid order, and `INSERT OR REPLACE` gives a row a new rowid. A row
+    whose `resolves` flips is a change, updated in place.
+    """
+    key = tuple(str(w.values.get(c, ""))
+                for c in ("src_table", "src_id", "kind", "target"))
+    resolves = int(w.values.get("resolves", 1))
+    row = conn.execute(
+        "SELECT resolves FROM refs WHERE src_table = ? AND src_id = ? "
+        "AND kind = ? AND target = ?", key).fetchone()
+    if row is None:
+        conn.execute(
+            "INSERT INTO refs (src_table, src_id, kind, target, resolves) "
+            "VALUES (?, ?, ?, ?, ?)", (*key, resolves))
+        return True
+    if int(row["resolves"]) == resolves:
+        return False
+    conn.execute(
+        "UPDATE refs SET resolves = ? WHERE src_table = ? AND src_id = ? "
+        "AND kind = ? AND target = ?", (resolves, *key))
+    return True
+
+
+def _apply_write(conn: sqlite3.Connection, w: Write) -> bool:
+    """Apply one write. Returns False when the write changes no row."""
+    if w.table == REFS_TABLE:
+        return _apply_ref(conn, w)
     if w.table in JUNCTION_TABLES:
         cols = list(w.values.keys())
         marks = ", ".join("?" for _ in cols)
@@ -313,7 +337,7 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> None:
             f"INSERT OR REPLACE INTO {w.table} ({', '.join(cols)}) VALUES ({marks})",
             list(w.values.values()),
         )
-        return
+        return True
 
     exists = conn.execute(
         f"SELECT 1 FROM {w.table} WHERE id = ?", (w.row_id,)
@@ -334,7 +358,7 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> None:
             f"UPDATE {w.table} SET {assignments} WHERE id = ?",
             [*w.values.values(), w.row_id],
         )
-        return
+        return True
 
     payload = {"id": w.row_id, **w.values} if "id" not in w.values else dict(w.values)
     cols = list(payload.keys())
@@ -343,6 +367,7 @@ def _apply_write(conn: sqlite3.Connection, w: Write) -> None:
         f"INSERT INTO {w.table} ({', '.join(cols)}) VALUES ({placeholders})",
         list(payload.values()),
     )
+    return True
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -463,26 +488,26 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         )
 
         for w in result.writes:
-            _apply_write(conn, w)
+            changed = _apply_write(conn, w)
             table, row_id = receipt_of(w)
-            if table not in ARTEFACT_TABLES:
+            if table not in ARTEFACT_TABLES or not changed:
                 continue
-            if w.table == REFS_TABLE:
-                # A refs row beside the source row's own write adds nothing
-                # to the receipt. A refs row on its own changes what the
-                # source row rests on: receipt it under that row.
-                already = conn.execute(
-                    "SELECT 1 FROM receipts WHERE session_id = ? "
-                    "AND table_name = ? AND row_id = ?",
-                    (result.session_id, table, row_id)).fetchone()
-                if already:
-                    continue
-            new_version = bump_version(conn, table)
-            conn.execute(
-                "INSERT OR REPLACE INTO receipts "
-                "(session_id, table_name, row_id, new_version) VALUES (?, ?, ?, ?)",
-                (result.session_id, table, row_id, new_version),
-            )
+            # One version bump per receipt key per commit, in any order of
+            # the writes. A refs write is receipted under its source row:
+            # beside the row's own write it adds nothing, and on its own it
+            # changes what the row rests on.
+            on_file = conn.execute(
+                "SELECT 1 FROM receipts WHERE session_id = ? "
+                "AND table_name = ? AND row_id = ?",
+                (result.session_id, table, row_id)).fetchone()
+            if on_file is None:
+                new_version = bump_version(conn, table)
+                conn.execute(
+                    "INSERT INTO receipts "
+                    "(session_id, table_name, row_id, new_version) "
+                    "VALUES (?, ?, ?, ?)",
+                    (result.session_id, table, row_id, new_version),
+                )
             if w.table != REFS_TABLE:
                 _lift_quarantines(conn, w)
 

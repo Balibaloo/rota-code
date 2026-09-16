@@ -519,6 +519,26 @@ def stage_copied_refs(ctx: Ctx, src_table: str, from_id: str, to_id: str) -> Non
         stage_ref(ctx, src_table, to_id, r["kind"], r["target"], r["resolves"])
 
 
+# The table a ref of each kind names. A grain names the index by its own
+# key and has no table here (the table comment in schema.sql).
+_REF_TARGET_TABLE = {"statement": "statements", "reference": "references_",
+                     "term": "glossary_terms", "ruling": "rulings"}
+
+
+def _ref_target_on_file(ctx: Ctx, kind: str, target: str) -> bool:
+    """Whether `target` names a row of its kind: staged this session, or on
+    file. A grain is on file when the index holds it, as the owner ops
+    read it."""
+    if kind == "grain":
+        return ctx.conn.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                                (target,)).fetchone() is not None
+    table = _REF_TARGET_TABLE[kind]
+    if any(w[0] == table and w[1] == target for w in ctx.writes):
+        return True
+    return ctx.conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
+                            (target,)).fetchone() is not None
+
+
 # The owner tables behind each artefact that writes refs. The graph declares
 # one `cite` edge per owner with `actor: system`: the system stages the rows
 # beside the owner's own writes, and no session calls the op.
@@ -541,6 +561,13 @@ def _cite_op(artefact: str, tables: tuple[str, ...]) -> Callable:
                                  (id,)).fetchone()), None)
         if table is None:
             raise ValueError(f"{id!r} is not a row of {artefact}")
+        # The target names a row of its kind, as the owner ops check
+        # before they stage a ref. A bad kind is refused by `stage_ref`.
+        if kind in REF_KINDS and not _ref_target_on_file(ctx, kind, target):
+            names = ("a grain of the index" if kind == "grain"
+                     else f"a row of {_REF_TARGET_TABLE[kind]}")
+            raise ValueError(
+                f"{target!r} names no {kind}: a {kind} ref targets {names}")
         stage_ref(ctx, table, id, kind, target)
         return {"id": id, "kind": kind, "target": target}
     cite.__name__ = f"{artefact}_cite"
