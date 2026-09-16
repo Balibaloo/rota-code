@@ -130,6 +130,11 @@ Rules:
 - Status 2026-09-15 02:54: B is the wording in the tree; the billing
   count is the open judgement (one constraint per commitment, not per
   function); Roman decides the wording.
+- Status 2026-09-16 02:41 (closing, session 5dfdf3): wording B is the
+  tree (eff78e0, c483f24); L1-AR-survey-an-area-for-its-commitments
+  green on the 23:48 replay; Roman chose one constraint per commitment
+  with a path::symbol grain (2026-09-15 23:4x), not built; nothing
+  running.
 
 ### 14. The reply assertion (Roman, 02:20)
 
@@ -361,6 +366,15 @@ Rules:
   on unattended; its result waits in gauntlet_click82.log and the C: run
   database. The hourly stack reminder is cancelled.
 - Status 2026-09-16 01:08: paused; night 82 running.
+- Status 2026-09-16 02:41 (closing, session 5dfdf3): night 81 (23:48 to
+  00:37, cold on C:, tree e3cbfbb+6b52a09) stuck on tests_failing at
+  attempt 4, 39 steps; night 82 (launched 00:42, cold on C:, tree
+  d4bf679) stuck on exhausted for bg_1, 80 steps, GAUNTLET-DONE 02:09.
+  Nothing running. Findings 83 to 86 closed (904f596, c522821, d4bf679).
+  Register 00:43 to 00:49: 17 known reds, no stale. Evidence:
+  gauntlet_click81.log and gauntlet_click82.log in the session
+  scratchpad, C:/Users/roman/rota_night/state/clickI.db (night 82),
+  clickI_prev.db (night 81), progress_ref_clickI.json.
 
 ### 12. Night 71 on the SSD
 
