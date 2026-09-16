@@ -23,12 +23,14 @@ Rules:
 ### 17. Define the assistant (Roman, 2026-09-16) [1405fbdf]
 
 - Roman's plan for the session: place the assistant on the composition,
-  write its workflow, give it the memories a fresh session needs, then
-  trim and refactor the docs. Roman is grilled, one question at a time.
+  write its workflow, give it the memories a fresh session needs, trim
+  and refactor the docs, then end the old working session and run all
+  work through this workflow. Roman is grilled, one question at a time.
 - Ends when: the brief is in the rota repo's CLAUDE.md and Roman
   ratifies it.
 - Waits on: the grill.
 - Reasoning: the session of 2026-09-16. Rulings land in this status line.
+- Peer name now: custom-ai-tui-52.
 - Status 2026-09-16: Q1 ruled. The brief lives in the rota repo's
   CLAUDE.md, derives from `plans/composition.md`, and is short because
   it is push. The page's build-session paragraph becomes a pointer.
@@ -53,7 +55,16 @@ Rules:
   assistant claims it with its session id. On wake: the page, the open
   frames, the named memories, then the state as the first message.
   Grill every time. Brief written into CLAUDE.md, waiting on Roman's
-  check.
+  check. Long-running work is a chain of fresh sessions over the
+  records, not one session. Unattended chains need a wake script and a
+  permission allowlist. Running out of context compacts, it does not
+  stop. Roman proposes a pool of peer sessions to hop between at 400k.
+  A peer is fresh once. Roman clears it after each hand-off. The
+  hand-off is a pointer: frame number and stack commit.
+  Memories classified by an agent, 2026-09-16: 35 files. 6 stale, 4
+  merge, 18 are rota facts that belong in the repo, 7 are guidance that
+  stays in memory. Custom_AI_TUI is an archive. The rota workspace has
+  an empty memory directory. Proposal waits on Roman.
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
