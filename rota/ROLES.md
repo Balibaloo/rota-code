@@ -193,8 +193,8 @@ implementation.
 `msg.question_vision_keeper`. A test that passes trivially is worse than no test,
 because it reports as coverage.
 
-**Reaches** developer (answer), vision_keeper (question), researcher (question),
-terminologist (question).
+**Reaches** developer (answer), critic (answer), vision_keeper (question),
+researcher (question), terminologist (question).
 
 **Woken by** tests_missing.
 
