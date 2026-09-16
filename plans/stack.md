@@ -46,6 +46,16 @@ Rules:
   since the page applies to both instances by its own words; hold the
   rota code as low priority; open a frame for provenance marks on the
   build session's records.
+- Status 2026-09-16 06:35 (rota-bc): Roman's model of the rota workflow:
+  `decided` comes from the Principal and cascades by reference to the
+  rows that cite a ratified statement. Today runner.py:1579 stamps
+  `decided` on every non-onboarding wake with no check of the chain; only
+  `_adopt_rows` verifies the ruling. Blocked on Roman, rota workflow: rule
+  the provenance by reference. Recommended: `observed` from onboarding,
+  `decided` when the row's refs reach a ratified statement or a ruling,
+  `reasoned` when they reach neither. Meta workflow: the frame for
+  provenance marks on the stack and the page is separate. Roman ruled
+  the same day: every statement names its workflow.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
