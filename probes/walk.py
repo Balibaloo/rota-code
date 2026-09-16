@@ -102,6 +102,12 @@ class Principal:
             _last_page = f"[{ask.message_id}] {ask.verb}: {head[:90]}  -> ok"
             print(_last_page)
             return Answer(verb="verdict", per_item={r: "approve" for r in ask.refs})
+        # Once per ask. An empty answer lands nothing and the ask stays
+        # open (clickI, 2026-09-16: the same clarify pumped seventeen
+        # times); a second visit is a deferral.
+        if ask.message_id in replied:
+            return None
+        replied.add(ask.message_id)
         q = ask.rendered.splitlines()[1].strip() if ask.rendered else ""
         _last_page = f"[{ask.message_id}] clarify: {q[:110]}  -> {answer[:50]}"
         print(_last_page)

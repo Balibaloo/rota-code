@@ -563,6 +563,49 @@ def test_a_reason_they_differ_is_not_a_reason_they_are_the_same(db):
     assert "report_liaison" in msg, "and it says where a differing sense goes"
 
 
+def test_a_negated_word_of_difference_is_not_a_reason_they_differ(db):
+    """
+    clickI (2026-09-16): the Terminologist argued sameness as "... the same
+    parameter type, not a distinct meaning". The door read "distinct" alone
+    and refused it, seventeen sessions running, and the walk cycled on the
+    collision. A word of difference inside a negation says the opposite. A
+    plain "distinct" is still refused.
+    """
+    from rota.roles.api import glossary_same
+
+    a = Ctx(db, area="src", read=["option"])
+    glossary_amend(a, term="option",
+                   sense_body="a decorator that declares a flag or a value "
+                              "with a name like --name",
+                   sense_short="a CLI parameter declared by a decorator")
+    a.commit()
+    b = Ctx(db, area="src/click", read=["option"])
+    glossary_amend(b, term="option",
+                   sense_body="the parameter type behind the option decorator",
+                   sense_short="a parameter type for options")
+    b.commit()
+    live = lambda: [r["id"] for r in db.execute(
+        "SELECT id FROM glossary_terms WHERE term = 'option' "
+        "AND superseded_by IS NULL ORDER BY id")]
+    assert live() == ["option", "option#src_click"]
+
+    with pytest.raises(ValueError) as exc:
+        glossary_same(Ctx(db), keep="option", drop="option#src_click",
+                      why="these are distinct senses")
+    assert "not* the same" in str(exc.value)
+    assert live() == ["option", "option#src_click"], "still refused"
+
+    c = Ctx(db)
+    out = glossary_same(
+        c, keep="option", drop="option#src_click",
+        why="both describe CLI options defined via decorators; option#src_click "
+            "is just a more specific observation of the same parameter type, "
+            "not a distinct meaning")
+    c.commit()
+    assert out["superseded"] == "option#src_click"
+    assert live() == ["option"]
+
+
 def test_the_root_areas_second_sense_has_a_name(db):
     """
     Both id branches build `slug#tag`, and both could produce a bare trailing

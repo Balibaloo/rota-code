@@ -1848,9 +1848,17 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
             "senses costs the principal a glance; calling them the same "
             "destroys an ambiguity only they can settle, so this one has to be "
             "argued.")
+    # A word of difference inside a negation says the opposite. clickI
+    # (2026-09-16): "... the same parameter type, not a distinct meaning"
+    # was read as "distinct" and refused seventeen sessions running, and
+    # the walk cycled on the collision. The negated span leaves the text
+    # before the check; a plain "distinct" is still refused.
+    low = re.sub(r"\b(?:not|no|nor|never|neither)\s+(?:\w+\s+){0,2}?"
+                 r"(?:different|differ\w*|distinct\w*|separate\w*|unlike|"
+                 r"another sense)\b", " ", reason.lower())
     against = [w for w in ("different", "differ", "distinct", "separate",
                            "unlike", "not the same", "another sense")
-               if w in reason.lower()]
+               if w in low]
     if against:
         raise ValueError(
             f"{reason!r} is a reason they are *not* the same -- it says "

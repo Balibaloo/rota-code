@@ -604,6 +604,14 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
         record_entry(conn, msg_id, answer.text.strip())
         return msg_id
 
+    # No words and no ruling is no answer. The ask stays open, as an
+    # empty reply does above. The onboard-only walk of clickI (2026-09-16)
+    # answered a clarify with an empty converse: the ask closed, a
+    # `rulings` row of nothing landed, and `term_collision` put the same
+    # question again, seventeen times. Silence is not consent.
+    if not (answer.text or "").strip() and not answer.per_item:
+        return None
+
     closed = conn.execute(
         "UPDATE messages SET status = 'answered' "
         "WHERE id = ? AND status = 'open'", (ask.message_id,)).rowcount

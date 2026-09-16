@@ -404,6 +404,39 @@ def test_the_seat_verdict_lands_the_liaisons_open_row_and_writes_no_second(db):
         [("r_li", "landed", mid)]
 
 
+def test_an_answer_with_no_words_and_no_ruling_lands_nothing(db):
+    """An empty converse is silence, not consent. The onboard-only walk of
+    clickI (2026-09-16) answered a clarify with `text=""`: the ask closed, a
+    `rulings` row of nothing landed, and the collision fired again. The ask
+    stays open. No message, no ruling and no config key is written."""
+    from rota.roles.principal import Answer, Ask, land
+
+    _term(db, "g1")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES ('m_ask', 't1', "
+               "'liaison', 'principal', 'clarify', '[\"g1\"]', "
+               "'one word, two senses?', 1, 'open')")
+    before = db.execute("SELECT COUNT(*) n FROM messages").fetchone()["n"]
+    ask = Ask(message_id="m_ask", verb="clarify", refs=["g1"])
+
+    assert land(db, ask, Answer(verb="converse", text="")) is None
+    assert land(db, ask, Answer(verb="converse", text="   ")) is None
+    assert land(db, ask, Answer(verb="verdict", per_item={})) is None
+
+    assert db.execute("SELECT status FROM messages WHERE id = 'm_ask'"
+                      ).fetchone()["status"] == "open"
+    assert db.execute("SELECT COUNT(*) n FROM messages").fetchone()["n"] == before
+    assert db.execute("SELECT COUNT(*) n FROM rulings").fetchone()["n"] == 0
+    assert db.execute("SELECT COUNT(*) n FROM config WHERE key LIKE 'verdict:%' "
+                      "OR key LIKE 'entry:%'").fetchone()["n"] == 0
+
+    # Words land, as before.
+    mid = land(db, ask, Answer(verb="converse", text="one sense, said twice"))
+    assert mid
+    assert db.execute("SELECT status FROM messages WHERE id = 'm_ask'"
+                      ).fetchone()["status"] == "answered"
+
+
 # --- the fixture loader -----------------------------------------------------
 
 def test_the_loader_seeds_refs_in_place_of_the_columns(db):
