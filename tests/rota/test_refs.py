@@ -723,6 +723,48 @@ def test_a_viewer_opens_an_old_run_read_only_with_the_sentence(tmp_path):
     conn.close()
 
 
+def test_state_json_answers_for_an_old_run_with_the_sentence(tmp_path):
+    """The cockpit's `/state.json` on a run from before the refs relation.
+    The predicates read the provenance views, an old run has none, and
+    `snapshot` answered 500. Served read-only, the page answers with an
+    empty frontier and the sentence in `stale` and in `drift`, which the
+    header wears."""
+    import json
+    import sqlite3
+    import subprocess
+    import threading
+    from http.server import ThreadingHTTPServer
+    from urllib.request import urlopen
+
+    from rota import paths
+    from rota.cockpit import server
+
+    old = tmp_path / "old.db"
+    old_sql = subprocess.run(
+        ["git", "show", "e63762c:rota/core/schema.sql"], cwd=paths.REPO,
+        capture_output=True, text=True, check=True).stdout
+    raw = sqlite3.connect(old)
+    raw.executescript(old_sql)
+    raw.close()
+
+    assert server.prepare_db(db=old) == old          # served, not refused
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(old))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"http://127.0.0.1:{httpd.server_address[1]}/state.json",
+                     timeout=20) as resp:
+            assert resp.status == 200
+            snap = json.loads(resp.read())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert "predates the refs relation" in snap["stale"]
+    assert any("predates the refs relation" in d for d in snap["drift"])
+    assert snap["frontier"] == {"tips": [], "predicates": []}
+
+
 def test_no_owner_table_carries_the_old_columns(db):
     """The frame's ends-when. The five provenance columns, the five JSON
     ref columns and the `item_statements` table are gone from a fresh
@@ -946,3 +988,28 @@ def test_respecify_with_a_list_replaces_the_term_refs_on_file(db):
             surface_refs=["run"])
     _commit_sandbox(db, sb, "s_re2")
     assert terms() == ["g2", "g3"], "no list given leaves the refs as they are"
+
+
+def test_two_respecifies_in_one_session_land_the_second_list_only(db):
+    """The second `term_refs` list of a session replaces the first: a ref
+    the first call staged and the second does not name is retired before
+    it lands. The two lists were unioned, because the retire loop read the
+    file and not the session's own writes."""
+    from rota.core.sandbox import build
+
+    _item(db, "i1")
+    for gid in ("g1", "g2", "g3"):
+        _term(db, gid)
+    _criterion(db, "c1")
+    _ref(db, "criteria", "c1", "term", "g1")
+
+    sb = build("terminologist", db, mode="criterion_repair")
+    sb.call("criteria.respecify", id="c1", text="the tip is a share of the bill",
+            term_refs=["g2"], surface_refs=["run"])
+    sb.call("criteria.respecify", id="c1", text="the tip is a share of the total",
+            term_refs=["g3"], surface_refs=["run"])
+    _commit_sandbox(db, sb, "s_re3")
+
+    assert [r["target"] for r in db.execute(
+        "SELECT target FROM refs WHERE src_table = 'criteria' "
+        "AND src_id = 'c1' AND kind = 'term' ORDER BY rowid")] == ["g3"]

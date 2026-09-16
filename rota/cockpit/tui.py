@@ -957,6 +957,13 @@ class RotaApp(App):
                      "system", "yellow")
             return
 
+        if self.stale_note:
+            # An old night run is read, not run. The sentence comes before
+            # the write: `open_with` put the sentence into the run's
+            # `entries` and `messages`, and only then did the crank refuse.
+            self.say(self.stale_note, "rota", "red")
+            return
+
         self.say(text, "you", "green")
         self.started = True
         try:

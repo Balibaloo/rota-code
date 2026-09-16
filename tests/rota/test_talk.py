@@ -500,6 +500,49 @@ def test_follow_up_chat_without_pending_ask_opens_new_message(
     assert captured.get("thread") is True
 
 
+def test_the_seat_writes_nothing_into_a_stale_run(tmp_path, monkeypatch):
+    """A run from before the refs relation opens read-only, and the seat
+    says the sentence before any write. It wrote the sentence into the
+    run's `entries` and `messages` first, and refused only at the crank."""
+    import sqlite3
+    import subprocess
+
+    from rota import paths
+    from rota.cockpit import tui
+
+    old = tmp_path / "old.db"
+    old_sql = subprocess.run(
+        ["git", "show", "e63762c:rota/core/schema.sql"], cwd=paths.REPO,
+        capture_output=True, text=True, check=True).stdout
+    raw = sqlite3.connect(old)
+    raw.executescript(old_sql)
+    raw.close()
+
+    runs = []
+    monkeypatch.setattr(tui.loop_mod, "run", lambda *a, **k: runs.append(True))
+    app = tui.RotaApp(old, "llama3.1:8b")
+    assert app.stale_note
+    said = []
+    app.say = lambda text, sender, colour="blue": said.append((text, sender))
+    app.run_worker = lambda fn, thread=True: fn()
+
+    class FakeEvent:
+        def __init__(self, value):
+            self.value = value
+            self.input = type("Input", (), {"value": value})()
+
+    def counts():
+        return tuple(app.conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                     for t in ("entries", "messages"))
+
+    before = counts()
+    app.on_input_submitted(FakeEvent("let people export their invoices"))
+
+    assert counts() == before
+    assert said == [(app.stale_note, "rota")]
+    assert runs == []
+
+
 def test_liaison_is_shown_the_sentence_it_was_woken_to_segment(db):
     """
     The first thing you type was invisible to the role that has to read it.

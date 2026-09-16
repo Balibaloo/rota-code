@@ -471,6 +471,40 @@ def test_a_merge_repoints_what_referred_to_the_losing_sense(db):
     assert refs == ["note"], "the criterion now names the sense that survived"
 
 
+def test_a_merge_lists_the_repointed_rows_as_the_columns_did(db):
+    """`repointed` keeps the order the columns gave: the criteria first,
+    then the business rules, each in the order the refs were written. The
+    relation walked the tables by name, which put the rules first."""
+    from rota.roles.api import glossary_same
+
+    a = Ctx(db, area="src/intents", read=["note"])
+    glossary_amend(a, term="note", sense_body="a file in the vault", sense_short="a vault file")
+    a.commit()
+    b = Ctx(db, area="src", read=["note"])
+    glossary_amend(b, term="note", sense_body="a document in Obsidian", sense_short="a document")
+    b.commit()
+
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES "
+               "('i1','make a note','in_scope','draft',1,1)")
+    seed_provenance(db, "items", "i1", "observed")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','a note is created')")
+    db.execute("INSERT INTO business_rules (id, text) VALUES ('r1','a note is kept')")
+    # The rule's ref is written first. The table order wins over the rowid.
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('business_rules','r1','term','note#src')")
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('criteria','c1','term','note#src')")
+
+    c = Ctx(db)
+    out = glossary_same(c, keep="note", drop="note#src", why="both say a vault file")
+    c.commit()
+
+    assert out["repointed"] == ["c1", "r1"]
+
+
 def test_the_modes_own_name_is_not_a_reason(db):
     """
     The first version required `why` to be non-empty, which is not the same as

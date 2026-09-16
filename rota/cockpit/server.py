@@ -81,7 +81,18 @@ def is_layout_file(p: Path) -> bool:
 def snapshot(conn: sqlite3.Connection) -> dict:
     """Everything the viewer needs, in one read."""
     tips = open_tips(conn)
-    preds = predicate_wakes(conn, principal_present=True)
+    # A run from before the refs relation has no provenance views, and the
+    # predicates that read them fail on it. The viewer shows such a run and
+    # says the sentence: the frontier is empty, and `stale` carries the
+    # sentence to the header. A current run raises as before.
+    stale = schema_stale(conn)
+    try:
+        preds = predicate_wakes(conn, principal_present=True)
+        quiescent = is_quiescent_readonly(conn, principal_present=True)
+    except sqlite3.OperationalError:
+        if not stale:
+            raise
+        tips, preds, quiescent = [], [], True
 
     # Structured, not stringified: a firing predicate's `refs` name the exact
     # rows that tripped it, which is the difference between "term_collision is
@@ -104,7 +115,8 @@ def snapshot(conn: sqlite3.Connection) -> dict:
         return [dict(r) for r in conn.execute(sql, args)]
 
     return {
-        "quiescent": is_quiescent_readonly(conn, principal_present=True),
+        "quiescent": quiescent,
+        "stale": stale,
         "frontier": {
             "tips": [{"role": w.role, "message": w.message_id, "verb": w.detail}
                      for w in tips],
@@ -472,7 +484,12 @@ def make_handler(db_path: Path):
                               if p.exists()]
                     snap["quiet_secs"] = (max(0.0, time.time() - max(stamps))
                                           if stamps else None)
-                    snap["drift"] = state.get("drift") or []
+                    # The header wears `drift`, so the sentence of an old
+                    # run rides there too.
+                    drift = list(state.get("drift") or [])
+                    if snap.get("stale") and snap["stale"] not in drift:
+                        drift.insert(0, snap["stale"])
+                    snap["drift"] = drift
                     self._send(json.dumps(snap, default=str).encode("utf-8"),
                                "application/json")
                 else:

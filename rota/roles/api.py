@@ -1901,10 +1901,16 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
     # The repoint is on the relation. The ref to the losing row is retired,
     # so the relation lists the kept term only. The kept row carries the
     # losing row's own refs (`stage_copied_refs` above).
+    #
+    # The walk is the one the columns had: the criteria first, then the
+    # business rules, each in the order the refs were written. A table that
+    # carries term refs only since the relation comes after them.
     repointed = []
     for r in ctx.conn.execute(
             "SELECT src_table, src_id FROM refs WHERE kind = 'term' "
-            "AND target = ? ORDER BY src_table, src_id", (drop,)):
+            "AND target = ? ORDER BY CASE src_table WHEN 'criteria' THEN 0 "
+            "WHEN 'business_rules' THEN 1 ELSE 2 END, src_table, rowid",
+            (drop,)):
         stage_ref(ctx, r["src_table"], r["src_id"], "term", keep)
         retire_ref(ctx, r["src_table"], r["src_id"], "term", drop)
         if r["src_id"] not in repointed:
@@ -3487,15 +3493,21 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                          _vet_surface(ctx, surface_refs, required=True,
                                       ticket_id=cur["ticket_id"] if cur else None))}
     ctx.writes.append(("criteria", id, payload, False))
-    # A list given replaces the list on file: the refs not in it are
-    # retired. No list leaves the refs as they are.
+    # A list given replaces the list on file, and the list an earlier call
+    # of this session staged: the refs not in it are retired. No list
+    # leaves the refs as they are.
     if term_refs is not None:
         wanted = [ref for ref in term_refs if isinstance(ref, str)]
-        for old in _term_refs_of(ctx.conn, "criteria", id):
+        staged = [w[2]["target"] for w in ctx.writes
+                  if w[0] == "refs" and w[2].get("src_table") == "criteria"
+                  and w[2].get("src_id") == id and w[2].get("kind") == "term"
+                  and not w[2].get("retire")]
+        for old in dict.fromkeys(_term_refs_of(ctx.conn, "criteria", id) + staged):
             if old not in wanted:
                 retire_ref(ctx, "criteria", id, "term", old)
         for ref in wanted:
             stage_ref(ctx, "criteria", id, "term", ref)
+        # The refs read back by rowid, as a set: the list's order is not kept.
     return {"id": id, "respecified": True}
 
 
