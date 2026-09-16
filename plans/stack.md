@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 21. Provenance by reference (Roman, 2026-09-16)
+### 21. Provenance by reference (Roman, 2026-09-16) [32a42b78]
 
 - Rota workflow. Roman ruled 2026-09-16 (ruled: a ratified statement's
   approval reaches what cites it): `decided` originates in a ratified
@@ -50,6 +50,9 @@ Rules:
 - Status 2026-09-16 06:55 (rota-bc): pushed, unclaimed. Frame 20 folds in.
 - Status 2026-09-16 07:25 (rota-bc): handed to peer rota-b9 by message,
   stack commit 56ae78b. Session 836a1517 ends at 272k.
+- Status 2026-09-16 12:57 (rota-b9): claimed by session 32a42b78. A
+  scope agent reads the tree for the refs relation and writes
+  `plans/archive/refs-scope-2026-09-16.md`. No code touched yet.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
