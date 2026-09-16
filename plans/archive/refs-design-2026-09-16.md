@@ -40,8 +40,10 @@ answers to the scope report's questions; Roman can overrule any line).
 
 ## Stage 1 deviations (observed: the agent's report, commit ac1b83e)
 
-- Q11 moves to stage 4. An op's signature is in the prompt, so a new
-  parameter re-keys every Vision Keeper and Terminologist case.
+- Q11 is parked, not in this frame. An op's signature is in the prompt,
+  so a new parameter re-keys every Vision Keeper and Terminologist case
+  (reasoned: outside the ends-when; land it with the next brief change
+  to those roles, when their cases re-record anyway).
 - `refs.src_table` and `refs.kind` carry no CHECK. The vocabulary lint
   reads every CHECK value as a state word. `api.stage_ref` refuses any
   other value. Stage 3 decides whether the CHECK lands with a lint exemption.
