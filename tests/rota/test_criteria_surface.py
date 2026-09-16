@@ -29,9 +29,9 @@ from rota.roles import prompts
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','recipes export to csv',"
-                 "'in_scope','decided','approved',1,1)")
+                 "'in_scope','approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('t1','i1','export the recipes as csv')")
     conn.commit()
@@ -209,8 +209,8 @@ def test_a_surface_names_the_callable_the_item_names(db):
     from rota.core.sandbox import build
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('i9', ?, 'in_scope', 'decided', 'approved', 1, 1)",
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i9', ?, 'in_scope', 'approved', 1, 1)",
                ("Each share is the total with tip divided by the people. "
                 "The share lives in a new function named split_bill.",))
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split the bill')")
@@ -235,9 +235,9 @@ def test_a_call_with_arguments_names_the_callable(db):
     from rota.core.sandbox import build
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i8', 'Add an echo_json(obj, indent=2) helper next to echo.', "
-               "'in_scope', 'decided', 'approved', 1, 1)")
+               "'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk8','i8','add echo_json')")
     db.commit()
     sb = build("terminologist", db, mode="normal",

@@ -26,6 +26,7 @@ import pytest
 
 from rota import compare
 from rota.core.db import init_db
+from rota.testkit.fixtures import seed_provenance
 
 
 def _run(tmp_path, name, *, terms=(), constraints=(), areas=(), config=None):
@@ -36,12 +37,14 @@ def _run(tmp_path, name, *, terms=(), constraints=(), areas=(), config=None):
                      (key, value))
     for i, (term, sense) in enumerate(terms, start=1):
         conn.execute(
-            "INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-            "VALUES (?,?,?,'observed')", (f"g{i}", term, sense))
+            "INSERT INTO glossary_terms (id, term, sense_short) "
+            "VALUES (?,?,?)", (f"g{i}", term, sense))
+        seed_provenance(conn, "glossary_terms", f"g{i}", "observed")
     for i, head in enumerate(constraints, start=1):
         conn.execute(
-            "INSERT INTO constraints (id, headline, text, provenance, is_global) "
-            "VALUES (?,?,?,'observed',0)", (f"c{i}", head, head))
+            "INSERT INTO constraints (id, headline, text, is_global) "
+            "VALUES (?,?,?,0)", (f"c{i}", head, head))
+        seed_provenance(conn, "constraints", f"c{i}", "observed")
     for i, (area, outcome) in enumerate(areas, start=1):
         conn.execute(
             "INSERT INTO survey_records (id, area, outcome) VALUES (?,?,?)",

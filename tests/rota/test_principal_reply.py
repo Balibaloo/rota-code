@@ -32,8 +32,8 @@ def _present(db):
         ("how_it_works", "in_scope", "The user types the bill and a percentage."),
         ("calculate_tip", "in_scope", "The software calculates the tip."),
     ):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-                   "approval_ver, version) VALUES (?,?,?,'decided','draft',0,1)",
+        db.execute("INSERT INTO items (id, text, kind, approval, "
+                   "approval_ver, version) VALUES (?,?,?,'draft',0,1)",
                    (iid, text, kind))
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_1','how_it_works','items',"
@@ -218,8 +218,8 @@ def test_a_page_with_no_line_takes_an_empty_ruling(db):
     from rota.core.sandbox import build
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('i1','split','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','split','in_scope','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
                "body_text, seq, status) VALUES ('m_t','th','liaison','principal','present',"

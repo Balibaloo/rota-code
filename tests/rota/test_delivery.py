@@ -26,9 +26,9 @@ from rota.core.scheduler import frontier
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) "
-                 "VALUES ('i1','ship it','in_scope','decided','approved',1,1)")
+                 "VALUES ('i1','ship it','in_scope','approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','do it')")
     conn.execute("INSERT INTO criteria (id, ticket_id, text) "
                  "VALUES ('c1','t1','it does the thing')")
@@ -134,8 +134,8 @@ def reviewed(conn, *, verdict="pass", finding="satisfied"):
     not evidence about this one."""
     conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
                  "VALUES ('v1','b1',?,?)", (HEAD, verdict))
-    conn.execute("INSERT INTO constraints (id, headline, provenance) "
-                 "VALUES ('k1','no data loss','decided')")
+    conn.execute("INSERT INTO constraints (id, headline) "
+                 "VALUES ('k1','no data loss')")
     conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
                  "status, grain) VALUES ('f1','b1','k1',?,?,'src/db.py')",
                  (HEAD, finding))
@@ -171,8 +171,8 @@ def test_a_clean_batch_merges_without_waking_anyone(db):
     # decides, and both the gate and the predicate ask it.
     (lambda c: (c.execute("INSERT INTO verdicts (id, batch_id, commit_sha, "
                           "result) VALUES ('v1','b1','abc123','pass')"),
-                c.execute("INSERT INTO constraints (id, headline, provenance) "
-                          "VALUES ('k1','no data loss','decided')")),
+                c.execute("INSERT INTO constraints (id, headline) "
+                          "VALUES ('k1','no data loss')")),
      "no structural review yet"),
     (lambda c: reviewed(c, finding="violated"), "1 constraint(s) violated"),
 ])
@@ -213,8 +213,8 @@ def test_structural_review_runs_once(db):
     # The constraint comes first now. It always had to exist for the review to
     # mean anything -- a finding references one -- and this test used to fire
     # the tick before creating it, which is the state that could never resolve.
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k1','no data loss','decided')")
+    db.execute("INSERT INTO constraints (id, headline) "
+               "VALUES ('k1','no data loss')")
     assert [w for w in frontier(db) if w.kind == "tick:structural_review"]
 
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, "
@@ -447,8 +447,8 @@ def test_a_failed_batch_can_still_pass(db):
     """
     committed(db)                                   # head_commit = abc123
     add_test(db, "tst1", "test_it.py", PASSES)
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k1','no data loss','decided')")
+    db.execute("INSERT INTO constraints (id, headline) "
+               "VALUES ('k1','no data loss')")
 
     judged(db, "abc123", verdict="fail", finding=None)
     assert lifecycle.mergeable(db, "b1") == "verdict fail"
@@ -469,8 +469,8 @@ def test_each_gate_re_fires_on_a_new_commit(db):
     once-per-batch."""
     committed(db)
     add_test(db, "tst1", "test_it.py", PASSES)
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k1','no data loss','decided')")
+    db.execute("INSERT INTO constraints (id, headline) "
+               "VALUES ('k1','no data loss')")
 
     for gate, setup in (
         ("do:harness", lambda: None),
@@ -495,8 +495,8 @@ def test_a_stale_pass_does_not_merge(db):
     """
     committed(db)
     add_test(db, "tst1", "test_it.py", PASSES)
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k1','no data loss','decided')")
+    db.execute("INSERT INTO constraints (id, headline) "
+               "VALUES ('k1','no data loss')")
     judged(db, "abc123")
     assert lifecycle.mergeable(db, "b1") is None
 
@@ -538,9 +538,9 @@ def test_a_running_batch_whose_item_lost_approval_reopens(tmp_path):
     from rota.core.db import init_db
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','x','in_scope','decided','approved',1,1)")
+               "VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     assert not _revoked_wakes(db), "an approved item is not a revocation"
 
@@ -558,9 +558,9 @@ def test_an_approval_that_predates_the_amendment_also_reopens(tmp_path):
     from rota.core.db import init_db
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','x','in_scope','decided','approved',1,3)")
+               "VALUES ('i1','x','in_scope','approved',1,3)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
 
     assert _revoked_wakes(db), "approval_ver behind version is a stale approval"
@@ -573,9 +573,9 @@ def test_it_goes_quiet_once_the_election_is_in_flight(tmp_path):
     from rota.core.db import init_db
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','x','in_scope','decided','draft',1,2)")
+               "VALUES ('i1','x','in_scope','draft',1,2)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     assert _revoked_wakes(db)
 
@@ -591,7 +591,7 @@ def test_a_finding_against_an_id_that_is_no_constraint_is_a_tool_error(db):
     whole session at commit, three times. Law 14 belongs at the door.
     """
     from rota.core.sandbox import build
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','no data loss','decided')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k1','no data loss')")
     db.commit()
     sb = build("architect", db, batch_id="b1")
     with pytest.raises(ValueError, match="constraints"):

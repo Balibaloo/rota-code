@@ -27,6 +27,7 @@ from __future__ import annotations
 import pytest
 
 from rota.core.db import SessionResult, Turn, Write, init_db, session_commit
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -43,8 +44,7 @@ def test_a_session_records_what_it_was_shown_and_what_it_said(db):
                Turn(2, "you are terminologist", "survey src/auth\n\nRESULT: ...",
                     "TOOL: glossary.amend(term='hold')")],
         writes=[Write("glossary_terms", "g1", {
-            "id": "g1", "term": "hold", "sense_short": "a reservation",
-            "provenance": "observed"})]))
+            "id": "g1", "term": "hold", "sense_short": "a reservation"})]))
 
     rows = db.execute(
         "SELECT seq, system, user, completion FROM turns "
@@ -85,8 +85,7 @@ def test_the_provenance_chain_serves_the_real_prompt_when_it_has_one(db):
         wake_refs=("src/auth",),
         turns=[Turn(1, "SYSTEM TEXT HERE", "USER TEXT HERE", "TOOL: x()")],
         writes=[Write("glossary_terms", "g1", {
-            "id": "g1", "term": "hold", "sense_short": "a reservation",
-            "provenance": "observed"})]))
+            "id": "g1", "term": "hold", "sense_short": "a reservation"})]))
 
     shown = inspect_api.provenance(db, "glossary_terms", "g1")["shown"]
 
@@ -108,8 +107,7 @@ def test_a_session_recorded_before_turns_existed_still_explains_itself(db):
     session_commit(db, SessionResult(
         session_id="s1", role="terminologist", wake_kind="tick:survey",
         writes=[Write("glossary_terms", "g1", {
-            "id": "g1", "term": "hold", "sense_short": "a reservation",
-            "provenance": "observed"})]))
+            "id": "g1", "term": "hold", "sense_short": "a reservation"})]))
 
     shown = inspect_api.provenance(db, "glossary_terms", "g1")["shown"]
 
@@ -186,8 +184,9 @@ def test_a_tick_woken_rung_replies_to_the_question_it_was_woken_for(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m1','principal','what is a recipe here?',1)")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m6','t1','liaison','architect',"
                "'ask',?,1,'unresolved')", (json.dumps(["e_m1"]),))
@@ -218,9 +217,9 @@ def test_a_tick_carrying_artefact_ids_gains_no_cause(tmp_path):
     from rota.llm.llm import Pins, ScriptedBackend
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','close an account',"
-               "'in_scope','decided','approved',1,1)")
+               "'in_scope','approved',1,1)")
     db.commit()
 
     out = run_session(
@@ -276,9 +275,9 @@ def test_a_tick_carrying_artefact_ids_resolves_to_nothing(tmp_path):
     from rota.core.runner import resolve_inbound
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','close an account',"
-               "'in_scope','decided','approved',1,1)")
+               "'in_scope','approved',1,1)")
     db.commit()
     assert resolve_inbound(db, Wake("vision_keeper", "tick:slicing",
                                     refs=("i1",))) == {}
@@ -308,9 +307,9 @@ def test_the_question_matched_push_needs_both_glossary_reads(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m1','principal','what is a template here?',1)")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance) VALUES ('g1','template','a seed note','the body',"
-               "'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body) "
+               "VALUES ('g1','template','a seed note','the body')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m1','t1','developer','architect',"
                "'question',?,1)", (json.dumps([]),))
@@ -356,13 +355,14 @@ def test_a_resolved_ref_carries_the_body_not_a_summary(tmp_path):
     from rota.core.runner import resolve_inbound
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance) VALUES ('g1','template','a seed note',"
-               "'a note whose contents seed the new note, named by an intent',"
-               "'observed')")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body) "
+               "VALUES ('g1','template','a seed note',"
+               "'a note whose contents seed the new note, named by an intent')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1','the vault is the store',"
-               "'every note lives in the user vault and nowhere else','observed')")
+               "'every note lives in the user vault and nowhere else')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m1','t1','terminologist','liaison',"
                "'answer',?,1)", (json.dumps(["g1", "k1"]),))
@@ -398,10 +398,10 @@ def test_a_relay_carries_the_principal_ruling_from_its_cause(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m10','principal','no service quality. just bill + tip %',1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
                "'Calculate tips based on bill amount and service quality',"
-               "'in_scope','decided','draft',0,1)")
+               "'in_scope','draft',0,1)")
     db.execute("INSERT INTO config (key, value) VALUES ('verdict:m10', ?)",
                (json.dumps({"t1": "contest", "s1": "approve"}),))
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
@@ -451,13 +451,13 @@ def test_a_contested_tick_carries_the_reason_it_was_contested_for(tmp_path):
     from rota.core.runner import resolve_inbound
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
                "'Calculate tips based on bill amount and service quality',"
-               "'in_scope','decided','contested',0,1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "'in_scope','contested',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t2','unrelated',"
-               "'in_scope','decided','contested',0,1)")
+               "'in_scope','contested',0,1)")
     # An earlier contest, then the item was amended, re-presented, contested
     # again with a different reason. The later one is the one that stands.
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
@@ -511,8 +511,8 @@ def test_a_reply_to_a_clarify_says_who_asked_and_about_what(tmp_path):
                "('e_m3','principal','both, show the tip and the total',1)")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m6','principal','yes, that is right',2)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('how_it_works','the account','in_scope','decided','draft',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('how_it_works','the account','in_scope','draft',0,1)")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_1','how_it_works','items','typed each time','open','vision_keeper')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1','how_it_works','print the tip')")
@@ -561,8 +561,8 @@ def test_a_report_about_rows_the_principal_already_answered_carries_the_answers(
     from rota.core.runner import resolve_inbound
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) VALUES "
-               "('g1','total','the bill before the tip','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) VALUES "
+               "('g1','total','the bill before the tip')")
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m3','principal','total means the bill plus the tip',1)")
     m = ("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "

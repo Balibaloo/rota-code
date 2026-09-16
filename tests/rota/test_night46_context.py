@@ -15,9 +15,9 @@ from rota.roles import prompts
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','closing keeps invoices',"
-                 "'in_scope','decided','approved',1,1)")
+                 "'in_scope','approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('tk1','i1','close an account')")
     conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
@@ -47,8 +47,8 @@ def test_the_fix_wake_pushes_the_red_tests_and_the_code_they_call(tmp_path):
         "def echo_json(obj, indent=2):\n    print(json.dumps(obj, indent=indent))\n")
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(root),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('echo_json','Add an echo_json helper','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('echo_json','Add an echo_json helper','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add echo_json')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','tk1','echo_json prints JSON')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','echo_json','running','abc123')")
@@ -222,8 +222,8 @@ def test_the_fix_wake_separates_the_projects_own_tests_and_pushes_the_diff(tmp_p
     subprocess.run([*git, "commit", "-q", "-am", "broke echo"], cwd=root, check=True)
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(root),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('echo_json','Add an echo_json helper','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('echo_json','Add an echo_json helper','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add echo_json')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','tk1','echo_json prints JSON')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES "
@@ -274,8 +274,8 @@ def test_a_write_may_not_change_a_definition_no_criterion_names(tmp_path):
     (wt / "src" / "click" / "utils.py").write_text(original)
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('i1','Add echo_json next to echo','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('i1','Add echo_json next to echo','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','add echo_json next to echo')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
                "('c1','tk1','echo_json prints an object as JSON','[\"src/click/utils.py::echo_json\"]')")
@@ -309,8 +309,8 @@ def test_the_diff_names_the_definitions_the_batch_changed_unasked(tmp_path):
     subprocess.run([*git, "commit", "-q", "-am", "change"], cwd=wt, check=True)
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','echo_json prints','[\"src/utils.py::echo_json\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES ('b1','i1','running','abc',?)", (str(wt),))
@@ -331,8 +331,8 @@ def test_a_relative_import_protects_what_a_rewrite_would_drop(tmp_path):
     (wt / "src" / "click" / "termui.py").write_text('def confirm(text):\n    return True\n\n\ndef style(text):\n    return text\n')
     (wt / "src" / "click" / "core.py").write_text('from .termui import style\n\n\ndef render(t):\n    return style(t)\n')
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('i1','confirm takes a default_on_eof flag','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('i1','confirm takes a default_on_eof flag','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','the flag')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/click/termui.py::confirm\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
@@ -376,7 +376,7 @@ def test_the_developer_commit_leaves_the_testers_files_out_and_the_merge_deliver
     assert committed == ["app.py"], committed
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit, worktree) VALUES ('b1','i1','running',?,?)", (sha, str(wt)))
     body = 'from app import add\n\ndef test_add():\n    assert add(1, 2) == 3\n'
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES ('t1','b1',NULL,'tests/test_add.py',?)", (body,))
@@ -396,7 +396,7 @@ def test_a_module_may_not_import_its_own_package_at_module_level(tmp_path):
     (wt / "src" / "click" / "core.py").write_text('def command():\n    return None\n')
     (wt / "src" / "click" / "utils.py").write_text('def echo(m):\n    print(m)\n')
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','echo_json prints','[\"src/click/utils.py::echo_json\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
@@ -432,7 +432,7 @@ def test_a_span_that_covers_whole_inner_statements_is_a_legal_edit(tmp_path):
     src = "def confirm(text):\n    while True:\n        try:\n            value = input(\n                text)\n        except EOFError:\n            raise SystemExit()\n        if value == 'y':\n            return True\n        return False\n"
     (wt / "src" / "termui.py").write_text(src)
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/termui.py::confirm\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
@@ -470,7 +470,7 @@ def test_a_fragment_that_is_the_tail_of_a_try_names_the_whole_statement(tmp_path
     src = 'def confirm(text):\n    while True:\n        try:\n            value = input(text)\n        except EOFError:\n            raise SystemExit()\n        return value\n'
     (wt / "src" / "termui.py").write_text(src)
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm returns the default on EOF','[\"src/termui.py::confirm\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))
@@ -505,7 +505,7 @@ def test_a_private_helper_no_criterion_names_keeps_its_source(tmp_path):
     (wt / "src" / "termui.py").write_text(original)
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('project_root', ?)", (str(proj),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES ('c1','tk1','confirm takes default_on_eof','[\"src/termui.py::confirm\"]')")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES ('b1','i1','running',?)", (str(wt),))

@@ -39,8 +39,8 @@ def db(tmp_path):
 
 def seed_item(conn, item_id="i1", approval="approved", version=1, approval_ver=1):
     conn.execute(
-        "INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-        "VALUES (?, 'let users delete their account', 'in_scope', 'decided', ?, ?, ?)",
+        "INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+        "VALUES (?, 'let users delete their account', 'in_scope', ?, ?, ?)",
         (item_id, approval, approval_ver, version),
     )
 
@@ -122,8 +122,8 @@ conn = connect({str(dbpath)!r})
 conn.execute("BEGIN IMMEDIATE")
 conn.execute("INSERT INTO sessions (id, role, trigger_msg, mode, committed, seq) "
              "VALUES ('s_dead','vision_keeper','m1','normal',1,1)")
-conn.execute("INSERT INTO items (id, text, kind, provenance) "
-             "VALUES ('i_dead','half written','in_scope','decided')")
+conn.execute("INSERT INTO items (id, text, kind) "
+             "VALUES ('i_dead','half written','in_scope')")
 print("READY", flush=True)
 time.sleep(30)
 '''
@@ -282,8 +282,8 @@ def test_s4_running_batch_blocks_others(db):
 
 def _constraint(conn, cid, grains=(), is_global=0, resolves=1):
     conn.execute(
-        "INSERT INTO constraints (id, headline, provenance, is_global) VALUES (?,?,?,?)",
-        (cid, f"headline {cid}", "decided", is_global),
+        "INSERT INTO constraints (id, headline, is_global) VALUES (?,?,?)",
+        (cid, f"headline {cid}", is_global),
     )
     for g in grains:
         conn.execute(
@@ -383,8 +383,7 @@ def test_s8_consult_write_is_refused_and_bumps_nothing(db):
     with pytest.raises(ReadonlyWriteError):
         session_commit(db, SessionResult(
             session_id="s_readonly", role="vision_keeper", mode="readonly",
-            writes=[Write("items", "i1", {
-                "text": "x", "kind": "in_scope", "provenance": "decided"})],
+            writes=[Write("items", "i1", {"text": "x", "kind": "in_scope"})],
         ))
     assert version_of(db, "items") == before
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0

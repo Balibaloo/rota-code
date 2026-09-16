@@ -29,6 +29,7 @@ from rota.core.scheduler import Wake, frontier, predicate_wakes
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import record_entry
 from rota.testkit import gitfixture
+from rota.testkit.fixtures import seed_provenance
 
 PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
 SENTENCE = "add a button so people can delete their account"
@@ -247,9 +248,9 @@ def test_one_sentence_becomes_a_merged_batch(db, repo):
 def gated(tmp_path):
     """A batch that has passed its tests and its verdict, at a known commit."""
     conn = init_db(tmp_path / "gate.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES "
-                 "('i1','x','in_scope','decided','approved',1,1)")
+                 "('i1','x','in_scope','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                  "VALUES ('b1','i1','running','sha1')")
     conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
@@ -264,8 +265,9 @@ def test_a_global_constraint_still_demands_a_review(gated):
     cannot skip a constraint by touching nothing it was bound to, because it
     was bound to nothing.
     """
-    gated.execute("INSERT INTO constraints (id, headline, provenance) "
-                  "VALUES ('k1','the store layer is synchronous','observed')")
+    gated.execute("INSERT INTO constraints (id, headline) "
+                  "VALUES ('k1','the store layer is synchronous')")
+    seed_provenance(gated, "constraints", "k1", "observed")
 
     assert lifecycle.needs_structural_review(gated, "b1")
     assert lifecycle.mergeable(gated, "b1") == "no structural review yet"
@@ -273,8 +275,9 @@ def test_a_global_constraint_still_demands_a_review(gated):
 
 def test_a_bound_constraint_demands_a_review_when_the_batch_meets_it(gated):
     """And does not, when it does not — which is the whole point of binding."""
-    gated.execute("INSERT INTO constraints (id, headline, provenance, is_global) "
-                  "VALUES ('k1','auth must go through the gateway','observed',0)")
+    gated.execute("INSERT INTO constraints (id, headline, is_global) "
+                  "VALUES ('k1','auth must go through the gateway',0)")
+    seed_provenance(gated, "constraints", "k1", "observed")
     gated.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
                   "grain_kind) VALUES ('k1','src/auth.py','path')")
 
@@ -295,8 +298,9 @@ def test_an_unknown_touch_set_is_reviewed_rather_than_assumed_clean(gated):
     change nobody checked, and `batch_touch` is a *prediction* — Architect may
     simply not have annotated this batch.
     """
-    gated.execute("INSERT INTO constraints (id, headline, provenance, is_global) "
-                  "VALUES ('k1','auth must go through the gateway','observed',0)")
+    gated.execute("INSERT INTO constraints (id, headline, is_global) "
+                  "VALUES ('k1','auth must go through the gateway',0)")
+    seed_provenance(gated, "constraints", "k1", "observed")
     gated.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
                   "grain_kind) VALUES ('k1','src/auth.py','path')")
 
@@ -307,8 +311,9 @@ def test_an_unknown_touch_set_is_reviewed_rather_than_assumed_clean(gated):
 
 def test_a_violated_finding_still_stops_the_merge(gated):
     """The fix touches when a review is *required*, never what one decides."""
-    gated.execute("INSERT INTO constraints (id, headline, provenance) "
-                  "VALUES ('k1','the store layer is synchronous','observed')")
+    gated.execute("INSERT INTO constraints (id, headline) "
+                  "VALUES ('k1','the store layer is synchronous')")
+    seed_provenance(gated, "constraints", "k1", "observed")
     gated.execute("INSERT INTO findings (id, batch_id, constraint_id, "
                   "commit_sha, status, grain) VALUES "
                   "('f1','b1','k1','sha1','violated','src/store.py')")
@@ -330,14 +335,14 @@ def test_a_failing_test_comes_back_and_the_second_commit_is_what_merges(db, repo
     Written the same way as the arc above: nothing is inserted after the batch
     starts, and every wake has to be derived.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','users can delete their account','in_scope','decided',"
+               "('i1','users can delete their account','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','add a delete button')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','deleting an account tombstones it','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','deleting an account tombstones it')")
     db.execute("INSERT INTO batches (id, item_id, status) "
                "VALUES ('b1','i1','pending')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "

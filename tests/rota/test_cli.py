@@ -234,8 +234,8 @@ def test_wipe_destroys_the_worktrees_before_the_file_that_names_them(home, tmp_p
 
     path = _run(home, "ctn_v3", root=root)
     conn = sqlite3.connect(path)
-    conn.execute("INSERT INTO items (id, text, kind, provenance) "
-                 "VALUES ('i1','x','in_scope','decided')")
+    conn.execute("INSERT INTO items (id, text, kind) "
+                 "VALUES ('i1','x','in_scope')")
     conn.execute("INSERT INTO batches (id, item_id, worktree) VALUES "
                  "('b1','i1',?)", (str(tree),))
     conn.commit()
@@ -297,8 +297,8 @@ def test_wipe_removes_a_real_git_worktree_and_deregisters_it(tmp_path, home):
 
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
-    conn.execute("INSERT INTO items (id, text, kind, provenance) "
-                 "VALUES ('i1','x','in_scope','decided')")
+    conn.execute("INSERT INTO items (id, text, kind) "
+                 "VALUES ('i1','x','in_scope')")
     conn.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
     tree = worktrees.create(conn, "b1")
     conn.commit()
@@ -416,13 +416,16 @@ def test_agenda_and_sign_are_the_principals_seat(tmp_path, monkeypatch, capsys):
 
     from rota import cli
     from rota.core.db import init_db
+    from rota.testkit.fixtures import seed_provenance
 
     monkeypatch.setattr(cli, "RUNS", tmp_path)
     db = init_db(tmp_path / "run.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','intent','a config','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','intent','a config')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    seed_provenance(db, "glossary_terms", "g2", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('p1','t1','liaison','principal',"
                "'present','[\"g1\",\"g2\"]',1)")

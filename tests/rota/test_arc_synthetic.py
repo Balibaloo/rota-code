@@ -27,7 +27,7 @@ from rota.roles import prompts as prompts_mod
 from rota.core.scheduler import (
     Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
 )
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance
 
 
 PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
@@ -119,10 +119,10 @@ def test_arc_understanding_loop_reaches_approved_item(db):
 
 def test_arc_delivery_loop_slices_batches_and_tests(db):
     """Approved item -> tickets -> criteria -> batch -> tests -> verdict."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i1','users can delete their account','in_scope','decided','approved',1,1)")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','account','login identity','decided')")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i1','users can delete their account','in_scope','approved',1,1)")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','account','login identity')")
 
     # Vision Keeper slices, woken by a predicate rather than a message.
     slicing = [w for w in predicate_wakes(db) if w.kind == "tick:slicing"]
@@ -195,8 +195,8 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
 
 def test_arc_revocation_stops_the_batch(db):
     """Amending an approved item drops it to pending and stops its batches."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
 
     from rota.core.scheduler import tick_batch_start
@@ -340,14 +340,15 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
     from rota.core.predicates import observed_entries
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a note that seeds another','observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','intent','a note-creation config','observed')")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1','frontmatter must match the schema','validateFmSchema',"
-               "'observed')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','intent','a note-creation config')")
+    seed_provenance(db, "glossary_terms", "g2", "observed")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1','frontmatter must match the schema','validateFmSchema')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.commit()
 
     # 1. The register offers the observations to Liaison, once.

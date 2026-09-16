@@ -73,8 +73,12 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
         web.ensure_cache(conn)
 
     for table, rows in fixture.items():
+        if table == "item_statements":
+            # A relation that folded into `refs`: `_seed_refs` translates it.
+            continue
+        dropped = _DROPPED_KEYS.get(table, ())
         for row in rows:
-            payload = {k: _encode(v) for k, v in row.items()}
+            payload = {k: _encode(v) for k, v in row.items() if k not in dropped}
             cols = ", ".join(payload)
             marks = ", ".join("?" for _ in payload)
             conn.execute(
@@ -118,12 +122,13 @@ def _encode(value: Any) -> Any:
     return json.dumps(value) if isinstance(value, (list, dict)) else value
 
 
-# The refs relation beside the columns a case seeds (frame 21, stage 1).
+# The refs relation from the words a case seeds (frame 21).
 #
 # A case file seeds `provenance:`, `source_refs:`, `term_refs:` and
-# `item_statements:` the way the columns take them. The loader translates
-# each into refs rows, so the view derives what the column holds and the
-# case files do not change. A seeded `decided` row rests on one landed
+# `item_statements:` the way the columns took them. The columns and the
+# table are gone. The loader translates each seed into refs rows, so the
+# view derives the word the case names and the case files do not change.
+# The INSERT leaves the seeds out. A seeded `decided` row rests on one landed
 # fixture ruling. A seeded `observed` row rests on one fixture grain. A
 # seeded `cited` row with no reference on file rests on one fixture
 # reference. The fixture ruling needs an ask: `rulings.ask_id` is a foreign
@@ -140,6 +145,14 @@ _PROVENANCE_TABLES = ("items", "glossary_terms", "constraints", "model_areas",
                       "frame_rulings")
 _SOURCE_REF_TABLES = ("glossary_terms", "constraints", "model_areas")
 _TERM_REF_TABLES = ("criteria", "business_rules")
+
+# The keys a case seeds that no column takes. `_seed_refs` reads them.
+_DROPPED_KEYS = {
+    **{t: ("provenance", "source_refs") for t in _SOURCE_REF_TABLES},
+    "items": ("provenance",),
+    "frame_rulings": ("provenance",),
+    **{t: ("term_refs",) for t in _TERM_REF_TABLES},
+}
 
 
 def _id_list(value: Any) -> list[str]:
@@ -176,7 +189,8 @@ def _seed_refs(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None
             rid = row.get("id")
             if rid is None:
                 continue
-            # `model_areas.provenance` defaults to observed in the schema.
+            # A `model_areas` seed with no word is observed, as the column's
+            # default was.
             word = row.get("provenance",
                            "observed" if table == "model_areas" else None)
             if word == "observed":
@@ -236,20 +250,30 @@ def _seed_refs(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None
         "VALUES (?, ?, ?, ?)", refs)
 
 
-def refs_from_columns(conn: sqlite3.Connection) -> None:
+def seed_provenance(conn: sqlite3.Connection, table: str, row_id: str,
+                    word: str) -> None:
     """
-    Seed refs rows for the rows already in the owner tables.
+    The refs rows the loader writes for a `provenance:` seed, for a test
+    that seeds by SQL.
 
-    The same translation `seed` gives a case file, for a test that seeds by
-    SQL: a `decided` row rests on the fixture ruling, an `observed` row on
-    the fixture grain, and the JSON ref columns and `item_statements` become
-    refs. Every reader reads the view (frame 21, stage 2), so a seeded
-    column alone is not seen. Idempotent.
+    The same translation `seed` gives a case file: a `decided` row rests on
+    the fixture ruling, an `observed` row on the fixture grain, a `cited`
+    row on the fixture reference. No owner table carries the word, so this
+    is the one way a test seeds it. Idempotent.
     """
-    fixture: dict[str, list[dict]] = {}
-    for table in (*_PROVENANCE_TABLES, *_TERM_REF_TABLES, "item_statements"):
-        fixture[table] = [dict(r) for r in conn.execute(f"SELECT * FROM {table}")]
-    _seed_refs(conn, fixture)
+    _seed_refs(conn, {table: [{"id": row_id, "provenance": word}]})
+
+
+def seed_ref(conn: sqlite3.Connection, src_table: str, src_id: str,
+             kind: str, target: str) -> None:
+    """
+    One refs row, for a test that seeds by SQL: a `term` ref where a test
+    once seeded `term_refs`, a `statement` ref where it once seeded
+    `item_statements`. Idempotent.
+    """
+    conn.execute(
+        "INSERT OR IGNORE INTO refs (src_table, src_id, kind, target) "
+        "VALUES (?, ?, ?, ?)", (src_table, src_id, kind, target))
 
 
 def load_case(path: str | Path, *, raw: bool = False) -> dict:

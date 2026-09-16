@@ -23,8 +23,8 @@ PINS = Pins(model="stub", temperature=0.0)
 def db(tmp_path):
     db = init_db(tmp_path / "rota.db")
     for iid in ("calculate_tip", "display_results"):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-                   "approval_ver, version) VALUES (?, ?, 'in_scope', 'decided', "
+        db.execute("INSERT INTO items (id, text, kind, approval, "
+                   "approval_ver, version) VALUES (?, ?, 'in_scope', "
                    "'approved', 1, 1)", (iid, iid.replace("_", " ")))
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1','calculate_tip','calc')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_2','display_results','show')")

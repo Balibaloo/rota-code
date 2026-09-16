@@ -34,7 +34,8 @@ from ..design import graph as graph_mod
 from ..roles import prompts as prompts_mod
 from ..core.boot import state_dir
 from ..testkit.coverage import render as render_coverage, report as coverage_report
-from ..core.db import connect, connect_readonly, init_db
+from ..core.db import (SCHEMA_STALE, connect, connect_readonly, init_db,
+                       schema_stale)
 from . import inspect_api, progress
 from ..core.sandbox import build as build_sandbox
 from .traceview import (
@@ -243,6 +244,12 @@ def schema_drift(db_path: Path) -> list[str]:
     problems = []
     conn = connect_readonly(db_path)
     try:
+        # A run from before the refs relation. `init_db` refuses it with
+        # this sentence; the viewer wears the sentence in the header and
+        # serves the file read-only.
+        stale = schema_stale(conn)
+        if stale:
+            problems.append(stale)
         have = {r["name"] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         for table, cols in sorted(declared.items()):
@@ -255,6 +262,19 @@ def schema_drift(db_path: Path) -> list[str]:
     finally:
         conn.close()
     return problems
+
+
+def _bring_up(db_path: Path) -> list[str]:
+    """`init_db` on a file behind schema.sql, and the drift left after it.
+
+    A database from before the refs relation is not brought up: `init_db`
+    refuses it, and the drift keeps the sentence, so the viewer serves the
+    file read-only and says why. Only a run refuses."""
+    drift = schema_drift(db_path)
+    if drift and SCHEMA_STALE not in drift:
+        init_db(db_path).close()
+        drift = schema_drift(db_path)
+    return drift
 
 
 def make_handler(db_path: Path):
@@ -530,10 +550,7 @@ def make_handler(db_path: Path):
             # refused — refusal made every run unreachable the day a schema
             # edit landed. An unreadable file still refuses.
             try:
-                drift = schema_drift(target)
-                if drift:
-                    init_db(target).close()
-                    drift = schema_drift(target)
+                drift = _bring_up(target)
             except sqlite3.Error as exc:
                 self.send_error(409, f"cannot open {name}: {exc}")
                 return
@@ -650,10 +667,12 @@ def prepare_db(project_root: str | Path | None = None,
     # honestly answer. A run the chooser fell back to is served with the
     # drift worn in the page's header instead: on a schema-moving day that
     # fallback is every run there is.
-    drift = schema_drift(db_path)
-    if drift:
-        init_db(db_path).close()
-        drift = schema_drift(db_path)
+    drift = _bring_up(db_path)
+    if drift and SCHEMA_STALE in drift:
+        # An old night run. Served read-only with the sentence in the
+        # header; only a run refuses it.
+        print(f"{db_path.stem}: {SCHEMA_STALE}; serving it read-only")
+        drift = []
     if drift and db is None:
         print(f"{db_path.stem} is behind schema.sql "
               f"({len(drift)} column(s)); serving it anyway, drift shown")

@@ -281,10 +281,10 @@ def test_the_sidebar_shows_what_the_register_owes(tmp_path):
     db = init_db(tmp_path / "ui.db")
     assert outstanding(db) == []
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','order','a purchase','decided')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','order','a sequence','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','order','a purchase')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','order','a sequence')")
 
     rows = outstanding(db)
     assert [r["obligation"] for r in rows] == ["term_collision"]
@@ -357,11 +357,11 @@ async def test_the_app_mounts_and_shows_an_ask(tmp_path):
 
         # And the sidebar follows the register rather than a cache.
         app.conn.execute(
-            "INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-            "VALUES ('g1','order','a purchase','decided')")
+            "INSERT INTO glossary_terms (id, term, sense_short) "
+            "VALUES ('g1','order','a purchase')")
         app.conn.execute(
-            "INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-            "VALUES ('g2','order','a sequence','decided')")
+            "INSERT INTO glossary_terms (id, term, sense_short) "
+            "VALUES ('g2','order','a sequence')")
         app.refresh_owed()
         await pilot.pause()
         assert "term_collision" in str(app.query_one("#owed").content)

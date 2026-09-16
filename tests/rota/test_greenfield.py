@@ -68,8 +68,8 @@ def test_a_real_program_still_onboards_in_phases(tmp_path):
 def test_the_floor_is_laid_only_where_nothing_exists(tmp_path):
     root = _repo(tmp_path, {"README.md": "# greeter\n"})
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES "
                "('b1','i1','running',?)", (str(root),))
@@ -104,8 +104,8 @@ def test_a_shaped_repository_is_left_alone(tmp_path):
     root = _repo(tmp_path, {"README.md": "# x\n",
                             "setup.cfg": "[metadata]\nname = theirs\n"})
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status, worktree) VALUES "
                "('b1','i1','running',?)", (str(root),))
@@ -126,8 +126,8 @@ def test_a_merged_batch_lands_on_the_base_branch(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                (str(root),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
     db.commit()
@@ -161,8 +161,8 @@ def test_a_plain_folder_gets_a_repository_at_batch_start(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                (str(root),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','pending')")
     db.commit()

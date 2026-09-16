@@ -29,9 +29,9 @@ TEST = "def test_close():\n    close('a1')\n    assert invoices_for('a1') == []"
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','account closure',"
-                 "'in_scope','decided','approved',1,1)")
+                 "'in_scope','approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('t1','i1','close the account')")
     conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
@@ -126,9 +126,8 @@ def test_a_contradicting_twin_constraint_is_refused_toward_the_challenge(db):
     it -- and never challenged. Two constraints about one subject saying
     different things is incoherence whatever the intent, so the amend door
     refuses the twin and names the challenge as the exit."""
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-               "('cn1','invoices are kept seven years after account closure',"
-               "'decided')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES "
+               "('cn1','invoices are kept seven years after account closure')")
     db.commit()
     sb = build("architect", db, mode="deliver")
     with pytest.raises(ValueError, match="challenge_vision_keeper"):

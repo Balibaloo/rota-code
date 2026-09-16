@@ -39,7 +39,7 @@ SCHEMA_PATH = paths.SCHEMA
 TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "transcript": ("entries",),
     "brief":      ("statements",),
-    "problem":    ("items", "item_statements"),
+    "problem":    ("items",),
     "glossary":   ("glossary_terms", "business_rules"),
     "model":      ("constraints", "constraint_bindings", "model_areas"),
     "frame":      ("frame_rulings",),
@@ -93,9 +93,9 @@ ARTEFACT_TABLES = set(ARTEFACT_OF_TABLE)
 # and the writer check then see the source artefact and never the relation.
 REFS_TABLE = "refs"
 
-# The view that derives provenance for each owner table (frame 21, stage 2).
-# A reader joins the view on the row id. The column on the owner table stays
-# until stage 3 and no reader reads it.
+# The view that derives provenance for each owner table (frame 21). A
+# reader joins the view on the row id. The owner tables carry no provenance
+# column: the refs relation is the only record of what a row rests on.
 PROVENANCE_VIEW_OF_TABLE = {
     "items": "item_provenance",
     "glossary_terms": "term_provenance",
@@ -168,16 +168,37 @@ SCHEMA_STALE = ("the run database predates the refs relation, so it needs "
 
 def schema_stale(conn: sqlite3.Connection) -> str | None:
     """The sentence that refuses a database from before the refs relation.
-    None for an empty database and for one that carries the marker."""
+    None for an empty database and for one that carries the marker and no
+    provenance column."""
     tables = {r["name"] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'")}
     if "items" not in tables:
         return None
+    # A database from the stages that wrote the column beside the relation
+    # carries the marker too. The column is the second sign, beside the
+    # marker: a run wrote its stamps there and its refs may be partial.
+    if _has_column(conn, "items", "provenance"):
+        return SCHEMA_STALE
     if "config" in tables and conn.execute(
             "SELECT 1 FROM config WHERE key = ? AND value = ?",
             (SCHEMA_KEY, SCHEMA_MARK)).fetchone():
         return None
     return SCHEMA_STALE
+
+
+def open_for_viewing(path: str | Path) -> tuple[sqlite3.Connection, str | None]:
+    """A connection for a viewer, and a note.
+
+    A current database opens through `init_db`. A database from before the
+    refs relation opens read-only, and the note is the sentence `init_db`
+    refuses it with. The cockpit is how an old night run is read: a viewer
+    shows the run and says the sentence. Only a run refuses."""
+    conn = connect(path)
+    stale = schema_stale(conn)
+    conn.close()
+    if stale:
+        return connect_readonly(path), stale
+    return init_db(path), None
 
 
 def init_db(path: str | Path) -> sqlite3.Connection:
@@ -302,7 +323,7 @@ def version_of(conn: sqlite3.Connection, table: str) -> int:
 # Junction tables have composite primary keys and no `id` column. Their Write
 # row_id is a synthetic label used only to key the receipt.
 JUNCTION_TABLES = {
-    "batch_tickets", "constraint_bindings", "survey_citations", "item_statements",
+    "batch_tickets", "constraint_bindings", "survey_citations",
     "batch_dep_facts", "schedule_deps", "batch_touch", "touch_strays", "refs",
 }
 

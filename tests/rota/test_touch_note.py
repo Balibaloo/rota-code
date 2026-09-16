@@ -28,7 +28,7 @@ from rota.core.runner import run_session
 from rota.core.scheduler import frontier_readonly, tick_agenda, tick_signoff
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import Answer, Ask, land, render_refs, touch_words
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -39,9 +39,9 @@ def db(tmp_path):
 def _world(db, status: str = "pending") -> None:
     """One approved item, its batch, three predicted grains, a commitment on
     one of them, and constraint zero over the area of another."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1', "
-               "'users can export their invoices', 'in_scope', 'decided', "
+               "'users can export their invoices', 'in_scope', "
                "'approved', 1, 1)")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1',?)",
                (status,))
@@ -51,13 +51,13 @@ def _world(db, status: str = "pending") -> None:
             ("render_invoice", "symbol", "possible")):
         db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind, "
                    "confidence) VALUES ('b1', ?, ?, ?)", (grain, kind, confidence))
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1', 'the store layer is synchronous', "
-               "'every call into src/store blocks', 'decided')")
+               "'every call into src/store blocks')")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
                "VALUES ('k1', 'src/store', 'path')")
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-               "('k0', 'this area has not been surveyed', 'decided')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES "
+               "('k0', 'this area has not been surveyed')")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
                "VALUES ('k0', 'src/invoices', 'path')")
     db.commit()
@@ -145,14 +145,15 @@ def test_a_note_nobody_answered_freezes_no_gate(db):
     the note aside -- and still holds on a present that is a ruling."""
     _world(db)
     _present(db, "m_note", ["b1", "i1"])
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
-               "('i2', 'archive old invoices', 'in_scope', 'decided')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1', 'invoice', 'a bill', 'observed')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('i2', 'archive old invoices', 'in_scope')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1', 'invoice', 'a bill')")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "author) VALUES ('a1', 'i1', 'items', 'assumed monthly', "
                "'vision_keeper')")
-    refs_from_columns(db)
+    seed_provenance(db, "items", "i2", "decided")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.commit()
 
     assert touch_notes(db) == {"m_note"}
@@ -201,7 +202,7 @@ def test_an_answered_note_is_not_a_deferred_baseline(db):
     deferral of the observed rows it carried. An acknowledged note lands no
     verdict on purpose, and the item it names was ruled on long ago."""
     _world(db)
-    db.execute("UPDATE items SET provenance = 'observed' WHERE id = 'i1'")
+    seed_provenance(db, "items", "i1", "observed")
     _present(db, "m_note", ["b1", "i1"], status="answered")
     assert not [w for w in observed_entries(db) if w.kind == "do:defer_baseline"]
 

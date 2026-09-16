@@ -51,7 +51,6 @@ CREATE TABLE IF NOT EXISTS items (
     id            TEXT PRIMARY KEY,
     text          TEXT NOT NULL,
     kind          TEXT NOT NULL CHECK (kind IN ('in_scope','out_of_scope')),
-    provenance    TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
     approval      TEXT NOT NULL DEFAULT 'draft'
                   CHECK (approval IN ('draft','pending','approved','contested')),
     approval_ver  INTEGER,                  -- version the approval was granted at
@@ -63,12 +62,6 @@ CREATE TABLE IF NOT EXISTS items (
     -- `problem.prioritize` writes with amends=False and trips no revocation.
     priority      INTEGER NOT NULL DEFAULT 0,
     version       INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS item_statements (   -- refs: problem derives from brief
-    item_id       TEXT NOT NULL REFERENCES items(id),
-    statement_id  TEXT NOT NULL REFERENCES statements(id),
-    PRIMARY KEY (item_id, statement_id)
 );
 
 -- What a row rests on. One row per (source, target). The pair is the row.
@@ -189,8 +182,6 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     term         TEXT NOT NULL,
     sense_short  TEXT NOT NULL,             -- the index row: one line, always loaded
     sense_body   TEXT,                      -- fetched singly, never in bulk
-    provenance   TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
-    source_refs  TEXT NOT NULL DEFAULT '[]',
     -- Which area the session that wrote this sense was surveying. Evidence,
     -- never authority: two senses written while reading the same area are one
     -- thing described twice, and two written from different areas are the word
@@ -218,7 +209,6 @@ CREATE INDEX IF NOT EXISTS ix_glossary_term ON glossary_terms(term);
 CREATE TABLE IF NOT EXISTS business_rules (
     id         TEXT PRIMARY KEY,
     text       TEXT NOT NULL,
-    term_refs  TEXT NOT NULL DEFAULT '[]',
     version    INTEGER NOT NULL DEFAULT 1
 );
 
@@ -231,11 +221,6 @@ CREATE TABLE IF NOT EXISTS constraints (
     id                   TEXT PRIMARY KEY,
     headline             TEXT NOT NULL,     -- the index row
     text                 TEXT,              -- fetched singly
-    provenance           TEXT NOT NULL CHECK (provenance IN ('observed','decided','cited')),
-    -- Where a `cited` constraint came from. Glossary terms already carried this;
-    -- constraints are where external obligations actually land, so a constraint
-    -- that cannot point at the clause it encodes is the one that most needed to.
-    source_refs          TEXT NOT NULL DEFAULT '[]',
     rationale_decision   TEXT REFERENCES decisions(id),
     is_global            INTEGER NOT NULL DEFAULT 0,
     version              INTEGER NOT NULL DEFAULT 1
@@ -247,9 +232,6 @@ CREATE TABLE IF NOT EXISTS constraints (
 CREATE TABLE IF NOT EXISTS model_areas (     -- Architect: what each area is for
     id          TEXT PRIMARY KEY,             -- the area path
     account     TEXT NOT NULL,
-    source_refs TEXT NOT NULL DEFAULT '[]',
-    provenance  TEXT NOT NULL DEFAULT 'observed'
-                CHECK (provenance IN ('observed','decided','ratified')),
     version     INTEGER NOT NULL DEFAULT 1
 );
 
@@ -435,7 +417,6 @@ CREATE TABLE IF NOT EXISTS criteria (        -- Terminologist
     id         TEXT PRIMARY KEY,
     ticket_id  TEXT NOT NULL REFERENCES tickets(id),
     text       TEXT NOT NULL,
-    term_refs  TEXT NOT NULL DEFAULT '[]',
     -- The callables a test of this criterion would exercise: symbol grains
     -- from the code index. The Tester is black-box by charter, so the
     -- criterion is its only material, and a criterion naming no surface left
@@ -804,9 +785,10 @@ CREATE TABLE IF NOT EXISTS runtime_processes (
 -- Phase config: caps are read from here, never hard-coded.
 -- The frame, as judged and as ruled. The partition's heuristics are the
 -- default; a row here overrides them for everything under `prefix`. The
--- judge session writes source='judge' (provenance: observed); a principal's
--- ruling writes source='ruling' (decided) and outranks the judge. v2's
--- first stage; probes/partition_judge.py is the measurement that earned it.
+-- judge session rests its row on a grain ref, so `frame_provenance` says
+-- observed. A principal's ruling rests the row on a ruling ref, so the view
+-- says decided, and decided outranks the judge. v2's first stage;
+-- probes/partition_judge.py is the measurement that earned it.
 -- The Critic's verdicts on understanding claims. `stands` is a claim that
 -- survived an attempt to kill it; `falsified` carries the line of source
 -- that killed it, and the ledger holds the consequence for the principal.
@@ -829,9 +811,6 @@ CREATE TABLE IF NOT EXISTS frame_rulings (
     -- `surface` is the class the boundary phase surveys; the value shares
     -- the @surface: prefix's word on purpose.
     kind     TEXT NOT NULL CHECK (kind IN ('program','attached','ignore','surface')),
-    -- Law 11's words: the judge's classification is observed -- found, not
-    -- chosen; a principal's ruling is decided, and outranks.
-    provenance TEXT NOT NULL CHECK (provenance IN ('observed','decided')),
     reason   TEXT NOT NULL DEFAULT '',
     version  INTEGER NOT NULL DEFAULT 1
 );

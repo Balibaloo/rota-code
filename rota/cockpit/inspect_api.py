@@ -25,10 +25,10 @@ LEAD_COLUMNS = {
     "entries": ("id", "author", "ts_order", "text"),
     "statements": ("id", "status", "span_entry", "text"),
     "items": ("id", "kind", "approval", "approval_ver", "priority", "version", "text"),
-    "glossary_terms": ("id", "term", "sense_short", "provenance"),
-    "constraints": ("id", "headline", "provenance", "is_global"),
+    "glossary_terms": ("id", "term", "sense_short"),
+    "constraints": ("id", "headline", "is_global"),
     "tickets": ("id", "item_id", "text"),
-    "criteria": ("id", "ticket_id", "text", "term_refs"),
+    "criteria": ("id", "ticket_id", "text"),
     "batches": ("id", "item_id", "status", "worktree", "head_commit"),
     "batch_touch": ("batch_id", "grain", "grain_kind", "confidence"),
     "findings": ("id", "batch_id", "constraint_id", "status", "grain"),
@@ -48,22 +48,37 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
 
 def _show_derived_provenance(conn: sqlite3.Connection, table: str,
                              rows: list[dict[str, Any]]) -> None:
-    """The `provenance` a row shows is the view's, not the column's.
+    """What a row rests on, shown beside it.
 
-    The column stays on the owner table until stage 3 of frame 21. A reader
-    of the cockpit sees what every other reader sees: the derived value,
-    with today's word for a row that rests on the world."""
+    No owner table carries a `provenance` column and no criterion carries
+    `term_refs`: both come from the refs relation. A reader of the cockpit
+    sees what every other reader sees: the view's value, with today's word
+    for a row that rests on the world, and the term refs in the order
+    written. An old database with no relation shows the row alone."""
+    if not rows:
+        return
     view = PROVENANCE_VIEW_OF_TABLE.get(table)
-    if not view or not rows or "provenance" not in rows[0]:
-        return
-    try:
-        derived = {r["id"]: shown_provenance(r["provenance"], r["basis"])
-                   for r in conn.execute(f"SELECT id, provenance, basis FROM {view}")}
-    except sqlite3.Error:
-        return
-    for r in rows:
-        if r.get("id") in derived:
-            r["provenance"] = derived[r["id"]]
+    if view:
+        try:
+            derived = {r["id"]: shown_provenance(r["provenance"], r["basis"])
+                       for r in conn.execute(f"SELECT id, provenance, basis FROM {view}")}
+        except sqlite3.Error:
+            derived = {}
+        for r in rows:
+            if r.get("id") in derived:
+                r["provenance"] = derived[r["id"]]
+    if table == "criteria":
+        terms: dict[str, list[str]] = {}
+        try:
+            for r in conn.execute(
+                    "SELECT src_id, target FROM refs WHERE src_table = 'criteria' "
+                    "AND kind = 'term' ORDER BY rowid"):
+                terms.setdefault(r["src_id"], []).append(r["target"])
+        except sqlite3.Error:
+            return
+        for r in rows:
+            if r.get("id") is not None:
+                r["term_refs"] = json.dumps(terms.get(r["id"], []))
 
 
 def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> dict[str, Any]:

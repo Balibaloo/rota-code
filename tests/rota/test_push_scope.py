@@ -23,8 +23,8 @@ def world(tmp_path):
     conn = init_db(tmp_path / "rota.db")
     for i in ("i1", "i2"):
         conn.execute(
-            "INSERT INTO items (id, text, kind, provenance, approval, "
-            "approval_ver, version) VALUES (?,?,'in_scope','decided',"
+            "INSERT INTO items (id, text, kind, approval, "
+            "approval_ver, version) VALUES (?,?,'in_scope',"
             "'approved',1,1)", (i, f"ship {i}"))
     conn.execute("INSERT INTO tickets (id, item_id, text) "
                  "VALUES ('t1','i1','do the first thing')")

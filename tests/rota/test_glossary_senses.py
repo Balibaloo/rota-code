@@ -32,14 +32,16 @@ import pytest
 from rota.core.db import init_db
 from rota.core.predicates import term_collision
 from rota.roles.api import glossary_amend
+from rota.testkit.fixtures import seed_provenance
 
 
 class Ctx:
     """The slice of a session context `glossary.amend` reads."""
 
-    def __init__(self, conn, provenance="observed", read=None, area=None):
+    def __init__(self, conn, onboarding=True, read=None, area=None):
         self.conn = conn
-        self.provenance = provenance
+        # The session fact: True on an onboarding tick.
+        self.onboarding = onboarding
         # The area the session was surveying. Evidence for whether a second,
         # differing sense is one thing described twice or the word doing
         # different work somewhere else. `None` is how a non-survey mode runs.
@@ -447,12 +449,13 @@ def test_a_merge_repoints_what_referred_to_the_losing_sense(db):
     glossary_amend(b, term="note", sense_body="a document in Obsidian", sense_short="a document")
     b.commit()
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','make a note','in_scope','observed','draft',1,1)")
+               "('i1','make a note','in_scope','draft',1,1)")
+    seed_provenance(db, "items", "i1", "observed")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','a note is created','[\"note#src\"]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','a note is created')")
     db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
                "('criteria','c1','term','note#src')")
 

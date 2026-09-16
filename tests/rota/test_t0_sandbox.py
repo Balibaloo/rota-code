@@ -15,6 +15,7 @@ from rota.core.sandbox import (
     ArgumentError, NotInWorkingSet, build, check_implementations,
     check_no_orphan_implementations,
 )
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -118,8 +119,8 @@ def test_s9_tool_calls_are_recorded_as_evidence(db):
     """
     from rota.core.sandbox import drain_calls
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('t1','account','login identity','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('t1','account','login identity')")
     sb = build("developer", db)
     sb.call("glossary.lookup", term="account")
 
@@ -138,8 +139,7 @@ def test_s9_writes_are_staged_not_applied(db):
 
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0
     assert sb.ctx.writes == [("items", "i1", {
-        "text": "delete account", "kind": "in_scope",
-        "provenance": "decided", "approval": "draft"})]
+        "text": "delete account", "kind": "in_scope", "approval": "draft"})]
 
 
 def test_s9_positional_arguments_are_bound_by_signature(db):
@@ -154,8 +154,7 @@ def test_s9_positional_arguments_are_bound_by_signature(db):
     sb.call("problem.assert", "i1", "delete account")
 
     assert sb.ctx.writes == [("items", "i1", {
-        "text": "delete account", "kind": "in_scope",
-        "provenance": "decided", "approval": "draft"})]
+        "text": "delete account", "kind": "in_scope", "approval": "draft"})]
 
 
 def test_s9_positional_and_keyword_for_the_same_argument_is_an_error(db):
@@ -200,8 +199,8 @@ def test_s9_a_container_where_a_scalar_was_declared_is_a_tool_error(db):
 def test_s9_a_list_argument_still_takes_a_list(db):
     """The check reads the annotation, so it does not break the ones that mean it."""
     sb = build("terminologist", db)
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     sb.call("criteria.specify", id="c1", ticket_id="tk1", text="it works",
             term_refs=["g1", "g2"])
@@ -257,13 +256,13 @@ def test_only_the_asker_can_say_the_answer_did_not_land(db):
 
 
 def _a_criterion(db, text: str) -> None:
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','export for finance','in_scope','decided','approved',1,1)")
+               "('i1','export for finance','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','export for finance')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) "
-               "VALUES ('c1','tk1',?,'[]')", (text,))
+    db.execute("INSERT INTO criteria (id, ticket_id, text) "
+               "VALUES ('c1','tk1',?)", (text,))
     db.execute("INSERT INTO batches (id, item_id, status) "
                "VALUES ('b1','i1','running')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) "
@@ -377,8 +376,8 @@ def test_one_criterion_gets_one_test_in_a_session(db):
 def test_a_second_criterion_is_a_second_test(db):
     """The bound is per criterion, not per session: a batch has several."""
     _a_criterion(db, "prorating a mid-month upgrade charges the unused remainder")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) "
-               "VALUES ('c2','tk1','a downgrade takes effect next period','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) "
+               "VALUES ('c2','tk1','a downgrade takes effect next period')")
     sb = build("tester", db, mode="tests_missing")
     sb.ctx.batch_id = "b1"
 
@@ -411,13 +410,13 @@ def test_changing_your_mind_about_who_owns_a_block_is_allowed(db):
     outbound set is the session's final state, not its first draft. One question
     still goes out, and the one that goes is the one it settled on.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','export for finance','in_scope','decided','approved',1,1)")
+               "('i1','export for finance','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','export for finance')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','the export is easy for finance to work with','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','the export is easy for finance to work with')")
 
     sb = build("tester", db, mode="tests_missing")
     sb.call("msg.question_terminologist", refs=["c1"],
@@ -436,13 +435,13 @@ def test_it_is_still_one_question_however_many_times_it_turns(db):
     block has one owner and three answers to reconcile is three sessions wasted;
     that is untouched. What changed is which of the session's answers counts.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','sign webhooks','in_scope','decided','approved',1,1)")
+               "('i1','sign webhooks','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','sign outgoing webhooks')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','webhooks carry the signature the spec requires','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','webhooks carry the signature the spec requires')")
 
     sb = build("tester", db, mode="tests_missing")
     for who in ("terminologist", "vision_keeper", "researcher", "vision_keeper"):
@@ -504,8 +503,8 @@ def test_a_lookup_miss_says_how_big_the_glossary_is(db):
     assert miss["glossary_size"] == 0
     assert "says nothing" in miss["note"]
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','account','the billing entity','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','account','the billing entity')")
     hit = sb.call("glossary.lookup", term="account")
     assert isinstance(hit, list) and hit[0]["term"] == "account", \
         "a hit must keep returning the rows and nothing else"
@@ -543,8 +542,8 @@ def test_a_report_carries_what_it_was_delivered(db):
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
                "text, status) VALUES ('s1','e1',0,46,"
                "'an invoice is issued when a subscription renews','ratified')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','invoice','the billing document','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','invoice','the billing document')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES "
                "('m1','t1','liaison','terminologist','deliver','[\"s1\"]',1,'open')")
@@ -605,8 +604,8 @@ def test_a_session_woken_by_a_question_can_only_answer_the_asker(db):
     and parenthesises the rest — the shape that has not held anywhere in this
     system. With the channel derived there is nothing to get right.
     """
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','grain','a unit of the touch set','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','grain','a unit of the touch set')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES "
                "('m1','t1','architect','terminologist','question','[\"g1\"]',"
@@ -701,9 +700,9 @@ def test_a_batch_cannot_be_grouped_from_ids_that_are_not_tickets(db):
 
     Told instead, the five wrong calls cost a turn each and the right one lands.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','validate an intent','in_scope','decided','approved',1,1)")
+               "('i1','validate an intent','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','validate an intent')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) "
@@ -722,9 +721,9 @@ def test_a_batch_cannot_be_grouped_from_ids_that_are_not_tickets(db):
 
 def test_grouping_checks_the_item_too(db):
     """The other reference on the same row, and the same failure if it is wrong."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','x','in_scope','decided','approved',1,1)")
+               "('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
 
     sb = build("architect", db, mode="grouping")
@@ -764,15 +763,15 @@ def test_grouping_infers_the_item_the_tickets_share(db):
 
     from rota.core import sandbox as sandbox_mod
 
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
-               "('i1', 'export invoices', 'in_scope', 'decided')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('i1', 'export invoices', 'in_scope')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('tk1', 'i1', 'csv writer'), ('tk2', 'i1', 'download button')")
     sb = sandbox_mod.build("architect", db, session_id="s1")
     got = sb.call("batches.group", id="b1", ticket_ids=["tk1", "tk2"])
     assert got["id"] == "b1"
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
-               "('i2', 'other', 'in_scope', 'decided')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('i2', 'other', 'in_scope')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk3', 'i2', 'x')")
     with pytest.raises(Exception, match="exactly one approved item"):
         sb.call("batches.group", id="b2", ticket_ids=["tk1", "tk3"])
@@ -969,11 +968,12 @@ def _inquiry_db(db, answer_refs):
 
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m1','principal','where does a user write a recipe?',1)")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k0','not yet surveyed','everything no survey has reached',"
-               "'observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g_recipe','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k0','not yet surveyed','everything no survey has reached')")
+    seed_provenance(db, "constraints", "k0", "observed")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g_recipe','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g_recipe", "observed")
     # The ask first: `schedule.reask` requires the answer to be a reply to a
     # question this role asked, which is right -- the causal chain is how it
     # knows which question it is talking about without being told an id.
@@ -1090,11 +1090,12 @@ def test_an_answer_names_what_it_came_from(db):
     """
     db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
                "('e_m1','principal','what is a recipe here?',1)")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k0','not yet surveyed','everything no survey has reached',"
-               "'observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k0','not yet surveyed','everything no survey has reached')")
+    seed_provenance(db, "constraints", "k0", "observed")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m6','t1','liaison','terminologist',"
                "'ask','[\"e_m1\"]',1)")
@@ -1288,13 +1289,15 @@ def test_a_rulings_relay_routes_each_row_to_its_owner(db):
     The recipient the model names is subsumed. There is nothing to choose and
     no way to choose it.
     """
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1','schema','must match','observed')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1','schema','must match')")
+    seed_provenance(db, "constraints", "k1", "observed")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','close account','in_scope',"
-               "'decided','draft',1,1)")
+               "'draft',1,1)")
     db.commit()
 
     sb = build("liaison", db, mode="normal")
@@ -1339,9 +1342,9 @@ def test_a_ticket_is_its_text(db):
     ask that carried no refs: the channel's payload left empty, invisible
     afterwards because a row exists either way.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','users can delete their "
-               "account','in_scope','decided','approved',1,1)")
+               "account','in_scope','approved',1,1)")
     db.commit()
     sb = build("vision_keeper", db, mode="slicing")
     with pytest.raises(ValueError, match="a ticket is its text"):

@@ -124,9 +124,6 @@ def predicate(name: str, wakes: str, drains: tuple = (), why: str = "",
 LIFECYCLE_COLUMNS = {
     ("statements", "status"),
     ("items", "approval"),
-    ("items", "provenance"),
-    ("glossary_terms", "provenance"),
-    ("constraints", "provenance"),
     ("batches", "status"),
     ("test_runs", "result"),
     ("ledger", "status"),
@@ -151,20 +148,6 @@ TERMINAL: dict[tuple[str, str, str], str] = {
         "drained by slicing once tickets exist; approval itself owes nothing",
     ("items", "approval", "pending"):
         "an open gate to the principal holds it; the gate is the pending work",
-    ("items", "provenance", "decided"):
-        "someone chose it and the reason is on file",
-    ("glossary_terms", "provenance", "decided"): "reason on file",
-    ("constraints", "provenance", "decided"): "reason on file",
-    # `cited` is law 11's third value: found outside the repository, attributable
-    # to a source. Terminal for the same reason the other two are — provenance
-    # records where a row came from and is not a stage anything moves through.
-    #
-    # It is the only provenance that can become false without anyone touching
-    # the project, but that is *drift*, and drift is drained by waking the owner
-    # of whatever cited a changed source. It is not a state this row is stuck in.
-    ("items", "provenance", "cited"): "found outside; the source is on file",
-    ("glossary_terms", "provenance", "cited"): "found outside; the source is on file",
-    ("constraints", "provenance", "cited"): "found outside; the source is on file",
     ("batches", "status", "merged"): "delivered",
     ("batches", "status", "running"): "a live session holds it",
     ("test_runs", "result", "pass"): "nothing is owed by a passing test",
@@ -485,10 +468,13 @@ def grouping(conn) -> list[Wake]:
 
 
 @predicate("observed_entries", wakes="liaison", band="start",
-           drains=[("glossary_terms", "provenance", "observed"),
-                   ("constraints", "provenance", "observed"),
-                   ("model_areas", "provenance", "observed"),
-                   ("items", "provenance", "observed")])
+           # The code half of observed: a row whose refs reach a grain and
+           # nothing stronger. The views stand over `refs`; no owner table
+           # carries the word.
+           drains=[("term_provenance", "basis", "code"),
+                   ("constraint_provenance", "basis", "code"),
+                   ("area_provenance", "basis", "code"),
+                   ("item_provenance", "basis", "code")])
 def observed_entries(conn) -> list[Wake]:
     """
     Entries extracted from a codebase, awaiting their first decision.
@@ -1701,9 +1687,9 @@ def _parameterised_writes(root: Path) -> set[tuple[str, str]]:
             body = ast.get_source_segment(source, fn) or ""
             args = {a.arg for a in fn.args.args + fn.args.kwonlyargs} - {"conn", "ctx"}
             # A value taken from the session context is as parameterised as one
-            # taken from the call. `provenance` stopped being an argument when
-            # Architect filled it with the name of its own mode — it is a fact
-            # about the session now, and `ctx.provenance` is where it comes from.
+            # taken from the call. The wake kind is such a value: it travels as
+            # `ctx.onboarding`, a fact about the session, and decides which
+            # refs a write records.
             args |= set(re.findall(r"ctx\.(\w+)", body)) - {"conn", "writes",
                                                             "outbound", "role"}
 

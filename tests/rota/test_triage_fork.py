@@ -28,9 +28,9 @@ from rota.core.sandbox import ArgumentError, build
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','x','in_scope',"
-                 "'decided','approved',1,1)")
+                 "'approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('t1','i1','y')")
     conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "

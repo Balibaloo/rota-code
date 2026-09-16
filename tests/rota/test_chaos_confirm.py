@@ -51,9 +51,9 @@ class DiesAfterStaging:
 
 def _a_relayed_ruling(db):
     """A present, the principal's approval of it, and Liaison's relay to the owner."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
-               "'users can close their account','in_scope','decided','draft',0,1)")
+               "'users can close their account','in_scope','draft',0,1)")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m9','th','liaison','principal',"
                "'present',?,1,'answered')", (json.dumps(["t1"]),))
@@ -114,9 +114,9 @@ def test_the_adopt_session_killed_after_the_relay_never_happened(db):
 
 
 def _an_open_present(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
-               "'users can close their account','in_scope','decided','draft',0,1)")
+               "'users can close their account','in_scope','draft',0,1)")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m9','th','liaison','principal',"
                "'present',?,1,'open')", (json.dumps(["t1"]),))

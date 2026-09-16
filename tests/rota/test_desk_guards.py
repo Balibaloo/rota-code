@@ -16,22 +16,21 @@ import pytest
 from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.core.predicates import Wake
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','closing keeps invoices',"
-                 "'in_scope','decided','approved',1,1)")
+                 "'in_scope','approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('tk1','i1','close an account')")
-    conn.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-                 "VALUES ('g1','account','the billing entity','decided')")
-    conn.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-                 "('c1','tk1','closing an account leaves its invoices in place',"
-                 "'[\"g1\"]')")
+    conn.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+                 "VALUES ('g1','account','the billing entity')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+                 "('c1','tk1','closing an account leaves its invoices in place')")
     # The relation holds what the column holds: the readers read the relation.
     conn.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
                  "('criteria','c1','term','g1')")
@@ -277,8 +276,8 @@ def test_a_developer_challenge_does_not_block_the_verdict(db):
 def test_a_report_from_a_batch_wake_names_the_batch(db):
     wake = Wake("architect", "tick:exhausted", refs=("b1",))
     sb = build("architect", db, batch_id="b1", mode="exhausted", wake=wake)
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('cn1','exports never buffer','memory stays flat','decided')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('cn1','exports never buffer','memory stays flat')")
     db.commit()
     with pytest.raises(ValueError, match="add 'b1' to refs"):
         sb.call("msg.report_liaison", refs=["cn1"])
@@ -966,8 +965,10 @@ def test_an_item_records_which_statement_it_reads(db):
                wake=Wake("vision_keeper", "message", refs=("s1",)))
     sb.call("problem.assert", id="i9", text="closing an account keeps its "
             "invoices for seven years", kind="in_scope")
-    pairs = [w for w in sb.ctx.writes if w[0] == "item_statements"]
-    assert pairs and pairs[0][2] == {"item_id": "i9", "statement_id": "s1"}
+    pairs = [w for w in sb.ctx.writes if w[0] == "refs"]
+    assert pairs and pairs[0][1] == "items:i9:statement:s1"
+    assert pairs[0][2] == {"src_table": "items", "src_id": "i9", "kind": "statement",
+                           "target": "s1", "resolves": 1}
     out = sb.call("problem.consult")
     row = next(r for r in out if r["id"] == "i1")
     assert row["from_statements"] == [], "existing items are untouched"
@@ -1047,8 +1048,8 @@ def test_a_delivered_statement_is_an_item_of_its_own(db):
                "('e1','principal',1,'Split the bill between the people paying')")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, "
                "status) VALUES ('s1','e1',0,10,'Split the bill between the people paying','ratified')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('how_it_works', ?, 'in_scope', 'decided', 'approved', 1, 1)",
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('how_it_works', ?, 'in_scope', 'approved', 1, 1)",
                ("The program is a tip calculator: it takes a total and a percentage "
                 "and prints the tip and the total with tip.",))
     db.commit()
@@ -1154,8 +1155,8 @@ def test_criteria_go_to_the_item_the_wake_named(db):
     from rota.core.predicates import Wake
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('i2','show the python version','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i2','show the python version','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk2','i2','show python')")
     db.commit()
     sb = build("terminologist", db, mode="normal",
@@ -1172,8 +1173,9 @@ def test_an_escalation_over_a_removed_name_is_the_finding_restated(db, tmp_path)
     (root / "main.py").write_text("def calculate_share(t, p, n):\n    return t / n\n",
                                   encoding="utf-8")
     db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(root),))
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-               "('k1','calculate_tip is called by main','observed')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES "
+               "('k1','calculate_tip is called by main')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
     db.commit()
@@ -1195,7 +1197,8 @@ def test_an_escalation_reads_a_worktree_that_lives_under_dot_rota(db, tmp_path):
     root = tmp_path / ".rota" / "worktrees" / "b1"; root.mkdir(parents=True)
     (root / "main.py").write_text("def calculate_tip(t, p):" + chr(10) + "    return t * p" + chr(10), encoding="utf-8")
     db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(root),))
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','calculate_tip is called by main','observed')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k1','calculate_tip is called by main')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
     db.commit()
@@ -1230,8 +1233,9 @@ def test_an_empty_commit_under_a_finding_names_the_signature_drift(db, tmp_path)
     subprocess.run(["git", "-C", str(wt), "commit", "-q", "-m", "diff"], check=True)
     db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)", (str(repo),))
     db.execute("UPDATE batches SET worktree = ?, head_commit = 'abc' WHERE id = 'b1'", (str(wt),))
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-               "('k1','display_results is called by main','observed')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES "
+               "('k1','display_results is called by main')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, resolves) "
                "VALUES ('k1','main.py','path',1)")
     db.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
@@ -1359,11 +1363,12 @@ def test_observed_items_and_the_account_are_never_sliced(db):
     of which one was asked for."""
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('seen','click parses arguments','in_scope','observed','approved',1,1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('how_it_works','a cli library','in_scope','observed','approved',1,1)")
-    refs_from_columns(db)
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('seen','click parses arguments','in_scope','approved',1,1)")
+    seed_provenance(db, "items", "seen", "observed")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('how_it_works','a cli library','in_scope','approved',1,1)")
+    seed_provenance(db, "items", "how_it_works", "observed")
     db.commit()
     sb = build("vision_keeper", db, mode="normal",
                allow=prompts.mode_tools("vision_keeper", "slicing"))
@@ -1378,9 +1383,9 @@ def test_an_invented_bare_surface_is_refused(db):
     """clickI night 9: range_argument and get_usage as surfaces."""
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i9', 'The share lives in a new function named split_bill.', "
-               "'in_scope', 'decided', 'approved', 1, 1)")
+               "'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split the bill')")
     db.commit()
     sb = build("terminologist", db, mode="normal",
@@ -1418,11 +1423,11 @@ def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
     same words on an observed row are refused; the principal's words land."""
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('parses_commands', ?, 'in_scope', 'observed', 'approved', 1, 1)",
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('parses_commands', ?, 'in_scope', 'approved', 1, 1)",
                ("When a user types a command, the toolkit parses it into arguments and "
                 "options using the script's defined commands.",))
-    refs_from_columns(db)
+    seed_provenance(db, "items", "parses_commands", "observed")
     db.commit()
     db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
                "('e1','principal',1,'Commands accept a --json flag that prints the parsed arguments as JSON.')")
@@ -1457,9 +1462,9 @@ def test_nearly_the_same_words_are_the_same_criterion(db):
     string must explicitly list --show-python". Word overlap is a fact."""
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i9', 'version_option takes a show_python flag.', "
-               "'in_scope', 'decided', 'approved', 1, 1)")
+               "'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','the flag')")
     db.commit()
     sb = build("terminologist", db, mode="normal",
@@ -1488,8 +1493,8 @@ def test_the_architect_groups_the_tickets_its_wake_named(db):
     from types import SimpleNamespace
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('i2', 'print each share', 'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i2', 'print each share', 'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk2','i2','print the shares')")
     db.commit()
     sb = build("architect", db, mode="grouping",
@@ -1506,9 +1511,9 @@ def test_a_criterions_words_are_not_an_item(db):
     under the criterion's own id, and the run built it as scope."""
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i9', 'split the bill between the payers', 'in_scope', "
-               "'decided', 'approved', 1, 1)")
+               "'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','split it')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_9', 'tk9', "
                "'The function divides the sum of the bill and the tip by the number of payers.')")
@@ -1788,8 +1793,9 @@ def test_an_item_asserted_from_a_delivered_statement_links_to_it(db):
     sb = build("vision_keeper", db, mode="normal", allow=prompts.mode_tools("vision_keeper", "deliver"))
     sb.ctx.trigger = "m_d"
     sb.call("problem.assert", id="echo_json", text="add an echo_json helper next to echo", kind="in_scope")
-    links = [w for w in sb.ctx.writes if w[0] == "item_statements"]
-    assert [(w[2]["item_id"], w[2]["statement_id"]) for w in links] == [("echo_json", "s1")]
+    links = [w for w in sb.ctx.writes if w[0] == "refs" and w[2]["kind"] == "statement"]
+    assert [(w[1], w[2]["src_id"], w[2]["target"]) for w in links] == \
+        [("items:echo_json:statement:s1", "echo_json", "s1")]
 
 
 def test_the_fence_judges_the_change_not_the_file_it_was_made_in(db, tmp_path):
@@ -1814,8 +1820,8 @@ def test_the_fence_judges_the_change_not_the_file_it_was_made_in(db, tmp_path):
 def test_a_seventh_criterion_on_one_ticket_is_refused(db):
     """clickI night 38 (2026-09-13): twenty-four criteria on one ticket, then
     a signoff page of twenty-five lines. Six is many; the count is a fact."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i9','echo json','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i9','echo json','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk9','i9','add echo_json next to echo')")
     db.commit()
     from rota.roles import prompts
@@ -1854,13 +1860,13 @@ def test_the_criterion_under_test_speaks_first_on_print_versus_return(db):
     """clickI night 42 (2026-09-13): the criterion said "printing", a sibling
     on the same ticket said "return behavior", the union said both, and four
     tests asserting on the return value landed and failed."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-               "VALUES ('i8','echo json','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i8','echo json','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk8','i8','add echo_json next to echo that prints an object as JSON')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs, surface_refs) VALUES "
-               "('c8a','tk8','echo_json prints the object as JSON with the given indent','[]','[\"echo_json\"]')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs, surface_refs) VALUES "
-               "('c8b','tk8','the docstring describes the arguments and the return behavior','[]','[\"echo_json\"]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
+               "('c8a','tk8','echo_json prints the object as JSON with the given indent','[\"echo_json\"]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text, surface_refs) VALUES "
+               "('c8b','tk8','the docstring describes the arguments and the return behavior','[\"echo_json\"]')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b8','i8','running')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b8','tk8')")
     db.commit()
@@ -1882,9 +1888,9 @@ def test_a_surface_on_another_existing_callable_is_refused(db):
     for name in ("version_option", "custom_version_option"):
         db.execute("INSERT INTO code_index (grain, grain_kind, area, fan_in, sym_kind, content_hash) "
                    "VALUES (?, 'symbol', 'src/click', 0, 'function', 'h')", (f"src/click/decorators.py::{name}",))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('i70', 'give version_option a show_python flag that appends the running Python version', "
-               "'in_scope', 'decided', 'approved', 1, 1)")
+               "'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk70','i70','give version_option a show_python flag')")
     db.commit()
     sb = build("terminologist", db, mode="normal",

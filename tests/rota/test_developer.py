@@ -30,9 +30,9 @@ def project(tmp_path):
     db = init_db(tmp_path / "rota.db")
     db.execute("INSERT INTO config (key, value) VALUES ('project_root', ?)",
                (str(repo.root),))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','stop double-charging','in_scope','decided','approved',1,1)")
+               "VALUES ('i1','stop double-charging','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) "
                "VALUES ('tk1','i1','make prorate round half up')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) "
@@ -325,8 +325,8 @@ def test_a_missing_project_root_is_refused_not_guessed(tmp_path):
     Creating a worktree is not the kind of operation that gets to guess.
     """
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
 
     with pytest.raises(worktrees.WorktreeError, match="project_root"):
@@ -337,8 +337,8 @@ def test_starting_without_a_root_does_not_touch_any_repository(tmp_path):
     """`lifecycle.start` swallows the error so a batch can still run — but it
     must not have created anything on the way past."""
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
 
     lifecycle.start(db, "b1")
@@ -514,7 +514,7 @@ def test_a_finding_names_a_file_the_diff_changed(project):
     """
     db, _ = project
     lifecycle.start(db, "b1")
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES ('k1','charges stay','decided')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k1','charges stay')")
     db.commit()
     sb = build("developer", db, batch_id="b1")
     src = sb.call("code.source", path="src/billing/charges.py", start=0, end=400)

@@ -25,7 +25,7 @@ from rota.core.scheduler import (ONBOARDING_TICKS, PROGRAM, TERM_PREFIX, frontie
                                  tick_orient, tick_survey)
 from rota.onboarding import boot, lexicon
 from rota.testkit import gitfixture
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -170,8 +170,9 @@ def test_a_glossary_row_in_the_words_family_drains_its_define_wake(project):
     from rota.roles.api import _slug_of
 
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance, area) VALUES (?, ?, 'x', 'y', 'observed', '')",
+               "area) VALUES (?, ?, 'x', 'y', '')",
                (_slug_of(first) + "s", first + "s"))        # the plural counts too
+    seed_provenance(db, "glossary_terms", _slug_of(first) + "s", "observed")
     assert first not in pending_terms(db)
 
 
@@ -247,10 +248,11 @@ def test_the_orientations_words_are_promoted(project):
     low = ranked[-1]
     assert low not in pending_terms(db)
 
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
-               "('i1', ?, 'in_scope', 'observed')",
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('i1', ?, 'in_scope')",
                (f"The product does something with every {low} it is given, "
                 f"and with each {low} again.",))
+    seed_provenance(db, "items", "i1", "observed")
     # Bonus is +3; whether that clears the fold depends on the repository,
     # so the assertion is monotonic: never lower than before.
     before = ranked.index(low)
@@ -268,7 +270,8 @@ def _scored(db):
 
     rows = lexicon.ranked(db)
     toks = []
-    for r in db.execute("SELECT text FROM items WHERE provenance = 'observed'"):
+    for r in db.execute("SELECT i.text FROM items i JOIN item_provenance p "
+                        "ON p.id = i.id WHERE p.provenance = 'observed'"):
         toks += [lexicon.singular(w) for w in lexicon.parts(r["text"] or "")]
     words = set(toks)
     out = {}
@@ -297,9 +300,11 @@ def test_term_collision_holds_until_the_words_are_defined(project):
     boot.onboard(db, repo.root)
     _framed(db)
     for i, area in enumerate(("src/auth", "src/billing")):
+        gid = f"account{'#billing' if i else ''}"
         db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-                   "provenance, area) VALUES (?, 'account', ?, 'b', 'observed', ?)",
-                   (f"account{'#billing' if i else ''}", f"sense {i}", area))
+                   "area) VALUES (?, 'account', ?, 'b', ?)",
+                   (gid, f"sense {i}", area))
+        seed_provenance(db, "glossary_terms", gid, "observed")
     assert onboarding_phase(db) == "orient"
     assert term_collision(db) == []
 
@@ -327,7 +332,7 @@ def test_a_define_session_defines_the_word_it_was_woken_for(project):
     db, repo = project
     boot.onboard(db, repo.root)
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "billing account",
-              wake_refs=(TERM_PREFIX + "billing account",), provenance="observed")
+              wake_refs=(TERM_PREFIX + "billing account",), onboarding=True)
     ctx.read_words.update({"billing", "account", "invoice"})
 
     with pytest.raises(ValueError, match="about 'billing account'"):
@@ -352,9 +357,10 @@ def test_an_area_sense_does_not_overwrite_the_program_sense(project):
     db, repo = project
     boot.onboard(db, repo.root)
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance, area) VALUES ('account', 'account', "
-               "'who an invoice is addressed to', 'b', 'observed', '')")
-    ctx = Ctx(conn=db, role="terminologist", area="src/auth", provenance="observed")
+               "area) VALUES ('account', 'account', "
+               "'who an invoice is addressed to', 'b', '')")
+    seed_provenance(db, "glossary_terms", "account", "observed")
+    ctx = Ctx(conn=db, role="terminologist", area="src/auth", onboarding=True)
     ctx.read_words.update({"account", "login"})
     glossary_amend(ctx, term="account", sense_body="a person who can sign in",
                    sense_short="a login identity")
@@ -367,7 +373,7 @@ def test_attesting_the_program_needs_what_was_read(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, onboarding=True)
     problem_assert(ctx, id="bills_accounts",
                    text="The product issues invoices to the accounts that owe money.")
     with pytest.raises(ValueError, match="opened none"):
@@ -387,7 +393,7 @@ def test_attesting_a_word_as_none_found_needs_no_citation(project):
     db, repo = project
     boot.onboard(db, repo.root)
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "billing",
-              provenance="observed")
+              onboarding=True)
     got = surveys_attest(ctx, outcome="none_found")
     assert got["id"] == f"terminologist:{TERM_PREFIX}billing"
 
@@ -419,7 +425,8 @@ def test_an_orientation_session_writes_observed_items_and_closes_the_phase(proje
     assert "[code.front]" in user, "the front is pushed, not fetched"
     assert "MODE: orient" in system
 
-    row = db.execute("SELECT provenance FROM items WHERE id = 'bills_accounts'").fetchone()
+    row = db.execute("SELECT provenance FROM item_provenance "
+                     "WHERE id = 'bills_accounts'").fetchone()
     assert row and row["provenance"] == "observed"
     assert db.execute("SELECT 1 FROM survey_records WHERE area = ?", (PROGRAM,)).fetchone()
     assert onboarding_phase(db) == "reconcile"
@@ -448,7 +455,9 @@ def test_a_define_session_writes_one_observed_word_and_drains_its_wake(project):
     _, user = backend.calls[0]
     assert "[code.concordance]" in user and "[problem.baseline]" in user
 
-    row = db.execute("SELECT provenance, area FROM glossary_terms WHERE id = 'billing'").fetchone()
+    row = db.execute("SELECT p.provenance, g.area FROM glossary_terms g "
+                     "JOIN term_provenance p ON p.id = g.id "
+                     "WHERE g.id = 'billing'").fetchone()
     assert row and row["provenance"] == "observed" and row["area"] == ""
     assert "billing" not in pending_terms(db)
 
@@ -463,7 +472,7 @@ def test_a_define_sense_names_where_the_word_is_written_down(project):
     db, repo = project
     boot.onboard(db, repo.root)
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "invoice",
-              wake_refs=(TERM_PREFIX + "invoice",), provenance="observed")
+              wake_refs=(TERM_PREFIX + "invoice",), onboarding=True)
     code_concordance(ctx)
     assert ctx.read_idents, "the concordance shows identifiers and paths"
 
@@ -496,7 +505,7 @@ def test_the_attestation_outcome_follows_the_writes(project):
     db, repo = project
     boot.onboard(db, repo.root)
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "billing",
-              provenance="observed")
+              onboarding=True)
     with pytest.raises(ValueError, match="then attest again"):
         surveys_attest(ctx, outcome="found")
     ctx.refusals.append(("surveys.attest", "... then attest again ..."))
@@ -504,7 +513,7 @@ def test_the_attestation_outcome_follows_the_writes(project):
     assert got["outcome"] == "none_found" and "recorded as" in got["note"]
 
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "billing",
-              provenance="observed")
+              onboarding=True)
     ctx.read_words.update({"billing"})
     ctx.read_idents.add("src/billing/charges.py")
     glossary_amend(ctx, term="billing",
@@ -514,7 +523,7 @@ def test_the_attestation_outcome_follows_the_writes(project):
     assert got["outcome"] == "found"
 
     ctx = Ctx(conn=db, role="terminologist", area=TERM_PREFIX + "billing",
-              provenance="observed")
+              onboarding=True)
     ctx.refusals.append(("glossary.amend", "nothing you read this session says billing"))
     with pytest.raises(ValueError, match="refused"):
         surveys_attest(ctx, outcome="found")
@@ -573,8 +582,9 @@ def test_a_collision_session_ends_on_its_synthesis(project):
                         area_content_hash(db, w.refs[0])))
     for id_, area in (("billing", ""), ("billing#src", "src")):
         db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-                   "provenance, area) VALUES (?, 'billing', ?, ?, 'observed', ?)",
+                   "area) VALUES (?, 'billing', ?, ?, ?)",
                    (id_, f"reading {area or 'whole'}", f"reading {area or 'whole'}, at length", area))
+        seed_provenance(db, "glossary_terms", id_, "observed")
     db.commit()
     wake = next(w for w in frontier(db) if w.kind == "tick:term_collision")
     call = ("TOOL: glossary.synthesise(ids=['billing', 'billing#src'], "
@@ -619,11 +629,12 @@ def test_an_item_restated_is_not_a_constraint(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
                "('issues_invoices', 'The product issues invoices to the billing "
                "accounts that owe money and records what each owes.', "
-               "'in_scope', 'observed')")
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+               "'in_scope')")
+    seed_provenance(db, "items", "issues_invoices", "observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     with pytest.raises(ValueError, match="label, not a headline"):
         model_amend(ctx, headline="commitment 1",
@@ -649,7 +660,7 @@ def test_the_orientation_is_asked_once_for_its_calls_before_it_closes_empty(proj
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, onboarding=True)
     ctx.opened.add("README.md")
     with pytest.raises(ValueError, match="one call per behaviour"):
         surveys_attest(ctx, outcome="found", citations=["README.md"])
@@ -670,7 +681,7 @@ def test_a_dotted_path_is_cited_by_its_stripped_spelling_and_hinted_with_the_dot
     boot.onboard(db, repo.root)
     db.execute("INSERT OR IGNORE INTO code_index (grain, grain_kind, area, fan_in) "
                "VALUES ('.editorconfig', 'path', '.', 0)")
-    ctx = Ctx(conn=db, role="terminologist", area=".", provenance="observed")
+    ctx = Ctx(conn=db, role="terminologist", area=".", onboarding=True)
     ctx.opened.add(_grain_path(".editorconfig"))
     with pytest.raises(ValueError) as exc:
         surveys_attest(ctx, outcome="none_found", citations=["nonsense.txt"])
@@ -686,7 +697,7 @@ def test_nested_citations_are_flattened_not_crashed_on(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="terminologist", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="terminologist", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     got = surveys_attest(ctx, outcome="none_found",
                          citations=[["src/billing/charges.py"], ["problem.baseline"]])
@@ -703,10 +714,11 @@ def test_an_area_restating_the_program_sense_in_more_words_records_nothing(proje
     db, repo = project
     boot.onboard(db, repo.root)
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance, area) VALUES ('account', 'account', "
+               "area) VALUES ('account', 'account', "
                "'who an invoice is addressed to', 'the billing entity that owes "
-               "money, declared in src/billing/accounts.py', 'observed', '')")
-    ctx = Ctx(conn=db, role="terminologist", area=".", provenance="observed")
+               "money, declared in src/billing/accounts.py', '')")
+    seed_provenance(db, "glossary_terms", "account", "observed")
+    ctx = Ctx(conn=db, role="terminologist", area=".", onboarding=True)
     ctx.read_words.update({"account", "invoice", "billing", "money"})
     with pytest.raises(ValueError, match="already means that"):
         glossary_amend(ctx, term="account",
@@ -763,7 +775,7 @@ def test_a_constraint_kept_to_nobody_outside_is_refused(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     with pytest.raises(ValueError, match="nobody outside"):
         model_amend(ctx, headline="Rename issue_invoice to another identifier",
@@ -856,7 +868,7 @@ def test_a_citation_given_as_one_string_is_one_citation(project):
     db, repo = project
     boot.onboard(db, repo.root)
     config.set(db, "onboarding_phases", "survey")
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     got = surveys_attest(ctx, outcome="none_found", citations="src/billing/charges.py")
     assert got["outcome"] == "none_found"
@@ -865,7 +877,7 @@ def test_a_citation_given_as_one_string_is_one_citation(project):
         (w[2] or {}).get("grain", w[1]).endswith("src/billing/charges.py") for w in cited), cited
 
     # A leading `/` or `./` is not part of a grain.
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     surveys_attest(ctx, outcome="none_found", citations=["/src/billing/charges.py"])
     assert any((w[2] or {}).get("grain", w[1]).endswith("src/billing/charges.py")
@@ -873,7 +885,7 @@ def test_a_citation_given_as_one_string_is_one_citation(project):
                for w in ctx.writes if w[0] == "survey_citations")
 
     # And several paths in one string, space-separated, are several citations.
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.update({"src/billing/charges.py", "src/billing/accounts.py"})
     surveys_attest(ctx, outcome="none_found",
                    citations="src/billing/charges.py src/billing/accounts.py")
@@ -891,7 +903,7 @@ def test_a_row_id_echoed_as_a_term_is_the_word_before_the_hash(project):
     db, repo = project
     boot.onboard(db, repo.root)
     config.set(db, "onboarding_phases", "survey")
-    ctx = Ctx(conn=db, role="terminologist", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="terminologist", area="src/billing", onboarding=True)
     ctx.read_words.update({"charge", "billing"})
     ctx.read_idents.add("src/billing/charges.py")
     got = glossary_amend(ctx, term="charge#src_billing",
@@ -913,7 +925,7 @@ def test_code_logic_and_files_of_this_repository_are_inside_parties(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     for hl, tx in [("createCommandForIntent", "the code inside PTPlugin.onload()"),
                    ("parseTextVariableFrontmatter", "The program's internal logic would break "
@@ -943,7 +955,7 @@ def test_the_same_sentence_under_a_second_id_is_the_same_item(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, onboarding=True)
     text = "The program reads the user's intents from the frontmatter of a note."
     assert problem_assert(ctx, id="reads_intents", text=text)["id"] == "reads_intents"
     got = problem_assert(ctx, id="program_reads_intents", text=text)
@@ -968,13 +980,13 @@ def test_an_observed_session_never_amends_a_decided_item(project):
                "('e1', 'principal', 1, 'split the bill')")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
                "text, status) VALUES ('s1', 'e1', 0, 14, 'split the bill', 'ratified')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('split_bill', 'the bill is split', "
-               "'in_scope', 'decided', 'approved', 1, 1)")
+               "'in_scope', 'approved', 1, 1)")
     db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
                "('items', 'split_bill', 'statement', 's1')")
     db.commit()
-    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, onboarding=True)
     got = problem_assert(ctx, id="split_bill", text="the program splits the bill")
     assert got["id"] == "split_bill" and "decided" in got.get("note", ""), got
     assert not [w for w in ctx.writes if w[0] == "items"], "observed wrote over decided"
@@ -995,7 +1007,7 @@ def test_a_behaviour_never_folds_into_the_account(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
+    ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, onboarding=True)
     problem_assert(ctx, id="how_it_works",
                    text="The software splits the bill among a number of people "
                         "and rounds each share up to the nearest cent.")
@@ -1139,7 +1151,7 @@ def test_the_model_keeps_an_account_per_area(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
-    ctx = Ctx(conn=db, role="architect", area="src/billing", provenance="observed")
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
     ctx.opened.add("src/billing/charges.py")
     got = model_describe(ctx, account="Turns charges and accounts into invoices: "
                          "charges.py computes what is owed and invoices.py issues it.")
@@ -1174,7 +1186,9 @@ def test_an_architect_survey_records_the_account_and_the_commitment(project):
         "TOOL: surveys.attest(outcome='none_found', citations=['src/billing/charges.py'])",
         "done", "done"]))
     assert out.committed, out.errors
-    row = db.execute("SELECT account, provenance FROM model_areas WHERE id='src/billing'").fetchone()
+    row = db.execute("SELECT a.account, p.provenance FROM model_areas a "
+                     "JOIN area_provenance p ON p.id = a.id "
+                     "WHERE a.id='src/billing'").fetchone()
     assert row and row["provenance"] == "observed" and "invoices" in row["account"]
     rec = db.execute("SELECT outcome FROM survey_records WHERE id='architect:src/billing'").fetchone()
     assert rec and rec["outcome"] == "none_found"
@@ -1201,9 +1215,10 @@ def test_an_authoring_key_survives_whole_in_the_lexicon(project):
     for key in ("intents_to", "with_name", "in_folder", "replaces_selection_with"):
         assert key in pend, pend
     # and a defined key leaves the queue
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, provenance) "
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body) "
                "VALUES ('intents_to', 'intents_to', 'the recipe key', 'the frontmatter key "
-               "a user writes recipes under', 'observed')")
+               "a user writes recipes under')")
+    seed_provenance(db, "glossary_terms", "intents_to", "observed")
     assert "intents_to" not in pending_terms(db)
 
 
@@ -1484,9 +1499,11 @@ def test_frame_rulings_outrank_the_name_heuristics(tmp_path):
         "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
     assert "docs" in areas0, "today's heuristics still survey prose directories"
 
-    db.execute("INSERT INTO frame_rulings (id, kind, provenance, reason) VALUES "
-               "('docs', 'attached', 'observed', 'documentation about the program'),"
-               "('src/vendored', 'ignore', 'observed', 'vendored copy')")
+    db.execute("INSERT INTO frame_rulings (id, kind, reason) VALUES "
+               "('docs', 'attached', 'documentation about the program'),"
+               "('src/vendored', 'ignore', 'vendored copy')")
+    seed_provenance(db, "frame_rulings", "docs", "observed")
+    seed_provenance(db, "frame_rulings", "src/vendored", "observed")
     repin(db, root)
 
     areas1 = {r["area"] for r in db.execute(
@@ -1506,10 +1523,10 @@ def test_a_ruling_outranks_the_judge_at_the_same_prefix(tmp_path):
     from rota.onboarding.areas import ruling_for
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO frame_rulings (id, kind, provenance) VALUES "
-               "('docs', 'attached', 'observed')")
-    db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
-               "VALUES ('docs', 'program', 'decided')")
+    # One row per prefix. The ruling is decided because it rests on a landed
+    # ruling, and `ruling_for` reads the view at the tie.
+    db.execute("INSERT INTO frame_rulings (id, kind) VALUES ('docs', 'program')")
+    seed_provenance(db, "frame_rulings", "docs", "decided")
     assert ruling_for(db, "docs/index.md") == "program"
 
 
@@ -1560,8 +1577,9 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
     from rota.core.runner import _as_write
     for w in sb.ctx.writes:
         _apply_write(db, _as_write(w))
-    row = db.execute("SELECT kind, provenance FROM frame_rulings "
-                     "WHERE id = 'docs'").fetchone()
+    row = db.execute("SELECT f.kind, p.provenance FROM frame_rulings f "
+                     "JOIN frame_provenance p ON p.id = f.id "
+                     "WHERE f.id = 'docs'").fetchone()
     assert (row["kind"], row["provenance"]) == ("program", "observed")
     led = db.execute("SELECT default_taken FROM ledger WHERE about_table = "
                      "'frame_rulings'").fetchone()
@@ -1574,10 +1592,10 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
 
     with pytest.raises(Exception, match="manifest"):
         sb.call("frame.assign", path="manifest.json", kind="attached")
-    db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
-               "VALUES ('src', 'program', 'decided')")
+    db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind) "
+               "VALUES ('src', 'program')")
     # Decided because the prefix rests on a landed ruling (Q3).
-    refs_from_columns(db)
+    seed_provenance(db, "frame_rulings", "src", "decided")
     with pytest.raises(Exception, match="decided|outranks"):
         sb.call("frame.assign", path="src", kind="ignore")
 
@@ -1629,8 +1647,9 @@ def test_the_repin_fires_once_after_the_frame_record(tmp_path):
     assert "docs" in {r["area"] for r in db.execute(
         "SELECT DISTINCT area FROM code_index WHERE grain_kind = 'path'")}
 
-    db.execute("INSERT INTO frame_rulings (id, kind, provenance) VALUES "
-               "('docs', 'attached', 'observed')")
+    db.execute("INSERT INTO frame_rulings (id, kind) VALUES "
+               "('docs', 'attached')")
+    seed_provenance(db, "frame_rulings", "docs", "observed")
     db.execute("INSERT INTO survey_records (id, area, outcome) VALUES "
                "('architect:@frame', '@frame', 'found')")
     onboarding_phase(db)
@@ -1653,8 +1672,9 @@ def test_reorient_runs_after_survey_and_before_boundaries(tmp_path):
     _oriented(db)
 
     assert tick_reorient(db) == [], "an empty glossary leaves nothing to revise"
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1', 'parser', 'converts schema entries', 'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1', 'parser', 'converts schema entries')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     wakes = tick_reorient(db)
     assert [(w.role, w.refs) for w in wakes] == [("vision_keeper", (REORIENT,))]
     assert onboarding_phase(db) == "reorient"
@@ -1677,10 +1697,12 @@ def test_challenge_owes_the_load_bearing_claims(tmp_path):
     db = init_db(tmp_path / "rota.db")
     boot.onboard(db, _boundary_repo(tmp_path))
     config.set(db, "onboarding_phases", "challenge")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1', 'schema is a contract', 'users write against it', 'observed')")
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES "
-               "('i1', 'parses schemas', 'in_scope', 'observed')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1', 'schema is a contract', 'users write against it')")
+    seed_provenance(db, "constraints", "k1", "observed")
+    db.execute("INSERT INTO items (id, text, kind) VALUES "
+               "('i1', 'parses schemas', 'in_scope')")
+    seed_provenance(db, "items", "i1", "observed")
 
     assert challenge_subjects(db) == ["constraints:k1", "items:i1"]
     wakes = tick_challenge(db)
@@ -1705,9 +1727,9 @@ def test_a_break_is_a_citation_or_it_is_refused(tmp_path):
 
     db = init_db(tmp_path / "rota.db")
     boot.onboard(db, _boundary_repo(tmp_path))
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1', 'the schema is silent on unknown keys', 'no warning exists', "
-               "'observed')")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1', 'the schema is silent on unknown keys', 'no warning exists')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
                "VALUES ('k1', 'src/parser.ts', 'path')")
 
@@ -1794,9 +1816,10 @@ def test_vacuity_is_a_readings_verdict_for_empty_claims(tmp_path):
 
     db = init_db(tmp_path / "rota.db")
     boot.onboard(db, _boundary_repo(tmp_path))
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k1', 'whoever imports parse breaks if it is renamed', "
-               "'users of this repository who import parse', 'observed')")
+               "'users of this repository who import parse')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
                "VALUES ('k1', 'src/parser.ts', 'path')")
 
@@ -1841,10 +1864,10 @@ def test_a_claim_that_cites_nothing_is_read_by_loading_it(tmp_path):
 
     db = init_db(tmp_path / "rota.db")
     boot.onboard(db, _boundary_repo(tmp_path))
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('how_it_works', "
                "'the program does what a program does', 'in_scope', "
-               "'decided', 'approved', 1, 1)")
+               "'approved', 1, 1)")
     sb = sandbox_mod.build("critic", db, session_id="s1", mode="challenge",
                            area="@claim:items:how_it_works")
     sb.ctx.wake_refs = ("@claim:items:how_it_works",)

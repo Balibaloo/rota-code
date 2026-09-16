@@ -2,11 +2,11 @@
 The refs relation (frame 21): what a row rests on, and the provenance the
 view derives from it.
 
-Stage 1 is additive. Every writer stages a refs row beside the column or the
-stamp it writes today, and the `provenance` view derives the same three
-words from the rows. Stage 2 moves the readers: every gate and every result
-reads the view or the relation, and the cascade wake carries row ids. The
-columns stay until stage 3 and nothing reads them.
+Every writer stages the refs rows its row rests on, and the `provenance`
+view derives the three words from the rows. Every gate and every result
+reads the view or the relation, and the cascade wake carries row ids. No
+owner table carries a provenance column, a JSON ref column, or the old
+`item_statements` table: the relation is the one record.
 """
 from __future__ import annotations
 
@@ -24,13 +24,13 @@ def db(tmp_path):
 # --- seeds ------------------------------------------------------------------
 
 def _item(db, iid):
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES (?, 'x', 'in_scope', 'decided')", (iid,))
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES (?, 'x', 'in_scope')", (iid,))
 
 
 def _term(db, gid):
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES (?, ?, 'a sense', 'decided')", (gid, gid))
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES (?, ?, 'a sense')", (gid, gid))
 
 
 def _criterion(db, cid):
@@ -95,13 +95,11 @@ def test_the_view_returns_the_three_words_from_three_seeded_refs(db):
 
 
 def test_every_owner_table_has_a_view(db):
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1', 'tip', 'x', 'observed')")
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k1', 'x', 'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1', 'tip', 'x')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k1', 'x')")
     db.execute("INSERT INTO model_areas (id, account) VALUES ('src', 'x')")
-    db.execute("INSERT INTO frame_rulings (id, kind, provenance) "
-               "VALUES ('src', 'program', 'observed')")
+    db.execute("INSERT INTO frame_rulings (id, kind) VALUES ('src', 'program')")
     for view, rid in (("term_provenance", "g1"), ("constraint_provenance", "k1"),
                       ("area_provenance", "src"), ("frame_provenance", "src")):
         assert _prov(db, view, rid) == ("reasoned", "none"), view
@@ -215,8 +213,7 @@ def test_a_refs_write_beside_the_row_bumps_the_version_once(db):
     _statement(db, "s1", "ratified")
     session_commit(db, SessionResult(
         session_id="s1", role="vision_keeper",
-        writes=[Write("items", "i1", {"text": "x", "kind": "in_scope",
-                                      "provenance": "decided"}),
+        writes=[Write("items", "i1", {"text": "x", "kind": "in_scope"}),
                 _refs_write("items", "i1", "statement", "s1")]))
     assert version_of(db, "items") == 1
     receipts = db.execute("SELECT table_name, row_id, new_version FROM receipts "
@@ -232,8 +229,7 @@ def test_a_refs_write_staged_before_its_row_bumps_the_version_once(db):
     session_commit(db, SessionResult(
         session_id="s1", role="vision_keeper",
         writes=[_refs_write("items", "i1", "statement", "s1"),
-                Write("items", "i1", {"text": "x", "kind": "in_scope",
-                                      "provenance": "decided"})]))
+                Write("items", "i1", {"text": "x", "kind": "in_scope"})]))
     assert version_of(db, "items") == 1
     receipts = db.execute("SELECT table_name, row_id, new_version FROM receipts "
                           "WHERE session_id = 's1'").fetchall()
@@ -275,7 +271,10 @@ def test_the_same_refs_row_again_is_not_a_change(db):
 
 # --- the writers ------------------------------------------------------------
 
-def test_problem_assert_writes_a_statement_ref_beside_item_statements(db):
+def test_problem_assert_writes_a_statement_ref_after_the_item(db):
+    """The item's write carries no stamp and no junction row: the statement
+    ref, staged after the item so the receipt lands under it, is the one
+    record of what the item reads."""
     from rota.core.sandbox import build
     from rota.core.scheduler import Wake
 
@@ -285,16 +284,16 @@ def test_problem_assert_writes_a_statement_ref_beside_item_statements(db):
     sb.call("problem.assert", id="i1", text="users can export invoices",
             kind="in_scope")
     staged = [(t, i) for t, i, *_ in sb.ctx.writes]
-    assert ("item_statements", "i1:s1") in staged
-    assert ("refs", "items:i1:statement:s1") in staged
-    assert staged.index(("items", "i1")) < staged.index(("refs", "items:i1:statement:s1"))
+    assert staged == [("items", "i1"), ("refs", "items:i1:statement:s1")]
+    item = next(w[2] for w in sb.ctx.writes if w[0] == "items")
+    assert item == {"text": "users can export invoices", "kind": "in_scope",
+                    "approval": "draft"}
 
 
 def test_an_onboarding_wake_records_the_grains_it_opened(db):
     from rota.core.sandbox import build
 
-    sb = build("vision_keeper", db, mode="survey", provenance="observed",
-               onboarding=True)
+    sb = build("vision_keeper", db, mode="survey", onboarding=True)
     sb.ctx.opened.update({"src/b.py", "src/a.py"})
     sb.call("problem.assert", id="i1", text="the program reads two numbers",
             kind="in_scope")
@@ -407,9 +406,10 @@ def test_the_seat_verdict_lands_the_liaisons_open_row_and_writes_no_second(db):
 
 # --- the fixture loader -----------------------------------------------------
 
-def test_the_loader_seeds_refs_beside_the_columns(db):
+def test_the_loader_seeds_refs_in_place_of_the_columns(db):
     """Q9: `provenance:`, `source_refs:`, `term_refs:` and `item_statements:`
-    seeds become refs rows. The case files do not change."""
+    seeds become refs rows, and the INSERT leaves the seeds out. The case
+    files do not change."""
     from rota.testkit.fixtures import FIXTURE_RULING, seed
 
     seed(db, {
@@ -509,18 +509,17 @@ def test_the_cascade_wake_carries_the_row_ids_from_the_relation(db):
 
 
 def test_found_never_overwrites_a_row_decided_by_a_ruling_ref_alone(db):
-    """The guard at `problem.assert` reads the view. The stamp says observed,
-    the ruling ref says decided, and the ruling wins."""
+    """The guard at `problem.assert` reads the view. The ruling ref says
+    decided, and an onboarding wake does not amend the row."""
     from rota.core.sandbox import build
 
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1', 'the bill is split', 'in_scope', 'observed')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1', 'the bill is split', 'in_scope')")
     _ruling(db, "r1", "landed")
     _ref(db, "items", "i1", "ruling", "r1")
     assert _prov(db, "item_provenance", "i1") == ("decided", "ruling")
 
-    sb = build("vision_keeper", db, mode="survey", provenance="observed",
-               onboarding=True)
+    sb = build("vision_keeper", db, mode="survey", onboarding=True)
     got = sb.call("problem.assert", id="i1", text="the program splits the bill",
                   kind="in_scope")
     assert "decided" in got.get("note", ""), got
@@ -529,13 +528,13 @@ def test_found_never_overwrites_a_row_decided_by_a_ruling_ref_alone(db):
 
 
 def test_the_same_words_on_a_row_observed_by_a_grain_ref_alone_are_refused(db):
-    """The other guard at `problem.assert`. The stamp says decided, the grain
-    ref says observed, and a decided wake that repeats the words is refused."""
+    """The other guard at `problem.assert`. The grain ref says observed,
+    and a delivery wake that repeats the words is refused."""
     from rota.core.sandbox import build
 
     text = "the toolkit parses a command into arguments and options"
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('parses', ?, 'in_scope', 'decided')", (text,))
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('parses', ?, 'in_scope')", (text,))
     _ref(db, "items", "parses", "grain", "src/parser.py")
     assert _prov(db, "item_provenance", "parses") == ("observed", "code")
 
@@ -545,15 +544,15 @@ def test_the_same_words_on_a_row_observed_by_a_grain_ref_alone_are_refused(db):
 
 
 def test_tick_slicing_refuses_an_item_observed_by_a_grain_ref_alone(db):
-    """The slicing predicate reads the view. The stamp says decided, the
-    grain ref says observed, and an observed item is a record, not a build
-    order. The item the ruling ref decides is sliced, whatever its stamp."""
+    """The slicing predicate reads the view. The grain ref says observed,
+    and an observed item is a record, not a build order. The item the
+    ruling ref decides is sliced."""
     from rota.core.scheduler import tick_slicing
 
-    for iid, stamp in (("seen", "decided"), ("asked", "observed")):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-                   "approval_ver, version) VALUES (?, 'x', 'in_scope', ?, "
-                   "'approved', 1, 1)", (iid, stamp))
+    for iid in ("seen", "asked"):
+        db.execute("INSERT INTO items (id, text, kind, approval, "
+                   "approval_ver, version) VALUES (?, 'x', 'in_scope', "
+                   "'approved', 1, 1)", (iid,))
     _ruling(db, "r1", "landed")
     _ref(db, "items", "seen", "grain", "src/app.py")
     _ref(db, "items", "asked", "ruling", "r1")
@@ -569,10 +568,8 @@ def test_observed_entries_presents_the_code_and_not_the_world(db):
 
     _reference(db, "ref1")
     for gid in ("g_code", "g_world", "g_bare"):
-        db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-                   "VALUES (?, ?, 'a sense', 'observed')", (gid, gid))
-    db.execute("INSERT INTO constraints (id, headline, provenance) "
-               "VALUES ('k_world', 'x', 'cited')")
+        _term(db, gid)
+    db.execute("INSERT INTO constraints (id, headline) VALUES ('k_world', 'x')")
     _ref(db, "glossary_terms", "g_code", "grain", "src/app.py")
     _ref(db, "glossary_terms", "g_world", "reference", "ref1")
     _ref(db, "constraints", "k_world", "reference", "ref1")
@@ -654,23 +651,33 @@ def test_a_delivery_wake_that_names_a_ratified_statement_writes_a_decided_constr
     assert _prov(db, "constraint_provenance", out["id"]) == ("decided", "statement")
 
 
-def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
-    """Stage 2 review, finding 2. A database with the owner tables and no
-    schema marker opened with an empty relation, and every gate read
-    reasoned. `init_db` refuses it with one sentence, `rota ls` shows the
-    same sentence, and a fresh database opens and carries the marker."""
+def _old_database(path):
+    """A run database from before the refs relation: the owner tables with
+    their provenance columns, no `refs`, no marker."""
     import sqlite3
     import subprocess
 
-    from rota import cli, paths
+    from rota import paths
 
     old_sql = subprocess.run(
         ["git", "show", "ac1b83e~1:rota/core/schema.sql"], cwd=paths.REPO,
         capture_output=True, text=True, check=True).stdout
-    old = tmp_path / "old.db"
-    raw = sqlite3.connect(old)
+    raw = sqlite3.connect(path)
     raw.executescript(old_sql)
     raw.close()
+    return path
+
+
+def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
+    """Stage 2 review, finding 2. A database with the owner tables and no
+    schema marker opened with an empty relation, and every gate read
+    reasoned. `init_db` refuses it with one sentence, `rota ls` shows the
+    same sentence, and a fresh database opens and carries the marker. A
+    database that carries the marker and a provenance column, from the
+    stages that wrote the column beside the relation, is refused too."""
+    from rota import cli
+
+    old = _old_database(tmp_path / "old.db")
     with pytest.raises(RuntimeError, match="predates the refs relation"):
         init_db(old)
     assert "predates the refs relation" in cli._read(old, ask_git=False)["error"]
@@ -681,6 +688,59 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
                         ).fetchone()["value"] == "refs"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
+
+    marked = tmp_path / "marked.db"
+    conn = init_db(marked)
+    conn.execute("ALTER TABLE items ADD COLUMN provenance TEXT")
+    conn.close()
+    with pytest.raises(RuntimeError, match="predates the refs relation"):
+        init_db(marked)
+
+
+def test_a_viewer_opens_an_old_run_read_only_with_the_sentence(tmp_path):
+    """The cockpit is how an old night run is read. `open_for_viewing`
+    gives a read-only connection and the sentence as the note, and the
+    server's drift carries the sentence instead of raising. A current run
+    opens as `init_db` opens it, with no note. Only a run refuses."""
+    import sqlite3
+
+    from rota.cockpit import server
+    from rota.core.db import open_for_viewing
+
+    old = _old_database(tmp_path / "old.db")
+    conn, note = open_for_viewing(old)
+    assert "predates the refs relation" in note
+    with pytest.raises(sqlite3.OperationalError):
+        conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                     "VALUES ('e1', 'principal', 'x', 1)")
+    conn.close()
+    assert any("predates the refs relation" in d for d in server._bring_up(old))
+
+    conn, note = open_for_viewing(tmp_path / "fresh.db")
+    assert note is None
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                 "VALUES ('e1', 'principal', 'x', 1)")
+    conn.close()
+
+
+def test_no_owner_table_carries_the_old_columns(db):
+    """The frame's ends-when. The five provenance columns, the five JSON
+    ref columns and the `item_statements` table are gone from a fresh
+    database: the relation is the one record of what a row rests on."""
+    def columns(table):
+        return {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
+
+    for table in ("items", "glossary_terms", "constraints", "model_areas",
+                  "frame_rulings"):
+        assert "provenance" not in columns(table), table
+    for table in ("glossary_terms", "constraints", "model_areas"):
+        assert "source_refs" not in columns(table), table
+    for table in ("criteria", "business_rules"):
+        assert "term_refs" not in columns(table), table
+    tables = {r["name"] for r in db.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "item_statements" not in tables
+    assert not columns("item_statements")
 
 
 def test_a_cascade_wake_names_its_artefact_first(db):
@@ -740,8 +800,8 @@ def test_glossary_same_retires_the_ref_to_the_dropped_term(db):
 
     for gid, area in (("note", ""), ("note#src", "src")):
         db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-                   "provenance, area) VALUES (?, 'note', 'a vault file', "
-                   "'a file in the vault', 'decided', ?)", (gid, area))
+                   "area) VALUES (?, 'note', 'a vault file', "
+                   "'a file in the vault', ?)", (gid, area))
     _item(db, "i1")
     _criterion(db, "c1")
     _ref(db, "criteria", "c1", "term", "note#src")
@@ -782,8 +842,8 @@ def test_adopt_rests_the_row_on_the_landed_ruling_or_refuses(db):
     """`_adopt_rows` reads the view and writes the ruling ref. With no
     landed `rulings` row on the cause chain, adopt refuses: the row would
     have nothing to rest on."""
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1', 'recipe', 'a seed note', 'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1', 'recipe', 'a seed note')")
     _ref(db, "glossary_terms", "g1", "grain", "src/app.py")
     _relayed_ruling(db)
 
@@ -855,3 +915,34 @@ def test_the_refs_check_refuses_a_source_or_a_kind_that_is_not_listed(db):
         _ref(db, "items", "i1", "cites", "s1")
     assert not [k for k in schema_states() if k[0] == "refs"]
     assert "schema.state" not in vocabulary.harvest()["items"].sources
+
+
+def test_respecify_with_a_list_replaces_the_term_refs_on_file(db):
+    """A `term_refs` list given to `criteria.respecify` replaces the list on
+    file, as the column did: the refs not in the list are retired and the
+    kept ones stay. No list leaves the refs as they are."""
+    from rota.core.sandbox import build
+
+    _item(db, "i1")
+    for gid in ("g1", "g2", "g3"):
+        _term(db, gid)
+    _criterion(db, "c1")
+    _ref(db, "criteria", "c1", "term", "g1")
+    _ref(db, "criteria", "c1", "term", "g2")
+
+    def terms():
+        return [r["target"] for r in db.execute(
+            "SELECT target FROM refs WHERE src_table = 'criteria' "
+            "AND src_id = 'c1' AND kind = 'term' ORDER BY rowid")]
+
+    sb = build("terminologist", db, mode="criterion_repair")
+    sb.call("criteria.respecify", id="c1", text="the tip is a share of the bill",
+            term_refs=["g2", "g3"], surface_refs=["run"])
+    _commit_sandbox(db, sb, "s_re1")
+    assert terms() == ["g2", "g3"]
+
+    sb = build("terminologist", db, mode="criterion_repair")
+    sb.call("criteria.respecify", id="c1", text="the tip is a share of the total",
+            surface_refs=["run"])
+    _commit_sandbox(db, sb, "s_re2")
+    assert terms() == ["g2", "g3"], "no list given leaves the refs as they are"

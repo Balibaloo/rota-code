@@ -1584,11 +1584,10 @@ def run_session(
     from .scheduler import ONBOARDING_TICKS
 
     onboarding = wake.kind in ONBOARDING_TICKS
-    provenance = "observed" if onboarding else "decided"
 
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
                            session_id=session_id, entry_id=entry_id,
-                           provenance=provenance, onboarding=onboarding, g=g,
+                           onboarding=onboarding, g=g,
                            # The subject the scheduler decided: an area for a
                            # survey, `@program` for the orientation, `@term:x`
                            # for a word. Never the role's to choose.

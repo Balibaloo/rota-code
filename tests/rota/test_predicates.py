@@ -10,7 +10,7 @@ import pytest
 
 from rota.core import predicates as P
 from rota.core.db import init_db
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance, seed_ref
 
 
 @pytest.fixture
@@ -113,8 +113,8 @@ def test_predicates_are_pure(db):
     A predicate that writes would make the frontier depend on how often it was
     computed, and the scheduler computes it constantly.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
-               "VALUES ('i1','x','in_scope','decided','contested')")
+    db.execute("INSERT INTO items (id, text, kind, approval) "
+               "VALUES ('i1','x','in_scope','contested')")
     before = [dict(r) for r in db.execute("SELECT * FROM items")]
 
     P.all_wakes(db)
@@ -127,16 +127,16 @@ def test_predicates_are_pure(db):
 
 
 def test_contested_wakes_the_items_owner(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
-               "VALUES ('i1','delete accounts','in_scope','decided','contested')")
+    db.execute("INSERT INTO items (id, text, kind, approval) "
+               "VALUES ('i1','delete accounts','in_scope','contested')")
     wakes = P.REGISTRY["contested"].fn(db)
     assert [w.role for w in wakes] == ["vision_keeper"]
     assert wakes[0].refs == ("i1",)
 
 
 def test_tests_failing_stops_at_the_cap(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','x')")
@@ -213,8 +213,7 @@ def test_the_reachability_check_understands_parameterised_writes():
     Flagging those would bury the real holes in noise.
     """
     found = {p.split(" is never")[0] for p in P.check_states_are_reachable()}
-    for parameterised in ("items.approval = 'approved'", "verdicts.result = 'pass'",
-                          "items.provenance = 'observed'"):
+    for parameterised in ("items.approval = 'approved'", "verdicts.result = 'pass'"):
         assert parameterised not in found
 
 
@@ -269,9 +268,9 @@ def test_a_round_whose_reports_all_settled_never_wakes_liaison(db):
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
                "VALUES ('m1','t1','liaison','vision_keeper','deliver','[]',1,'answered')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
+    db.execute("INSERT INTO items (id, text, kind, approval) "
                "VALUES ('i1','people can close their account','in_scope',"
-               "'decided','approved')")
+               "'approved')")
     db.execute("INSERT INTO entries (id, author, text, ts_order) "
                "VALUES ('e1','principal','let people close their account',1)")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
@@ -288,8 +287,8 @@ def test_a_round_whose_reports_all_settled_never_wakes_liaison(db):
         "woke Liaison for a round in which every role reported itself finished"
 
     # One unsettled ref is the whole round's business, and it wakes.
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i2','people can export invoices','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i2','people can export invoices','in_scope')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) "
                "VALUES ('m4','t1','architect','liaison','report','[\"i2\"]',4,'open')")
@@ -363,8 +362,8 @@ def test_a_role_waiting_on_its_own_question_is_not_offered_new_work(db):
     """
     from rota.core.scheduler import frontier, waiting_on
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval) "
-               "VALUES ('i1','close an account','in_scope','decided','approved')")
+    db.execute("INSERT INTO items (id, text, kind, approval) "
+               "VALUES ('i1','close an account','in_scope','approved')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                "VALUES ('b1','i1','running','abc123')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
@@ -407,9 +406,9 @@ def test_waiting_does_not_silence_a_different_role(db):
     """The register is per obligation, not a global pause."""
     from rota.core.scheduler import frontier
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','close an account','in_scope','decided','approved',1,1)")
+               "VALUES ('i1','close an account','in_scope','approved',1,1)")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES "
                "('m1','t1','developer','terminologist','question','[]','?',1,'open')")
@@ -433,29 +432,31 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
     """
     from rota.core.scheduler import frontier, rests_on_a_collision
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','archived orders are searchable','in_scope','decided',"
+               "('i1','archived orders are searchable','in_scope',"
                "'approved',1,1)")
+    seed_provenance(db, "items", "i1", "decided")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','search')")
     # A commit. The Tester now waits for one, because on a greenfield batch
     # there is nothing to call. This case is about collisions, not ordering.
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                "VALUES ('b1','i1','running','deadbeef')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','archived orders come back from search','[\"g1\"]')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','archived','flagged inactive, row stays','decided')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','archived orders come back from search')")
+    seed_ref(db, "criteria", "c1", "term", "g1")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','archived','flagged inactive, row stays')")
+    seed_provenance(db, "glossary_terms", "g1", "decided")
 
     assert any(w.role == "tester" and w.kind == "tick:tests_missing"
                for w in frontier(db)), "one sense is no collision; encode it"
 
     # A second sense arrives. Nobody has ruled, so the criterion now rests on a
     # word that means two things.
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','archived','moved to cold storage','decided')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','archived','moved to cold storage')")
 
     assert rests_on_a_collision(
         db, next(w for w in P.all_wakes(db) if w.role == "tester")) == ["c1"]
@@ -480,9 +481,9 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
     """
     from rota.core import scheduler
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','tip','the gratuity','observed')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','tip','the gratuity')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
     assert not any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
@@ -498,10 +499,10 @@ def test_review_and_merge_wait_for_every_criterions_test(db):
     """
     from rota.core import lifecycle
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','t')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES ('c1','tk1','the tip is right','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','tk1','the tip is right')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','i1','running','abc123')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
     db.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
@@ -526,8 +527,8 @@ def test_the_agenda_waits_for_onboarding_to_finish(db, monkeypatch):
     """
     from rota.core import scheduler
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope','approved',1,1)")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_1','i1','items','a default','open','critic')")
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
@@ -544,8 +545,8 @@ def test_an_item_amended_after_delivery_is_sliced_again(db):
     with a ticket is never sliced. The merge records the delivered version;
     an approval of a later version is new work.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('split_bill','v1','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('split_bill','v1','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_1','split_bill','t')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','split_bill','merged','abc')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk_1')")
@@ -574,14 +575,15 @@ def test_an_observed_item_is_a_record_not_a_build_order(db):
     sent them to slicing, and the Developer was sent to rewrite behaviour
     that exists. Found is not decided, and a description is not an order.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
                "('accept_inputs','the program reads two numbers','in_scope',"
-               "'observed','approved',1,1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "'approved',1,1)")
+    seed_provenance(db, "items", "accept_inputs", "observed")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('split_bill','the bill is split','in_scope','decided','approved',1,1)")
-    refs_from_columns(db)
+               "('split_bill','the bill is split','in_scope','approved',1,1)")
+    seed_provenance(db, "items", "split_bill", "decided")
     wakes = [w for w in P.all_wakes(db) if w.kind == "tick:slicing"]
     assert wakes and wakes[0].refs == ("split_bill",), wakes
 
@@ -592,15 +594,15 @@ def test_a_merged_batch_never_wakes_the_tester_again(db):
     anyway. `tests_missing` fired on the merged batch, the Tester was
     quarantined, and the state said the team gave up. A merged batch is done.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','the tip is shown','in_scope','decided','approved',1,1)")
+               "('i1','the tip is shown','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','show')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                "VALUES ('b1','i1','merged','deadbeef')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','tk1','the tip is printed','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk1','the tip is printed')")
     assert not any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
     db.execute("UPDATE batches SET status = 'running' WHERE id = 'b1'")
     assert any(w.kind == "tick:tests_missing" for w in P.all_wakes(db))
@@ -735,11 +737,12 @@ def test_a_reported_collision_stops_being_offered(db):
     """
     from rota.core.scheduler import frontier
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','issue_template','bug report template','observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','issue_template','feature request template','observed')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','issue_template','bug report template')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','issue_template','feature request template')")
+    seed_provenance(db, "glossary_terms", "g2", "observed")
 
     assert any(w.kind == "tick:term_collision" for w in frontier(db)),         "two live senses, nobody told: it must be raised"
 
@@ -758,17 +761,19 @@ def test_a_reported_collision_stops_being_offered(db):
     # happened in the measured run: a session tried to settle the word by
     # writing a merged third row, which under id-keyed matching would read as a
     # brand new collision.
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g3','issue_template','template for bugs and features',"
-               "'observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g3','issue_template','template for bugs and features')")
+    seed_provenance(db, "glossary_terms", "g3", "observed")
     assert not any(w.kind == "tick:term_collision" for w in frontier(db)),         "a third sense is more evidence for the open case, not a new one"
 
     # An unrelated word is still raised: the suppression is per-term, not
     # `contradiction`'s cruder "any open clarify exists at all".
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g4','intent','a note-creation recipe','observed')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g5','intent','a specific action or task','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g4','intent','a note-creation recipe')")
+    seed_provenance(db, "glossary_terms", "g4", "observed")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g5','intent','a specific action or task')")
+    seed_provenance(db, "glossary_terms", "g5", "observed")
     assert [w.detail for w in frontier(db) if w.kind == "tick:term_collision"]         == ["intent"]
 
     # Answered and dropped without a ruling: it comes back, because nothing was
@@ -789,13 +794,13 @@ def test_what_this_system_does_not_know_is_one_query(db):
     """
     assert P.outstanding(db) == [], "an empty project owes nothing"
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','order','a customer purchase','decided')")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','order','the sequence events arrive in','decided')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','order','a customer purchase')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','order','the sequence events arrive in')")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','reconcile late orders','in_scope','decided','contested',1,1)")
+               "('i1','reconcile late orders','in_scope','contested',1,1)")
 
     rows = {r["obligation"]: r for r in P.outstanding(db)}
     assert "term_collision" in rows, "a word with two live senses is outstanding"
@@ -874,10 +879,10 @@ def test_the_quarantine_wake_names_something_the_principal_can_be_shown(db):
     the dead message was about, and that is the thing with a name at the
     principal's end.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
                "('i1','search results are ranked by relevance','in_scope',"
-               "'decided','approved',1,1)")
+               "'approved',1,1)")
     db.execute(
         "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
         "body_refs, seq, attempts, status) VALUES "
@@ -1244,11 +1249,12 @@ def test_the_observed_offer_names_its_rows(db):
     from rota.core.runner import run_session
     from rota.llm.llm import Pins, ScriptedBackend
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1','schema','must match','observed')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1','schema','must match')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.commit()
 
     wakes = observed_entries(db)
@@ -1284,13 +1290,14 @@ def test_the_lazy_election_defers_the_baseline_to_the_ledger(db):
     from rota.core.predicates import observed_entries
     from rota.llm.llm import Pins, ScriptedBackend
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a note that seeds another','observed')")
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
-               "('k1','frontmatter must match the schema','x','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
+               "('k1','frontmatter must match the schema','x')")
+    seed_provenance(db, "constraints", "k1", "observed")
     db.execute("INSERT INTO config (key, value) VALUES "
                "('baseline_election','lazy')")
-    refs_from_columns(db)
     db.commit()
 
     offer = observed_entries(db)
@@ -1319,9 +1326,9 @@ def test_the_eager_default_is_unchanged(db):
     always been."""
     from rota.core.predicates import observed_entries
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
-    refs_from_columns(db)
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.commit()
     offer = observed_entries(db)
     assert [(w.role, w.kind) for w in offer] == \
@@ -1329,13 +1336,13 @@ def test_the_eager_default_is_unchanged(db):
 
 
 def _bad_criterion(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','emails are stored "
-               "lowercased','in_scope','decided','approved',1,1)")
+               "lowercased','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('t1','i1','store the email lowercased on registration')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','t1','store the email lowercased on registration','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','t1','store the email lowercased on registration')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status, unresolved_note) VALUES "
                "('q1','th1','tester','terminologist','question','[\"c1\"]',"
@@ -1462,13 +1469,13 @@ def test_a_present_deferred_without_ruling_takes_the_lazy_path(db):
     from rota.core.predicates import observed_entries
     from rota.llm.llm import Pins, ScriptedBackend
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a note that seeds another','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a note that seeds another')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('p1','t1','liaison',"
                "'principal','present',?, 1,'answered')",
                (_json.dumps(["g1"]),))
-    refs_from_columns(db)
     db.commit()
 
     offer = observed_entries(db)
@@ -1491,8 +1498,9 @@ def test_a_ruled_present_is_not_limbo(db):
 
     from rota.core.predicates import observed_entries
 
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('p1','t1','liaison',"
                "'principal','present',?,1,'answered')", (_json.dumps(["g1"]),))
@@ -1507,17 +1515,17 @@ def test_a_ruled_present_is_not_limbo(db):
 def _answered_criteria_question(db):
     import json as _json
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','emails lowercased',"
-               "'in_scope','decided','approved',1,1)")
+               "'in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('t1','i1','store lowered')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES "
                "('b1','i1','running')")
     db.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
                "('b1','t1')")
-    db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
-               "('c1','t1','store lowered','[]')")
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','t1','store lowered')")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, body_text, seq, status) VALUES ('q1','th1','tester',"
                "'terminologist','question',?, 'make it checkable?',1,"
@@ -1592,9 +1600,9 @@ def test_an_answer_that_lands_stays_answered(db):
 
 def _two_batches(db, running_pri=0, challenger_pri=5):
     for iid, pri in (("i_low", running_pri), ("i_high", challenger_pri)):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+        db.execute("INSERT INTO items (id, text, kind, approval, "
                    "approval_ver, version, priority) VALUES (?, 'x', "
-                   "'in_scope', 'decided', 'approved', 1, 1, ?)", (iid, pri))
+                   "'in_scope', 'approved', 1, 1, ?)", (iid, pri))
     db.execute("INSERT INTO batches (id, item_id, status, worktree, "
                "head_commit) VALUES ('b_low','i_low','running','wt/b_low',"
                "'abc123')")
@@ -1665,14 +1673,15 @@ def test_the_account_is_never_sliced(db):
     """
     from rota.core.scheduler import tick_slicing
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
                "('how_it_works','the user types the bill; the program prints the tip',"
-               "'in_scope','decided','approved',1,1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "'in_scope','approved',1,1)")
+    seed_provenance(db, "items", "how_it_works", "decided")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('calculate_tip','calculate the tip','in_scope','decided','approved',1,1)")
-    refs_from_columns(db)
+               "('calculate_tip','calculate the tip','in_scope','approved',1,1)")
+    seed_provenance(db, "items", "calculate_tip", "decided")
     db.commit()
     wakes = tick_slicing(db)
     assert len(wakes) == 1
@@ -1723,8 +1732,8 @@ def test_a_running_batch_with_no_commit_still_owes_its_start(tmp_path):
     from rota.core.scheduler import tick_batch_start
 
     conn = init_db(tmp_path / "r.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     conn.commit()
     # Dispatched, no session yet: the Developer is in flight, single-instance.
@@ -1748,12 +1757,13 @@ def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
     from rota.core.predicates import REGISTRY
 
     conn = init_db(tmp_path / "r.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                  "VALUES ('b1','i1','running','abc')")
-    conn.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-                 "('k1','calculate_tip is used by main','observed')")
+    conn.execute("INSERT INTO constraints (id, headline) VALUES "
+                 "('k1','calculate_tip is used by main')")
+    seed_provenance(conn, "constraints", "k1", "observed")
     conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                  "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
     conn.commit()
@@ -1786,12 +1796,13 @@ def test_constraint_zero_cannot_be_violated(tmp_path):
     from rota.roles import prompts
 
     conn = init_db(tmp_path / "r.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-                 "version) VALUES ('i1','split the bill','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
                  "VALUES ('b1','i1','running','abc')")
-    conn.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-                 "('k0','this area has not been surveyed','observed')")
+    conn.execute("INSERT INTO constraints (id, headline) VALUES "
+                 "('k0','this area has not been surveyed')")
+    seed_provenance(conn, "constraints", "k0", "observed")
     conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                  "VALUES ('f1','b1','k0','abc','violated','split_bill.py')")
     conn.commit()
@@ -1814,8 +1825,8 @@ def test_the_agenda_wake_carries_the_rows_a_page_may_hold(db):
     from rota.core.sandbox import PAGE_ASSUMPTIONS
     from rota.core.scheduler import tick_agenda
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('i1','x','in_scope','decided','approved',1,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','x','in_scope','approved',1,1)")
     for n in range(10):
         db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, author) "
                    "VALUES (?, 'i1', 'items', ?, 'open', 'vision_keeper')", (f"L{n:02d}", f"a{n}"))
@@ -1828,7 +1839,7 @@ def test_a_fail_a_later_pass_superseded_does_not_exhaust(db):
     fail row, `tests_failing` over each test's latest run only. A batch whose
     fails a later pass superseded could climb the ladder while nothing failed."""
     from rota.core.predicates import exhausted
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval) VALUES ('i1','x','in_scope','decided','approved')")
+    db.execute("INSERT INTO items (id, text, kind, approval) VALUES ('i1','x','in_scope','approved')")
     db.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES ('b1','i1','running','abc123')")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c1','t1','x')")

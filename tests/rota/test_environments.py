@@ -20,8 +20,8 @@ from rota.core.db import init_db
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "env.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance) "
-                 "VALUES ('i1','x','in_scope','decided')")
+    conn.execute("INSERT INTO items (id, text, kind) "
+                 "VALUES ('i1','x','in_scope')")
     for b in ("b1", "b2", "b3"):
         conn.execute("INSERT INTO batches (id, item_id) VALUES (?, 'i1')", (b,))
     return conn

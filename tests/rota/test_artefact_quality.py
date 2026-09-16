@@ -19,6 +19,7 @@ import pytest
 
 from rota.core.db import init_db
 from rota.testkit import artefacts
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -29,21 +30,25 @@ def db(tmp_path):
 def _constraint(conn, id, headline, text="", provenance="observed",
                 bindings=(), source_refs=()):
     conn.execute(
-        "INSERT INTO constraints (id, headline, text, provenance, source_refs) "
-        "VALUES (?,?,?,?,?)",
-        (id, headline, text, provenance, json.dumps(list(source_refs))))
+        "INSERT INTO constraints (id, headline, text) VALUES (?,?,?)",
+        (id, headline, text))
     for g in bindings:
         conn.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
                      "grain_kind) VALUES (?,?,'path')", (id, g))
     _reference_refs(conn, "constraints", id, source_refs)
+    # A cited row with references rests on the reference refs above.
+    if provenance == "observed" or (provenance == "cited" and not source_refs):
+        seed_provenance(conn, "constraints", id, provenance)
 
 
 def _term(conn, id, term, short, provenance="observed", source_refs=(), body=""):
     conn.execute(
-        "INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-        "provenance, source_refs) VALUES (?,?,?,?,?,?)",
-        (id, term, short, body, provenance, json.dumps(list(source_refs))))
+        "INSERT INTO glossary_terms (id, term, sense_short, sense_body) "
+        "VALUES (?,?,?,?)",
+        (id, term, short, body))
     _reference_refs(conn, "glossary_terms", id, source_refs)
+    if provenance == "observed" or (provenance == "cited" and not source_refs):
+        seed_provenance(conn, "glossary_terms", id, provenance)
 
 
 def _reference_refs(conn, table, id, source_refs):
@@ -201,8 +206,9 @@ def test_constraint_zero_is_not_judged_as_if_a_role_wrote_it(db):
     """
     from rota.onboarding import boot
 
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES (?,?,?)",
-               (boot.ZERO, boot.ZERO_HEADLINE, "observed"))
+    db.execute("INSERT INTO constraints (id, headline) VALUES (?,?)",
+               (boot.ZERO, boot.ZERO_HEADLINE))
+    seed_provenance(db, "constraints", boot.ZERO, "observed")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
                "VALUES (?,?,'path')", (boot.ZERO, "src/billing"))
 

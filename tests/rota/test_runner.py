@@ -13,6 +13,7 @@ from rota.core.db import init_db, version_of
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.core.runner import run_session
 from rota.core.scheduler import Wake
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -247,8 +248,8 @@ def test_a_long_read_reaches_the_model_past_the_old_cap(db):
 
 def test_working_set_is_pushed_not_only_offered(db):
     """A cold session should not have to fetch what it obviously needs."""
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i_existing','prior scope','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i_existing','prior scope','in_scope')")
     backend = ScriptedBackend(["done"])
     run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
 
@@ -400,8 +401,9 @@ def test_a_read_already_answered_does_not_hold_the_action_again(db):
     nobody acts on something unseen, and by the second time round it has been
     seen.
     """
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('t1','account','a customer record','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('t1','account','a customer record')")
+    seed_provenance(db, "glossary_terms", "t1", "observed")
     batch = ("TOOL: problem.consult()\n"
              "TOOL: msg.report_liaison(refs=['u1'])")
     backend = ScriptedBackend([batch, batch, "Done."])
@@ -566,8 +568,8 @@ def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
     cases -- see the note at `fresh_read` -- because "you already have this"
     reads to an 8B model as "there is nothing here for you".
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
-               ("i01", "people can close their account", "in_scope", "decided"))
+    db.execute("INSERT INTO items (id, text, kind) VALUES (?,?,?)",
+               ("i01", "people can close their account", "in_scope"))
 
     backend = ScriptedBackend([
         "TOOL: problem.consult()\n"

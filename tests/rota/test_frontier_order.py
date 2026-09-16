@@ -25,6 +25,7 @@ import pytest
 from rota.core.db import init_db
 from rota.core.predicates import REGISTRY
 from rota.core.scheduler import frontier_readonly
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -56,8 +57,9 @@ def test_messages_are_offered_oldest_first_whatever_their_ids(db):
     """Three askable questions, seeded with ids chosen so that alphabetical
     order and age order disagree -- the frontier follows age."""
     for gid in ("g1", "g2", "g3"):
-        db.execute("INSERT INTO glossary_terms (id, term, sense_short, "
-                   "provenance) VALUES (?, ?, 'x', 'observed')", (gid, gid))
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+                   "VALUES (?, ?, 'x')", (gid, gid))
+        seed_provenance(db, "glossary_terms", gid, "observed")
     _ask(db, "m_zzz", "terminologist", "g1", 1)   # oldest, last by name
     _ask(db, "m_mmm", "architect", "g2", 2)
     _ask(db, "m_aaa", "vision_keeper", "g3", 3)   # newest, first by name
@@ -74,8 +76,9 @@ def test_a_frontier_of_three_orders_purely(db):
     three things. Recomputing the same world gives the same order -- the
     chaos suite's purity claim, held at width."""
     for gid in ("g1", "g2", "g3"):
-        db.execute("INSERT INTO glossary_terms (id, term, sense_short, "
-                   "provenance) VALUES (?, ?, 'x', 'observed')", (gid, gid))
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+                   "VALUES (?, ?, 'x')", (gid, gid))
+        seed_provenance(db, "glossary_terms", gid, "observed")
     _ask(db, "m1", "terminologist", "g1", 1)
     _ask(db, "m2", "architect", "g2", 2)
     _ask(db, "m3", "vision_keeper", "g3", 3)

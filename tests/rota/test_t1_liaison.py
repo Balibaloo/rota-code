@@ -232,8 +232,8 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
 
 def test_i4_readonly_writes_nothing_and_bumps_nothing(db, backend, dev_db):
     """The invariant 'read-only inquiry is free' — asserted, not assumed."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver) "
-               "VALUES ('i1','users can delete their account','in_scope','decided','approved',1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver) "
+               "VALUES ('i1','users can delete their account','in_scope','approved',1)")
     db.execute("INSERT INTO sessions (id, role, mode, committed, seq) "
                "VALUES ('s_dev','developer','normal',1,1)")
     db.execute("INSERT INTO checkpoints (session_id, role, working_set, valid) "

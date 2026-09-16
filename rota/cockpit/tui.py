@@ -57,7 +57,7 @@ if __package__ in (None, ""):                              # pragma: no cover
 
 from .. import cli, paths
 from ..core import config, loop as loop_mod
-from ..core.db import connect, init_db, mark_opened
+from ..core.db import connect, init_db, mark_opened, open_for_viewing
 from ..core.predicates import outstanding
 from ..llm import llm
 from ..onboarding import boot
@@ -258,6 +258,9 @@ class RotaApp(App):
         # command — which is the exact trip to the terminal the list exists to
         # remove, surviving in the one case where it is least excusable.
         self.db_path = Path(db_path) if db_path else None
+        # The sentence for a run from before the refs relation. Such a run
+        # opens read-only and is read, not run.
+        self.stale_note: str | None = None
         if self.db_path is None:
             self.model = model
             self.root = None
@@ -271,10 +274,12 @@ class RotaApp(App):
         # from, and a rerun would do it over the top of a wipe. A missing root
         # is a thing to say, not a thing to guess.
         self.root = Path(root) if root else None
-        self.conn = init_db(self.db_path)
+        self.conn, self.stale_note = open_for_viewing(self.db_path)
         # A seat holding a run is what "opened" means, so it is stamped here
         # and in `open_run`, and in no third place. The list sorts on it.
-        mark_opened(self.conn)
+        # Not on the read-only connection an old run gets.
+        if not self.stale_note:
+            mark_opened(self.conn)
         # And if it was not passed, ask the run. `project_root` has been in
         # `config` since onboarding wrote it and nothing downstream read it
         # back, so the root was supplied twice and the two could disagree.
@@ -385,6 +390,9 @@ class RotaApp(App):
         self.sub_title = (
             f"{self.root.name if self.root else 'no project'} — {self.model}"
             if self.db_path else "no run open — ctrl+l")
+        if self.stale_note:
+            # The note, where the seat reads the run's name: read-only.
+            self.sub_title = f"{self.sub_title} — read-only: {self.stale_note}"
 
     # -- the two things the worker thread is allowed to do -------------------
 
@@ -685,6 +693,7 @@ class RotaApp(App):
         removed = wipe_path(path)
         if reopen:
             self.conn = init_db(path)
+            self.stale_note = None
         else:
             self.db_path = None
             self.root = None
@@ -784,8 +793,9 @@ class RotaApp(App):
         if self.conn is not None:
             self.conn.close()
         self.db_path = Path(path)
-        self.conn = init_db(self.db_path)
-        mark_opened(self.conn)
+        self.conn, self.stale_note = open_for_viewing(self.db_path)
+        if not self.stale_note:
+            mark_opened(self.conn)
         self.root = None
         row = self.conn.execute(
             "SELECT value FROM config WHERE key = 'project_root'").fetchone()
@@ -1127,6 +1137,12 @@ class RotaApp(App):
         def on_step(step) -> None:
             self._from_worker(self.note_step, f"· {step}"[:120],
                               bool(getattr(step, "productive", True)))
+
+        if self.stale_note:
+            # An old night run is read, not run. Only a run refuses, and
+            # this is where the seat would start one.
+            self._from_worker(self.say, self.stale_note, "rota", "red")
+            return
 
         self.driving = True
         self._from_worker(self.refresh_run_state)

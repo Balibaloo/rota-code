@@ -77,7 +77,6 @@ class ArgumentError(SandboxError):
 ENUMS: dict[str, tuple[str, ...]] = {
     "approval":   ("draft", "pending", "approved", "contested"),
     "kind":       ("in_scope", "out_of_scope"),
-    "provenance": ("observed", "decided"),
     "outcome":    ("found", "none_found"),
     "result":     ("pass", "fail"),
     "author":     ("principal", "liaison"),
@@ -447,7 +446,7 @@ def situational(conn: sqlite3.Connection, role: str, mode: str, wake,
 def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
           area: str | None = None,
-          entry_id: str | None = None, provenance: str = "decided",
+          entry_id: str | None = None,
           onboarding: bool = False,
           allow: list[str] | None = None,
           wake: object | None = None,
@@ -465,7 +464,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
                   batch_id=batch_id, area=area, entry_id=entry_id,
-                  provenance=provenance, onboarding=onboarding,
+                  onboarding=onboarding,
                   wake_refs=tuple(getattr(wake, "refs", ()) or ()))
 
     grouped: dict[str, dict[str, Callable]] = {}

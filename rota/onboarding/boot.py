@@ -244,8 +244,8 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
         return 0
 
     conn.execute(
-        "INSERT OR IGNORE INTO constraints (id, headline, text, provenance, "
-        "is_global) VALUES (?, ?, ?, 'observed', 0)",
+        "INSERT OR IGNORE INTO constraints (id, headline, text, is_global) "
+        "VALUES (?, ?, ?, 0)",
         (ZERO, ZERO_HEADLINE, ZERO_TEXT))
 
     surveyed = {r["area"] for r in conn.execute(

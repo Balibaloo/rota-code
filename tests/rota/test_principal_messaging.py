@@ -20,6 +20,7 @@ import pytest
 
 from rota.core.db import init_db
 from rota.roles.principal import pending_asks, render_ask
+from rota.testkit.fixtures import seed_provenance
 
 RAW_ID = re.compile(r"\b(l_[0-9a-f]{6,}|s\d+|k0|t\d+|i_[0-9a-f]{6}|how_it_works|m\d+)\b")
 
@@ -63,8 +64,8 @@ def test_a_signoff_page_reads_as_one_page_in_order(db):
         ("how_it_works", "in_scope", "The user types the bill and a tip percentage; the program prints the tip."),
         ("no_gui", "out_of_scope", "No graphical interface."),
     ):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-                   "approval_ver, version) VALUES (?,?,?,'decided','draft',0,1)",
+        db.execute("INSERT INTO items (id, text, kind, approval, "
+                   "approval_ver, version) VALUES (?,?,?,'draft',0,1)",
                    (iid, text, kind))
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, "
                "author) VALUES ('l_a69ad6edd4','how_it_works','items',"
@@ -87,10 +88,10 @@ def test_a_signoff_page_reads_as_one_page_in_order(db):
 
 
 def test_constraint_zero_is_a_sentence_a_person_can_act_on(db):
-    db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES "
                "('k0','this codebase is not yet understood',"
-               "'Nobody has read this area yet, so what it is committed to is unknown.',"
-               "'observed')")
+               "'Nobody has read this area yet, so what it is committed to is unknown.')")
+    seed_provenance(db, "constraints", "k0", "observed")
     db.commit()
     ask = _ask(db, "m12", "present", ["k0"])
     page = ask.rendered
@@ -102,8 +103,8 @@ def test_constraint_zero_is_a_sentence_a_person_can_act_on(db):
 
 
 def test_a_clarify_carries_the_question_its_context_and_the_bargain(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
-               "version) VALUES ('how_it_works','a tip calculator','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('how_it_works','a tip calculator','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text, version) VALUES "
                "('tk1','how_it_works','a ticket',1)")

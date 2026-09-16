@@ -18,6 +18,7 @@ import pytest
 
 from rota import cli
 from rota.core.db import init_db
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -165,8 +166,10 @@ def _seed_items(path: Path, count: int) -> None:
 
     conn = sqlite3.connect(path)
     conn.executemany(
-        "INSERT INTO items (id, text, kind, provenance) VALUES (?,?,?,?)",
-        [(f"i{n}", "a thing", "in_scope", "observed") for n in range(count)])
+        "INSERT INTO items (id, text, kind) VALUES (?,?,?)",
+        [(f"i{n}", "a thing", "in_scope") for n in range(count)])
+    for n in range(count):
+        seed_provenance(conn, "items", f"i{n}", "observed")
     conn.commit()
     conn.close()
 

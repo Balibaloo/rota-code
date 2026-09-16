@@ -5,7 +5,7 @@ from rota.core.runner import push_working_set
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
 from rota.roles import prompts
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance, seed_ref
 
 
 def test_the_slicing_wake_sets_its_item_apart_from_the_account(tmp_path):
@@ -14,8 +14,8 @@ def test_the_slicing_wake_sets_its_item_apart_from_the_account(tmp_path):
     db = init_db(tmp_path / "rota.db")
     for i, text in (("how_it_works", "the program is a CLI toolkit"),
                     ("echo_json", "add an echo_json helper next to echo")):
-        db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-                   "VALUES (?, ?, 'in_scope', 'decided', 'approved', 1, 1)", (i, text))
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                   "VALUES (?, ?, 'in_scope', 'approved', 1, 1)", (i, text))
     db.commit()
     sb = build("vision_keeper", db, mode="slicing",
                allow=prompts.mode_tools("vision_keeper", "slicing"))
@@ -36,13 +36,13 @@ def test_the_criteria_wake_carries_the_item_and_the_module_the_ticket_names(tmp_
     db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES ('e1','principal',1,'Add an echo_json helper next to echo.')")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) VALUES "
                "('s1','e1',0,40,'Add an echo_json helper next to echo.','ratified')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) VALUES "
-               "('echo_json','Add an echo_json helper next to echo','in_scope','decided','approved',1,1)")
-    db.execute("INSERT INTO item_statements (item_id, statement_id) VALUES ('echo_json','s1')")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) VALUES "
+               "('echo_json','Add an echo_json helper next to echo','in_scope','approved',1,1)")
+    seed_ref(db, "items", "echo_json", "statement", "s1")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add an echo_json helper next to echo')")
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('src/click/utils.py::echo','symbol','function')")
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('tests/test_echo.py::test_echo','symbol','function')")
-    refs_from_columns(db)
+    seed_provenance(db, "items", "echo_json", "decided")
     db.commit()
     sb = build("terminologist", db, mode="criteria",
                allow=prompts.mode_tools("terminologist", "criteria"))
@@ -57,7 +57,7 @@ def test_the_agenda_wake_pushes_the_pages_seven_and_counts_the_rest(tmp_path):
     """clickI night 35 (2026-09-13): 51 open ledger rows, 15,500 characters,
     pushed into a wake whose refs named seven."""
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x','in_scope')")
     for k in range(10):
         db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, author) "
                    "VALUES (?, 'i1', 'items', ?, 'developer')", (f"l_{k}", f"assumed {k}"))
@@ -75,7 +75,7 @@ def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):
     else, and the Liaison sent refs=["tick:quarantined"] three times."""
     from rota.core import predicates as P
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance) VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('bg_2','i1','running')")
     db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, reported) "
                "VALUES ('developer|tick:batch_start|bg_2', 3, 1, 0)")

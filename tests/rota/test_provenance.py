@@ -24,6 +24,7 @@ import pytest
 
 from rota.cockpit import inspect_api
 from rota.core.db import SessionResult, Write, init_db, session_commit
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -53,8 +54,7 @@ def test_a_row_names_the_session_that_wrote_it(db):
              wake_detail="rota/core",
              writes=[Write("glossary_terms", "g_intent", {
                  "id": "g_intent", "term": "intent",
-                 "sense_short": "a specific action or task",
-                 "provenance": "observed"})])
+                 "sense_short": "a specific action or task"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g_intent")
 
@@ -73,12 +73,10 @@ def test_an_amendment_shows_the_session_that_last_touched_it(db):
     """
     _session(db, "s1", "terminologist", wake_kind="tick:survey",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "intent", "sense_short": "first",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "intent", "sense_short": "first"})])
     _session(db, "s2", "terminologist", wake_kind="tick:collision",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "intent", "sense_short": "second",
-                 "provenance": "decided"})])
+                 "id": "g1", "term": "intent", "sense_short": "second"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
 
@@ -93,8 +91,9 @@ def test_a_row_nothing_claims_says_so(db):
     "no receipt" is an ordinary answer and not a broken one. Saying nothing
     wrote it beats implying something did.
     """
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','orphan','no session wrote me','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','orphan','no session wrote me')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
 
@@ -124,8 +123,7 @@ def test_a_tick_session_records_what_woke_it(db):
     _session(db, "s1", "terminologist", wake_kind="tick:survey",
              wake_detail="rota/core",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "grain", "sense_short": "a unit",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "grain", "sense_short": "a unit"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
 
@@ -147,8 +145,7 @@ def test_a_survey_wake_names_the_area_it_was_about(db):
     _session(db, "s1", "terminologist", wake_kind="tick:survey",
              wake_refs=("src/icalendar",),
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "alarm", "sense_short": "an event",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "alarm", "sense_short": "an event"})])
 
     assert inspect_api.provenance(
         db, "glossary_terms", "g1")["woken_by"]["refs"] == ["src/icalendar"]
@@ -173,8 +170,7 @@ def test_a_message_session_walks_the_causal_chain_to_its_root(db):
 
     _session(db, "s1", "terminologist", trigger="m3", wake_kind="message",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "order", "sense_short": "a purchase",
-                 "provenance": "decided"})])
+                 "id": "g1", "term": "order", "sense_short": "a purchase"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
 
@@ -194,8 +190,7 @@ def test_the_chain_cannot_loop_forever(db):
                "VALUES ('m1','t1','a','b','x','[]',1,'open','m1')")
     _session(db, "s1", "b", trigger="m1", wake_kind="message",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "t", "sense_short": "s",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "t", "sense_short": "s"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
     assert [c["id"] for c in got["chain"]] == ["m1"]
@@ -211,8 +206,7 @@ def test_what_the_session_did_is_recorded_and_returned(db):
              calls=[("code.source", "rota/core/db.py"),
                     ("glossary.define", "grain")],
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "grain", "sense_short": "a unit",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "grain", "sense_short": "a unit"})])
 
     got = inspect_api.provenance(db, "glossary_terms", "g1")
 
@@ -235,8 +229,7 @@ def test_the_brief_is_shown_and_the_working_set_is_admitted_missing(db):
     """
     _session(db, "s1", "terminologist", wake_kind="tick:survey",
              writes=[Write("glossary_terms", "g1", {
-                 "id": "g1", "term": "grain", "sense_short": "a unit",
-                 "provenance": "observed"})])
+                 "id": "g1", "term": "grain", "sense_short": "a unit"})])
 
     shown = inspect_api.provenance(db, "glossary_terms", "g1")["shown"]
 

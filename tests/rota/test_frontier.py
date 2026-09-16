@@ -43,10 +43,10 @@ def broken_and_ready(db):
     the honest case: both predicates genuinely fire, and the order is what
     decides which is offered first.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES "
-               "('i1','the principal rejected this','in_scope','decided','contested',1,1), "
-               "('i2','new work','in_scope','decided','approved',1,1)")
+               "('i1','the principal rejected this','in_scope','contested',1,1), "
+               "('i2','new work','in_scope','approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('t2','i2','build it')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b_new','i2','pending')")
     return db

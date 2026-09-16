@@ -20,11 +20,13 @@ import pytest
 
 from rota.core.db import init_db
 from rota.roles.api import glossary_synthesise
+from rota.testkit.fixtures import seed_provenance
 
 
 class Ctx:
-    def __init__(self, conn, provenance="observed", wake_refs=()):
-        self.conn, self.provenance = conn, provenance
+    def __init__(self, conn, onboarding=True, wake_refs=()):
+        # `onboarding` is the session fact: True on an onboarding tick.
+        self.conn, self.onboarding = conn, onboarding
         self.role, self.area = "terminologist", None
         # The rows the wake named. `term_collision` is woken *about* specific
         # rows, and the real `Ctx` has carried them since a session woken for
@@ -35,12 +37,14 @@ class Ctx:
         self.opened: set = set()
 
     def commit(self):
-        for table, id, cols in self.writes:
-            keys = ", ".join(cols)
-            marks = ", ".join("?" * len(cols))
-            self.conn.execute(
-                f"INSERT OR REPLACE INTO {table} (id, {keys}) "
-                f"VALUES (?, {marks})", (id, *cols.values()))
+        """Land the buffered writes the way the sandbox would. The kept
+        row inherits the refs of the rows it replaces, so a `refs` write is
+        among them and the sandbox's own door lands it."""
+        from rota.core.db import _apply_write
+        from rota.core.runner import _as_write
+
+        for w in self.writes:
+            _apply_write(self.conn, _as_write(w))
         self.writes.clear()
 
 
@@ -56,8 +60,9 @@ def db(tmp_path):
     for id, term, short, area in rows:
         conn.execute(
             "INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-            "provenance, area) VALUES (?,?,?,?,'observed',?)",
+            "area) VALUES (?,?,?,?,?)",
             (id, term, short, short + ", at length", area))
+        seed_provenance(conn, "glossary_terms", id, "observed")
     return conn
 
 
@@ -125,8 +130,8 @@ def test_one_row_is_an_amendment(db):
 def test_two_words_are_two_entries(db):
     """The family check, so a session cannot fold `template` into `intent`."""
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
-               "provenance, area) VALUES ('template','template','a pattern','x',"
-               "'observed','src')")
+               "area) VALUES ('template','template','a pattern','x','src')")
+    seed_provenance(db, "glossary_terms", "template", "observed")
     ctx = Ctx(db)
     with pytest.raises(ValueError) as exc:
         glossary_synthesise(ctx, ids=["intent", "template"],

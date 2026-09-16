@@ -24,6 +24,7 @@ from rota.core.predicates import Wake
 from rota.core.runner import run_session
 from rota.core.scheduler import frontier_readonly
 from rota.llm.llm import Pins, ScriptedBackend
+from rota.testkit.fixtures import seed_provenance
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -52,8 +53,9 @@ class DiesMidSession:
 
 
 def _one_open_question(db):
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m1','t1','liaison','terminologist',"
                "'ask','[\"g1\"]',1)")
@@ -96,8 +98,9 @@ def test_the_scheduler_killed_between_steps_loses_nothing(db):
     Restarting must offer exactly what the killed scheduler would have.
     """
     _one_open_question(db)
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g2','intent','a config','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g2','intent','a config')")
+    seed_provenance(db, "glossary_terms", "g2", "observed")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq) VALUES ('m2','t2','liaison','architect','ask',"
                "'[\"g2\"]',2)")

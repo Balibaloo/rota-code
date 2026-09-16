@@ -23,6 +23,7 @@ from rota.core.predicates import Wake
 from rota.core.runner import resolve_inbound, run_session
 from rota.core.scheduler import frontier_readonly
 from rota.llm.llm import Pins, ScriptedBackend
+from rota.testkit.fixtures import seed_provenance
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -52,11 +53,12 @@ class DiesMidSession:
 
 def _a_fan_out(db):
     """One question, asked of two owners, each holding a row to answer with."""
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
-               "VALUES ('g1','recipe','a seed note','observed')")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','recipe','a seed note')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t1',"
-               "'users can write a recipe','in_scope','decided','draft',0,1)")
+               "'users can write a recipe','in_scope','draft',0,1)")
     db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                "body_refs, seq, status) VALUES ('m2','th','liaison',"
                "'terminologist','ask',?,1,'open')", (json.dumps(["g1"]),))

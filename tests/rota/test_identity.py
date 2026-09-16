@@ -14,6 +14,7 @@ import re
 
 from rota import paths
 from rota.core.identity import NATURAL_KEYS
+from rota.testkit.fixtures import seed_provenance
 
 KINDS = {"words", "span", "term", "slug", "relation", "supersede", "content",
          "keyed", "journal", "ephemeral", "unkeyed"}
@@ -80,8 +81,9 @@ def test_a_ref_that_names_no_row_is_refused(tmp_path):
     from rota.core.sandbox import build
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance)"
-               " VALUES ('g1','recipe','x','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short)"
+               " VALUES ('g1','recipe','x')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.commit()
     sb = build("terminologist", db, mode="unresolved")
     with _pytest.raises(ValueError, match="names no row"):
@@ -103,8 +105,9 @@ def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     from rota.core.sandbox import build
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance)"
-               " VALUES ('g1','recipe','x','observed')")
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short)"
+               " VALUES ('g1','recipe','x')")
+    seed_provenance(db, "glossary_terms", "g1", "observed")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "status, author) VALUES ('l_1','g1','glossary_terms','x','open','terminologist')")
     db.commit()
@@ -143,8 +146,8 @@ def test_the_ledger_is_about_rows_not_tables(tmp_path):
     from rota.core.sandbox import build
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.commit()
     sb = build("developer", db, mode="tests_failing")
@@ -166,8 +169,8 @@ def test_an_artefact_id_is_unique_across_tables(tmp_path):
     from rota.core.sandbox import build
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('t1','i1','y')")

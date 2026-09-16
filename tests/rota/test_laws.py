@@ -49,9 +49,9 @@ def test_prioritizing_is_not_an_amendment(db):
     Law 9: priority alters no approved content, so it must not trip revocation.
     `amends=False` is what makes that structural rather than a promise.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) "
-               "VALUES ('i1','x','in_scope','decided','approved',1,1)")
+               "VALUES ('i1','x','in_scope','approved',1,1)")
     sb = build("vision_keeper", db)
     sb.call("problem.prioritize", id="i1", priority=5)
 
@@ -105,8 +105,8 @@ def test_a_finding_carries_no_reasoning(db):
 # ---------------------------------------------------------------------------
 
 def test_architect_can_record_what_a_batch_should_touch(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
 
     sb = build("architect", db)
@@ -127,8 +127,8 @@ def test_the_touch_set_gates_nothing(db):
     """
     from rota.core.db import SessionResult, Write, session_commit
 
-    db.execute("INSERT INTO items (id, text, kind, provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id, text, kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id, item_id) VALUES ('b1','i1')")
     db.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) "
                "VALUES ('b1','src/auth.py','path')")
@@ -136,8 +136,7 @@ def test_the_touch_set_gates_nothing(db):
     session_commit(db, SessionResult(
         session_id="s1", role="terminologist",
         writes=[Write("glossary_terms", "g1", {
-            "term": "session", "sense_short": "a login",
-            "provenance": "decided"})]))
+            "term": "session", "sense_short": "a login"})]))
 
     assert db.execute(
         "SELECT COUNT(*) n FROM glossary_terms").fetchone()["n"] == 1
@@ -244,8 +243,8 @@ def test_logging_the_same_assumption_twice_is_one_entry(db):
     *empty* ledger, so duplicates make the principal resolve one assumption
     three times.
     """
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','x','in_scope','decided',"
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','x','in_scope',"
                "'approved',1,1)")
     db.commit()
 

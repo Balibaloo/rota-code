@@ -156,11 +156,11 @@ def test_a_clean_finding_wakes_nobody(tmp_path):
     from rota.core.scheduler import cascade_wakes
 
     db = init_db(tmp_path / "rota.db")
-    db.execute("INSERT INTO items (id,text,kind,provenance) "
-               "VALUES ('i1','x','in_scope','decided')")
+    db.execute("INSERT INTO items (id,text,kind) "
+               "VALUES ('i1','x','in_scope')")
     db.execute("INSERT INTO batches (id,item_id) VALUES ('b1','i1')")
-    db.execute("INSERT INTO constraints (id,headline,provenance) "
-               "VALUES ('k1','x','decided')")
+    db.execute("INSERT INTO constraints (id,headline) "
+               "VALUES ('k1','x')")
 
     session_commit(db, SessionResult(session_id="s1", role="architect", writes=[
         Write("findings", "f1", {"batch_id": "b1", "constraint_id": "k1",

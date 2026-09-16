@@ -57,7 +57,8 @@ class Ctx:
         self.opened: set = set(read)
         self.read_words: set = set()
         self.batch_id = None
-        self.provenance = "observed"
+        # The session fact: True on an onboarding tick.
+        self.onboarding = True
 
 
 @pytest.fixture

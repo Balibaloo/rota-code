@@ -20,6 +20,7 @@ import pytest
 from rota.core.db import init_db
 from rota.onboarding import areas, boot, indexer
 from rota.testkit import gitfixture, samplerepo
+from rota.testkit.fixtures import seed_provenance
 
 
 @pytest.fixture
@@ -291,7 +292,7 @@ def test_onboarding_puts_every_area_under_constraint_zero(project):
     assert bound == all_areas
     assert report.unsurveyed == len(all_areas)
 
-    zero = db.execute("SELECT provenance FROM constraints WHERE id = ?",
+    zero = db.execute("SELECT provenance FROM constraint_provenance WHERE id = ?",
                       (boot.ZERO,)).fetchone()
     assert zero["provenance"] == "observed", "nobody decided this; it is the " \
         "absence of information, not a ruling"
@@ -775,9 +776,10 @@ def test_the_same_word_twice_amends_rather_than_duplicates(project):
             # As `session_commit` would: the area travels with the row. A
             # fixture that dropped it was hiding the area rule from the test.
             db.execute("INSERT OR REPLACE INTO glossary_terms "
-                       "(id, term, sense_short, provenance, area) "
-                       "VALUES (?, ?, ?, 'observed', ?)",
+                       "(id, term, sense_short, area) "
+                       "VALUES (?, ?, ?, ?)",
                        (w[1], w[2]["term"], w[2]["sense_short"], w[2]["area"]))
+            seed_provenance(db, "glossary_terms", w[1], "observed")
 
     rows = db.execute("SELECT id FROM glossary_terms WHERE term = 'account'").fetchall()
     assert len(rows) == 1, f"one word, one row unless a sense is named: {[r[0] for r in rows]}"
@@ -1380,9 +1382,9 @@ def test_a_refresh_under_a_running_batch_disturbs_nothing_it_should_not(tmp_path
     repo = gitfixture.make(tmp_path, name="refresh_under_batch")
     boot.onboard(db, repo.root)
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1','ship','in_scope',"
-               "'decided','approved',1,1)")
+               "'approved',1,1)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('t1','i1','do it')")
     tree = repo.worktree("b1")
@@ -1393,8 +1395,8 @@ def test_a_refresh_under_a_running_batch_disturbs_nothing_it_should_not(tmp_path
                "('b1','t1')")
     # A binding that survives, a binding that will not, and a touch that
     # will not: the file behind the second two is about to vanish upstream.
-    db.execute("INSERT INTO constraints (id, headline, provenance) VALUES "
-               "('cn1','auth stays reachable','decided')")
+    db.execute("INSERT INTO constraints (id, headline) VALUES "
+               "('cn1','auth stays reachable')")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
                "grain_kind) VALUES ('cn1','src/auth/login.py','path')")
     db.execute("INSERT INTO constraint_bindings (constraint_id, grain, "

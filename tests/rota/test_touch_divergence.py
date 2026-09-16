@@ -28,8 +28,8 @@ def test_stray_paths_are_the_touched_paths_no_prediction_covers():
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, version) "
-                 "VALUES ('i1','echo json','in_scope','decided','approved',1,1)")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+                 "VALUES ('i1','echo json','in_scope','approved',1,1)")
     conn.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1','i1','running')")
     conn.execute("INSERT INTO batch_touch (batch_id, grain, grain_kind) VALUES ('b1','src/click/utils.py','path')")
     conn.commit()

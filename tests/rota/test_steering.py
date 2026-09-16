@@ -25,9 +25,9 @@ from rota.llm.llm import Pins, ScriptedBackend
 @pytest.fixture
 def db(tmp_path):
     conn = init_db(tmp_path / "rota.db")
-    conn.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    conn.execute("INSERT INTO items (id, text, kind, approval, "
                  "approval_ver, version) VALUES ('i1','ship it','in_scope',"
-                 "'decided','approved',1,1)")
+                 "'approved',1,1)")
     conn.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                  "('t1','i1','do it')")
     conn.execute("INSERT INTO batches (id, item_id, status) VALUES "
@@ -88,9 +88,9 @@ def test_an_interrupt_is_a_pause_not_a_verdict(db):
 def test_a_running_batch_beats_a_pending_twin_to_the_cancellation(db):
     """Two batches revoked at once cancel deterministically, oldest id first
     -- the frontier's purity claim extends to the newest predicate."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i2','also','in_scope',"
-               "'decided','approved',1,2)")
+               "'approved',1,2)")
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
                "('t2','i2','more')")
     db.execute("INSERT INTO batches (id, item_id, status) VALUES "

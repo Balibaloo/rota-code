@@ -23,7 +23,7 @@ from rota.core.runner import run_session
 from rota.core.sandbox import _owner_of_ref
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import Answer, Ask, land, pending_asks, render_refs, verdict_for
-from rota.testkit.fixtures import refs_from_columns
+from rota.testkit.fixtures import seed_provenance, seed_ref
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -34,13 +34,13 @@ def db(tmp_path):
 
 
 def _an_item_with_an_assumption(db):
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('how_it_works',"
                "'The user types the bill and a tip percentage; the program prints the tip',"
-               "'in_scope','decided','draft',0,1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+               "'in_scope','draft',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('t9','unrelated','in_scope',"
-               "'decided','draft',0,1)")
+               "'draft',0,1)")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "status, author) VALUES ('L1','how_it_works','items',"
                "'the percentage is typed each time, not a fixed tier',"
@@ -100,7 +100,7 @@ def test_the_other_desks_assumptions_about_the_words_ride_the_page(db):
                "('e1','principal',1,'archive the invoices older than a year')")
     db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, text, status) "
                "VALUES ('s1','e1',0,39,'archive the invoices older than a year','ratified')")
-    db.execute("INSERT INTO item_statements (item_id, statement_id) VALUES ('how_it_works','s1')")
+    seed_ref(db, "items", "how_it_works", "statement", "s1")
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, status, author) "
                "VALUES ('L4','s1','statements','archive: took move to cold storage; if it "
                "means delete, the invoices are gone','open','terminologist')")
@@ -232,9 +232,9 @@ def test_the_signoff_page_names_the_code_that_carries_each_items_words(db):
     """P4 piece 2 in its mechanical form (2026-09-12): beside each item, the
     files whose symbols carry a word of the item's text, read from the
     index and labelled as that. Not a prediction; the touch note is."""
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+    db.execute("INSERT INTO items (id, text, kind, approval, "
                "approval_ver, version) VALUES ('i1',"
-               "'users can export their invoices as CSV','in_scope','decided','draft',0,1)")
+               "'users can export their invoices as CSV','in_scope','draft',0,1)")
     for grain in ("src/billing/invoice.py::Invoice", "src/billing/export.py::export_csv",
                   "src/billing/export.py::ExportError", "src/auth/login.py::login"):
         db.execute("INSERT INTO code_index (grain, grain_kind) VALUES (?, 'symbol')", (grain,))
@@ -253,8 +253,8 @@ def test_a_page_carries_at_most_seven_open_assumptions(db):
     from rota.core.sandbox import build
     from rota.roles import prompts
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
-               "approval_ver, version) VALUES ('i1','ship it','in_scope','decided','draft',0,1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, "
+               "approval_ver, version) VALUES ('i1','ship it','in_scope','draft',0,1)")
     for n in range(9):
         db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                    "status, author) VALUES (?, 'i1', 'items', ?, 'open', 'vision_keeper')",
@@ -272,13 +272,14 @@ def test_observed_behaviour_is_not_shown_as_a_plan(db):
     the tip" as new work. Provenance is the fact; the heading follows it."""
     from rota.roles.principal import render_ask
 
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('seen', 'the program calculates the tip', 'in_scope', "
-               "'observed', 'approved', 1, 1)")
-    db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
+               "'approved', 1, 1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
                "version) VALUES ('new', 'the program splits the bill', 'in_scope', "
-               "'decided', 'draft', 0, 1)")
-    refs_from_columns(db)
+               "'draft', 0, 1)")
+    seed_provenance(db, "items", "seen", "observed")
+    seed_provenance(db, "items", "new", "decided")
     db.commit()
     page = render_ask(db, "present", ["seen", "new"])
     assert "It does today:" in page and "It would:" in page
