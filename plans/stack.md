@@ -25,6 +25,24 @@ Rules:
 
 ## Stack
 
+### 21. Provenance by reference (Roman, 2026-09-16)
+
+- Rota workflow. Roman ruled 2026-09-16: `decided` originates in a
+  ratified statement and cascades along the refs to the rows that cite it,
+  and the cascade is a relationship in the SQL. The five JSON ref columns
+  (`source_refs`, `term_refs`) become one refs relation, as
+  `item_statements` already is. Provenance is derived from it: reach a
+  `references_` row, observed; reach a ratified statement or a ruling,
+  decided; neither, reasoned. The five `provenance` columns go. Law 11
+  and the revocation walk in law 9 read the same relation.
+- Ends when: no owner table stores a provenance stamp or a JSON ref
+  column, the walk and the view share one relation, `tests/rota/` passes,
+  and the touched cases re-record.
+- Waits on: a fresh session. Not this one.
+- Reasoning: `plans/archive/reasoned-scope-2026-09-16.md`, the patch
+  beside it, and this conversation's Q1 and Q2 in frame 20's status.
+- Status 2026-09-16 06:55 (rota-bc): pushed, unclaimed. Frame 20 folds in.
+
 ### 20. The `reasoned` rename (Roman, 2026-09-16) [836a1517]
 
 - Role-made `decided` rows become `reasoned`: every writer, the schema
@@ -56,6 +74,11 @@ Rules:
   `reasoned` when they reach neither. Meta workflow: the frame for
   provenance marks on the stack and the page is separate. Roman ruled
   the same day: every statement names its workflow.
+- Status 2026-09-16 06:55 (rota-bc): closed into frame 21. Q1 ruled: a
+  ratified statement's `decided` cascades along the refs. Q2 ruled: the
+  cascade is a relation in the SQL, and provenance derives from it. The
+  page sentence, LAWS P10 and greenfield stand; P10's wording follows the
+  by-reference rule when frame 21 lands.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
