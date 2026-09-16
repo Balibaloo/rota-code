@@ -116,18 +116,28 @@ below.
 Roman ruled on 2026-09-16: the five masses the test found are in the
 body (the project, the outside world, provenance, verification,
 identity). The Liaison originates questions. A ruling is a record. The
-clean-workspace rule returns. One check remains:
+clean-workspace rule returns.
 
-- The register has a checkpoint_invalid entry. The page says there is
-  no snapshot. An agent checks whether the entry is the dropped snapshot
-  or a different thing.
+The checkpoint check, 2026-09-16: the register's checkpoint_invalid entry
+is the discharge half of the suspend-and-resume design. No code writes
+the row it reads. The check is in `plans/archive/checkpoint-check-2026-09-16.md`.
+Roman ruled the same day: a seat's question to another seat does not end
+the seat's session. The ask waits for the answer in the same session, with
+a depth cap and a timeout. A seat that waits on the Principal ends, and
+resumes from its recorded turns while its working set is unchanged. The
+`checkpoints` table stays for that path. Two sentences in Records wait
+on Roman's wording check before they replace "A seat restarts from
+records. There is no snapshot.":
+
+- A seat that asks another seat waits for the answer in the same session.
+- A seat that waits on the Principal ends. It resumes from its recorded
+  turns while its working set is unchanged, and otherwise restarts from
+  records.
 
 ### Docs behind the page
 
 The page wins. The docs change. This is the work of the docs refactor.
 
-- LAWS: a milestone is observed, not declared. The team is eight roles
-  with the Principal outside. The clean-workspace rule is missing.
-- ROLES and the Liaison brief: never interpret, never decide, never
-  invent a question.
-- DECISIONS: rulings live in config without a writer or a version.
+- LAWS, ROLES and the Liaison brief: placed and changed 2026-09-16, frame
+  18. Laws 4, 5 and 6 change again when the blocking ask lands.
+- DECISIONS: rulings live in config without a writer or a version. Open.
