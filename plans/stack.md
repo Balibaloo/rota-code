@@ -69,6 +69,13 @@ Rules:
   22 failed as the baseline, 21 refs tests pass, STALE none. The stage 1
   review found eight fixes (design record, dd8c093). A fix agent and a
   stage 2 review are out. Stage 3 (the drop) follows.
+- Status 2026-09-16 17:30 (rota-b9): the eight fixes landed (8614d46),
+  22 failed as the baseline. The stage 2 review found two high items in
+  the writers (design record, f87feab): a delivery wake stages no
+  statement ref, and an old run database regresses silently. Stage 3
+  splits: 3a writer semantics (out now), 3b the drop. One cut Roman
+  may move: the audit's rule 5 now exempts a principal's verdict
+  (reasoned: `land()` writes a settled verdict that nothing relays).
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
