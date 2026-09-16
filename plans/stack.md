@@ -48,6 +48,8 @@ Rules:
 - Reasoning: `plans/archive/reasoned-scope-2026-09-16.md`, the patch
   beside it, and this conversation's Q1 and Q2 in frame 20's status.
 - Status 2026-09-16 06:55 (rota-bc): pushed, unclaimed. Frame 20 folds in.
+- Status 2026-09-16 07:25 (rota-bc): handed to peer rota-b9 by message,
+  stack commit 56ae78b. Session 836a1517 ends at 272k.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
