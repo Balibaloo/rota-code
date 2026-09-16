@@ -35,13 +35,17 @@ Rules:
 - Waits on: the scope report.
 - Reasoning: `plans/archive/placement-laws-2026-09-16.md`, P10-r, and the
   scope report the agent writes to `plans/archive/`.
-- Status 2026-09-16 06:15 (rota-bc): scope done (c949bbb): one source sets
-  the provenance, runner.py:1579; five CHECKs, four readers, the
-  Terminologist base (13 cases), six test assertions, forward-only. The
-  assistant decided the report's four questions as recommended: promotion
-  to `decided` on approval is a later frame, fixtures stay, the frame judge
-  stays `observed`, old run databases are accepted. A lander-recorder
-  lands steps 1 to 7 and re-records 14 cases, cycle 1.
+- Status 2026-09-16 06:25 (rota-bc): halted. Roman: `reasoned` was meant
+  for the build session's records, not for rota's seats. The agent was
+  stopped after steps 1 to 4; its edits are saved in
+  `plans/archive/reasoned-rename-2026-09-16.patch` and reverted from the
+  worktree. Nothing re-recorded. Landed earlier on the misread and
+  waiting on Roman's word: the page's Records sentence (dcb4877), LAWS
+  P10 (840a60b), greenfield piece 1 (6e40d84). Blocked on Roman: does
+  `reasoned` hold for rota's records too? Recommended: yes on the page,
+  since the page applies to both instances by its own words; hold the
+  rota code as low priority; open a frame for provenance marks on the
+  build session's records.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
