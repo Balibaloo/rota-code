@@ -88,6 +88,19 @@ Rules:
   warm snapshot on the Titan. Q11 (the `source_refs` parameter on two
   ops) is parked: it re-keys every Vision Keeper and Terminologist case
   (reasoned: outside the ends-when; land it with the next brief change).
+- Status 2026-09-16 18:15 (rota-b9): stage 4 landed. Docs (e91883e), the
+  four stage 3 review fixes (009561e), the brief and the re-record
+  (HEAD): 12 of 14 pass, the 2 baseline reds keep their shape, two L3
+  chains re-earned, the full replay is the baseline's 22. Cassette
+  backup at `.rota/cassettes_backup_2026-09-16.db`. The ends-when holds
+  except the warm snapshot: an onboard-only walk of clickI cycles on
+  `tick:term_collision option` (report, relay, clarify, relay, the same
+  tick; 152 sessions, no quiet) where night 70 finished in 135 wakes
+  (observed: the agent's log, `.rota/clickI.db`). A diagnosis agent
+  reads that run's turns. Likely cause (reasoned: stage 3a made adopt
+  refuse without a landed ruling; the gauntlet answers the collision
+  with an empty sentence, which night 70 took as consent): the
+  collision has no ruling and the tick re-fires forever.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
