@@ -65,6 +65,10 @@ Rules:
   after. Q11 moves to stage 4 (observed: a signature is in the prompt
   and re-keys the cases). Deviations are in the design record. A
   read-only review of ac1b83e and stage 2 (readers and the walk) are out.
+- Status 2026-09-16 16:20 (rota-b9): stage 2 landed (948c436). Replay:
+  22 failed as the baseline, 21 refs tests pass, STALE none. The stage 1
+  review found eight fixes (design record, dd8c093). A fix agent and a
+  stage 2 review are out. Stage 3 (the drop) follows.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
