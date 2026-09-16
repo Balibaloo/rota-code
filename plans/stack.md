@@ -43,43 +43,6 @@ Rules:
   beside it, and this conversation's Q1 and Q2 in frame 20's status.
 - Status 2026-09-16 06:55 (rota-bc): pushed, unclaimed. Frame 20 folds in.
 
-### 20. The `reasoned` rename (Roman, 2026-09-16) [836a1517]
-
-- Role-made `decided` rows become `reasoned`: every writer, the schema
-  checks, the tests, and the docs that name the provenance. Ruled
-  2026-09-16 with the page's Records sentence.
-- Ends when: no seat writes `decided`, `tests/rota/` passes, and the
-  touched cases are re-recorded.
-- Waits on: the scope report.
-- Reasoning: `plans/archive/placement-laws-2026-09-16.md`, P10-r, and the
-  scope report the agent writes to `plans/archive/`.
-- Status 2026-09-16 06:25 (rota-bc): halted. Roman: `reasoned` was meant
-  for the build session's records, not for rota's seats. The agent was
-  stopped after steps 1 to 4; its edits are saved in
-  `plans/archive/reasoned-rename-2026-09-16.patch` and reverted from the
-  worktree. Nothing re-recorded. Landed earlier on the misread and
-  waiting on Roman's word: the page's Records sentence (dcb4877), LAWS
-  P10 (840a60b), greenfield piece 1 (6e40d84). Blocked on Roman: does
-  `reasoned` hold for rota's records too? Recommended: yes on the page,
-  since the page applies to both instances by its own words; hold the
-  rota code as low priority; open a frame for provenance marks on the
-  build session's records.
-- Status 2026-09-16 06:35 (rota-bc): Roman's model of the rota workflow:
-  `decided` comes from the Principal and cascades by reference to the
-  rows that cite a ratified statement. Today runner.py:1579 stamps
-  `decided` on every non-onboarding wake with no check of the chain; only
-  `_adopt_rows` verifies the ruling. Blocked on Roman, rota workflow: rule
-  the provenance by reference. Recommended: `observed` from onboarding,
-  `decided` when the row's refs reach a ratified statement or a ruling,
-  `reasoned` when they reach neither. Meta workflow: the frame for
-  provenance marks on the stack and the page is separate. Roman ruled
-  the same day: every statement names its workflow.
-- Status 2026-09-16 06:55 (rota-bc): closed into frame 21. Q1 ruled: a
-  ratified statement's `decided` cascades along the refs. Q2 ruled: the
-  cascade is a relation in the SQL, and provenance derives from it. The
-  page sentence, LAWS P10 and greenfield stand; P10's wording follows the
-  by-reference rule when frame 21 lands.
-
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
