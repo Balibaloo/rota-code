@@ -20,6 +20,20 @@ Rules:
 
 ## Stack
 
+### 16. The composition (Roman, 2026-09-16)
+
+- The low-frequency page of rota: `plans/composition.md`. Written from a
+  re-grill and three blind readings of LAWS, ROLES, SYSTEM, REGISTER. A
+  placement test put 112 of 140 law items, 272 of 390 brief items, and
+  10 of 15 plans under it.
+- Ends when: Roman ratifies the page, each of the five missing masses is
+  in the body or refused, and LAWS, ROLES, and the Liaison brief place
+  under it.
+- Waits on: Roman's rulings in the page's Open section.
+- Reasoning: the session of 2026-09-15 and 16, and the page's Open
+  section. Not here.
+- Status 2026-09-16: page written, placement done, waiting on Roman.
+
 ### 15. The survey spike (Roman, 02:30)
 
 - Why: the survey wrote 22 constraints named after directories, and
@@ -297,7 +311,10 @@ Rules:
   Developer, carried by the runner. Stuck at attempt 4, 39 steps.
 - Register after the import door and the window (00:43 to 00:49): 17
   known reds (fix-a-test-that-asserts-more back in the count), no stale.
-- Status 2026-09-16 00:50: night 82 onboarding cold on C:.
+- Paused by Roman at 00:53 (a workflow change may follow). Night 82 runs
+  on unattended; its result waits in gauntlet_click82.log and the C: run
+  database. The hourly stack reminder is cancelled.
+- Status 2026-09-16 00:53: paused; night 82 running.
 
 ### 12. Night 71 on the SSD
 
