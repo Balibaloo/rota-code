@@ -133,6 +133,26 @@ Stage 3 splits (reasoned: 3a changes prompts and lists them; 3b must not):
   `item_statements`, `ctx.provenance`, every old write, the seed helper.
   Acceptance: no new STALE case.
 
+## Stage 3 review (observed: the reviewer's report on b4dc845 and 056995d, probes in the session scratchpad)
+
+Sound: a proposed statement's row flips to `decided` at ratification
+with no write; adopt's two cases keep their premise; the loader and
+`seed_provenance` agree by construction; ten sampled tests that lost a
+`decided` seed still test what their names say. Four fixes land from the
+review worktree on branch `frame21-fixes` (reasoned: the recorder holds
+the main checkout): the cockpit's `/state.json` answers 500 on a run
+database with no views; the seat writes an entry into a stale run before
+it refuses; `glossary.same` orders `repointed` by table; two
+`criteria.respecify` calls in one session union their lists.
+
+Accepted, no change: a session that stages and retires one refs row
+receipts its source for no change (no caller does this). Parked: three
+`wake_refs` readers (`model.amend`, grouping, `code.concordance`) take
+the first element as a row, and a cascade wake now leads with the
+artefact; the loop schedules no cascade wake today, so the readers need
+the artefact stripped when it does. The order of a criterion's `term`
+refs is the rowid order, a set, not the list the column held.
+
 ## The shape
 
 Section H of the scope report holds the SQL: the `refs` table, the
