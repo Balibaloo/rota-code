@@ -276,11 +276,13 @@ Only a ratified amendment to an approved item escalates an inquiry into change.
 
 ### 11. Provenance is explicit
 
-Entries in the model, glossary and problem statement are `decided` — the reason on
-file, written by the decider *in the same session as the decision*, with no
-recording step and no scribe role — or `observed`, extracted from an onboarded
-codebase: found, not chosen. Challenging an observed entry forces its first
-decision. The decision record accretes lazily.
+Entries in the model, glossary and problem statement are `observed`, `reasoned`
+or `decided`. An `observed` entry is extracted from an onboarded codebase: found,
+not chosen. A `reasoned` entry is a seat's own inference. The seat writes it in
+the same session, with the reason on file. A `decided` entry rests on a ruling of
+the principal. The Liaison writes the ruling as a record with a version. A
+challenge to an `observed` or `reasoned` entry forces its first ruling. The
+decision record accretes lazily (`reasoned` ratified 2026-09-16).
 
 > **Amended.** A third value, `cited`: found outside the repository, attributable
 > to a source. It is neither of the other two — nobody chose it and it was not
