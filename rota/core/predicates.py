@@ -1584,6 +1584,8 @@ def schema_states() -> dict[tuple[str, str], list[str]]:
         m = re.search(r"CREATE TABLE IF NOT EXISTS (\w+)", line)
         if m:
             table = m.group(1)
+        if table == "refs":
+            continue    # `refs` CHECK values are table names and nouns, not states
         if table:
             c = re.search(r"(\w+)\s+TEXT[^,]*CHECK\s*\(\s*\w+\s+IN\s*\(([^)]*)\)", line)
             if not c:

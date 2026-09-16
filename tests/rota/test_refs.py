@@ -474,8 +474,9 @@ def test_the_seeded_ruling_is_a_record_the_audit_accepts(db):
 def test_the_cascade_wake_carries_the_row_ids_from_the_relation(db):
     """Section H3: an amended statement wakes the owners of the rows that
     rest on it. The item and the term through their `statement` refs, the
-    criterion one hop on through its `term` ref. An artefact the graph
-    reaches with no row in the relation gets a wake with no refs."""
+    criterion one hop on through its `term` ref. A wake names its artefact
+    first. An artefact the graph reaches with no row in the relation gets
+    a wake that names the artefact alone."""
     from rota.core.scheduler import cascade_wakes
 
     _statement(db, "s1", "ratified")
@@ -494,15 +495,17 @@ def test_the_cascade_wake_carries_the_row_ids_from_the_relation(db):
             "text": "other words", "status": "ratified"})]))
     wakes = cascade_wakes(db, "s_amend")
 
-    named = sorted(w.refs for w in wakes if w.refs)
-    assert named == [("c1",), ("g1",), ("i1",)], wakes
+    named = sorted(w.refs for w in wakes if len(w.refs) > 1)
+    assert named == [("criteria", "c1"), ("glossary", "g1"), ("problem", "i1")], wakes
     assert all(w.kind == "cascade" for w in wakes)
     assert not any("s1" in w.refs or "i_other" in w.refs for w in wakes)
-    by_refs = {w.refs: w.role for w in wakes if w.refs}
-    assert by_refs == {("i1",): "vision_keeper", ("g1",): "terminologist",
-                       ("c1",): "terminologist"}
-    # The wake for an artefact the relation names nothing in carries nothing.
-    assert any(w.role == "architect" and w.refs == () for w in wakes)
+    by_refs = {w.refs: w.role for w in wakes if len(w.refs) > 1}
+    assert by_refs == {("problem", "i1"): "vision_keeper",
+                       ("glossary", "g1"): "terminologist",
+                       ("criteria", "c1"): "terminologist"}
+    # The wake for an artefact the relation names nothing in carries the
+    # artefact alone.
+    assert any(w.role == "architect" and w.refs == ("model",) for w in wakes)
 
 
 def test_found_never_overwrites_a_row_decided_by_a_ruling_ref_alone(db):
@@ -578,3 +581,277 @@ def test_observed_entries_presents_the_code_and_not_the_world(db):
     wakes = observed_entries(db)
     assert [(w.role, w.kind, w.refs) for w in wakes] == \
         [("liaison", "tick:observed_entries", ("g_code",))]
+
+
+# --- the writers (stage 3a) -------------------------------------------------
+
+def _commit_sandbox(db, sb, session_id):
+    """Land a sandbox's staged writes the way the runner does."""
+    from rota.core.runner import _as_write
+
+    session_commit(db, SessionResult(
+        session_id=session_id, role=sb.ctx.role,
+        writes=[_as_write(w) for w in sb.ctx.writes]))
+
+
+def _deliver(db, to_role, refs, mid="m_deliver"):
+    """A Liaison `deliver` message that names `refs`. A message wake
+    carries its subject on the message, not on the wake."""
+    import json
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES (?, 't1', 'liaison', ?, "
+               "'deliver', ?, 1, 'open')", (mid, to_role, json.dumps(refs)))
+    return mid
+
+
+def _woken_by(role, db, mode, mid):
+    """A sandbox for `role`, woken by message `mid`, as the runner wakes it."""
+    from rota.core.sandbox import build
+    from rota.core.scheduler import Wake
+
+    sb = build(role, db, mode=mode,
+               wake=Wake(role=role, kind="message", message_id=mid))
+    sb.ctx.trigger = mid
+    return sb
+
+
+def test_a_delivery_wake_that_names_a_ratified_statement_writes_a_decided_term(db):
+    """Stage 2 review, finding 1. `glossary.amend` on a wake that names a
+    ratified statement stages a `statement` ref, and the term derives
+    decided. The same write on a wake that names no statement derives
+    reasoned: decided cascades from a ratified statement along the refs."""
+    from rota.core.sandbox import build
+
+    _statement(db, "s1", "ratified")
+    sb = _woken_by("terminologist", db, "deliver",
+                   _deliver(db, "terminologist", ["s1"]))
+    sb.call("glossary.amend", term="account",
+            sense_body="the customer's billing account",
+            sense_short="a billing account")
+    assert ("refs", "glossary_terms:account:statement:s1") in \
+        [(t, i) for t, i, *_ in sb.ctx.writes]
+    _commit_sandbox(db, sb, "s_te")
+    assert _prov(db, "term_provenance", "account") == ("decided", "statement")
+
+    bare = build("terminologist", db, mode="deliver")
+    bare.call("glossary.amend", term="invoice",
+              sense_body="the bill the program sends", sense_short="a bill")
+    assert not [w for w in bare.ctx.writes if w[0] == "refs"]
+    _commit_sandbox(db, bare, "s_te2")
+    assert _prov(db, "term_provenance", "invoice") == ("reasoned", "none")
+
+
+def test_a_delivery_wake_that_names_a_ratified_statement_writes_a_decided_constraint(db):
+    """The same rule at `model.amend`."""
+    _statement(db, "s1", "ratified")
+    sb = _woken_by("architect", db, "deliver", _deliver(db, "architect", ["s1"]))
+    out = sb.call("model.amend",
+                  headline="closing an account keeps the billing account",
+                  text="the billing account outlives the user account, and "
+                       "finance reads it")
+    _commit_sandbox(db, sb, "s_ar")
+    assert _prov(db, "constraint_provenance", out["id"]) == ("decided", "statement")
+
+
+def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
+    """Stage 2 review, finding 2. A database with the owner tables and no
+    schema marker opened with an empty relation, and every gate read
+    reasoned. `init_db` refuses it with one sentence, `rota ls` shows the
+    same sentence, and a fresh database opens and carries the marker."""
+    import sqlite3
+    import subprocess
+
+    from rota import cli, paths
+
+    old_sql = subprocess.run(
+        ["git", "show", "ac1b83e~1:rota/core/schema.sql"], cwd=paths.REPO,
+        capture_output=True, text=True, check=True).stdout
+    old = tmp_path / "old.db"
+    raw = sqlite3.connect(old)
+    raw.executescript(old_sql)
+    raw.close()
+    with pytest.raises(RuntimeError, match="predates the refs relation"):
+        init_db(old)
+    assert "predates the refs relation" in cli._read(old, ask_git=False)["error"]
+
+    fresh = tmp_path / "fresh.db"
+    conn = init_db(fresh)
+    assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
+                        ).fetchone()["value"] == "refs"
+    conn.close()
+    init_db(fresh).close()          # the same run, opened again
+
+
+def test_a_cascade_wake_names_its_artefact_first(db):
+    """One wake per (owner, artefact), as before the relation, with the
+    artefact as the first ref. With no row resting on what changed, the
+    artefact is the only ref."""
+    from rota.core.scheduler import cascade_order, cascade_wakes
+    from rota.design import graph as graph_mod
+
+    g = graph_mod.load()
+    db.execute("INSERT INTO sessions (id, role, mode, committed, seq) "
+               "VALUES ('s1', 'architect', 'normal', 1, 1)")
+    db.execute("INSERT INTO receipts (session_id, table_name, row_id, new_version) "
+               "VALUES ('s1', 'constraints', 'k1', 2)")
+    wakes = cascade_wakes(db, "s1", g)
+
+    # The set before stage 2: every artefact downstream of `model` on the
+    # graph's refs edges, once per writer.
+    dependents: dict[str, set[str]] = {}
+    for e in g.of_type("refs"):
+        dependents.setdefault(e.t, set()).add(e.s)
+    affected, queue = set(), ["model"]
+    while queue:
+        for dep in dependents.get(queue.pop(), ()):
+            if dep not in affected:
+                affected.add(dep)
+                queue.append(dep)
+    expected = {(owner, a) for a in cascade_order(g) if a in affected
+                for owner in g.writer_of(a)}
+    assert expected, "the model has dependents"
+    assert {(w.role, w.refs[0]) for w in wakes} == expected
+    assert len(wakes) == len(expected)
+    assert all(w.refs == (w.refs[0],) for w in wakes), "no row rests on k1"
+
+
+def test_a_retire_of_a_row_that_is_not_on_file_is_not_a_change(db):
+    _item(db, "i1")
+    _criterion(db, "c1")
+    session_commit(db, SessionResult(
+        session_id="s_r", role="terminologist",
+        writes=[Write("refs", "criteria:c1:term:g9", {
+            "src_table": "criteria", "src_id": "c1", "kind": "term",
+            "target": "g9", "retire": True})]))
+    assert db.execute("SELECT COUNT(*) n FROM receipts WHERE session_id = 's_r'"
+                      ).fetchone()["n"] == 0
+
+
+def test_glossary_same_retires_the_ref_to_the_dropped_term(db):
+    """The retire door. `glossary.same` repoints a criterion at the kept
+    term and retires its ref to the dropped one, so the relation and
+    `criteria.load` list the kept id only. The retire is a change,
+    receipted under the criterion."""
+    import json
+
+    from rota.core.sandbox import build
+    from rota.roles.api import Ctx, criteria_load, glossary_same
+
+    for gid, area in (("note", ""), ("note#src", "src")):
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
+                   "provenance, area) VALUES (?, 'note', 'a vault file', "
+                   "'a file in the vault', 'decided', ?)", (gid, area))
+    _item(db, "i1")
+    _criterion(db, "c1")
+    _ref(db, "criteria", "c1", "term", "note#src")
+
+    sb = build("terminologist", db, mode="deliver")
+    glossary_same(sb.ctx, keep="note", drop="note#src", why="both say a vault file")
+    _commit_sandbox(db, sb, "s_same")
+
+    assert [r["target"] for r in db.execute(
+        "SELECT target FROM refs WHERE src_table = 'criteria' AND src_id = 'c1' "
+        "AND kind = 'term'")] == ["note"]
+    assert ("criteria", "c1") in {
+        (r["table_name"], r["row_id"]) for r in db.execute(
+            "SELECT table_name, row_id FROM receipts WHERE session_id = 's_same'")}
+    loaded = criteria_load(Ctx(conn=db, role="tester", wake_refs=("note",)))
+    assert [(r["id"], json.loads(r["term_refs"])) for r in loaded] == [("c1", ["note"])]
+
+
+def _relayed_ruling(db):
+    """A present, the principal's verdict on it, and the Liaison's relay
+    to the Terminologist, as the runner leaves them. No `rulings` row."""
+    import json
+
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m_present', 't1', 'liaison', "
+               "'principal', 'present', '[\"g1\"]', 1, 'answered')")
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES ('v1', 'm_present', 't1', "
+               "'principal', 'liaison', 'verdict', '[\"g1\"]', 2, 'answered')")
+    db.execute("INSERT INTO config (key, value) VALUES ('verdict:v1', ?)",
+               (json.dumps({"g1": "approve"}),))
+    db.execute("INSERT INTO messages (id, cause_id, thread_id, from_role, to_role, "
+               "verb, body_refs, seq, status) VALUES ('m_relay', 'v1', 't1', "
+               "'liaison', 'terminologist', 'relay', '[\"g1\"]', 3, 'open')")
+
+
+def test_adopt_rests_the_row_on_the_landed_ruling_or_refuses(db):
+    """`_adopt_rows` reads the view and writes the ruling ref. With no
+    landed `rulings` row on the cause chain, adopt refuses: the row would
+    have nothing to rest on."""
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+               "VALUES ('g1', 'recipe', 'a seed note', 'observed')")
+    _ref(db, "glossary_terms", "g1", "grain", "src/app.py")
+    _relayed_ruling(db)
+
+    with pytest.raises(ValueError, match="landed ruling"):
+        _woken_by("terminologist", db, "relay", "m_relay").call(
+            "glossary.adopt", ids=["g1"])
+    assert _prov(db, "term_provenance", "g1") == ("observed", "code")
+
+    db.execute("INSERT INTO rulings (id, ask_id, status, verdict_id) "
+               "VALUES ('r1', 'm_present', 'landed', 'v1')")
+    sb = _woken_by("terminologist", db, "relay", "m_relay")
+    assert sb.call("glossary.adopt", ids=["g1"]) == {"adopted": ["g1"]}
+    _commit_sandbox(db, sb, "s_adopt")
+    assert _prov(db, "term_provenance", "g1") == ("decided", "ruling")
+    assert ("glossary_terms", "g1", "ruling", "r1") in {
+        (r["src_table"], r["src_id"], r["kind"], r["target"])
+        for r in db.execute("SELECT * FROM refs")}
+
+
+def test_the_loader_seeds_a_landed_ruling_for_a_seeded_verdict(db):
+    """The adopt cases seed a `verdict:` key and the verdict message. The
+    loader lands a `rulings` row for it, so the premise of the cases holds
+    now that adopt needs one."""
+    from rota.testkit.fixtures import seed
+
+    seed(db, {
+        "config": [{"key": "verdict:m_rule", "value": '{"g1": "approve"}'}],
+        "glossary_terms": [{"id": "g1", "term": "recipe", "sense_short": "x",
+                            "provenance": "observed"}],
+        "messages": [
+            {"id": "m_present", "thread_id": "t1", "from_role": "liaison",
+             "to_role": "principal", "verb": "present", "body_refs": '["g1"]',
+             "seq": 1},
+            {"id": "m_rule", "cause_id": "m_present", "thread_id": "t1",
+             "from_role": "principal", "to_role": "liaison", "verb": "verdict",
+             "body_refs": '["g1"]', "seq": 2, "status": "answered"}],
+    })
+    row = db.execute("SELECT ask_id, per_item, status FROM rulings "
+                     "WHERE verdict_id = 'm_rule'").fetchone()
+    assert (row["ask_id"], row["per_item"], row["status"]) == \
+        ("m_present", '{"g1": "approve"}', "landed")
+
+
+def test_problem_consult_lists_statements_in_the_order_written(db):
+    """`from_statements` follows `refs.rowid` within an item: the order the
+    refs were written, not the order of the ids."""
+    from rota.core.sandbox import build
+
+    _item(db, "i1")
+    for sid in ("s2", "s1"):
+        _statement(db, sid, "ratified")
+        _ref(db, "items", "i1", "statement", sid)
+    rows = build("vision_keeper", db, mode="deliver").call("problem.consult")
+    assert [r["from_statements"] for r in rows] == [["s2", "s1"]]
+
+
+def test_the_refs_check_refuses_a_source_or_a_kind_that_is_not_listed(db):
+    """The CHECK on `src_table` and `kind`. The values are table names and
+    nouns, and the vocabulary harvester and `schema_states` skip them."""
+    import sqlite3
+
+    from rota.core.predicates import schema_states
+    from rota.tools import vocabulary
+
+    _item(db, "i1")
+    with pytest.raises(sqlite3.IntegrityError):
+        _ref(db, "sessions", "i1", "statement", "s1")
+    with pytest.raises(sqlite3.IntegrityError):
+        _ref(db, "items", "i1", "cites", "s1")
+    assert not [k for k in schema_states() if k[0] == "refs"]
+    assert "schema.state" not in vocabulary.harvest()["items"].sources

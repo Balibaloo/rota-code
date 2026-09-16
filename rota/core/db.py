@@ -156,9 +156,39 @@ def connect_readonly(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+# The schema marker (frame 21). `init_db` writes it when it creates the
+# tables. A run database from before the refs relation has the owner tables
+# and no marker. Opened, it would read every gate as reasoned, so the door
+# refuses it. Run databases are throwaway.
+SCHEMA_KEY = "schema"
+SCHEMA_MARK = "refs"
+SCHEMA_STALE = ("the run database predates the refs relation, so it needs "
+                "a fresh run: wipe it, or onboard under a new name")
+
+
+def schema_stale(conn: sqlite3.Connection) -> str | None:
+    """The sentence that refuses a database from before the refs relation.
+    None for an empty database and for one that carries the marker."""
+    tables = {r["name"] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "items" not in tables:
+        return None
+    if "config" in tables and conn.execute(
+            "SELECT 1 FROM config WHERE key = ? AND value = ?",
+            (SCHEMA_KEY, SCHEMA_MARK)).fetchone():
+        return None
+    return SCHEMA_STALE
+
+
 def init_db(path: str | Path) -> sqlite3.Connection:
     conn = connect(path)
+    stale = schema_stale(conn)
+    if stale:
+        conn.close()
+        raise RuntimeError(stale)
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+                 (SCHEMA_KEY, SCHEMA_MARK))
     return conn
 
 
@@ -300,15 +330,23 @@ def refs_of(raw) -> list[str]:
 
 def _apply_ref(conn: sqlite3.Connection, w: Write) -> bool:
     """
-    Write one refs row in place. Returns False when the row is on file.
+    Write one refs row in place, or retire it. Returns False when the
+    write changes no row.
 
     The same row again is not a change: no version moves, no receipt is
     written, and the row keeps its rowid. `criteria.load` reads term refs
     in rowid order, and `INSERT OR REPLACE` gives a row a new rowid. A row
-    whose `resolves` flips is a change, updated in place.
+    whose `resolves` flips is a change, updated in place. A write whose
+    values carry `retire` deletes the row: a change when the row was on
+    file, receipted under the source row.
     """
     key = tuple(str(w.values.get(c, ""))
                 for c in ("src_table", "src_id", "kind", "target"))
+    if w.values.get("retire"):
+        gone = conn.execute(
+            "DELETE FROM refs WHERE src_table = ? AND src_id = ? "
+            "AND kind = ? AND target = ?", key).rowcount
+        return gone > 0
     resolves = int(w.values.get("resolves", 1))
     row = conn.execute(
         "SELECT resolves FROM refs WHERE src_table = ? AND src_id = ? "

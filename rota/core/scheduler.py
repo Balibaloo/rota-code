@@ -1599,8 +1599,9 @@ def cascade_wakes(conn: sqlite3.Connection, session_id: str,
     Given a committed session's receipts, produce the wake order: owners of every
     artefact downstream of what changed, in refs-DAG order, developer never first.
 
-    A wake carries the row ids of its artefact from the relation
-    (`cascade_rows`). The artefact order is the graph's.
+    A wake names its artefact first, then the row ids of that artefact
+    from the relation (`cascade_rows`), sorted. One wake per (owner,
+    artefact), as before the relation. The artefact order is the graph's.
     """
     from .db import ARTEFACT_OF_TABLE, TABLES_OF_ARTEFACT
 
@@ -1640,7 +1641,7 @@ def cascade_wakes(conn: sqlite3.Connection, session_id: str,
             rid for table in TABLES_OF_ARTEFACT.get(artefact, ())
             for rid in rows.get(table, ())}))
         for owner in sorted(g.writer_of(artefact)):
-            w = Wake(owner, "cascade", refs=ids, detail=session_id)
+            w = Wake(owner, "cascade", refs=(artefact, *ids), detail=session_id)
             if w not in wakes:
                 wakes.append(w)
     return wakes

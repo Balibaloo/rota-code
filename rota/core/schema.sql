@@ -89,16 +89,17 @@ CREATE TABLE IF NOT EXISTS item_statements (   -- refs: problem derives from bri
 -- below derive a row's provenance from what it reaches. The provenance
 -- columns on the owner tables stay until the readers move (frame 21).
 --
--- No CHECK on `src_table` or `kind`. The legal values are table names and
--- the names of the target kinds above, and the vocabulary lint reads every
--- CHECK value as a state word, so a CHECK here reports the table names as
--- words with two jobs. `api.stage_ref` is the door and refuses any other
--- value. `src_table` is one of items, glossary_terms, constraints,
--- model_areas, frame_rulings, criteria, business_rules.
+-- The CHECK values of `src_table` and `kind` are table names and the nouns
+-- of the target kinds above, not lifecycle states. The vocabulary harvester
+-- and `predicates.schema_states` skip this table. `api.stage_ref` refuses a
+-- bad value before the commit.
 CREATE TABLE IF NOT EXISTS refs (
-    src_table  TEXT NOT NULL,
+    src_table  TEXT NOT NULL CHECK (src_table IN
+                   ('items','glossary_terms','constraints','model_areas',
+                    'frame_rulings','criteria','business_rules')),
     src_id     TEXT NOT NULL,
-    kind       TEXT NOT NULL,                -- statement | reference | term | grain | ruling
+    kind       TEXT NOT NULL CHECK (kind IN
+                   ('statement','reference','term','grain','ruling')),
     target     TEXT NOT NULL,
     resolves   INTEGER NOT NULL DEFAULT 1,   -- grains only: 0 once the grain leaves the index
     PRIMARY KEY (src_table, src_id, kind, target)

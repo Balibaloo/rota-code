@@ -81,7 +81,37 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
                 f"INSERT INTO {table} ({cols}) VALUES ({marks})",
                 list(payload.values()),
             )
+    _seed_verdict_rulings(conn, fixture)
     _seed_refs(conn, fixture)
+
+
+def _seed_verdict_rulings(conn: sqlite3.Connection,
+                          fixture: dict[str, list[dict]]) -> None:
+    """A landed `rulings` row for each seeded verdict: a message with the
+    `verdict` verb, or a `verdict:<message>` config key whose message is
+    seeded. `principal.land` writes the row for a live verdict, and an
+    adopt needs it on the cause chain. The ask is the verdict's cause and
+    `rulings.ask_id` is a foreign key, so a verdict with no seeded cause
+    gets no row. No prompt, wake or predicate reads the row."""
+    per_item: dict[str, str] = {}
+    for row in fixture.get("messages") or []:
+        if row.get("verb") == "verdict" and row.get("id"):
+            per_item.setdefault(row["id"], "{}")
+    for row in fixture.get("config") or []:
+        key = str(row.get("key") or "")
+        if key.startswith("verdict:"):
+            value = row.get("value")
+            per_item[key[len("verdict:"):]] = (
+                value if isinstance(value, str) else json.dumps(value or {}))
+    for mid, ruled in per_item.items():
+        cause = conn.execute("SELECT cause_id FROM messages WHERE id = ?",
+                             (mid,)).fetchone()
+        if not cause or not cause["cause_id"]:
+            continue
+        conn.execute(
+            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+            "status, verdict_id) VALUES (?, ?, ?, 'seeded verdict', 'landed', ?)",
+            (f"r_{mid}", cause["cause_id"], ruled, mid))
 
 
 def _encode(value: Any) -> Any:

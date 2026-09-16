@@ -154,7 +154,7 @@ def _file_times(path: Path) -> tuple[float, float]:
 
 
 def _read(path: Path, ask_git: bool = True) -> dict:
-    from .core.db import connect_readonly
+    from .core.db import connect_readonly, schema_stale
 
     created, opened = _file_times(path)
     row: dict = {"name": path.stem, "path": str(path), "root": "", "error": "",
@@ -191,6 +191,14 @@ def _read(path: Path, ask_git: bool = True) -> dict:
         for table in COUNTED:
             got = conn.execute(f"SELECT COUNT(*) n FROM {table}").fetchone()
             row["counts"][table] = got["n"]
+        # A run from before the refs relation. `init_db` refuses it with
+        # this sentence, and the list says the same sentence, not the
+        # first table the frontier fails to find.
+        stale = schema_stale(conn)
+        if stale:
+            row["state"] = "stale"
+            row["error"] = stale
+            return row
         from .core.scheduler import is_quiescent_readonly
 
         row["state"] = "quiescent" if is_quiescent_readonly(conn) else "ready"
@@ -494,10 +502,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     # become an argument the system takes seriously.
     if getattr(args, "until", None):
         os.environ["ROTA_SURVEY_UNTIL"] = args.until
-    from .core.db import connect as _connect
+    from .core.db import connect as _connect, schema_stale
     from .llm import profile as profile_mod
 
     conn = _connect(path)
+    stale = schema_stale(conn)
+    if stale:
+        conn.close()
+        raise SystemExit(f"{args.name}: {stale}")
     prof = profile_mod.of_run(conn) or profile_mod.find(profile_mod.default_name())
     roles = {}
     for item in getattr(args, "role", []) or []:

@@ -477,7 +477,7 @@ def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
 GRAIN_REFS_CAP = 12
 
 # The legal values of `refs.kind` and `refs.src_table`. The schema carries
-# no CHECK for them (see the table comment), so this door holds the rule.
+# the same lists as a CHECK. This door refuses a bad value before the commit.
 REF_KINDS = ("statement", "reference", "term", "grain", "ruling")
 REF_SOURCES = ("items", "glossary_terms", "constraints", "model_areas",
                "frame_rulings", "criteria", "business_rules")
@@ -491,11 +491,49 @@ def stage_ref(ctx: Ctx, src_table: str, src_id: str, kind: str, target: str,
     if src_table not in REF_SOURCES:
         raise ValueError(f"{src_table!r} is not a table that carries refs")
     row_id = f"{src_table}:{src_id}:{kind}:{target}"
-    if any(w[0] == "refs" and w[1] == row_id for w in ctx.writes):
+    last = _last_ref_write(ctx, row_id)
+    if last is not None and not last[2].get("retire"):
         return
     ctx.writes.append(("refs", row_id, {
         "src_table": src_table, "src_id": src_id, "kind": kind,
         "target": target, "resolves": resolves}))
+
+
+def _last_ref_write(ctx: Ctx, row_id: str):
+    """The last write staged for one refs row this session, or None."""
+    for w in reversed(ctx.writes):
+        if w[0] == "refs" and w[1] == row_id:
+            return w
+    return None
+
+
+def retire_ref(ctx: Ctx, src_table: str, src_id: str, kind: str, target: str) -> None:
+    """Stage the removal of one refs row. `db._apply_ref` deletes the row
+    and receipts the source row when a row was on file. The writes of one
+    row land in the order staged, so the last one wins."""
+    row_id = f"{src_table}:{src_id}:{kind}:{target}"
+    last = _last_ref_write(ctx, row_id)
+    if last is not None and last[2].get("retire"):
+        return
+    ctx.writes.append(("refs", row_id, {
+        "src_table": src_table, "src_id": src_id, "kind": kind,
+        "target": target, "retire": True}))
+
+
+def named_statements(ctx: Ctx) -> list[str]:
+    """The statements a wake names: the wake's refs, then the refs of the
+    message that woke the session, each one that is a row of `statements`.
+    A row written on such a wake rests on them, so decided cascades from
+    a ratified statement along the refs. A wake that names no statement
+    gives a reasoned row."""
+    named: list[str] = list(getattr(ctx, "wake_refs", ()) or ())
+    if getattr(ctx, "trigger", None):
+        from ..core.db import refs_of
+        row = ctx.conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                               (ctx.trigger,)).fetchone()
+        named += [r for r in refs_of(row["body_refs"]) if r not in named] if row else []
+    return [r for r in named if ctx.conn.execute(
+        "SELECT 1 FROM statements WHERE id = ?", (r,)).fetchone()]
 
 
 def stage_grain_refs(ctx: Ctx, src_table: str, src_id: str,
@@ -797,22 +835,16 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # clickI night 37 (2026-09-13) had one ratified statement, one item read
     # from it through the Liaison's deliver, and an empty `item_statements`,
     # so the Developer's wake said "the principal said: []".
-    named: list[str] = list(getattr(ctx, "wake_refs", ()) or ())
-    if getattr(ctx, "trigger", None):
-        from ..core.db import refs_of
-        row = ctx.conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                               (ctx.trigger,)).fetchone()
-        named += [r for r in refs_of(row["body_refs"]) if r not in named] if row else []
+    # `named_statements` reads both, for this op and the other owners.
+    named = named_statements(ctx)
     ctx.writes.append(("items", id, {
         "text": text, "kind": kind, "provenance": ctx.provenance,
         "approval": "draft"}))
     # After the item row: the junction's foreign key needs it first.
     for ref in named:
-        if ctx.conn.execute("SELECT 1 FROM statements WHERE id = ?",
-                            (ref,)).fetchone():
-            ctx.writes.append(("item_statements", f"{id}:{ref}", {
-                "item_id": id, "statement_id": ref}))
-            stage_ref(ctx, "items", id, "statement", ref)
+        ctx.writes.append(("item_statements", f"{id}:{ref}", {
+            "item_id": id, "statement_id": ref}))
+        stage_ref(ctx, "items", id, "statement", ref)
     # What the item rests on when an onboarding wake wrote it: the code it
     # read. A `source_refs` parameter for a reference waits for the
     # re-record: the advertised signature is in the prompt.
@@ -870,7 +902,7 @@ def problem_consult(ctx: Ctx) -> list[dict]:
     for r in ctx.conn.execute(
             "SELECT src_id AS item_id, target AS statement_id FROM refs "
             "WHERE src_table = 'items' AND kind = 'statement' "
-            "ORDER BY src_id, target"):
+            "ORDER BY src_id, rowid"):        # within an item, as written
         derives.setdefault(r["item_id"], []).append(r["statement_id"])
     for row in rows:
         row["from_statements"] = derives.get(row["id"], [])
@@ -995,10 +1027,20 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
                          "you named none")
     ruled = _ruled_ids(ctx)
     ruling_id = _landed_ruling(ctx)
+    if ruling_id is None:
+        # An adopted row rests on the ruling that approved it. With no
+        # landed ruling on the cause chain the row has nothing to rest on.
+        raise ValueError(
+            "adopt needs a landed ruling on the chain of the message that "
+            "woke you: the principal's verdict, relayed by the Liaison. None "
+            "is on file, so there is no ruling for these rows to rest on.")
+    from ..core.db import PROVENANCE_VIEW_OF_TABLE
+    view = PROVENANCE_VIEW_OF_TABLE[table]
     out, skipped = [], []
     for rid in ids:
+        # The view, not the column: a row's provenance is what it rests on.
         row = ctx.conn.execute(
-            f"SELECT provenance FROM {table} WHERE id = ?", (rid,)).fetchone()
+            f"SELECT provenance FROM {view} WHERE id = ?", (rid,)).fetchone()
         if row is None:
             raise ValueError(f"{rid!r} is not a row of {table}; adopt what "
                              f"the ruling names, from the refs you were given")
@@ -1013,8 +1055,7 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
             continue
         ctx.writes.append((table, rid, {"provenance": "decided"}, False))
         # Beside the stamp: the row now rests on the ruling that approved it.
-        if ruling_id:
-            stage_ref(ctx, table, rid, "ruling", ruling_id)
+        stage_ref(ctx, table, rid, "ruling", ruling_id)
         out.append(rid)
     result = {"adopted": out}
     if skipped:
@@ -1533,6 +1574,11 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
     # read. A `source_refs` parameter for a reference waits for the
     # re-record: the advertised signature is in the prompt.
     stage_grain_refs(ctx, "glossary_terms", id)
+    # What the sense rests on when a delivery wake wrote it: the statements
+    # the wake names. Decided cascades from a ratified statement along the
+    # refs. A wake that names no statement gives a reasoned row.
+    for ref in named_statements(ctx):
+        stage_ref(ctx, "glossary_terms", id, "statement", ref)
     out = {"id": id}
     if ignored_sense:
         out["note"] = ignored_sense
@@ -1893,13 +1939,14 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
             whole["term_refs"] = json.dumps(out_refs)
             ctx.writes.append((table, r["id"], whole))
             repointed.append(r["id"])
-    # The same repoint on the relation. The old ref to the losing row stays:
-    # the relation has no delete door yet, and the walk reaches the same
-    # sources through the superseded row's copied refs.
+    # The same repoint on the relation. The ref to the losing row is
+    # retired, so the relation lists the kept term only. The kept row
+    # carries the losing row's own refs (`stage_copied_refs` above).
     for r in ctx.conn.execute(
             "SELECT src_table, src_id FROM refs WHERE kind = 'term' "
             "AND target = ? ORDER BY src_table, src_id", (drop,)):
         stage_ref(ctx, r["src_table"], r["src_id"], "term", keep)
+        retire_ref(ctx, r["src_table"], r["src_id"], "term", drop)
 
     out = {"id": keep, "superseded": drop,
            "note": f"{drop} now points at {keep}. Both senses stay readable."}
@@ -2275,6 +2322,9 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     for ref in cited:
         stage_ref(ctx, "constraints", id, "reference", ref)
     stage_grain_refs(ctx, "constraints", id)
+    # And the statements a delivery wake names, as `glossary.amend` does.
+    for ref in named_statements(ctx):
+        stage_ref(ctx, "constraints", id, "statement", ref)
     out = {"id": id, "bindings": bindings or [], "source_refs": cited}
     if dropped:
         out["not_cited"] = (

@@ -178,9 +178,13 @@ def harvest() -> dict[str, Term]:
     sql = paths.SCHEMA.read_text(encoding="utf-8")
     for table in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", sql):
         _add(terms, table, "L2", "schema.table")
-    for enum_block in re.findall(r"CHECK \(\w+ IN \(([^)]+)\)\)", sql):
-        for value in re.findall(r"'([^']+)'", enum_block):
-            _add(terms, value, "L5", "schema.state")
+    for block in re.split(r"(?=CREATE TABLE IF NOT EXISTS )", sql):
+        table = re.match(r"CREATE TABLE IF NOT EXISTS (\w+)", block)
+        if table and table.group(1) == "refs":
+            continue    # `refs` CHECK values are table names and nouns, not states
+        for enum_block in re.findall(r"CHECK \(\w+ IN \(([^)]+)\)\)", block):
+            for value in re.findall(r"'([^']+)'", enum_block):
+                _add(terms, value, "L5", "schema.state")
 
     # ---- prompts: what roles are actually told ------------------------------
     for path in sorted(PROMPTS.rglob("*.md")):

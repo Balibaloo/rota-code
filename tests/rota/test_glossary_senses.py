@@ -62,6 +62,14 @@ class Ctx:
             marks = ", ".join("?" * len(cols))
             if table == "refs":
                 # The relation has no `id` column: the pair is the row.
+                # A `retire` write removes the row, as `db._apply_ref` does.
+                if cols.get("retire"):
+                    self.conn.execute(
+                        "DELETE FROM refs WHERE src_table = ? AND src_id = ? "
+                        "AND kind = ? AND target = ?",
+                        (cols["src_table"], cols["src_id"], cols["kind"],
+                         cols["target"]))
+                    continue
                 self.conn.execute(
                     f"INSERT OR REPLACE INTO refs ({keys}) VALUES ({marks})",
                     tuple(cols.values()))
@@ -456,8 +464,8 @@ def test_a_merge_repoints_what_referred_to_the_losing_sense(db):
     refs = [r["target"] for r in db.execute(
         "SELECT target FROM refs WHERE src_table = 'criteria' AND src_id = 'c1' "
         "AND kind = 'term' ORDER BY target")]
-    # The old ref stays beside the new one until the delete door (stage 3).
-    assert "note" in refs, "the criterion now names the sense that survived"
+    # The ref to the losing sense is retired with the repoint.
+    assert refs == ["note"], "the criterion now names the sense that survived"
 
 
 def test_the_modes_own_name_is_not_a_reason(db):
