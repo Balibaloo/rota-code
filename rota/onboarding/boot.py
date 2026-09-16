@@ -238,6 +238,8 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
         "WHERE area IS NOT NULL AND grain_kind = 'symbol' ORDER BY area")]
     if not coded:
         conn.execute("DELETE FROM constraint_bindings WHERE constraint_id = ?", (ZERO,))
+        conn.execute("DELETE FROM refs WHERE src_table = 'constraints' AND src_id = ?",
+                     (ZERO,))
         conn.execute("DELETE FROM constraints WHERE id = ?", (ZERO,))
         return 0
 
@@ -254,6 +256,14 @@ def refresh_constraint_zero(conn: sqlite3.Connection) -> int:
     conn.executemany(
         "INSERT INTO constraint_bindings (constraint_id, grain, grain_kind) "
         "VALUES (?, ?, 'path')", [(ZERO, area) for area in remaining])
+    # The same areas as grain refs. Constraint zero rests on the ground
+    # nobody has read, and the relation says so beside the bindings. Derived
+    # the same way: recomputed whole, so it cannot drift from the surveys.
+    conn.execute("DELETE FROM refs WHERE src_table = 'constraints' AND src_id = ?",
+                 (ZERO,))
+    conn.executemany(
+        "INSERT INTO refs (src_table, src_id, kind, target) "
+        "VALUES ('constraints', ?, 'grain', ?)", [(ZERO, area) for area in remaining])
     return len(remaining)
 
 

@@ -554,9 +554,15 @@ def pump(conn: sqlite3.Connection, backend: PrincipalBackend) -> list[str]:
     return created
 
 
-def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
+def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
+         ruling_id: str | None = None) -> str | None:
     """
     Land one answer as a message, if the ask is still open.
+
+    `ruling_id` names the Liaison's `rulings` row when the verdict comes
+    through `apply_rulings`. Without one, the verdict came straight from the
+    seat, and the door writes a landed `rulings` row for it: a `ruling` ref
+    targets that row, so every verdict needs one.
 
     The answer's door, split from `pump` so it can be hurt on its own
     (`test_chaos_confirm.py`, loop 3's injuries). Two principals can read the
@@ -733,6 +739,16 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer) -> str | None:
             (f"entry:{msg_id}", json.dumps(answer.text)),
         )
         record_entry(conn, msg_id, answer.text)
+    # The ruling as a row with a version. The Liaison's reading has its own
+    # row and `apply_rulings` marks it landed after this returns. A verdict
+    # from the seat has none, so the door writes one here, landed, keyed by
+    # the verdict message so a replay lands the same id.
+    if ruling_id is None:
+        conn.execute(
+            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, "
+            "status, verdict_id) VALUES (?, ?, ?, ?, 'landed', ?)",
+            (f"r_{msg_id}", ask.message_id, json.dumps(per_item),
+             (answer.text or "").strip(), msg_id))
     return msg_id
 
 
@@ -759,7 +775,7 @@ def apply_rulings(conn: sqlite3.Connection) -> list[str]:
                       refs=json.loads(ask_row["body_refs"] or "[]"))
             msg_id = land(conn, ask, Answer(
                 verb="verdict", per_item=json.loads(r["per_item"] or "{}"),
-                text=r["words"] or ""))
+                text=r["words"] or ""), ruling_id=r["id"])
         closed = conn.execute(
             "SELECT status FROM messages WHERE id = ?", (r["ask_id"],)).fetchone()
         landed = msg_id is not None or (closed and closed["status"] != "open")

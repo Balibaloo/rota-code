@@ -1576,11 +1576,12 @@ def run_session(
     # a codebase, so what it writes was found. Everything else was chosen.
     from .scheduler import ONBOARDING_TICKS
 
-    provenance = "observed" if wake.kind in ONBOARDING_TICKS else "decided"
+    onboarding = wake.kind in ONBOARDING_TICKS
+    provenance = "observed" if onboarding else "decided"
 
     sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
                            session_id=session_id, entry_id=entry_id,
-                           provenance=provenance, g=g,
+                           provenance=provenance, onboarding=onboarding, g=g,
                            # The subject the scheduler decided: an area for a
                            # survey, `@program` for the orientation, `@term:x`
                            # for a word. Never the role's to choose.
@@ -2354,6 +2355,9 @@ def _derive_frame_record(conn, sb) -> None:
             (prefix, prefix + "/%")).fetchone()
         if row:
             cites.append(row["grain"])
+            # The ruling rests on the same grain. `frame.assign` stages the
+            # row too; the second stage of one row is no write.
+            api.stage_ref(sb.ctx, "frame_rulings", prefix, "grain", row["grain"])
     at = conn.execute(
         "SELECT value FROM config WHERE key = 'project_commit'").fetchone()
     rid = f"{sb.ctx.role}:@frame"

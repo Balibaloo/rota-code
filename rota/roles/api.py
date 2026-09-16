@@ -46,6 +46,11 @@ class Ctx:
     # filled it with `deliver`: the name of the mode it was woken in. A field
     # whose value is a fact about the session should be filled by the session.
     provenance: str = "decided"
+    # The wake kind, as a fact: an onboarding tick reads the code, so what
+    # it writes rests on the grains it opened. `stage_grain_refs` records
+    # them on that kind of wake only. On a delivery wake the same write
+    # would mark a reasoned row observed.
+    onboarding: bool = False
     session_id: str = ""
     batch_id: str | None = None
     # Which area a survey session is surveying. Decided by the scheduler, which
@@ -438,6 +443,92 @@ def brief_list(ctx: Ctx, since_version: int = 0) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# refs: what a row rests on.
+#
+# Every writer stages a refs row beside the column or the stamp it writes
+# today. The `provenance` view derives a row's provenance from the rows; the
+# readers still read the columns (frame 21, stage 1). A refs write is
+# receipted under its source row, so stage it after that row's own write.
+# ---------------------------------------------------------------------------
+
+GRAIN_REFS_CAP = 12
+
+# The legal values of `refs.kind` and `refs.src_table`. The schema carries
+# no CHECK for them (see the table comment), so this door holds the rule.
+REF_KINDS = ("statement", "reference", "term", "grain", "ruling")
+REF_SOURCES = ("items", "glossary_terms", "constraints", "model_areas",
+               "frame_rulings", "criteria", "business_rules")
+
+
+def stage_ref(ctx: Ctx, src_table: str, src_id: str, kind: str, target: str,
+              resolves: int = 1) -> None:
+    """Stage one refs row. The same row twice in a session is one write."""
+    if kind not in REF_KINDS:
+        raise ValueError(f"kind is one of {', '.join(REF_KINDS)}, not {kind!r}")
+    if src_table not in REF_SOURCES:
+        raise ValueError(f"{src_table!r} is not a table that carries refs")
+    row_id = f"{src_table}:{src_id}:{kind}:{target}"
+    if any(w[0] == "refs" and w[1] == row_id for w in ctx.writes):
+        return
+    ctx.writes.append(("refs", row_id, {
+        "src_table": src_table, "src_id": src_id, "kind": kind,
+        "target": target, "resolves": resolves}))
+
+
+def stage_grain_refs(ctx: Ctx, src_table: str, src_id: str,
+                     grains=None, *, always: bool = False) -> None:
+    """A grain ref per path this session opened, capped as `model.describe`
+    caps `source_refs`. Recorded on an onboarding wake, or when the caller
+    says `always`."""
+    if not always and not getattr(ctx, "onboarding", False):
+        return
+    opened = grains if grains is not None else (ctx.opened or ())
+    for grain in sorted(str(g) for g in opened)[:GRAIN_REFS_CAP]:
+        stage_ref(ctx, src_table, src_id, "grain", grain)
+
+
+def stage_copied_refs(ctx: Ctx, src_table: str, from_id: str, to_id: str) -> None:
+    """The kept row inherits the refs of a row it replaces."""
+    for r in ctx.conn.execute(
+            "SELECT kind, target, resolves FROM refs "
+            "WHERE src_table = ? AND src_id = ? ORDER BY kind, target",
+            (src_table, from_id)):
+        stage_ref(ctx, src_table, to_id, r["kind"], r["target"], r["resolves"])
+
+
+# The owner tables behind each artefact that writes refs. The graph declares
+# one `cite` edge per owner with `actor: system`: the system stages the rows
+# beside the owner's own writes, and no session calls the op.
+_CITE_TABLES = {
+    "problem": ("items",),
+    "glossary": ("glossary_terms", "business_rules"),
+    "model": ("constraints", "model_areas"),
+    "frame": ("frame_rulings",),
+    "criteria": ("criteria",),
+}
+
+
+def _cite_op(artefact: str, tables: tuple[str, ...]) -> Callable:
+    def cite(ctx: Ctx, id: str, kind: str, target: str) -> dict:
+        """One refs row for a row of this artefact: what the row rests on."""
+        table = next(
+            (t for t in tables
+             if any(w[0] == t and w[1] == id for w in ctx.writes)
+             or ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
+                                 (id,)).fetchone()), None)
+        if table is None:
+            raise ValueError(f"{id!r} is not a row of {artefact}")
+        stage_ref(ctx, table, id, kind, target)
+        return {"id": id, "kind": kind, "target": target}
+    cite.__name__ = f"{artefact}_cite"
+    return cite
+
+
+for _artefact, _tables in _CITE_TABLES.items():
+    op(_artefact, "cite")(_cite_op(_artefact, _tables))
+
+
+# ---------------------------------------------------------------------------
 # problem statement
 # ---------------------------------------------------------------------------
 
@@ -670,6 +761,11 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
                             (ref,)).fetchone():
             ctx.writes.append(("item_statements", f"{id}:{ref}", {
                 "item_id": id, "statement_id": ref}))
+            stage_ref(ctx, "items", id, "statement", ref)
+    # What the item rests on when an onboarding wake wrote it: the code it
+    # read. A `source_refs` parameter for a reference waits for the
+    # re-record: the advertised signature is in the prompt.
+    stage_grain_refs(ctx, "items", id)
     return {"id": id}
 
 
@@ -793,12 +889,9 @@ def _same_sense(text: str) -> str:
 # place `principal_verdict` comes from, so the op can check rather than trust.
 # ---------------------------------------------------------------------------
 
-def _ruled_ids(ctx: Ctx) -> set[str] | None:
-    """The ids the principal's ruling approves, off this wake's cause chain.
-
-    None when the wake carries no ruling at all -- distinct from a ruling that
-    approves nothing, which is an empty set.
-    """
+def _verdict_of(ctx: Ctx) -> tuple[str, dict[str, str]] | None:
+    """The verdict on this wake's cause chain: (verdict message id, the
+    per-row ruling). None when the wake carries no ruling at all."""
     from .principal import verdict_for
 
     trigger = getattr(ctx, "trigger", None)
@@ -810,12 +903,37 @@ def _ruled_ids(ctx: Ctx) -> set[str] | None:
         seen.add(mid)
         verdict = verdict_for(ctx.conn, mid)
         if verdict:
-            return {i for i, ruling in verdict.items()
-                    if ruling in ("approve", "approved", "confirm", "confirmed")}
+            return mid, verdict
         row = ctx.conn.execute(
             "SELECT cause_id FROM messages WHERE id = ?", (mid,)).fetchone()
         mid = row["cause_id"] if row else None
     return None
+
+
+def _ruled_ids(ctx: Ctx) -> set[str] | None:
+    """The ids the principal's ruling approves, off this wake's cause chain.
+
+    None when the wake carries no ruling at all -- distinct from a ruling that
+    approves nothing, which is an empty set.
+    """
+    found = _verdict_of(ctx)
+    if found is None:
+        return None
+    _, verdict = found
+    return {i for i, ruling in verdict.items()
+            if ruling in ("approve", "approved", "confirm", "confirmed")}
+
+
+def _landed_ruling(ctx: Ctx) -> str | None:
+    """The `rulings` row of the verdict on this wake's cause chain, landed.
+    `principal.land` writes one for every verdict, so the ref has a target."""
+    found = _verdict_of(ctx)
+    if found is None:
+        return None
+    row = ctx.conn.execute(
+        "SELECT id FROM rulings WHERE verdict_id = ? AND status = 'landed' "
+        "ORDER BY rowid DESC LIMIT 1", (found[0],)).fetchone()
+    return row["id"] if row else None
 
 
 def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
@@ -823,6 +941,7 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
         raise ValueError("adopt names the rows the principal approved, and "
                          "you named none")
     ruled = _ruled_ids(ctx)
+    ruling_id = _landed_ruling(ctx)
     out, skipped = [], []
     for rid in ids:
         row = ctx.conn.execute(
@@ -840,6 +959,9 @@ def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
             skipped.append(rid)
             continue
         ctx.writes.append((table, rid, {"provenance": "decided"}, False))
+        # Beside the stamp: the row now rests on the ruling that approved it.
+        if ruling_id:
+            stage_ref(ctx, table, rid, "ruling", ruling_id)
         out.append(rid)
     result = {"adopted": out}
     if skipped:
@@ -1354,6 +1476,10 @@ def glossary_amend(ctx: Ctx, term: str, sense_body: str = "",
         # An area for a survey; nothing for a word defined over the whole
         # program. `@term:x` is a subject, not a place the word was seen.
         "area": ctx.area if is_area(ctx.area) else ""}))
+    # What the sense rests on when an onboarding wake wrote it: the code it
+    # read. A `source_refs` parameter for a reference waits for the
+    # re-record: the advertised signature is in the prompt.
+    stage_grain_refs(ctx, "glossary_terms", id)
     out = {"id": id}
     if ignored_sense:
         out["note"] = ignored_sense
@@ -1540,6 +1666,11 @@ def glossary_synthesise(ctx: Ctx, ids: list[str], sense_short: str,
             "sense_body": r["sense_body"], "provenance": r["provenance"],
             "source_refs": r["source_refs"], "area": r["area"],
             "superseded_by": keep}))
+    # The kept row inherits the readings' refs: composed from what they
+    # rest on, it rests on the same.
+    for i in rows:
+        if i != keep:
+            stage_copied_refs(ctx, "glossary_terms", i, keep)
     out = {"id": keep, "composed_from": sorted(i for i in rows if i != keep)}
     if summary_only:
         out["note"] = ("recorded as a summary of the readings, carrying nothing "
@@ -1674,6 +1805,8 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
         "sense_body": b["sense_body"], "provenance": b["provenance"],
         "source_refs": b["source_refs"], "area": b["area"],
         "superseded_by": keep}))
+    # The survivor inherits what the losing row rests on.
+    stage_copied_refs(ctx, "glossary_terms", drop, keep)
 
     # Anything pointing at the losing row is repointed at the survivor. The
     # claim being made is that the two say the same thing, so a reference to one
@@ -1704,6 +1837,13 @@ def glossary_same(ctx: Ctx, keep: str, drop: str, why: str) -> dict:
             whole["term_refs"] = json.dumps(out_refs)
             ctx.writes.append((table, r["id"], whole))
             repointed.append(r["id"])
+    # The same repoint on the relation. The old ref to the losing row stays:
+    # the relation has no delete door yet, and the walk reaches the same
+    # sources through the superseded row's copied refs.
+    for r in ctx.conn.execute(
+            "SELECT src_table, src_id FROM refs WHERE kind = 'term' "
+            "AND target = ? ORDER BY src_table, src_id", (drop,)):
+        stage_ref(ctx, r["src_table"], r["src_id"], "term", keep)
 
     out = {"id": keep, "superseded": drop,
            "note": f"{drop} now points at {keep}. Both senses stay readable."}
@@ -2068,6 +2208,11 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     for grain in bindings or []:
         ctx.writes.append(("constraint_bindings", f"{id}:{grain}", {
             "constraint_id": id, "grain": grain, "grain_kind": "path"}))
+    # What the constraint rests on: the clause it cites, and the code an
+    # onboarding wake read.
+    for ref in cited:
+        stage_ref(ctx, "constraints", id, "reference", ref)
+    stage_grain_refs(ctx, "constraints", id)
     out = {"id": id, "bindings": bindings or [], "source_refs": cited}
     if dropped:
         out["not_cited"] = (
@@ -2175,6 +2320,8 @@ def model_describe(ctx: Ctx, account: str, area: str | None = None) -> dict:
         "account": account,
         "source_refs": _json.dumps(sorted(ctx.opened)[:12]),
         "provenance": ctx.provenance or "observed"}))
+    # The same paths as `source_refs`, as grain refs.
+    stage_grain_refs(ctx, "model_areas", area, always=True)
     return {"area": area}
 
 
@@ -3212,6 +3359,9 @@ def criteria_specify(ctx: Ctx, id: str, ticket_id: str, text: str,
         "ticket_id": ticket_id, "text": text,
         "term_refs": json.dumps(term_refs or []),
         "surface_refs": json.dumps(surface)}))
+    for ref in term_refs or []:
+        if isinstance(ref, str):
+            stage_ref(ctx, "criteria", id, "term", ref)
     out = {"id": id}
     if not surface:
         out["note"] = ("no surface named. The Tester is black-box: your words "
@@ -3263,6 +3413,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
     if term_refs is not None:
         payload["term_refs"] = json.dumps(term_refs)
     ctx.writes.append(("criteria", id, payload, False))
+    for ref in term_refs or []:
+        if isinstance(ref, str):
+            stage_ref(ctx, "criteria", id, "term", ref)
     return {"id": id, "respecified": True}
 
 
@@ -6727,6 +6880,9 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
     ctx.writes.append(("frame_rulings", path,
                        {"kind": k, "provenance": "observed",
                         "reason": reason or ""}))
+    # The judgement rests on the tree it read: the first indexed grain under
+    # the prefix, as `_derive_frame_record` cites it.
+    stage_ref(ctx, "frame_rulings", path, "grain", min(covered))
     heuristic = ("attached" if all(is_attached(m) or _is_prose(m)
                                    for m in covered) else "program")
     if k != heuristic:

@@ -86,6 +86,32 @@ ARTEFACT_OF_TABLE: dict[str, str] = {
 # generate receipts; everything else (runtime bookkeeping) does not.
 ARTEFACT_TABLES = set(ARTEFACT_OF_TABLE)
 
+# One relation, several writers. A refs row records what a source row rests
+# on, and it belongs to the artefact of that source row. So `refs` is not in
+# `TABLES_OF_ARTEFACT`: a write to it carries `src_table` and `src_id` in its
+# values, and the receipt goes under that row. The cascade, the ruling relay
+# and the writer check then see the source artefact and never the relation.
+REFS_TABLE = "refs"
+
+
+def artefact_of_write(table: str, values: dict | None = None) -> str | None:
+    """The artefact a write touches. A refs row resolves by its source table."""
+    if table == REFS_TABLE:
+        return ARTEFACT_OF_TABLE.get(str((values or {}).get("src_table", "")))
+    return ARTEFACT_OF_TABLE.get(table)
+
+
+def receipt_of(w: "Write") -> tuple[str, str]:
+    """The (table, row id) a write is receipted under.
+
+    A refs write is receipted under its source row. Stage a refs write after
+    the source row's own write: the row's receipt then already exists, and
+    the refs write bumps no second version."""
+    if w.table == REFS_TABLE:
+        return (str(w.values.get("src_table", "")),
+                str(w.values.get("src_id", "")))
+    return w.table, w.row_id
+
 
 def connect(path: str | Path) -> sqlite3.Connection:
     db_path = Path(path).expanduser()
@@ -225,7 +251,7 @@ def version_of(conn: sqlite3.Connection, table: str) -> int:
 # row_id is a synthetic label used only to key the receipt.
 JUNCTION_TABLES = {
     "batch_tickets", "constraint_bindings", "survey_citations", "item_statements",
-    "batch_dep_facts", "schedule_deps", "batch_touch", "touch_strays",
+    "batch_dep_facts", "schedule_deps", "batch_touch", "touch_strays", "refs",
 }
 
 
@@ -409,13 +435,26 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
 
         for w in result.writes:
             _apply_write(conn, w)
-            if w.table in ARTEFACT_TABLES:
-                new_version = bump_version(conn, w.table)
-                conn.execute(
-                    "INSERT OR REPLACE INTO receipts "
-                    "(session_id, table_name, row_id, new_version) VALUES (?, ?, ?, ?)",
-                    (result.session_id, w.table, w.row_id, new_version),
-                )
+            table, row_id = receipt_of(w)
+            if table not in ARTEFACT_TABLES:
+                continue
+            if w.table == REFS_TABLE:
+                # A refs row beside the source row's own write adds nothing
+                # to the receipt. A refs row on its own changes what the
+                # source row rests on: receipt it under that row.
+                already = conn.execute(
+                    "SELECT 1 FROM receipts WHERE session_id = ? "
+                    "AND table_name = ? AND row_id = ?",
+                    (result.session_id, table, row_id)).fetchone()
+                if already:
+                    continue
+            new_version = bump_version(conn, table)
+            conn.execute(
+                "INSERT OR REPLACE INTO receipts "
+                "(session_id, table_name, row_id, new_version) VALUES (?, ?, ?, ?)",
+                (result.session_id, table, row_id, new_version),
+            )
+            if w.table != REFS_TABLE:
                 _lift_quarantines(conn, w)
 
         for m in result.messages:

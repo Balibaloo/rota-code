@@ -61,6 +61,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
 
     # ---- joins: the pair is the row ---------------------------------------
     "item_statements": ("relation", "the (item, statement) pair"),
+    "refs": ("relation", "the (source row, kind, target) tuple; a refs row "
+                         "is receipted under its source row"),
     "batch_tickets": ("relation", "the (batch, ticket) pair"),
     "constraint_bindings": ("relation", "the (constraint, grain) pair; "
                                         "constraint zero's are derived"),

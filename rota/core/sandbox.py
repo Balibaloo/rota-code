@@ -448,6 +448,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
           batch_id: str | None = None, session_id: str = "",
           area: str | None = None,
           entry_id: str | None = None, provenance: str = "decided",
+          onboarding: bool = False,
           allow: list[str] | None = None,
           wake: object | None = None,
           g: graph_mod.Graph | None = None) -> Sandbox:
@@ -464,7 +465,7 @@ def build(role: str, conn: sqlite3.Connection, *, mode: str = "normal",
 
     ctx = api.Ctx(conn=conn, role=role, mode=mode, session_id=session_id,
                   batch_id=batch_id, area=area, entry_id=entry_id,
-                  provenance=provenance,
+                  provenance=provenance, onboarding=onboarding,
                   wake_refs=tuple(getattr(wake, "refs", ()) or ()))
 
     grouped: dict[str, dict[str, Callable]] = {}
@@ -600,6 +601,10 @@ def _relaying_a_non_answer(ctx: api.Ctx) -> bool:
 # a judgement, and `test_the_relay_split_matches_the_graph` keeps this map from
 # falling behind the graph the way four hand-written lists did on the inquiry
 # route.
+#
+# A `refs` row is never a ruling's subject. The ruling names the source row,
+# and the owner of a refs row is the owner of its `src_table`, which this map
+# already resolves.
 RULED_TABLES = {
     "statements": "vision_keeper",
     "items": "vision_keeper",

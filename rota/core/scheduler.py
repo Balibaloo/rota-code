@@ -1564,6 +1564,8 @@ def cascade_wakes(conn: sqlite3.Connection, session_id: str,
     from .db import ARTEFACT_OF_TABLE
 
     g = g or graph_mod.load()
+    # A refs write is receipted under its source row (`db.receipt_of`), so a
+    # receipt here always names an owner table and never the relation.
     touched = {
         ARTEFACT_OF_TABLE[r["table_name"]]
         for r in conn.execute(

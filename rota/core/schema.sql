@@ -71,6 +71,114 @@ CREATE TABLE IF NOT EXISTS item_statements (   -- refs: problem derives from bri
     PRIMARY KEY (item_id, statement_id)
 );
 
+-- What a row rests on. One row per (source, target). The pair is the row.
+--
+-- `src_table` names the table of the source row. `kind` names the table of
+-- the target. The targets are of different kinds and SQLite has no
+-- polymorphic foreign key, so `kind` does the work of one:
+--   statement  -> statements.id
+--   reference  -> references_.id
+--   term       -> glossary_terms.id
+--   grain      -> code_index.grain (`resolves` is 0 once the grain leaves
+--                 the index; the index is rebuilt, so a grain is not a key)
+--   ruling     -> rulings.id
+--
+-- One table with several writers. A refs row belongs to the artefact of its
+-- source row: `db.session_commit` receipts it under (`src_table`, `src_id`),
+-- so the cascade and the ruling relay see the source artefact. The views
+-- below derive a row's provenance from what it reaches. The provenance
+-- columns on the owner tables stay until the readers move (frame 21).
+--
+-- No CHECK on `src_table` or `kind`. The legal values are table names and
+-- the names of the target kinds above, and the vocabulary lint reads every
+-- CHECK value as a state word, so a CHECK here reports the table names as
+-- words with two jobs. `api.stage_ref` is the door and refuses any other
+-- value. `src_table` is one of items, glossary_terms, constraints,
+-- model_areas, frame_rulings, criteria, business_rules.
+CREATE TABLE IF NOT EXISTS refs (
+    src_table  TEXT NOT NULL,
+    src_id     TEXT NOT NULL,
+    kind       TEXT NOT NULL,                -- statement | reference | term | grain | ruling
+    target     TEXT NOT NULL,
+    resolves   INTEGER NOT NULL DEFAULT 1,   -- grains only: 0 once the grain leaves the index
+    PRIMARY KEY (src_table, src_id, kind, target)
+);
+CREATE INDEX IF NOT EXISTS ix_refs_target ON refs(kind, target);
+
+-- Provenance derived from what a row reaches. A row with no refs is absent
+-- here. The per-table views below give such a row 'reasoned'.
+--
+-- Precedence: decided over observed over reasoned. `basis` says which source
+-- won: a landed ruling, a ratified statement, the world (a reference row), or
+-- the code (a grain that resolves). A reader that needs "cited and decided"
+-- together reads `refs`, not this view.
+--
+-- The walk follows `term` refs: a criterion rests on a term, and the term
+-- rests on a statement. The cap at 8 guards a cycle written by hand.
+CREATE VIEW IF NOT EXISTS provenance AS
+WITH RECURSIVE reach(src_table, src_id, kind, target, resolves, depth) AS (
+    SELECT src_table, src_id, kind, target, resolves, 1 FROM refs
+    UNION
+    SELECT r.src_table, r.src_id, t.kind, t.target, t.resolves, r.depth + 1
+    FROM reach r JOIN refs t
+      ON r.kind = 'term'
+     AND t.src_table = 'glossary_terms' AND t.src_id = r.target
+    WHERE r.depth < 8
+),
+basis AS (
+    SELECT src_table, src_id,
+        MAX(kind = 'ruling' AND EXISTS (
+            SELECT 1 FROM rulings u WHERE u.id = target AND u.status = 'landed'))
+          AS ruled,
+        MAX(kind = 'statement' AND EXISTS (
+            SELECT 1 FROM statements s WHERE s.id = target AND s.status = 'ratified'))
+          AS ratified,
+        MAX(kind = 'reference' AND EXISTS (
+            SELECT 1 FROM references_ x WHERE x.id = target))
+          AS world,
+        MAX(kind = 'grain' AND resolves = 1) AS code
+    FROM reach GROUP BY src_table, src_id
+)
+SELECT src_table, src_id,
+    CASE WHEN ruled OR ratified THEN 'decided'
+         WHEN world OR code    THEN 'observed'
+         ELSE 'reasoned' END AS provenance,
+    CASE WHEN ruled THEN 'ruling' WHEN ratified THEN 'statement'
+         WHEN world THEN 'world'  WHEN code THEN 'code'
+         ELSE 'none' END AS basis
+FROM basis;
+
+-- One per owner table, so a reader can join on the id alone.
+CREATE VIEW IF NOT EXISTS item_provenance AS
+SELECT i.id, COALESCE(p.provenance, 'reasoned') AS provenance,
+       COALESCE(p.basis, 'none') AS basis
+FROM items i LEFT JOIN provenance p
+  ON p.src_table = 'items' AND p.src_id = i.id;
+
+CREATE VIEW IF NOT EXISTS term_provenance AS
+SELECT g.id, COALESCE(p.provenance, 'reasoned') AS provenance,
+       COALESCE(p.basis, 'none') AS basis
+FROM glossary_terms g LEFT JOIN provenance p
+  ON p.src_table = 'glossary_terms' AND p.src_id = g.id;
+
+CREATE VIEW IF NOT EXISTS constraint_provenance AS
+SELECT c.id, COALESCE(p.provenance, 'reasoned') AS provenance,
+       COALESCE(p.basis, 'none') AS basis
+FROM constraints c LEFT JOIN provenance p
+  ON p.src_table = 'constraints' AND p.src_id = c.id;
+
+CREATE VIEW IF NOT EXISTS area_provenance AS
+SELECT a.id, COALESCE(p.provenance, 'reasoned') AS provenance,
+       COALESCE(p.basis, 'none') AS basis
+FROM model_areas a LEFT JOIN provenance p
+  ON p.src_table = 'model_areas' AND p.src_id = a.id;
+
+CREATE VIEW IF NOT EXISTS frame_provenance AS
+SELECT f.id, COALESCE(p.provenance, 'reasoned') AS provenance,
+       COALESCE(p.basis, 'none') AS basis
+FROM frame_rulings f LEFT JOIN provenance p
+  ON p.src_table = 'frame_rulings' AND p.src_id = f.id;
+
 -- ---------------------------------------------------------------------------
 -- Glossary and rules (Terminologist). Index/body split.
 -- ---------------------------------------------------------------------------

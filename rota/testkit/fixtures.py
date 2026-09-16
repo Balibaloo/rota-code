@@ -81,10 +81,115 @@ def seed(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
                 f"INSERT INTO {table} ({cols}) VALUES ({marks})",
                 list(payload.values()),
             )
+    _seed_refs(conn, fixture)
 
 
 def _encode(value: Any) -> Any:
     return json.dumps(value) if isinstance(value, (list, dict)) else value
+
+
+# The refs relation beside the columns a case seeds (frame 21, stage 1).
+#
+# A case file seeds `provenance:`, `source_refs:`, `term_refs:` and
+# `item_statements:` the way the columns take them. The loader translates
+# each into refs rows, so the view derives what the column holds and the
+# case files do not change. A seeded `decided` row rests on one landed
+# fixture ruling. A seeded `observed` row rests on one fixture grain. A
+# seeded `cited` row with no reference on file rests on one fixture
+# reference. The fixture ruling needs an ask: `rulings.ask_id` is a foreign
+# key, so one answered message is seeded with it, in a thread of its own.
+FIXTURE_GRAIN = "@fixture"
+FIXTURE_RULING = "r_fixture"
+FIXTURE_ASK = "m_fixture_ruling"
+FIXTURE_REFERENCE = "ref_fixture"
+
+_PROVENANCE_TABLES = ("items", "glossary_terms", "constraints", "model_areas",
+                      "frame_rulings")
+_SOURCE_REF_TABLES = ("glossary_terms", "constraints", "model_areas")
+_TERM_REF_TABLES = ("criteria", "business_rules")
+
+
+def _id_list(value: Any) -> list[str]:
+    """A seeded JSON list column, as ids. A string is JSON text."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value) if value.strip().startswith("[") else []
+        except ValueError:
+            return []
+    if not isinstance(value, list):
+        return []
+    return [v for v in value if isinstance(v, str)]
+
+
+def _is_row(conn: sqlite3.Connection, table: str, ref: str) -> bool:
+    return conn.execute(f"SELECT 1 FROM {table} WHERE id = ?",
+                        (ref,)).fetchone() is not None
+
+
+def _source_kind(conn: sqlite3.Connection, ref: str) -> str:
+    """What a `source_refs` id names: a reference, a statement, or a grain."""
+    if _is_row(conn, "references_", ref):
+        return "reference"
+    if _is_row(conn, "statements", ref):
+        return "statement"
+    return "grain"
+
+
+def _seed_refs(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None:
+    refs: list[tuple[str, str, str, str]] = []
+    need_ruling = need_reference = False
+    for table in _PROVENANCE_TABLES:
+        for row in fixture.get(table) or []:
+            rid = row.get("id")
+            if rid is None:
+                continue
+            # `model_areas.provenance` defaults to observed in the schema.
+            word = row.get("provenance",
+                           "observed" if table == "model_areas" else None)
+            if word == "observed":
+                refs.append((table, rid, "grain", FIXTURE_GRAIN))
+            elif word in ("decided", "ratified"):
+                refs.append((table, rid, "ruling", FIXTURE_RULING))
+                need_ruling = True
+            elif word == "cited":
+                cited = [r for r in _id_list(row.get("source_refs"))
+                         if _is_row(conn, "references_", r)]
+                if not cited:
+                    refs.append((table, rid, "reference", FIXTURE_REFERENCE))
+                    need_reference = True
+    for table in _SOURCE_REF_TABLES:
+        for row in fixture.get(table) or []:
+            rid = row.get("id")
+            for ref in _id_list(row.get("source_refs")) if rid else []:
+                refs.append((table, rid, _source_kind(conn, ref), ref))
+    for table in _TERM_REF_TABLES:
+        for row in fixture.get(table) or []:
+            rid = row.get("id")
+            for ref in _id_list(row.get("term_refs")) if rid else []:
+                refs.append((table, rid, "term", ref))
+    for row in fixture.get("item_statements") or []:
+        if row.get("item_id") and row.get("statement_id"):
+            refs.append(("items", row["item_id"], "statement", row["statement_id"]))
+    if not refs:
+        return
+    if need_ruling:
+        conn.execute(
+            "INSERT OR IGNORE INTO messages (id, cause_kind, thread_id, "
+            "from_role, to_role, verb, body_refs, seq, status) VALUES "
+            "(?, 'conversation', ?, 'principal', 'liaison', 'converse', '[]', "
+            "0, 'answered')", (FIXTURE_ASK, FIXTURE_ASK))
+        conn.execute(
+            "INSERT OR IGNORE INTO rulings (id, ask_id, per_item, words, status) "
+            "VALUES (?, ?, '{}', 'seeded as decided', 'landed')",
+            (FIXTURE_RULING, FIXTURE_ASK))
+    if need_reference:
+        conn.execute(
+            "INSERT OR IGNORE INTO references_ (id, url, claim, asked_by) "
+            "VALUES (?, 'fixture://cited', 'seeded as cited', 'fixture')",
+            (FIXTURE_REFERENCE,))
+    conn.executemany(
+        "INSERT OR IGNORE INTO refs (src_table, src_id, kind, target) "
+        "VALUES (?, ?, ?, ?)", refs)
 
 
 def load_case(path: str | Path, *, raw: bool = False) -> dict:

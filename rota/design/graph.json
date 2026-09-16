@@ -237,6 +237,56 @@
       "rows": "single"
     },
     {
+      "s": "vision_keeper",
+      "t": "problem",
+      "type": "writes",
+      "v": "cite",
+      "n": "refs: what an item rests on",
+      "actor": "system",
+      "label": "recorded mechanically beside the row; the provenance view derives from it",
+      "rows": "delta"
+    },
+    {
+      "s": "terminologist",
+      "t": "glossary",
+      "type": "writes",
+      "v": "cite",
+      "n": "refs: what a sense rests on",
+      "actor": "system",
+      "label": "recorded mechanically beside the row; the provenance view derives from it",
+      "rows": "delta"
+    },
+    {
+      "s": "terminologist",
+      "t": "criteria",
+      "type": "writes",
+      "v": "cite",
+      "n": "refs: the terms a criterion rests on",
+      "actor": "system",
+      "label": "recorded mechanically beside the row; the provenance view derives from it",
+      "rows": "delta"
+    },
+    {
+      "s": "architect",
+      "t": "model",
+      "type": "writes",
+      "v": "cite",
+      "n": "refs: what a constraint or an area rests on",
+      "actor": "system",
+      "label": "recorded mechanically beside the row; the provenance view derives from it",
+      "rows": "delta"
+    },
+    {
+      "s": "architect",
+      "t": "frame",
+      "type": "writes",
+      "v": "cite",
+      "n": "refs: the grain a frame ruling rests on",
+      "actor": "system",
+      "label": "recorded mechanically beside the row; the provenance view derives from it",
+      "rows": "delta"
+    },
+    {
       "type": "writes",
       "s": "architect",
       "t": "model",
