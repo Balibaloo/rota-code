@@ -152,6 +152,29 @@ def _rows(cur) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
+def _shown_rows(cur) -> list[dict]:
+    """Rows joined to a provenance view, with today's word for the value.
+
+    The SELECT puts `provenance` where the result shows it and `basis` last.
+    The basis leaves the row: a result key stays what it was (Q10)."""
+    from ..core.db import shown_provenance
+
+    rows = _rows(cur)
+    for r in rows:
+        r["provenance"] = shown_provenance(r["provenance"], r.pop("basis"))
+    return rows
+
+
+def _term_refs_of(conn: sqlite3.Connection, src_table: str, src_id: str) -> list[str]:
+    """The glossary ids a row rests on, from the relation.
+
+    In the order they were written: the result shows the list as the column
+    held it, and the prompt is the cassette key."""
+    return [r["target"] for r in conn.execute(
+        "SELECT target FROM refs WHERE src_table = ? AND src_id = ? "
+        "AND kind = 'term' ORDER BY rowid", (src_table, src_id))]
+
+
 def _batch_of_criterion(ctx: "Ctx", criterion_id: str) -> str | None:
     """
     The batch a criterion's ticket belongs to, when the session was not woken
@@ -565,7 +588,7 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # code; a decided item is the principal's, and it stays as it is.
     if getattr(ctx, "provenance", "decided") == "observed":
         decided = ctx.conn.execute(
-            "SELECT 1 FROM items WHERE id = ? AND provenance = 'decided'",
+            "SELECT 1 FROM item_provenance WHERE id = ? AND provenance = 'decided'",
             (id,)).fetchone()
         if decided:
             return {"id": id, "note": (f"{id} is decided by the principal and "
@@ -581,7 +604,8 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
         # quarantined on it. The words are the fact: the same words on an
         # observed row change nothing and build what exists.
         observed = ctx.conn.execute(
-            "SELECT text FROM items WHERE id = ? AND provenance = 'observed'",
+            "SELECT i.text FROM items i JOIN item_provenance p ON p.id = i.id "
+            "WHERE i.id = ? AND p.provenance = 'observed'",
             (id,)).fetchone()
         if observed and observed["text"]:
             old_words = set(_prose_words(observed["text"]))
@@ -817,7 +841,9 @@ def problem_consult(ctx: Ctx) -> list[dict]:
         "FROM items ORDER BY id"))
     derives: dict[str, list[str]] = {}
     for r in ctx.conn.execute(
-            "SELECT item_id, statement_id FROM item_statements ORDER BY item_id"):
+            "SELECT src_id AS item_id, target AS statement_id FROM refs "
+            "WHERE src_table = 'items' AND kind = 'statement' "
+            "ORDER BY src_id, target"):
         derives.setdefault(r["item_id"], []).append(r["statement_id"])
     for row in rows:
         row["from_statements"] = derives.get(row["id"], [])
@@ -843,8 +869,8 @@ def problem_baseline(ctx: Ctx) -> list[dict]:
     the next phase, which is what "shared state must be artefacts" is for.
     """
     return _rows(ctx.conn.execute(
-        "SELECT id, text FROM items WHERE provenance = 'observed' "
-        "AND kind = 'in_scope' ORDER BY id"))
+        "SELECT i.id, i.text FROM items i JOIN item_provenance p ON p.id = i.id "
+        "WHERE p.provenance = 'observed' AND i.kind = 'in_scope' ORDER BY i.id"))
 
 
 # ---------------------------------------------------------------------------
@@ -1650,9 +1676,12 @@ def glossary_synthesise(ctx: Ctx, ids: list[str], sense_short: str,
     # concordance. Law 11 splits these on *found not chosen*, and this is found.
     #
     # Taken from the readings rather than asserted, so a synthesis over anything
-    # decided stays decided.
-    provenance = ("decided" if any(r["provenance"] == "decided"
-                                   for r in rows.values()) else "observed")
+    # decided stays decided. The readings' value is the view's: the kept row
+    # inherits their refs below, and the view says the same of it.
+    derived = [r["provenance"] for r in ctx.conn.execute(
+        "SELECT provenance FROM term_provenance "
+        f"WHERE id IN ({','.join('?' * len(rows))})", tuple(rows))]
+    provenance = "decided" if "decided" in derived else "observed"
     ctx.writes.append(("glossary_terms", keep, {
         "term": term, "sense_short": sense_short, "sense_body": sense_body,
         "provenance": provenance,
@@ -1879,15 +1908,18 @@ def glossary_lookup(ctx: Ctx, term: str = "") -> list[dict] | dict:
     # holds everything a read needs, making the model ask for it is a turn spent
     # on nothing."
     if not (term or "").strip() and ctx.wake_refs:
-        rows = _rows(ctx.conn.execute(
-            "SELECT id, term, sense_short, sense_body, area, provenance "
-            "FROM glossary_terms WHERE id IN "
-            f"({','.join('?' * len(ctx.wake_refs))})", tuple(ctx.wake_refs)))
+        rows = _shown_rows(ctx.conn.execute(
+            "SELECT g.id, g.term, g.sense_short, g.sense_body, g.area, "
+            "p.provenance, p.basis "
+            "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+            f"WHERE g.id IN ({','.join('?' * len(ctx.wake_refs))})",
+            tuple(ctx.wake_refs)))
         return rows or {"note": "the rows this wake named are gone."}
 
-    rows = _rows(ctx.conn.execute(
-        "SELECT id, term, sense_short, sense_body, provenance FROM glossary_terms "
-        "WHERE term = ? ORDER BY id", (term,)))
+    rows = _shown_rows(ctx.conn.execute(
+        "SELECT g.id, g.term, g.sense_short, g.sense_body, p.provenance, p.basis "
+        "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+        "WHERE g.term = ? ORDER BY g.id", (term,)))
     if rows:
         ctx.lookup_misses.discard(term)
         return rows
@@ -1913,11 +1945,14 @@ def glossary_consult(ctx: Ctx, terms: list[str] | None = None) -> list[dict]:
     """
     if terms:
         marks = ", ".join("?" for _ in terms)
-        return _rows(ctx.conn.execute(
-            f"SELECT id, term, sense_short, provenance FROM glossary_terms "
-            f"WHERE term IN ({marks}) ORDER BY term", terms))
-    return _rows(ctx.conn.execute(
-        "SELECT id, term, sense_short, provenance FROM glossary_terms ORDER BY term"))
+        return _shown_rows(ctx.conn.execute(
+            "SELECT g.id, g.term, g.sense_short, p.provenance, p.basis "
+            "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+            f"WHERE g.term IN ({marks}) ORDER BY g.term", terms))
+    return _shown_rows(ctx.conn.execute(
+        "SELECT g.id, g.term, g.sense_short, p.provenance, p.basis "
+        "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+        "ORDER BY g.term"))
 
 
 # ---------------------------------------------------------------------------
@@ -2338,14 +2373,17 @@ def model_consult(ctx: Ctx, grains: list[str] | None = None) -> list[dict]:
     from ..core.scheduler import constraints_for_grains
     ids = constraints_for_grains(ctx.conn, grains or []) if grains is not None else None
     if ids is None:
-        return _rows(ctx.conn.execute(
-            "SELECT id, headline, provenance, is_global FROM constraints ORDER BY id"))
+        return _shown_rows(ctx.conn.execute(
+            "SELECT c.id, c.headline, p.provenance, c.is_global, p.basis "
+            "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
+            "ORDER BY c.id"))
     if not ids:
         return []
     marks = ", ".join("?" for _ in ids)
-    return _rows(ctx.conn.execute(
-        f"SELECT id, headline, provenance, is_global FROM constraints "
-        f"WHERE id IN ({marks}) ORDER BY id", ids))
+    return _shown_rows(ctx.conn.execute(
+        "SELECT c.id, c.headline, p.provenance, c.is_global, p.basis "
+        "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
+        f"WHERE c.id IN ({marks}) ORDER BY c.id", ids))
 
 
 @op("model", "load")
@@ -2354,8 +2392,10 @@ def model_load(ctx: Ctx, ids: list[str]) -> list[dict]:
     if not ids:
         return []
     marks = ", ".join("?" for _ in ids)
-    return _rows(ctx.conn.execute(
-        f"SELECT id, headline, text, provenance FROM constraints WHERE id IN ({marks})", ids))
+    return _shown_rows(ctx.conn.execute(
+        "SELECT c.id, c.headline, c.text, p.provenance, p.basis "
+        "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
+        f"WHERE c.id IN ({marks})", ids))
 
 
 def _re_split_paths(val: str) -> list[str]:
@@ -2853,7 +2893,7 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
     # of which one was asked for. The slicing predicate has never fired for
     # these rows; the call was reachable from another mode.
     kind = ctx.conn.execute(
-        "SELECT provenance FROM items WHERE id = ?", (item_id,)).fetchone()
+        "SELECT provenance FROM item_provenance WHERE id = ?", (item_id,)).fetchone()
     if item_id == "how_it_works":
         raise ValueError(
             "how_it_works is the account of the whole program, not a "
@@ -3447,10 +3487,15 @@ def criteria_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         for ref in ctx.wake_refs or ():
             rows.extend(_rows(ctx.conn.execute(
                 "SELECT c.id, c.ticket_id, c.text, c.term_refs, c.surface_refs "
-                "FROM criteria c WHERE c.id = ? OR c.term_refs LIKE ? "
-                "ORDER BY c.id", (ref, f'%"{ref}"%'))))
+                "FROM criteria c WHERE c.id = ? OR EXISTS ("
+                "  SELECT 1 FROM refs r WHERE r.src_table = 'criteria' "
+                "    AND r.src_id = c.id AND r.kind = 'term' AND r.target = ?) "
+                "ORDER BY c.id", (ref, ref))))
         seen = set()
         rows = [r for r in rows if not (r["id"] in seen or seen.add(r["id"]))]
+    # The `term_refs` key stays; its list comes from the relation.
+    for r in rows:
+        r["term_refs"] = json.dumps(_term_refs_of(ctx.conn, "criteria", r["id"]))
     # An empty surface is not a fact worth pushing: the readers of this row
     # cannot write one, and a visible "[]" reads as an omission to chase --
     # measured sending the Developer off to ask what a criterion meant
@@ -3796,7 +3841,7 @@ def _material_words(ctx: Ctx, criterion_id: str) -> set[str]:
                                   (tk["item_id"],)).fetchone()
             if it:
                 material |= words(it["text"])
-        for ref in _refs_list(crit["term_refs"]):
+        for ref in _term_refs_of(ctx.conn, "criteria", criterion_id):
             g = ctx.conn.execute("SELECT term, sense_short, sense_body FROM "
                                  "glossary_terms WHERE id = ?", (ref,)).fetchone()
             if g:
@@ -3841,14 +3886,6 @@ def _invented_literals(ctx: Ctx, criterion_id: str, tree) -> list[str]:
                 out.append(n.value)
     return out
 
-
-def _refs_list(raw) -> list[str]:
-    import json as _json
-    try:
-        v = _json.loads(raw) if isinstance(raw, str) else (raw or [])
-    except ValueError:
-        return []
-    return [r for r in v if isinstance(r, str)] if isinstance(v, list) else []
 
 @op("tests", "encode")
 def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
@@ -6571,10 +6608,13 @@ def challenge_load(ctx: Ctx) -> dict:
             "SELECT grain FROM constraint_bindings WHERE constraint_id = ?",
             (row,))]
     else:
-        try:
-            cited = _json.loads(r["source_refs"] or "[]") if "source_refs" in r.keys() else []
-        except Exception:
-            cited = []
+        # What the row rests on, from the relation: the code it read and
+        # the world it cites. A sigil (`@fixture`, `@claim:...`) is not a
+        # path and not a reference, so it is not cited.
+        cited = [x["target"] for x in ctx.conn.execute(
+            "SELECT target FROM refs WHERE src_table = ? AND src_id = ? "
+            "AND kind IN ('grain', 'reference') ORDER BY rowid", (table, row))
+            if not x["target"].startswith("@")]
     # A claim that cites nothing has nothing to open. Loading it is the
     # reading. Without this, `challenge.vacuous` on an item claim could
     # never be reached: the Critic read a file that does not exist, eleven
@@ -6832,7 +6872,9 @@ def frame_load(ctx: Ctx) -> list[dict]:
     """The rulings as they stand -- the judge's observed rows and any
     decided ones, which outrank and are not the judge's to touch."""
     return _rows(ctx.conn.execute(
-        "SELECT id, kind, provenance, reason FROM frame_rulings ORDER BY id"))
+        "SELECT f.id, f.kind, p.provenance, f.reason "
+        "FROM frame_rulings f JOIN frame_provenance p ON p.id = f.id "
+        "ORDER BY f.id"))
 
 
 @op("frame", "assign")
@@ -6865,7 +6907,7 @@ def frame_assign(ctx: Ctx, path: str, kind: str, reason: str = "") -> dict:
         raise ValueError(f"{path} is a manifest: claimed mechanically as a "
                          f"boundary already, not the judge's to assign")
     ruled = ctx.conn.execute(
-        "SELECT provenance FROM frame_rulings WHERE id = ?", (path,)).fetchone()
+        "SELECT provenance FROM frame_provenance WHERE id = ?", (path,)).fetchone()
     if ruled and ruled["provenance"] == "decided":
         raise ValueError(f"{path} carries a principal's ruling, which "
                          f"outranks the judge; it stands")
@@ -8712,9 +8754,10 @@ def batches_expect(ctx: Ctx, batch_id: str | None = None) -> dict:
     if row is None:
         raise ValueError(f"{bid!r} is not a batch")
     said = [r["text"] for r in ctx.conn.execute(
-        "SELECT s.text AS text FROM item_statements ist "
-        "JOIN statements s ON s.id = ist.statement_id "
-        "WHERE ist.item_id = ? AND s.status != 'superseded' ORDER BY s.id",
+        "SELECT s.text AS text FROM refs x "
+        "JOIN statements s ON s.id = x.target "
+        "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
+        "AND s.status != 'superseded' ORDER BY s.id",
         (row["item_id"] or "",))]
     touch = [dict(r) for r in ctx.conn.execute(
         "SELECT grain, grain_kind, confidence FROM batch_touch WHERE batch_id = ? "

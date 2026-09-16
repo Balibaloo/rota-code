@@ -5,6 +5,7 @@ from rota.core.runner import push_working_set
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
 from rota.roles import prompts
+from rota.testkit.fixtures import refs_from_columns
 
 
 def test_the_slicing_wake_sets_its_item_apart_from_the_account(tmp_path):
@@ -41,6 +42,7 @@ def test_the_criteria_wake_carries_the_item_and_the_module_the_ticket_names(tmp_
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','echo_json','add an echo_json helper next to echo')")
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('src/click/utils.py::echo','symbol','function')")
     db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind) VALUES ('tests/test_echo.py::test_echo','symbol','function')")
+    refs_from_columns(db)
     db.commit()
     sb = build("terminologist", db, mode="criteria",
                allow=prompts.mode_tools("terminologist", "criteria"))

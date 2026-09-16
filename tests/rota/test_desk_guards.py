@@ -16,6 +16,7 @@ import pytest
 from rota.core.db import init_db
 from rota.core.sandbox import build
 from rota.core.predicates import Wake
+from rota.testkit.fixtures import refs_from_columns
 
 
 @pytest.fixture
@@ -31,6 +32,9 @@ def db(tmp_path):
     conn.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
                  "('c1','tk1','closing an account leaves its invoices in place',"
                  "'[\"g1\"]')")
+    # The relation holds what the column holds: the readers read the relation.
+    conn.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+                 "('criteria','c1','term','g1')")
     conn.execute("INSERT INTO batches (id, item_id, status, head_commit) VALUES "
                  "('b1','i1','running','abc123')")
     conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES "
@@ -1359,6 +1363,7 @@ def test_observed_items_and_the_account_are_never_sliced(db):
                "version) VALUES ('seen','click parses arguments','in_scope','observed','approved',1,1)")
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
                "version) VALUES ('how_it_works','a cli library','in_scope','observed','approved',1,1)")
+    refs_from_columns(db)
     db.commit()
     sb = build("vision_keeper", db, mode="normal",
                allow=prompts.mode_tools("vision_keeper", "slicing"))
@@ -1417,6 +1422,7 @@ def test_the_account_s_observed_items_are_not_re_asserted_into_a_build(db):
                "version) VALUES ('parses_commands', ?, 'in_scope', 'observed', 'approved', 1, 1)",
                ("When a user types a command, the toolkit parses it into arguments and "
                 "options using the script's defined commands.",))
+    refs_from_columns(db)
     db.commit()
     db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
                "('e1','principal',1,'Commands accept a --json flag that prints the parsed arguments as JSON.')")

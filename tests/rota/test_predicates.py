@@ -10,6 +10,7 @@ import pytest
 
 from rota.core import predicates as P
 from rota.core.db import init_db
+from rota.testkit.fixtures import refs_from_columns
 
 
 @pytest.fixture
@@ -446,6 +447,7 @@ def test_work_resting_on_an_unresolved_collision_is_not_offered(db):
                "('c1','tk1','archived orders come back from search','[\"g1\"]')")
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','archived','flagged inactive, row stays','decided')")
+    refs_from_columns(db)
 
     assert any(w.role == "tester" and w.kind == "tick:tests_missing"
                for w in frontier(db)), "one sense is no collision; encode it"
@@ -480,6 +482,7 @@ def test_observed_rows_wait_for_onboarding_to_finish(db, monkeypatch):
 
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','tip','the gratuity','observed')")
+    refs_from_columns(db)
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "survey")
     assert not any(w.kind == "tick:observed_entries" for w in P.all_wakes(db))
     monkeypatch.setattr(scheduler, "onboarding_phase", lambda conn: "done")
@@ -578,6 +581,7 @@ def test_an_observed_item_is_a_record_not_a_build_order(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
                "approval_ver, version) VALUES "
                "('split_bill','the bill is split','in_scope','decided','approved',1,1)")
+    refs_from_columns(db)
     wakes = [w for w in P.all_wakes(db) if w.kind == "tick:slicing"]
     assert wakes and wakes[0].refs == ("split_bill",), wakes
 
@@ -735,6 +739,7 @@ def test_a_reported_collision_stops_being_offered(db):
                "VALUES ('g1','issue_template','bug report template','observed')")
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g2','issue_template','feature request template','observed')")
+    refs_from_columns(db)
 
     assert any(w.kind == "tick:term_collision" for w in frontier(db)),         "two live senses, nobody told: it must be raised"
 
@@ -1243,6 +1248,7 @@ def test_the_observed_offer_names_its_rows(db):
                "VALUES ('g1','recipe','a seed note','observed')")
     db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
                "('k1','schema','must match','observed')")
+    refs_from_columns(db)
     db.commit()
 
     wakes = observed_entries(db)
@@ -1284,6 +1290,7 @@ def test_the_lazy_election_defers_the_baseline_to_the_ledger(db):
                "('k1','frontmatter must match the schema','x','observed')")
     db.execute("INSERT INTO config (key, value) VALUES "
                "('baseline_election','lazy')")
+    refs_from_columns(db)
     db.commit()
 
     offer = observed_entries(db)
@@ -1314,6 +1321,7 @@ def test_the_eager_default_is_unchanged(db):
 
     db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
                "VALUES ('g1','recipe','a seed note','observed')")
+    refs_from_columns(db)
     db.commit()
     offer = observed_entries(db)
     assert [(w.role, w.kind) for w in offer] == \
@@ -1460,6 +1468,7 @@ def test_a_present_deferred_without_ruling_takes_the_lazy_path(db):
                "body_refs, seq, status) VALUES ('p1','t1','liaison',"
                "'principal','present',?, 1,'answered')",
                (_json.dumps(["g1"]),))
+    refs_from_columns(db)
     db.commit()
 
     offer = observed_entries(db)
@@ -1663,6 +1672,7 @@ def test_the_account_is_never_sliced(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
                "approval_ver, version) VALUES "
                "('calculate_tip','calculate the tip','in_scope','decided','approved',1,1)")
+    refs_from_columns(db)
     db.commit()
     wakes = tick_slicing(db)
     assert len(wakes) == 1

@@ -93,6 +93,35 @@ ARTEFACT_TABLES = set(ARTEFACT_OF_TABLE)
 # and the writer check then see the source artefact and never the relation.
 REFS_TABLE = "refs"
 
+# The view that derives provenance for each owner table (frame 21, stage 2).
+# A reader joins the view on the row id. The column on the owner table stays
+# until stage 3 and no reader reads it.
+PROVENANCE_VIEW_OF_TABLE = {
+    "items": "item_provenance",
+    "glossary_terms": "term_provenance",
+    "constraints": "constraint_provenance",
+    "model_areas": "area_provenance",
+    "frame_rulings": "frame_provenance",
+}
+
+# The kind of ref that names a row of each table. The cascade walk follows
+# a receipt on one of these tables to the rows whose refs name the row.
+REF_KIND_OF_TABLE = {
+    "statements": "statement",
+    "references_": "reference",
+    "glossary_terms": "term",
+    "rulings": "ruling",
+}
+
+
+def shown_provenance(provenance: str, basis: str) -> str:
+    """The word a result shows for a derived provenance.
+
+    Today's word: `cited` for a row that rests on the world. The view says
+    `observed` with `basis = 'world'` for that row. Stage 4 decides the
+    rendered word."""
+    return "cited" if basis == "world" else provenance
+
 
 def artefact_of_write(table: str, values: dict | None = None) -> str | None:
     """The artefact a write touches. A refs row resolves by its source table."""

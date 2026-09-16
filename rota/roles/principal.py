@@ -669,7 +669,7 @@ def land(conn: sqlite3.Connection, ask: Ask, answer: Answer,
             # to amend behaviour that exists. The finding was wrong; the
             # code is not.
             about = conn.execute(
-                "SELECT provenance FROM items WHERE id = ?",
+                "SELECT provenance FROM item_provenance WHERE id = ?",
                 (row["about_ref"],)).fetchone()
             if not (about and about["provenance"] == "observed"):
                 per_item[row["about_ref"]] = "contest"

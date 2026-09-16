@@ -192,6 +192,22 @@ def _seed_refs(conn: sqlite3.Connection, fixture: dict[str, list[dict]]) -> None
         "VALUES (?, ?, ?, ?)", refs)
 
 
+def refs_from_columns(conn: sqlite3.Connection) -> None:
+    """
+    Seed refs rows for the rows already in the owner tables.
+
+    The same translation `seed` gives a case file, for a test that seeds by
+    SQL: a `decided` row rests on the fixture ruling, an `observed` row on
+    the fixture grain, and the JSON ref columns and `item_statements` become
+    refs. Every reader reads the view (frame 21, stage 2), so a seeded
+    column alone is not seen. Idempotent.
+    """
+    fixture: dict[str, list[dict]] = {}
+    for table in (*_PROVENANCE_TABLES, *_TERM_REF_TABLES, "item_statements"):
+        fixture[table] = [dict(r) for r in conn.execute(f"SELECT * FROM {table}")]
+    _seed_refs(conn, fixture)
+
+
 def load_case(path: str | Path, *, raw: bool = False) -> dict:
     """
     Parse a case file, filling its `{{holes}}` unless `raw`.

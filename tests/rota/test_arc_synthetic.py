@@ -27,6 +27,7 @@ from rota.roles import prompts as prompts_mod
 from rota.core.scheduler import (
     Wake, cascade_wakes, frontier, is_quiescent, predicate_wakes, release,
 )
+from rota.testkit.fixtures import refs_from_columns
 
 
 PINS = Pins(model="scripted", temperature=0.0, num_ctx=4096)
@@ -138,8 +139,10 @@ def test_arc_delivery_loop_slices_batches_and_tests(db):
         "text='deleting tombstones the account', term_refs=['g1'])",
     ])
 
-    row = db.execute("SELECT term_refs FROM criteria WHERE id='c1'").fetchone()
-    assert json.loads(row["term_refs"]) == ["g1"], "criteria must be written in glossary terms"
+    refs = [r["target"] for r in db.execute(
+        "SELECT target FROM refs WHERE src_table = 'criteria' AND src_id = 'c1' "
+        "AND kind = 'term'")]
+    assert refs == ["g1"], "criteria must be written in glossary terms"
 
     # Architect groups tickets into batches. Its own tick, not the `deliver`
     # message: grouping is a different job from reading new statements, and the
@@ -344,6 +347,7 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
     db.execute("INSERT INTO constraints (id, headline, text, provenance) VALUES "
                "('k1','frontmatter must match the schema','validateFmSchema',"
                "'observed')")
+    refs_from_columns(db)
     db.commit()
 
     # 1. The register offers the observations to Liaison, once.
@@ -370,6 +374,9 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
                (_json.dumps({"g1": "approve", "k1": "approve",
                              "g2": "contest"}),))
     db.execute("UPDATE messages SET status='answered' WHERE id = ?", (present,))
+    # `principal.land` writes the ruling row the adopted rows will rest on.
+    db.execute("INSERT INTO rulings (id, ask_id, verdict_id, status) "
+               "VALUES ('r1', ?, 'v1', 'landed')", (present,))
     db.commit()
 
     # 3. Liaison relays the ruling, split by owner.
@@ -398,9 +405,11 @@ def test_observed_becomes_decided_where_they_said_so(tmp_path):
             instructions=prompts_mod.compose(role, "relay"))
         assert out.committed, out.errors
 
+    # The view: an adopted row rests on the ruling, a contested one on the
+    # code it was found in.
     rows = {r["id"]: r["provenance"] for r in db.execute(
-        "SELECT id, provenance FROM glossary_terms "
-        "UNION ALL SELECT id, provenance FROM constraints")}
+        "SELECT id, provenance FROM term_provenance "
+        "UNION ALL SELECT id, provenance FROM constraint_provenance")}
     assert rows == {"g1": "decided", "k1": "decided", "g2": "observed"}, rows
 
     # 5. And the register does not re-present what has been put to them: the

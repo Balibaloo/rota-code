@@ -38,7 +38,6 @@ LEGACY_LABELS = {
 
 REF_COLUMNS = [
     ("messages", "body_refs"),
-    ("criteria", "term_refs"),
     ("criteria", "surface_refs"),
     ("statements", "span_entry"),
     ("ledger", "about_ref"),
@@ -94,6 +93,17 @@ def audit(conn: sqlite3.Connection) -> list[str]:
                 elif ref not in ids and not ref.startswith(("@", "e_")):
                     findings.append(
                         f"{table}.{col} rowid {r['rowid']}: dangling {ref!r}")
+    # The relation. A `term` ref names a glossary row, a `statement` ref a
+    # statement, and so on. A grain that left the index carries
+    # `resolves = 0` and is not dangling. A sigil is not a row.
+    for r in _rows(conn, "SELECT src_table, src_id, kind, target, resolves "
+                         "FROM refs"):
+        if r["kind"] == "grain" and not r["resolves"]:
+            continue
+        if r["target"] not in ids and not r["target"].startswith("@"):
+            findings.append(
+                f"refs {r['src_table']}:{r['src_id']} {r['kind']}: "
+                f"dangling {r['target']!r}")
 
     # 2. The identity invariants, as world-states. The guards enforce these
     #    at the door now; rows from before a guard existed are exactly the

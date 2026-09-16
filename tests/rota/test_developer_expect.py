@@ -6,6 +6,7 @@ from rota.core.runner import push_working_set
 from rota.core.sandbox import build
 from rota.core.scheduler import Wake
 from rota.roles import prompts
+from rota.testkit.fixtures import refs_from_columns
 
 
 def _seed(conn):
@@ -24,6 +25,7 @@ def _seed(conn):
     conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b1','tk1')")
     conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) VALUES "
                  "('tst_1','b1','c1','tests/test_share.py','def test_share():\n    assert True\n')")
+    refs_from_columns(conn)
     conn.commit()
 
 

@@ -225,8 +225,9 @@ def test_everyone_who_can_assume_can_log_it(g):
 def test_everyone_who_writes_decided_can_author_the_reason(g):
     """
     Law 11: a `decided` entry has its reason on file, written by the decider in
-    the same session. Terminologist marks glossary rows `decided` and could not
-    write the reason that makes them so.
+    the same session. A row is `decided` because it rests on a ruling or a
+    ratified statement (a `ruling` or `statement` ref). The owner that writes
+    the ref must be able to write the reason that goes with it.
     """
     for role, artefact in (("terminologist", "glossary"),
                            ("architect", "model"),

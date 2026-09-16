@@ -16,7 +16,8 @@ from typing import Any
 
 from ..design import graph as graph_mod
 from ..roles import prompts as prompts_mod
-from ..core.db import TABLES_OF_ARTEFACT, connect
+from ..core.db import (PROVENANCE_VIEW_OF_TABLE, TABLES_OF_ARTEFACT, connect,
+                       shown_provenance)
 from ..core.sandbox import build as build_sandbox
 
 # Columns worth showing first, per table. Everything else follows.
@@ -43,6 +44,26 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
     cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
     lead = [c for c in LEAD_COLUMNS.get(table, ()) if c in cols]
     return lead + [c for c in cols if c not in lead]
+
+
+def _show_derived_provenance(conn: sqlite3.Connection, table: str,
+                             rows: list[dict[str, Any]]) -> None:
+    """The `provenance` a row shows is the view's, not the column's.
+
+    The column stays on the owner table until stage 3 of frame 21. A reader
+    of the cockpit sees what every other reader sees: the derived value,
+    with today's word for a row that rests on the world."""
+    view = PROVENANCE_VIEW_OF_TABLE.get(table)
+    if not view or not rows or "provenance" not in rows[0]:
+        return
+    try:
+        derived = {r["id"]: shown_provenance(r["provenance"], r["basis"])
+                   for r in conn.execute(f"SELECT id, provenance, basis FROM {view}")}
+    except sqlite3.Error:
+        return
+    for r in rows:
+        if r.get("id") in derived:
+            r["provenance"] = derived[r["id"]]
 
 
 def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> dict[str, Any]:
@@ -78,6 +99,7 @@ def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> di
             cols = _columns(conn, table)
             rows = [dict(r) for r in conn.execute(
                 f"SELECT {', '.join(cols)} FROM {table} LIMIT {limit}")]
+            _show_derived_provenance(conn, table, rows)
             version = conn.execute(
                 "SELECT version FROM artefact_versions WHERE table_name = ?",
                 (table,)).fetchone()
@@ -416,6 +438,7 @@ def provenance(conn: sqlite3.Connection, table: str, row_id: str) -> dict[str, A
         return out
     out["found"] = True
     out["row"] = {c: row[c] for c in row.keys()}
+    _show_derived_provenance(conn, table, [out["row"]])
 
     # Every session that ever touched it, oldest first. The latest leads
     # because the question is nearly always about what the row says *now*, and

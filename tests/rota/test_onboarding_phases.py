@@ -25,6 +25,7 @@ from rota.core.scheduler import (ONBOARDING_TICKS, PROGRAM, TERM_PREFIX, frontie
                                  tick_orient, tick_survey)
 from rota.onboarding import boot, lexicon
 from rota.testkit import gitfixture
+from rota.testkit.fixtures import refs_from_columns
 
 
 @pytest.fixture
@@ -961,15 +962,25 @@ def test_an_observed_session_never_amends_a_decided_item(project):
 
     db, repo = project
     boot.onboard(db, repo.root)
+    # Decided because the item rests on the principal's ratified statement,
+    # not because of the stamp: the guard reads the view.
+    db.execute("INSERT INTO entries (id, author, ts_order, text) VALUES "
+               "('e1', 'principal', 1, 'split the bill')")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1', 'e1', 0, 14, 'split the bill', 'ratified')")
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
                "approval_ver, version) VALUES ('split_bill', 'the bill is split', "
                "'in_scope', 'decided', 'approved', 1, 1)")
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('items', 'split_bill', 'statement', 's1')")
     db.commit()
     ctx = Ctx(conn=db, role="vision_keeper", area=PROGRAM, provenance="observed")
     got = problem_assert(ctx, id="split_bill", text="the program splits the bill")
     assert got["id"] == "split_bill" and "decided" in got.get("note", ""), got
     assert not [w for w in ctx.writes if w[0] == "items"], "observed wrote over decided"
-    row = db.execute("SELECT provenance, text FROM items WHERE id='split_bill'").fetchone()
+    row = db.execute("SELECT p.provenance, i.text FROM items i "
+                     "JOIN item_provenance p ON p.id = i.id "
+                     "WHERE i.id='split_bill'").fetchone()
     assert (row["provenance"], row["text"]) == ("decided", "the bill is split")
 
 
@@ -1134,7 +1145,10 @@ def test_the_model_keeps_an_account_per_area(project):
                          "charges.py computes what is owed and invoices.py issues it.")
     assert got["area"] == "src/billing"
     w = next(w for w in ctx.writes if w[0] == "model_areas")
-    assert "invoices" in w[2]["account"] and "src/billing/charges.py" in w[2]["source_refs"]
+    assert "invoices" in w[2]["account"]
+    # What the area rests on: the code the session opened, as a grain ref.
+    assert ("refs", "model_areas:src/billing:grain:src/billing/charges.py") in [
+        (t, i) for t, i, *_ in ctx.writes]
     with pytest.raises(ValueError, match="not a label"):
         model_describe(ctx, account="billing module")
     with pytest.raises(ValueError, match="not an area"):
@@ -1562,6 +1576,8 @@ def test_frame_assign_writes_the_ruling_and_ledgers_the_diff(tmp_path):
         sb.call("frame.assign", path="manifest.json", kind="attached")
     db.execute("INSERT OR REPLACE INTO frame_rulings (id, kind, provenance) "
                "VALUES ('src', 'program', 'decided')")
+    # Decided because the prefix rests on a landed ruling (Q3).
+    refs_from_columns(db)
     with pytest.raises(Exception, match="decided|outranks"):
         sb.call("frame.assign", path="src", kind="ignore")
 

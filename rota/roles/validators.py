@@ -187,11 +187,16 @@ def check_survey_areas(conn: sqlite3.Connection) -> list[str]:
 
 
 def check_criteria_terms(conn: sqlite3.Connection) -> list[str]:
-    """Criteria are written in glossary terms; term_refs must exist and be used."""
+    """Criteria are written in glossary terms; term refs must exist and be used."""
     known = {r["id"] for r in conn.execute("SELECT id FROM glossary_terms")}
+    refs_of: dict[str, list[str]] = {}
+    for r in conn.execute("SELECT src_id, target FROM refs "
+                          "WHERE src_table = 'criteria' AND kind = 'term' "
+                          "ORDER BY rowid"):
+        refs_of.setdefault(r["src_id"], []).append(r["target"])
     problems = []
-    for r in conn.execute("SELECT id, term_refs FROM criteria"):
-        refs = json.loads(r["term_refs"] or "[]")
+    for r in conn.execute("SELECT id FROM criteria"):
+        refs = refs_of.get(r["id"], [])
         if not refs:
             problems.append(f"criterion {r['id']} has no term_refs")
             continue

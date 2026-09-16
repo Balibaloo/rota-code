@@ -1,10 +1,12 @@
 """
-The refs relation (frame 21, stage 1): what a row rests on, and the
-provenance the view derives from it.
+The refs relation (frame 21): what a row rests on, and the provenance the
+view derives from it.
 
 Stage 1 is additive. Every writer stages a refs row beside the column or the
 stamp it writes today, and the `provenance` view derives the same three
-words from the rows. The readers still read the columns.
+words from the rows. Stage 2 moves the readers: every gate and every result
+reads the view or the relation, and the cascade wake carries row ids. The
+columns stay until stage 3 and nothing reads them.
 """
 from __future__ import annotations
 
@@ -370,3 +372,114 @@ def test_the_loader_seeds_nothing_for_a_fixture_with_no_refs(db):
                            "ts_order": 1}]})
     assert db.execute("SELECT COUNT(*) n FROM refs").fetchone()["n"] == 0
     assert db.execute("SELECT COUNT(*) n FROM messages").fetchone()["n"] == 0
+
+
+# --- the readers (stage 2) --------------------------------------------------
+
+def test_the_cascade_wake_carries_the_row_ids_from_the_relation(db):
+    """Section H3: an amended statement wakes the owners of the rows that
+    rest on it. The item and the term through their `statement` refs, the
+    criterion one hop on through its `term` ref. An artefact the graph
+    reaches with no row in the relation gets a wake with no refs."""
+    from rota.core.scheduler import cascade_wakes
+
+    _statement(db, "s1", "ratified")
+    _item(db, "i1")
+    _item(db, "i_other")
+    _term(db, "g1")
+    _criterion(db, "c1")
+    _ref(db, "items", "i1", "statement", "s1")
+    _ref(db, "glossary_terms", "g1", "statement", "s1")
+    _ref(db, "criteria", "c1", "term", "g1")
+
+    session_commit(db, SessionResult(
+        session_id="s_amend", role="liaison",
+        writes=[Write("statements", "s1", {
+            "span_entry": "e1", "span_start": 0, "span_end": 5,
+            "text": "other words", "status": "ratified"})]))
+    wakes = cascade_wakes(db, "s_amend")
+
+    named = sorted(w.refs for w in wakes if w.refs)
+    assert named == [("c1",), ("g1",), ("i1",)], wakes
+    assert all(w.kind == "cascade" for w in wakes)
+    assert not any("s1" in w.refs or "i_other" in w.refs for w in wakes)
+    by_refs = {w.refs: w.role for w in wakes if w.refs}
+    assert by_refs == {("i1",): "vision_keeper", ("g1",): "terminologist",
+                       ("c1",): "terminologist"}
+    # The wake for an artefact the relation names nothing in carries nothing.
+    assert any(w.role == "architect" and w.refs == () for w in wakes)
+
+
+def test_found_never_overwrites_a_row_decided_by_a_ruling_ref_alone(db):
+    """The guard at `problem.assert` reads the view. The stamp says observed,
+    the ruling ref says decided, and the ruling wins."""
+    from rota.core.sandbox import build
+
+    db.execute("INSERT INTO items (id, text, kind, provenance) "
+               "VALUES ('i1', 'the bill is split', 'in_scope', 'observed')")
+    _ruling(db, "r1", "landed")
+    _ref(db, "items", "i1", "ruling", "r1")
+    assert _prov(db, "item_provenance", "i1") == ("decided", "ruling")
+
+    sb = build("vision_keeper", db, mode="survey", provenance="observed",
+               onboarding=True)
+    got = sb.call("problem.assert", id="i1", text="the program splits the bill",
+                  kind="in_scope")
+    assert "decided" in got.get("note", ""), got
+    assert not [w for w in sb.ctx.writes if w[0] == "items"], \
+        "an observation wrote over a decided row"
+
+
+def test_the_same_words_on_a_row_observed_by_a_grain_ref_alone_are_refused(db):
+    """The other guard at `problem.assert`. The stamp says decided, the grain
+    ref says observed, and a decided wake that repeats the words is refused."""
+    from rota.core.sandbox import build
+
+    text = "the toolkit parses a command into arguments and options"
+    db.execute("INSERT INTO items (id, text, kind, provenance) "
+               "VALUES ('parses', ?, 'in_scope', 'decided')", (text,))
+    _ref(db, "items", "parses", "grain", "src/parser.py")
+    assert _prov(db, "item_provenance", "parses") == ("observed", "code")
+
+    sb = build("vision_keeper", db, mode="deliver")
+    with pytest.raises(ValueError, match="observed row"):
+        sb.call("problem.assert", id="parses", text=text, kind="in_scope")
+
+
+def test_tick_slicing_refuses_an_item_observed_by_a_grain_ref_alone(db):
+    """The slicing predicate reads the view. The stamp says decided, the
+    grain ref says observed, and an observed item is a record, not a build
+    order. The item the ruling ref decides is sliced, whatever its stamp."""
+    from rota.core.scheduler import tick_slicing
+
+    for iid, stamp in (("seen", "decided"), ("asked", "observed")):
+        db.execute("INSERT INTO items (id, text, kind, provenance, approval, "
+                   "approval_ver, version) VALUES (?, 'x', 'in_scope', ?, "
+                   "'approved', 1, 1)", (iid, stamp))
+    _ruling(db, "r1", "landed")
+    _ref(db, "items", "seen", "grain", "src/app.py")
+    _ref(db, "items", "asked", "ruling", "r1")
+
+    assert [w.refs for w in tick_slicing(db)] == [("asked",)]
+
+
+def test_observed_entries_presents_the_code_and_not_the_world(db):
+    """Q4: `observed_entries` drains `basis = 'code'` only. A row that rests
+    on a reference is cited, and a cited row was never put to the
+    principal. A row with no refs is reasoned and is not observed."""
+    from rota.core.predicates import observed_entries
+
+    _reference(db, "ref1")
+    for gid in ("g_code", "g_world", "g_bare"):
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short, provenance) "
+                   "VALUES (?, ?, 'a sense', 'observed')", (gid, gid))
+    db.execute("INSERT INTO constraints (id, headline, provenance) "
+               "VALUES ('k_world', 'x', 'cited')")
+    _ref(db, "glossary_terms", "g_code", "grain", "src/app.py")
+    _ref(db, "glossary_terms", "g_world", "reference", "ref1")
+    _ref(db, "constraints", "k_world", "reference", "ref1")
+    assert _prov(db, "term_provenance", "g_world") == ("observed", "world")
+
+    wakes = observed_entries(db)
+    assert [(w.role, w.kind, w.refs) for w in wakes] == \
+        [("liaison", "tick:observed_entries", ("g_code",))]

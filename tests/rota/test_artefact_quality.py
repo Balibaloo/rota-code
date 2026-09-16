@@ -35,6 +35,7 @@ def _constraint(conn, id, headline, text="", provenance="observed",
     for g in bindings:
         conn.execute("INSERT INTO constraint_bindings (constraint_id, grain, "
                      "grain_kind) VALUES (?,?,'path')", (id, g))
+    _reference_refs(conn, "constraints", id, source_refs)
 
 
 def _term(conn, id, term, short, provenance="observed", source_refs=(), body=""):
@@ -42,6 +43,14 @@ def _term(conn, id, term, short, provenance="observed", source_refs=(), body="")
         "INSERT INTO glossary_terms (id, term, sense_short, sense_body, "
         "provenance, source_refs) VALUES (?,?,?,?,?,?)",
         (id, term, short, body, provenance, json.dumps(list(source_refs))))
+    _reference_refs(conn, "glossary_terms", id, source_refs)
+
+
+def _reference_refs(conn, table, id, source_refs):
+    """The relation beside the column: a cited row rests on its references."""
+    for ref in source_refs:
+        conn.execute("INSERT OR IGNORE INTO refs (src_table, src_id, kind, target) "
+                     "VALUES (?, ?, 'reference', ?)", (table, id, ref))
 
 
 # ---------------------------------------------------------------------------
@@ -139,16 +148,20 @@ def test_duplicates_are_reported_per_artefact(db):
 
 
 def test_cited_with_nothing_behind_it(db):
-    """Law 11 makes provenance explicit so a claim can be checked. A row saying
-    it was cited and naming no reference has used the strongest word available
-    to mean the weakest thing."""
-    _constraint(db, "c1", "Base string per RFC 5849", provenance="cited")
+    """Law 11 makes provenance explicit so a claim can be checked. A row that
+    rests on the world names a reference row through a `reference` ref. A
+    ref that names no such row has used the strongest word available to
+    mean the weakest thing."""
+    db.execute("INSERT INTO references_ (id, url, claim, asked_by) VALUES "
+               "('r1', 'https://www.rfc-editor.org/rfc/rfc5849', "
+               "'the base string is percent-encoded', 'architect')")
+    _constraint(db, "c1", "Base string per RFC 5849", provenance="cited",
+                source_refs=["r1"])
     _constraint(db, "c2", "Ports per RFC 2818", provenance="cited",
                 source_refs=["r_missing"])
 
     found = {f.row_id: f.detail for f in artefacts.unbacked_citations(db)}
-    assert set(found) == {"c1", "c2"}
-    assert "no source_refs" in found["c1"]
+    assert set(found) == {"c2"}
     assert "r_missing" in found["c2"]
 
 

@@ -1500,7 +1500,8 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
             if row is not None and row["verb"] == "submit":
                 uncovered = [r["id"] for r in ctx.conn.execute(
                     "SELECT id FROM statements WHERE status = 'ratified' "
-                    "AND id NOT IN (SELECT statement_id FROM item_statements) "
+                    "AND id NOT IN (SELECT target FROM refs "
+                    "               WHERE src_table = 'items' AND kind = 'statement') "
                     "ORDER BY id")]
                 refs += [r for r in uncovered if r not in refs]
                 # And the lineage's open assumptions, by the same rule and

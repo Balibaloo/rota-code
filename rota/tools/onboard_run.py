@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .. import paths
 from ..core import loop as loop_mod
-from ..core.db import connect, init_db
+from ..core.db import connect, init_db, shown_provenance
 from ..llm.llm import Pins, default_backend
 from ..onboarding import boot
 
@@ -180,15 +180,19 @@ def report(db_path: str) -> None:
 
     print("\nGLOSSARY")
     for r in conn.execute(
-            "SELECT term, sense_short, provenance, source_refs FROM glossary_terms "
-            "ORDER BY term, id"):
-        cited = " [cited]" if r["provenance"] == "cited" else ""
+            "SELECT g.term, g.sense_short, p.basis "
+            "FROM glossary_terms g JOIN term_provenance p ON p.id = g.id "
+            "ORDER BY g.term, g.id"):
+        cited = " [cited]" if r["basis"] == "world" else ""
         print(f"  {r['term']:24s} {r['sense_short'][:90]}{cited}")
 
     print("\nCONSTRAINTS")
     for r in conn.execute(
-            "SELECT id, headline, provenance FROM constraints ORDER BY id"):
-        print(f"  {r['provenance']:9s} {r['headline'][:100]}")
+            "SELECT c.id, c.headline, p.provenance, p.basis "
+            "FROM constraints c JOIN constraint_provenance p ON p.id = c.id "
+            "ORDER BY c.id"):
+        word = shown_provenance(r["provenance"], r["basis"])
+        print(f"  {word:9s} {r['headline'][:100]}")
 
     print("\nREFERENCES")
     for r in conn.execute(

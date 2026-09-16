@@ -205,7 +205,9 @@ def test_s9_a_list_argument_still_takes_a_list(db):
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     sb.call("criteria.specify", id="c1", ticket_id="tk1", text="it works",
             term_refs=["g1", "g2"])
-    assert sb.ctx.writes[0][2]["term_refs"] == '["g1", "g2"]'
+    # The list lands as one `term` ref per entry, in the order given.
+    assert [i for t, i, *_ in sb.ctx.writes if t == "refs"] == [
+        "criteria:c1:term:g1", "criteria:c1:term:g2"]
 
 
 def test_the_declaration_takes_no_id_and_finds_the_question_it_answers(db):

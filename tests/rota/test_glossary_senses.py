@@ -60,6 +60,12 @@ class Ctx:
         for table, id, cols in self.writes:
             keys = ", ".join(cols)
             marks = ", ".join("?" * len(cols))
+            if table == "refs":
+                # The relation has no `id` column: the pair is the row.
+                self.conn.execute(
+                    f"INSERT OR REPLACE INTO refs ({keys}) VALUES ({marks})",
+                    tuple(cols.values()))
+                continue
             self.conn.execute(
                 f"INSERT OR REPLACE INTO {table} (id, {keys}) "
                 f"VALUES (?, {marks})", (id, *cols.values()))
@@ -439,16 +445,19 @@ def test_a_merge_repoints_what_referred_to_the_losing_sense(db):
     db.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk1','i1','x')")
     db.execute("INSERT INTO criteria (id, ticket_id, text, term_refs) VALUES "
                "('c1','tk1','a note is created','[\"note#src\"]')")
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('criteria','c1','term','note#src')")
 
     c = Ctx(db)
     out = glossary_same(c, keep="note", drop="note#src", why="both say a vault file")
     c.commit()
 
     assert out["repointed"] == ["c1"]
-    import json as _json
-    refs = _json.loads(db.execute(
-        "SELECT term_refs FROM criteria WHERE id='c1'").fetchone()["term_refs"])
-    assert refs == ["note"], "the criterion now names the sense that survived"
+    refs = [r["target"] for r in db.execute(
+        "SELECT target FROM refs WHERE src_table = 'criteria' AND src_id = 'c1' "
+        "AND kind = 'term' ORDER BY target")]
+    # The old ref stays beside the new one until the delete door (stage 3).
+    assert "note" in refs, "the criterion now names the sense that survived"
 
 
 def test_the_modes_own_name_is_not_a_reason(db):

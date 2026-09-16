@@ -28,6 +28,7 @@ from rota.core.runner import run_session
 from rota.core.scheduler import frontier_readonly, tick_agenda, tick_signoff
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import Answer, Ask, land, render_refs, touch_words
+from rota.testkit.fixtures import refs_from_columns
 
 
 @pytest.fixture
@@ -151,6 +152,7 @@ def test_a_note_nobody_answered_freezes_no_gate(db):
     db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
                "author) VALUES ('a1', 'i1', 'items', 'assumed monthly', "
                "'vision_keeper')")
+    refs_from_columns(db)
     db.commit()
 
     assert touch_notes(db) == {"m_note"}

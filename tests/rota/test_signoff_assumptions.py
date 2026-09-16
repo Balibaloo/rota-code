@@ -23,6 +23,7 @@ from rota.core.runner import run_session
 from rota.core.sandbox import _owner_of_ref
 from rota.llm.llm import Pins, ScriptedBackend
 from rota.roles.principal import Answer, Ask, land, pending_asks, render_refs, verdict_for
+from rota.testkit.fixtures import refs_from_columns
 
 PINS = Pins(model="stub", temperature=0.0)
 
@@ -277,6 +278,7 @@ def test_observed_behaviour_is_not_shown_as_a_plan(db):
     db.execute("INSERT INTO items (id, text, kind, provenance, approval, approval_ver, "
                "version) VALUES ('new', 'the program splits the bill', 'in_scope', "
                "'decided', 'draft', 0, 1)")
+    refs_from_columns(db)
     db.commit()
     page = render_ask(db, "present", ["seen", "new"])
     assert "It does today:" in page and "It would:" in page

@@ -904,7 +904,8 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     if row["to_role"] == "liaison" and row["verb"] == "submit":
         uncovered = [dict(r) for r in conn.execute(
             "SELECT id, text FROM statements WHERE status = 'ratified' "
-            "AND id NOT IN (SELECT statement_id FROM item_statements) "
+            "AND id NOT IN (SELECT target FROM refs "
+            "               WHERE src_table = 'items' AND kind = 'statement') "
             "ORDER BY id")]
         if uncovered:
             out["uncovered_statements"] = uncovered
@@ -985,7 +986,12 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
             continue
         for table, cols in (
             ("statements", "id, text, status"),
-            ("items", "id, text, kind, approval, provenance"),
+            # The value is the view's. Today's word for a row that rests on
+            # the world is `cited` (`db.shown_provenance`).
+            ("items", "id, text, kind, approval, "
+                      "(SELECT CASE WHEN p.basis = 'world' THEN 'cited' "
+                      "             ELSE p.provenance END "
+                      " FROM item_provenance p WHERE p.id = items.id) AS provenance"),
             ("criteria", "id, ticket_id, text"),
             # A challenge names the test and the criterion, and only the
             # criterion resolved -- so Tester was woken to defend a test it was
@@ -1309,8 +1315,9 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             conn = sb.ctx.conn
             item = conn.execute("SELECT text FROM items WHERE id = ?", (wake.refs[0],)).fetchone()
             said = [r["text"] for r in conn.execute(
-                "SELECT s.text AS text FROM item_statements ist JOIN statements s "
-                "ON s.id = ist.statement_id WHERE ist.item_id = ? AND s.status != 'superseded' "
+                "SELECT s.text AS text FROM refs x JOIN statements s "
+                "ON s.id = x.target WHERE x.src_table = 'items' AND x.kind = 'statement' "
+                "AND x.src_id = ? AND s.status != 'superseded' "
                 "ORDER BY s.id", (wake.refs[0],))]
             if item:
                 pushed["the item"] = {"text": item["text"], "the principal said": said}

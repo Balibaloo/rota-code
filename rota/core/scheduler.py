@@ -244,10 +244,11 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     # seat).
     rows = conn.execute(
         "SELECT i.id FROM items i "
+        "JOIN item_provenance p ON p.id = i.id "
         "WHERE i.kind = 'in_scope' AND i.approval = 'approved' "
         "  AND i.approval_ver >= i.version "
         "  AND i.id != 'how_it_works' "
-        "  AND i.provenance != 'observed' "
+        "  AND p.provenance != 'observed' "
         "  AND (i.id NOT IN (SELECT item_id FROM tickets) "
         "       OR i.version > COALESCE((SELECT CAST(value AS INTEGER) FROM config "
         "                                 WHERE key = 'delivered:' || i.id), 0) "
@@ -597,7 +598,8 @@ def pending_terms(conn: sqlite3.Connection) -> list[str]:
         return []
 
     toks: list[str] = []
-    for r in conn.execute("SELECT text FROM items WHERE provenance = 'observed'"):
+    for r in conn.execute("SELECT i.text FROM items i JOIN item_provenance p "
+                          "ON p.id = i.id WHERE p.provenance = 'observed'"):
         toks += [lex.singular(w) for w in lex.parts(r["text"] or "")]
     item_words = set(toks)
     item_bigrams = set(zip(toks, toks[1:]))
@@ -1227,29 +1229,24 @@ def rests_on_a_collision(conn: sqlite3.Connection, wake: Wake) -> list[str]:
     Narrow on purpose. Only batches, only criteria, only the collision
     obligation -- the general form is "any work resting on any open obligation"
     and there is no general way to say what a wake's work rests on. This one is
-    a join that exists: criteria carry `term_refs`.
+    a join that exists: a criterion's `term` refs in the relation.
     """
-    import json
-
     from .predicates import REGISTRY
 
     if not wake.refs or wake.kind == "message":
         return []
-    open_terms = {t for w in REGISTRY["term_collision"].fn(conn) for t in w.refs}
+    open_terms = sorted({t for w in REGISTRY["term_collision"].fn(conn) for t in w.refs})
     if not open_terms:
         return []
 
-    resting = []
-    for r in conn.execute(
-            "SELECT c.id AS cid, c.term_refs AS refs FROM criteria c "
-            "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
-            "WHERE bt.batch_id = ?", (wake.refs[0],)):
-        try:
-            if open_terms & set(json.loads(r["refs"] or "[]")):
-                resting.append(r["cid"])
-        except (ValueError, TypeError):
-            continue
-    return resting
+    marks = ", ".join("?" for _ in open_terms)
+    return [r["cid"] for r in conn.execute(
+        "SELECT DISTINCT c.id AS cid FROM criteria c "
+        "JOIN batch_tickets bt ON bt.ticket_id = c.ticket_id "
+        "JOIN refs r ON r.src_table = 'criteria' AND r.src_id = c.id "
+        "  AND r.kind = 'term' "
+        f"WHERE bt.batch_id = ? AND r.target IN ({marks}) ORDER BY c.id",
+        (wake.refs[0], *open_terms))]
 
 
 def is_quiescent(conn: sqlite3.Connection, principal_present: bool = False) -> bool:
@@ -1555,13 +1552,57 @@ def cascade_order(g: graph_mod.Graph | None = None) -> list[str]:
             f"lookup rather than a wake path.") from exc
 
 
+def cascade_rows(conn: sqlite3.Connection, session_id: str) -> dict[str, list[str]]:
+    """
+    The rows that rest on what a session wrote, by source table.
+
+    The walk of law 9 on the relation, two hops. The first hop finds the
+    rows whose refs name the rows the receipts name: a `statement` ref to
+    an amended statement, a `reference` ref to a reference, a `term` ref to
+    a term, a `ruling` ref to a ruling. The second hop finds the rows whose
+    `term` refs name the glossary rows the first hop found. The view flips
+    on its own. This walk names the rows for the owners' wakes.
+    """
+    from .db import REF_KIND_OF_TABLE
+
+    targets: dict[str, set[str]] = {}
+    for r in conn.execute(
+            "SELECT DISTINCT table_name, row_id FROM receipts WHERE session_id = ?",
+            (session_id,)):
+        kind = REF_KIND_OF_TABLE.get(r["table_name"])
+        if kind:
+            targets.setdefault(kind, set()).add(r["row_id"])
+
+    def hop(kind: str, ids: set[str]) -> list[tuple[str, str]]:
+        if not ids:
+            return []
+        marks = ", ".join("?" for _ in ids)
+        return [(r["src_table"], r["src_id"]) for r in conn.execute(
+            "SELECT src_table, src_id FROM refs "
+            f"WHERE kind = ? AND target IN ({marks})", (kind, *sorted(ids)))]
+
+    found: dict[str, set[str]] = {}
+    terms = set(targets.pop("term", set()))
+    for kind, ids in targets.items():
+        for src_table, src_id in hop(kind, ids):
+            found.setdefault(src_table, set()).add(src_id)
+            if src_table == "glossary_terms":
+                terms.add(src_id)
+    for src_table, src_id in hop("term", terms):
+        found.setdefault(src_table, set()).add(src_id)
+    return {table: sorted(ids) for table, ids in found.items()}
+
+
 def cascade_wakes(conn: sqlite3.Connection, session_id: str,
                   g: graph_mod.Graph | None = None) -> list[Wake]:
     """
     Given a committed session's receipts, produce the wake order: owners of every
     artefact downstream of what changed, in refs-DAG order, developer never first.
+
+    A wake carries the row ids of its artefact from the relation
+    (`cascade_rows`). The artefact order is the graph's.
     """
-    from .db import ARTEFACT_OF_TABLE
+    from .db import ARTEFACT_OF_TABLE, TABLES_OF_ARTEFACT
 
     g = g or graph_mod.load()
     # A refs write is receipted under its source row (`db.receipt_of`), so a
@@ -1576,6 +1617,7 @@ def cascade_wakes(conn: sqlite3.Connection, session_id: str,
     if not touched:
         return []
 
+    rows = cascade_rows(conn, session_id)
     order = cascade_order(g)
     dependents: dict[str, set[str]] = {a: set() for a in g.artefacts}
     for e in g.of_type("refs"):
@@ -1594,8 +1636,11 @@ def cascade_wakes(conn: sqlite3.Connection, session_id: str,
     for artefact in order:
         if artefact not in affected:
             continue
+        ids = tuple(sorted({
+            rid for table in TABLES_OF_ARTEFACT.get(artefact, ())
+            for rid in rows.get(table, ())}))
         for owner in sorted(g.writer_of(artefact)):
-            w = Wake(owner, "cascade", refs=(artefact,), detail=session_id)
+            w = Wake(owner, "cascade", refs=ids, detail=session_id)
             if w not in wakes:
                 wakes.append(w)
     return wakes

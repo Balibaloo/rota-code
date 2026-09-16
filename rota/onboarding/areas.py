@@ -59,7 +59,8 @@ def ruling_for(conn, grain: str) -> str | None:
 
     try:
         rows = list(conn.execute(
-            "SELECT id AS prefix, kind, provenance FROM frame_rulings"))
+            "SELECT f.id AS prefix, f.kind, p.provenance "
+            "FROM frame_rulings f JOIN frame_provenance p ON p.id = f.id"))
     except sqlite3.Error:
         return None
     best = None

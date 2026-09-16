@@ -31,7 +31,6 @@ wolf on real findings costs more than the fabrications it catches.
 """
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -257,27 +256,27 @@ def duplicated(conn: sqlite3.Connection) -> list[Finding]:
 
 def unbacked_citations(conn: sqlite3.Connection) -> list[Finding]:
     """
-    `provenance = 'cited'` with nothing behind it.
+    A `reference` ref with nothing behind it.
 
-    Law 11 makes provenance explicit so that a claim can be checked. A row that
-    says it was cited and names no reference has used the strongest word
+    Law 11 makes provenance explicit so that a claim can be checked. A row
+    rests on the world through a `reference` ref, and the ref names a row of
+    `references_`. A ref that names no such row has used the strongest word
     available to mean the weakest thing.
     """
     have = {r["id"] for r in conn.execute("SELECT id FROM references_")}
     out = []
     for table in ("constraints", "glossary_terms"):
+        dangling: dict[str, list[str]] = {}
         for r in _authored(conn,
-                f"SELECT id, provenance, source_refs FROM {table} "
-                f"WHERE provenance = 'cited' AND id != ?"):
-            refs = json.loads(r["source_refs"] or "[]")
-            dangling = [x for x in refs if x not in have]
-            if not refs:
-                out.append(Finding("unbacked-citation", table, r["id"],
-                                   "provenance 'cited' with no source_refs"))
-            elif dangling:
-                out.append(Finding("unbacked-citation", table, r["id"],
-                                   f"source_refs name no such reference: "
-                                   f"{', '.join(dangling)}"))
+                "SELECT src_id, target FROM refs "
+                f"WHERE src_table = '{table}' AND kind = 'reference' "
+                "AND src_id != ? ORDER BY src_id, rowid"):
+            if r["target"] not in have:
+                dangling.setdefault(r["src_id"], []).append(r["target"])
+        for rid, refs in dangling.items():
+            out.append(Finding("unbacked-citation", table, rid,
+                               f"reference refs name no such reference: "
+                               f"{', '.join(refs)}"))
     return out
 
 

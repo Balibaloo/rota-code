@@ -520,10 +520,15 @@ def observed_entries(conn) -> list[Wake]:
         except (TypeError, ValueError):
             continue
 
+    # The code half of observed only. A row that rests on the world (a
+    # reference) is cited, and a cited row was never put to the principal.
+    from .db import PROVENANCE_VIEW_OF_TABLE
+
     counts, offered = [], []
     for table in ("glossary_terms", "constraints", "model_areas", "items"):
+        view = PROVENANCE_VIEW_OF_TABLE[table]
         rows = [r["id"] for r in conn.execute(
-            f"SELECT id FROM {table} WHERE provenance = 'observed' ORDER BY id")]
+            f"SELECT id FROM {view} WHERE basis = 'code' ORDER BY id")]
         fresh = [i for i in rows if i not in presented]
         if fresh:
             counts.append(f"{table}:{len(fresh)}")
@@ -560,8 +565,8 @@ def observed_entries(conn) -> list[Wake]:
             "SELECT about_ref FROM ledger")}
         still = [i for i in dict.fromkeys(limbo)
                  if i in presented and i not in deferred and any(
-                     conn.execute(f"SELECT 1 FROM {t} WHERE id = ? AND "
-                                  f"provenance='observed'", (i,)).fetchone()
+                     conn.execute(f"SELECT 1 FROM {PROVENANCE_VIEW_OF_TABLE[t]} "
+                                  f"WHERE id = ? AND basis = 'code'", (i,)).fetchone()
                      for t in ("glossary_terms", "constraints",
                                "model_areas", "items"))]
         if still:
@@ -1636,6 +1641,9 @@ def check_predicates_can_fire() -> list[str]:
 
     schema = SCHEMA.read_text(encoding="utf-8")
     tables = set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", schema))
+    # A view is a source too. The provenance views stand over `refs`, and a
+    # predicate that reads one reads the schema.
+    views = set(re.findall(r"CREATE VIEW IF NOT EXISTS (\w+)", schema))
     problems = []
 
     for name, p in REGISTRY.items():
@@ -1646,7 +1654,7 @@ def check_predicates_can_fire() -> list[str]:
         dynamic = "FROM {" in src or "from {" in src
         delegated = "from .scheduler import" in src or dynamic
 
-        for t in queried - tables:
+        for t in queried - tables - views:
             if t.isupper() or t in ("sqlite_master",):
                 continue
             problems.append(f"{name} queries {t!r}, which is not in the schema")
