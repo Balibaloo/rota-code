@@ -40,15 +40,18 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 03:35 (rota-bc): stack slimmed. Six plans archived,
-  three placed, commit b1a2242. ROLES: 7 of 70 items contradict the page,
-  an agent applies the rewrites. LAWS: 11 of 87 contradict, rewordings
-  P1 to P12 in `plans/archive/placement-laws-2026-09-16.md`, none landed.
-  Checkpoint check done: `checkpoint_invalid` is the dropped snapshot, no
-  code writes the row it reads, change set in
-  `plans/archive/checkpoint-check-2026-09-16.md`. Liaison brief placement
-  and the STE pass run. Blocked on Roman, four questions: (1) rule on P1
-  to P12, recommended accept all, P10 opens a code frame for role-made
+- Status 2026-09-16 03:58 (rota-bc): stack slimmed. Six plans archived,
+  three placed (b1a2242). ROLES rewritten and committed (3b3e205,
+  cfa9f60), test_roles_doc has one red left, older than this frame: the
+  Tester's answer edges carry prose=quotes since e3cbfbb and the others
+  do not. LAWS: rewordings P1 to P12 in
+  `plans/archive/placement-laws-2026-09-16.md`, none landed. Checkpoint
+  check done, change set in `plans/archive/checkpoint-check-2026-09-16.md`.
+  Liaison brief: 13 of 175 lines contradict, 14 rewrites in
+  `plans/archive/placement-liaison-2026-09-16.md`. An agent applies them
+  and re-records the 34 Liaison cases on the Titan, cycle 1. The STE pass
+  on the facts runs. Blocked on Roman, four questions: (1) rule on P1 to
+  P12, recommended accept all, P10 opens a code frame for role-made
   `decided` rows; (2) rule the checkpoint entry the dropped snapshot,
   recommended yes, a frame removes predicate, table and readers and
   re-records I4; (3) the cockpit's reader, recommended the build session,
