@@ -88,7 +88,7 @@ Rules:
   warm snapshot on the Titan. Q11 (the `source_refs` parameter on two
   ops) is parked: it re-keys every Vision Keeper and Terminologist case
   (reasoned: outside the ends-when; land it with the next brief change).
-- Status 2026-09-16 18:15 (rota-b9): stage 4 landed. Docs (e91883e), the
+- Status 2026-09-16 18:00 (rota-b9): stage 4 landed. Docs (e91883e), the
   four stage 3 review fixes (009561e), the brief and the re-record
   (HEAD): 12 of 14 pass, the 2 baseline reds keep their shape, two L3
   chains re-earned, the full replay is the baseline's 22. Cassette
@@ -101,6 +101,19 @@ Rules:
   refuse without a landed ruling; the gauntlet answers the collision
   with an empty sentence, which night 70 took as consent): the
   collision has no ruling and the tick re-fires forever.
+- Status 2026-09-16 18:30 (rota-b9): the reading above is wrong
+  (observed: the diagnosis agent's report from `.rota/clickI.db` and
+  `.rota/clickI_n70_merged.db`, turns and tool calls). Night 70 had no
+  collision; today's survey minted seven `word#area` second senses
+  under the same brief and model (per-load variance). The `glossary.same`
+  door refused the merge 24 times: the reason held "distinct" inside a
+  negation. The driver's empty answer to each clarify landed as a
+  ruling of nothing (stage 1's `land()` row), adopt refused, and the
+  tick re-fired because every message on its path closed. One fix
+  cycle is out (reasoned: the composition says silence is not consent):
+  an empty answer lands nothing and the ask stays open; the driver does
+  not pump an open ask twice; the `same` door reads a negation. Then
+  the walk runs again on the 3080.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
