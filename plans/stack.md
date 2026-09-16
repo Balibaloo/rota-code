@@ -53,34 +53,34 @@ Rules:
 - Status 2026-09-16 12:57 (rota-b9): claimed by session 32a42b78. A
   scope agent reads the tree for the refs relation and writes
   `plans/archive/refs-scope-2026-09-16.md`. No code touched yet.
-- Status 2026-09-16 13:45 (rota-b9): scope report (86af8ce) and design
+- Status 2026-09-16 13:20 (rota-b9): scope report (86af8ce) and design
   record (402df39) in `plans/archive/`. Four stages, each at a tested
   boundary. Stage 1 (additive) is with an agent. Three design lines
   Roman can overrule (reasoned: the page says observed covers the code
   and the world): a `grain` kind carries the code half of observed;
   `frame_rulings.provenance` folds in; `land()` writes a `rulings` row
   on every verdict so a ruling ref has a target.
-- Status 2026-09-16 14:45 (rota-b9): stage 1 landed (ac1b83e). Replay:
+- Status 2026-09-16 14:05 (rota-b9): stage 1 landed (ac1b83e). Replay:
   22 failed as the baseline, 16 new tests pass, STALE 0 before and
   after. Q11 moves to stage 4 (observed: a signature is in the prompt
   and re-keys the cases). Deviations are in the design record. A
   read-only review of ac1b83e and stage 2 (readers and the walk) are out.
-- Status 2026-09-16 16:20 (rota-b9): stage 2 landed (948c436). Replay:
+- Status 2026-09-16 14:47 (rota-b9): stage 2 landed (948c436). Replay:
   22 failed as the baseline, 21 refs tests pass, STALE none. The stage 1
   review found eight fixes (design record, dd8c093). A fix agent and a
   stage 2 review are out. Stage 3 (the drop) follows.
-- Status 2026-09-16 17:30 (rota-b9): the eight fixes landed (8614d46),
+- Status 2026-09-16 15:12 (rota-b9): the eight fixes landed (8614d46),
   22 failed as the baseline. The stage 2 review found two high items in
   the writers (design record, f87feab): a delivery wake stages no
   statement ref, and an old run database regresses silently. Stage 3
   splits: 3a writer semantics (out now), 3b the drop. One cut Roman
   may move: the audit's rule 5 now exempts a principal's verdict
   (reasoned: `land()` writes a settled verdict that nothing relays).
-- Status 2026-09-16 18:15 (rota-b9): stage 3a landed (HEAD before this
+- Status 2026-09-16 15:42 (rota-b9): stage 3a landed (HEAD before this
   commit). 22 failed as the baseline, no STALE case, 10 new tests.
   Every run database in `.rota/` now refuses to open until re-created
   (observed: the agent's report; 14 files). Stage 3b, the drop, is out.
-- Status 2026-09-16 19:40 (rota-b9): stage 3b landed. No owner table
+- Status 2026-09-16 16:25 (rota-b9): stage 3b landed. No owner table
   carries a stamp or a JSON ref column; `item_statements` is gone;
   22 failed as the baseline, no STALE case, 1794 passed. The ends-when
   test is in `tests/rota/test_refs.py`. Out now: a review of 3a and 3b,
