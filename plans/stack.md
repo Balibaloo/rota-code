@@ -25,18 +25,6 @@ Rules:
 
 ## Stack
 
-### 19. Agent brief skeletons (Roman, 2026-09-16) [836a1517]
-
-- `plans/agent-briefs.md`: the reader, lander and recorder skeletons, the
-  fixed pointers into `plans/operating-facts.md`, the rules frame 18
-  learned, and where the case-to-mode maps live. Roman: do this first so
-  the frames after it are cheap.
-- Ends when: the file is committed and a fresh session can brief a
-  recorder from it without reading the facts.
-- Waits on: nothing.
-- Reasoning: frame 18's briefs, and `plans/archive/liaison-rerecord-2026-09-16.md`.
-- Status 2026-09-16 05:50 (rota-bc): pushed and started.
-
 ### 20. The `reasoned` rename (Roman, 2026-09-16) [836a1517]
 
 - Role-made `decided` rows become `reasoned`: every writer, the schema
@@ -44,7 +32,7 @@ Rules:
   2026-09-16 with the page's Records sentence.
 - Ends when: no seat writes `decided`, `tests/rota/` passes, and the
   touched cases are re-recorded.
-- Waits on: frame 19. A reader agent scopes the writers meanwhile.
+- Waits on: the scope report.
 - Reasoning: `plans/archive/placement-laws-2026-09-16.md`, P10-r, and the
   scope report the agent writes to `plans/archive/`.
 - Status 2026-09-16 05:50 (rota-bc): pushed. Scope agent launched.
