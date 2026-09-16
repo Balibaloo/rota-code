@@ -125,9 +125,9 @@ Roman ruled the same day: a seat's question to another seat does not end
 the seat's session. The ask waits for the answer in the same session, with
 a depth cap and a timeout. A seat that waits on the Principal ends, and
 resumes from its recorded turns while its working set is unchanged. The
-`checkpoints` table stays for that path. Two sentences in Records wait
-on Roman's wording check before they replace "A seat restarts from
-records. There is no snapshot.":
+`checkpoints` table stays for that path. Roman holds the ruling
+tentative and low priority until the code confirms the reading. Two
+candidate sentences for Records, not yet in the body:
 
 - A seat that asks another seat waits for the answer in the same session.
 - A seat that waits on the Principal ends. It resumes from its recorded
