@@ -26,9 +26,9 @@ can say whether they got it.
 **The team** is the principal and eight roles. The roles never share context.
 They communicate only by artefact and message. Each is answerable for one thing.
 Each is woken, acts, and ends, with no memory of having been woken before. That
-is not a limitation being
-worked around: it is what makes a role's output attributable to its brief rather
-than to the accumulated drift of a long conversation.
+is not a limitation being worked around: it is what makes a role's output
+attributable to its brief rather than to the accumulated drift of a long
+conversation.
 
 The nine, and what each is answerable for:
 
