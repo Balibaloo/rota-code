@@ -40,10 +40,20 @@ Rules:
 - Waits on: nothing. Roman rules on a change to LAWS before it lands.
 - Reasoning: `plans/composition.md`, Open section, and frame 17 in
   `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-16 (rota-bc): claimed by session 836a1517 from the
-  hand-off. Stack slimmed, closed frames archived. Six agents launched:
-  placement of LAWS, ROLES, the Liaison brief, and the plans, the
-  checkpoint_invalid check, and the STE pass.
+- Status 2026-09-16 03:35 (rota-bc): stack slimmed. Six plans archived,
+  three placed, commit b1a2242. ROLES: 7 of 70 items contradict the page,
+  an agent applies the rewrites. LAWS: 11 of 87 contradict, rewordings
+  P1 to P12 in `plans/archive/placement-laws-2026-09-16.md`, none landed.
+  Checkpoint check done: `checkpoint_invalid` is the dropped snapshot, no
+  code writes the row it reads, change set in
+  `plans/archive/checkpoint-check-2026-09-16.md`. Liaison brief placement
+  and the STE pass run. Blocked on Roman, four questions: (1) rule on P1
+  to P12, recommended accept all, P10 opens a code frame for role-made
+  `decided` rows; (2) rule the checkpoint entry the dropped snapshot,
+  recommended yes, a frame removes predicate, table and readers and
+  re-records I4; (3) the cockpit's reader, recommended the build session,
+  page silent; (4) greenfield piece 1 now has the Principal approve the
+  empty-folder stack, recommended keep.
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
@@ -117,3 +127,7 @@ Rules:
   carries the false 5/5 rows; the next pack replaces it.
 - The Ollama 300 s timeout on the 14B if it returns to a desk.
 - Post-core list in COMPLETION.md.
+- From the lost-work audit (`plans/archive/lost-work-audit.md`, rows at
+  lines 20 and 34): the reference drift predicate that DECISIONS.md
+  promises and no code reads, and the law-13 schema test that finds no
+  date column. Neither is in COMPLETION.md.
