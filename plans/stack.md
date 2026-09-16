@@ -22,19 +22,37 @@ Rules:
 6. The session that holds a frame writes the first eight characters of
    its session id in the heading. A popped frame moves verbatim to
    `plans/archive/stack-<date>.md`.
+7. Every conclusion carries a mark: (observed), (reasoned), or (ruled: a
+   reason the size of a commit headline). Say which workflow it is about,
+   the meta workflow or the rota workflow (ruled 2026-09-16).
 
 ## Stack
 
+### 22. Provenance marks on the build session's records (Roman, 2026-09-16) [836a1517]
+
+- Meta workflow. Every conclusion in the stack and on the page carries
+  (observed), (reasoned), or (ruled: a headline-sized reason). The
+  convention goes into the assistant's brief in CLAUDE.md and into rule 7
+  above (ruled: a ruling and a judgement looked the same in prose).
+- Ends when: the open frames, the page's Open section, and CLAUDE.md
+  carry the marks, committed, and Roman checks the CLAUDE.md sentences.
+- Waits on: Roman's check of CLAUDE.md.
+- Reasoning: this conversation, 2026-09-16, Q3 of the grill.
+- Status 2026-09-16 07:05 (rota-bc): pushed and done in one pass. Waits
+  on Roman's check.
+
 ### 21. Provenance by reference (Roman, 2026-09-16)
 
-- Rota workflow. Roman ruled 2026-09-16: `decided` originates in a
-  ratified statement and cascades along the refs to the rows that cite it,
-  and the cascade is a relationship in the SQL. The five JSON ref columns
+- Rota workflow. Roman ruled 2026-09-16 (ruled: a ratified statement's
+  approval reaches what cites it): `decided` originates in a ratified
+  statement and cascades along the refs to the rows that cite it, and the
+  cascade is a relationship in the SQL. The five JSON ref columns
   (`source_refs`, `term_refs`) become one refs relation, as
   `item_statements` already is. Provenance is derived from it: reach a
   `references_` row, observed; reach a ratified statement or a ruling,
   decided; neither, reasoned. The five `provenance` columns go. Law 11
-  and the revocation walk in law 9 read the same relation.
+  and the revocation walk in law 9 read the same relation (reasoned: the
+  assistant's design of the frame).
 - Ends when: no owner table stores a provenance stamp or a JSON ref
   column, the walk and the view share one relation, `tests/rota/` passes,
   and the touched cases re-record.
@@ -45,7 +63,7 @@ Rules:
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
-- Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
+- (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
   model where it passes, 3 language seam, 4 breadth (two lineage repos
   cold, then a non-Python repo), 5 long-run noise test after sentence
   three merges, 6 ship the loop. Do not: rewrite the core, lower the
@@ -59,7 +77,7 @@ Rules:
 
 ### 3. Click sentence two (nights 50 to 60)
 
-- Every night stuck; each became a door or a brief line (findings 36 to
+- (observed) Every night stuck; each became a door or a brief line (findings 36 to
   64). Night 60: the 14B Developer timed out at its first wake; sentence
   three then ran once, quiet, no merge.
 - Ends when: one night merges sentence two.
@@ -70,7 +88,7 @@ Rules:
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
-- Three lineage repos, three sentences each, unattended. Click sentence
+- (ruled: goals 3 and 10 of the plan) Three lineage repos, three sentences each, unattended. Click sentence
   one merges (nights 49, 50). Sentences two and three do not yet.
 - Ends when: the lineage is walked and every fault is a door or a case.
 - Waits on: frame 3.
@@ -80,7 +98,7 @@ Rules:
 
 ### 1. The end state (plan agreed 2026-09-10)
 
-- A careful person runs rota alone on a small Python repository and
+- (ruled: the destination, agreed 2026-09-10) A careful person runs rota alone on a small Python repository and
   gets a merged change they can read. Honest about where small models
   stop. Ten goals in COMPLETION.md: 1, 2, 7, 9 done; 4 and 8 measured
   and ongoing; 3 and 10 are frame 2; 5 and 6 fed by it.
