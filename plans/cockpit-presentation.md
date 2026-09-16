@@ -1,5 +1,8 @@
 # Glass Cockpit — how the system is presented
 
+> Placed 2026-09-16 under `plans/composition.md`, The build session. The page
+> is silent on rendering. Whether the Principal reads the cockpit, or only the
+> assistant does, is a question for Roman.
 *2026-08-24, after the consistency and layout passes. The designed rendering of
 this document lives as the "Glass Cockpit" artifact; this file is the version
 the repo enforces against.*

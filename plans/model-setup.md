@@ -1,6 +1,10 @@
 # Model setup: one modal, one profile
 
-Written 2026-09-11 from a discussion. Not built. Not ruled.
+Written 2026-09-11 from a discussion. Not ruled. Steps 1, 2, 3, 6 and 9 of
+the order are built (2026-09-11). Steps 4, 5, 7, 8 and 10 are open.
+
+> Placed 2026-09-16 under `plans/composition.md`, The parties, "A model is a
+> component". The page is silent on setup. The plan is detail under that line.
 
 ## The vision
 

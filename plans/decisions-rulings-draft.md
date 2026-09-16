@@ -3,6 +3,8 @@
 This file holds the principal's rulings. Each ruling is one dated paragraph.
 The argument behind each ruling is in `plans/archive/completion-diary.md` and in the git history of `rota/DECISIONS.md`.
 Rewritten 2026-09-13.
+Rulings R1 to R17 of the responsibility audit (2026-09-02 and 03) are in
+`plans/archive/responsibility-audit.md`. `rota/COMPLETION.md` cites R2 by number.
 
 ---
 
