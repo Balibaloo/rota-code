@@ -20,6 +20,26 @@ Rules:
 
 ## Stack
 
+### 18. The docs under the page (Roman, 2026-09-16)
+
+- Roman's plan, step four: trim the noise and refactor the docs under
+  `plans/composition.md`. LAWS, ROLES, and the Liaison brief place under
+  the page. The list of what is behind the page is in the page's Open
+  section. The stack slims to five lines per frame, and closed frames
+  move to `plans/archive/stack-2026-09-16.md`. The five unplaced plans
+  are placed or archived. An agent checks the register's
+  checkpoint_invalid entry against the page. `plans/operating-facts.md`
+  gets its STE pass: 43 breaches, passive voice and long sentences,
+  facts held fixed.
+- Ends when: every law, role line, and Liaison brief line places under
+  a line on the page or is changed, the stack holds only open frames of
+  five lines, and the checkpoint entry is ruled.
+- Waits on: nothing. Roman rules on a change to LAWS before it lands.
+- Reasoning: `plans/composition.md`, Open section, and frame 17's
+  status.
+- Status 2026-09-16: pushed by session 1405fbdf for the hand-off.
+  Unclaimed.
+
 ### 17. Define the assistant (Roman, 2026-09-16) [1405fbdf]
 
 - Roman's plan for the session: place the assistant on the composition,
@@ -65,6 +85,16 @@ Rules:
   merge, 18 are rota facts that belong in the repo, 7 are guidance that
   stays in memory. Custom_AI_TUI is an archive. The rota workspace has
   an empty memory directory. Proposal waits on Roman.
+  Roman ruled: memories yes, page ratified with the five masses and the
+  four decisions, hook wired in the rota repo. Probe of a fresh rota
+  session, 2026-09-16: 7 of 7 answers match the brief, no misread. The
+  answers are in plans/archive/probe-2026-09-16.md. The old working
+  session closed out in commit 5a8c320. Brief ratified.
+- Status 2026-09-16 03:10: closed. The memory move landed: the index is
+  nine lines, ten files, mirrored byte-identical into the rota
+  workspace's memory directory. The facts document is committed. Frame
+  18 is pushed for the hand-off. The STE agent on the facts document
+  was stopped after 12 minutes without a write.
 
 ### 16. The composition (Roman, 2026-09-16) [1405fbdf]
 
