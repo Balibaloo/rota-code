@@ -80,6 +80,14 @@ Rules:
   commit). 22 failed as the baseline, no STALE case, 10 new tests.
   Every run database in `.rota/` now refuses to open until re-created
   (observed: the agent's report; 14 files). Stage 3b, the drop, is out.
+- Status 2026-09-16 19:40 (rota-b9): stage 3b landed. No owner table
+  carries a stamp or a JSON ref column; `item_statements` is gone;
+  22 failed as the baseline, no STALE case, 1794 passed. The ends-when
+  test is in `tests/rota/test_refs.py`. Out now: a review of 3a and 3b,
+  the docs (K.9), and the re-record of 14 cases on the 3080 with the
+  warm snapshot on the Titan. Q11 (the `source_refs` parameter on two
+  ops) is parked: it re-keys every Vision Keeper and Terminologist case
+  (reasoned: outside the ends-when; land it with the next brief change).
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
