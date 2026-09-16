@@ -60,6 +60,11 @@ Rules:
   and the world): a `grain` kind carries the code half of observed;
   `frame_rulings.provenance` folds in; `land()` writes a `rulings` row
   on every verdict so a ruling ref has a target.
+- Status 2026-09-16 14:45 (rota-b9): stage 1 landed (ac1b83e). Replay:
+  22 failed as the baseline, 16 new tests pass, STALE 0 before and
+  after. Q11 moves to stage 4 (observed: a signature is in the prompt
+  and re-keys the cases). Deviations are in the design record. A
+  read-only review of ac1b83e and stage 2 (readers and the walk) are out.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
