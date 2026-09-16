@@ -76,6 +76,10 @@ Rules:
   splits: 3a writer semantics (out now), 3b the drop. One cut Roman
   may move: the audit's rule 5 now exempts a principal's verdict
   (reasoned: `land()` writes a settled verdict that nothing relays).
+- Status 2026-09-16 18:15 (rota-b9): stage 3a landed (HEAD before this
+  commit). 22 failed as the baseline, no STALE case, 10 new tests.
+  Every run database in `.rota/` now refuses to open until re-created
+  (observed: the agent's report; 14 files). Stage 3b, the drop, is out.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
