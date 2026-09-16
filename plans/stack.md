@@ -35,7 +35,13 @@ Rules:
 - Waits on: the scope report.
 - Reasoning: `plans/archive/placement-laws-2026-09-16.md`, P10-r, and the
   scope report the agent writes to `plans/archive/`.
-- Status 2026-09-16 05:50 (rota-bc): pushed. Scope agent launched.
+- Status 2026-09-16 06:15 (rota-bc): scope done (c949bbb): one source sets
+  the provenance, runner.py:1579; five CHECKs, four readers, the
+  Terminologist base (13 cases), six test assertions, forward-only. The
+  assistant decided the report's four questions as recommended: promotion
+  to `decided` on approval is a later frame, fixtures stay, the frame judge
+  stays `observed`, old run databases are accepted. A lander-recorder
+  lands steps 1 to 7 and re-records 14 cases, cycle 1.
 
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
