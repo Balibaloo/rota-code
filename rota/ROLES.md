@@ -1,4 +1,4 @@
-# The nine seats
+# Eight seats and the Principal
 
 What each role is answerable for, and — more usefully — what it must never
 decide. `LAWS.md` says what the system may never do; this says who may do what,
@@ -19,7 +19,7 @@ below matches the graph, so this drifts loudly rather than quietly.
 
 ---
 
-## Ownership, and the three exceptions
+## Ownership
 
 Law 1 is single-writer, and fifteen artefacts have exactly one:
 
@@ -35,14 +35,17 @@ Law 1 is single-writer, and fifteen artefacts have exactly one:
 | `rulings` | liaison | | | |
 | `challenge` | critic | | | |
 
-Four are shared, by ruling rather than by accident:
+Four artefacts have one writer per row. The Principal ruled each one. The
+writer of a row is the seat that made the choice, did the reading, or hit
+the block:
 
 - **`ledger`** — architect, developer, vision_keeper, terminologist, tester. A
   choice the criteria did not make is logged by whoever had to make it, so
   restricting the writer would mean the choice went unrecorded or was recorded by
   somebody who did not make it.
-- **`decisions`** — architect, vision_keeper, terminologist. Each owns a kind of
-  ruling in its own domain.
+- **`decisions`** — architect, vision_keeper, terminologist. Each records the
+  choices in its own domain. A choice by a seat is not a ruling. The Principal
+  rules. The Liaison writes the ruling.
 - **`surveys`** — architect, vision_keeper, terminologist. A survey record is an
   attestation by the role that did the reading.
 - **`schedule`** — architect, developer, vision_keeper, terminologist, tester, via
@@ -61,18 +64,23 @@ An artefact acquiring a second writer is a design change, not a convenience.
 **Answerable for** the brief and the transcript, and for the principal's
 attention, which is the one budget in this system that cannot be topped up.
 
-**Never decides anything.** Its responsibility is lossless communication. This
-is the sharpest line in the system and the easiest to erode, because almost
-every decision looks like a small helpful tidy on the way past. Ranking two
-contradictory statements by recency, choosing which sense of a word was meant,
-judging that a role has finished — none of these are Liaison's, and each has
-been attempted.
+**Decides the route, not the matter.** The Liaison infers the Principal's
+intent. It checks the reading with the Principal before the reading becomes a
+record. The verbatim words and the confirmed reading are two records. It judges
+which question comes next and what to show. It may originate a question the
+Principal did not raise. The question names the row it is about.
 
-The corollary is structural: anything mechanical is done *before* Liaison is
-woken. Whether a report has settled is a lookup on `approval` and `status`, so
-`report_is_settled` does it in the scheduler and a settled round never reaches
-Liaison at all. If you find yourself writing "Liaison should work out whether…"
-into a brief, the sentence belongs in a predicate.
+The Liaison does not settle a conflict between two statements. It does not
+choose the sense of a word. It does not judge that a role has finished. The
+Principal, the Terminologist, and the structure hold those three. The Liaison
+has attempted each of the three.
+
+The structure computes every mechanical fact before the Liaison wakes. Whether
+a report has settled is a lookup on `approval` and `status`. `report_is_settled`
+does the lookup in the scheduler. A settled round never reaches the Liaison. A
+brief that asks the Liaison to work out a fact belongs in a predicate. A brief
+that asks the Liaison to read intent or to choose the route describes the
+Liaison's work.
 
 **Reaches** architect, vision_keeper, terminologist (ask, deliver), vision_keeper
 (relay), and the principal (clarify, confirm, present).
@@ -227,9 +235,15 @@ refusal is a result: record nothing, say what was tried.
 
 ## the principal
 
-Not a role. A person at a terminal, or a scripted stand-in for arc tests, whose
-whole power is answering questions and holding final authority. They cannot
-write an artefact, address a role other than Liaison, or see the frontier.
+In the team, not a seat. The Principal is a person at a terminal, or a scripted
+stand-in for arc tests. The Principal holds intent and shape. The Principal
+rules and declares finished. The Principal writes no records. The Liaison
+records what the Principal says.
+
+The Principal addresses no seat but the Liaison. The Principal sees everything
+at a strategic altitude. The Principal can interrogate any detail through the
+Liaison. The Principal approves intent before work starts. Later sign-offs are
+opt-in.
 
 They are also the only participant who cannot dereference an id, which is why
 `render_refs` exists.

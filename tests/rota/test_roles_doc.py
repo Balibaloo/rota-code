@@ -46,7 +46,7 @@ def test_every_role_has_a_section():
 def test_no_section_describes_a_role_that_does_not_exist():
     g = graph_mod.load()
     known = set(g.roles) | {
-        "the principal", "Ownership, and the three exceptions",
+        "the principal", "Ownership",
         "Known open boundaries"}
     strays = sorted(set(_sections()) - known)
     assert not strays, f"sections for non-roles: {strays}"

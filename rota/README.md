@@ -12,7 +12,7 @@ the system may never do. Everything below is how those are made true.
 |---|---|
 | `LAWS.md` | **L0 and the laws.** The level every other file presupposed and none stated |
 | `ONBOARDING.md` | **understanding a repository, derived**: why onboarding is three questions over the whole program before it is a pass over areas, and what each phase is shown |
-| `ROLES.md` | **the nine seats** — what each is answerable for and what it may never decide. Read before changing a brief; checked against the graph by `test_roles_doc` |
+| `ROLES.md` | **eight seats and the Principal** — what each is answerable for and what it may never decide. Read before changing a brief; checked against the graph by `test_roles_doc` |
 | `design/graph.json` | **the wiring.** Roles, artefacts, edges with verb, noun, rows and depth. Not a picture of the system — the part-list it is assembled from |
 | `design/layout.json` | viewer geometry, split out so editing meaning never touches coordinates |
 | `design/stories.json` | the three narrated traversals, for arc tests |
