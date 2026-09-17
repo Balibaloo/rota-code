@@ -48,7 +48,8 @@ BOM = codecs.BOM_UTF8
 SELF_REL = (paths.PACKAGE / "tools" / "sweep.py").relative_to(paths.REPO).as_posix()
 
 # The report prints the skips in this order, whatever order the files came in.
-REASONS = ("binary", "mixed endings", "not utf-8", "transform returned CR")
+REASONS = ("binary", "unreadable", "mixed endings", "not utf-8",
+           "edit returned CR")
 
 # The edit takes the text with LF endings and the file's repository-relative
 # path. It returns the new text and the number of matches.
@@ -83,6 +84,9 @@ def select(root: Path, globs: list[str], excludes: list[str]) -> list[str]:
     # the tree, and an untracked file is not the tree's.
     tracked = [p for p in out.stdout.decode("utf-8").split("\0") if p]
 
+    # A transform outside the repository has no path inside it, and an empty
+    # pattern must never reach `full_match`.
+    excludes = [x for x in excludes if x]
     keep: list[str] = []
     for rel in dict.fromkeys(tracked):      # a conflicted path is listed per stage
         pure = PurePosixPath(rel)
@@ -206,15 +210,20 @@ def build_edit(args: argparse.Namespace, root: Path) -> tuple[Edit, list[str]]:
     return edit, []
 
 
-def plan(root: Path, chosen: list[str], edit: Edit,
-         transforming: bool) -> tuple[list[Touch], dict[str, list[str]], int]:
+def plan(root: Path, chosen: list[str],
+         edit: Edit) -> tuple[list[Touch], dict[str, list[str]], int]:
     """Read and edit every selected file in memory, before the first write."""
     touches: list[Touch] = []
     skips: dict[str, list[str]] = {}
     unchanged = 0
 
     for rel in chosen:
-        reason, ending, bom, text = classify((root / rel).read_bytes())
+        try:
+            data = (root / rel).read_bytes()
+        except OSError:                     # a locked or unreadable file
+            skips.setdefault("unreadable", []).append(rel)
+            continue
+        reason, ending, bom, text = classify(data)
         if reason:
             skips.setdefault(reason, []).append(rel)
             continue
@@ -224,8 +233,11 @@ def plan(root: Path, chosen: list[str], edit: Edit,
             raise
         except Exception as exc:            # a hook that raises stops the run
             raise Usage(f"the edit failed on {rel}: {exc!r}") from exc
-        if transforming and "\r" in new:
-            skips.setdefault("transform returned CR", []).append(rel)
+        # The tool owns the endings, so no edit form may put a CR in the text.
+        # `--replace` with a CR, and `--template` with the escape, both wrote
+        # one that the byte compare cannot catch: the bytes were intended.
+        if "\r" in new:
+            skips.setdefault("edit returned CR", []).append(rel)
             continue
         if new == text:
             unchanged += 1
@@ -245,14 +257,20 @@ def write_bytes(path: Path, data: bytes) -> None:
 
 
 def write_all(root: Path, touches: list[Touch]) -> str:
-    """Write each file and read it back. Return the path of a mismatch."""
+    """Write each file and read it back. Return the message of a failure."""
     for touch in touches:
         path = root / touch.rel
-        write_bytes(path, touch.data)
-        # A check on the ending class passes on a corrupt `\r\r\n` file. A
-        # byte compare does not.
-        if path.read_bytes() != touch.data:
-            return touch.rel
+        try:
+            write_bytes(path, touch.data)
+            # A check on the ending class passes on a corrupt `\r\r\n` file.
+            # A byte compare does not.
+            back = path.read_bytes()
+        except OSError as exc:
+            # A half-swept tree needs its own exit code. Python's own 1 is
+            # the code the table gives to "nothing changed".
+            return f"write failed: {touch.rel}: {exc}"
+        if back != touch.data:
+            return f"write mismatch: {touch.rel}"
     return ""
 
 
@@ -320,7 +338,7 @@ def main(argv: list[str], root: Path) -> int:
         # The hook loads before any file is read, so a bad hook changes nothing.
         edit, extra = build_edit(args, root)
         chosen = select(root, args.glob, [*args.exclude, SELF_REL, *extra])
-        touches, skips, unchanged = plan(root, chosen, edit, bool(args.transform))
+        touches, skips, unchanged = plan(root, chosen, edit)
     except Usage as exc:
         print(f"sweep: {exc}", file=sys.stderr)
         return 2
@@ -328,7 +346,7 @@ def main(argv: list[str], root: Path) -> int:
     if not args.dry:
         bad = write_all(root, touches)
         if bad:
-            print(f"write mismatch: {bad}")
+            print(bad)
             return 3
 
     report(root, chosen, touches, skips, unchanged, args.dry, args.diff)

@@ -14,6 +14,7 @@ So the recipe here writes bytes and turns `autocrlf` off.
 from __future__ import annotations
 
 import codecs
+from pathlib import Path
 
 import pytest
 
@@ -57,18 +58,41 @@ def upper(*args: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def test_each_file_keeps_its_own_ending(tmp_path, capsys):
-    """The frame's test: a CRLF file stays CRLF and an LF file stays LF."""
-    root = repo(tmp_path, {"a.py": ALPHA_CRLF, "b.py": ALPHA_LF})
+    """The frame's test: every file keeps every byte that is not the edit."""
+    root = repo(tmp_path, {
+        "a.py": ALPHA_CRLF,
+        "b.py": ALPHA_LF,
+        "bomcrlf.py": codecs.BOM_UTF8 + ALPHA_CRLF,
+        "nofinal.py": b"alpha\r\nbeta",
+        "latin1.py": b"alpha \xe9 beta\n",
+    })
 
-    code = sweep.main(upper("--glob", "*.py"), root)
+    code = sweep.main(upper("--glob", "*.py", "--diff"), root)
 
-    assert code == 0
+    assert code == 4                       # the latin-1 file is skipped
     assert (root / "a.py").read_bytes() == b"ALPHA\r\nbeta\r\n"
     assert (root / "b.py").read_bytes() == b"ALPHA\nbeta\n"
+    assert (root / "bomcrlf.py").read_bytes() == (codecs.BOM_UTF8
+                                                  + b"ALPHA\r\nbeta\r\n")
+    assert (root / "nofinal.py").read_bytes() == b"ALPHA\r\nbeta"
+    assert (root / "latin1.py").read_bytes() == b"alpha \xe9 beta\n"
     out = capsys.readouterr().out
-    assert "touched 2:" in out
+    assert "touched 4:" in out
     assert "a.py 1 matches (CRLF)" in out
     assert "b.py 1 matches (LF)" in out
+    assert "skipped (not utf-8) 1:" in out
+    assert "-alpha" in out and "+ALPHA" in out     # the --diff body
+
+
+def test_the_stat_reports_the_write(tmp_path, capsys):
+    """The stat is the output `autocrlf=true` hides: a turned ending shows none."""
+    root = repo(tmp_path, {"a.py": ALPHA_CRLF})
+
+    assert sweep.main(upper("--glob", "*.py"), root) == 0
+
+    out = capsys.readouterr().out
+    assert " a.py | 2 +-" in out
+    assert "1 file changed, 1 insertion(+), 1 deletion(-)" in out
 
 
 def test_a_bom_survives(tmp_path):
@@ -120,6 +144,46 @@ def test_the_write_check_catches_a_turned_ending(tmp_path, monkeypatch, capsys):
     assert code == 3
     assert "write mismatch: a.py" in capsys.readouterr().out
     assert (root / "a.py").read_bytes() == b"ALPHA\r\r\nbeta\r\r\n"
+
+
+def test_a_failed_write_stops_the_run(tmp_path, monkeypatch, capsys):
+    """A half-swept tree needs exit 3. Python's own 1 is "nothing changed"."""
+    root = repo(tmp_path, {"a.py": ALPHA_LF, "b.py": ALPHA_LF})
+    real = sweep.write_bytes
+    seen = []
+
+    def failing(path, data):
+        seen.append(path)
+        if len(seen) == 2:
+            raise PermissionError(13, "denied")
+        real(path, data)
+
+    monkeypatch.setattr(sweep, "write_bytes", failing)
+    code = sweep.main(upper("--glob", "*.py"), root)
+
+    assert code == 3
+    assert (root / "a.py").read_bytes() == b"ALPHA\nbeta\n"
+    assert (root / "b.py").read_bytes() == ALPHA_LF
+    assert "write failed: b.py" in capsys.readouterr().out
+
+
+def test_an_unreadable_file_is_skipped(tmp_path, monkeypatch, capsys):
+    """A file the tool cannot read is a skip, not a traceback."""
+    root = repo(tmp_path, {"a.py": ALPHA_LF, "b.py": ALPHA_LF})
+    real = Path.read_bytes
+
+    def refuse(self, *args, **kwargs):
+        if self.name == "b.py":
+            raise PermissionError(13, "denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    code = sweep.main(upper("--glob", "*.py"), root)
+
+    assert code == 4
+    out = capsys.readouterr().out
+    assert "skipped (unreadable) 1:" in out
+    assert "touched 1:" in out
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +257,28 @@ def test_template_opts_into_a_backreference(tmp_path):
     assert (root / "a.py").read_bytes() == b"alpha-alpha beta\n"
 
 
+def test_a_replacement_that_holds_a_cr_is_skipped(tmp_path, capsys):
+    r"""The tool owns the endings. `--template` reads `\r` as a CR."""
+    root = repo(tmp_path, {"a.py": ALPHA_LF})
+
+    code = sweep.main(["--glob", "*.py", "--pattern", "beta",
+                       "--replace", r"\r", "--template"], root)
+
+    assert code == 4
+    assert (root / "a.py").read_bytes() == ALPHA_LF
+    out = capsys.readouterr().out
+    assert "skipped (edit returned CR) 1:" in out
+    assert "touched 0:" in out
+
+    # The literal form takes a real CR straight from the command line.
+    code = sweep.main(["--glob", "*.py", "--pattern", "beta",
+                       "--replace", "\r"], root)
+
+    assert code == 4
+    assert (root / "a.py").read_bytes() == ALPHA_LF
+    assert "skipped (edit returned CR) 1:" in capsys.readouterr().out
+
+
 def test_dry_writes_nothing(tmp_path, capsys):
     root = repo(tmp_path, {"a.py": ALPHA_LF})
 
@@ -243,8 +329,21 @@ def test_a_transform_that_returns_cr_is_skipped(tmp_path, capsys):
     assert code == 4
     assert (root / "a.py").read_bytes() == ALPHA_LF
     out = capsys.readouterr().out
-    assert "skipped (transform returned CR) 1:" in out
+    assert "skipped (edit returned CR) 1:" in out
     assert "touched 0:" in out
+
+
+def test_a_transform_outside_the_repository(tmp_path, capsys):
+    """The transform has no path inside the repository, and no empty pattern."""
+    root = repo(tmp_path, {"a.py": ALPHA_LF})
+    outside = tmp_path / "xform.py"
+    outside.write_bytes(UPPER)
+
+    code = sweep.main(["--glob", "*.py", "--transform", str(outside)], root)
+
+    assert code == 0
+    assert (root / "a.py").read_bytes() == b"ALPHA\nbeta\n"
+    assert "selected 1 files" in capsys.readouterr().out
 
 
 def test_a_transform_that_raises_writes_nothing(tmp_path):
