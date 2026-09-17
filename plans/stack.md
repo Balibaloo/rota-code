@@ -45,8 +45,8 @@ Rules:
   and one frame's agents have used it with their tool-call counts on the
   stack beside frame 21's.
 - Waits on: frame 27's verdict for who builds it. Session B.
-- Reasoning: the post-mortem conversation of 2026-09-17, and
-  `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
+- Reasoning: `plans/tooling-flow.md` first, the plan and the chain's
+  rules. Then `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
 - Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
 - Status 2026-09-17 09:52 (rota-51): claimed by hand-off from 32a42b78 at
   f9ac0da. Frame 27's verdict is in: the implementer type on Opus builds,
@@ -74,8 +74,8 @@ Rules:
   through it.
 - Waits on: frame 32 for the lines; frame 27's verdict for who builds
   the tool. Session B, after 29.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1,
-  and the post-mortem conversation of 2026-09-17.
+- Reasoning: `plans/tooling-flow.md` first, the plan and the chain's
+  rules. Then `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
 - Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
