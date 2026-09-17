@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 29. The map: a query tool over the code (Roman, 2026-09-17)
+### 29. The map: a query tool over the code (Roman, 2026-09-17) [90522022]
 
 - Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
   regex over the SQL literals, joined with `graph.json` and the `.tools`
@@ -58,6 +58,10 @@ Rules:
 - Status 2026-09-17 10:01 (rota-51): unclaimed (ruled: Roman, 2026-09-17:
   session fa029276 loaded the agent types before their edits, so its
   agents run stale prompts). The prices stand for the next claimant.
+- Status 2026-09-17 10:09 (rota-99): claimed at 9baf02d. Roman assigned it through
+  session 32a42b78, relayed by rota-5d (ruled: Roman, 2026-09-17: 28's
+  anchors first, then 29, then 24). This session started after 6140848
+  and holds the types. rota-51's prices stand: 200k, walls apart.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
@@ -127,6 +131,11 @@ Rules:
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 2,
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
+- Status 2026-09-17 10:09 (rota-99): the six anchor rows are in the register
+  section of `plans/operating-facts.md` (bbb2f1d or its amend), from
+  frames 26 and 30. Frame 30 closed with actual beside estimate. The
+  frame stays open until frame 4 runs under the line (ruled: Roman,
+  `plans/tooling-flow.md`, the measuring frames close on frame 4).
 
 ### 31. A walk closes a frame that touches the seats (Roman, 2026-09-17)
 
