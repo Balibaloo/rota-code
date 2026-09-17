@@ -180,6 +180,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 Cost anchors (frame 28, written 2026-09-17 from frames 26 and 30; re-derive from the last three frames whenever a frame that changes the workflow closes). Meta workflow. Every row is observed from the harness usage line under an Agent result, never from the agent's own estimate.
 
 - Agent floors, one trivial task each: general-purpose on Opus 38.3k; implementer 11.4k; reviewer 13.3k; sweeper 8.9k (frame 26).
+- A reviewer on Opus with no tool call, a three-line answer: 9.6k (frame 29's probe). The Agent tool fixes the type list at session start and reads a type's body at each spawn, so an edit to a definition is live without a restart (observed: the probe quoted a command line that e407e5d added after this session started).
 - A reviewer pass on Opus, cold, six to eight numbered points with probes: 69k to 76k. A resumed second look on the fix commit: 18k (frame 30).
 - An implementer pass on Opus, cold, two new files of about 300 lines and one suite run: 74k. Resumed: 7k for a docstring and three lines with one test; 40k for six fixes and ten tests (frame 30).
 - A suite run read inside an agent as raw pytest output: about 25k (frame 21). Through the gate: about 1k in the agent; about 6k of the assistant's context per run, call included; 8 minutes wall (frame 30).

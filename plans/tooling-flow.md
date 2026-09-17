@@ -39,6 +39,11 @@ measurement is on the stack.
   implementer, reviewer and sweeper. It restarts before it claims a
   frame that needs them (observed: frame 29 was unclaimed for this on
   2026-09-17).
+  The list is fixed at session start. The body of an existing type is
+  read again at each spawn: a reviewer spawned by session 90522022,
+  started before e407e5d, quoted e407e5d's command line and found
+  `rota.tools.gate` in its instructions (observed: frame 29's probe,
+  2026-09-17, 9.6k). An edit to a type's body needs no restart.
 - Frame 4 and every frame after the tooling need Roman at the grill.
   The chain stops there while Roman is away.
 
