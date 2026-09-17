@@ -29,6 +29,22 @@ Rules:
 
 ## Stack
 
+### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
+
+- Meta workflow. Five lines in the assistant's brief: one implementing
+  agent per frame, resumed by message; the resume carries the tree's delta
+  and a required re-read of the files to edit; the writer never reviews;
+  a cap near 350k with a where-things-are note for a fresh agent; each
+  pass's tokens in the status line beside today's cold cost, about 300k,
+  and the rule stops if a resumed pass costs as much (ruled: Roman queued
+  it from the post-mortem; reasoned: the peer hand-off applied to an agent).
+- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
+  frame has run under them with its per-pass tokens on the stack.
+- Waits on: Roman's read of the lines, and the billing basis of the
+  reported usage (context growth, or the prefix billed each turn).
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
+- Status 2026-09-17 01:17 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
