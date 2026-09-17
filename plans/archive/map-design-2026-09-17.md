@@ -54,8 +54,11 @@ line says "the map tool" (S13).
 
 1. An `ast` pass over every `rota/**/*.py` except
    `rota/testkit/samplerepo.py` (a fixture project's schema, S2) and
-   `rota/tools/` itself (one-off scripts): 68 files (R10). Per file it
-   records:
+   `rota/tools/map.py` itself: 87 files. The first draft skipped
+   `rota/tools/` as one-off scripts; the diff review found
+   `rota/tools/audit.py` reads `refs`, so the directory is in scope and
+   its 28 sites are all real SQL (observed: the second look, point 4).
+   Per file it records:
    - definitions: every `FunctionDef` and `AsyncFunctionDef`, with the
      qualified name (`Class.method` inside a class), file, first line and
      last line;
@@ -146,8 +149,10 @@ with no argument prints the usage and exits 2.
 
 ### Time
 
-One run parses 68 files and walks them in about 0.6 s, the join in
-less. Budget: under two seconds per query. The frame's words say
+One run parses 87 files and walks them in about 0.7 s, the join in
+less: `table refs` 0.9 s, `fn stage_ref` 0.96 s. A `mode` query builds
+no index, 0.15 s (observed: the fix pass). Budget: under two seconds
+per query. The frame's words say
 "cached under `.rota/` by the tree's hash". The cache is not built: the
 run is under the budget, `.rota/` is `paths.RUNS` and moves with
 `ROTA_RUNS`, and the obvious key misses unstaged edits, which is the
@@ -211,6 +216,10 @@ definitions are the assistant's, after the tool exists.
   workflow. Parked.
 - `batches.judge_touch` is the one registered verb with an underscore;
   two other multi-word verbs carry a space (R13). Rota workflow. Parked.
+- `rota/tools/talk.py` writes `entries` and `messages` with raw SQL on
+  the run database, outside `ctx.writes` and with no receipt: a third
+  raw write path beside `refresh_constraint_zero` (observed: the second
+  look, outside). Rota workflow. Parked.
 - Six places regex `CREATE TABLE IF NOT EXISTS` (S14). The map's schema
   parse is the seventh. Not in this frame.
 
