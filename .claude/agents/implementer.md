@@ -18,6 +18,10 @@ the files, the change and the tests. You change nothing outside the brief.
   `D:/repos/rota/.venv/Scripts/python.exe` from the worktree root.
 - When a message resumes you, the tree has moved. Re-read every file
   before you edit it.
+- Ask the map before you grep. `.venv/Scripts/python.exe -m rota.tools.map
+  fn|table|mode|file <name>` prints where a function, a table's writers
+  and readers, a mode's ops or a file's definitions are, in a few lines.
+  Grep only for what the map does not answer.
 
 ## Editing rules
 

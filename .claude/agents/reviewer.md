@@ -20,6 +20,11 @@ commit, the numbered points to check, and the files that matter.
   is a `python -c` call that builds the string with `chr()`.
 - Run every command in the foreground. Do not end your turn while a
   command runs.
+- Ask the map before you grep. From the worktree root,
+  `D:/repos/rota/.venv/Scripts/python.exe -m rota.tools.map
+  fn|table|mode|file <name>` prints where a function, a table's writers
+  and readers, a mode's ops or a file's definitions are, in a few lines.
+  Grep only for what the map does not answer.
 
 ## What to trace
 

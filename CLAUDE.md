@@ -76,6 +76,11 @@ of a pass: `python -m rota.tools.gate`. The assistant runs the gate
 itself before a commit and reads its five lines, never the log. The
 stale line is part of every acceptance.
 
+Ask the map tool before you grep: `python -m rota.tools.map
+fn|table|mode|file <name>` prints where a function, a table's writers
+and readers, a mode's ops or a file's definitions are, in a few lines.
+An agent's brief carries the same line.
+
 Two reviews per frame. A design review reads the scope report and the
 design record before any code, about 100k. One read-only diff review
 runs at the frame's end, on a worktree at the commit, before the walk.

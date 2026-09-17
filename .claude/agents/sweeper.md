@@ -23,6 +23,10 @@ script and never by hand.
   endings turned. Fix the file with the script and say so.
 - Print the full diff of each judgement case the brief names, so the
   assistant reads them once.
+- Ask the map before you grep. `.venv/Scripts/python.exe -m rota.tools.map
+  fn|table|mode|file <name>` prints where a function, a table's writers
+  and readers, a mode's ops or a file's definitions are, in a few lines.
+  Grep only for what the map does not answer.
 - Touch no file outside the glob. Commit only when the brief says so, in
   the format of `CONTRIBUTING.md`: a Conventional Commits summary, a
   prose body, no footer.
