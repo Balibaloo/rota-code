@@ -108,6 +108,28 @@ Rules:
   brief is in the record. A fresh implementer, cap 100k, with three
   pinned tests and the touched register cases re-recorded. Frame 35 is
   the second wall behind this one.
+- Status 2026-09-17 21:42 (rota-02): implementer pass 1 in, 169k on the
+  harness line against 90k priced and a 100k cap, 124 tool calls, 43
+  minutes (observed: the harness usage). Seven files, 182 insertions,
+  three pinned tests. Six deviations, all accepted (reasoned: each
+  stated with its cause): `ledger.log` joins the answering tools since
+  the brief's own text needs it; a ruled id is one a landed ruling
+  names, since a bare `ruling` ref is what reads as decided and two
+  pinned cases seed that; `rulings.rule` accepts a clarify as the page;
+  the chain walk lives in `principal.py`. The one prompt-changing
+  register case, `L1-LI-a-reply-reaches-the-desk-that-asked`, was
+  re-earned 5/5 before the GPU pause, after a first brief draft scored
+  0/5 and was rewritten; four cases replayed byte-identical. Gate by
+  the implementer: zero new reds, zero stale, 1896 passed. Gate by the
+  assistant: one new red, the parked flaky arc case, green on the
+  re-run (observed: the gate's flaky line). Committed at 6895000. Open
+  for the diff review, from the implementer's report: the observed
+  cycle's later turns run through `report` mode, whose prior-answers
+  branch relays without ruling; a ruling on a clarify lands no verdict
+  message; a ruling that names one of two senses discharges the family;
+  the parking sentence is matched as a substring. Diff review next, on
+  the worktree at 6895000. The walk, night 85, waits on the GPU (ruled:
+  Roman, 2026-09-17, all GPU work paused).
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [3b4093c6]
 
