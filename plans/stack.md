@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 32. The brief batch (Roman, 2026-09-17)
+### 32. The brief batch (Roman, 2026-09-17) [fa029276]
 
 - Meta workflow. One commit to `CLAUDE.md` with the lines of frames 23
   (resume one agent), 25 (two reviews), 28 (a price per line), 31 (a walk
@@ -45,6 +45,8 @@ Rules:
   (9af6b2f) and the stack (489db3a) and approved both (ruled: Roman,
   2026-09-17). While Roman is away: Opus builds, Fable judges, the
   session continues down the stack through 24 and stops at 300k.
+- Status 2026-09-17 03:14 (rota-8c): claimed by hand-off from 32a42b78 at
+  bd454b0. Frame 27's verdict is in (489db3a), so the wait is discharged.
 
 ### 26. Agent types with the tools they use (Roman, 2026-09-17)
 
