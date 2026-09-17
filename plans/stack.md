@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 27. Opus 5 on frame 21's agent types (Roman, 2026-09-17)
+### 27. Opus 5 on frame 21's agent types (Roman, 2026-09-17) [32a42b78]
 
 - Meta workflow. Opus 5 at high effort redoes three parts of frame 21
   with the same briefs, in parallel: the review of 948c436 (reviewer),
@@ -42,11 +42,17 @@ Rules:
   (ruled: Roman, 2026-09-17).
 - Ends when: three verdicts on the stack, one per agent type, each with
   the Fable tokens spent judging it.
-- Waits on: a fresh peer. Not this session (306k).
+- Waits on: the two Opus agents.
 - Reasoning: the post-mortem conversation of 2026-09-17; frame 26 for the
   agent types; `plans/archive/refs-design-2026-09-16.md` and the frame 21
   reviews in it for the known-good run.
 - Status 2026-09-17 01:34 (rota-b9): pushed by Roman, unclaimed.
+- Status 2026-09-17 01:36 (rota-b9): claimed; Roman raised this session's
+  limit to 400k because the context holds the known-good run. Reviewer
+  and implementer run on Opus in worktrees at 948c436 and e63762c with
+  the same briefs. The sweeper part has no clean ground truth (observed:
+  the sweep and the drop share commit 056995d); it folds into frame 24
+  as the sweep tool's first use.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
