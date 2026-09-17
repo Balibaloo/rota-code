@@ -6,6 +6,11 @@ is lives in `MAP.md`. The walk diary and the closed tracks, 2026-08-28 to
 claim in them that names a mechanism was checked against the code in
 `plans/lost-work-audit.md`.
 
+Where the plan stands is `plans/stack.md`. This page holds the
+destination, the goals, the order and the reasoning, written 2026-09-10
+to 2026-09-15. The page takes no status update after 2026-09-17 (ruled:
+Roman, 2026-09-17: one record says where we are).
+
 ## Core, by capability (ruled 2026-09-12)
 
 The ten goals below are the work. This section is the outcome the work
@@ -97,6 +102,15 @@ pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
    session, the slice read as a note, `batches.depend`, the worked
    example on page 1. No page reads a clock; a page is a hold or a note.
    Defaults ship after Roman drives one batch on each path at the TUI.
+The bands, by what measures each partial (ruled: Roman, 2026-09-17).
+Rides the gauntlet, no frame of its own: A7, D3, and A1's two cold walks.
+The night summary reports whether the chain fired: a stray touch judged,
+a failed verdict chained, a contest landed. Own frame, after the order,
+pushed when the gauntlet closes: A1's register red, A5, E1, the seat as
+an exchange, in that order. Own campaign, after breadth: G1, with the
+language seam as its first half, and the principal's flow, stage 1.
+Struck as built: B5. Parked until a remote provider: F1.
+
 Built, and proven on a walk or a pinned test: A2, A3, A4, A6, A8, B1, B2,
 B3, B4, C1 to C6, D1, D2, D4, E2 to E6, F2 to F5, G2.
 
@@ -149,6 +163,9 @@ files, model-written tests, the repository's own text in prompts, the
 cockpit's inputs, and the profile files. Each finding becomes a door.
 
 ### The order from here (2026-09-14)
+
+Where the steps stand is frame 4 of `plans/stack.md` since 2026-09-17.
+The dated updates below are history.
 
 Where the nights stand. Sentence one on click merges (nights 49 and 50,
 click's 34 tests green at the first harness). Sentence two, the confirm()
