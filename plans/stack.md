@@ -53,7 +53,7 @@ Rules:
   the sweeper type, which frame 26 defines). Waits on Roman's read. The
   session continues to frame 26.
 
-### 26. Agent types with the tools they use (Roman, 2026-09-17) [fa029276]
+### 26. Agent types with the tools they use (Roman, 2026-09-17) [90522022]
 
 - Meta workflow. Three definitions in `.claude/agents/`: implementer
   (Read, Edit, Write, Bash, Grep, Glob), reviewer (Read, Bash, Grep, Glob),
@@ -93,8 +93,11 @@ Rules:
   hand-off: 30 builds the gate through the implementer type, and that run
   closes 26 (ruled: Roman, 2026-09-17, the new session is the answer to
   the blocked question).
+- Status 2026-09-17 03:34 (rota-99): claimed by hand-off from fa029276 at be4f512.
+  Frame 30 is the first frame to use the types: a reviewer pass on the
+  design record, one implementer pass, a reviewer pass on the commit.
 
-### 30. The gate: the suite in five lines (Roman, 2026-09-17)
+### 30. The gate: the suite in five lines (Roman, 2026-09-17) [90522022]
 
 - Meta workflow. `rota/tools/gate.py`: runs the suite with `--tb=no -rf`,
   stores a baseline once with its commit hash, and prints five lines: the
@@ -114,6 +117,12 @@ Rules:
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, changes 5
   and 7, and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
+- Status 2026-09-17 03:34 (rota-99): claimed by hand-off at be4f512. Both waits are
+  discharged: frame 27's verdict is in (489db3a), and this session started
+  after 6140848. Estimate: design review 40k, one implementer pass 100k,
+  diff review 60k, the assistant's own gate run 5k (reasoned: the floors on
+  frame 26, two new files of about 300 lines, one suite run read as five
+  lines). Design record: `plans/archive/gate-design-2026-09-17.md`.
 
 ### 29. The map: a query tool over the code (Roman, 2026-09-17)
 
