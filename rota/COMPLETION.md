@@ -20,7 +20,7 @@ built, click and two more lineage repositories merge cold, and the
 register is green or attributed on the shipped profile. Roman confirmed
 the statuses and the post-core line on 2026-09-12.
 
-Partial, in budget, in order. The first five are one surface, the seat's
+Partial, in order. The first five are one surface, the seat's
 pages (DECISIONS.md, "The seat's four pages are one surface", 2026-09-12):
 
 1. **A1, the interview.** Iterative: the page shows the assumption that
@@ -125,7 +125,7 @@ interview's page and amendment's invalidation rule.
 
 ## The plan (agreed 2026-09-10)
 
-The end state for the second half of the budget: a tool a careful person
+The end state: a tool a careful person
 runs alone on a small existing Python repository, from the terminal, in
 plain text, and gets a merged change they can read. Proven on a handful of
 real repositories. Honest about where small models stop. Not a product a
@@ -389,7 +389,7 @@ Ruled post-core (R2, 2026-09-12). Kept so nothing is forgotten.
 5. Multiple principals on one run.
 6. The audit document as a shipped artefact.
 
-In budget, moved out of this list on 2026-09-12 because rulings put them
+Moved out of this list on 2026-09-12 because rulings put them
 in core: the full gauntlet against the lineage (goal 10), goals 5 and 6
 to completion, the container runner behind the seam (goal 7), llama.cpp
 as a proven provider (goal 8), dynamic stacks (G1).

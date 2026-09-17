@@ -38,6 +38,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - The core session (2c) owns the frames. The core session opens, orders, and closes the frames. Roman's asks are frames marked "(Roman)". Roman can pop or reorder any frame.
 - Read the stack before any work. Read the stack before you ask a peer about the peer's work.
 - The validation repos, in order, are oauthlib, icalendar, cnt, click. Confidence in onboarding needs a repo that the briefs were not tuned on. Measure that repo against a key written before the run.
+- The lineage of goal 3, three repositories walked three sentences each, is tips, click and icalendar (ruled: Roman, 2026-09-17). There is no budget line in the plan: Roman deleted the notion on 2026-09-17.
 - oauthlib is the early-era repo. The partition fixes derive from oauthlib.
 - icalendar is the control. Its preregistered answer key is `rota/ANSWER_KEY_icalendar.md`. The key was written before any session ran.
 - cnt is the current repo at `D:\tmp\rota-live\repo`. Its runs are `cnt_v1` and `cnt_v1_14b`.
