@@ -16,7 +16,10 @@ three warnings only:
 - 400k: write the status line, commit the stack, and hand the frame to a
   fresh peer by message: the frame number and the stack's commit, nothing
   else. The peer claims the frame. A hand-off is Roman's assignment,
-  continued.
+  continued. Before the hand-off, run the liveness probe in
+  `plans/tooling-flow.md`: list the peers, ping every one, and hand off
+  to the first clean standby that answers. A successful send proves
+  nothing. Do not wait for Roman to name the peer.
 
 Why the count arrives every turn: the harness cannot know which turn is
 the last, so it says the number each time. Why you ignore it until 300k:
