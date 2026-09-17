@@ -104,6 +104,19 @@ Rules:
   the failure record has no reader, the fixture records a gitlink, a
   duplicated helper. Fix pass sent to the same implementer, cap 60k,
   with four pinned tests and a gate run at its end.
+- Status 2026-09-17 16:17 (rota-02): fix pass in, 44k for the pass on the
+  harness line (169k cumulative for the agent), 52 tool calls, 38
+  minutes (observed: the harness usage). All seven findings fixed, four
+  pinned tests, eleven in the file. One deviation accepted (reasoned:
+  the fixture's `.gitignore` reaches nine L1 prompts and turned them
+  stale, so the exclude lives in `.git/info/exclude`, outside the
+  tree). Gate by the implementer and by the assistant on the same tree:
+  zero new reds, zero stale, 1890 passed. Committed at 3ab5c73. Actual so
+  far against the 382k estimate, walls apart: scope 76k, design review
+  78k, implementer 169k over two passes, diff review 91k, the
+  assistant's gate runs 12k: 426k. Walls: none. Second look by the
+  reviewer on the fix commit, then the walk: night 83 on click from the
+  worktree at 3ab5c73, shipped profile.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
