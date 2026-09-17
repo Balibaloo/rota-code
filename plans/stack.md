@@ -129,6 +129,16 @@ Rules:
   3ab5c73, a stated deviation from the brief's line. The walk's
   summary must show a Developer probe after a commit that finds the
   batch's symbol, and the survey sessions per merge.
+- Status 2026-09-17 16:53 (rota-02): pass 3 in, 14k for the pass on the
+  harness line (183k cumulative for the agent), 20 tool calls. Both
+  lows fixed, two pinned tests, no deviation. Gate by the implementer
+  and by the assistant: zero new reds, zero stale, 1892 passed. The
+  closing commit is 7e53796. Actual against the 382k estimate, walls
+  apart: scope 76k, design review 78k, implementer 183k over three
+  passes, diff review 102k over two, the assistant's gate runs 18k:
+  457k. Walls: none. Night 83 runs at 3ab5c73: onboarded 16:19 to
+  16:50, sentence one from 16:50. The frame closes on the walk's
+  result.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
