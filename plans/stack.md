@@ -76,6 +76,13 @@ Rules:
   them: a stray touch judged, a failed verdict chained, a contest
   landed. A small frame on the night script, priced when the order's
   frames run.
+- Status 2026-09-17 14:12 (rota-02): D3's owed night does not exist yet
+  (observed: a reviewer probe of the night databases, 24k). Nights 81
+  and 82 hold no verdicts row of any result: the Critic woke on the
+  challenge tick only and never reached the review tick, and the
+  Developer read an empty verdicts table three times on night 82. Rota
+  workflow. The "failed verdict chained" line of the night summary is
+  the measurement that is missing.
 
 ### 1. The end state (plan agreed 2026-09-10)
 
