@@ -59,56 +59,18 @@ Rules:
   `model: opus`; the Agent tool has no effort setting, so the effort is
   the definition's default (observed: the tool's schema).
 
-### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
+### 32. The brief batch (Roman, 2026-09-17)
 
-- Meta workflow. Five lines in the assistant's brief: one implementing
-  agent per frame, resumed by message; the resume carries the tree's delta
-  and a required re-read of the files to edit; the writer never reviews;
-  a cap near 350k with a where-things-are note for a fresh agent; each
-  pass's tokens in the status line beside today's cold cost, about 300k,
-  and the rule stops if a resumed pass costs as much (ruled: Roman queued
-  it from the post-mortem; reasoned: the peer hand-off applied to an agent).
-- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
-  frame has run under them with its per-pass tokens on the stack.
-- Waits on: Roman's read of the lines, and the billing basis of the
-  reported usage (context growth, or the prefix billed each turn).
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
-- Status 2026-09-17 01:17 (rota-b9): queued by Roman, unclaimed.
-
-### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
-
-- Meta workflow. Two lines in the assistant's brief: a change that is the
-  same edit in more than three files is a script, written with the Write
-  tool, run, its touched files printed, and the diff read once for the
-  judgement cases; a sub-agent only when the brief allows it, with a token
-  cap and its usage in the report. One tool: `rota/tools/sweep.py`, a glob
-  plus a regex or a `libcst` transform, bytes with each file's own line
-  endings, a diff stat out (ruled: Roman queued it from the post-mortem;
-  observed: 48 test files were swept by hand through four sub-agents).
-- Ends when: the lines are in `CLAUDE.md`, the tool exists with a test that
-  a CRLF file and an LF file keep their endings, and one frame's sweep ran
-  through it.
-- Waits on: Roman's read of the lines.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
-
-### 25. Two reviews per frame: the design, then the diff (Roman, 2026-09-17)
-
-- Meta workflow. Two lines in the assistant's brief: a design review on
-  the scope report and the design record before any code, about 100k,
-  and one read-only diff review at the frame's end on a worktree at the
-  commit, before the walk, for a frame that touches the write pipeline,
-  the schema or a predicate; fewer, sharper points per review (ruled:
-  Roman queued it; observed: three diff reviews cost 731k and two of 25
-  findings mattered; reasoned: the saving is about 350k a frame, the
-  smallest of the post-mortem's changes).
-- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
-  frame has run under them with both reviews' tokens on the stack.
-- Waits on: Roman's read of the lines.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 3,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:26 (rota-b9): queued by Roman, unclaimed.
+- Meta workflow. One commit to `CLAUDE.md` with the lines of frames 23
+  (resume one agent), 25 (two reviews), 28 (a price per line), 31 (a walk
+  closes) and 24's two lines (scripts, sub-agents). One read for Roman
+  (ruled: Roman, 2026-09-17: five brief edits are one frame, not five
+  hand-offs).
+- Ends when: the commit is in and Roman has read it.
+- Waits on: frame 27's verdict, for the wording of 24's lines only.
+- Reasoning: the post-mortem conversation of 2026-09-17, and the frames
+  it batches.
+- Status 2026-09-17 02:09 (rota-b9): queued, unclaimed. Session A: 32, 26, 30.
 
 ### 26. Agent types with the tools they use (Roman, 2026-09-17)
 
@@ -122,47 +84,10 @@ Rules:
 - Ends when: the three files exist, one agent of each type has run a
   trivial task and its reported floor is on the stack beside the 50k of
   the general-purpose type, and one frame has used them.
-- Waits on: nothing.
+- Waits on: nothing. Session A, after 32.
 - Reasoning: the post-mortem conversation of 2026-09-17, the `/context`
   reading of frame 21's session.
 - Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
-
-### 28. A price on every ends-when line (Roman, 2026-09-17)
-
-- Meta workflow. One line in the assistant's brief: at the grill, each
-  ends-when line carries a token price from the anchors and the behaviour
-  it buys; a line with a price and no behaviour becomes its own frame
-  below; the closing status writes the actual beside the estimate, walls
-  counted apart. Six anchor rows in `plans/operating-facts.md`, dated by
-  frame, re-derived from the last three frames whenever a frame that
-  changed the workflow closes (ruled: Roman queued it; observed: frame 21's
-  drop cost about a million and bought no behaviour, unpriced).
-- Ends when: the line is in `CLAUDE.md`, the anchors are in the facts,
-  and one frame has closed with actual beside estimate.
-- Waits on: Roman's read of the line.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 2,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
-
-### 29. The map: a query tool over the code (Roman, 2026-09-17)
-
-- Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
-  regex over the SQL literals, joined with `graph.json` and the `.tools`
-  files, cached under `.rota/` by the tree's hash, never committed. It
-  answers `fn`, `table`, `mode` and `file` queries in a few lines each:
-  file and line, callers, writers and readers per column, ops per mode.
-  Separate from the onboarding indexer. One line in the assistant's brief:
-  ask the map before you grep (ruled: Roman queued it; observed: the scope
-  agent made 96 tool calls, most of them finding where things were, and
-  every later agent found them again).
-- Ends when: the tool exists with tests that pin known facts (the writers
-  of `refs`, the readers of `item_provenance`), the line is in `CLAUDE.md`,
-  and one frame's agents have used it with their tool-call counts on the
-  stack beside frame 21's.
-- Waits on: nothing. A candidate first job for Opus under frame 27.
-- Reasoning: the post-mortem conversation of 2026-09-17, and
-  `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
-- Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
 
 ### 30. The gate: the suite in five lines (Roman, 2026-09-17)
 
@@ -179,10 +104,99 @@ Rules:
 - Ends when: the tool exists, one frame's agents used it, the assistant
   checked one acceptance with it, and a run's time on the SSD is on the
   stack beside 414 s.
-- Waits on: nothing.
+- Waits on: frame 27's verdict for who builds it. Session A, after 26.
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, changes 5
   and 7, and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
+
+### 29. The map: a query tool over the code (Roman, 2026-09-17)
+
+- Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
+  regex over the SQL literals, joined with `graph.json` and the `.tools`
+  files, cached under `.rota/` by the tree's hash, never committed. It
+  answers `fn`, `table`, `mode` and `file` queries in a few lines each:
+  file and line, callers, writers and readers per column, ops per mode.
+  Separate from the onboarding indexer. One line in the assistant's brief:
+  ask the map before you grep (ruled: Roman queued it; observed: the scope
+  agent made 96 tool calls, most of them finding where things were, and
+  every later agent found them again).
+- Ends when: the tool exists with tests that pin known facts (the writers
+  of `refs`, the readers of `item_provenance`), the line is in `CLAUDE.md`,
+  and one frame's agents have used it with their tool-call counts on the
+  stack beside frame 21's.
+- Waits on: frame 27's verdict for who builds it. Session B.
+- Reasoning: the post-mortem conversation of 2026-09-17, and
+  `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
+- Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
+
+### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
+
+- Meta workflow. Two lines in the assistant's brief: a change that is the
+  same edit in more than three files is a script, written with the Write
+  tool, run, its touched files printed, and the diff read once for the
+  judgement cases; a sub-agent only when the brief allows it, with a token
+  cap and its usage in the report. One tool: `rota/tools/sweep.py`, a glob
+  plus a regex or a `libcst` transform, bytes with each file's own line
+  endings, a diff stat out (ruled: Roman queued it from the post-mortem;
+  observed: 48 test files were swept by hand through four sub-agents).
+- Ends when: the lines are in `CLAUDE.md`, the tool exists with a test that
+  a CRLF file and an LF file keep their endings, and one frame's sweep ran
+  through it.
+- Waits on: frame 32 for the lines; frame 27's verdict for who builds
+  the tool. Session B, after 29.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
+
+### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
+
+- Meta workflow. Five lines in the assistant's brief: one implementing
+  agent per frame, resumed by message; the resume carries the tree's delta
+  and a required re-read of the files to edit; the writer never reviews;
+  a cap near 350k with a where-things-are note for a fresh agent; each
+  pass's tokens in the status line beside today's cold cost, about 300k,
+  and the rule stops if a resumed pass costs as much (ruled: Roman queued
+  it from the post-mortem; reasoned: the peer hand-off applied to an agent).
+- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
+  frame has run under them with its per-pass tokens on the stack.
+- Waits on: frame 32 for the lines; ends on the first frame that runs
+  under them, frame 4.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
+- Status 2026-09-17 01:17 (rota-b9): queued by Roman, unclaimed.
+
+### 25. Two reviews per frame: the design, then the diff (Roman, 2026-09-17)
+
+- Meta workflow. Two lines in the assistant's brief: a design review on
+  the scope report and the design record before any code, about 100k,
+  and one read-only diff review at the frame's end on a worktree at the
+  commit, before the walk, for a frame that touches the write pipeline,
+  the schema or a predicate; fewer, sharper points per review (ruled:
+  Roman queued it; observed: three diff reviews cost 731k and two of 25
+  findings mattered; reasoned: the saving is about 350k a frame, the
+  smallest of the post-mortem's changes).
+- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
+  frame has run under them with both reviews' tokens on the stack.
+- Waits on: frame 32 for the lines; measured by frame 4.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 3,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:26 (rota-b9): queued by Roman, unclaimed.
+
+### 28. A price on every ends-when line (Roman, 2026-09-17)
+
+- Meta workflow. One line in the assistant's brief: at the grill, each
+  ends-when line carries a token price from the anchors and the behaviour
+  it buys; a line with a price and no behaviour becomes its own frame
+  below; the closing status writes the actual beside the estimate, walls
+  counted apart. Six anchor rows in `plans/operating-facts.md`, dated by
+  frame, re-derived from the last three frames whenever a frame that
+  changed the workflow closes (ruled: Roman queued it; observed: frame 21's
+  drop cost about a million and bought no behaviour, unpriced).
+- Ends when: the line is in `CLAUDE.md`, the anchors are in the facts,
+  and one frame has closed with actual beside estimate.
+- Waits on: frame 32 for the line; measured by frame 4.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 2,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
 
 ### 31. A walk closes a frame that touches the seats (Roman, 2026-09-17)
 
@@ -196,7 +210,7 @@ Rules:
   21 passed every suite run and the walk found a seventy-night defect).
 - Ends when: the lines are in `CLAUDE.md` and one frame has closed on a
   walk with its result, steps and asks, on the stack.
-- Waits on: Roman's read of the lines.
+- Waits on: frame 32 for the lines; measured by frame 4.
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 4,
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:52 (rota-b9): queued by Roman, unclaimed.
