@@ -29,94 +29,6 @@ Rules:
 
 ## Stack
 
-### 26. Agent types with the tools they use (Roman, 2026-09-17) [90522022]
-
-- Meta workflow. Three definitions in `.claude/agents/`: implementer
-  (Read, Edit, Write, Bash, Grep, Glob), reviewer (Read, Bash, Grep, Glob),
-  sweeper (Bash, Write, Read), each with its model and a standing prompt
-  that carries the repo's rules: line endings, the suite command, the
-  report shape (ruled: Roman queued it; observed: a general-purpose agent
-  starts near 50k of schemas, fourteen of them a day; reasoned: about 400k
-  a day at that count, more with a cheaper model on the sweeper).
-- Ends when: the three files exist, one agent of each type has run a
-  trivial task and its reported floor is on the stack beside the 50k of
-  the general-purpose type, and one frame has used them.
-- Waits on: nothing. Session A, after 32.
-- Reasoning: the post-mortem conversation of 2026-09-17, the `/context`
-  reading of frame 21's session.
-- Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
-- Status 2026-09-17 03:16 (rota-8c): claimed. Models from frame 27's verdict:
-  Opus for the implementer and the sweeper, the reviewer inherits Fable
-  and takes Opus per call when the points are sharp.
-- Status 2026-09-17 03:21 (rota-8c): the three files are in (6140848). Wall:
-  the Agent tool loads its type list at session start, so this session
-  cannot spawn the new types (observed: the tool's error names only the six
-  built-in types). Anchor measured today: a general-purpose agent on Haiku
-  with one tool call cost 33,741 tokens (observed: the harness usage line).
-  Next: a fresh `claude -p` process from the repo root, if the CLI is on
-  this box, else the floors wait for the next fresh session.
-- Status 2026-09-17 03:25 (rota-8c): floors measured (observed: the modelUsage
-  rows of five fresh `claude.exe -p` runs, a Haiku main that calls the
-  Agent tool once; the typed agent's first-turn cache creation is its
-  floor). General-purpose on Opus: 38.3k. Implementer: 11.4k. Reviewer:
-  13.3k, of which about 2.5k is the file it read. Sweeper: 8.9k. The
-  types start at a quarter to a third of the general-purpose cost
-  (reasoned: 9k to 13k against 38k). The CLI is the VS Code extension's
-  `resources/native-binary/claude.exe`, version 2.1.258. Open: one frame
-  has to use the types, and that needs a session started after 6140848.
-- Status 2026-09-17 03:29 (rota-8c): Roman started session 90522022 after
-  6140848, so its Agent tool holds the types. Frames 26 and 30 go to it by
-  hand-off: 30 builds the gate through the implementer type, and that run
-  closes 26 (ruled: Roman, 2026-09-17, the new session is the answer to
-  the blocked question).
-- Status 2026-09-17 03:34 (rota-99): claimed by hand-off from fa029276 at be4f512.
-  Frame 30 is the first frame to use the types: a reviewer pass on the
-  design record, one implementer pass, a reviewer pass on the commit.
-
-### 30. The gate: the suite in five lines (Roman, 2026-09-17) [90522022]
-
-- Meta workflow. `rota/tools/gate.py`: runs the suite with `--tb=no -rf`,
-  stores a baseline once with its commit hash, and prints five lines: the
-  summary, new reds, reds gone, the STALE set, the run time; a traceback
-  only for a new red; a note when the tree has moved past the baseline.
-  Temp databases on the SSD through one setting in the gate. Two lines in
-  the assistant's brief: the touched test files first, the gate once at
-  the end of a pass; the assistant runs the gate itself before a commit
-  (ruled: Roman queued it; observed: twelve runs of about 25k tokens each
-  read 22 known tracebacks, one FAILED-list compare missed a STALE case,
-  and three quarters of a seven-minute run is fixture IO on the HDD).
-- Ends when: the tool exists, one frame's agents used it, the assistant
-  checked one acceptance with it, and a run's time on the SSD is on the
-  stack beside 414 s.
-- Waits on: frame 27's verdict for who builds it. Session A, after 26.
-- Waits on: a session started after 6140848, for the typed agents.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, changes 5
-  and 7, and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
-- Status 2026-09-17 03:34 (rota-99): claimed by hand-off at be4f512. Both waits are
-  discharged: frame 27's verdict is in (489db3a), and this session started
-  after 6140848. Estimate: design review 40k, one implementer pass 100k,
-  diff review 60k, the assistant's own gate run 5k (reasoned: the floors on
-  frame 26, two new files of about 300 lines, one suite run read as five
-  lines). Design record: `plans/archive/gate-design-2026-09-17.md`.
-- Status 2026-09-17 04:31 (rota-99): the gate is in (9beb1ca), the brief lines and
-  the two definitions follow (e407e5d). Design review before code: eight
-  findings, two high, both in the log parser; the red set now comes from
-  pytest's lastfailed cache. The implementer's pass: 19 tests green, the
-  baseline stored at 8913a92 with 22 reds. The assistant's own gate run
-  before the commit: zero new reds, exit 0, the acceptance checked. Time
-  on the SSD beside 414 s: 465.6 s and 482.5 s (observed: the gate's time
-  line, two runs). The setting moved nothing on this box: `TEMP` was on
-  C: before the gate (observed: `tempfile.gettempdir()` in the assistant's
-  shell), and the suite holds 19 tests more than the anchor's run. Diff
-  review on a worktree at 9beb1ca: six findings, three high: the
-  lastfailed cache is cumulative, an absent register is created empty,
-  the summary counts are stored and never compared. Fix pass sent to the
-  same implementer by message. Actuals against the estimate: design
-  review 69k (40k), implementer pass 74k (100k), diff review 76k (60k)
-  (observed: the harness usage lines). The reviewers' own estimates were
-  42k and 442k: read the harness line, not the agent's.
-
 ### 29. The map: a query tool over the code (Roman, 2026-09-17)
 
 - Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
@@ -280,6 +192,10 @@ Rules:
   the second at line 45 shadows the first at line 25, so the serial
   guard in the first is dead. `rota_serial_plugin` still enforces it.
   Meta workflow. Not in frame 30.
+- From frame 30: the suite's temp root was on C: before the gate, so
+  the SSD setting moved nothing. The remaining HDD reader is
+  `tests/rota/cassettes.db` on D:. A read-only copy on C: for replay is
+  the next lever, untested. Meta workflow.
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
