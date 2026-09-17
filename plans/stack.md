@@ -29,6 +29,40 @@ Rules:
 
 ## Stack
 
+### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [3b4093c6]
+
+- Rota workflow. Step 3 of the order. The code index is built at
+  onboarding and never refreshed after a commit, so a batch's own
+  symbols are invisible to later probes, and the touch prediction and
+  sentence three's first prediction read a stale index (ruled: Roman,
+  2026-09-17: the next frame; reasoned: `rota/COMPLETION.md`, "The order
+  from here", step 3, a core fact that lands before breadth).
+- Ends when, each line priced from the anchors, walls apart:
+  1. A scope report names the index's writers and readers, what a
+     commit changes, and the hook points for a refresh: 50k. Buys: the
+     design names real paths, not guessed ones.
+  2. A design record, reviewed before any code: 80k (the review 70k,
+     the record 8k). Buys: the refresh's contract, per run or per
+     worktree, is fixed before an implementer reads it.
+  3. The refresh is built with a pinned test: after a commit, the
+     index lists the batch's new symbols and a probe finds them: 110k
+     (cold 80k, one resumed pass 30k). Buys: a batch's own symbols are
+     visible to later probes and to the touch prediction.
+  4. A diff review on a worktree at the commit, its fixes in: 110k
+     (review 65k, second look 20k, fix pass 25k). Buys: the write
+     pipeline change is read by a context that never wrote it.
+  5. The gate green before each commit, the stale line read: 12k.
+     Buys: no new red and no stale case hides behind the change.
+  6. A full night on click from a worktree at the closing commit, its
+     summary read: 20k in this context, about two hours wall. Buys:
+     the seats on the delivery path see the refreshed index.
+  Total: 382k in agents, about 120k in this context.
+- Waits on: nothing. The scope agent runs now.
+- Reasoning: `rota/COMPLETION.md`, "The order from here", step 3. The
+  design record will be `plans/archive/index-refresh-design-2026-09-17.md`.
+- Status 2026-09-17 14:25 (rota-02): pushed. The scope report is out to a
+  reviewer-type agent, read-only, cap 60k.
+
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
@@ -83,6 +117,9 @@ Rules:
   Developer read an empty verdicts table three times on night 82. Rota
   workflow. The "failed verdict chained" line of the night summary is
   the measurement that is missing.
+- Status 2026-09-17 14:25 (rota-02): the lineage is tips, click and icalendar
+  (ruled: Roman, 2026-09-17). Step 5 of the order, breadth cold, walks
+  tips and icalendar with what exists.
 
 ### 1. The end state (plan agreed 2026-09-10)
 
