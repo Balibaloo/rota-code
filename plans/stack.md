@@ -179,6 +179,23 @@ Rules:
   and 7, and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
 
+### 31. A walk closes a frame that touches the seats (Roman, 2026-09-17)
+
+- Meta workflow. Two lines in the assistant's brief: a frame that touches
+  the seats, the briefs, the write pipeline or a predicate ends on a walk
+  that covers the phases it touched, onboarding for an onboarding change,
+  a full night for the delivery path or when in doubt; the walk runs from
+  a worktree at the frame's closing commit, since briefs are read at every
+  wake, and the frame stays open as validating while the next frame
+  starts in the main checkout (ruled: Roman, 2026-09-17; observed: frame
+  21 passed every suite run and the walk found a seventy-night defect).
+- Ends when: the lines are in `CLAUDE.md` and one frame has closed on a
+  walk with its result, steps and asks, on the stack.
+- Waits on: Roman's read of the lines.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 4,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:52 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
