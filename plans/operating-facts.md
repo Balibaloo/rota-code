@@ -177,6 +177,15 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - A STALE case (no cassette for the current prompt) renders identically to a red under `--tb=no`. Classify stale-vs-red before you read a baseline.
 - `python -m rota.tools.gate` does that classification (frame 30, 2026-09-17). It runs the suite with `--tb=no -rfE -q`, prints five lines (summary, new reds, reds gone, the stale set under the suite's model, time), stores the baseline in `.rota-gate.json` at the repo root, and re-runs new reds only for their tracebacks. Never read `.rota-gate.log`. `--baseline` re-takes the baseline. A checkout with no register gets `stale: the register is absent`. Four runs on this box: 465 s to 482 s.
 
+Cost anchors (frame 28, written 2026-09-17 from frames 26 and 30; re-derive from the last three frames whenever a frame that changes the workflow closes). Meta workflow. Every row is observed from the harness usage line under an Agent result, never from the agent's own estimate.
+
+- Agent floors, one trivial task each: general-purpose on Opus 38.3k; implementer 11.4k; reviewer 13.3k; sweeper 8.9k (frame 26).
+- A reviewer pass on Opus, cold, six to eight numbered points with probes: 69k to 76k. A resumed second look on the fix commit: 18k (frame 30).
+- An implementer pass on Opus, cold, two new files of about 300 lines and one suite run: 74k. Resumed: 7k for a docstring and three lines with one test; 40k for six fixes and ten tests (frame 30).
+- A suite run read inside an agent as raw pytest output: about 25k (frame 21). Through the gate: about 1k in the agent; about 6k of the assistant's context per run, call included; 8 minutes wall (frame 30).
+- A tool frame in the assistant's own context, claim to close, two reviews and three implementer passes included: about 120k (frame 30; observed: `/context` 173k at close with a 45k fixed prompt).
+- A design record written by the assistant: about 8k of output. A status line: about 1k (frame 30).
+
 ## The cockpit
 
 - One writer per state axis (2026-08-24): the lens changes only through `setLens()` in graphview.js. `setLens()` clears `GV.blast` and closes the case (`GV.caseId`, moved out of panels.js's old `CASE_ID`). `setLens()` opens the lens's home subtab (story/run → steps, coverage → coverage, design/case → none).
