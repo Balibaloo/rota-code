@@ -840,6 +840,55 @@ def verdict_for(conn: sqlite3.Connection, message_id: str) -> dict[str, str]:
     return json.loads(row["value"]) if row else {}
 
 
+def chain_verdict(
+        conn: sqlite3.Connection,
+        message_id: str) -> tuple[str, dict[str, str], str | None] | None:
+    """
+    The principal's per-row ruling on a message's cause chain.
+
+    Returns the message that carries the words, the per-row ruling, and the
+    landed `rulings` row, or None when the chain carries no ruling at all.
+
+    One walk for two readers: the runner builds a relay's `principal_verdict`
+    from it, and `api._verdict_of` decides what a session may adopt. Both read
+    the same chain, so both see the same ruling.
+
+    Two records, because a ruling lands in two shapes. A verdict from the seat
+    writes the `config` key `verdict:<id>`. A reply the Liaison reads in the
+    same session it relays lands only the `rulings` row, because `land` finds
+    the ask already answered. Night 84 (2026-09-17): the relay climbed one
+    cause hop, found neither, and the Terminologist was told the ruling was in
+    a field the message never had.
+
+    A `rulings` row with an empty `per_item` is not a ruling. The onboard-only
+    walk of clickI landed `r_m8` with `per_item='{}'` for a words-only reply,
+    and silence is not consent.
+    """
+    seen: set[str] = set()
+    mid = message_id
+    while mid and mid not in seen:
+        seen.add(mid)
+        verdict = verdict_for(conn, mid)
+        if verdict:
+            row = conn.execute(
+                "SELECT id FROM rulings WHERE verdict_id = ? AND status = 'landed' "
+                "ORDER BY rowid DESC LIMIT 1", (mid,)).fetchone()
+            return mid, verdict, (row["id"] if row else None)
+        row = conn.execute(
+            "SELECT id, per_item, reply_id, verdict_id FROM rulings "
+            "WHERE status = 'landed' AND (ask_id = ? OR reply_id = ?) "
+            "ORDER BY rowid DESC LIMIT 1", (mid, mid)).fetchone()
+        if row:
+            per_item = json.loads(row["per_item"] or "{}")
+            if per_item:
+                said = row["reply_id"] or row["verdict_id"] or mid
+                return said, per_item, row["id"]
+        nxt = conn.execute(
+            "SELECT cause_id FROM messages WHERE id = ?", (mid,)).fetchone()
+        mid = nxt["cause_id"] if nxt else None
+    return None
+
+
 def entry_for(conn: sqlite3.Connection, message_id: str) -> str:
     """
     What the principal said, from the table that owns it.

@@ -713,15 +713,25 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
     # principal contested "service quality" on t1, Vision Keeper was shown t1
     # at draft and nothing else, set it approved, and the build shipped the
     # contested thing. Every owner's relay.md says the ruling is
-    # `principal_verdict` in the message; this is what makes that true. One
-    # hop, relay only, and only the rows this relay carries -- a ruling fans
-    # out one relay per owner, and each owner sees its own.
+    # `principal_verdict` in the message; this is what makes that true. Relay
+    # only, and only the rows this relay carries -- a ruling fans out one
+    # relay per owner, and each owner sees its own.
+    #
+    # The whole chain, not one hop. A reply to a clarify is read and relayed
+    # in the same Liaison session, so the relay's cause is the reply and the
+    # ruling is one hop further up. Measured on night 84 (2026-09-17): every
+    # relay m101 to m129 had the report as its cause, none carried a verdict,
+    # and the Terminologist's `glossary.adopt` was refused for three sessions
+    # in a row.
     if row["verb"] == "relay" and not ruling and row["cause_id"]:
-        carried = verdict_for(conn, row["cause_id"])
+        from ..roles.principal import chain_verdict
+
+        found = chain_verdict(conn, row["cause_id"])
+        carried = found[1] if found else {}
         mine = {r: v for r, v in carried.items() if r in out["refs"]}
         if mine:
             out["principal_verdict"] = mine
-            reason = entry_for(conn, row["cause_id"])
+            reason = entry_for(conn, found[0])
             if reason:
                 out.setdefault("principal_said", reason)
 

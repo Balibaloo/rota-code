@@ -56,6 +56,12 @@ QUESTION_LADDER = ("architect", "vision_keeper")
 DERIVED = "*"        # the wake's role comes from the rows, not the declaration
 SCHEDULER = "-"      # no role: the scheduler does this itself
 
+# The Liaison's ledger row for a reply that answered nothing about the rows.
+# One sentence in two places: `rota/roles/prompts/liaison/answering.md` tells
+# the Liaison to write it, and `term_collision` reads it. Lower case, matched
+# as a substring, because the Liaison names the rows after it.
+UNADDRESSED_ANSWER = "the answer did not address the question"
+
 # When a predicate fires, relative to the others. Lower goes first.
 #
 # Fix before start. A failed verdict and a failing test outrank a new batch,
@@ -370,6 +376,29 @@ def term_collision(conn) -> list[Wake]:
         except (ValueError, TypeError):
             continue
 
+    # An adopted sense is a ruled sense. `glossary.adopt` writes a `refs` row
+    # of kind `ruling` and no decision (`api._adopt_rows`), so a family the
+    # principal had settled kept firing this tick.
+    #
+    # The ruling has to name the row, not merely exist. A `ruling` ref is what
+    # the provenance view reads as `decided`, and a decided sense is not a
+    # ruled collision: `L1-TE-put-a-word-with-two-senses-to-the-principal`
+    # seeds two decided senses and is the case this tick exists for, and
+    # `test_work_resting_on_an_unresolved_collision_is_not_offered` seeds one
+    # decided sense beside one observed. `_adopt_rows` skips any row the
+    # ruling does not approve, so a row adopted for real is always named.
+    for r in conn.execute(
+            "SELECT f.src_id AS src_id, u.per_item AS per_item FROM refs f "
+            "JOIN rulings u ON u.id = f.target "
+            "WHERE f.src_table = 'glossary_terms' AND f.kind = 'ruling' "
+            "AND u.status = 'landed'"):
+        try:
+            named = json.loads(r["per_item"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if r["src_id"] in named:
+            ruled.add(r["src_id"])
+
     # Already put to somebody. `contradiction` -- the twin this predicate was
     # built from, named two paragraphs up -- has had this check all along and
     # terminates because of it; this copied the intent and not the check.
@@ -403,6 +432,23 @@ def term_collision(conn) -> list[Wake]:
             raised.update(json.loads(m["body_refs"] or "[]"))
         except (ValueError, TypeError):
             continue
+
+    # An answer that missed the question parks the word too. The Liaison reads
+    # the principal's words against the rows and finds they name none of them.
+    # Nothing is ruled, so it logs one row per row and relays nothing
+    # (`rota/roles/prompts/liaison/answering.md`). Night 84 (2026-09-17): the
+    # report, the clarify and the relay were all answered when their sessions
+    # ended, nothing was open, and the same three sessions ran seventeen
+    # times. The ledger row is what holds the word between cycles.
+    #
+    # Parked, not discharged, as the open message above is. The row stays open
+    # in the ledger and in `outstanding` until a decision resolves it, and the
+    # decision names the row, so `ruled` takes over from there.
+    for r in conn.execute(
+            "SELECT about_ref FROM ledger WHERE status = 'open' "
+            "AND about_table = 'glossary_terms' AND author = 'liaison' "
+            "AND lower(default_taken) LIKE ?", (f"%{UNADDRESSED_ANSWER}%",)):
+        raised.add(r["about_ref"])
 
     wakes = []
     for r in rows:

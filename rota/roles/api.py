@@ -965,24 +965,20 @@ def _same_sense(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _verdict_of(ctx: Ctx) -> tuple[str, dict[str, str]] | None:
-    """The verdict on this wake's cause chain: (verdict message id, the
-    per-row ruling). None when the wake carries no ruling at all."""
-    from .principal import verdict_for
+    """The verdict on this wake's cause chain: (the message that carries the
+    words, the per-row ruling). None when the wake carries no ruling at all.
+
+    `principal.chain_verdict` does the walk. The runner builds the relay's
+    `principal_verdict` from the same function, so what a session is shown and
+    what it may adopt cannot part company.
+    """
+    from .principal import chain_verdict
 
     trigger = getattr(ctx, "trigger", None)
     if not trigger:
         return None
-    seen = set()
-    mid = trigger
-    while mid and mid not in seen:
-        seen.add(mid)
-        verdict = verdict_for(ctx.conn, mid)
-        if verdict:
-            return mid, verdict
-        row = ctx.conn.execute(
-            "SELECT cause_id FROM messages WHERE id = ?", (mid,)).fetchone()
-        mid = row["cause_id"] if row else None
-    return None
+    found = chain_verdict(ctx.conn, trigger)
+    return (found[0], found[1]) if found else None
 
 
 def _ruled_ids(ctx: Ctx) -> set[str] | None:
@@ -1002,13 +998,13 @@ def _ruled_ids(ctx: Ctx) -> set[str] | None:
 def _landed_ruling(ctx: Ctx) -> str | None:
     """The `rulings` row of the verdict on this wake's cause chain, landed.
     `principal.land` writes one for every verdict, so the ref has a target."""
-    found = _verdict_of(ctx)
-    if found is None:
+    from .principal import chain_verdict
+
+    trigger = getattr(ctx, "trigger", None)
+    if not trigger:
         return None
-    row = ctx.conn.execute(
-        "SELECT id FROM rulings WHERE verdict_id = ? AND status = 'landed' "
-        "ORDER BY rowid DESC LIMIT 1", (found[0],)).fetchone()
-    return row["id"] if row else None
+    found = chain_verdict(ctx.conn, trigger)
+    return found[2] if found else None
 
 
 def _adopt_rows(ctx: Ctx, table: str, ids: list[str]) -> dict:
@@ -4918,14 +4914,24 @@ def tests_consult(ctx: Ctx) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def _ask_of(ctx: Ctx):
-    """The confirm or present the triggering reply answers, or None."""
+    """The confirm, present or clarify the triggering reply answers, or None.
+
+    A confirm or a present must still be open. Two consoles can read one
+    present, and the first ruling to land wins (`principal.land`).
+
+    A clarify is already answered, always: `parse_reply` turns a reply to a
+    clarify into a `converse` and `land` closes the ask on the keypress. The
+    Liaison still has to read the words, so the page is the clarify and the
+    status check cannot apply to it.
+    """
     trigger = getattr(ctx, "trigger", None)
     if not trigger:
         return None
     return ctx.conn.execute(
         "SELECT a.id, a.verb, a.body_refs, a.body_text FROM messages m "
         "JOIN messages a ON a.id = m.cause_id WHERE m.id = ? "
-        "AND a.verb IN ('confirm', 'present') AND a.status = 'open'",
+        "AND (a.verb = 'clarify' "
+        "     OR (a.verb IN ('confirm', 'present') AND a.status = 'open'))",
         (trigger,)).fetchone()
 
 
@@ -4962,7 +4968,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     if page is None:
         raise ValueError(
             "no open page: this session was not woken by a reply to a "
-            "confirm or a present, so there is nothing to rule on. Stop")
+            "confirm, a present or a clarify, so there is nothing to rule "
+            "on. Stop")
     if any(w[0] == "rulings" for w in (ctx.writes or [])):
         raise ValueError(
             "this reply is already read: one ruling per reply. Stop")
@@ -4990,6 +4997,13 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # answer, and the page stayed open under "Waiting on you".
     batches_only = bool(refs) and all(ctx.conn.execute(
         "SELECT 1 FROM batches WHERE id = ?", (r,)).fetchone() for r in refs)
+    # A clarify numbers no line, so `order` is empty for every clarify. The
+    # door above would then read an empty ruling as "approve all", which is
+    # the reading this fix exists to stop: silence is not consent
+    # (`principal.land`, the empty-converse walk of clickI).
+    if ask["verb"] == "clarify":
+        batches_only = False
+        order = order or refs
     if isinstance(rulings, dict) and not rulings and (not order or batches_only):
         rid = new_id("r", ctx.conn)
         ctx.writes.append(("rulings", rid, {
