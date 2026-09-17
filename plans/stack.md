@@ -122,6 +122,23 @@ Rules:
   reading of frame 21's session.
 - Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
 
+### 28. A price on every ends-when line (Roman, 2026-09-17)
+
+- Meta workflow. One line in the assistant's brief: at the grill, each
+  ends-when line carries a token price from the anchors and the behaviour
+  it buys; a line with a price and no behaviour becomes its own frame
+  below; the closing status writes the actual beside the estimate, walls
+  counted apart. Six anchor rows in `plans/operating-facts.md`, dated by
+  frame, re-derived from the last three frames whenever a frame that
+  changed the workflow closes (ruled: Roman queued it; observed: frame 21's
+  drop cost about a million and bought no behaviour, unpriced).
+- Ends when: the line is in `CLAUDE.md`, the anchors are in the facts,
+  and one frame has closed with actual beside estimate.
+- Waits on: Roman's read of the line.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 2,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
