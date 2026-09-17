@@ -223,6 +223,26 @@ def propose(conn: sqlite3.Connection) -> Proposal:
     return prop
 
 
+def area_of(directory: str, areas: set[str]) -> str:
+    """
+    The existing area a directory belongs to.
+
+    Strip the test components, then climb until something exists, and land at
+    the root when nothing does. `tests/prop/test_recur.py` belongs with `prop`,
+    and `tests/rfc_7265_jcal` against a repo with no `rfc_7265_jcal` directory
+    belongs with the first real ancestor.
+
+    Public because two callers need the same answer: the partition attaches
+    tests with it, and `indexer.refresh` gives a file the batch just added the
+    area of its nearest indexed ancestor. Two copies of this walk would
+    partition a new file one way at onboarding and another way mid-batch.
+    """
+    target = _untest(directory)
+    while target and target not in areas:
+        target = _parent(target)
+    return target if target in areas else "."
+
+
 def _attach_tests(prop: Proposal, tests: list[str], areas: set[str]) -> None:
     """
     Put each test with the area it exercises.
@@ -234,10 +254,7 @@ def _attach_tests(prop: Proposal, tests: list[str], areas: set[str]) -> None:
     up until something exists, and land at the root if nothing does.
     """
     for grain in tests:
-        target = _untest(_directory(grain))
-        while target and target not in areas:
-            target = _parent(target)
-        area = target if target in areas else "."
+        area = area_of(_directory(grain), areas)
         prop.areas[grain] = area
         prop.tests[area] += 1
 

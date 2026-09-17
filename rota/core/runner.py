@@ -2422,7 +2422,10 @@ def _refresh_index(conn: sqlite3.Connection, result: SessionResult) -> None:
         return
     try:
         indexer.refresh(conn, tree, main=False)
-    except (indexer.IndexRefreshError, OSError) as exc:
+    except Exception as exc:                # noqa: BLE001 -- the index is not the session
+        # Every exception, not a list of two. The session's writes are already
+        # committed here, so anything that escapes reaches `run_session`'s
+        # handler and fails a session whose rows are on record.
         session_note(conn, result.session_id,
                      [f"the code index still describes the tree as it was "
                       f"before this commit: {exc!r}"])

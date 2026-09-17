@@ -554,19 +554,16 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
     # re-derived. A grain the build dropped is simply not updated.
     conn.executemany("UPDATE code_index SET area = ? WHERE grain = ?",
                      [(area, grain) for grain, area in was.items() if area])
-    # A file the batch added. The walk `_attach_tests` uses: strip the test
-    # components, then climb to the nearest area that exists, and land at the
-    # root when none does. Deriving it keeps `code.survey` and every
-    # area-scoped reader able to see the batch's new file.
+    # A file the batch added. `areas.area_of` is the walk the partition uses
+    # for a test path, so a new file lands in the area onboarding would have
+    # given it. Deriving it keeps `code.survey` and every area-scoped reader
+    # able to see the batch's new file.
     new_areas: dict[str, str] = {}
     for row in conn.execute(
             "SELECT grain FROM code_index WHERE grain_kind = 'path' "
             "AND area IS NULL").fetchall():
         grain = row["grain"]
-        target = areas_mod._untest(areas_mod._directory(grain))
-        while target and target not in areas:
-            target = areas_mod._parent(target)
-        new_areas[grain] = target if target in areas else "."
+        new_areas[grain] = areas_mod.area_of(posixpath.dirname(grain), areas)
     for grain, area in new_areas.items():
         conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
                      (area, grain))

@@ -178,6 +178,15 @@ def make(tmp_path: Path, *, name: str = "sample") -> SampleRepo:
             f"the git fixture only builds under a temp directory, not {tmp_path}")
     root = tmp_path / name
     shutil.copytree(_template(), root)
+    # `.rota/` out of this checkout's git. A batch worktree lives at
+    # `<root>/.rota/worktrees/<name>`, and without this `commit_in(root)` runs
+    # `git add -A` over it and records a gitlink, with git's embedded-repository
+    # warning. In `.git/info/exclude` rather than in the sample's `.gitignore`
+    # because the exclude file is not part of the tree: no case's prompt moves,
+    # so no recording goes stale.
+    exclude = root / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    exclude.write_text(".rota/\n", encoding="utf-8", newline="\n")
     repo = SampleRepo(root=root)
     repo._before = registered_worktrees(root)
     return repo

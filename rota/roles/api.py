@@ -2467,8 +2467,11 @@ def area_content_hash(conn, area: str) -> str:
     table at onboarding and at every refresh of the main checkout.
 
     Empty when the area has no stamp -- a new area, an area with no path grains,
-    or a database from before the table. Empty never matches a real digest, so
-    an old record reads as "view unknown" rather than "still fresh".
+    or a database from before the table. **Empty matches everything**:
+    `scheduler._survey_wakes` reads an empty aggregate as "the view is unknown,
+    so leave the record alone", and every survey of the area then counts as
+    current. That is why `core.boot` stamps the table when it opens a database
+    that has areas and no stamps: unstamped is quiet, not loud.
     """
     row = conn.execute("SELECT hash FROM area_hashes WHERE area = ?",
                        (area,)).fetchone()
@@ -5447,9 +5450,26 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
                          "nothing. Probe by the name the failing test calls, "
                          "or the word you are tracing -- `code.probe("
                          "pattern='line_total')`."}]
-    return _rows(ctx.conn.execute(
+    hits = _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, area, fan_in FROM code_index "
         "WHERE grain LIKE ? ORDER BY fan_in DESC LIMIT 200", (f"%{pattern}%",)))
+    if hits:
+        return hits
+    # Nothing matched, and the index of this batch may be the reason. The
+    # lifecycle and the runner record a failed refresh under `index:<batch>`,
+    # the way a missing worktree is recorded under `worktree:<batch>`. A probe
+    # that comes back empty because the index is a commit behind must say so:
+    # the role's next move is different if the name is absent from the tree
+    # than if the index never saw the commit that added it.
+    note = ctx.conn.execute(
+        "SELECT value FROM config WHERE key = ?",
+        (f"index:{ctx.batch_id}",)).fetchone() if ctx.batch_id else None
+    if note and (note["value"] or "").strip():
+        return [{"note": f"nothing in the index matches '{pattern}'. The index "
+                         f"was not rebuilt after this batch's last commit "
+                         f"({note['value']}), so a name this batch wrote can "
+                         f"be missing from it -- read the file instead."}]
+    return hits
 
 
 # Words that carry no meaning of their own in any codebase. Not a general

@@ -185,6 +185,29 @@ def quarantine_exhausted(conn: sqlite3.Connection,
     return ids
 
 
+def stamp_missing_area_hashes(conn: sqlite3.Connection) -> int:
+    """
+    A database that predates `area_hashes` reads as fully surveyed.
+
+    `init_db` creates the table empty, and an empty aggregate is how the
+    freshness rule says "the view is unknown", which matches every record. So
+    every area of a run onboarded before this table would stay closed until the
+    first refresh of main, however far the tree had moved.
+
+    Stamped from the index the run already has, which is the aggregate the rule
+    compared before the table existed. Once, on the first open: a database with
+    any stamp is left alone, and so is one with no partition to stamp.
+    """
+    if conn.execute("SELECT 1 FROM area_hashes LIMIT 1").fetchone():
+        return 0
+    if not conn.execute("SELECT 1 FROM code_index WHERE area IS NOT NULL "
+                        "AND area != '' LIMIT 1").fetchone():
+        return 0
+    from ..onboarding import indexer
+
+    return indexer.stamp_area_hashes(conn)
+
+
 def boot(project_root: str | Path, *, kill_processes: bool = True,
          attempt_cap: int | None = None) -> tuple[sqlite3.Connection, BootReport]:
     """Run the full sequence and hand back a live connection."""
@@ -198,6 +221,9 @@ def boot(project_root: str | Path, *, kill_processes: bool = True,
     report.onboarding = not sdir.exists()
     sdir.mkdir(parents=True, exist_ok=True)
     conn = init_db(sdir / "rota.db")
+    # Before anything reads the freshness rule: a run from before `area_hashes`
+    # opens with an empty table, which reads as "every area is still current".
+    stamp_missing_area_hashes(conn)
 
     # 2-6.
     report.claims_reaped = reap_claims(conn)

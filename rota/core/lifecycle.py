@@ -46,7 +46,11 @@ def _reindex_main(conn: sqlite3.Connection, batch_id: str) -> None:
 
     try:
         indexer.refresh(conn, worktrees.project_root(conn), main=True)
-    except (worktrees.WorktreeError, indexer.IndexRefreshError, OSError) as exc:
+    except Exception as exc:                    # noqa: BLE001 -- best effort
+        # Every exception, not a list of two. A parse error, a locked database
+        # or a bug in the walk would otherwise escape after `status` already
+        # says merged, and the caller would read a delivered batch as a failed
+        # transition.
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (f"index:{batch_id}", str(exc)[:300]))
 
@@ -57,7 +61,7 @@ def _reindex_batch(conn: sqlite3.Connection, batch_id: str, tree) -> None:
 
     try:
         indexer.refresh(conn, tree, main=False)
-    except (indexer.IndexRefreshError, OSError) as exc:
+    except Exception as exc:                    # noqa: BLE001 -- best effort
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
                      (f"index:{batch_id}", str(exc)[:300]))
 
@@ -214,6 +218,10 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
         if "not clean" in str(exc):
             conn.execute("UPDATE batches SET status = 'deferred' WHERE id = ?",
                          (batch_id,))
+            # The batch has left `running`, so the index must leave its
+            # worktree, even though nothing merged. Without this the conflict
+            # left every reader on the worktree while main sat at its old head.
+            _reindex_main(conn, batch_id)
             raise
         # No git, no branch: the degraded mode the rest of the loop already
         # tolerates -- the batch is still delivered as far as the database

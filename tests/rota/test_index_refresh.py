@@ -235,3 +235,115 @@ def test_the_stamped_area_hash_is_the_aggregate_it_replaced(world):
         assert area_content_hash(db, area) == digest
     assert area_content_hash(db, "src/nowhere") == "", \
         "an area with no stamp reads as view unknown, never as fresh"
+
+
+def test_a_conflicted_merge_leaves_the_index_at_main(world):
+    """The batch stopped running, so the index stops describing its worktree.
+
+    The conflict re-raises before the merge finishes, and the refresh used to
+    sit after the raise: every reader stayed on a worktree whose batch was
+    deferred while main sat at its old head.
+    """
+    from rota.core import worktrees
+
+    db, repo, tree = world
+    repo.edit(tree, NEW_FILE, NEW_BODY)
+    repo.edit(tree, "src/auth/accounts.py", "def whoami():\n    return 'batch'\n")
+    repo.commit_in(tree, "the batch's work")
+    indexer.refresh(db, tree, main=False)
+    assert db.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                      (NEW_FILE,)).fetchone(), "the index is on the worktree"
+
+    repo.edit(repo.root, "src/auth/accounts.py", "def whoami():\n    return 'main'\n")
+    repo.commit_in(repo.root, "main moved the same line")
+
+    with pytest.raises(worktrees.WorktreeError):
+        lifecycle.merge(db, "b1")
+
+    assert db.execute("SELECT status FROM batches WHERE id = 'b1'"
+                      ).fetchone()["status"] == "deferred"
+    assert db.execute("SELECT 1 FROM code_index WHERE grain = ?",
+                      (NEW_FILE,)).fetchone() is None, \
+        "a conflict leaves the index on main, not on the paused worktree"
+
+
+def test_a_refresh_that_raises_anything_keeps_the_session_and_the_merge(
+        world, monkeypatch):
+    """The refresh is best effort, and best effort means every exception.
+
+    The session's writes are committed before the refresh runs, so anything
+    that escapes fails a session whose rows are already on record. In the
+    merge it would escape after `status` says merged.
+    """
+    db, repo, tree = world
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("the indexer went away")
+
+    monkeypatch.setattr(indexer, "refresh", boom)
+    out = _commit_the_new_function(db)
+
+    assert db.execute("SELECT head_commit FROM batches WHERE id = 'b1'"
+                      ).fetchone()["head_commit"] == out["head_commit"], \
+        "the session's writes landed"
+    assert db.execute("SELECT 1 FROM sessions WHERE id = 's1'").fetchone()
+    last = db.execute("SELECT completion FROM turns WHERE session_id = 's1' "
+                      "ORDER BY seq DESC LIMIT 1").fetchone()["completion"]
+    assert "the code index still describes" in last, \
+        "the failure is in the session's record, not in an exception"
+
+    lifecycle.merge(db, "b1")
+
+    assert db.execute("SELECT status FROM batches WHERE id = 'b1'"
+                      ).fetchone()["status"] == "merged"
+    assert db.execute("SELECT value FROM config WHERE key = 'index:b1'"
+                      ).fetchone()["value"], "the reason is recorded"
+
+
+def test_a_run_from_before_the_table_is_stamped_when_it_opens(tmp_path):
+    """An empty `area_hashes` reads as "every area is still current".
+
+    `init_db` creates the table on any database it opens, so a run onboarded
+    before this table would have gone quiet: no survey could ever be reopened
+    until the first refresh of main.
+    """
+    from rota.core import boot as core_boot
+
+    repo = gitfixture.make(tmp_path, name="old_run")
+    (repo.root / ".rota").mkdir(parents=True, exist_ok=True)
+    db = init_db(repo.root / ".rota" / "rota.db")
+    boot.onboard(db, repo.root)
+    stamped = dict(db.execute("SELECT area, hash FROM area_hashes").fetchall())
+    assert stamped
+    db.execute("DELETE FROM area_hashes")      # the shape of the older run
+    db.commit()
+    db.close()
+
+    conn, _ = core_boot.boot(repo.root, kill_processes=False)
+    try:
+        assert dict(conn.execute("SELECT area, hash FROM area_hashes").fetchall()) \
+            == stamped, "boot stamps the table from the index the run has"
+        # And once: a second open must not move a stamp somebody attested at.
+        conn.execute("UPDATE area_hashes SET hash = 'deadbeefdeadbeef'")
+        conn.commit()
+        assert core_boot.stamp_missing_area_hashes(conn) == 0
+    finally:
+        conn.close()
+    gitfixture.cleanup(repo)
+
+
+def test_an_empty_probe_says_when_the_index_is_behind(world):
+    """The recorded reason reaches the role the stale index misleads."""
+    db, repo, tree = world
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('index:b1', 'no tree to index at /gone')")
+    db.commit()
+
+    out = _probe(db, "echo_json", batch_id="b1")
+    assert len(out) == 1, out
+    assert "no tree to index at /gone" in out[0]["note"]
+    assert "read the file instead" in out[0]["note"]
+
+    hits = _probe(db, "accounts", batch_id="b1")
+    assert hits and all("note" not in row for row in hits), \
+        "a probe that matches is a read, not a note"
