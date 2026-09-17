@@ -69,17 +69,17 @@ Rules:
 - Reasoning: the post-mortem conversation of 2026-09-17, the `/context`
   reading of frame 21's session.
 - Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
-- Status 2026-09-17 03:18 (rota-8c): claimed. Models from frame 27's verdict:
+- Status 2026-09-17 03:16 (rota-8c): claimed. Models from frame 27's verdict:
   Opus for the implementer and the sweeper, the reviewer inherits Fable
   and takes Opus per call when the points are sharp.
-- Status 2026-09-17 03:31 (rota-8c): the three files are in (6140848). Wall:
+- Status 2026-09-17 03:21 (rota-8c): the three files are in (6140848). Wall:
   the Agent tool loads its type list at session start, so this session
   cannot spawn the new types (observed: the tool's error names only the six
   built-in types). Anchor measured today: a general-purpose agent on Haiku
   with one tool call cost 33,741 tokens (observed: the harness usage line).
   Next: a fresh `claude -p` process from the repo root, if the CLI is on
   this box, else the floors wait for the next fresh session.
-- Status 2026-09-17 03:52 (rota-8c): floors measured (observed: the modelUsage
+- Status 2026-09-17 03:25 (rota-8c): floors measured (observed: the modelUsage
   rows of five fresh `claude.exe -p` runs, a Haiku main that calls the
   Agent tool once; the typed agent's first-turn cache creation is its
   floor). General-purpose on Opus: 38.3k. Implementer: 11.4k. Reviewer:
@@ -88,7 +88,7 @@ Rules:
   (reasoned: 9k to 13k against 38k). The CLI is the VS Code extension's
   `resources/native-binary/claude.exe`, version 2.1.258. Open: one frame
   has to use the types, and that needs a session started after 6140848.
-- Status 2026-09-17 04:00 (rota-8c): Roman started session 90522022 after
+- Status 2026-09-17 03:29 (rota-8c): Roman started session 90522022 after
   6140848, so its Agent tool holds the types. Frames 26 and 30 go to it by
   hand-off: 30 builds the gate through the implementer type, and that run
   closes 26 (ruled: Roman, 2026-09-17, the new session is the answer to
