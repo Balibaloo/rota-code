@@ -67,6 +67,15 @@ Rules:
   fixed at session start (observed: the probe, 9.6k). The unclaim reason
   of 10:01 does not hold for body edits. Scope report requested from a
   reviewer on Opus, cap 80k; the design record follows it.
+- Status 2026-09-17 10:22 (rota-99): scope report in, 125k against the 80k cap and
+  83 tool calls (observed: the harness line; the cap did not hold because
+  the agent counted output only). Fifteen findings, four change the
+  design. Design record: `plans/archive/map-design-2026-09-17.md`. One
+  deviation from the frame's words: no cache, a full parse costs 0.47 s
+  and the obvious key misses unstaged edits (observed: the report's
+  probes). Tool-call baseline beside the 96: frame 30's agents made 31,
+  36, 30, 7, 23 and 9 calls (observed: the harness lines). The 96 is
+  unsourced in the tree. Design review next.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
@@ -220,6 +229,13 @@ Rules:
   the SSD setting moved nothing. The remaining HDD reader is
   `tests/rota/cassettes.db` on D:. A read-only copy on C: for replay is
   the next lever, untested. Meta workflow.
+- From frame 29's scope report (observed: `rota/onboarding/boot.py:241`,
+  `:262`, `:265`): `refresh_constraint_zero` writes `refs` as raw SQL at
+  boot, outside `stage_ref` and the write pipeline: no receipt, no version
+  bump. Rota workflow. The refs-scope report predicted the path.
+- From the same report (observed: `rota/testkit/obligations.py:59-105`):
+  `l2()` names 73 modes and 80 `.tools` files exist; `terminologist/
+  unresolved` runs in a recorded case and is in no L2 row. Rota workflow.
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
