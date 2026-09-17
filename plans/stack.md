@@ -53,7 +53,7 @@ Rules:
   the sweeper type, which frame 26 defines). Waits on Roman's read. The
   session continues to frame 26.
 
-### 26. Agent types with the tools they use (Roman, 2026-09-17)
+### 26. Agent types with the tools they use (Roman, 2026-09-17) [fa029276]
 
 - Meta workflow. Three definitions in `.claude/agents/`: implementer
   (Read, Edit, Write, Bash, Grep, Glob), reviewer (Read, Bash, Grep, Glob),
@@ -69,6 +69,9 @@ Rules:
 - Reasoning: the post-mortem conversation of 2026-09-17, the `/context`
   reading of frame 21's session.
 - Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
+- Status 2026-09-17 03:18 (rota-8c): claimed. Models from frame 27's verdict:
+  Opus for the implementer and the sweeper, the reviewer inherits Fable
+  and takes Opus per call when the points are sharp.
 
 ### 30. The gate: the suite in five lines (Roman, 2026-09-17)
 
