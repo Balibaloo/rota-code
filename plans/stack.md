@@ -142,6 +142,13 @@ Rules:
   record: `plans/archive/sweep-design-2026-09-17.md`. libcst is not
   installed (observed: `pip show`), so the transform path is a hook, not
   a dependency.
+- Status 2026-09-17 11:40 (rota-99): design review in, 66k and 23 tool calls, ten
+  findings, six high: `fnmatch` lets `*` cross `/`, the mixed-ending
+  rule contradicted itself, a class check passes on a corrupt file, the
+  hook's LF contract was unenforced, the replacement template eats a
+  backslash, and the sample repo is CRLF. The record is amended. First
+  map use by an agent: 5 map calls against 4 greps (observed: the
+  reviewer's count; frame 29's last line). Implementer next.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
