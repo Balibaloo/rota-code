@@ -12,6 +12,7 @@ The map runs in this process, on the real tree, and opens no database.
 """
 from __future__ import annotations
 
+import ast
 import re
 
 import pytest
@@ -22,6 +23,25 @@ from rota.tools import map as map_tool
 @pytest.fixture(scope="module")
 def index():
     return map_tool.build_index()
+
+
+TABLES = {"items": map_tool.Table("x.sql", 1, ("id",), False)}
+
+
+def _read(source: str) -> map_tool._Reader:
+    """One synthetic file, read by the real visitor."""
+    reader = map_tool._Reader("x.py", {map_tool.VIEW_DICT})
+    reader.visit(ast.parse(source))
+    return reader
+
+
+def _sites(source: str) -> list[map_tool.Site]:
+    """The table sites of one synthetic file, by the real resolution."""
+    out = []
+    for text, line, dynamic, where in _read(source).statements:
+        out.extend(map_tool._statement_sites("x.py", text, line, dynamic,
+                                             where, TABLES))
+    return out
 
 
 def _lines(answer: str, header: str) -> list[str]:
@@ -44,11 +64,19 @@ def _where(line: str) -> tuple[str, str]:
 
 
 def test_the_scope_is_the_package_without_the_fixture_project(index):
-    # A fixture project's schema is not this system's schema.
+    # A fixture project's schema is not this system's schema, and the map
+    # holds the patterns that name SQL rather than SQL.
     assert "rota/testkit/samplerepo.py" not in index.files
-    assert not [f for f in index.files if f.startswith("rota/tools/")]
+    assert "rota/tools/map.py" not in index.files
     assert "rota/roles/api.py" in index.files
     assert "rota/core/db.py" in index.files
+
+
+def test_the_other_tools_are_in_scope(index):
+    assert "rota/tools/audit.py" in index.files
+    readers = [_where(line) for line
+               in _lines(map_tool.query_table(index, "refs"), "readers")]
+    assert ("rota/tools/audit.py", "audit") in readers
 
 
 def test_refs_has_two_write_paths(index):
@@ -84,6 +112,14 @@ def test_stage_ref_callers_are_one_hop(index):
     assert "model_describe" not in callers
 
 
+def test_a_qualified_name_keeps_its_callers(index):
+    answer = map_tool.query_fn(index, "cascade_rows.hop")
+    assert answer.startswith("def cascade_rows.hop rota/core/scheduler.py:")
+    callers = _lines(answer, "callers")
+    assert len(callers) == 2
+    assert all(line.startswith("rota/core/scheduler.py:") for line in callers)
+
+
 def test_item_provenance_readers_include_a_column_fragment(index):
     answer = map_tool.query_table(index, "item_provenance")
     assert answer.startswith("view rota/core/schema.sql:")
@@ -110,8 +146,17 @@ def test_every_op_of_the_graph_joins_a_function(index):
     assert ("problem", "cite") in joined
 
 
-def test_mode_lists_its_base_file_and_joins_every_line(index):
-    answer = map_tool.query_mode(index, "terminologist/unresolved")
+def test_every_op_joins_a_definition(index):
+    joined = map_tool.ops(index)
+    assert None not in joined.values()
+    # `REGISTRY` names the function `problem_cite`, the source names it
+    # `cite`, so the line inside `_cite_op` is what joins the two.
+    assert joined[("problem", "cite")].qual == "_cite_op.cite"
+    assert "op problem.cite" in map_tool.query_fn(index, "cite").splitlines()
+
+
+def test_mode_lists_its_base_file_and_joins_every_line():
+    answer = map_tool.query_mode("terminologist/unresolved")
     lines = answer.splitlines()
     assert lines[0] == "tools rota/roles/prompts/terminologist/unresolved.tools"
 
@@ -132,20 +177,30 @@ def test_mode_lists_its_base_file_and_joins_every_line(index):
     assert "msg.report_liaison -> message report to liaison" in messages
 
 
-def test_mode_keeps_the_one_registered_verb_with_an_underscore(index):
-    answer = map_tool.query_mode(index, "architect/touch_strayed")
+def test_mode_keeps_the_one_registered_verb_with_an_underscore():
+    answer = map_tool.query_mode("architect/touch_strayed")
     found = [x for x in answer.splitlines() if x.startswith("batches.judge_touch")]
     assert len(found) == 1
     assert found[0].startswith("batches.judge_touch -> batches_judge_touch "
                                "rota/roles/api.py:")
 
 
-def test_mode_lists_a_variant_file_and_does_not_resolve_it(index):
-    answer = map_tool.query_mode(index, "terminologist/survey")
+def test_mode_lists_a_variant_file_and_does_not_resolve_it():
+    answer = map_tool.query_mode("terminologist/survey")
     overrides = [x for x in answer.splitlines() if x.startswith("override ")]
     assert ("override rota/roles/prompts/terminologist/account/survey.tools"
             in overrides)
     assert len(overrides) == 4
+
+
+def test_mode_builds_no_index(monkeypatch, capsys):
+    """The mode query reads two files. Parsing the tree for it cost 0.9 s."""
+    def refuse(*args, **kwargs):
+        raise AssertionError("the mode query must not build the index")
+
+    monkeypatch.setattr(map_tool, "build_index", refuse)
+    assert map_tool.main(["mode", "architect/touch_strayed"]) == 0
+    assert "batches.judge_touch" in capsys.readouterr().out
 
 
 def test_the_fixture_project_contributes_no_table(index, capsys):
@@ -176,16 +231,57 @@ def test_the_generic_write_is_dynamic(index):
     assert [x for x in lines if x.startswith("writes refs (")]
 
 
-def test_a_shared_name_says_so_and_each_caller_carries_its_chain(index):
+def test_a_shared_name_groups_the_facts_under_each_definition(index):
     answer = map_tool.query_fn(index, "get", callers=5)
-    head = answer.splitlines()[0]
-    assert re.fullmatch(r"\d+ definitions share the name", head)
-    definitions = [x for x in answer.splitlines() if x.startswith("def get ")]
-    assert len(definitions) == int(head.split()[0])
+    lines = answer.splitlines()
+    assert re.fullmatch(r"\d+ definitions share the name", lines[0])
 
-    callers = _lines(answer, "callers")
-    assert len(callers) == 5
+    heads = [i for i, x in enumerate(lines) if x.startswith("def get ")]
+    assert len(heads) == int(lines[0].split()[0]) == 2
+    # The table belongs to the definition that reads it, not to the name.
+    assert lines[heads[0]].startswith("def get rota/core/config.py:")
+    assert lines[heads[0] + 1] == "reads config (raw)"
+    assert not lines[heads[1] + 1].startswith("reads ")
+
+    # Every caller line sits under a definition, and carries its chain.
+    callers = [x for x in lines if re.match(r"rota/\S+:\d+ ", x)]
+    assert len(callers) == 10
     assert [x for x in callers if ".get in " in x]
+    for i, line in enumerate(lines):
+        if line in callers:
+            assert [h for h in heads if h < i]
+
+
+def test_prose_is_not_a_reader():
+    # Twelve docstrings read as readers of a table they only talk about.
+    assert _sites('def f():\n    """Slices tickets from items."""\n') == []
+    assert _sites('X = "taken from items"\n') == []
+
+    # A statement is a statement whatever its case.
+    lower = _sites('Y = "select id from items"\n')
+    assert [(s.table, s.role, s.kind) for s in lower] == [("items", "reads", "raw")]
+
+    # An upper-case slot word is SQL wherever it sits, which is how a
+    # column fragment with no leading verb keeps its table.
+    fragment = _sites('Z = "id, text, (SELECT 1 FROM items) AS n"\n')
+    assert [(s.table, s.role) for s in fragment] == [("items", "reads")]
+
+
+def test_the_first_dict_holds_the_written_columns():
+    reader = _read('def f(ctx):\n'
+                   '    ctx.writes.append(("refs", rid, {"a": 1}, {"b": 2}))\n')
+    assert reader.pipeline == [("refs", 2, ("a",), "f")]
+
+
+def test_a_lower_case_statement_with_a_slot_is_dynamic():
+    sites = _sites('def f(t, ids):\n'
+                   '    q = f"select * from {t} where id in ({ids})"\n')
+    assert [(s.kind, s.role, s.table) for s in sites] == [("dynamic", "reads", "")]
+
+
+def test_a_slot_statement_keeps_a_table_it_also_names():
+    sites = _sites('def f(t):\n    q = f"SELECT 1 FROM items JOIN {t} ON 1"\n')
+    assert [(s.kind, s.table) for s in sites] == [("dynamic", ""), ("raw", "items")]
 
 
 def test_an_unknown_name_exits_one(capsys):

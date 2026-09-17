@@ -17,9 +17,10 @@ executes all of them, so SQL alone names `db.py` as the writer of every
 table. The map joins five sources: the AST of the package, the schema,
 the design graph, the `.tools` files and `REGISTRY`.
 
-There is no cache. One run parses 68 files in about 0.6 s, which is under
+There is no cache. One run parses 87 files in about 0.7 s, which is under
 the two-second budget, and the obvious cache key, the hash of the staged
-tree, misses the unstaged edit that every implementing pass holds.
+tree, misses the unstaged edit that every implementing pass holds. The
+`mode` query reads two files and builds no index.
 """
 from __future__ import annotations
 
@@ -34,10 +35,11 @@ from pathlib import Path
 
 from .. import paths
 
-# A fixture project's schema, not this system's, and the one-off scripts
-# of this directory.
-SKIP_FILES = frozenset({"rota/testkit/samplerepo.py"})
-SKIP_DIRS = ("rota/tools/",)
+# A fixture project's schema is not this system's schema. The map itself
+# holds the patterns that name SQL, and a pattern is not a statement.
+# Every other tool of this directory reads the database and belongs here:
+# `rota/tools/audit.py` is a reader of `refs`.
+SKIP_FILES = frozenset({"rota/testkit/samplerepo.py", "rota/tools/map.py"})
 
 # The write pipeline. A raw statement here serves every table, so it is
 # internal to the pipeline and not a second writer of one table.
@@ -168,17 +170,33 @@ class _Reader(ast.NodeVisitor):
         self.pipeline: list[tuple[str, int, tuple[str, ...], str]] = []
         self.indirect: list[tuple[int, str]] = []
         self.creates: list[tuple[str, int]] = []
+        self.docstrings: set[int] = set()
 
     @property
     def where(self) -> str:
         return self.fns[-1] if self.fns else "<module>"
 
+    def _docstring(self, node) -> None:
+        """Mark the docstring of a body. Prose that says "from items" is not
+        a reader of `items`, and twelve docstrings read as one."""
+        body = getattr(node, "body", None)
+        if body and isinstance(body[0], ast.Expr):
+            first = body[0].value
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                self.docstrings.add(id(first))
+
+    def visit_Module(self, node: ast.Module) -> None:
+        self._docstring(node)
+        self.generic_visit(node)
+
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._docstring(node)
         self.stack.append(node.name)
         self.generic_visit(node)
         self.stack.pop()
 
     def _function(self, node) -> None:
+        self._docstring(node)
         self.stack.append(node.name)
         qual = ".".join(self.stack)
         lines = [d.lineno for d in node.decorator_list] + [node.lineno]
@@ -222,6 +240,7 @@ class _Reader(ast.NodeVisitor):
                 columns = tuple(k.value for k in part.keys
                                 if isinstance(k, ast.Constant)
                                 and isinstance(k.value, str))
+                break      # the first dict holds the values, the record says so
         self.pipeline.append((head.value, node.lineno, columns, self.where))
 
     def visit_Name(self, node: ast.Name) -> None:
@@ -230,7 +249,7 @@ class _Reader(ast.NodeVisitor):
             self.indirect.append((node.lineno, self.where))
 
     def visit_Constant(self, node: ast.Constant) -> None:
-        if isinstance(node.value, str):
+        if isinstance(node.value, str) and id(node) not in self.docstrings:
             self._text(node.value, node.lineno, False)
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> None:
@@ -366,9 +385,17 @@ def _schema_tables(path: Path, rel: str) -> dict[str, Table]:
 def _named(text: str, known: dict[str, Table]) -> list[str]:
     """The known tables a statement names, each after a slot keyword."""
     words = _WORDS.findall(text)
+    statement = text.strip().upper().startswith(SQL_STARTS)
     out = []
     for i, word in enumerate(words[:-1]):
-        if word.upper() in SLOTS and words[i + 1] in known and words[i + 1] not in out:
+        if word.upper() not in SLOTS or words[i + 1] not in known:
+            continue
+        # An upper-case slot word is SQL wherever it sits, which is how a
+        # column fragment that starts with `id,` keeps its table. A
+        # lower-case one is prose unless the text is a statement.
+        if word != word.upper() and not statement:
+            continue
+        if words[i + 1] not in out:
             out.append(words[i + 1])
     return out
 
@@ -378,8 +405,24 @@ def _verb(text: str) -> str:
     return head[0] if head else ""
 
 
+def _statement_sites(rel: str, text: str, line: int, dynamic: bool,
+                     where: str, tables: dict[str, Table]) -> list[Site]:
+    """The table sites of one string constant."""
+    verb = _verb(text)
+    role = "writes" if verb in WRITE_VERBS else "reads"
+    out = []
+    # A slot holds the table name, so the statement serves every table.
+    # The statement can still name a second table beside the slot.
+    if dynamic and text.strip().upper().startswith(SQL_STARTS):
+        out.append(Site("", role, "dynamic", rel, line, where, verb=verb))
+    kind = "pipeline internal" if rel == PIPELINE_FILE else "raw"
+    out.extend(Site(table, role, kind, rel, line, where, verb=verb, text=text)
+               for table in _named(text, tables))
+    return out
+
+
 def build_index(root: Path | None = None) -> Index:
-    """Parse the package once. About 0.6 s for 68 files."""
+    """Parse the package once. About 0.7 s for 87 files."""
     root = Path(root) if root else paths.REPO
     files: list[str] = []
     defs: list[Definition] = []
@@ -392,7 +435,7 @@ def build_index(root: Path | None = None) -> Index:
 
     for path in sorted((root / "rota").rglob("*.py")):
         rel = path.relative_to(root).as_posix()
-        if rel in SKIP_FILES or rel.startswith(SKIP_DIRS):
+        if rel in SKIP_FILES:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
         reader = _Reader(rel, _view_aliases(tree))
@@ -420,16 +463,7 @@ def build_index(root: Path | None = None) -> Index:
         sites.append(Site(table, "writes", "pipeline", rel, line, where,
                           columns=columns))
     for rel, text, line, dynamic, where in statements:
-        verb = _verb(text)
-        role = "writes" if verb in WRITE_VERBS else "reads"
-        if dynamic:
-            if text.strip().startswith(SQL_STARTS):
-                sites.append(Site("", role, "dynamic", rel, line, where, verb=verb))
-            continue
-        kind = "pipeline internal" if rel == PIPELINE_FILE else "raw"
-        for table in _named(text, tables):
-            sites.append(Site(table, role, kind, rel, line, where,
-                              verb=verb, text=text))
+        sites.extend(_statement_sites(rel, text, line, dynamic, where, tables))
     for rel, line, where in indirect:
         for view in views:
             sites.append(Site(view, "reads", "indirect", rel, line, where))
@@ -470,9 +504,14 @@ def ops(index: Index) -> dict[tuple[str, str], Definition | None]:
         for pair, fn in api.REGISTRY.items():
             rel = _rel(fn.__code__.co_filename)
             line = fn.__code__.co_firstlineno
+            covers = [d for d in index.defs
+                      if d.file == rel and d.deco <= line <= d.last]
+            # The five `cite` ops carry the name of the artefact and the
+            # source calls them `cite`, so the line decides when the name
+            # does not: the innermost definition is the implementation.
             out[pair] = next(
-                (d for d in index.defs if d.file == rel and d.bare == fn.__name__
-                 and d.deco <= line <= d.last), None)
+                (d for d in covers if d.bare == fn.__name__),
+                min(covers, key=lambda d: d.last - d.first) if covers else None)
         index.ops = out
     return index.ops
 
@@ -522,7 +561,7 @@ def _names_column(site: Site, column: str) -> bool:
     return bool(site.text) and _word(column, site.text)
 
 
-def query_fn(index: Index, name: str, callers: int = 100) -> str:
+def query_fn(index: Index, name: str, callers: int = 20) -> str:
     found = sorted((d for d in index.defs if d.bare == name or d.qual == name),
                    key=lambda d: (d.file, d.first))
     if not found:
@@ -530,23 +569,35 @@ def query_fn(index: Index, name: str, callers: int = 100) -> str:
     out = []
     if len(found) > 1:
         out.append(f"{len(found)} definitions share the name")
-    out.extend(f"def {d.qual} {d.file}:{d.first}-{d.last}" for d in found)
-    for pair, definition in sorted(ops(index).items()):
-        if definition in found:
-            out.append(f"op {pair[0]}.{pair[1]}")
+    # Each definition carries its own ops, tables and callers. A merged
+    # answer says `reads config` and names no definition that reads it.
+    for definition in found:
+        out.extend(_fn_block(index, definition, callers))
+    return "\n".join(out)
+
+
+def _fn_block(index: Index, definition: Definition, callers: int) -> list[str]:
+    out = [f"def {definition.qual} {definition.file}:"
+           f"{definition.first}-{definition.last}"]
+    out.extend(f"op {pair[0]}.{pair[1]}"
+               for pair, implementation in sorted(ops(index).items())
+               if implementation == definition)
     seen = []
     for site in index.sites:
-        here = any(site.file == d.file and site.where == d.qual for d in found)
-        if here and site.table and (site.role, site.table, site.kind) not in seen:
+        if site.file != definition.file or site.where != definition.qual:
+            continue
+        if site.table and (site.role, site.table, site.kind) not in seen:
             seen.append((site.role, site.table, site.kind))
     out.extend(f"{role} {table} ({kind})" for role, table, kind in sorted(seen))
-    hits = sorted((c for c in index.calls if c.bare == name),
+    # A call is matched by the bare name, never resolved. Two definitions
+    # that share a name therefore carry the same list.
+    hits = sorted((c for c in index.calls if c.bare == definition.bare),
                   key=lambda c: (c.file, c.line))
     out.append(f"callers ({len(hits)})")
     out.extend(f"{c.file}:{c.line} {c.chain} in {c.where}" for c in hits[:callers])
     if len(hits) > callers:
         out.append(f"... {len(hits) - callers} more, --callers <n> to see them")
-    return "\n".join(out)
+    return out
 
 
 def query_table(index: Index, name: str, column: str | None = None) -> str:
@@ -582,7 +633,9 @@ def _tool_line(entry: str, role: str, registry, messages) -> str:
             f"{_rel(fn.__code__.co_filename)}:{fn.__code__.co_firstlineno}")
 
 
-def query_mode(index: Index, spec: str) -> str:
+def query_mode(spec: str) -> str:
+    """The ops of one mode. This query reads the `.tools` files and
+    `REGISTRY` only, so it never builds the index."""
     role, _, mode = spec.partition("/")
     base = paths.PROMPTS / role / f"{mode}.tools"
     if not mode or not base.exists():
@@ -621,7 +674,7 @@ def query_file(index: Index, path: str) -> str:
     return "\n".join(out)
 
 
-QUERIES = {"fn": query_fn, "table": query_table, "mode": query_mode, "file": query_file}
+QUERIES = ("file", "fn", "mode", "table")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -631,24 +684,26 @@ def main(argv: list[str] | None = None) -> int:
         epilog="A caller is one hop. A caller that reaches the function "
                "through a helper is not in the list, so ask for the helper "
                "as well. A variant `.tools` file is listed, not resolved.")
-    parser.add_argument("query", nargs="?", choices=sorted(QUERIES))
+    parser.add_argument("query", nargs="?", choices=QUERIES)
     parser.add_argument("name", nargs="?",
                         help="a function, a table or a view, <role>/<mode>, or a path")
     parser.add_argument("--column", help="keep the sites that name this column")
-    parser.add_argument("--callers", type=int, default=100,
+    parser.add_argument("--callers", type=int, default=20,
                         help="how many callers to list, 0 hides the list")
     args = parser.parse_args(argv)
     if not args.query or not args.name:
         parser.print_help()
         return 2
-    index = build_index()
     try:
-        if args.query == "table":
-            text = query_table(index, args.name, args.column)
+        # `mode` reads two files. The other three need the whole tree.
+        if args.query == "mode":
+            text = query_mode(args.name)
+        elif args.query == "table":
+            text = query_table(build_index(), args.name, args.column)
         elif args.query == "fn":
-            text = query_fn(index, args.name, args.callers)
+            text = query_fn(build_index(), args.name, args.callers)
         else:
-            text = QUERIES[args.query](index, args.name)
+            text = query_file(build_index(), args.name)
     except LookupError:
         print(f"no {args.query} named {args.name}")
         return 1
