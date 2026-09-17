@@ -84,6 +84,13 @@ Rules:
   recipe's autocrlf), its fix pass, and then frame 4's grill with Roman.
   Waits on: the first sweep through the tool, which closes the frame.
   Session 90522022 stops at the hand-off (ruled: Roman, 2026-09-17).
+- Status 2026-09-17 12:23 (rota-99): the diff review ran here after all (ruled:
+  Roman, 2026-09-17: the reviewer has its own context): 61k, 24 tool
+  calls, 2 map calls to 1 grep, five findings, one high: the CR guard
+  covered the hook and not the regex form, so `--replace` with a CR
+  wrote the corruption the tool exists to stop. Fix pass sent to the same
+  implementer, cap 60k, with a gate run at its end. The hand-off target
+  is rota-19 (cc3d4e4e), the first clean peer that answered the probe.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
