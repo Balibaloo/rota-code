@@ -42,7 +42,11 @@ On wake:
 On a goal, grill Roman every time. One question at a time, each with a
 recommended answer, until the work quantises into frames. A frame has an
 observable ends-when, a visible end, countable attempts or a loop through
-agents, and a named wait. Push a frame before you start it.
+agents, and a named wait. Push a frame before you start it. At the
+grill, each ends-when line carries a token price from the anchors in
+`plans/operating-facts.md` and the behaviour the price buys. A line with
+a price and no behaviour becomes its own frame below. The closing status
+writes the actual beside the estimate, walls counted apart.
 
 In a loop, you diagnose and write the fix brief. A cause goes on the
 stack only after the turns of the failing sessions are read: what each
@@ -52,6 +56,33 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents. One frame per wall. One status
 line per cycle.
+
+One implementing agent per frame. Resume it by message for each pass.
+The resume carries the tree's delta since its last pass and a required
+re-read of the files it edits. The writer never reviews its own diff.
+Near 350k, the agent writes a where-things-are note and a fresh agent
+takes the next pass. Write each pass's tokens in the status line beside
+the cold cost, about 300k a pass. If a resumed pass costs as much, the
+rule stops.
+
+A change that is the same edit in more than three files is a script.
+Write the script with the Write tool and run it. Print the touched
+files. Read the diff once, for the judgement cases. An agent starts a
+sub-agent only when its brief allows it. The brief gives the sub-agent a
+token cap. The agent's report carries the sub-agent's usage.
+
+Two reviews per frame. A design review reads the scope report and the
+design record before any code, about 100k. One read-only diff review
+runs at the frame's end, on a worktree at the commit, before the walk.
+The diff review is for a frame that touches the write pipeline, the
+schema or a predicate. Fewer, sharper points per review.
+
+A frame that touches the seats, the briefs, the write pipeline or a
+predicate ends on a walk. The walk covers the phases the frame touched:
+onboarding for an onboarding change, a full night for the delivery path
+or when in doubt. The walk runs from a worktree at the frame's closing
+commit, because the seats read the briefs at every wake. The frame stays
+open as validating while the next frame starts in the main checkout.
 
 Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change
