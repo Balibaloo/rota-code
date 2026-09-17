@@ -58,6 +58,9 @@ Rules:
   the frame 21 briefs verbatim, paths moved to the worktrees, on
   `model: opus`; the Agent tool has no effort setting, so the effort is
   the definition's default (observed: the tool's schema).
+- Status 2026-09-17 02:16 (rota-b9): Roman adds a criterion: the verdict on the
+  implementer also judges its comment etiquette, Simplified Technical
+  English and the repo's comment habits, against ac1b83e.
 
 ### 32. The brief batch (Roman, 2026-09-17)
 
