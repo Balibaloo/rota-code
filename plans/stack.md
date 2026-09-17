@@ -139,6 +139,14 @@ Rules:
   457k. Walls: none. Night 83 runs at 3ab5c73: onboarded 16:19 to
   16:50, sentence one from 16:50. The frame closes on the walk's
   result.
+- Status 2026-09-17 18:22 (rota-02): night 83 killed at 18:20. It looped
+  on sentence one before any batch: 144 wakes in 84 minutes, no batch,
+  no commit, so nothing of this frame ran (observed: the run database,
+  sessions s232 to s243, one three-session cycle four times). The loop
+  is on frame 2. Night 84 relaunched from the same worktree at 3ab5c73
+  from sentence two, which merged cold on night 70 and exercises the
+  commit hook and the merge hook. Night 83's database is kept as
+  `clickI_prev.db` in the night state directory.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
@@ -197,6 +205,19 @@ Rules:
 - Status 2026-09-17 14:25 (rota-02): the lineage is tips, click and icalendar
   (ruled: Roman, 2026-09-17). Step 5 of the order, breadth cold, walks
   tips and icalendar with what exists.
+- Status 2026-09-17 18:22 (rota-02): a fault from night 83, sentence one
+  cold (observed: the run database's sessions s232 to s243 and
+  `live_click.md`). The term collision `group` against `Group` loops:
+  the Liaison asks the principal, the yes-only principal answers with
+  the constraint text, the Liaison relays, and the Terminologist logs
+  every cycle that the relayed message m107 carries no principal
+  verdict in its resolved refs, so it cannot adopt the observed senses
+  without a ruling. The term-collision tick re-fires. Every session
+  commits, so no attempt cap fires; the walk ends at its step cap
+  only. Rota workflow. Sentence one had not run cold since night 50.
+  The cause goes on the stack after the turns are read: what the
+  Liaison relayed, what the Terminologist read, what each committed.
+  Not frame 33's.
 
 ### 1. The end state (plan agreed 2026-09-10)
 
