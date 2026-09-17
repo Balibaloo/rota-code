@@ -92,7 +92,7 @@ Rules:
   assistant on the same tree: zero new reds, zero stale, 1886 passed,
   531 s each. Committed at 01b1d4b. Diff review next, on a worktree at
   that commit.
-- Status 2026-09-17 15:49 (rota-02): diff review in on a worktree at
+- Status 2026-09-17 15:30 (rota-02): diff review in on a worktree at
   01b1d4b, 91k on the harness line against 65k priced, 27 tool calls,
   eight points confirmed and seven findings, two high (observed: the
   reviewer's probes): a conflicted merge re-raises before the main
