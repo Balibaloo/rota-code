@@ -88,6 +88,11 @@ Rules:
   (reasoned: 9k to 13k against 38k). The CLI is the VS Code extension's
   `resources/native-binary/claude.exe`, version 2.1.258. Open: one frame
   has to use the types, and that needs a session started after 6140848.
+- Status 2026-09-17 04:00 (rota-8c): Roman started session 90522022 after
+  6140848, so its Agent tool holds the types. Frames 26 and 30 go to it by
+  hand-off: 30 builds the gate through the implementer type, and that run
+  closes 26 (ruled: Roman, 2026-09-17, the new session is the answer to
+  the blocked question).
 
 ### 30. The gate: the suite in five lines (Roman, 2026-09-17)
 
@@ -105,6 +110,7 @@ Rules:
   checked one acceptance with it, and a run's time on the SSD is on the
   stack beside 414 s.
 - Waits on: frame 27's verdict for who builds it. Session A, after 26.
+- Waits on: a session started after 6140848, for the typed agents.
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, changes 5
   and 7, and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
