@@ -117,6 +117,18 @@ Rules:
   assistant's gate runs 12k: 426k. Walls: none. Second look by the
   reviewer on the fix commit, then the walk: night 83 on click from the
   worktree at 3ab5c73, shipped profile.
+- Status 2026-09-17 16:20 (rota-02): validating. Second look in, 11k for
+  the pass on the harness line: six findings fixed, one partly, two new
+  lows (observed: the reviewer's probe E and its read): the failure row
+  `index:<batch>` is never cleared after a good refresh and the runner
+  never writes it, and `--force` wipes the run before the root check.
+  Neither is on the delivery path (reasoned: one is a note's wording,
+  one is CLI ordering), so night 83 runs now from the worktree at
+  3ab5c73 while pass 3 fixes the two lows in the main checkout, cap
+  25k. The closing commit will be pass 3's; the walk's commit is
+  3ab5c73, a stated deviation from the brief's line. The walk's
+  summary must show a Developer probe after a commit that finds the
+  batch's symbol, and the survey sessions per merge.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
