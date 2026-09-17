@@ -139,6 +139,26 @@ Rules:
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
 
+### 29. The map: a query tool over the code (Roman, 2026-09-17)
+
+- Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
+  regex over the SQL literals, joined with `graph.json` and the `.tools`
+  files, cached under `.rota/` by the tree's hash, never committed. It
+  answers `fn`, `table`, `mode` and `file` queries in a few lines each:
+  file and line, callers, writers and readers per column, ops per mode.
+  Separate from the onboarding indexer. One line in the assistant's brief:
+  ask the map before you grep (ruled: Roman queued it; observed: the scope
+  agent made 96 tool calls, most of them finding where things were, and
+  every later agent found them again).
+- Ends when: the tool exists with tests that pin known facts (the writers
+  of `refs`, the readers of `item_provenance`), the line is in `CLAUDE.md`,
+  and one frame's agents have used it with their tool-call counts on the
+  stack beside frame 21's.
+- Waits on: nothing. A candidate first job for Opus under frame 27.
+- Reasoning: the post-mortem conversation of 2026-09-17, and
+  `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
+- Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
