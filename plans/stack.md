@@ -60,7 +60,7 @@ Rules:
 - Waits on: nothing.
 - Reasoning: the three night databases above. The cause and the fix
   brief go in `plans/archive/term-collision-2026-09-17.md`.
-- Status 2026-09-17 20:44 (rota-02): pushed. Night 84 killed at 20:42.
+- Status 2026-09-17 20:40 (rota-02): pushed. Night 84 killed at 20:39.
   A reviewer-type agent reads one cycle's turns on night 84, the same
   path on night 82, and the commits between d4bf679 and 3ab5c73 on the
   relay, the predicate and the resolved refs, cap 60k.
@@ -183,9 +183,9 @@ Rules:
   from sentence two, which merged cold on night 70 and exercises the
   commit hook and the merge hook. Night 83's database is kept as
   `clickI_prev.db` in the night state directory.
-- Status 2026-09-17 20:44 (rota-02): night 84 looped the same way from
+- Status 2026-09-17 20:40 (rota-02): night 84 looped the same way from
   sentence two, 307 sessions, no batch (observed: the run database).
-  Killed at 20:42. The wall is frame 34. The walk waits on it and runs
+  Killed at 20:39. The wall is frame 34. The walk waits on it and runs
   as night 85 from a worktree at frame 34's closing commit.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
