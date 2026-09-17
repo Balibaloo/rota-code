@@ -61,6 +61,19 @@ Rules:
 - Status 2026-09-17 02:16 (rota-b9): Roman adds a criterion: the verdict on the
   implementer also judges its comment etiquette, Simplified Technical
   English and the repo's comment habits, against ac1b83e.
+- Status 2026-09-17 02:20 (rota-b9): reviewer verdict (observed: the Opus report
+  against the design record's stage 2 review). Opus found 8 of Fable's
+  10 findings with probes, CONFIRMED where Fable confirmed, at the same
+  cost (228k against 226k). It found one of the two that mattered, the
+  old database that regresses silently. It missed the other, the writer
+  that stages no statement ref on a delivery wake, which needed a trace
+  of the writers beyond the nine points asked. It added three valid low
+  findings (`frame_load` skips the rendered word, a near-vacuous test,
+  drains declared and not queried) and one false consequence (a prompt
+  it said would change replays green; it did not check the case's
+  path). Report shape and prose: as asked. Verdict: Opus reviews what
+  the points name; Fable reviews what matters. Usable as the reviewer
+  when the points are sharp, and the high catch is not to be expected.
 
 ### 32. The brief batch (Roman, 2026-09-17)
 
