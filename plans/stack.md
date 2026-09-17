@@ -159,6 +159,26 @@ Rules:
   `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
 - Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
 
+### 30. The gate: the suite in five lines (Roman, 2026-09-17)
+
+- Meta workflow. `rota/tools/gate.py`: runs the suite with `--tb=no -rf`,
+  stores a baseline once with its commit hash, and prints five lines: the
+  summary, new reds, reds gone, the STALE set, the run time; a traceback
+  only for a new red; a note when the tree has moved past the baseline.
+  Temp databases on the SSD through one setting in the gate. Two lines in
+  the assistant's brief: the touched test files first, the gate once at
+  the end of a pass; the assistant runs the gate itself before a commit
+  (ruled: Roman queued it; observed: twelve runs of about 25k tokens each
+  read 22 known tracebacks, one FAILED-list compare missed a STALE case,
+  and three quarters of a seven-minute run is fixture IO on the HDD).
+- Ends when: the tool exists, one frame's agents used it, the assistant
+  checked one acceptance with it, and a run's time on the SSD is on the
+  stack beside 414 s.
+- Waits on: nothing.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, changes 5
+  and 7, and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:48 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
