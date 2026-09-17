@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [90522022]
+### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [cc3d4e4e]
 
 - Meta workflow. Two lines in the assistant's brief: a change that is the
   same edit in more than three files is a script, written with the Write
@@ -103,6 +103,9 @@ Rules:
   through the tool, which closes the frame. Handed to rota-19
   (cc3d4e4e) with frame 4's grill. Session 90522022 stops here (ruled:
   Roman, 2026-09-17).
+- Status 2026-09-17 12:37 (rota-19): claimed by cc3d4e4e at 94511e3, validating.
+  The sweep's 25 tests pass on this tree (observed: pytest, 12.6 s).
+  Waits on: the first sweep through the tool, which closes the frame.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
@@ -176,7 +179,7 @@ Rules:
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:52 (rota-b9): queued by Roman, unclaimed.
 
-### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
+### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman) [cc3d4e4e]
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
   model where it passes, 3 language seam, 4 breadth (two lineage repos
@@ -189,6 +192,14 @@ Rules:
   to 15 in `plans/archive/stack-2026-09-16.md`.
 - Status 2026-09-14: step 1 done; frame 8 decides step 2. Frames 5 to
   15 are in the archive.
+- Status 2026-09-17 12:37 (rota-19): claimed by cc3d4e4e at 94511e3 for the
+  grill with Roman, the first frame under the tooling chain. Step 2 is not
+  needed (reasoned: `rota/COMPLETION.md`, update 2026-09-15 01:10, the 9B
+  merged sentence two on night 70 with the doors of findings 66 to 73).
+  Sentence three is unmerged: night 82 stuck on exhausted, 80 steps
+  (observed: frame 13's close in `plans/archive/stack-2026-09-16.md`).
+  The next step is Roman's ruling at the grill: finding 42, the seam, or
+  breadth. Recommended: finding 42.
 
 ### 3. Click sentence two (nights 50 to 60)
 
