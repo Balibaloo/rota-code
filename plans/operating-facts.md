@@ -177,12 +177,12 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - A STALE case (no cassette for the current prompt) renders identically to a red under `--tb=no`. Classify stale-vs-red before you read a baseline.
 - `python -m rota.tools.gate` does that classification (frame 30, 2026-09-17). It runs the suite with `--tb=no -rfE -q`, prints five lines (summary, new reds, reds gone, the stale set under the suite's model, time), stores the baseline in `.rota-gate.json` at the repo root, and re-runs new reds only for their tracebacks. Never read `.rota-gate.log`. `--baseline` re-takes the baseline. A checkout with no register gets `stale: the register is absent`. Four runs on this box: 465 s to 482 s.
 
-Cost anchors (frame 28, written 2026-09-17 from frames 26 and 30; re-derive from the last three frames whenever a frame that changes the workflow closes). Meta workflow. Every row is observed from the harness usage line under an Agent result, never from the agent's own estimate.
+Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-derive from the last three frames whenever a frame that changes the workflow closes). Meta workflow. Every row is observed from the harness usage line under an Agent result, never from the agent's own estimate.
 
 - Agent floors, one trivial task each: general-purpose on Opus 38.3k; implementer 11.4k; reviewer 13.3k; sweeper 8.9k (frame 26).
-- A reviewer on Opus with no tool call, a three-line answer: 9.6k (frame 29's probe). The Agent tool fixes the type list at session start and reads a type's body at each spawn, so an edit to a definition is live without a restart (observed: the probe quoted a command line that e407e5d added after this session started).
-- A reviewer pass on Opus, cold, six to eight numbered points with probes: 69k to 76k. A resumed second look on the fix commit: 18k (frame 30).
-- An implementer pass on Opus, cold, two new files of about 300 lines and one suite run: 74k. Resumed: 7k for a docstring and three lines with one test; 40k for six fixes and ten tests (frame 30).
+- A reviewer with no tool call, a three-line answer: 9.6k (frame 29's probe). The reviewer type inherits the session's model, Fable; the implementer and the sweeper run on Opus (frame 26). The Agent tool fixes the type list at session start and reads a type's body at each spawn, so an edit to a definition is live without a restart (observed: the probe quoted a command line that e407e5d added after this session started).
+- A reviewer pass, cold, six to eight numbered points with probes: 69k to 76k (frame 30); 61k for five points on a worktree (frame 24). A resumed second look on the fix commit: 18k (frame 30). A design review by the reviewer type on a scope report and a design record, before any code: 66k, 23 tool calls, ten findings (frame 24). A read-only database probe by the reviewer type, three databases, no worktree: 24k (2026-09-17).
+- An implementer pass on Opus, cold, two new files of about 300 lines and one suite run: 74k (frame 30); 77k for one tool of 340 lines with 20 tests and a gate run (frame 24). Resumed: 7k for a docstring and three lines with one test; 40k for six fixes and ten tests (frame 30); 24k for five fixes and five tests with a gate run (frame 24).
 - A suite run read inside an agent as raw pytest output: about 25k (frame 21). Through the gate: about 1k in the agent; about 6k of the assistant's context per run, call included; 8 minutes wall (frame 30).
 - A tool frame in the assistant's own context, claim to close, two reviews and three implementer passes included: about 120k (frame 30; observed: `/context` 173k at close with a 45k fixed prompt).
 - A design record written by the assistant: about 8k of output. A status line: about 1k (frame 30).
@@ -291,3 +291,13 @@ Cost anchors (frame 28, written 2026-09-17 from frames 26 and 30; re-derive from
 - Two approaches failed. `merge_gate=review` waits on a page that nothing presents. The grouping brief's "declare a dependency fact" has no tool (`batch_dep_facts` has no writer).
 - Treat the plan as the frame for pre-build work. The plan amends ruling 2 of 2026-09-12 (hold at intent only) and R7 (touch note never blocks) on the plan and full paths.
 - The build order is deterministic pieces first, then one brief sentence at a time on the register.
+
+## The build session's peers
+
+Meta workflow. Ruled by Roman on 2026-09-17. The chain that built the tooling is archived in `plans/archive/tooling-flow-2026-09-17.md`.
+
+- Opus builds, Fable judges. The agent types implementer and sweeper run on Opus. The reviewer inherits the session's model, Fable.
+- A standby peer waits with no frame. Its prime: "You are a standby peer. Do not claim a frame and do not read the stack yet. Reply with your session id in one line, then wait. Reply to any message within one turn. A hand-off arrives by message from a peer: a frame number and a stack commit. When it does, follow the wake steps in CLAUDE.md and claim that frame."
+- The liveness probe before a hand-off: list the peers, then send every one "Reply in one line: your session id, and whether you hold a frame or are a clean standby." A send succeeds even to a closed session, and the row stays listed, so a successful send proves nothing (observed: 2026-09-17, four rows, three replies within a minute, one row closed). The reply is the only signal. Hand off to the first clean peer that answers. Tell the others to stand by.
+- The Agent tool fixes the list of agent types at session start and reads a type's body at each spawn. A session started before a type landed restarts before it claims a frame that needs the type. An edit to a type's body needs no restart (observed: frame 29's probe, 2026-09-17).
+- A forked session keeps its transcript and gets a new session id and a new peer name. It re-claims its frames with the new id (observed: 2026-09-17, cc3d4e4e forked to 3b4093c6).

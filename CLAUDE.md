@@ -16,10 +16,12 @@ three warnings only:
 - 400k: write the status line, commit the stack, and hand the frame to a
   fresh peer by message: the frame number and the stack's commit, nothing
   else. The peer claims the frame. A hand-off is Roman's assignment,
-  continued. Before the hand-off, run the liveness probe in
-  `plans/tooling-flow.md`: list the peers, ping every one, and hand off
-  to the first clean standby that answers. A successful send proves
-  nothing. Do not wait for Roman to name the peer.
+  continued. Before the hand-off, run the liveness probe: list the
+  peers, and send every one the line "Reply in one line: your session
+  id, and whether you hold a frame or are a clean standby". Hand off to
+  the first clean standby that answers. Tell the others to stand by. A
+  successful send proves nothing: a closed session stays listed. Do not
+  wait for Roman to name the peer.
 
 Why the count arrives every turn: the harness cannot know which turn is
 the last, so it says the number each time. Why you ignore it until 300k:
@@ -33,9 +35,9 @@ On wake:
 2. Read the open frames of `plans/stack.md`: yours, and any blocked on
    Roman. Not the closed ones.
 3. Read the memory files the frame names. Not all of them.
-4. Reply first with the state: the open frames, each blocked question
-   with a recommended answer, and the count. Then your reading of
-   Roman's ask, checked before you act.
+4. Reply first with the state: the open frames, and each blocked
+   question with a recommended answer. Then your reading of Roman's
+   ask, checked before you act.
 5. Claim the frame Roman gives you with your session id, the first
    eight characters, in the frame's heading. The hook injects the id
    each turn. It is stable across a restart. The peer name is not, so
@@ -59,6 +61,12 @@ re-records the touched cases, and returns the diff and the result. You
 review from a context that never read the files. A one-line door is the
 exception. Bulk reading goes to agents. One frame per wall. One status
 line per cycle.
+
+Opus builds, Fable judges. An implementer or a sweeper runs on Opus.
+The session that holds the frame is Fable. It judges by working back
+from the output: the gate on the commit, the findings against the known
+ones, spot reads of hunks. It reads the output in full, never the
+agent's reasoning.
 
 One implementing agent per frame. Resume it by message for each pass.
 The resume carries the tree's delta since its last pass and a required
@@ -106,7 +114,8 @@ carries a mark, each with a reason the size of a commit headline:
 (observed: where), (reasoned: why), or (ruled: why). Say which workflow a statement is about: the meta
 workflow, this build session, or the rota workflow, the seats. Five lines
 per frame: what, ends when, waits on, a pointer to the reasoning, a dated
-status. Closed frames leave the file. Commit the stack alone after every
+status. The status line's time comes from the clock, never from memory.
+Closed frames leave the file. Commit the stack alone after every
 change. Never edit another session's frame, except to add a waits-on
 line. In the smart zone you decide judgement and completion. You write
 your own instruction files and check them with Roman.
