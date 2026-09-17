@@ -29,6 +29,24 @@ Rules:
 
 ## Stack
 
+### 35. The observed-entries page is quarantined on cold click (2026-09-17) [3b4093c6]
+
+- Rota workflow. On night 84 `tick:observed_entries` ran three sessions,
+  s96 to s98, each with no parsable tool call, and was quarantined. The
+  glossary and the model rows were never presented, so nights 83 and
+  84 have no glossary ruling, where night 82 at d4bf679 landed one
+  through that tick (observed: the agent's read of the three run
+  databases, recorded in `plans/archive/term-collision-2026-09-17.md`).
+  A wall on the delivery path behind frame 34's. Frame 33's walk waits
+  on it too.
+- Ends when: the turns of s96 to s98 are read and the cause is on the
+  stack (20k, the same agent resumed); then a fix priced from the cause.
+- Waits on: nothing.
+- Reasoning: `plans/archive/term-collision-2026-09-17.md`, the second
+  wall.
+- Status 2026-09-17 20:48 (rota-02): pushed. The reviewer that read
+  frame 34's turns is resumed on s96 to s98, cap 20k.
+
 ### 34. The term-collision loop on click, cold (2026-09-17) [3b4093c6]
 
 - Rota workflow. On a cold click night the Terminologist wakes on
@@ -64,6 +82,20 @@ Rules:
   A reviewer-type agent reads one cycle's turns on night 84, the same
   path on night 82, and the commits between d4bf679 and 3ab5c73 on the
   relay, the predicate and the resolved refs, cap 60k.
+- Status 2026-09-17 20:48 (rota-02): the turns are read, 109k on the
+  harness line against 60k priced and a 60k cap, 29 tool calls. The
+  cause is three linked defects on the answer path, none a regression
+  of the day's commits (observed: the turns of s270 to s272 and the
+  code at d4bf679; recorded with marks in
+  `plans/archive/term-collision-2026-09-17.md`): a words-only reply to
+  a clarify lands a ruling with no per-item verdict and the Liaison in
+  `answering` mode has no tool to write its reading; the relay's
+  verdict lookup climbs one cause hop, to the report; and the
+  predicate cannot see an adopted family or park a logged one. Night
+  82 never entered the path: its survey found one `group`. The fix
+  brief is in the record. A fresh implementer, cap 100k, with three
+  pinned tests and the touched register cases re-recorded. Frame 35 is
+  the second wall behind this one.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [3b4093c6]
 
