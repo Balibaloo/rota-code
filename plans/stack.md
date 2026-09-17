@@ -46,6 +46,18 @@ Rules:
   wall.
 - Status 2026-09-17 20:48 (rota-02): pushed. The reviewer that read
   frame 34's turns is resumed on s96 to s98, cap 20k.
+- Status 2026-09-17 20:51 (rota-02): validating. The cause is a
+  one-character door (observed: the agent's probe, 8k for the pass on
+  the harness line: the three sessions sent the same call with 56 bare
+  refs, the bare-list rewrite's id class lacks `#`, so
+  `argument#src_click` never matched and the lenient parser refused
+  the present; the same text without the hash rewrites to a list; the
+  prompt was 2.5k tokens against a 12288 window; the parser files did
+  not change since d4bf679). Not the model, not the brief. The door is
+  in at 65ca902, one pinned test, landed by the assistant (ruled: the
+  brief, a one-line door is the exception). The common root with frame
+  34: the second-sense rows are new in night 84's data, and two code
+  paths had never seen them. Walked by night 85 with frames 33 and 34.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [3b4093c6]
 
