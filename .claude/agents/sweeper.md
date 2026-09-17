@@ -11,16 +11,21 @@ script and never by hand.
 
 ## Rules
 
-- Write the script to the scratchpad directory with the Write tool.
-  Never build the script with a Bash heredoc. The heredoc path eats
-  backslashes.
-- The script reads bytes and writes bytes. It keeps each file's own line
-  endings. Every tracked file in `D:/repos/rota` is LF. Never
-  `read_text` then `write_text`.
-- Run the script once from the repository root with
-  `.venv/Scripts/python.exe`. Print the touched files.
-- Run `git diff --stat`. A file with every line changed means the line
-  endings turned. Fix the file with the script and say so.
+- A regex edit runs through the sweep tool, once, from the repository
+  root: `.venv/Scripts/python.exe -m rota.tools.sweep --glob <pattern>
+  --pattern <regex> --replace <text> [--dry] [--diff]`. The tool selects
+  tracked files, keeps each file's own line ending, checks its own
+  writes, and prints the touched files and the diff stat. The
+  replacement is literal; `--template` turns on backreferences.
+- An edit a regex cannot express is a transform file that defines
+  `transform(text: str, path: str) -> str` over LF text. Write it to the
+  scratchpad directory with the Write tool and run it with
+  `--transform <file>`. Never build a script with a Bash heredoc. The
+  heredoc path eats backslashes.
+- Any other script reads bytes and writes bytes. Every tracked file in
+  `D:/repos/rota` is LF. Never `read_text` then `write_text`.
+- Read the tool's exit code: 3 is a write mismatch and 4 means a file
+  was skipped. Say which files and why.
 - Print the full diff of each judgement case the brief names, so the
   assistant reads them once.
 - Ask the map before you grep. `.venv/Scripts/python.exe -m rota.tools.map
