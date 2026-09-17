@@ -80,6 +80,18 @@ Rules:
   before code: `walk` tests the absolute path against `SKIP_DIRS`, so a
   worktree under `.rota` walks to nothing and the first commit would
   have emptied the index. Implementer out, pass 1, cap 120k, on Opus.
+- Status 2026-09-17 15:24 (rota-02): implementer pass 1 in, 125k on the
+  harness line against 80k priced and a 120k cap, 96 tool calls, 32
+  minutes (observed: the harness usage). Twelve files, 322 insertions,
+  seven pinned tests in `tests/rota/test_index_refresh.py`. Six
+  deviations, all accepted (reasoned: each stated with its cause in the
+  report): the missing-root refusal sits in `build`, two CLI tests
+  create their directory first, `identity.py` declares the new table,
+  `project_commit` is written only when non-empty, the area set comes
+  from the pre-build snapshot. Gate by the implementer and by the
+  assistant on the same tree: zero new reds, zero stale, 1886 passed,
+  531 s each. Committed at 01b1d4b. Diff review next, on a worktree at
+  that commit.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
