@@ -21,6 +21,8 @@ env/
 .rota/
 .rota-coverage.json
 .rota-timings.json
+.rota-gate.json
+.rota-gate.log
 
 # The cassette database, untracked on purpose. See `.gitattributes`.
 tests/rota/cassettes.db
