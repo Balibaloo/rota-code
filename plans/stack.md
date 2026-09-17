@@ -47,6 +47,11 @@ Rules:
   session continues down the stack through 24 and stops at 300k.
 - Status 2026-09-17 03:14 (rota-8c): claimed by hand-off from 32a42b78 at
   bd454b0. Frame 27's verdict is in (489db3a), so the wait is discharged.
+- Status 2026-09-17 03:16 (rota-8c): the commit is in (c3d3806): twelve
+  lines in four paragraphs and the grill paragraph. Frame 27's verdict
+  changed no wording of 24's lines (reasoned: the verdict picks a model for
+  the sweeper type, which frame 26 defines). Waits on Roman's read. The
+  session continues to frame 26.
 
 ### 26. Agent types with the tools they use (Roman, 2026-09-17)
 
