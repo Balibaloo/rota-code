@@ -72,6 +72,13 @@ Rules:
 - Status 2026-09-17 03:18 (rota-8c): claimed. Models from frame 27's verdict:
   Opus for the implementer and the sweeper, the reviewer inherits Fable
   and takes Opus per call when the points are sharp.
+- Status 2026-09-17 03:31 (rota-8c): the three files are in (6140848). Wall:
+  the Agent tool loads its type list at session start, so this session
+  cannot spawn the new types (observed: the tool's error names only the six
+  built-in types). Anchor measured today: a general-purpose agent on Haiku
+  with one tool call cost 33,741 tokens (observed: the harness usage line).
+  Next: a fresh `claude -p` process from the repo root, if the CLI is on
+  this box, else the floors wait for the next fresh session.
 
 ### 30. The gate: the suite in five lines (Roman, 2026-09-17)
 
