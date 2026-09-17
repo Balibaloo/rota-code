@@ -175,6 +175,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - With the predicate's refs in the case, `L1-LI-present-the-touch` is 5/5 on both Liaison models (2026-09-12). A register case's wake must carry what the predicate's wake carries (refs, detail). A wake that the system never produces measures nothing. Then "red on every model" reads as a model boundary when the fixture is the cause.
 - Before you author or attribute a tick case, read the predicate that produces the wake. Copy the predicate's `refs` and `detail` shape into the case. Before you call a red a boundary, render the case's prompt. Check that the wake lines match the lines of a real run.
 - A STALE case (no cassette for the current prompt) renders identically to a red under `--tb=no`. Classify stale-vs-red before you read a baseline.
+- `python -m rota.tools.gate` does that classification (frame 30, 2026-09-17). It runs the suite with `--tb=no -rfE -q`, prints five lines (summary, new reds, reds gone, the stale set under the suite's model, time), stores the baseline in `.rota-gate.json` at the repo root, and re-runs new reds only for their tracebacks. Never read `.rota-gate.log`. `--baseline` re-takes the baseline. A checkout with no register gets `stale: the register is absent`. Four runs on this box: 465 s to 482 s.
 
 ## The cockpit
 
