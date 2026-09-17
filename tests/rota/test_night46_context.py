@@ -206,6 +206,20 @@ def test_a_bare_list_of_refs_may_hold_a_path():
     assert call.args["refs"] == ["argument", "choice", ".", "src/click"], call.args
 
 
+def test_a_bare_list_of_refs_may_hold_a_second_sense_id():
+    """click night 84 (2026-09-17): the survey of `src/click` wrote
+    second-sense rows like `group#src_click`; the Liaison copied 56 refs
+    bare, the rewrite never matched on the hash, and the present was
+    refused three times to quarantine before session 1."""
+    from rota.llm import toolproto
+    calls = toolproto.extract(
+        "TOOL: msg.present_principal(refs=argument, argument#src_click, ., src/click, round_no=1)")
+    call = calls[0]
+    assert not isinstance(call, toolproto.ToolError), getattr(call, "reason", call)
+    assert call.args["refs"] == ["argument", "argument#src_click", ".", "src/click"], call.args
+    assert call.args["round_no"] == 1, call.args
+
+
 def test_the_fix_wake_separates_the_projects_own_tests_and_pushes_the_diff(tmp_path):
     """click night 47 (2026-09-14): 19 of click's own tests failed at the
     Developer's commit; the push read their imports and pushed 20,000

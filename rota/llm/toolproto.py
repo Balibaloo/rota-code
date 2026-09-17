@@ -326,7 +326,11 @@ def _bracket_bare_lists(text: str) -> str:
     matches, and `start=1, end=2` does not either because `end` is
     followed by `=`. A slash is part of an id: click night 47 (2026-09-14),
     the observed refs ended `., src/click`, the run broke at the slash, and
-    the Liaison's present was refused three times to quarantine.
+    the Liaison's present was refused three times to quarantine. A hash is
+    part of an id: click night 84 (2026-09-17), the survey of `src/click`
+    wrote second-sense rows like `group#src_click`, the Liaison copied 56
+    refs bare, the rewrite never matched, and the present was refused
+    three times to quarantine before session 1.
     """
     import re
 
@@ -334,7 +338,7 @@ def _bracket_bare_lists(text: str) -> str:
     if _BARE_LIST is None:
         _BARE_LIST = re.compile(
             r"(?P<key>\b[A-Za-z_][A-Za-z0-9_]*=)"
-            r"(?P<ids>[A-Za-z0-9_.@:/-]+(?:\s*,\s*[A-Za-z0-9_.@:/-]+)+)"
+            r"(?P<ids>[A-Za-z0-9_.@:/#-]+(?:\s*,\s*[A-Za-z0-9_.@:/#-]+)+)"
             r"(?=\s*(?:,\s*[A-Za-z_][A-Za-z0-9_]*\s*=|\)))")
     # Quoted as it is bracketed: a bare `.` or `src/click` is not Python,
     # and the ids are strings by the model's own reading of the wake.
