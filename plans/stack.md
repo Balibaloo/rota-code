@@ -92,6 +92,18 @@ Rules:
   assistant on the same tree: zero new reds, zero stale, 1886 passed,
   531 s each. Committed at 01b1d4b. Diff review next, on a worktree at
   that commit.
+- Status 2026-09-17 15:49 (rota-02): diff review in on a worktree at
+  01b1d4b, 91k on the harness line against 65k priced, 27 tool calls,
+  eight points confirmed and seven findings, two high (observed: the
+  reviewer's probes): a conflicted merge re-raises before the main
+  refresh, so the index keeps describing a deferred worktree; and the
+  three refresh helpers catch two exception types only, so a foreign
+  error after a landed session runs session_fail on rows that are on
+  record. Five low: the CLI traceback on a missing root, an empty
+  area_hashes table reads as fresh after init_db on an old database,
+  the failure record has no reader, the fixture records a gitlink, a
+  duplicated helper. Fix pass sent to the same implementer, cap 60k,
+  with four pinned tests and a gate run at its end.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
