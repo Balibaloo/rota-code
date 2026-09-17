@@ -70,6 +70,16 @@ Rules:
   freshness comparison skipped while a batch runs, five pinned tests.
   The judgement call, the skip against an area_hashes table, is in the
   record for Roman's read. Design review out, cap 80k.
+- Status 2026-09-17 15:18 (rota-02): design review in, 78k on the harness
+  line against 70k priced, 34 tool calls, eight points and three
+  findings outside them. Two parts of the design overturned (observed:
+  the reviewer's probes, recorded in the design record's last section):
+  the freshness skip breaks an existing test and lifts on abandon, so
+  an `area_hashes` table replaces it; no cancel path destroys a
+  worktree, so hook 3 keys on abandon and defer. One high defect caught
+  before code: `walk` tests the absolute path against `SKIP_DIRS`, so a
+  worktree under `.rota` walks to nothing and the first commit would
+  have emptied the index. Implementer out, pass 1, cap 120k, on Opus.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
