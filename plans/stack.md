@@ -29,6 +29,42 @@ Rules:
 
 ## Stack
 
+### 34. The term-collision loop on click, cold (2026-09-17) [3b4093c6]
+
+- Rota workflow. On a cold click night the Terminologist wakes on
+  `tick:term_collision` for `group` and `Group`, the Liaison asks the
+  principal, the yes-only principal answers with the constraint text,
+  the Liaison relays, the Terminologist logs that the relayed message
+  carries no principal verdict in its resolved refs and cannot adopt
+  the senses, and the tick re-fires. Every session commits, so no
+  attempt cap fires (observed: nights 83 and 84, 144 and 200 wakes, no
+  batch; the run databases are copied to the session scratchpad as
+  `clickI_night83.db` and `clickI_night84.db`, beside night 82's, which
+  reached batches at d4bf679). A wall on the delivery path. Frame 33's
+  walk waits on it.
+- Ends when, each line priced from the anchors, walls apart:
+  1. The turns of one cycle are read by an agent and the cause is on
+     the stack with its evidence: 60k. Buys: a cause from the turns,
+     not from a guess.
+  2. The fix is built by a fresh implementer with a pinned test that
+     the Terminologist's wake after the principal's answer carries what
+     the brief tells it to read, and the tick does not re-fire: 90k
+     (cold 80k, one resumed pass 10k). Buys: a cold night reaches a
+     batch.
+  3. The gate green, the stale line read: 6k.
+  4. Night 85 from a worktree at the closing commit reaches a batch
+     and a commit: 20k here, about two hours wall. This night is frame
+     33's walk too (reasoned: the worktree carries both frames' code;
+     a stated deviation from one walk per frame).
+  Total: 176k in agents, about 60k in this context.
+- Waits on: nothing.
+- Reasoning: the three night databases above. The cause and the fix
+  brief go in `plans/archive/term-collision-2026-09-17.md`.
+- Status 2026-09-17 20:44 (rota-02): pushed. Night 84 killed at 20:42.
+  A reviewer-type agent reads one cycle's turns on night 84, the same
+  path on night 82, and the commits between d4bf679 and 3ab5c73 on the
+  relay, the predicate and the resolved refs, cap 60k.
+
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [3b4093c6]
 
 - Rota workflow. Step 3 of the order. The code index is built at
@@ -147,6 +183,10 @@ Rules:
   from sentence two, which merged cold on night 70 and exercises the
   commit hook and the merge hook. Night 83's database is kept as
   `clickI_prev.db` in the night state directory.
+- Status 2026-09-17 20:44 (rota-02): night 84 looped the same way from
+  sentence two, 307 sessions, no batch (observed: the run database).
+  Killed at 20:42. The wall is frame 34. The walk waits on it and runs
+  as night 85 from a worktree at frame 34's closing commit.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
