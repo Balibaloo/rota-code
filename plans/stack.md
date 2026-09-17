@@ -80,6 +80,23 @@ Rules:
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:26 (rota-b9): queued by Roman, unclaimed.
 
+### 26. Agent types with the tools they use (Roman, 2026-09-17)
+
+- Meta workflow. Three definitions in `.claude/agents/`: implementer
+  (Read, Edit, Write, Bash, Grep, Glob), reviewer (Read, Bash, Grep, Glob),
+  sweeper (Bash, Write, Read), each with its model and a standing prompt
+  that carries the repo's rules: line endings, the suite command, the
+  report shape (ruled: Roman queued it; observed: a general-purpose agent
+  starts near 50k of schemas, fourteen of them a day; reasoned: about 400k
+  a day at that count, more with a cheaper model on the sweeper).
+- Ends when: the three files exist, one agent of each type has run a
+  trivial task and its reported floor is on the stack beside the 50k of
+  the general-purpose type, and one frame has used them.
+- Waits on: nothing.
+- Reasoning: the post-mortem conversation of 2026-09-17, the `/context`
+  reading of frame 21's session.
+- Status 2026-09-17 01:28 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
