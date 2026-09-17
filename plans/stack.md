@@ -76,6 +76,12 @@ Rules:
   probes). Tool-call baseline beside the 96: frame 30's agents made 31,
   36, 30, 7, 23 and 9 calls (observed: the harness lines). The 96 is
   unsourced in the tree. Design review next.
+- Status 2026-09-17 10:31 (rota-99): design review in, 78k and 31 tool calls
+  (observed: the harness line), thirteen findings, three high: a
+  verb-prefix gate misses a reader the tests pin, one of three dicts is
+  a comprehension with artefact values, and 119 `msg.*` tool lines join
+  to the graph's message edges and not to the registry. The record is
+  amended. Implementer next.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
@@ -236,6 +242,10 @@ Rules:
 - From the same report (observed: `rota/testkit/obligations.py:59-105`):
   `l2()` names 73 modes and 80 `.tools` files exist; `terminologist/
   unresolved` runs in a recorded case and is in no L2 row. Rota workflow.
+- From frame 29's design review (observed: `graph.json` and `REGISTRY`):
+  `batches.judge_touch` is the one registered verb with an underscore;
+  `problem.set approval` and `verdicts.claim encodes` carry a space. Rota
+  workflow.
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
