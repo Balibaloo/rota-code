@@ -238,6 +238,28 @@ def test_the_generic_write_is_dynamic(index):
     assert [x for x in lines if x.startswith("writes refs (")]
 
 
+def test_a_bare_file_name_finds_its_path(index):
+    # The first agent to use the map gave a bare name in five of its nine
+    # `file` calls. One match answers as if the path were given.
+    assert map_tool.query_file(index, "paths.py") == (
+        map_tool.query_file(index, "rota/paths.py"))
+    # `rota/paths.py` holds constants only, and an empty answer reads as a
+    # failure.
+    assert map_tool.query_file(index, "paths.py") == (
+        "rota/paths.py: no definition, no table, no op")
+    answer = map_tool.query_file(index, "casestatus.py")
+    assert answer == map_tool.query_file(index, "rota/tools/casestatus.py")
+    assert [x for x in answer.splitlines() if x.startswith("def status ")]
+
+
+def test_a_shared_file_name_lists_the_candidates(capsys):
+    assert map_tool.main(["file", "__init__.py"]) == 1
+    printed = capsys.readouterr().out.splitlines()
+    assert re.fullmatch(r"\d+ files named __init__\.py:", printed[0])
+    assert len(printed) - 1 == int(printed[0].split()[0])
+    assert "rota/core/__init__.py" in printed
+
+
 def test_a_shared_name_groups_the_facts_under_each_definition(index):
     answer = map_tool.query_fn(index, "get", callers=5)
     lines = answer.splitlines()

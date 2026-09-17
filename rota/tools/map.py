@@ -679,10 +679,26 @@ def query_mode(spec: str) -> str:
     return "\n".join(out)
 
 
+class Ambiguous(LookupError):
+    """More than one indexed file carries the name. The answer is the list
+    of paths, because the map never picks for the reader."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.text = text
+
+
 def query_file(index: Index, path: str) -> str:
     rel = str(path).replace("\\", "/")
     if rel not in index.files:
-        raise LookupError(path)
+        # The first agent to use the map gave a bare name in five of its
+        # nine `file` calls, so a name that is not a path is a name.
+        named = [f for f in index.files if f.rsplit("/", 1)[-1] == rel]
+        if len(named) > 1:
+            raise Ambiguous(f"{len(named)} files named {rel}:\n" + "\n".join(named))
+        if not named:
+            raise LookupError(path)
+        rel = named[0]
     out = [f"def {d.qual} {d.first}-{d.last}"
            for d in sorted((d for d in index.defs
                             if d.file == rel and "." not in d.qual),
@@ -696,6 +712,10 @@ def query_file(index: Index, path: str) -> str:
         if definition is not None and definition.file == rel:
             out.append(f"op {pair[0]}.{pair[1]} -> {definition.qual} "
                        f"{definition.first}{_by_line(index, pair)}")
+    # An empty answer reads as a failure. `rota/paths.py` holds constants
+    # only, and the reader must see that the query found the file.
+    if not out:
+        return f"{rel}: no definition, no table, no op"
     return "\n".join(out)
 
 
@@ -729,6 +749,9 @@ def main(argv: list[str] | None = None) -> int:
             text = query_fn(build_index(), args.name, args.callers)
         else:
             text = query_file(build_index(), args.name)
+    except Ambiguous as many:
+        print(many.text)
+        return 1
     except LookupError:
         print(f"no {args.query} named {args.name}")
         return 1
