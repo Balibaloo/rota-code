@@ -105,8 +105,17 @@ Rules:
   amended. After the commit the frame goes to validating: the last
   ends-when line, agents using the map with their counts, is measured
   by frame 24's agents.
+- Status 2026-09-17 11:31 (rota-99): validating. The tool is in (33dbaa3, c780a6f,
+  387c7f7), 22 tests, the line is in `CLAUDE.md` and the three
+  definitions (128c68c). Estimate against actual, walls apart: 200k
+  estimated; scope 125k, design review 78k, implementer 173k over three
+  passes (114k, 46k, 13k), diff review 97k over two (74k, 23k), the
+  assistant's gate run 6k: 479k (observed: the harness lines). The
+  estimate missed the scope report and the second passes. Tool calls
+  beside the unsourced 96: 83, 31, 55, 25, 36, 10, 14. Waits on: frame
+  24's agents using the map, with their counts.
 
-### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
+### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [90522022]
 
 - Meta workflow. Two lines in the assistant's brief: a change that is the
   same edit in more than three files is a script, written with the Write
@@ -124,6 +133,15 @@ Rules:
 - Reasoning: `plans/tooling-flow.md` first, the plan and the chain's
   rules. Then `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
 - Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
+- Status 2026-09-17 11:31 (rota-99): claimed at 387c7f7 (ruled: Roman, 2026-09-17,
+  24 after 29). Both waits discharged: the lines landed in frame 32, the
+  verdict is in. Prices from the anchors: design review 75k, implementer
+  130k over two passes, diff review 95k over two, the assistant's gate
+  run 6k: 310k, walls apart. The last ends-when line, one frame's sweep
+  through it, is measured by the first sweep after the tool. Design
+  record: `plans/archive/sweep-design-2026-09-17.md`. libcst is not
+  installed (observed: `pip show`), so the transform path is a hook, not
+  a dependency.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
