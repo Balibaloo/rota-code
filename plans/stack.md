@@ -79,6 +79,15 @@ Rules:
   with one tool call cost 33,741 tokens (observed: the harness usage line).
   Next: a fresh `claude -p` process from the repo root, if the CLI is on
   this box, else the floors wait for the next fresh session.
+- Status 2026-09-17 03:52 (rota-8c): floors measured (observed: the modelUsage
+  rows of five fresh `claude.exe -p` runs, a Haiku main that calls the
+  Agent tool once; the typed agent's first-turn cache creation is its
+  floor). General-purpose on Opus: 38.3k. Implementer: 11.4k. Reviewer:
+  13.3k, of which about 2.5k is the file it read. Sweeper: 8.9k. The
+  types start at a quarter to a third of the general-purpose cost
+  (reasoned: 9k to 13k against 38k). The CLI is the VS Code extension's
+  `resources/native-binary/claude.exe`, version 2.1.258. Open: one frame
+  has to use the types, and that needs a session started after 6140848.
 
 ### 30. The gate: the suite in five lines (Roman, 2026-09-17)
 
