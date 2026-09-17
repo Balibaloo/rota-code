@@ -29,165 +29,18 @@ Rules:
 
 ## Stack
 
-### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [cc3d4e4e]
+### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
-- Meta workflow. Two lines in the assistant's brief: a change that is the
-  same edit in more than three files is a script, written with the Write
-  tool, run, its touched files printed, and the diff read once for the
-  judgement cases; a sub-agent only when the brief allows it, with a token
-  cap and its usage in the report. One tool: `rota/tools/sweep.py`, a glob
-  plus a regex or a `libcst` transform, bytes with each file's own line
-  endings, a diff stat out (ruled: Roman queued it from the post-mortem;
-  observed: 48 test files were swept by hand through four sub-agents).
-- Ends when: the lines are in `CLAUDE.md`, the tool exists with a test that
-  a CRLF file and an LF file keep their endings, and one frame's sweep ran
-  through it.
-- Waits on: frame 32 for the lines; frame 27's verdict for who builds
-  the tool. Session B, after 29.
-- Reasoning: `plans/tooling-flow.md` first, the plan and the chain's
-  rules. Then `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
-- Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
-- Status 2026-09-17 11:31 (rota-99): claimed at 387c7f7 (ruled: Roman, 2026-09-17,
-  24 after 29). Both waits discharged: the lines landed in frame 32, the
-  verdict is in. Prices from the anchors: design review 75k, implementer
-  130k over two passes, diff review 95k over two, the assistant's gate
-  run 6k: 310k, walls apart. The last ends-when line, one frame's sweep
-  through it, is measured by the first sweep after the tool. Design
-  record: `plans/archive/sweep-design-2026-09-17.md`. libcst is not
-  installed (observed: `pip show`), so the transform path is a hook, not
-  a dependency.
-- Status 2026-09-17 11:40 (rota-99): design review in, 66k and 23 tool calls, ten
-  findings, six high: `fnmatch` lets `*` cross `/`, the mixed-ending
-  rule contradicted itself, a class check passes on a corrupt file, the
-  hook's LF contract was unenforced, the replacement template eats a
-  backslash, and the sample repo is CRLF. The record is amended. First
-  map use by an agent: 5 map calls against 4 greps (observed: the
-  reviewer's count; frame 29's last line). Implementer next.
-- Status 2026-09-17 12:07 (rota-99): the sweep is built, 341 lines, 20 tests, the
-  implementer's gate run zero new reds, 1872 passed, 513.9 s. Its first
-  run had one red it caused: `test_no_module_computes_its_own_location`,
-  fixed through `paths.PACKAGE`. Implementer pass: 77k, 36 tool calls, 9
-  map calls, 1 grep (observed: the harness line and the report). The
-  assistant's gate run before the commit is in progress.
-- Status 2026-09-17 12:08 (rota-99): libcst joins the `dev` extra in the frame whose
-  sweep first needs a syntax-aware edit, not now (ruled: Roman,
-  2026-09-17: a dependency carries a behaviour). The transform hook
-  stays a plain Python file.
-- Status 2026-09-17 12:16 (rota-99): validating. The sweep is in (9d30b1b), 20 tests;
-  the sweeper definition runs through it (07c0307). The assistant's gate
-  run before the commit: zero new reds, 1872 passed, 510.1 s. Actual so
-  far against the 310k estimate, walls apart: design review 66k,
-  implementer 77k, the assistant's gate run 6k. Walls: none. Handed to
-  the standby peer at this commit: the diff review on a worktree at 9d30b1b
-  (points: the byte round-trip on the eight planted cases, the exit
-  table, the untracked-file rule, the hook's CR rejection, the test
-  recipe's autocrlf), its fix pass, and then frame 4's grill with Roman.
-  Waits on: the first sweep through the tool, which closes the frame.
-  Session 90522022 stops at the hand-off (ruled: Roman, 2026-09-17).
-- Status 2026-09-17 12:23 (rota-99): the diff review ran here after all (ruled:
-  Roman, 2026-09-17: the reviewer has its own context): 61k, 24 tool
-  calls, 2 map calls to 1 grep, five findings, one high: the CR guard
-  covered the hook and not the regex form, so `--replace` with a CR
-  wrote the corruption the tool exists to stop. Fix pass sent to the same
-  implementer, cap 60k, with a gate run at its end. The hand-off target
-  is rota-19 (cc3d4e4e), the first clean peer that answered the probe.
-- Status 2026-09-17 12:35 (rota-99): validating, handed off. Fix pass in (3256b2e): 24k,
-  19 tool calls, 1 map call, 0 greps; 25 tests; the implementer's gate
-  run on this exact tree: zero new reds, 1879 passed, 498.6 s. The
-  assistant did not run the gate again before this commit (reasoned:
-  same tree, the five lines are the tool's verbatim, the tool is
-  imported by nothing but its test; a deviation from the brief's line,
-  stated). Actual against the 310k estimate, walls apart: design review
-  66k, implementer 101k over two passes, diff review 61k, the
-  assistant's gate run 6k: 234k. Walls: none. Waits on: the first sweep
-  through the tool, which closes the frame. Handed to rota-19
-  (cc3d4e4e) with frame 4's grill. Session 90522022 stops here (ruled:
-  Roman, 2026-09-17).
-- Status 2026-09-17 12:37 (rota-19): claimed by cc3d4e4e at 94511e3, validating.
-  The sweep's 25 tests pass on this tree (observed: pytest, 12.6 s).
-  Waits on: the first sweep through the tool, which closes the frame.
-
-### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
-
-- Meta workflow. Five lines in the assistant's brief: one implementing
-  agent per frame, resumed by message; the resume carries the tree's delta
-  and a required re-read of the files to edit; the writer never reviews;
-  a cap near 350k with a where-things-are note for a fresh agent; each
-  pass's tokens in the status line beside today's cold cost, about 300k,
-  and the rule stops if a resumed pass costs as much (ruled: Roman queued
-  it from the post-mortem; reasoned: the peer hand-off applied to an agent).
-- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
-  frame has run under them with its per-pass tokens on the stack.
-- Waits on: frame 32 for the lines; ends on the first frame that runs
-  under them, frame 4.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
-- Status 2026-09-17 01:17 (rota-b9): queued by Roman, unclaimed.
-
-### 25. Two reviews per frame: the design, then the diff (Roman, 2026-09-17)
-
-- Meta workflow. Two lines in the assistant's brief: a design review on
-  the scope report and the design record before any code, about 100k,
-  and one read-only diff review at the frame's end on a worktree at the
-  commit, before the walk, for a frame that touches the write pipeline,
-  the schema or a predicate; fewer, sharper points per review (ruled:
-  Roman queued it; observed: three diff reviews cost 731k and two of 25
-  findings mattered; reasoned: the saving is about 350k a frame, the
-  smallest of the post-mortem's changes).
-- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
-  frame has run under them with both reviews' tokens on the stack.
-- Waits on: frame 32 for the lines; measured by frame 4.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 3,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:26 (rota-b9): queued by Roman, unclaimed.
-
-### 28. A price on every ends-when line (Roman, 2026-09-17)
-
-- Meta workflow. One line in the assistant's brief: at the grill, each
-  ends-when line carries a token price from the anchors and the behaviour
-  it buys; a line with a price and no behaviour becomes its own frame
-  below; the closing status writes the actual beside the estimate, walls
-  counted apart. Six anchor rows in `plans/operating-facts.md`, dated by
-  frame, re-derived from the last three frames whenever a frame that
-  changed the workflow closes (ruled: Roman queued it; observed: frame 21's
-  drop cost about a million and bought no behaviour, unpriced).
-- Ends when: the line is in `CLAUDE.md`, the anchors are in the facts,
-  and one frame has closed with actual beside estimate.
-- Waits on: frame 32 for the line; measured by frame 4.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 2,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:42 (rota-b9): queued by Roman, unclaimed.
-- Status 2026-09-17 10:09 (rota-99): the six anchor rows are in the register
-  section of `plans/operating-facts.md` (bbb2f1d or its amend), from
-  frames 26 and 30. Frame 30 closed with actual beside estimate. The
-  frame stays open until frame 4 runs under the line (ruled: Roman,
-  `plans/tooling-flow.md`, the measuring frames close on frame 4).
-
-### 31. A walk closes a frame that touches the seats (Roman, 2026-09-17)
-
-- Meta workflow. Two lines in the assistant's brief: a frame that touches
-  the seats, the briefs, the write pipeline or a predicate ends on a walk
-  that covers the phases it touched, onboarding for an onboarding change,
-  a full night for the delivery path or when in doubt; the walk runs from
-  a worktree at the frame's closing commit, since briefs are read at every
-  wake, and the frame stays open as validating while the next frame
-  starts in the main checkout (ruled: Roman, 2026-09-17; observed: frame
-  21 passed every suite run and the walk found a seventy-night defect).
-- Ends when: the lines are in `CLAUDE.md` and one frame has closed on a
-  walk with its result, steps and asks, on the stack.
-- Waits on: frame 32 for the lines; measured by frame 4.
-- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 4,
-  and the post-mortem conversation of 2026-09-17.
-- Status 2026-09-17 01:52 (rota-b9): queued by Roman, unclaimed.
-
-### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman) [cc3d4e4e]
-
-- (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
-  model where it passes, 3 language seam, 4 breadth (two lineage repos
-  cold, then a non-Python repo), 5 long-run noise test after sentence
-  three merges, 6 ship the loop. Do not: rewrite the core, lower the
-  cap, more nights on sentence two as if doors were the answer.
-- Ends when: step 6 ships the loop.
-- Waits on: the frames above it, one per step.
+- (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
+  road to the loop that merges cold on click. Steps: 1 the benchmark, 2
+  routing a larger model, 3 finding 42, the code index refreshed after a
+  commit, 4 the language seam, 5 breadth, the other two lineage
+  repositories cold and then a non-Python repository, 6 the long-run
+  noise test after sentence three merges, 7 ship the loop. Do not:
+  rewrite the core, lower the cap, more nights on sentence two as if
+  doors were the answer.
+- Ends when: step 7 ships the loop.
+- Waits on: the frames above it, one per step. Step 5 is frame 2's work.
 - Reasoning: `rota/COMPLETION.md`, "The order from here", and frames 5
   to 15 in `plans/archive/stack-2026-09-16.md`.
 - Status 2026-09-14: step 1 done; frame 8 decides step 2. Frames 5 to
@@ -200,27 +53,29 @@ Rules:
   (observed: frame 13's close in `plans/archive/stack-2026-09-16.md`).
   The next step is Roman's ruling at the grill: finding 42, the seam, or
   breadth. Recommended: finding 42.
-
-### 3. Click sentence two (nights 50 to 60)
-
-- (observed: nights 50 to 60, findings 36 to 64) Every night stuck; each became a door or a brief line (findings 36 to
-  64). Night 60: the 14B Developer timed out at its first wake; sentence
-  three then ran once, quiet, no merge.
-- Ends when: one night merges sentence two.
-- Waits on: frame 4.
-- Reasoning: findings 36 to 64, and frames 8 to 13 in
-  `plans/archive/stack-2026-09-16.md`.
-- Status 2026-09-14: behind frame 4.
+- Status 2026-09-17 13:52 (rota-02): claimed by 3b4093c6, the same session forked (ruled:
+  Roman, 2026-09-17). The one order: seven steps as COMPLETION.md gives
+  them, with finding 42 as step 3 (observed: the stack's list had six).
+  Step 1 done, step 2 not needed. The next frame is step 3 on Roman's
+  word at the grill. Frames 23, 24, 25, 28 and 31 closed by ruling; the
+  first build frame's closing status carries their measurements.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
 - (ruled: goals 3 and 10 of the plan) Three lineage repos, three sentences each, unattended. Click sentence
   one merges (nights 49, 50). Sentences two and three do not yet.
 - Ends when: the lineage is walked and every fault is a door or a case.
-- Waits on: frame 3.
+- Waits on: frame 4, whose step 5 is this frame's breadth.
 - Reasoning: `rota/COMPLETION.md`, goals 3 and 10.
 - Status 2026-09-16: open behind frame 3. The latest nights are frames
   11 to 13 in `plans/archive/stack-2026-09-16.md`.
+- Status 2026-09-17 13:52 (rota-02): sentence two merged on night 70. Sentence three is
+  unmerged: night 82 stuck on exhausted at 80 steps (observed: frame 13's
+  close). Three partials ride the gauntlet, A7, D3 and A1's cold walks
+  (ruled: Roman, 2026-09-17). The night summary owes three lines for
+  them: a stray touch judged, a failed verdict chained, a contest
+  landed. A small frame on the night script, priced when the order's
+  frames run.
 
 ### 1. The end state (plan agreed 2026-09-10)
 
@@ -228,10 +83,18 @@ Rules:
   gets a merged change they can read. Honest about where small models
   stop. Ten goals in COMPLETION.md: 1, 2, 7, 9 done; 4 and 8 measured
   and ongoing; 3 and 10 are frame 2; 5 and 6 fed by it.
-- Ends when: the destination holds and Roman declares finished.
+- Ends when: every partial in COMPLETION.md's core section is built,
+  click and two more lineage repositories merge cold, the register is
+  green or attributed on the shipped profile, and Roman declares
+  finished (ruled: Roman, 2026-09-17: the core section stays the
+  definition of core).
 - Waits on: frame 2.
 - Reasoning: `rota/COMPLETION.md`, and `plans/composition.md`, Purpose.
 - Status 2026-09-16: the bottom frame. Open.
+- Status 2026-09-17 13:52 (rota-02): the partials are banded in COMPLETION.md's core
+  section (ruled: Roman, 2026-09-17). Four small frames and two
+  campaigns push above this frame when frame 2 closes. B5 struck as
+  built, F1 parked.
 
 ## Parked
 
