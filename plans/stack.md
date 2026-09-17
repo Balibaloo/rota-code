@@ -99,6 +99,23 @@ Rules:
   diff review 60k, the assistant's own gate run 5k (reasoned: the floors on
   frame 26, two new files of about 300 lines, one suite run read as five
   lines). Design record: `plans/archive/gate-design-2026-09-17.md`.
+- Status 2026-09-17 04:31 (rota-99): the gate is in (9beb1ca), the brief lines and
+  the two definitions follow (e407e5d). Design review before code: eight
+  findings, two high, both in the log parser; the red set now comes from
+  pytest's lastfailed cache. The implementer's pass: 19 tests green, the
+  baseline stored at 8913a92 with 22 reds. The assistant's own gate run
+  before the commit: zero new reds, exit 0, the acceptance checked. Time
+  on the SSD beside 414 s: 465.6 s and 482.5 s (observed: the gate's time
+  line, two runs). The setting moved nothing on this box: `TEMP` was on
+  C: before the gate (observed: `tempfile.gettempdir()` in the assistant's
+  shell), and the suite holds 19 tests more than the anchor's run. Diff
+  review on a worktree at 9beb1ca: six findings, three high: the
+  lastfailed cache is cumulative, an absent register is created empty,
+  the summary counts are stored and never compared. Fix pass sent to the
+  same implementer by message. Actuals against the estimate: design
+  review 69k (40k), implementer pass 74k (100k), diff review 76k (60k)
+  (observed: the harness usage lines). The reviewers' own estimates were
+  42k and 442k: read the harness line, not the agent's.
 
 ### 29. The map: a query tool over the code (Roman, 2026-09-17)
 
