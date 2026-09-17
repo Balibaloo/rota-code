@@ -71,6 +71,11 @@ files. Read the diff once, for the judgement cases. An agent starts a
 sub-agent only when its brief allows it. The brief gives the sub-agent a
 token cap. The agent's report carries the sub-agent's usage.
 
+An agent runs the touched test files first, and the gate once at the end
+of a pass: `python -m rota.tools.gate`. The assistant runs the gate
+itself before a commit and reads its five lines, never the log. The
+stale line is part of every acceptance.
+
 Two reviews per frame. A design review reads the scope report and the
 design record before any code, about 100k. One read-only diff review
 runs at the frame's end, on a worktree at the commit, before the walk.

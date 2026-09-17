@@ -32,13 +32,23 @@ commit, the numbered points to check, and the files that matter.
 
 ## The suite
 
+Run one test file directly:
+
 ```
-ROTA_MODEL=qwen3:8b D:/repos/rota/.venv/Scripts/python.exe -m pytest tests/rota --tb=no -rf -q
+ROTA_MODEL=qwen3:8b D:/repos/rota/.venv/Scripts/python.exe -m pytest tests/rota/test_x.py -q
 ```
 
-A full run takes about seven minutes and uses no GPU. Set the Bash
-timeout to 600000. Read the STALE counts with
-`D:/repos/rota/.venv/Scripts/python.exe -m rota.tools.casestatus --red`.
+Run the full suite only when a point needs it, through the gate, with
+the Bash timeout at 600000:
+
+```
+D:/repos/rota/.venv/Scripts/python.exe -m rota.tools.gate
+```
+
+A full run takes about eight minutes and uses no GPU. The gate prints
+five lines: the summary, the new reds, the reds gone, the stale set and
+the time. Never pass `--baseline`. Do not run `casestatus --red`: its
+default model is not the suite's.
 
 ## The report
 

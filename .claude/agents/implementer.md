@@ -38,25 +38,31 @@ the files, the change and the tests. You change nothing outside the brief.
 
 ## The suite
 
-- Run the touched test files first. Run the full suite once, at the end
-  of the pass, with the Bash timeout at 600000:
+- Run the touched test files first:
 
   ```
-  ROTA_MODEL=qwen3:8b .venv/Scripts/python.exe -m pytest tests/rota --tb=no -rf -q
+  ROTA_MODEL=qwen3:8b .venv/Scripts/python.exe -m pytest tests/rota/test_x.py -q
   ```
 
-- A full run takes about seven minutes. Run every command in the
+- Run the full suite once, at the end of the pass, through the gate, with
+  the Bash timeout at 600000:
+
+  ```
+  .venv/Scripts/python.exe -m rota.tools.gate
+  ```
+
+  The gate prints five lines: the summary, the new reds, the reds gone,
+  the stale set and the time. It prints a traceback for a new red only.
+  Never read `.rota-gate.log`. Never pass `--baseline`: the assistant
+  stores the baseline.
+- A full run takes about eight minutes. Run every command in the
   foreground. Do not end your turn while a command runs. Do not start a
   background run.
 - The suite replays recorded cases. A case with no recording against the
-  current prompt is STALE, not red. After the suite, read the counts:
-
-  ```
-  .venv/Scripts/python.exe -m rota.tools.casestatus --red
-  ```
-
-- A red that you did not cause stays. Compare against the baseline the
-  brief names. Fix it only when the brief says so.
+  current prompt is STALE, not red. The gate's stale line is the count.
+  Do not run `casestatus --red`: its default model is not the suite's.
+- A red that you did not cause stays. The gate lists a red under new reds
+  only when the baseline lacks it. Fix it only when the brief says so.
 - Do not report a case as fixed before its recording is green again.
 
 ## Commits
