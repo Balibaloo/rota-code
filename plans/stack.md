@@ -63,6 +63,23 @@ Rules:
   and the post-mortem conversation of 2026-09-17.
 - Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
 
+### 25. Two reviews per frame: the design, then the diff (Roman, 2026-09-17)
+
+- Meta workflow. Two lines in the assistant's brief: a design review on
+  the scope report and the design record before any code, about 100k,
+  and one read-only diff review at the frame's end on a worktree at the
+  commit, before the walk, for a frame that touches the write pipeline,
+  the schema or a predicate; fewer, sharper points per review (ruled:
+  Roman queued it; observed: three diff reviews cost 731k and two of 25
+  findings mattered; reasoned: the saving is about 350k a frame, the
+  smallest of the post-mortem's changes).
+- Ends when: the lines are in `CLAUDE.md`, Roman has read them, and one
+  frame has run under them with both reviews' tokens on the stack.
+- Waits on: Roman's read of the lines.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 3,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:26 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
