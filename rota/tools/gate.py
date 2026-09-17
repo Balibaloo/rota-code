@@ -43,6 +43,12 @@ FALLBACK_MODEL = "qwen3:8b"
 #: (observed: `rota_serial_plugin.py`, `tests/rota/test_l1.py:129`).
 RECORDING_NAMES = ("ROTA_L1", "ROTA_T1", "ROTA_REFRESH", "ROTA_MODEL_FORCE")
 
+#: `PYTEST_ADDOPTS` goes out with them, because it edits the run the gate
+#: measures and shows in no line. `-x` truncates the run and
+#: `-p no:cacheprovider` removes the red set (observed: the diff review of
+#: 2026-09-17, the environment probe).
+DROPPED_NAMES = RECORDING_NAMES + ("PYTEST_ADDOPTS",)
+
 #: The one tree the gate runs. Extra pytest arguments are not passed through,
 #: so every gate run measures the same thing.
 SUITE = "tests/rota"
@@ -68,7 +74,7 @@ def child_env(model: str, temp_root: Path | None = None) -> dict[str, str]:
     root = Path(temp_root) if temp_root is not None else TEMP_ROOT
     env = dict(os.environ)
     env["ROTA_MODEL"] = model
-    for name in RECORDING_NAMES:
+    for name in DROPPED_NAMES:
         env.pop(name, None)
     root.mkdir(parents=True, exist_ok=True)
     # All three names change together. `tempfile.gettempdir()` reads them in
@@ -99,8 +105,26 @@ def _rerun(env: dict[str, str], ids: list[str]) -> str:
     return (child.stdout or "") + (child.stderr or "")
 
 
-def _stale(model: str) -> set[str]:
-    """The case ids with no recording against the current prompt."""
+def register_path() -> Path:
+    """The cassette database the stale line is read from."""
+    from .. import paths
+
+    return paths.DEV_DB
+
+
+def _stale(model: str) -> set[str] | None:
+    """
+    The case ids with no recording against the current prompt.
+
+    None means the register is not on this machine. The check comes first and
+    `casestatus.status` is never called, because `open_dev_db` creates an empty
+    database from a missing file. That empty file reports 127 NEW cases, and it
+    then stops `ensure_for_tests` from ever fetching the real one (observed: the
+    diff review of 2026-09-17, the probe in the worktree).
+    """
+    if not register_path().exists():
+        return None
+
     # Imported here, so that `import rota.tools.gate` opens no database.
     from . import casestatus
 
@@ -138,11 +162,10 @@ def of_the_suite(root: Path, node: str) -> bool:
     """
     True when the node id names a test file of the tree the gate runs.
 
-    The cache is shared with every other pytest run in this checkout. An id the
-    tree does not collect is an id pytest never drops, so it would read as a red
-    for ever. The first gate run found 29 ids for 23 reds: six came from a
-    review probe on a temp file and had an empty file part, like `::test_bad`
-    (observed: 2026-09-17, `.pytest_cache/v/cache/nodeids` held eight ids).
+    `main` deletes the cache before the run, so this filter holds two cases
+    only: a directory-level id like `tests/rota` from a collection error, and a
+    file removed while the run was in flight. Neither is a red this gate can
+    name.
     """
     file = node.split("::", 1)[0]
     return file.startswith(f"{SUITE}/") and (root / file).exists()
@@ -152,9 +175,8 @@ def red_ids(root: Path) -> set[str] | None:
     """
     The reds of this run, from pytest's cache.
 
-    Every key of this tree is a red of this run, because the gate always runs
-    the whole `tests/rota` tree, so pytest drops the ids that passed. None means
-    the cache is not there.
+    Every key is a red of this run, because `main` deletes the cache first and
+    then runs the whole `tests/rota` tree. None means the cache is not there.
     """
     path = root / LASTFAILED
     try:
@@ -199,9 +221,26 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     args = ap.parse_args(argv)
 
     root = Path(root) if root is not None else repo_root()
+    path = root / BASELINE_NAME
+    stored = None
+    if path.exists() and not args.baseline:
+        stored = _read_baseline(path)
+        # The gate never replaces a baseline in silence: a rewrite would drop
+        # the reds the file held, and every later run would read green. The
+        # refusal comes before the eight minutes of the run.
+        if stored is None:
+            print(f"baseline: did not parse ({path}); "
+                  "delete it or pass --baseline")
+            return 1
+
     model = args.model or os.environ.get("ROTA_MODEL") or FALLBACK_MODEL
     temp_root = TEMP_ROOT
     env = child_env(model, temp_root)
+
+    # The cache is cumulative: pytest drops only the ids it ran, so a removed
+    # parametrised id or a fixed collection error stays in it for ever under
+    # xdist (observed: the diff review of 2026-09-17, probe 1).
+    (root / LASTFAILED).unlink(missing_ok=True)
 
     log = root / LOG_NAME
     started = time.monotonic()
@@ -230,7 +269,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
                   "set is unknown")
             return 1
         failed = set()
-    stale = set(_stale(model))
+    stale = _stale(model)
 
     head = _head()
     record = {
@@ -240,11 +279,9 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         "model": model,
         "summary": summary,
         "failed": sorted(failed),
-        "stale": sorted(stale),
+        "stale": None if stale is None else sorted(stale),
         "seconds": round(seconds, 1),
     }
-    path = root / BASELINE_NAME
-    stored = _read_baseline(path)
     # With no baseline every known red is new, and the first run would print 22
     # tracebacks. That is the wall the gate exists to remove, so a run that
     # stores the baseline compares itself against itself.
@@ -253,20 +290,32 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     if wrote:
         _write_baseline(path, record)
 
-    base_failed = set(base.get("failed", []))
-    base_stale = set(base.get("stale", []))
+    base_failed = set(base.get("failed") or [])
     new_reds = sorted(failed - base_failed)
     gone = sorted(base_failed - failed)
-    came = sorted(stale - base_stale)
-    left = sorted(base_stale - stale)
 
-    print(f"suite: {summary}")
+    # The baseline's summary beside this run's: a change that stops 300 tests
+    # from collecting reads as green against the reds alone, and the reader has
+    # no other reference number.
+    first = f"suite: {summary}"
+    if not wrote:
+        first += f" (baseline: {base.get('summary', '')})"
+    print(first)
     print(f"new reds ({len(new_reds)}): {_listed(new_reds)}")
     print(f"reds gone ({len(gone)}): {_listed(gone)}")
-    line = f"stale ({len(stale)}): {_listed(sorted(stale))}"
-    if came or left:
-        line += f" (+{len(came)} -{len(left)} against baseline)"
-    print(line)
+
+    if stale is None:
+        print(f"stale: the register is absent ({register_path()})")
+    else:
+        line = f"stale ({len(stale)}): {_listed(sorted(stale))}"
+        base_stale = base.get("stale")
+        if base_stale is not None:
+            came = sorted(stale - set(base_stale))
+            left = sorted(set(base_stale) - stale)
+            if came or left:
+                line += f" (+{len(came)} -{len(left)} against baseline)"
+        print(line)
+
     print(f"time: {seconds:.1f}s, model {model}, temp root {temp_root}, "
           f"baseline {_short(base.get('commit', ''))} {base.get('when', '')}")
 
@@ -279,6 +328,10 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         print("note: the baseline was taken on an uncommitted tree at "
               f"{_short(base.get('commit', ''))}, so the compare is not "
               "commit to commit")
+    passed = count_in(summary, "passed")
+    was = count_in(base.get("summary") or "", "passed")
+    if not wrote and passed < was:
+        print(f"note: passed fell from {was} to {passed}")
 
     if new_reds:
         # A re-run of an L1 case writes `case_runs` rows through
@@ -287,13 +340,19 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         # misread the next report.
         out = _rerun(env, new_reds)
         after = red_ids(root)
+        flaky = [node for node in new_reds
+                 if after is not None and node not in after]
         print("")
-        for node in new_reds:
-            if after is not None and node not in after:
-                print(f"flaky: {node}")
+        for node in flaky:
+            print(f"flaky: {node}")
         print(out)
+        # A test that fails under load and passes alone is a defect, not noise,
+        # so a flaky red keeps the exit code at 1 (ruled: the diff review of
+        # 2026-09-17, point 7).
+        print(f"exit 1: {len(new_reds)} new reds, {len(flaky)} of them flaky")
+        return 1
 
-    return 1 if new_reds else 0
+    return 0
 
 
 if __name__ == "__main__":
