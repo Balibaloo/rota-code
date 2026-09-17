@@ -258,6 +258,11 @@ Rules:
   drains it on commit only, so a dead address reused by CPython can flip
   `test_arc_global_negative_no_writes_by_non_owners`. Whether a refs-only
   write lifts a quarantine (it does not today).
+- From frame 30's design review (observed: the reviewer's read of
+  `tests/rota/conftest.py`): the file defines `pytest_configure` twice,
+  the second at line 45 shadows the first at line 25, so the serial
+  guard in the first is dead. `rota_serial_plugin` still enforces it.
+  Meta workflow. Not in frame 30.
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
