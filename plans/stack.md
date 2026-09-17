@@ -45,6 +45,24 @@ Rules:
 - Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1.
 - Status 2026-09-17 01:17 (rota-b9): queued by Roman, unclaimed.
 
+### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
+
+- Meta workflow. Two lines in the assistant's brief: a change that is the
+  same edit in more than three files is a script, written with the Write
+  tool, run, its touched files printed, and the diff read once for the
+  judgement cases; a sub-agent only when the brief allows it, with a token
+  cap and its usage in the report. One tool: `rota/tools/sweep.py`, a glob
+  plus a regex or a `libcst` transform, bytes with each file's own line
+  endings, a diff stat out (ruled: Roman queued it from the post-mortem;
+  observed: 48 test files were swept by hand through four sub-agents).
+- Ends when: the lines are in `CLAUDE.md`, the tool exists with a test that
+  a CRLF file and an LF file keep their endings, and one frame's sweep ran
+  through it.
+- Waits on: Roman's read of the lines.
+- Reasoning: `plans/archive/postmortem-frame21-2026-09-16.md`, change 1,
+  and the post-mortem conversation of 2026-09-17.
+- Status 2026-09-17 01:22 (rota-b9): queued by Roman, unclaimed.
+
 ### 4. Roman's plan for sentence two (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's plan) Stop band-aiding the stdin door. Steps: 1 benchmark, 2 route a larger
