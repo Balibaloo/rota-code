@@ -117,6 +117,12 @@ Rules:
 - Status 2026-09-17 11:44 (rota-99): no cache (ruled: Roman, 2026-09-17: no cache is
   good if it is so cheap). The deviation from the frame's words is
   closed. A cache is its own frame if a query ever passes two seconds.
+- Status 2026-09-17 12:07 (rota-99): frame 24's agents used the map: the reviewer 5
+  map calls to 4 greps, the implementer 9 map calls to 1 grep, against
+  frame 21's unsourced 96 tool calls of finding (observed: the agents'
+  counts). Five of the implementer's nine missed: `file` wanted a repo
+  path and the agent gave a basename. A short pass makes `file` accept a
+  basename. The frame closes on that commit.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [90522022]
 
@@ -152,6 +158,12 @@ Rules:
   backslash, and the sample repo is CRLF. The record is amended. First
   map use by an agent: 5 map calls against 4 greps (observed: the
   reviewer's count; frame 29's last line). Implementer next.
+- Status 2026-09-17 12:07 (rota-99): the sweep is built, 341 lines, 20 tests, the
+  implementer's gate run zero new reds, 1872 passed, 513.9 s. Its first
+  run had one red it caused: `test_no_module_computes_its_own_location`,
+  fixed through `paths.PACKAGE`. Implementer pass: 77k, 36 tool calls, 9
+  map calls, 1 grep (observed: the harness line and the report). The
+  assistant's gate run before the commit is in progress.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
