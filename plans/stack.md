@@ -90,6 +90,13 @@ Rules:
   passed, 491.8 s. Tool-call counts beside the unsourced 96: scope 83,
   design review 31, implementer 55. `table refs` answers in 28 lines
   and shows both write paths. Diff review on a worktree at 33dbaa3 next.
+- Status 2026-09-17 11:25 (rota-99): diff review in, 74k and 25 tool calls, eight
+  findings, two high: the five `cite` ops joined no definition, and a
+  qualified `fn` query printed zero callers. Fix pass by the resumed
+  implementer: 46k, 36 tool calls, 22 tests, the gate zero new reds,
+  1852 passed, 483.5 s (observed: the harness lines and the gate). Fix
+  commit c780a6f. `mode` now 0.15 s. Second look on a worktree at
+  c780a6f next.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
