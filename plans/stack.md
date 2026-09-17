@@ -42,15 +42,15 @@ Rules:
   (ruled: Roman, 2026-09-17).
 - Ends when: three verdicts on the stack, one per agent type, each with
   the Fable tokens spent judging it.
-- Waits on: the two Opus agents.
+- Waits on: the end of the post-mortem grill, then the two Opus agents.
 - Reasoning: the post-mortem conversation of 2026-09-17; frame 26 for the
   agent types; `plans/archive/refs-design-2026-09-16.md` and the frame 21
   reviews in it for the known-good run.
 - Status 2026-09-17 01:34 (rota-b9): pushed by Roman, unclaimed.
 - Status 2026-09-17 01:36 (rota-b9): claimed; Roman raised this session's
-  limit to 400k because the context holds the known-good run. Reviewer
-  and implementer run on Opus in worktrees at 948c436 and e63762c with
-  the same briefs. The sweeper part has no clean ground truth (observed:
+  limit to 400k because the context holds the known-good run. Worktrees
+  are ready at 948c436 and e63762c; the Opus agents start after the
+  post-mortem grill ends. The sweeper part has no clean ground truth (observed:
   the sweep and the drop share commit 056995d); it folds into frame 24
   as the sweep tool's first use.
 
