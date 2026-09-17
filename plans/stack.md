@@ -73,6 +73,17 @@ Rules:
   sweep first needs a syntax-aware edit, not now (ruled: Roman,
   2026-09-17: a dependency carries a behaviour). The transform hook
   stays a plain Python file.
+- Status 2026-09-17 12:16 (rota-99): validating. The sweep is in (9d30b1b), 20 tests;
+  the sweeper definition runs through it (07c0307). The assistant's gate
+  run before the commit: zero new reds, 1872 passed, 510.1 s. Actual so
+  far against the 310k estimate, walls apart: design review 66k,
+  implementer 77k, the assistant's gate run 6k. Walls: none. Handed to
+  the standby peer at this commit: the diff review on a worktree at 9d30b1b
+  (points: the byte round-trip on the eight planted cases, the exit
+  table, the untracked-file rule, the hook's CR rejection, the test
+  recipe's autocrlf), its fix pass, and then frame 4's grill with Roman.
+  Waits on: the first sweep through the tool, which closes the frame.
+  Session 90522022 stops at the hand-off (ruled: Roman, 2026-09-17).
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
