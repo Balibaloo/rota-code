@@ -254,7 +254,26 @@ def test_an_absent_register_says_so_and_skips_the_stale_compare(
     capsys.readouterr()
     stage["stale"] = {"case-a"}
     assert _run(stage) == 0
-    assert _lines(capsys)[3] == "stale (1): case-a"
+    assert _lines(capsys)[3] == "stale (1): case-a (no stale baseline)"
+
+
+def test_a_baseline_with_no_stale_set_says_the_compare_did_not_happen(
+        stage, capsys):
+    """
+    A null stale baseline never regains a delta on its own.
+
+    The register comes back, the gate reports a set again, and the compare stays
+    skipped. The line says so, so the reader knows to store a new baseline.
+    """
+    _baseline(stage["root"], stale=None)
+    stage["stale"] = {"case-a"}
+
+    assert _run(stage) == 0
+    assert _lines(capsys)[3] == "stale (1): case-a (no stale baseline)"
+
+    _baseline(stage["root"], stale=["case-b"])
+    assert _run(stage) == 0
+    assert _lines(capsys)[3] == "stale (1): case-a (+1 -1 against baseline)"
 
 
 def test_the_first_line_carries_the_baselines_summary(stage, capsys):

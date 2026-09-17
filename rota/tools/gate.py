@@ -176,7 +176,13 @@ def red_ids(root: Path) -> set[str] | None:
     The reds of this run, from pytest's cache.
 
     Every key is a red of this run, because `main` deletes the cache first and
-    then runs the whole `tests/rota` tree. None means the cache is not there.
+    then runs the whole `tests/rota` tree.
+
+    None carries two meanings, and the caller tells them apart by the summary.
+    The cache is off, or the run was green: pytest writes `lastfailed` only when
+    the value changes, so a green run after the delete leaves no file at all
+    (observed: the reviewer's probe of 2026-09-17, a green `-n 2` run recreated
+    `nodeids` only).
     """
     path = root / LASTFAILED
     try:
@@ -309,7 +315,12 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     else:
         line = f"stale ({len(stale)}): {_listed(sorted(stale))}"
         base_stale = base.get("stale")
-        if base_stale is not None:
+        if base_stale is None:
+            # The baseline was taken with no register, so the delta has nothing
+            # to stand on. Said on the line: a silent skip would hold for ever
+            # once the register comes back.
+            line += " (no stale baseline)"
+        else:
             came = sorted(stale - set(base_stale))
             left = sorted(set(base_stale) - stale)
             if came or left:
