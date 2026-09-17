@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 29. The map: a query tool over the code (Roman, 2026-09-17) [fa029276]
+### 29. The map: a query tool over the code (Roman, 2026-09-17)
 
 - Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
   regex over the SQL literals, joined with `graph.json` and the `.tools`
@@ -55,6 +55,9 @@ Rules:
   implementer pass 90k for the tool and its tests; one fix pass 40k; the
   brief line costs no agent; the tool-call count comes from frame 24's
   agents. Estimate 200k, walls apart.
+- Status 2026-09-17 09:58 (rota-51): unclaimed (ruled: Roman, 2026-09-17:
+  session fa029276 loaded the agent types before their edits, so its
+  agents run stale prompts). The prices stand for the next claimant.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
