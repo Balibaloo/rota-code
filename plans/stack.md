@@ -62,6 +62,11 @@ Rules:
   session 32a42b78, relayed by rota-5d (ruled: Roman, 2026-09-17: 28's
   anchors first, then 29, then 24). This session started after 6140848
   and holds the types. rota-51's prices stand: 200k, walls apart.
+- Status 2026-09-17 10:10 (rota-99): a no-tool reviewer quoted e407e5d's command
+  line, so a type's body is live at spawn and only the type list is
+  fixed at session start (observed: the probe, 9.6k). The unclaim reason
+  of 10:01 does not hold for body edits. Scope report requested from a
+  reviewer on Opus, cap 80k; the design record follows it.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
