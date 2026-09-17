@@ -97,6 +97,14 @@ Rules:
   1852 passed, 483.5 s (observed: the harness lines and the gate). Fix
   commit c780a6f. `mode` now 0.15 s. Second look on a worktree at
   c780a6f next.
+- Status 2026-09-17 11:28 (rota-99): second look in, 23k and 10 tool calls: all
+  eight fixes confirmed, the false reader count is 0, no false site from
+  `rota/tools/`. Three low residuals: a shared name repeats its caller
+  list, the op join by line admits no miss, the record said 68 files.
+  The first two go to the implementer as a short pass, the record is
+  amended. After the commit the frame goes to validating: the last
+  ends-when line, agents using the map with their counts, is measured
+  by frame 24's agents.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
@@ -261,6 +269,10 @@ Rules:
   `batches.judge_touch` is the one registered verb with an underscore;
   `problem.set approval` and `verdicts.claim encodes` carry a space. Rota
   workflow.
+- From frame 29's second look (observed: `rota/tools/talk.py:72`, `:80`):
+  `talk.py` writes `entries` and `messages` with raw SQL on the run
+  database, outside `ctx.writes`, no receipt. A third raw write path
+  beside `refresh_constraint_zero`. Rota workflow.
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
