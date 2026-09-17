@@ -164,6 +164,10 @@ Rules:
   fixed through `paths.PACKAGE`. Implementer pass: 77k, 36 tool calls, 9
   map calls, 1 grep (observed: the harness line and the report). The
   assistant's gate run before the commit is in progress.
+- Status 2026-09-17 12:08 (rota-99): libcst joins the `dev` extra in the frame whose
+  sweep first needs a syntax-aware edit, not now (ruled: Roman,
+  2026-09-17: a dependency carries a behaviour). The transform hook
+  stays a plain Python file.
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
