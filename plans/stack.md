@@ -114,6 +114,9 @@ Rules:
   estimate missed the scope report and the second passes. Tool calls
   beside the unsourced 96: 83, 31, 55, 25, 36, 10, 14. Waits on: frame
   24's agents using the map, with their counts.
+- Status 2026-09-17 11:44 (rota-99): no cache (ruled: Roman, 2026-09-17: no cache is
+  good if it is so cheap). The deviation from the frame's words is
+  closed. A cache is its own frame if a query ever passes two seconds.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17) [90522022]
 
