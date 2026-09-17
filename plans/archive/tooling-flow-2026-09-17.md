@@ -1,5 +1,9 @@
 # The tooling flow (2026-09-17)
 
+Archived 2026-09-17 (rota-02): the chain is done except frame 4, which
+runs under the brief. The rules that survive are in `CLAUDE.md` and in
+`plans/operating-facts.md`, section "The build session's peers".
+
 Meta workflow. Roman ruled the order on 2026-09-17 after the post-mortem
 of frame 21 (`plans/archive/postmortem-frame21-2026-09-16.md`). This
 page is the plan a session reads before it claims a tooling frame.
