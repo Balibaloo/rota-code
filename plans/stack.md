@@ -62,6 +62,14 @@ Rules:
   design record will be `plans/archive/index-refresh-design-2026-09-17.md`.
 - Status 2026-09-17 14:25 (rota-02): pushed. The scope report is out to a
   reviewer-type agent, read-only, cap 60k.
+- Status 2026-09-17 14:52 (rota-02): the scope report is in, 76k on the
+  harness line against 50k priced and a 60k cap, 52 tool calls
+  (observed: the harness usage). Saved as
+  `plans/archive/index-refresh-scope-2026-09-17.md`. The design record
+  is written: one refresh function with a main flag, three hooks, the
+  freshness comparison skipped while a batch runs, five pinned tests.
+  The judgement call, the skip against an area_hashes table, is in the
+  record for Roman's read. Design review out, cap 80k.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
 
