@@ -32,9 +32,20 @@ measurement is on the stack.
   commit (ruled: Roman, 2026-09-17).
 - A standby peer waits with no frame. Its prime: "You are a standby
   peer. Do not claim a frame and do not read the stack yet. Reply with
-  your session id in one line, then wait. A hand-off arrives by message
-  from a peer: a frame number and a stack commit. When it does, follow
-  the wake steps in CLAUDE.md and claim that frame."
+  your session id in one line, then wait. Reply to any message within
+  one turn. A hand-off arrives by message from a peer: a frame number
+  and a stack commit. When it does, follow the wake steps in CLAUDE.md
+  and claim that frame."
+- The liveness probe, before a hand-off (ruled: Roman, 2026-09-17). List
+  the peers, then send every listed peer one line: "Reply in one line:
+  your session id, and whether you hold a frame or are a clean
+  standby." A send succeeds even to a closed session, and the row stays
+  listed, so a successful send proves nothing (observed: 2026-09-17,
+  four rows, three replies within a minute, one row closed by Roman's
+  count). The reply is the only signal: a clean standby answers, a
+  spent session says so, a closed one is silent. Hand off to the first
+  clean peer that answers, and tell the others to stand by. Do not wait
+  for Roman to name the peer.
 - A session started before frame 26 landed does not see the agent types
   implementer, reviewer and sweeper. It restarts before it claims a
   frame that needs them (observed: frame 29 was unclaimed for this on
