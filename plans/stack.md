@@ -35,9 +35,10 @@ Rules:
   with the same briefs, in parallel: the review of 948c436 (reviewer),
   stage 1 from e63762c in a worktree (implementer), the 48-file sweep from
   b4dc845 as a script (sweeper). Opus is cheap; Fable is the scarce
-  resource. A Fable peer judges each output by working back from it: the
-  suite on the commits, the findings against the ten found and the two
-  that mattered, spot reads of hunks. No scoring apparatus, no full read
+  resource. A Fable peer reads each output in full, the diff, the report,
+  the findings, and never the transcript or the reasoning. It judges by
+  working back from the output: the suite on the commits, the findings
+  against the ten found and the two that mattered. No scoring apparatus
   (ruled: Roman, 2026-09-17).
 - Ends when: three verdicts on the stack, one per agent type, each with
   the Fable tokens spent judging it.
