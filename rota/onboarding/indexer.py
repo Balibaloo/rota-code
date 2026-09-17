@@ -506,8 +506,31 @@ class RefreshReport:
     commit: str = ""
 
 
+def note_refresh_failure(conn: sqlite3.Connection, batch_id: str | None,
+                         exc: BaseException) -> None:
+    """
+    Why the index is behind, where a reader of an empty probe can see it.
+
+    One function for the three callers that catch a refresh: the runner after a
+    landed commit, and the lifecycle on both of its doors. `code.probe` reads
+    the row when nothing matched, the way a missing worktree is read from
+    `worktree:<batch>`. A refresh that then works clears the row, so the note
+    describes the index as it is now and not as it was one attempt ago.
+    """
+    if not batch_id:
+        return
+    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                 (f"index:{batch_id}", str(exc)[:300]))
+
+
+def _refresh_worked(conn: sqlite3.Connection, batch_id: str | None) -> None:
+    """The index is current for this batch, so the failure note goes."""
+    if batch_id:
+        conn.execute("DELETE FROM config WHERE key = ?", (f"index:{batch_id}",))
+
+
 def refresh(conn: sqlite3.Connection, tree: str | Path, *,
-            main: bool) -> RefreshReport:
+            main: bool, batch_id: str | None = None) -> RefreshReport:
     """
     Re-index a tree, and say which tree the index now describes.
 
@@ -527,6 +550,9 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
     the areas already done, and the batch's own files are no reason to move it.
     No area hashes and no `project_commit`: the config names main's head, and
     main did not move (the design review, 2026-09-17, points 1 and 3).
+
+    `batch_id` names the batch whose readers depend on this refresh. It carries
+    no work: it only says whose failure note to clear when the refresh works.
     """
     tree = Path(tree)
     if main:
@@ -542,6 +568,7 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
             if value:
                 conn.execute("INSERT OR REPLACE INTO config (key, value) "
                              "VALUES (?, ?)", (key, value))
+        _refresh_worked(conn, batch_id)
         return RefreshReport(index=report, branch=branch, commit=commit)
 
     from . import areas as areas_mod
@@ -577,4 +604,5 @@ def refresh(conn: sqlite3.Connection, tree: str | Path, *,
         if area:
             conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
                          (area, row["grain"]))
+    _refresh_worked(conn, batch_id)
     return RefreshReport(index=report)

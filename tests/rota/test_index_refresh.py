@@ -347,3 +347,20 @@ def test_an_empty_probe_says_when_the_index_is_behind(world):
     hits = _probe(db, "accounts", batch_id="b1")
     assert hits and all("note" not in row for row in hits), \
         "a probe that matches is a read, not a note"
+
+
+def test_a_refresh_that_works_ends_the_note_the_failed_one_left(world):
+    """Nothing cleared the row, so one failed resume told every later probe
+    that the index was behind, long after a refresh had caught it up."""
+    db, repo, tree = world
+    db.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
+               "('index:b1', 'no tree to index at /gone')")
+    db.commit()
+    assert "note" in _probe(db, "echo_json", batch_id="b1")[0]
+
+    indexer.refresh(db, tree, main=False, batch_id="b1")
+
+    assert db.execute("SELECT 1 FROM config WHERE key = 'index:b1'"
+                      ).fetchone() is None, "a refresh that worked clears it"
+    assert _probe(db, "echo_json", batch_id="b1") == [], \
+        "an empty probe with a current index is a read that found nothing"

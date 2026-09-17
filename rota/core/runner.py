@@ -2417,15 +2417,20 @@ def _refresh_index(conn: sqlite3.Connection, result: SessionResult) -> None:
     from ..onboarding import indexer
     from . import harness
 
-    tree = harness.worktree_of(conn, landed[-1])
+    batch_id = landed[-1]
+    tree = harness.worktree_of(conn, batch_id)
     if not tree:
         return
     try:
-        indexer.refresh(conn, tree, main=False)
+        indexer.refresh(conn, tree, main=False, batch_id=batch_id)
     except Exception as exc:                # noqa: BLE001 -- the index is not the session
         # Every exception, not a list of two. The session's writes are already
         # committed here, so anything that escapes reaches `run_session`'s
         # handler and fails a session whose rows are on record.
+        #
+        # Twice: in the session's record, for the reader of this session, and
+        # under `index:<batch>`, for the next session's empty probe.
+        indexer.note_refresh_failure(conn, batch_id, exc)
         session_note(conn, result.session_id,
                      [f"the code index still describes the tree as it was "
                       f"before this commit: {exc!r}"])

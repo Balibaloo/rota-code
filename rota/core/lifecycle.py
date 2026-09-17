@@ -45,14 +45,14 @@ def _reindex_main(conn: sqlite3.Connection, batch_id: str) -> None:
     from . import worktrees
 
     try:
-        indexer.refresh(conn, worktrees.project_root(conn), main=True)
+        indexer.refresh(conn, worktrees.project_root(conn), main=True,
+                        batch_id=batch_id)
     except Exception as exc:                    # noqa: BLE001 -- best effort
         # Every exception, not a list of two. A parse error, a locked database
         # or a bug in the walk would otherwise escape after `status` already
         # says merged, and the caller would read a delivered batch as a failed
         # transition.
-        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                     (f"index:{batch_id}", str(exc)[:300]))
+        indexer.note_refresh_failure(conn, batch_id, exc)
 
 
 def _reindex_batch(conn: sqlite3.Connection, batch_id: str, tree) -> None:
@@ -60,10 +60,9 @@ def _reindex_batch(conn: sqlite3.Connection, batch_id: str, tree) -> None:
     from ..onboarding import indexer
 
     try:
-        indexer.refresh(conn, tree, main=False)
+        indexer.refresh(conn, tree, main=False, batch_id=batch_id)
     except Exception as exc:                    # noqa: BLE001 -- best effort
-        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-                     (f"index:{batch_id}", str(exc)[:300]))
+        indexer.note_refresh_failure(conn, batch_id, exc)
 
 
 def start(conn: sqlite3.Connection, batch_id: str) -> None:

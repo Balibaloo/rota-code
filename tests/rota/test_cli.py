@@ -47,6 +47,25 @@ def _run(home: Path, name: str, root: Path | None = None) -> Path:
     return path
 
 
+def test_a_typed_root_never_destroys_the_run_it_was_meant_to_replace(
+        home, tmp_path):
+    """`--force` wipes the run before onboarding it again. The root check
+    used to come after the wipe, so a typed path took the run with it and
+    then refused: the operator lost a run to a typing mistake."""
+    import argparse
+
+    path = _run(home, "keepme", root=tmp_path)
+    before = path.read_bytes()
+    args = argparse.Namespace(name="keepme", root=str(tmp_path / "typo"),
+                              force=True, profile=None)
+
+    with pytest.raises(SystemExit, match="no tree at"):
+        cli.cmd_onboard(args)
+
+    assert path.exists(), "the run the operator meant to replace is still there"
+    assert path.read_bytes() == before
+
+
 # ---------------------------------------------------------------------------
 # Naming
 # ---------------------------------------------------------------------------

@@ -445,6 +445,15 @@ def onboard(path: Path, root: str | Path):
 
 def cmd_onboard(args: argparse.Namespace) -> int:
     path = resolve(args.name)
+    # First, before the run is touched. Onboarding refuses a root that is not
+    # there, and the refusal used to come after `wipe(path)`: a typed root with
+    # `--force` destroyed the existing run and then said no tree. It also used
+    # to come after the database was made, so the retry answered "exists, use
+    # --force" about a run that never onboarded.
+    root = Path(args.root).resolve()
+    if not root.is_dir():
+        raise SystemExit(f"no tree at {root}")
+
     if path.exists():
         if not args.force:
             raise SystemExit(
@@ -453,12 +462,6 @@ def cmd_onboard(args: argparse.Namespace) -> int:
                 f"`rota onboard <other-name>` keeps both")
         wipe(path)
 
-    root = Path(args.root).resolve()
-    # Before the database is made. Onboarding refuses a root that is not there,
-    # and a traceback after `resolve(args.name)` left the file behind, so the
-    # retry answered "exists, use --force" about a run that never onboarded.
-    if not root.is_dir():
-        raise SystemExit(f"no tree at {root}")
     if not (root / ".git").exists():
         print(f"note: {root} is not a git checkout; batches will have no worktree")
     report = onboard(path, root)
