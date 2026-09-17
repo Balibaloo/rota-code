@@ -380,6 +380,18 @@ CREATE TABLE IF NOT EXISTS code_index (
     content_hash TEXT NOT NULL DEFAULT ''
 );
 
+-- Each area's aggregate content, as main last stood. Stamped by onboarding and
+-- by every refresh of the main checkout, and read by the freshness rule to ask
+-- whether an area moved since a survey attested it. It is a table rather than a
+-- live aggregate of `code_index` because the index describes the running
+-- batch's worktree between a commit and the merge, and a batch's own files must
+-- not reopen a survey. Mechanical like the index: rebuilt, never decided, and
+-- no role writes it.
+CREATE TABLE IF NOT EXISTS area_hashes (
+    area TEXT PRIMARY KEY,
+    hash TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS code_edges (      -- dependency graph, input to partitioning
     src   TEXT NOT NULL,
     dst   TEXT NOT NULL,

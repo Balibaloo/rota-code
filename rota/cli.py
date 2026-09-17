@@ -653,7 +653,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     """
     from .core.db import connect
     from .core.scheduler import tick_survey
-    from .onboarding import boot, indexer
+    from .onboarding import indexer
 
     path = require(args.name)
     conn = connect(path)
@@ -661,12 +661,10 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         root = args.root or _root_of(path)
         if not root:
             raise SystemExit("this run records no project root; pass --root")
-        branch, commit = checkout_of(root)
-        report = indexer.build(conn, root)
-        boot.repin(conn, root)
-        if commit:
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
-                         "('project_commit', ?)", (commit,))
+        # The same function the lifecycle calls when a batch stops running, so
+        # the operator's refresh and the loop's cannot drift apart.
+        done = indexer.refresh(conn, root, main=True)
+        report, branch, commit = done.index, done.branch, done.commit
         conn.commit()
         reopened = sorted({w.refs[0] for w in tick_survey(conn)})
         from .tools.audit import orphaned_grain_refs

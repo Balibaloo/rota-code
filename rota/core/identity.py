@@ -71,6 +71,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
                               "indexer is the only writer"),
     "code_edges": ("content", "derived with the index, from the same parse"),
     "code_lexicon": ("content", "derived with the index; rebuilt by repin"),
+    "area_hashes": ("content", "one aggregate of the index per area; stamped "
+                               "by onboarding and by every refresh of main"),
     "batch_touch": ("content", "the predicted touch set, derived per batch"),
     "touch_strays": ("content", "paths a commit touched outside the predicted touch set, per commit"),
 

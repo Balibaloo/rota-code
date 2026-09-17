@@ -1420,8 +1420,8 @@ def test_a_refresh_under_a_running_batch_disturbs_nothing_it_should_not(tmp_path
     (repo.root / "src/billing/charges.py").unlink()
     repo.commit_in(repo.root, "upstream moved")
 
-    indexer.build(db, repo.root)
-    boot.repin(db, repo.root)
+    # `rota refresh` and the lifecycle's refresh are the same function.
+    indexer.refresh(db, repo.root, main=True)
     db.commit()
 
     row = db.execute("SELECT status, head_commit, worktree FROM batches "

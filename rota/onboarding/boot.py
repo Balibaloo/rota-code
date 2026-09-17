@@ -83,6 +83,10 @@ def onboard(conn: sqlite3.Connection, root: str | Path) -> OnboardReport:
     report = indexer.build(conn, root)
     proposal = areas_mod.propose(conn)
     count = areas_mod.pin(conn, proposal)
+    # The areas exist now, so each one's content can be stamped. The freshness
+    # rule reads the stamp, not the index, because the index follows the
+    # running batch's worktree while a batch runs.
+    indexer.stamp_area_hashes(conn)
     words = lexicon_mod.build(conn, root)
     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES "
                  "('project_root', ?)", (str(Path(root)),))
@@ -208,6 +212,10 @@ def repin(conn: sqlite3.Connection, root: str | Path) -> int:
     count = areas_mod.pin(conn, proposal)
     lexicon_mod.build(conn, root)
     refresh_constraint_zero(conn)
+    # Last, over the re-pinned partition: an area that changed name or content
+    # must carry the hash of what it holds now. Every main-checkout refresh
+    # comes through here, so this is the one place the stamp is renewed.
+    indexer.stamp_area_hashes(conn)
     return count
 
 

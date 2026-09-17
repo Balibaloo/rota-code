@@ -86,7 +86,9 @@ def test_an_attest_stamps_the_tree_the_session_read(tmp_path, repo):
     repo.edit(repo.root, rel, "# the tree moved\n" +
               (repo.root / rel).read_text(encoding="utf-8"))
     repo.commit_in(repo.root, "moved under a running survey")
-    indexer.build(conn, repo.root)
+    # The whole refresh, not `build` alone: the area's hash is stamped by a
+    # refresh of the main checkout, so a bare rebuild leaves the old stamp.
+    indexer.refresh(conn, repo.root, main=True)
     assert area_content_hash(conn, area) != hash_at_wake, \
         "the fixture's move must actually change the area"
 

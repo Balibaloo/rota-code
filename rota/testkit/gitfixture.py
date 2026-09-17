@@ -84,8 +84,14 @@ class SampleRepo:
 
         The path is derived from the repo root rather than taken as an argument
         precisely so a caller cannot place one outside the sandbox.
+
+        `<root>/.rota/worktrees/<name>` is where `worktrees.worktree_home` puts
+        a batch's tree in production. Beside the root, as this was until
+        2026-09-17, a test walked a layout no run has: `.rota` is in the
+        indexer's skip set, so a worktree inside the project is the case that
+        has to work.
         """
-        path = self.root.parent / "worktrees" / name
+        path = self.root / ".rota" / "worktrees" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         if not is_temp_rooted(path):
             raise RuntimeError(

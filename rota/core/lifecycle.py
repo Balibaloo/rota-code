@@ -25,6 +25,43 @@ import sqlite3
 from . import config
 
 
+def _reindex_main(conn: sqlite3.Connection, batch_id: str) -> None:
+    """
+    The index describes main again, now that this batch has stopped running.
+
+    Every door out of `running` comes here: merged, abandoned and deferred.
+    Between a Developer's commit and that moment the index describes the
+    batch's worktree, and after it the worktree is either gone or owned by
+    nobody. The refresh also re-pins the partition and stamps the area hashes,
+    so a merged change reopens the areas it touched exactly once.
+
+    Best effort. A run with no project root, no git, or no tree on disk still
+    changes the batch's status: the transition is a fact about the schedule,
+    and the index is a derived view of a checkout this run may not have. The
+    reason is recorded, never swallowed silently -- a swallowed one let a
+    Developer write on the project's master for 160 steps (tipsP, 2026-09-09).
+    """
+    from ..onboarding import indexer
+    from . import worktrees
+
+    try:
+        indexer.refresh(conn, worktrees.project_root(conn), main=True)
+    except (worktrees.WorktreeError, indexer.IndexRefreshError, OSError) as exc:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"index:{batch_id}", str(exc)[:300]))
+
+
+def _reindex_batch(conn: sqlite3.Connection, batch_id: str, tree) -> None:
+    """The index describes this batch's worktree. Best effort, as above."""
+    from ..onboarding import indexer
+
+    try:
+        indexer.refresh(conn, tree, main=False)
+    except (indexer.IndexRefreshError, OSError) as exc:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                     (f"index:{batch_id}", str(exc)[:300]))
+
+
 def start(conn: sqlite3.Connection, batch_id: str) -> None:
     """
     Dispatch. Only reachable through `batch_start`, which already refused if
@@ -85,6 +122,12 @@ def start(conn: sqlite3.Connection, batch_id: str) -> None:
             # break what the tree already proved (tipsY, 2026-09-09).
             from . import harness
             harness.inherit(conn, batch_id, _Path(row["worktree"]))
+            # A resumed batch brings its own commits back with it, and the
+            # index has described main since it stopped. Without this, the
+            # first session of the resumed batch probes for symbols the batch
+            # itself already wrote and finds nothing.
+            if head_of(conn, batch_id):
+                _reindex_batch(conn, batch_id, _Path(row["worktree"]))
 
 
 def defer(conn: sqlite3.Connection, batch_id: str) -> None:
@@ -109,6 +152,7 @@ def defer(conn: sqlite3.Connection, batch_id: str) -> None:
     conn.execute("UPDATE batches SET status = 'deferred' WHERE id = ?", (batch_id,))
     conn.execute("UPDATE checkpoints SET valid = 0 WHERE batch_id = ?", (batch_id,))
     environments.teardown(conn, batch_id, release_ports=False)
+    _reindex_main(conn, batch_id)
 
 
 def abandon(conn: sqlite3.Connection, batch_id: str) -> None:
@@ -132,6 +176,7 @@ def abandon(conn: sqlite3.Connection, batch_id: str) -> None:
     conn.execute("UPDATE checkpoints SET valid = 0 WHERE batch_id = ?",
                  (batch_id,))
     environments.teardown(conn, batch_id, release_ports=True)
+    _reindex_main(conn, batch_id)
 
 
 def merge(conn: sqlite3.Connection, batch_id: str) -> None:
@@ -188,6 +233,10 @@ def merge(conn: sqlite3.Connection, batch_id: str) -> None:
         worktrees.destroy(conn, batch_id)
     except worktrees.WorktreeError:
         pass
+    # Last: the worktree the index described is gone, and main now carries the
+    # merge. The areas the batch touched reopen once, here, rather than on
+    # every commit the batch made.
+    _reindex_main(conn, batch_id)
 
 
 def head_of(conn: sqlite3.Connection, batch_id: str) -> str | None:

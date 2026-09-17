@@ -152,6 +152,7 @@ def test_ls_reports_when_a_run_was_made_and_when_it_was_last_opened(
 
     path = home / "fresh.db"
     conn = init_db(path)
+    (tmp_path / "empty").mkdir()       # onboarding refuses a root that is not there
     boot.onboard(conn, tmp_path / "empty")
     mark_opened(conn)
     conn.close()
@@ -171,6 +172,7 @@ def test_a_second_onboarding_does_not_move_the_creation_date(home, tmp_path):
     from rota.onboarding import boot
 
     conn = init_db(home / "twice.db")
+    (tmp_path / "empty").mkdir()       # onboarding refuses a root that is not there
     boot.onboard(conn, tmp_path / "empty")
     first = conn.execute(
         "SELECT value FROM config WHERE key = 'created_at'").fetchone()["value"]

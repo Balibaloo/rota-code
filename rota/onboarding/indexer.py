@@ -324,13 +324,20 @@ def walk(root: Path) -> list[Path]:
     the same question. `.rota/` is *our* state directory inside somebody else's
     project: untracked, and nothing obliges them to have ignored it, so git
     would list it and it must never be indexed.
+
+    The skip test reads the path **relative to `root`**, not the absolute path.
+    A batch worktree is `<project>/.rota/worktrees/<batch>`, so every file in it
+    carries `.rota` above the root, and the absolute test skipped all of them:
+    the walk of a worktree returned nothing and a refresh of it would have
+    emptied the index (the design review, 2026-09-17). What `root` itself sits
+    under is the caller's business; what is inside it is this function's.
     """
     keep = tracked(root)
     out = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        if any(part in SKIP_DIRS for part in path.parts):
+        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
             continue
         if keep is not None and path.resolve() not in keep:
             continue
@@ -338,6 +345,17 @@ def walk(root: Path) -> list[Path]:
             continue
         out.append(path)
     return out
+
+
+class IndexRefreshError(RuntimeError):
+    """
+    The tree cannot be indexed, so the old index stays.
+
+    The swap empties both tables before it fills them. A root that is gone, or
+    one whose walk returns nothing while git still lists files, would therefore
+    replace the index with an empty one and report success. The caller keeps
+    what it has and records the failure instead.
+    """
 
 
 def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
@@ -348,12 +366,24 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     a commit — a file deleted upstream must leave the index, and a merge that
     keeps stale grains is how `code.probe` starts returning paths that are not
     there.
+
+    Two refusals come before the swap, because the swap deletes first. A missing
+    root is a destroyed worktree or a moved project. An empty walk of a root that
+    git says holds files is a bug in the walk, and an index emptied by one is
+    indistinguishable from a deleted codebase to every reader downstream.
     """
     root = Path(root)
+    if not root.is_dir():
+        raise IndexRefreshError(f"no tree to index at {root}")
     report = IndexReport()
 
+    files = walk(root)
+    if not files and tracked(root):
+        raise IndexRefreshError(
+            f"the walk of {root} found nothing while git lists tracked files")
+
     facts: list[FileFacts] = []
-    for path in walk(root):
+    for path in files:
         try:
             source = path.read_bytes()
         except OSError:                                     # pragma: no cover
@@ -428,3 +458,126 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
     report.files = len(facts)
     report.edges = len(edges)
     return report
+
+
+def stamp_area_hashes(conn: sqlite3.Connection) -> int:
+    """
+    Record each area's aggregate content, as the index stands now.
+
+    The same aggregate `area_content_hash` computed live from path grains until
+    2026-09-17: the area's `grain=content_hash` pairs, sorted, joined by `|`,
+    sha256, sixteen characters. It moved into a table because the index no
+    longer describes one tree for the whole run. Between a commit and the merge
+    the index describes the batch's worktree, and a freshness rule that read the
+    index live would reopen every touched area on every Developer commit.
+
+    Stamped by onboarding and by every refresh of the main checkout, so the
+    comparison answers "has main moved since the survey", which is the question
+    the rule was written for. Rebuilt, never decided: no role writes it.
+    """
+    per: dict[str, list[str]] = {}
+    for row in conn.execute(
+            "SELECT area, grain, content_hash FROM code_index "
+            "WHERE grain_kind = 'path' AND area IS NOT NULL "
+            "AND content_hash != '' ORDER BY grain"):
+        per.setdefault(row["area"], []).append(
+            f"{row['grain']}={row['content_hash']}")
+    stamped = [(area, hashlib.sha256("|".join(parts).encode()).hexdigest()[:16])
+               for area, parts in per.items()]
+    # Replaced whole, in one transaction, for the reason the index swap is one:
+    # a half-written table reads as "these areas moved" and reopens them.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM area_hashes")
+        conn.executemany("INSERT INTO area_hashes (area, hash) VALUES (?, ?)",
+                         stamped)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    return len(stamped)
+
+
+@dataclass
+class RefreshReport:
+    """What a refresh did, for an operator to print."""
+    index: IndexReport
+    branch: str = ""
+    commit: str = ""
+
+
+def refresh(conn: sqlite3.Connection, tree: str | Path, *,
+            main: bool) -> RefreshReport:
+    """
+    Re-index a tree, and say which tree the index now describes.
+
+    Two trees, two contracts.
+
+    `main=True` is `rota refresh`: the main checkout at its new head. The
+    partition, the lexicon and constraint zero are re-derived over it, the area
+    hashes are stamped, and `config.project_commit` names the commit indexed.
+    Every reader is then reading main again. The lifecycle calls this when a
+    batch stops running -- merged, abandoned or deferred -- so the index never
+    describes a worktree no batch owns.
+
+    `main=False` is a batch's worktree after the Developer's commit landed. The
+    grains change, the partition does not: each surviving grain keeps the area
+    it had, and a new path takes the area of its nearest indexed ancestor. No
+    re-pin, because a partition that moves under a half-finished survey strands
+    the areas already done, and the batch's own files are no reason to move it.
+    No area hashes and no `project_commit`: the config names main's head, and
+    main did not move (the design review, 2026-09-17, points 1 and 3).
+    """
+    tree = Path(tree)
+    if main:
+        report = build(conn, tree)
+        # Imported here: `boot` imports this module at its top.
+        from . import boot
+
+        boot.repin(conn, tree)                  # repin stamps the area hashes
+        branch, commit = boot.checkout_of(tree)
+        # Only over a value. A tree with no git answers empty, and an empty
+        # value written over the real one would make the run describe no commit.
+        for key, value in (("project_commit", commit), ("project_branch", branch)):
+            if value:
+                conn.execute("INSERT OR REPLACE INTO config (key, value) "
+                             "VALUES (?, ?)", (key, value))
+        return RefreshReport(index=report, branch=branch, commit=commit)
+
+    from . import areas as areas_mod
+
+    was = {row["grain"]: row["area"] for row in
+           conn.execute("SELECT grain, area FROM code_index")}
+    areas = {area for area in was.values() if area}
+    report = build(conn, tree)
+    # The build leaves `area` NULL, so the column is restored rather than
+    # re-derived. A grain the build dropped is simply not updated.
+    conn.executemany("UPDATE code_index SET area = ? WHERE grain = ?",
+                     [(area, grain) for grain, area in was.items() if area])
+    # A file the batch added. The walk `_attach_tests` uses: strip the test
+    # components, then climb to the nearest area that exists, and land at the
+    # root when none does. Deriving it keeps `code.survey` and every
+    # area-scoped reader able to see the batch's new file.
+    new_areas: dict[str, str] = {}
+    for row in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'path' "
+            "AND area IS NULL").fetchall():
+        grain = row["grain"]
+        target = areas_mod._untest(areas_mod._directory(grain))
+        while target and target not in areas:
+            target = areas_mod._parent(target)
+        new_areas[grain] = target if target in areas else "."
+    for grain, area in new_areas.items():
+        conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
+                     (area, grain))
+    # A symbol is in the area of the file that defines it, as `areas.pin` has
+    # it, so a new definition is not an area of its own.
+    for row in conn.execute(
+            "SELECT grain FROM code_index WHERE grain_kind = 'symbol' "
+            "AND area IS NULL").fetchall():
+        path = row["grain"].split("::", 1)[0]
+        area = new_areas.get(path, was.get(path))
+        if area:
+            conn.execute("UPDATE code_index SET area = ? WHERE grain = ?",
+                         (area, row["grain"]))
+    return RefreshReport(index=report)

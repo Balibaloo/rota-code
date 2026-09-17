@@ -2456,22 +2456,23 @@ def _re_split_paths(val: str) -> list[str]:
 
 def area_content_hash(conn, area: str) -> str:
     """
-    The area's aggregate content, from the index the sessions read.
+    The area's aggregate content, as main last stood.
 
-    Path grains only, sorted, so the value is a function of (files, contents)
-    and nothing else. Empty when the area holds no path grains or the index
-    predates content hashes -- and empty never matches a real digest, so an
-    old record reads as "view unknown" rather than "still fresh".
+    The value is the same aggregate this function used to compute live from the
+    path grains: sorted, a function of (files, contents) and nothing else. It is
+    read from `area_hashes` because the index no longer describes one tree for
+    the whole run. Between a Developer's commit and the merge it describes the
+    batch's worktree, and a live aggregate would then reopen every touched area
+    on every commit the batch makes. `indexer.stamp_area_hashes` writes the
+    table at onboarding and at every refresh of the main checkout.
+
+    Empty when the area has no stamp -- a new area, an area with no path grains,
+    or a database from before the table. Empty never matches a real digest, so
+    an old record reads as "view unknown" rather than "still fresh".
     """
-    import hashlib
-
-    rows = [f"{r['grain']}={r['content_hash']}" for r in conn.execute(
-        "SELECT grain, content_hash FROM code_index "
-        "WHERE grain_kind = 'path' AND area = ? AND content_hash != '' "
-        "ORDER BY grain", (area,))]
-    if not rows:
-        return ""
-    return hashlib.sha256("|".join(rows).encode()).hexdigest()[:16]
+    row = conn.execute("SELECT hash FROM area_hashes WHERE area = ?",
+                       (area,)).fetchone()
+    return (row["hash"] if row else "") or ""
 
 
 @op("surveys", "attest")

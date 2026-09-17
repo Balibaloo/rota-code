@@ -2279,15 +2279,8 @@ def run_session(
             result.messages = [
                 m for m in result.messages
                 if not (m.to_role == "principal" and m.verb == "confirm")]
-        session_commit(conn, result)
+        after_landing(conn, result)
         session_note(conn, session_id, outcome.errors)
-        # A ruling the Liaison read lands now, through the one door, after
-        # the reading is on record. Inside the session it would land a
-        # ruling from a session that then died.
-        if any(w.table == "rulings" for w in result.writes):
-            from ..roles.principal import apply_rulings
-
-            apply_rulings(conn)
         outcome.committed = True
         outcome.result = result
         return outcome
@@ -2374,6 +2367,65 @@ def _derive_frame_record(conn, sb) -> None:
         sb.ctx.writes.append(("survey_citations", f"{rid}:{grain}",
                               {"survey_id": rid, "grain": grain,
                                "resolves": 1}))
+
+
+def after_landing(conn: sqlite3.Connection, result: SessionResult) -> None:
+    """
+    What the world does once a session's writes are on record.
+
+    Three acts, in order, and every one of them outside the session. A role that
+    could perform any of them from inside would be deciding its own
+    consequences, and a session that died between the act and the commit would
+    leave the act with no rows to explain it.
+
+    One function rather than three statements in `run_session`, so a test can
+    land a session the way the loop lands one.
+    """
+    session_commit(conn, result)
+    # A ruling the Liaison read lands now, through the one door, after
+    # the reading is on record. Inside the session it would land a
+    # ruling from a session that then died.
+    if any(w.table == "rulings" for w in result.writes):
+        from ..roles.principal import apply_rulings
+
+        apply_rulings(conn)
+    _refresh_index(conn, result)
+
+
+def _refresh_index(conn: sqlite3.Connection, result: SessionResult) -> None:
+    """
+    The batch's worktree, re-indexed after the commit this session landed.
+
+    `code.probe(pattern='echo_json')` returned nothing for a symbol the batch
+    had committed (finding 42, click night 46): the index was built once at
+    onboarding and nothing after a commit touched it. Keyed on the `batches`
+    write that carries `head_commit`, so it is one build per Developer session
+    that committed, not one per commit.
+
+    Not inside `code.commit`: that would be a raw write on the session's
+    connection, and a session that died after it would leave the index ahead of
+    the rows that say the commit happened.
+
+    A failure keeps the old index and says so in the session's record. An index
+    of the wrong tree answers some probes wrongly; an emptied one tells every
+    reader the codebase is gone.
+    """
+    landed = [w.row_id for w in result.writes
+              if w.table == "batches" and "head_commit" in (w.values or {})]
+    if not landed:
+        return
+    from ..onboarding import indexer
+    from . import harness
+
+    tree = harness.worktree_of(conn, landed[-1])
+    if not tree:
+        return
+    try:
+        indexer.refresh(conn, tree, main=False)
+    except (indexer.IndexRefreshError, OSError) as exc:
+        session_note(conn, result.session_id,
+                     [f"the code index still describes the tree as it was "
+                      f"before this commit: {exc!r}"])
 
 
 def _as_write(staged: tuple) -> Write:
