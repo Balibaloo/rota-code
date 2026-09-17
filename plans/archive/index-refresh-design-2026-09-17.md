@@ -131,3 +131,81 @@ pipeline or a predicate ends on a walk).
    worktree.
 5. Whether `frame_repinned` (`scheduler.py:481-484`) holds after a
    `main=True` refresh mid-night.
+
+## Design review, 2026-09-17
+
+A reviewer-type agent, read-only, 78k on the harness line, 34 tool
+calls. Eight points and three findings outside them. The assistant's
+ruling on each follows the finding (ruled: the assistant, in the smart
+zone, 2026-09-17).
+
+1. **The freshness skip is wrong** (observed: the reviewer read
+   `tests/rota/test_onboarding.py:1391-1433`, which holds a batch at
+   `running` and asserts the edited area reopens; the skip turns that
+   test red, and the skip lifts on abandon and defer while the index
+   still describes a dead worktree). Ruling: drop the skip. Build the
+   `area_hashes(area, hash)` table, stamped by onboarding after
+   `areas.pin`, at the end of `boot.repin`, and so by every
+   `main=True` refresh. `area_content_hash` reads the table. No
+   predicate changes.
+2. **Hook 1 holds, with one defect** (observed: `runner.py:2379-2382`
+   carries the batch id and `head_commit` in the write; the landing is
+   committed before 2282, the connection is autocommit, `build` opens
+   its own transaction; a gone worktree makes `walk` return `[]` and
+   `build` then empties both tables). Ruling: `refresh` raises when the
+   tree is missing or when `walk` is empty for a root with tracked
+   files. The runner catches, notes, and keeps the old index.
+3. **The area rule needs one correction** (observed: `areas.py:253-272`,
+   an area is a directory name or `.`, and tests walk up to an existing
+   area at 236-242). Ruling: a new path's area is the longest existing
+   area that prefixes its directory after `_untest`, through the same
+   walk `_attach_tests` uses. Its symbols take the path's area.
+4. **Hook 2 runs last** (observed: `lifecycle.py:172` re-raises a
+   conflict before the status write; `tick_survey` at
+   `scheduler.py:778-781` writes nothing, the reopen is the hash
+   mismatch that `onboarding_phase` evaluates at 729). Ruling: the
+   refresh runs after `worktrees.destroy`, and hook 2 does not call
+   `tick_survey`. The design states the pause: after every merge the
+   run re-enters `survey` until three sessions per touched area close.
+   The walk's summary counts those sessions per merge.
+5. **Hook 3's path does not exist** (observed: `worktrees.destroy` has
+   two callers, `cli.py:333` and `lifecycle.py:188`; `abandon` keeps
+   the worktree at `lifecycle.py:123-126`, `defer` at 94-96; a
+   quarantine is a `tick_attempts` state). Ruling: hook 3 keys on the
+   batch leaving `running`: `refresh(main=True)` in `abandon` and in
+   `defer`. On `start` of a batch that resumes with a `head_commit`,
+   `refresh(worktree, main=False)`.
+6. **Nothing lands a session in the tests** (observed: the touch tests
+   read `sb.ctx.writes`, `fixtures.py:736` sets `head_commit` by a raw
+   `UPDATE`, and `gitfixture.worktree` places the tree outside `.rota`
+   at `gitfixture.py:88`). Ruling: extract `runner.after_landing(conn,
+   result)` for `session_commit`, `apply_rulings` and the refresh, and
+   move the fixture worktree under `<root>/.rota/worktrees/<id>` so the
+   tests walk the production layout.
+7. **The readers hold** (observed: `loop._batch_of` hands the one
+   running batch to every session that names no other, so the
+   Architect's `code.source` reads the worktree too). The three low
+   cases, `near_code` after a cancel, the typo door near a new
+   callable, a binding to a deleted path, are known and accepted.
+8. **`frame_repinned` holds** (observed: `scheduler.py:483-484` returns
+   once the flag is 1, `repin` is idempotent).
+
+Outside the points:
+
+- **High. `walk` skips every worktree** (observed: `indexer.py:333`
+  tests the absolute path's parts against `SKIP_DIRS`, and `.rota` is
+  in the set; the reviewer's probe: `[]` under `.rota/worktrees/b1`,
+  one file for the same tree elsewhere). Hook 1 as first designed
+  would have emptied the index on the first commit of every night.
+  Ruling: `walk` tests `path.relative_to(root).parts`, and `build`
+  refuses an empty walk of a root that has tracked files.
+- **Low. The survey pause after a merge** (`scheduler.py:729`): stated
+  under point 4.
+- **Low. The in-batch index never holds the batch's `tests/` paths**,
+  which stay untracked until the merge commit (`lifecycle.py:162`), so
+  `batches.annotate` refuses a new test directory mid-batch. A known
+  gap of `main=False`, not this frame.
+
+The pinned tests grow by three: `walk` under `.rota/worktrees` lists
+the files; a missing or empty tree keeps the old index; the stamped
+area hash at onboarding equals the live aggregation it replaces.
