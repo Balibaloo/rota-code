@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 29. The map: a query tool over the code (Roman, 2026-09-17)
+### 29. The map: a query tool over the code (Roman, 2026-09-17) [fa029276]
 
 - Meta workflow. `rota/tools/map.py`: an `ast` pass over `rota/` plus a
   regex over the SQL literals, joined with `graph.json` and the `.tools`
@@ -48,6 +48,13 @@ Rules:
 - Reasoning: the post-mortem conversation of 2026-09-17, and
   `plans/archive/refs-scope-2026-09-16.md` as the ground truth.
 - Status 2026-09-17 01:45 (rota-b9): queued by Roman, unclaimed.
+- Status 2026-09-17 09:52 (rota-51): claimed by hand-off from 32a42b78 at
+  f9ac0da. Frame 27's verdict is in: the implementer type on Opus builds,
+  the reviewer type on Opus reads the design. Prices from the anchors
+  (reasoned: frame 30's harness lines): design review 70k; first
+  implementer pass 90k for the tool and its tests; one fix pass 40k; the
+  brief line costs no agent; the tool-call count comes from frame 24's
+  agents. Estimate 200k, walls apart.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
