@@ -53,6 +53,11 @@ Rules:
   post-mortem grill ends. The sweeper part has no clean ground truth (observed:
   the sweep and the drop share commit 056995d); it folds into frame 24
   as the sweep tool's first use.
+- Status 2026-09-17 02:03 (rota-b9): the grill closed with frames 23 to 31 and
+  the brief's warning lines (9af6b2f). The two Opus agents are out with
+  the frame 21 briefs verbatim, paths moved to the worktrees, on
+  `model: opus`; the Agent tool has no effort setting, so the effort is
+  the definition's default (observed: the tool's schema).
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
