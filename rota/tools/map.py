@@ -120,6 +120,7 @@ class Index:
     sites: tuple[Site, ...]
     tables: dict[str, Table]
     ops: dict[tuple[str, str], Definition | None] | None = None
+    ops_by_line: frozenset[tuple[str, str]] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +502,7 @@ def ops(index: Index) -> dict[tuple[str, str], Definition | None]:
         from ..roles import api      # no file open, no database, 0.04 s
 
         out: dict[tuple[str, str], Definition | None] = {}
+        by_line = set()
         for pair, fn in api.REGISTRY.items():
             rel = _rel(fn.__code__.co_filename)
             line = fn.__code__.co_firstlineno
@@ -509,11 +511,20 @@ def ops(index: Index) -> dict[tuple[str, str], Definition | None]:
             # The five `cite` ops carry the name of the artefact and the
             # source calls them `cite`, so the line decides when the name
             # does not: the innermost definition is the implementation.
-            out[pair] = next(
-                (d for d in covers if d.bare == fn.__name__),
+            named = next((d for d in covers if d.bare == fn.__name__), None)
+            if named is None and covers:
+                by_line.add(pair)
+            out[pair] = named or (
                 min(covers, key=lambda d: d.last - d.first) if covers else None)
-        index.ops = out
+        index.ops, index.ops_by_line = out, frozenset(by_line)
     return index.ops
+
+
+def _by_line(index: Index, pair: tuple[str, str]) -> str:
+    """The mark of a join that the line made and the name did not. The
+    function `REGISTRY` holds is then not the definition, and a wrapper
+    that hides the implementation must stay visible."""
+    return " (by line)" if pair in index.ops_by_line else ""
 
 
 def _edges(kinds: tuple[str, ...], root: Path | None) -> list[dict]:
@@ -566,20 +577,37 @@ def query_fn(index: Index, name: str, callers: int = 20) -> str:
                    key=lambda d: (d.file, d.first))
     if not found:
         raise LookupError(name)
+    shared = len(found) > 1
     out = []
-    if len(found) > 1:
+    if shared:
         out.append(f"{len(found)} definitions share the name")
-    # Each definition carries its own ops, tables and callers. A merged
-    # answer says `reads config` and names no definition that reads it.
+    # Each definition carries its own ops and tables. A merged answer says
+    # `reads config` and names no definition that reads it.
     for definition in found:
-        out.extend(_fn_block(index, definition, callers))
+        out.extend(_fn_block(index, definition, callers, not shared))
+    if shared:
+        # One list for all of them: a call is matched by the bare name and
+        # never resolved, so no fact splits it between the definitions.
+        total, lines = _callers(index, {d.bare for d in found}, callers)
+        out.append(f"callers ({total}) by name, shared by {len(found)} definitions")
+        out.extend(lines)
     return "\n".join(out)
 
 
-def _fn_block(index: Index, definition: Definition, callers: int) -> list[str]:
+def _callers(index: Index, names: set[str], limit: int) -> tuple[int, list[str]]:
+    hits = sorted((c for c in index.calls if c.bare in names),
+                  key=lambda c: (c.file, c.line))
+    lines = [f"{c.file}:{c.line} {c.chain} in {c.where}" for c in hits[:limit]]
+    if len(hits) > limit:
+        lines.append(f"... {len(hits) - limit} more, --callers <n> to see them")
+    return len(hits), lines
+
+
+def _fn_block(index: Index, definition: Definition, callers: int,
+              with_callers: bool) -> list[str]:
     out = [f"def {definition.qual} {definition.file}:"
            f"{definition.first}-{definition.last}"]
-    out.extend(f"op {pair[0]}.{pair[1]}"
+    out.extend(f"op {pair[0]}.{pair[1]}{_by_line(index, pair)}"
                for pair, implementation in sorted(ops(index).items())
                if implementation == definition)
     seen = []
@@ -589,14 +617,10 @@ def _fn_block(index: Index, definition: Definition, callers: int) -> list[str]:
         if site.table and (site.role, site.table, site.kind) not in seen:
             seen.append((site.role, site.table, site.kind))
     out.extend(f"{role} {table} ({kind})" for role, table, kind in sorted(seen))
-    # A call is matched by the bare name, never resolved. Two definitions
-    # that share a name therefore carry the same list.
-    hits = sorted((c for c in index.calls if c.bare == definition.bare),
-                  key=lambda c: (c.file, c.line))
-    out.append(f"callers ({len(hits)})")
-    out.extend(f"{c.file}:{c.line} {c.chain} in {c.where}" for c in hits[:callers])
-    if len(hits) > callers:
-        out.append(f"... {len(hits) - callers} more, --callers <n> to see them")
+    if with_callers:
+        total, lines = _callers(index, {definition.bare}, callers)
+        out.append(f"callers ({total})")
+        out.extend(lines)
     return out
 
 
@@ -670,7 +694,8 @@ def query_file(index: Index, path: str) -> str:
                for s in sites if s.kind == "dynamic")
     for pair, definition in sorted(ops(index).items()):
         if definition is not None and definition.file == rel:
-            out.append(f"op {pair[0]}.{pair[1]} -> {definition.qual} {definition.first}")
+            out.append(f"op {pair[0]}.{pair[1]} -> {definition.qual} "
+                       f"{definition.first}{_by_line(index, pair)}")
     return "\n".join(out)
 
 

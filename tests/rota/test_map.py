@@ -152,7 +152,14 @@ def test_every_op_joins_a_definition(index):
     # `REGISTRY` names the function `problem_cite`, the source names it
     # `cite`, so the line inside `_cite_op` is what joins the two.
     assert joined[("problem", "cite")].qual == "_cite_op.cite"
-    assert "op problem.cite" in map_tool.query_fn(index, "cite").splitlines()
+
+    # A join the line made and the name did not says so, so a wrapper
+    # whose `__code__` points elsewhere stays visible.
+    assert "op problem.cite (by line)" in map_tool.query_fn(index, "cite").splitlines()
+    assert ("problem", "cite") in index.ops_by_line
+    named = map_tool.query_fn(index, "problem_assert").splitlines()
+    assert "op problem.assert" in named
+    assert not [x for x in named if x.endswith("(by line)")]
 
 
 def test_mode_lists_its_base_file_and_joins_every_line():
@@ -243,13 +250,16 @@ def test_a_shared_name_groups_the_facts_under_each_definition(index):
     assert lines[heads[0] + 1] == "reads config (raw)"
     assert not lines[heads[1] + 1].startswith("reads ")
 
-    # Every caller line sits under a definition, and carries its chain.
+    # One caller list, after the last block. A call is matched by the bare
+    # name and never resolved, so the list cannot be split.
+    totals = [x for x in lines if x.startswith("callers (")]
+    assert len(totals) == 1
+    assert re.fullmatch(r"callers \(\d+\) by name, shared by 2 definitions",
+                        totals[0])
     callers = [x for x in lines if re.match(r"rota/\S+:\d+ ", x)]
-    assert len(callers) == 10
+    assert len(callers) == 5
     assert [x for x in callers if ".get in " in x]
-    for i, line in enumerate(lines):
-        if line in callers:
-            assert [h for h in heads if h < i]
+    assert lines.index(totals[0]) > max(heads)
 
 
 def test_prose_is_not_a_reader():
