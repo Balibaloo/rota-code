@@ -41,6 +41,10 @@ Rules:
 - Reasoning: the post-mortem conversation of 2026-09-17, and the frames
   it batches.
 - Status 2026-09-17 02:09 (rota-b9): queued, unclaimed. Session A: 32, 26, 30.
+- Status 2026-09-17 03:02 (rota-b9): Roman read the brief's warning lines
+  (9af6b2f) and the stack (489db3a) and approved both (ruled: Roman,
+  2026-09-17). While Roman is away: Opus builds, Fable judges, the
+  session continues down the stack through 24 and stops at 300k.
 
 ### 26. Agent types with the tools they use (Roman, 2026-09-17)
 
