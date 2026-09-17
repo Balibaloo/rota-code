@@ -82,6 +82,14 @@ Rules:
   a comprehension with artefact values, and 119 `msg.*` tool lines join
   to the graph's message edges and not to the registry. The record is
   amended. Implementer next.
+- Status 2026-09-17 11:09 (rota-99): the map is in (33dbaa3), 14 tests, `table refs`
+  0.87 s and `fn stage_ref` 0.93 s (observed: the implementer's `time`).
+  The brief line is in `CLAUDE.md` and the three definitions (128c68c).
+  Implementer pass: 114k, 55 tool calls (observed: the harness line).
+  The assistant's gate run before the commit: zero new reds, 1844
+  passed, 491.8 s. Tool-call counts beside the unsourced 96: scope 83,
+  design review 31, implementer 55. `table refs` answers in 28 lines
+  and shows both write paths. Diff review on a worktree at 33dbaa3 next.
 
 ### 24. Scripts for mechanical work, and a sweep tool (Roman, 2026-09-17)
 
