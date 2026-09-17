@@ -91,6 +91,18 @@ Rules:
   wrote the corruption the tool exists to stop. Fix pass sent to the same
   implementer, cap 60k, with a gate run at its end. The hand-off target
   is rota-19 (cc3d4e4e), the first clean peer that answered the probe.
+- Status 2026-09-17 12:35 (rota-99): validating, handed off. Fix pass in (3256b2e): 24k,
+  19 tool calls, 1 map call, 0 greps; 25 tests; the implementer's gate
+  run on this exact tree: zero new reds, 1879 passed, 498.6 s. The
+  assistant did not run the gate again before this commit (reasoned:
+  same tree, the five lines are the tool's verbatim, the tool is
+  imported by nothing but its test; a deviation from the brief's line,
+  stated). Actual against the 310k estimate, walls apart: design review
+  66k, implementer 101k over two passes, diff review 61k, the
+  assistant's gate run 6k: 234k. Walls: none. Waits on: the first sweep
+  through the tool, which closes the frame. Handed to rota-19
+  (cc3d4e4e) with frame 4's grill. Session 90522022 stops here (ruled:
+  Roman, 2026-09-17).
 
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
