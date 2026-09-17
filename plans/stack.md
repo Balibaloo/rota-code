@@ -29,6 +29,24 @@ Rules:
 
 ## Stack
 
+### 27. Opus 5 on frame 21's agent types (Roman, 2026-09-17)
+
+- Meta workflow. Opus 5 at high effort redoes three parts of frame 21
+  with the same briefs, in parallel: the review of 948c436 (reviewer),
+  stage 1 from e63762c in a worktree (implementer), the 48-file sweep from
+  b4dc845 as a script (sweeper). Opus is cheap; Fable is the scarce
+  resource. A Fable peer judges each output by working back from it: the
+  suite on the commits, the findings against the ten found and the two
+  that mattered, spot reads of hunks. No scoring apparatus, no full read
+  (ruled: Roman, 2026-09-17).
+- Ends when: three verdicts on the stack, one per agent type, each with
+  the Fable tokens spent judging it.
+- Waits on: a fresh peer. Not this session (306k).
+- Reasoning: the post-mortem conversation of 2026-09-17; frame 26 for the
+  agent types; `plans/archive/refs-design-2026-09-16.md` and the frame 21
+  reviews in it for the known-good run.
+- Status 2026-09-17 01:34 (rota-b9): pushed by Roman, unclaimed.
+
 ### 23. Resume one implementing agent per frame (Roman, 2026-09-17)
 
 - Meta workflow. Five lines in the assistant's brief: one implementing
