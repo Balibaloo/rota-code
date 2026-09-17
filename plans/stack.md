@@ -55,7 +55,7 @@ Rules:
   implementer pass 90k for the tool and its tests; one fix pass 40k; the
   brief line costs no agent; the tool-call count comes from frame 24's
   agents. Estimate 200k, walls apart.
-- Status 2026-09-17 09:58 (rota-51): unclaimed (ruled: Roman, 2026-09-17:
+- Status 2026-09-17 10:01 (rota-51): unclaimed (ruled: Roman, 2026-09-17:
   session fa029276 loaded the agent types before their edits, so its
   agents run stale prompts). The prices stand for the next claimant.
 
