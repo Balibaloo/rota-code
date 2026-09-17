@@ -29,52 +29,6 @@ Rules:
 
 ## Stack
 
-### 27. Opus 5 on frame 21's agent types (Roman, 2026-09-17) [32a42b78]
-
-- Meta workflow. Opus 5 at high effort redoes three parts of frame 21
-  with the same briefs, in parallel: the review of 948c436 (reviewer),
-  stage 1 from e63762c in a worktree (implementer), the 48-file sweep from
-  b4dc845 as a script (sweeper). Opus is cheap; Fable is the scarce
-  resource. A Fable peer reads each output in full, the diff, the report,
-  the findings, and never the transcript or the reasoning. It judges by
-  working back from the output: the suite on the commits, the findings
-  against the ten found and the two that mattered. No scoring apparatus
-  (ruled: Roman, 2026-09-17).
-- Ends when: three verdicts on the stack, one per agent type, each with
-  the Fable tokens spent judging it.
-- Waits on: the end of the post-mortem grill, then the two Opus agents.
-- Reasoning: the post-mortem conversation of 2026-09-17; frame 26 for the
-  agent types; `plans/archive/refs-design-2026-09-16.md` and the frame 21
-  reviews in it for the known-good run.
-- Status 2026-09-17 01:34 (rota-b9): pushed by Roman, unclaimed.
-- Status 2026-09-17 01:36 (rota-b9): claimed; Roman raised this session's
-  limit to 400k because the context holds the known-good run. Worktrees
-  are ready at 948c436 and e63762c; the Opus agents start after the
-  post-mortem grill ends. The sweeper part has no clean ground truth (observed:
-  the sweep and the drop share commit 056995d); it folds into frame 24
-  as the sweep tool's first use.
-- Status 2026-09-17 02:03 (rota-b9): the grill closed with frames 23 to 31 and
-  the brief's warning lines (9af6b2f). The two Opus agents are out with
-  the frame 21 briefs verbatim, paths moved to the worktrees, on
-  `model: opus`; the Agent tool has no effort setting, so the effort is
-  the definition's default (observed: the tool's schema).
-- Status 2026-09-17 02:16 (rota-b9): Roman adds a criterion: the verdict on the
-  implementer also judges its comment etiquette, Simplified Technical
-  English and the repo's comment habits, against ac1b83e.
-- Status 2026-09-17 02:20 (rota-b9): reviewer verdict (observed: the Opus report
-  against the design record's stage 2 review). Opus found 8 of Fable's
-  10 findings with probes, CONFIRMED where Fable confirmed, at the same
-  cost (228k against 226k). It found one of the two that mattered, the
-  old database that regresses silently. It missed the other, the writer
-  that stages no statement ref on a delivery wake, which needed a trace
-  of the writers beyond the nine points asked. It added three valid low
-  findings (`frame_load` skips the rendered word, a near-vacuous test,
-  drains declared and not queried) and one false consequence (a prompt
-  it said would change replays green; it did not check the case's
-  path). Report shape and prose: as asked. Verdict: Opus reviews what
-  the points name; Fable reviews what matters. Usable as the reviewer
-  when the points are sharp, and the high catch is not to be expected.
-
 ### 32. The brief batch (Roman, 2026-09-17)
 
 - Meta workflow. One commit to `CLAUDE.md` with the lines of frames 23
@@ -279,6 +233,10 @@ Rules:
 
 ## Parked
 
+- From frame 27: `rota/core/sandbox.py` keys `_CALL_LOG` by `id(ctx)` and
+  drains it on commit only, so a dead address reused by CPython can flip
+  `test_arc_global_negative_no_writes_by_non_owners`. Whether a refs-only
+  write lifts a quarantine (it does not today).
 - Finding 42: the code index is never refreshed after a commit.
 - Finding 64: vacuous ratified constraints at the structural review.
 - Finding 67: a wrong fix passes the fix case; the case checks the act,
