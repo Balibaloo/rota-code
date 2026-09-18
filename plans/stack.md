@@ -246,7 +246,7 @@ Rules:
   to a batch, and both stop at this frame's wall. `bg_2` is `pending`
   with no commit, because the night ended first.
 
-### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
+### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [9108c499]
 
 - Rota workflow. Step 3 of the order. The code index is built at
   onboarding and never refreshed after a commit, so a batch's own
@@ -387,8 +387,12 @@ Rules:
   stale, 1915 passed, 509 s (observed: the gate's own summary). That is
   the trusted number. The earlier run beside night 86 gave three reds,
   all three named flaky and all three green on its own re-run.
+- Status 2026-09-18 17:07 (rota-ff): claimed by 9108c499 at the hand-off.
+  The frame stays validating and unwalked. It cannot advance today. The
+  walk needs a merge, a merge waits on frame 37, and frame 37 waits on
+  frame 38.
 
-### 4. Roman's order from here (2026-09-14 12:58) (Roman)
+### 4. Roman's order from here (2026-09-14 12:58) (Roman) [9108c499]
 
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
   road to the loop that merges cold on click. Steps: 1 the benchmark, 2
@@ -420,6 +424,9 @@ Rules:
   first build frame's closing status carries their measurements.
 - Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. Step 3 runs
   now as frames 33, 34 and 35. Step 4 and step 5 wait on night 85.
+- Status 2026-09-18 17:07 (rota-ff): claimed by 9108c499 at the hand-off.
+  Step 3's code is built, reviewed twice and gated, and it stays
+  unwalked. Frame 38 decides whether step 2 returns.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
