@@ -62,6 +62,20 @@ Rules:
   held the frame was killed before it handed over (observed: Roman's
   word and the session list, where the peer name is gone). The frame is
   unchanged. It still closes on night 85.
+- Status 2026-09-18 02:55 (rota-dc): the door works on a live night
+  (observed: night 85's run database at 02:55, `tick:observed_entries`
+  ran one session, s109, which committed and presented
+  `glossary_terms:20, constraints:57, model`; the glossary holds 21
+  rows). Night 84 ran three sessions on the same tick with no parsable
+  tool call and quarantined it, and nights 83 and 84 landed no glossary
+  ruling. Night 85 also cleared onboarding in 35 minutes, from 02:16 to
+  02:51, where night 84 stuck in onboarding. The frame stays validating
+  until the night ends.
+- Note, not this frame (observed: the same database): a different tick
+  quarantined, `challenge for @claim:constraints`, two sessions, and
+  `tick_attempts` shows the Critic's challenge tick at three attempts on
+  two constraint claims, with `constraint_zero` at three. Rota workflow.
+  It is parked below, not diagnosed.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
@@ -401,6 +415,11 @@ Rules:
 
 ## Parked
 
+- From night 85 (observed: the run database at 02:55): the Critic's
+  challenge tick reached three attempts on `@claim:constraints:
+  unprocessed` and `@claim:constraints:format_filename` and quarantined,
+  and `tick:constraint_zero` reached three attempts. Rota workflow. Not
+  diagnosed, and not on the term-collision path.
 - From frame 27: `rota/core/sandbox.py` keys `_CALL_LOG` by `id(ctx)` and
   drains it on commit only, so a dead address reused by CPython can flip
   `test_arc_global_negative_no_writes_by_non_owners`. Whether a refs-only
