@@ -29,6 +29,30 @@ Rules:
 
 ## Stack
 
+### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
+
+- Rota workflow. Night 86 cut a batch, took a worktree and committed at
+  `da5e7e8`. The Developer then woke on `tick:tests_failing` nine times
+  and on `tick:exhausted` at attempt 10 of 10. Every session committed.
+  The batch stayed `running`, with 37 test runs and no verdict of any
+  result. The Critic woke 22 times on `tick:challenge` only and never on
+  a review tick, because a review needs a batch whose tests pass
+  (observed: night 86's run database, recorded in
+  `plans/archive/night86-2026-09-18.md`). The wall is no longer in the
+  records path. It is in the work.
+- Ends when: not priced. The frame needs a grill with Roman first,
+  because the question is where a 9B model stops, and that is the
+  composition's own question. Sentence two merged cold on night 70 at an
+  older commit, so this is not a permanent ceiling. The first read is
+  what changed between night 70 and night 86.
+- Waits on: Roman.
+- Reasoning: `plans/archive/night86-2026-09-18.md`, and frame 13 in
+  `plans/archive/stack-2026-09-16.md`, where night 82 was stuck on
+  `exhausted` at sentence three.
+- Status 2026-09-18 07:35 (rota-dc): pushed, unclaimed, unpriced. The
+  same wall now stands one sentence earlier than on night 82, because
+  sentence two's earlier walls are gone.
+
 ### 36. The present page is larger than the window (2026-09-18) [75d12c2b]
 
 - Rota workflow. On night 85 the Liaison presented a page of 77
@@ -267,6 +291,21 @@ Rules:
   worktree and the main refresh hook keys on the merge. The watcher now
   holds `project_commit`, the index row count, the batch status and the
   verdicts, and it fires when the commit moves off the base.
+- Status 2026-09-18 07:35 (rota-dc): **frame 36 closes.** Its ends-when
+  line 6, a cold night from a worktree at the closing commit reaches a
+  batch, holds (observed: night 86 cut `bg_1` and committed `da5e7e8`;
+  recorded in `plans/archive/night86-2026-09-18.md`). The night then
+  went quiet after 77 steps, on a wall in the work rather than in the
+  records: the Developer exhausted ten attempts on the tests. That wall
+  is frame 37, pushed above, and it is not this frame's.
+  Actual against the 292k estimate, walls apart: the reviewer 88k, the
+  fix pass 105k, the diff review 119k, fix pass two 45k, the assistant's
+  gate runs 24k, so 381k. Walls: one, the size gate measuring the wrong
+  object, caught by the diff review before any night ran.
+  Frame 34 closes on the same night, its line 4 holding. Frame 33 stays
+  open and unwalked: `config.project_commit` still names the base, so
+  the index never refreshed, because the hook keys on the merge and no
+  merge happened.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
