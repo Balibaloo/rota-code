@@ -142,8 +142,21 @@ Rules:
   reviewer on the worktree at 6895000, read-only, cap 65k, on eight
   numbered points: the four parts of the fix brief, the six accepted
   deviations, the four items the implementer left open, the write
-  pipeline, and whether the loop breaks on a cold cycle. Night 85 runs
-  after the review's fixes land.
+  pipeline, and whether the loop breaks on a cold cycle.
+- Status 2026-09-18 02:19 (rota-dc): the cards are in work mode, 320 W
+  on the 3080 and 200 W on the Titan, set through the
+  `rota-gpu-power-work` scheduled task (observed: nvidia-smi after the
+  task; a raw `-pl` raise needs admin and would put the pair above the
+  RM850's budget). Both ollama servers answer and
+  `OLLAMA_NUM_PARALLEL=1` holds. Night 85 runs now from a second
+  worktree at 6895000, cold, from sentence two, beside the diff review
+  on the same commit. A stated deviation from the brief's closing-commit
+  line (reasoned: the review spends tokens and the night spends GPU
+  hours, so the two run at once; the night runs again at the closing
+  commit if the review's fixes touch the delivery path). The run
+  databases of nights 82, 83 and 84 are copied to `.rota/` (observed:
+  the only copies were in the dead peer's temporary directory, and the
+  night script overwrites `clickI_prev.db`).
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
