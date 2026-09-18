@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 35. The observed-entries page is quarantined on cold click (2026-09-17) [3b4093c6]
+### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
 
 - Rota workflow. On night 84 `tick:observed_entries` ran three sessions,
   s96 to s98, each with no parsable tool call, and was quarantined. The
@@ -58,8 +58,12 @@ Rules:
   brief, a one-line door is the exception). The common root with frame
   34: the second-sense rows are new in night 84's data, and two code
   paths had never seen them. Walked by night 85 with frames 33 and 34.
+- Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. The peer that
+  held the frame was killed before it handed over (observed: Roman's
+  word and the session list, where the peer name is gone). The frame is
+  unchanged. It still closes on night 85.
 
-### 34. The term-collision loop on click, cold (2026-09-17) [3b4093c6]
+### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
 - Rota workflow. On a cold click night the Terminologist wakes on
   `tick:term_collision` for `group` and `Group`, the Liaison asks the
@@ -130,8 +134,18 @@ Rules:
   the parking sentence is matched as a substring. Diff review next, on
   the worktree at 6895000. The walk, night 85, waits on the GPU (ruled:
   Roman, 2026-09-17, all GPU work paused).
+- Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b after the
+  holding peer was killed before it handed over. No work is lost
+  (observed: the tree is clean at 8d581e9 and the worktree at 6895000
+  survives the dead session). The GPU pause is lifted (ruled: Roman,
+  2026-09-18, the cards are free). The diff review is out to a
+  reviewer on the worktree at 6895000, read-only, cap 65k, on eight
+  numbered points: the four parts of the fix brief, the six accepted
+  deviations, the four items the implementer left open, the write
+  pipeline, and whether the loop breaks on a cold cycle. Night 85 runs
+  after the review's fixes land.
 
-### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [3b4093c6]
+### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
 - Rota workflow. Step 3 of the order. The code index is built at
   onboarding and never refreshed after a commit, so a batch's own
@@ -253,8 +267,11 @@ Rules:
   sentence two, 307 sessions, no batch (observed: the run database).
   Killed at 20:39. The wall is frame 34. The walk waits on it and runs
   as night 85 from a worktree at frame 34's closing commit.
+- Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. The frame
+  stays validating. Its walk is night 85, which waits on frame 34's
+  diff review.
 
-### 4. Roman's order from here (2026-09-14 12:58) (Roman) [3b4093c6]
+### 4. Roman's order from here (2026-09-14 12:58) (Roman) [75d12c2b]
 
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
   road to the loop that merges cold on click. Steps: 1 the benchmark, 2
@@ -284,6 +301,8 @@ Rules:
   Step 1 done, step 2 not needed. The next frame is step 3 on Roman's
   word at the grill. Frames 23, 24, 25, 28 and 31 closed by ruling; the
   first build frame's closing status carries their measurements.
+- Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. Step 3 runs
+  now as frames 33, 34 and 35. Step 4 and step 5 wait on night 85.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
