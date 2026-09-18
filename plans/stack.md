@@ -29,6 +29,96 @@ Rules:
 
 ## Stack
 
+### 40. Read the messages the system puts to the principal (2026-09-18) (Roman)
+
+- Rota workflow. Before any principal is designed, read what the system
+  actually says to the principal across a whole night (ruled: Roman,
+  2026-09-18, "we need to evaluate the messages of the current system
+  before choosing"). The yes-only principal answers every page with one
+  sentence, so no record says what the pages are, how many kinds there
+  are, how large each is, or which of them that sentence answers wrongly.
+- Ends when: a record lists every page the principal was shown on nights
+  85 and 86, by verb and kind, with its size in tokens, the reply the
+  yes-only principal gave, and a judgement of whether that reply was
+  reasonable. 80k in agents, the two run databases read by one agent.
+  Buys: the principal frames below are designed from the real pages.
+- Waits on: nothing.
+- Reasoning: `plans/archive/night86-2026-09-18.md`, and frames 41 and 42
+  below, which both depend on this record.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed. Roman ruled the
+  order at the grill.
+
+### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
+
+- Rota workflow. `probes/walk.py` has the seam already: `class
+  Principal` with one method, `respond(ask)`, which receives the
+  rendered page and returns words or a per-item verdict. A sub-agent
+  slots in there. It is a diagnostic, not a replacement (ruled: Roman,
+  2026-09-18). Its output is understanding, which then builds the
+  deterministic principal of frame 42, or it shows where the system
+  fails and needs fixing. Underlying assumption, ruled by Roman: the
+  agent principal gives only reasonable answers.
+- Ends when: a night runs with an agent principal and its record says,
+  per page, what the agent answered and what the system did with it. It
+  must exercise at least one path the yes-only principal never reaches,
+  the term-collision tick being the known one, which frame 34's fix has
+  still never walked. Not priced until frame 40's record exists. Opus is
+  allowed and cost is not a constraint (ruled: Roman, 2026-09-18).
+- Waits on: frame 40.
+- Reasoning: `probes/walk.py:81-110`, the `Principal` class and the
+  existing `WALK_CONTEST` principal by moment, which is the half-built
+  form of this idea.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
+
+### 42. The designed principal, and whether zero temperature is consistent (2026-09-18) (Roman)
+
+- Rota workflow. A deterministic principal built by hand to represent a
+  careful person, option B of the grill (ruled: Roman, 2026-09-18). It
+  keeps nights comparable, which an agent principal cannot.
+  **The concern on the record** (reasoned: the assistant raised it and
+  Roman accepted the underlying assumption): a principal tuned until the
+  run passes is a test that always passes. The principal encodes what a
+  plausible person would say. A run that still fails is then a finding,
+  not a tuning target.
+  **The assumption to validate** (ruled: Roman, 2026-09-18): that a
+  zero-temperature model is consistent enough to give similar responses
+  to the same problem set. Nothing measures that today.
+- Ends when: two lines. First, the consistency assumption is measured:
+  the same problem set replayed N times at temperature zero, with the
+  spread reported. Second, the designed principal exists and a night
+  runs on it. Not priced until frame 40's record exists.
+- Waits on: frame 40, then frame 41.
+- Reasoning: the grill of 2026-09-18.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
+
+### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
+
+- Rota workflow. Sentence two merged cold on night 70. On night 86 the
+  same sentence cut a batch, committed, and the Developer then exhausted
+  ten attempts on its tests (observed: `plans/archive/night86-2026-09-18.md`).
+  Either something regressed, or the night 70 merge was luck read as
+  capability. Roman ruled the investigation at the grill, 2026-09-18.
+- Ends when: the cause is categorised and on the stack as one of two
+  (ruled: Roman, 2026-09-18, "what went wrong is either in the model
+  context, meaning data, tooling or environment, or in the model
+  itself, so we need to categorize that"):
+  1. **Model context**: what the Developer was given differs between the
+     two nights. The data, the tooling, the environment, the prompt.
+  2. **The model itself**: the Developer was given the same thing and
+     answered worse.
+  The read is direct, because both run databases are on disk:
+  `.rota/clickI_n70_merged.db` and `.rota/clickI_night86.db`. Compare
+  what the Developer was shown, what it called, what came back, and what
+  the test failures were. 90k in agents. Buys: a category, which decides
+  whether step 2 of the order returns.
+- Waits on: nothing.
+- Reasoning: `plans/archive/night86-2026-09-18.md`, and frame 4, step 2
+  of the order, ruled not needed on 2026-09-15.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed. If the category
+  is the model itself, step 2 of the order returns and a larger
+  Developer is back on the table. If it is the model context, the fix is
+  cheaper and step 2 stays closed.
+
 ### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
 
 - Rota workflow. Night 86 cut a batch, took a worktree and committed at
@@ -45,7 +135,7 @@ Rules:
   composition's own question. Sentence two merged cold on night 70 at an
   older commit, so this is not a permanent ceiling. The first read is
   what changed between night 70 and night 86.
-- Waits on: Roman.
+- Waits on: frame 38, which categorises the cause.
 - Reasoning: `plans/archive/night86-2026-09-18.md`, and frame 13 in
   `plans/archive/stack-2026-09-16.md`, where night 82 was stuck on
   `exhausted` at sentence three.
