@@ -202,6 +202,36 @@ Rules:
   bounding the page is paging and Roman holds that ruling. The measured
   numbers for that ruling: about 41.6 tokens a line, so about 90 lines
   break the 6146 rule and about 240 lines collapse the 12288 window.
+- Status 2026-09-18 06:45 (rota-dc): fix pass two is in, about 45k of
+  new content on the implementer's estimate against 50k priced and a 70k
+  cap, 59 tool calls. Six files, 215 insertions. Committed at 8b15af8.
+  **The bypass is closed.** The page that measured 7949 tokens now
+  measures 1572, and night 85's real page measures 5455 (observed: the
+  implementer re-ran the reviewer's `p_gap.py` and `p_scale.py` under
+  the fix). The gate now weighs both copies and drops both above the
+  limit. `@surface:<file>` resolves from any session. The `_fit` budget
+  falls from 28635 to 20258 characters, which is the half-window rule
+  applied.
+  F5 is not fixed, and the reason is a probe, not a preference
+  (observed: the implementer's `p_zero.py`; the zero constraint's
+  provenance basis is `reasoned`, the offer selects basis `code`, so
+  `k0` is never offered, it appears in no working set of night 85, in
+  none of the night's nine real presents, and `constraints.cite`
+  already refuses it). A door there would also refuse two legitimate
+  pages that number nothing. Parked below as a latent hazard.
+  Gate by the implementer: zero new reds, zero stale, 1915 passed. Two
+  cases went stale on the budget change and re-recorded green. Register:
+  19 failing, 0 stale, 109 green, and the two provisional cases of pass
+  one are earned on a second load window. A new register case,
+  `L1-LI-a-long-page-is-ruled-without-the-rows`, scores 5/5 and gives
+  the long-page path a score it never had.
+  **The paging number is now exact.** With both row copies dropped, the
+  page text alone crosses the 6146 rule at about 115 numbered lines, or
+  about 11900 characters of rendered page (observed: 60 lines measure
+  3688 tokens, night 85's 77 lines measure 5455, and 120 lines measure
+  6311).
+  Gate by the assistant is running. Night 86 runs cold from a worktree
+  at 8b15af8, from sentence two, the walk for frames 33, 34 and 36.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
@@ -592,6 +622,20 @@ Rules:
 
 ## Parked
 
+- From frame 36's fix pass two (observed: the implementer's measurement):
+  `PUSH_CHARS` is 20000 and the new `_fit` budget for a 12288 window is
+  20258 characters, so a maximal push now meets the cut where it used to
+  sit under it. `PUSH_CHARS` was set against the old two-thirds budget
+  and may want the same half-window treatment. Two cases went stale and
+  re-recorded green, so nothing is red today. Rota workflow. Night 86
+  measures it.
+- From frame 36's diff review, F5 (reasoned: unreachable today, latent
+  tomorrow): a present that renders no numbered line still asks for a
+  ruling, and `rulings.rule` then approves every ref with "the page had
+  no line to rule on; acknowledged". The state is unreachable from a
+  live predicate today. The narrow door, if it is ever wanted, is
+  "refuse a present that numbers no line while its refs hold rulable
+  rows", not "refuse an empty order". Rota workflow.
 - From frame 34's fix pass (reasoned: the implementer's third open
   question): the door that lands a ruling cannot read the principal's
   words, so a Liaison that carries the true words with an invented map
