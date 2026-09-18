@@ -527,6 +527,17 @@ Rules:
 
 ## Parked
 
+- (observed: a read-only agent read of this session's own workflow
+  artifacts, 2026-09-18) `.claude/settings.local.json` still allows two
+  paths under the pre-split checkout `d--repos--AI-Custom-AI-TUI`. The
+  file is untracked, so it survived the split by hand. Meta workflow. A
+  one-line door.
+- (observed: the same read) The Stop hook
+  `.claude/hooks/really_blocked.py` is inert. It reads an allowlist file
+  that does not exist, so it never fires, and its message still names
+  `rota/COMPLETION.md`. Meta workflow. Either delete the hook or give it
+  the allowlist. Roman's call.
+
 - From frame 36's fix pass two (observed: the implementer's measurement):
   `PUSH_CHARS` is 20000 and the new `_fit` budget for a 12288 window is
   20258 characters, so a maximal push now meets the cut where it used to
