@@ -115,8 +115,14 @@ Rules:
   Roman holds the interaction with the RAM tracking open. Roman is also
   questioning whether the frequent wakes should keep the single cap, so
   the review covers every wake, not only the unbounded ones.
-- Waits on: frame 40, which measures the pages and names which ticks
-  grow without bound and how fast.
+- Waits on: nothing now. Frame 40 closed on 2026-09-18 with
+  `plans/archive/principal-pages-2026-09-18.md`. It measured the pages the
+  principal was shown, not the ticks, so the claim that grouping stays
+  small is still untested. What it does give this frame: the observed
+  entries page is 3019 tokens on night 85 and 2993 on night 86, and the
+  same page landed a ruling on one night and not the other. The seat
+  prompt around it was 17195 tokens on night 85 and 5248 on night 86, so
+  the cap belongs on the session's working set and not on the page.
 - Reasoning: the grill of 2026-09-18, and
   `plans/archive/night85-2026-09-18.md` for the overflow rule.
 - Status 2026-09-18 08:30 (rota-dc): pushed, unclaimed, unpriced. The
@@ -124,31 +130,38 @@ Rules:
   higher cap exists to avoid paging), so paging is no longer a separate
   blocked question.
 
-### 40. Read the messages the system puts to the principal (2026-09-18) (Roman)
+### 44. An abandoned tick reached the page as a finding (2026-09-18)
 
-- Rota workflow. Before any principal is designed, read what the system
-  actually says to the principal across a whole night (ruled: Roman,
-  2026-09-18, "we need to evaluate the messages of the current system
-  before choosing"). The yes-only principal answers every page with one
-  sentence, so no record says what the pages are, how many kinds there
-  are, how large each is, or which of them that sentence answers wrongly.
-- Ends when: a record lists every page the principal was shown on nights
-  85 and 86, by verb and kind, with its size in tokens, the reply the
-  yes-only principal gave, and a judgement of whether that reply was
-  reasonable. 80k in agents, the two run databases read by one agent.
-  Buys: the principal frames below are designed from the real pages.
-- Waits on: nothing.
-- Reasoning: `plans/archive/night86-2026-09-18.md`, and frames 41 and 42
-  below, which both depend on this record.
-- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed. Roman ruled the
-  order at the grill.
-- Status 2026-09-18 17:20 (rota-ff): claimed by 9108c499. Roman chose this
-  frame over frame 38. The extraction is deterministic and done: 32 pages,
-  11 on night 85 and 21 on night 86, each rendered by the same
-  `render_page` the night used, each measured on qwen3:8b. The judgement
-  of the replies runs as a workflow of twelve agents, one per group of
-  pages. Ultracode is on for this session, so the agent spend will pass
-  the 80k estimate. The closing status carries the actual.
+- Rota workflow. Night 86's pages m24 and m27 told the principal that five
+  claims about constraints are falsified: format_filename, paramtype,
+  intrange, floatrange and float. The Critic falsified none of them
+  (observed: `plans/archive/principal-pages-2026-09-18.md`, fact 7). The
+  `challenges` table holds seven rows and none for the five. The
+  `tick_attempts` table holds all five Critic challenge ticks, each
+  quarantined at three attempts. One Liaison session, s103, woken on
+  `tick:blindspot`, wrote all five `ledger` rows. The principal approved
+  all five, so the record says a person retired five stability constraints
+  on public names of click on the strength of a verdict that does not
+  exist.
+- Ends when, each line priced from the anchors, walls apart:
+  1. A scope report names what `tick:blindspot` writes, where the wording
+     comes from, and what the write path allows: 40k. Buys: the fix hits
+     the real writer, not the page.
+  2. The fix with a pinned test, so a quarantined tick cannot reach a page
+     as a finding: 90k (cold 70k, one resumed pass 20k). Buys: the page
+     cannot name a verdict that no row holds.
+  3. A diff review on a worktree at the commit: 65k. Buys: a write path
+     change is read by a context that never wrote it.
+  4. The gate green before the commit, the stale line read: 12k.
+  Total: 207k in agents. A walk is due, because the frame touches the write
+  pipeline. The walk is a full night, about 20k in this context.
+- Waits on: nothing. Roman orders it against frames 41, 42 and 43.
+- Reasoning: `plans/archive/principal-pages-2026-09-18.md`, fact 7, and the
+  parked item of frame 34's fix pass, which says a door that lands a ruling
+  cannot read the words.
+- Status 2026-09-18 19:11 (rota-ff): pushed by 9108c499 from frame 40's
+  record, unclaimed. The fault is on the delivery path and the fix is
+  cheap.
 
 ### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
 
@@ -166,7 +179,10 @@ Rules:
   the term-collision tick being the known one, which frame 34's fix has
   still never walked. Not priced until frame 40's record exists. Opus is
   allowed and cost is not a constraint (ruled: Roman, 2026-09-18).
-- Waits on: frame 40.
+- Waits on: nothing now. Frame 40 closed on 2026-09-18 with
+  `plans/archive/principal-pages-2026-09-18.md`. It names the four page
+  kinds, the ten pages whose reply was not fully reasonable, and the paths
+  no principal has walked: nothing was contested on either night.
 - Reasoning: `probes/walk.py:81-110`, the `Principal` class and the
   existing `WALK_CONTEST` principal by moment, which is the half-built
   form of this idea.
@@ -189,7 +205,10 @@ Rules:
   the same problem set replayed N times at temperature zero, with the
   spread reported. Second, the designed principal exists and a night
   runs on it. Not priced until frame 40's record exists.
-- Waits on: frame 40, then frame 41.
+- Waits on: frame 41. Frame 40 closed on 2026-09-18 with
+  `plans/archive/principal-pages-2026-09-18.md`. A designed principal needs
+  an answer for four page kinds, and the understand kind is 23 of the 32
+  pages.
 - Reasoning: the grill of 2026-09-18.
 - Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
