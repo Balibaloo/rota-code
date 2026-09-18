@@ -143,6 +143,45 @@ more on each night, and they produce the two largest prompts of the night
 **A bigger window makes this case worse, not better.** At 32768 the seat would
 have read all 327 lines instead of half of them.
 
+### Is the explosion required? No. The seat has no way to search
+
+Session s10 is the ordinary case, and it answers the question (observed: its
+`tool_calls` and `receipts` rows).
+
+The session made 45 calls. Calls 6 to 38 are 33 `code.source` calls over the
+same eight paths, cycled four times: `core.py`, `utils.py`, `commands.py`,
+`options.py`, `parameters.py`, `exceptions.py`, `help.py`, `termui.py`. Every
+one asked for `start=0, end=400`, the largest span. The first cycle returned
+52865 characters of source. The rest returned "unchanged since you asked
+earlier".
+
+**Its entire output is two ledger rows**, and they cite one document and one
+file:
+
+- "the README describes advanced features of Click, including callbacks,
+  validation, parameter modifications, and token normalization"
+- "the code implements terminal user interface utilities for Click, including
+  prompting, confirmation, pager support, and terminal utilities"
+
+So 63023 characters of results bought two sentences that use neither
+`core.py`, nor `utils.py`, nor `exceptions.py`, nor any of the eight files the
+seat pulled four times.
+
+**The cause is the shape of the mode's tools.** The reconcile mode holds six
+ops: `code.prose`, `problem.baseline`, `problem.consult`, `code.source`,
+`ledger.log`, `surveys.attest` (observed: `python -m rota.tools.map mode
+vision_keeper/reconcile`). Exactly one of them looks at code, and it is a
+whole-span dump. The mode has no search. A seat that must find where a claim
+lives can only pull spans and read them, so it pulls the largest span it is
+allowed, from every file whose name it can guess.
+
+`code.probe(pattern)` already exists and does the other thing: it returns up to
+200 index rows of grain, kind, area and fan-in for a name (observed:
+`rota/roles/api.py:5659-5684`). It is not in this mode's tool list.
+
+So the explosion is a tool-shape fault first, a budget fault second, and a
+window fault last.
+
 ### What an over-budget turn costs, stated exactly
 
 The `_fit` budget is half the window, because half is what survives a server
@@ -236,17 +275,27 @@ tokens. That doubles the KV cache for every turn of the night, to carry results
 the seat asked for and can ask for again, and in the worst case to carry 327
 lines that each say "you already asked".
 
-The trim fix is three parts, and each is small:
+The fix is four parts, in the order that removes the most context. Only the
+last two are about trimming.
 
-1. Run the middle eviction below four blocks, so turn 2 is trimmed.
-2. Cap the last two blocks the way the wake is capped, and say the cut
-   happened, as every other cut here says so.
-3. Collapse a repeated call in the echo. The runner already knows the call is a
-   repeat, because it answers "unchanged since you asked earlier". One line for
-   328 repeats carries the same fact.
+1. **Give the reading modes a search.** `code.probe` exists and returns index
+   rows, not files. A seat that can find does not pull eight files at the
+   largest span. Cost: one line per mode's tool list, and a brief that says
+   probe before source.
+2. **Refuse the third identical call in a session.** The runner already detects
+   the repeat, because it answers "unchanged since you asked earlier". Today it
+   answers it 327 times. A refusal after the second ends the loop and says why.
+3. **Cap the results of one turn, not only each result.** `SOURCE_CHARS` is
+   14000 and the budget is 21139, so two source reads in one turn exceed
+   everything the session can hold. The per-turn total is the missing cap.
+4. **Fix `_fit` as the backstop.** Run the middle eviction below four blocks,
+   so turn 2 is trimmed, and cap the last two blocks the way the wake is
+   capped, saying so.
 
-Part 3 is the one that removes the extreme case. Parts 1 and 2 remove the
-common one.
+Part 1 removes the need for the context. Part 2 removes the loop. Part 3 bounds
+what one turn can pull. Part 4 catches what the first three miss. Trimming
+alone is the worst of the four, because it throws away code the seat asked for
+one turn earlier.
 
 The later questions wait on the answer, and they are recorded so they are not
 lost:
