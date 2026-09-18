@@ -60,12 +60,54 @@ Rules:
   6. Night 86 cold from a worktree at the closing commit reaches a
      batch: 20k here, about 40 minutes wall at night 85's rate.
   Total: 292k in agents, about 80k in this context.
-- Waits on: line 1, then Roman's ruling on line 2.
+- Waits on: the frame 34 implementer, which holds the same four files in
+  the main checkout. Roman's ruling on paging is a separate line and
+  does not block the fitting fix.
 - Reasoning: `plans/archive/night85-2026-09-18.md`.
 - Status 2026-09-18 03:05 (rota-dc): pushed. The reviewer runs, cap 60k.
   The frame is Roman's to reorder. It is above frames 33, 34 and 35
   because none of their fixes can be walked until a night gets past the
   present (reasoned: night 85 never reached the term-collision tick).
+- Status 2026-09-18 03:13 (rota-dc): line 1 is in, 88k on the harness
+  line against 60k priced and a 60k cap, 70 tool calls. The cause is
+  measured, not guessed (observed: the reviewer's tokeniser and replay
+  probes, recorded in `plans/archive/night85-2026-09-18.md`). Five high
+  findings. The first: `_fit` at `rota/core/runner.py:469` returns early
+  while a transcript holds fewer than four blocks, so an oversized wake
+  is never cut, and turns one to three hold one to three blocks. The
+  third: the landing wake carries the same 79 rows twice, byte-identical
+  at 21402 characters each, and dropping one cuts the prompt from 17220
+  to 11337 tokens. The fifth: `ref_resolves` accepts any string starting
+  with `@`, so a tick name became a ledger row and then a decision with
+  a dangling ref.
+  The 6146 question is settled and finding 79's cause was wrong. Ollama
+  collapses any prompt over `num_ctx` to `num_ctx/2 + 2` and keeps the
+  tail, at one slot, on both servers, at three window sizes. The brief
+  sits at the front, so the brief is what dies. `plans/operating-facts.md`
+  is corrected. Plan against `num_ctx/2`.
+  The signoff reading of the night 85 record is withdrawn (observed:
+  `principal.land` refuses an empty reply with "Silence is not
+  consent"). Forty-five of the 46 decisions are the intended discharge
+  of an assumption under Law 11. The 46th is the dangling ref of finding
+  5. The diff review's finding 3 of frame 34 stays a probe result, not a
+  field observation.
+  New ends-when lines, priced: 3a, the fitting fix, findings 1, 3, 5, 7
+  and 8 plus the wake built from the page and the line map, measured at
+  5438 tokens against the 12288 window: 110k. 3b, paging the present:
+  held for Roman, below.
+- **Blocked on Roman.** Question: does the present page get paged, N
+  lines at a time? Paging is the only shape the reviewer measured that
+  stays bounded as a repository grows, and it breaks the tipsK ruling
+  and `observed_entries.md:14-16`, "One page, not several". The `asked`
+  guard at `rota/core/predicates.py:648-651` would have to count one
+  page-set as one ask. Recommended answer: not now. Build the fitting
+  fix first, which needs no ruling and gets click to 5438 tokens, then
+  push paging as its own frame before step 5 of the order, breadth,
+  where a larger repository forces it (reasoned: the page is 3039 tokens
+  for 77 lines on click and scales linearly, so breadth meets this wall
+  again). A per-page default verdict is not available at any time
+  (ruled: `plans/composition.md`, the tool never rules for the
+  Principal).
 
 ### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
 
