@@ -256,6 +256,17 @@ Rules:
   frame's ends-when needs a commit, so the night runs on. A watcher
   holds the batch's status, its head commit, the test runs and the
   verdicts.
+- Status 2026-09-18 07:20 (rota-dc): **the batch committed.** `bg_1` is
+  `running` in its own worktree with head commit `da5e7e8` (observed:
+  the run database; 34 test runs, no verdict yet, 145 sessions, and the
+  Developer has woken once). Frame 34's ends-when line 4, a batch and a
+  commit, holds. The frame closes when the walk is read whole.
+  Frame 33's evidence is not in yet. `config.project_commit` still
+  names the base commit `2c8cd3a`, so the main index has not refreshed.
+  That is expected, because the batch's commit is on the batch's own
+  worktree and the main refresh hook keys on the merge. The watcher now
+  holds `project_commit`, the index row count, the batch status and the
+  verdicts, and it fires when the commit moves off the base.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
