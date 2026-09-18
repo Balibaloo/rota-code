@@ -88,6 +88,29 @@ Rules:
   takes over 100 s, 75 per cent on the GPU takes 153 s, and a model over
   by 8 GB takes minutes. The practical budget is about 8 GB of the 10,
   because the desktop takes 2.
+- Where the flag lives (observed: `rota/core/scheduler.py:32`, the
+  `Wake` frozen dataclass): `Wake` holds five fields, `role`, `kind`,
+  `message_id`, `refs` and `detail`, under a one-line class docstring.
+  **Only `kind` is documented**, by an inline comment naming its values.
+  The other four carry nothing, so no per-field convention exists to
+  follow. The flag would be the sixth field and the second with a
+  comment. Document every field when the frame runs, because the
+  structure is small and the flag's meaning is not obvious from its
+  name.
+- **The flag is not a boolean** (reasoned: the assistant, at the grill;
+  a boolean loses the reason and the reason is what a later reader
+  needs). Each unbounded wake is unbounded in a different dimension:
+  `observed_entries` in repository size, `grouping` in work in flight,
+  `term_collision` in the senses of one word. A short string naming the
+  growth dimension carries the same decision and keeps the why. It also
+  answers the question the flag raises, which is "bounded by what".
+- **Open, for the architecture planning**: the flag must reach the
+  runner, which sizes the prompt. A field on `Wake` is the natural home.
+  It is not traced whether the runner sees the `Wake` object where it
+  chooses the context size, or only the stored `wake_kind` and
+  `wake_detail` columns. If the columns are all it sees, the flag
+  travels as a third column or is looked up from the tick name. Ask
+  `python -m rota.tools.map` before grepping.
 - Ends when: not priced. Architecture planning comes first, because
   Roman holds the interaction with the RAM tracking open. Roman is also
   questioning whether the frequent wakes should keep the single cap, so
