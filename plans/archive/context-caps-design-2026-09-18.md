@@ -95,6 +95,67 @@ carrying "prompt did not fit"). The observed entries page did it once on night
 85 and never on night 86. The frequent fault is a hundred times the size of the
 rare one and it is in the trim, not in the cap.
 
+### What `_fit` guarantees, and why that is the fault
+
+`_fit` keeps three things and evicts the rest of the middle: the first block,
+which is the wake, and the last two blocks, which are the latest exchange
+(observed: `rota/core/runner.py:514-528`). The wake alone is capped at two
+thirds of the budget. **The last two blocks are not capped, and their sum is
+not checked.** So the trim cannot get under budget when the latest exchange is
+itself over budget, and it does not try.
+
+Two faults follow, and they are different:
+
+1. **Turn 2 is never trimmed at all.** The eviction needs four blocks and turn
+   2 holds three (observed: `rota/core/runner.py:511-512`). Turn 2 is the
+   largest bucket of over-budget turns on both nights: 24 of 86 on night 85, 27
+   of 57 on night 86.
+2. **After turn 2 the eviction runs and still cannot win.** The remaining
+   over-budget turns are spread from turn 3 to turn 23 (observed: both
+   databases). The middle is already gone, and what is left is the wake plus
+   the latest exchange.
+
+### The extreme case, which is a different fault again
+
+Session s71, the Architect on `tick:survey`, on both nights (observed: the
+`turns` rows of both databases):
+
+| turn | prompt | the seat's reply |
+| ---: | ---: | --- |
+| 1 | 20183 chars, of which a 19994-char `[source]` push | 25585 chars, **331 tool calls** |
+| 2 | 110250 chars | 2332 chars, no call |
+
+The runner answered all 331 calls. It already de-duplicates the content: 327 of
+the answers read "OK code.source -> unchanged since you asked earlier this
+session; the answer is above." It de-duplicates the answer and not the line, so
+the whole exchange, about 90000 characters of repeated calls and repeated
+one-line answers, became turn 2's prompt.
+
+The server then cut that prompt to 6146 tokens and kept the tail. The tail is
+the 327 "unchanged" lines. So the seat's second turn held no brief and 327
+lines telling it that it had already asked.
+
+A runaway reply is rare and its cost is extreme: three replies of 20 calls or
+more on each night, and they produce the two largest prompts of the night
+(observed: both databases). A repeated call is common: 44 of 366 turns on night
+85 and 105 of 825 on night 86 carry at least one "unchanged" line.
+
+**A bigger window makes this case worse, not better.** At 32768 the seat would
+have read all 327 lines instead of half of them.
+
+### What an over-budget turn costs, stated exactly
+
+The `_fit` budget is half the window, because half is what survives a server
+cut. Being over the budget is therefore a warning, not a cut. Being over the
+whole window is the cut.
+
+- Night 85: 86 turns over the budget, in 32 sessions. 19 sessions were actually
+  cut by the server.
+- Night 86: 57 turns over the budget, in 36 sessions. 15 sessions were cut.
+- Every session the server cut had an over-budget turn first, on both nights.
+
+So the budget is a true early warning and nothing reads it.
+
 **The window change is cheap, and that is not the question.** If the three
 unbounded wakes took a second window, a night would change window twice on
 night 85 and six times on night 86, because only one session on night 85 and
@@ -171,10 +232,21 @@ back, and `_fit` cannot trim turn 2. Do we fix the trim, or do we raise the
 window to hold the results?**
 
 Recommended: fix the trim. A window that holds 110250 characters is about 26000
-tokens. That doubles the KV cache for every turn of the night to carry results
-the seat asked for and can ask for again. The trim fix is three lines: run the
-middle eviction with fewer than four blocks, and cut the last block when it
-alone exceeds the budget, saying so, as every other cut here says so.
+tokens. That doubles the KV cache for every turn of the night, to carry results
+the seat asked for and can ask for again, and in the worst case to carry 327
+lines that each say "you already asked".
+
+The trim fix is three parts, and each is small:
+
+1. Run the middle eviction below four blocks, so turn 2 is trimmed.
+2. Cap the last two blocks the way the wake is capped, and say the cut
+   happened, as every other cut here says so.
+3. Collapse a repeated call in the echo. The runner already knows the call is a
+   repeat, because it answers "unchanged since you asked earlier". One line for
+   328 repeats carries the same fact.
+
+Part 3 is the one that removes the extreme case. Parts 1 and 2 remove the
+common one.
 
 The later questions wait on the answer, and they are recorded so they are not
 lost:
