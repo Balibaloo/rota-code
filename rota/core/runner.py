@@ -441,6 +441,13 @@ FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)"
                                re.MULTILINE)
 
 
+# The rows behind a page, while they fit beside the page itself. Half a 12,288
+# window is the budget on overflow (finding 79), the brief and the page take
+# most of it, and 6,000 characters of rows is what is left. A four-line page is
+# about 600.
+LANDING_ROWS_CHARS = 6_000
+
+
 def _render_cut(text: str, limit: int) -> str:
     """Cut, saying so. The same contract `_render` keeps for a tool result."""
     if len(text) <= limit:
@@ -466,7 +473,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     middle -- older tool results the session has already acted on. Announced
     rather than silently dropped, for the same reason a cut result says so.
     """
-    if sum(len(t) + 2 for t in transcript) <= budget or len(transcript) < 4:
+    if sum(len(t) + 2 for t in transcript) <= budget:
         return transcript
 
     # The wake is kept whole *unless it alone will not fit*, which it can be:
@@ -479,6 +486,15 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     wake_room = (budget * 2) // 3
     if len(transcript[0]) > wake_room:
         transcript = [_render_cut(transcript[0], wake_room)] + transcript[1:]
+
+    # The cut above runs on every turn. It once sat behind an early return on
+    # a transcript of fewer than four blocks, and turns one to three hold one
+    # to three blocks -- so an oversized wake was never cut at all. Night 85
+    # (2026-09-18): two landing sessions were sent a 17,220 token wake into a
+    # 12,288 window, ollama kept the tail, and each seat answered as a generic
+    # assistant with no tool call. Only the middle eviction below needs four.
+    if len(transcript) < 4:
+        return transcript
 
     head, tail = transcript[:1], transcript[-2:]
     room = budget - sum(len(t) + 2 for t in head + tail)
@@ -888,10 +904,35 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     "lines": {str(i + 1): ref for i, ref in enumerate(order)},
                     "reply": row["body_text"] or "",
                 }
+                # The rows, while they fit. A present of 77 lines sent every
+                # row twice -- `resolved_refs` and `landing.line_rows` were the
+                # same 21,402 characters -- in a 17,220 token wake against a
+                # 12,288 window (measured on night 85, 2026-09-18). Ollama
+                # collapses an oversized prompt to half the window and keeps
+                # the tail, so the brief at the front is what dies and the seat
+                # answers as a generic assistant.
+                #
+                # Cut to index depth rather than dropped, which is the rule
+                # every other read here keeps. The page carries the prose of
+                # every line already, so what stays is the id and the kind of
+                # row each line is, in one map. A seat that needs a whole row
+                # calls `rulings.line`. Night 85's own 79-line wake measures
+                # 5,593 tokens this way, against 17,220.
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
                     resolved_row["table"] = _table_of(conn, ref)
-                landing["line_rows"] = line_rows
+                if len(json.dumps(line_rows, default=str)) <= LANDING_ROWS_CHARS:
+                    landing["line_rows"] = line_rows
+                    fits = True
+                else:
+                    fits = False
+                    landing["lines"] = {
+                        str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
+                        for i, ref in enumerate(order)}
+                    landing["rows_not_shown"] = (
+                        f"the {len(order)} rows behind these lines do not fit "
+                        f"this window. Every line is on the page. "
+                        f"`rulings.line` reads the row behind one line")
                 earlier = [dict(r) for r in conn.execute(
                     "SELECT from_role, body_text FROM messages "
                     "WHERE cause_id = ? AND verb = 'converse' AND id != ? "
@@ -904,6 +945,16 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # named `asks`, both 8B models answered the "question" by
                 # sending the words back (2026-09-10, 5/5).
                 out.pop("asks", None)
+                # The same rows a second time, under the wake's own key. On a
+                # page that fits they stay: dropping them cost two register
+                # cases 5/5 to 0/5 on qwen3:8b (2026-09-18), and a repeated row
+                # is what the seat rules from. On a page that does not fit they
+                # are the 21,402 characters that killed night 85.
+                if not fits:
+                    out.pop("resolved_refs", None)
+                    # And the ids a third time. `landing.lines` numbers the
+                    # same 79 ids, which is the form the ruling is written in.
+                    out.pop("refs", None)
 
     # Signoff disclosure (ruled 2026-09-03): the principal gates what an item
     # says and cannot gate what is absent, so the absence is computed here and
@@ -1748,10 +1799,18 @@ def run_session(
             if on_completion:
                 on_completion()
             if getattr(completion, "truncated", False):
+                # Say what happened, not what the counter reads. A cut prompt
+                # reports half the window, which reads as well inside it: the
+                # server collapses anything over `num_ctx` to `num_ctx / 2 + 2`
+                # and keeps the tail, so the brief at the front is what goes
+                # (measured 2026-09-18, finding 79).
+                whole = (getattr(completion, "prompt_estimate", 0)
+                         or completion.prompt_tokens)
                 outcome.errors.append(
-                    f"prompt did not fit: {completion.prompt_tokens} tokens "
-                    f"evaluated against a {pins.num_ctx} window — the session "
-                    f"was briefed with less than it was given")
+                    f"prompt did not fit: {completion.prompt_tokens} of about "
+                    f"{whole} tokens evaluated against a {pins.num_ctx} "
+                    f"window — the server cut the prompt from the front, "
+                    f"which is where the brief is")
 
             calls = toolproto.extract_lenient(completion.text, allowed,
                                               signatures=_param_sets(sb))

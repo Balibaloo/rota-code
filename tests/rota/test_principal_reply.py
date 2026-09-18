@@ -109,6 +109,126 @@ def test_the_reply_wakes_the_liaison_in_landing_with_the_page(db):
     assert landing["line_rows"]["l_1"]["table"] == "ledger"
     assert "2. The user types the bill" in landing["page"]
     assert "earlier_exchange" not in landing
+    # A page this size fits, so the rows travel whole and nothing says they
+    # were cut.
+    assert "rows_not_shown" not in landing
+
+
+def _big_present(db, lines=77):
+    """A page the size of night 85's: twelve senses, sixty constraints and
+    four items, one statement at the top."""
+    refs = ["s1"]
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e1','principal','a command line tool like click',1)")
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,29,'a command line tool "
+               "like click','ratified')")
+    for i in range(12):
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short, "
+                   "sense_body) VALUES (?,?,?,?)",
+                   (f"g{i}", f"term_{i}",
+                    f"The {i}th word the code uses for a command line idea.",
+                    f"A `term_{i}` is the object the decorator builds when a "
+                    f"function is marked as a command. It carries the name, "
+                    f"the parameters and the callback, and the runner invokes "
+                    f"it with a context."))
+        refs.append(f"g{i}")
+    for i in range(lines - 17):
+        db.execute("INSERT INTO constraints (id, headline, text) VALUES (?,?,?)",
+                   (f"k{i}", f"the {i}th decorator keeps its name",
+                    f"Users of the `option_{i}` decorator in "
+                    f"`src/click.decorators` would break if this were renamed."))
+        refs.append(f"k{i}")
+    for i in range(4):
+        db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                   "version) VALUES (?,?,'in_scope','draft',0,1)",
+                   (f"i{i}", f"The tool reads argument {i} from the line."))
+        refs.append(f"i{i}")
+    assert len(refs) == lines
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th','liaison',"
+               "'principal','present',?,1,'open')", (json.dumps(refs),))
+    db.commit()
+    return pending_asks(db)[0]
+
+
+def _prompt_tokens(system: str, user: str) -> int:
+    """The real tokeniser when the server answers, the measured ratio when it
+    does not. A character count alone is what hid this: the wake was 64,294
+    characters and nobody had a token number for it until night 85."""
+    import random
+    import urllib.request
+
+    payload = {"model": "qwen3:8b", "stream": False,
+               "messages": [{"role": "system",
+                             "content": "zz%d " % random.randrange(10 ** 9) + system},
+                            {"role": "user", "content": user}],
+               "options": {"num_ctx": 40960, "num_predict": 1,
+                           "temperature": 0}}
+    req = urllib.request.Request(
+        "http://127.0.0.1:11434/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            count = json.loads(resp.read().decode("utf-8")).get("prompt_eval_count")
+        if count:
+            return int(count)
+    except Exception:                                          # noqa: BLE001
+        pass
+    # 3.97 characters to the token, measured against qwen3:8b on 2026-09-18.
+    return int((len(system) + len(user)) / 3.97)
+
+
+def test_the_landing_wake_for_a_77_line_present_fits_the_window(db):
+    """
+    The wall of night 85 (2026-09-18). The landing wake for a 77-line present
+    measured 17,220 tokens against a 12,288 window. Ollama collapses an
+    oversized prompt to `num_ctx / 2 + 2` and keeps the tail, so the brief at
+    the front is what dies: both seats answered as generic assistants, made no
+    tool call, and the present stayed open. The budget is half the window.
+    """
+    from rota.core.predicates import Wake
+    from rota.core.runner import build_prompt, push_working_set, resolve_inbound
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    ask = _big_present(db)
+    msg = _reply(db, ask, "line 3 is not what I meant")
+    wake = Wake(role="liaison", kind="message", detail="converse",
+                message_id=msg, refs=ask.refs)
+    sb = build("liaison", db, mode="normal", session_id="sess_big",
+               allow=prompts.mode_tools("liaison", "landing"))
+    inbound = resolve_inbound(db, wake)
+    system, user = build_prompt(
+        "liaison", sb, wake, push_working_set("liaison", sb, wake),
+        prompts.compose("liaison", "landing"), inbound)
+
+    landing = inbound["landing"]
+    assert "line_rows" not in landing, "the rows did not fit and travelled anyway"
+    assert "resolved_refs" not in inbound, "the same rows, under the wake's key"
+    assert "refs" not in inbound, "the same 77 ids, a third time"
+    assert "rulings.line" in landing["rows_not_shown"], "the cut must say what to call"
+    assert landing["lines"]["1"].endswith("(statements)"), landing["lines"]["1"]
+
+    tokens = _prompt_tokens(system, user)
+    assert tokens < 6100, f"the landing wake is {tokens} tokens: half a 12,288 window"
+
+
+def test_the_landing_seat_reads_a_row_it_was_not_sent(db):
+    """The row behind a numbered line, on demand. The wake no longer carries
+    the rows, so the one question the page does not answer has a tool."""
+    ask = _present(db)
+    sb, _ = _landing(db, ask, "what is line 4 about?")
+
+    out = sb.call("rulings.line", line="4")
+    assert out["ref"] == "l_1"
+    assert out["row"]["table"] == "ledger"
+    assert out["row"]["about_ref"] == "how_it_works"
+    # By id as well as by number, and nothing else.
+    assert sb.call("rulings.line", line="s1")["row"]["table"] == "statements"
+    with pytest.raises(ValueError, match="not a line of the page"):
+        sb.call("rulings.line", line="9")
 
 
 def _landing(db, ask, text):

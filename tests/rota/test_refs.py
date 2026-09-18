@@ -711,14 +711,14 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
     from rota import cli
 
     old = _old_database(tmp_path / "old.db")
-    with pytest.raises(RuntimeError, match="predates the refs relation"):
+    with pytest.raises(RuntimeError, match="behind the current schema"):
         init_db(old)
-    assert "predates the refs relation" in cli._read(old, ask_git=False)["error"]
+    assert "behind the current schema" in cli._read(old, ask_git=False)["error"]
 
     fresh = tmp_path / "fresh.db"
     conn = init_db(fresh)
     assert conn.execute("SELECT value FROM config WHERE key = 'schema'"
-                        ).fetchone()["value"] == "refs"
+                        ).fetchone()["value"] == "ledger-kind"
     conn.close()
     init_db(fresh).close()          # the same run, opened again
 
@@ -726,8 +726,26 @@ def test_a_run_database_from_before_the_refs_relation_is_refused(tmp_path):
     conn = init_db(marked)
     conn.execute("ALTER TABLE items ADD COLUMN provenance TEXT")
     conn.close()
-    with pytest.raises(RuntimeError, match="predates the refs relation"):
+    with pytest.raises(RuntimeError, match="behind the current schema"):
         init_db(marked)
+
+
+def test_a_run_database_at_an_older_mark_is_refused(tmp_path):
+    """
+    Night 85's carried defect. The commit that added `ledger.kind` left the
+    mark alone, so an old database opened and then failed part way through the
+    night on its first ledger write: `executescript` adds a table, never a
+    column. The mark moves with the column, and the refusal says what to do.
+    """
+    old = tmp_path / "at_the_old_mark.db"
+    conn = init_db(old)
+    conn.execute("UPDATE config SET value = 'refs' WHERE key = 'schema'")
+    conn.close()
+
+    with pytest.raises(RuntimeError, match="behind the current schema"):
+        init_db(old)
+    with pytest.raises(RuntimeError, match="fresh onboarding"):
+        init_db(old)
 
 
 def test_a_viewer_opens_an_old_run_read_only_with_the_sentence(tmp_path):
@@ -742,12 +760,12 @@ def test_a_viewer_opens_an_old_run_read_only_with_the_sentence(tmp_path):
 
     old = _old_database(tmp_path / "old.db")
     conn, note = open_for_viewing(old)
-    assert "predates the refs relation" in note
+    assert "behind the current schema" in note
     with pytest.raises(sqlite3.OperationalError):
         conn.execute("INSERT INTO entries (id, author, text, ts_order) "
                      "VALUES ('e1', 'principal', 'x', 1)")
     conn.close()
-    assert any("predates the refs relation" in d for d in server._bring_up(old))
+    assert any("behind the current schema" in d for d in server._bring_up(old))
 
     conn, note = open_for_viewing(tmp_path / "fresh.db")
     assert note is None
@@ -793,8 +811,8 @@ def test_state_json_answers_for_an_old_run_with_the_sentence(tmp_path):
         httpd.shutdown()
         httpd.server_close()
 
-    assert "predates the refs relation" in snap["stale"]
-    assert any("predates the refs relation" in d for d in snap["drift"])
+    assert "behind the current schema" in snap["stale"]
+    assert any("behind the current schema" in d for d in snap["drift"])
     assert snap["frontier"] == {"tips": [], "predicates": []}
 
 

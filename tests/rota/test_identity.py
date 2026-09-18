@@ -92,6 +92,39 @@ def test_a_ref_that_names_no_row_is_refused(tmp_path):
     assert sb.ctx.outbound
 
 
+def test_an_at_ref_must_name_an_area_this_run_declared(tmp_path):
+    """
+    Night 85 (2026-09-18): a blindspot session copied a `code.gaps` fact line
+    whole and logged a ledger row about `@constraint_zero` in `model_areas`,
+    which held `.` and `src/click` and nothing else. The gap reached the page
+    as an assumption and the signoff wrote a decision with a dangling ref. Any
+    `@` string passed before; an area this run declared passes now.
+    """
+    import pytest as _pytest
+
+    from rota.core.db import init_db
+    from rota.core.sandbox import build
+
+    db = init_db(tmp_path / "rota.db")
+    for area in (".", "src/click"):
+        db.execute("INSERT INTO model_areas (id, account) VALUES (?, 'x')",
+                   (area,))
+    db.commit()
+    sb = build("liaison", db, mode="blindspot")
+
+    with _pytest.raises(ValueError, match="names no row"):
+        sb.call("ledger.log", about_ref="@constraint_zero",
+                about_table="model_areas",
+                assumption="no constraint binds the zero case")
+    assert sb.call("ledger.log", about_ref="@src/click",
+                   about_table="model_areas",
+                   assumption="the decorators keep their names")["id"]
+    # The onboarding subjects that are not directories stay legal: a survey of
+    # `@program` has no area row and still has assumptions to log.
+    assert sb.call("ledger.log", about_ref="@program", about_table="items",
+                   assumption="the whole program is one command")["id"]
+
+
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
     """
     tipsQ, 2026-09-09: the Terminologist logged an assumption about a ledger

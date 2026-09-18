@@ -126,6 +126,10 @@ class Completion:
     # ignoring them, and no assertion can tell those apart.
     truncated: bool = False
     prompt_tokens: int = 0
+    # What the prompt was before the server cut it, in tokens, estimated from
+    # its characters. The evaluated count alone misleads: a cut prompt reports
+    # half the window, which reads as comfortably inside it.
+    prompt_estimate: int = 0
 
     @property
     def used_native_tools(self) -> bool:
@@ -400,13 +404,15 @@ class OllamaBackend:
         # ever say so — the session just behaves as though it had been briefed
         # differently, which is indistinguishable from a role misbehaving.
         used = body.get("prompt_eval_count") or 0
-        # The server can also cut from the front and report a count far
-        # below the window: Ollama's two default slots split num_ctx
-        # (finding 79, 2026-09-15: limit 6146 of 12288, 208 sessions cut,
-        # the brief gone first). An estimate of the prompt's tokens against
-        # the window catches that shape; chars over 3.5 is within a fifth
-        # for these models and errs toward saying so.
-        estimate = int((len(system) + len(user)) / 3.5)
+        # The server can also cut from the front and report a count far below
+        # the window. Ollama collapses any prompt over `num_ctx` to
+        # `num_ctx / 2 + 2` and keeps the tail, so a 17,220 token prompt on a
+        # 12,288 window reports 6,146 and the brief is the part that is gone
+        # (measured 2026-09-18 on both servers at three window sizes; finding
+        # 79 in `plans/operating-facts.md`). An estimate of the prompt's
+        # tokens against the window catches that shape. The measured ratio is
+        # 3.97 characters to the token for these models.
+        estimate = int((len(system) + len(user)) / 3.97)
         truncated = used >= pins.num_ctx * 0.98 or estimate > pins.num_ctx
 
         message = body.get("message", {}) or {}
@@ -424,7 +430,7 @@ class OllamaBackend:
         return Completion(
             text=message.get("content", ""),
             pins=pins, backend=self.name, raw=body, tool_calls=native,
-            truncated=truncated, prompt_tokens=used,
+            truncated=truncated, prompt_tokens=used, prompt_estimate=estimate,
         )
 
 

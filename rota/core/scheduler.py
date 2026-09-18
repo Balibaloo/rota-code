@@ -401,6 +401,10 @@ FRAME = "@frame"
 REORIENT = "@reorient"
 CLAIM_PREFIX = "@claim:"
 BLINDSPOTS = "@blindspots"
+# The whole set, for the ref door: a `@` ref is legal when it names an area
+# this run declared, and these are the subjects that are not directories.
+PSEUDO_AREAS = (PROGRAM, PROSE, FRAME, REORIENT, BLINDSPOTS)
+PSEUDO_AREA_PREFIXES = (TERM_PREFIX, CLAIM_PREFIX)
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
                     "tick:define", "tick:survey", "tick:reorient",
                     "tick:boundary", "tick:challenge", "tick:blindspot")

@@ -3103,11 +3103,46 @@ def _id_tables(conn) -> list[str]:
     return _REFFABLE_CACHE[key]
 
 
+def _area_resolves(ctx: Ctx, ref: str) -> bool:
+    """Whether `@name` names an area this run declared.
+
+    Any `@` string passed before. Night 85 (2026-09-18): a blindspot session
+    copied a `code.gaps` fact line whole and logged a ledger row about
+    `@constraint_zero` in `model_areas`, which held only `.` and `src/click`.
+    The gap reached the page as an assumption and the signoff wrote a decision
+    with a dangling ref. The blindspot brief already forbids a row about a
+    tick, a message or a counter, and this is the door behind the brief.
+    """
+    from ..core.scheduler import PSEUDO_AREAS, PSEUDO_AREA_PREFIXES
+
+    if ref in PSEUDO_AREAS or any(ref.startswith(p) for p in PSEUDO_AREA_PREFIXES):
+        return True
+    name = ref[1:]
+    if not name:
+        return False
+    if name == getattr(ctx, "area", None) or ref == getattr(ctx, "area", None):
+        return True
+    if any(w[0] == "model_areas" and w[1] == name for w in ctx.writes):
+        return True
+    if ctx.conn.execute("SELECT 1 FROM model_areas WHERE id = ?",
+                        (name,)).fetchone():
+        return True
+    # The partition onboarding stamped, which exists before the Architect has
+    # written an account of any area.
+    try:
+        return ctx.conn.execute("SELECT 1 FROM area_hashes WHERE area = ?",
+                                (name,)).fetchone() is not None
+    except sqlite3.Error:             # a database older than the table
+        return False
+
+
 def ref_resolves(ctx: Ctx, ref: str) -> bool:
     """A ref is a promise that a row exists somewhere -- kept, staged, or a
     declared prefix. The world-audit found 258 broken promises in the
     historical runs; this is the door that stops new ones."""
-    if ref.startswith("@") or ref.startswith("e_"):
+    if ref.startswith("@"):
+        return _area_resolves(ctx, ref)
+    if ref.startswith("e_"):
         return True
     if any(w[1] == ref for w in ctx.writes):
         return True
@@ -5114,6 +5149,53 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
         out["note"] = ("the answer said nothing about these rows, so each one "
                        "is logged and stays on the principal's agenda")
     return out
+
+
+@op("rulings", "line")
+def rulings_line(ctx: Ctx, line: str) -> dict:
+    """
+    The row behind one numbered line of the page.
+
+    A long page carries `rows_not_shown` instead of `line_rows`, and this is
+    how the seat reads one of the rows that did not fit. A present of 77 lines
+    carried every row twice and came to 17,220 tokens against a 12,288 window,
+    so ollama cut the prompt to half the window, kept the tail, and both seats
+    answered as generic assistants (night 85, 2026-09-18). The page holds every
+    line as the principal read it. This answers the one question the page does
+    not: where a line came from, or what it says in full.
+
+    `line` takes no default, so the wake never pushes this read. A row arrives
+    when the seat asks for it, which is the whole point of the change.
+    """
+    from ..core.runner import _resolve_refs, _table_of
+    from .principal import render_page
+
+    page = _ask_of(ctx)
+    if page is None:
+        raise ValueError(
+            "no open page: this session was not woken by a reply to a "
+            "confirm, a present or a clarify, so there is no line to read. "
+            "Stop")
+    refs = json.loads(page["body_refs"] or "[]")
+    order = render_page(ctx.conn, page["verb"], refs,
+                        page["body_text"])[1] or refs
+    # A long page numbers its lines `"3": "l_1 (ledger)"`, so a seat that
+    # copies the value back is passing the id with its kind on it.
+    key = str(line).strip().split(" (")[0].strip()
+    if key.isdigit() and 1 <= int(key) <= len(order):
+        ref = order[int(key) - 1]
+    elif key in order:
+        ref = key
+    else:
+        raise ValueError(
+            f"{key!r} is not a line of the page. The page numbers its rows 1 "
+            f"to {len(order)}; `line` takes one of those numbers")
+    row = _resolve_refs(ctx.conn, [ref]).get(ref)
+    if not row:
+        return {"line": key, "ref": ref, "row": None,
+                "note": "the line names a row that no table holds"}
+    row["table"] = _table_of(ctx.conn, ref) or row.get("table")
+    return {"line": key, "ref": ref, "row": row}
 
 
 @op("rulings", "load")

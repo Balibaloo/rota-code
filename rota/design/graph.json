@@ -2206,6 +2206,16 @@
       "s": "liaison",
       "t": "rulings",
       "type": "reads",
+      "v": "line",
+      "n": "the row behind one numbered line of the page",
+      "rows": "single",
+      "depth": "body",
+      "label": "the wake carries the page, not the rows: a 77-line present did not fit the window"
+    },
+    {
+      "s": "liaison",
+      "t": "rulings",
+      "type": "reads",
       "v": "load",
       "n": "own readings, landed by the door",
       "rows": "delta",

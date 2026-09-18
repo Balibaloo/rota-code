@@ -159,17 +159,22 @@ def connect_readonly(path: str | Path) -> sqlite3.Connection:
 # The schema marker (frame 21). `init_db` writes it when it creates the
 # tables. A run database from before the refs relation has the owner tables
 # and no marker. Opened, it would read every gate as reasoned, so the door
-# refuses it. Run databases are throwaway.
+# refuses it. A database at an older mark is refused for the same reason:
+# `executescript` adds a table, never a column. Run databases are throwaway.
 SCHEMA_KEY = "schema"
-SCHEMA_MARK = "refs"
-SCHEMA_STALE = ("the run database predates the refs relation, so it needs "
-                "a fresh run: wipe it, or onboard under a new name")
+# Move the mark whenever a column is added to a table a run writes. The commit
+# before this one added `ledger.kind` and left the mark alone, so an old
+# database opened and then failed part way through the night on its first
+# ledger write. The warm snapshot is such a database.
+SCHEMA_MARK = "ledger-kind"
+SCHEMA_STALE = ("the run database is behind the current schema, so it needs "
+                "a fresh onboarding: wipe it, or onboard under a new name")
 
 
 def schema_stale(conn: sqlite3.Connection) -> str | None:
-    """The sentence that refuses a database from before the refs relation.
-    None for an empty database and for one that carries the marker and no
-    provenance column."""
+    """The sentence that refuses a database behind the current schema.
+    None for an empty database and for one that carries the current mark and
+    no provenance column."""
     tables = {r["name"] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'")}
     if "items" not in tables:

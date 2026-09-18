@@ -637,6 +637,26 @@ def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
     assert fitted[-1] == "turn 3", "the latest exchange was dropped instead"
 
 
+def test_a_single_oversized_block_is_cut(db):
+    """
+    The cut sat behind an early return on a transcript of fewer than four
+    blocks, and turn one holds one block. Night 85 (2026-09-18): two landing
+    sessions were sent a 17,220 token wake into a 12,288 window, the server
+    kept the tail, and each seat answered as a generic assistant with no tool
+    call. The wake is cut on every turn now.
+    """
+    from rota.core.runner import _fit
+
+    for blocks in (["WAKE " + "x" * 50_000],
+                   ["WAKE " + "x" * 50_000, "turn 1"],
+                   ["WAKE " + "x" * 50_000, "turn 1", "turn 2"]):
+        fitted = _fit(list(blocks), budget=12_000)
+        assert len(fitted[0]) < 12_000, f"{len(blocks)} block(s) went uncut"
+        assert fitted[0].startswith("WAKE "), "the wake lost its head"
+        assert "did not fit" in fitted[0], "the wake was cut silently"
+        assert fitted[1:] == blocks[1:], "a later exchange was dropped"
+
+
 def test_an_index_read_is_a_table_not_repeated_field_names(db):
     """
     JSON repeats every field name on every row, and an index read is nothing but

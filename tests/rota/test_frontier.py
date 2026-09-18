@@ -268,6 +268,39 @@ def test_an_abandoned_area_lets_the_role_move_on(tmp_path):
     assert roles == {SURVEY_ORDER[1]}, "the next role should have started"
 
 
+def test_the_quarantined_wake_carries_the_affected_rows(tmp_path):
+    """
+    The wake carries the payload, not the envelope. Night 85 (2026-09-18):
+    three sessions sent `msg.present_principal` with `refs=['tick:
+    quarantined']`, three times each, and the door refused all nine, so the
+    quarantine never reached the principal by that route. The rows the dead
+    work was about are ids the door takes and the principal can resolve.
+    """
+    import json as _json
+
+    from rota.core import predicates as P
+    from rota.core.db import init_db
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','the tool reads a flag','in_scope',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) "
+               "VALUES ('b1','i1','pending')")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m1','th','architect',"
+               "'developer','deliver',?,1,'quarantined')",
+               (_json.dumps(["i1"]),))
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined) "
+               "VALUES ('developer|tick:batch_start|b1', 9, 1)")
+
+    wake = P.REGISTRY["quarantined"].fn(db)[0]
+
+    assert set(wake.refs) == {"i1", "b1"}, wake.refs
+    assert not any(r.startswith("tick:") for r in wake.refs)
+    assert "m1" not in wake.refs, "the principal has never seen a message"
+
+
 def test_telling_the_principal_discharges_the_telling(tmp_path):
     """
     `tick_quarantined` counted abandoned things and nothing cleared the count, so

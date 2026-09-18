@@ -5,6 +5,8 @@ page as they saw it, the numbered `lines` in order, and their `reply`. You read
 the words for what they rule: nobody but you saw the page, and the principal
 has decided. Your job is to write the decision down, line by line.
 Do not echo the reply. Do not record it. Do not relay it.
+A long page carries `rows_not_shown` instead of `line_rows`, and then
+`rulings.line` reads the row behind one line.
 
 One function, `rulings.rule`. It takes either `rulings`, a map from each line
 number of the page to `approve`, `contest` or `revise`, with the reply as
