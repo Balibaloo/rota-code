@@ -29,6 +29,44 @@ Rules:
 
 ## Stack
 
+### 36. The present page is larger than the window (2026-09-18) [75d12c2b]
+
+- Rota workflow. On night 85 the Liaison presented a page of 77
+  numbered lines. The prompt reached 64381 characters against a 12288
+  token window. The two sessions that had to answer it made no tool
+  call and answered as generic assistants. The present `m27` stayed
+  `open`, so the items stayed at approval `draft`, nothing sliced, and
+  the night ended with zero batches (observed: night 85's run database
+  and turns, recorded in `plans/archive/night85-2026-09-18.md`). This
+  wall is upstream of frames 33, 34 and 35 on the delivery path. A cold
+  click night cannot reach a batch while the page is larger than the
+  window.
+- Ends when, each line priced from the anchors, walls apart:
+  1. A reviewer settles what bounds the page today, the page's measured
+     token count, and whether the 6146 figure is a halved window or a
+     misreported count: 60k. Buys: a cause from a measurement, not from
+     the character count. Running now.
+  2. Roman rules the shape of the fix: 0k, one question with a
+     recommended answer. Buys: the page's contract is Roman's, since
+     `plans/composition.md` forbids the tool ruling for the Principal
+     and forbids silence as consent.
+  3. The fix is built with a pinned test that a page of 77 lines is
+     answerable at the shipped window: 110k (cold 80k, one resumed pass
+     30k). Buys: a cold night gets past the present.
+  4. A diff review on a worktree at the commit, its fixes in: 90k.
+     Buys: a write-pipeline change is read by a context that never
+     wrote it.
+  5. The gate green, the stale line read: 12k.
+  6. Night 86 cold from a worktree at the closing commit reaches a
+     batch: 20k here, about 40 minutes wall at night 85's rate.
+  Total: 292k in agents, about 80k in this context.
+- Waits on: line 1, then Roman's ruling on line 2.
+- Reasoning: `plans/archive/night85-2026-09-18.md`.
+- Status 2026-09-18 03:05 (rota-dc): pushed. The reviewer runs, cap 60k.
+  The frame is Roman's to reorder. It is above frames 33, 34 and 35
+  because none of their fixes can be walked until a night gets past the
+  present (reasoned: night 85 never reached the term-collision tick).
+
 ### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
 
 - Rota workflow. On night 84 `tick:observed_entries` ran three sessions,
@@ -76,6 +114,12 @@ Rules:
   `tick_attempts` shows the Critic's challenge tick at three attempts on
   two constraint claims, with `constraint_zero` at three. Rota workflow.
   It is parked below, not diagnosed.
+- Status 2026-09-18 03:05 (rota-dc): closed by the night, on the
+  evidence of the whole run (observed: night 85 ran the tick once, the
+  session committed, the glossary holds 21 rows, and onboarding
+  completed in 35 minutes where night 84 stuck). The night's own wall
+  was frame 36, not this one. This frame's five lines move to
+  `plans/archive/stack-2026-09-18.md` at the next pop.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
@@ -194,6 +238,19 @@ Rules:
   running at 6895000 (reasoned: the yes-only principal's words test the
   approve path, which 6895000 does break, so the night measures the
   common path while the fix pass makes the other paths safe).
+- Status 2026-09-18 03:05 (rota-dc): night 85 is in, and it does not
+  measure this frame. The night ended at GAUNTLET-DONE in 39 minutes,
+  125 sessions, zero batches, and **the term-collision tick never
+  fired** (observed: the run database; recorded in
+  `plans/archive/night85-2026-09-18.md`). The night stopped on a new
+  wall, frame 36: a present page of 77 lines against a 12288 token
+  window. The loop of nights 83 and 84 did not happen, but the night
+  never reached the path this frame fixes, so the fix is unwalked. The
+  diff review's finding 3 is confirmed in the wild: 46 decisions on
+  night 85 begin `default taken at signoff:`, one of them discharging a
+  tick that gave up at its attempt bound. The fix pass runs on, because
+  the seven findings stand whatever stops the night. This frame's walk
+  moves behind frame 36.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
