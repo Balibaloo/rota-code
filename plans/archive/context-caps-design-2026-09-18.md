@@ -282,9 +282,23 @@ last two are about trimming.
    rows, not files. A seat that can find does not pull eight files at the
    largest span. Cost: one line per mode's tool list, and a brief that says
    probe before source.
-2. **Refuse the third identical call in a session.** The runner already detects
-   the repeat, because it answers "unchanged since you asked earlier". Today it
-   answers it 327 times. A refusal after the second ends the loop and says why.
+2. **Refuse the third identical call in a session, and fix the lie under it.**
+   The runner already detects the repeat and answers "unchanged since you asked
+   earlier this session; the answer is above". Today it answers that 327 times.
+
+   **The answer is not always true, and that is a live fault** (observed:
+   `rota/core/runner.py:1787`, `:2082-2083`). `already_run` is a set built once
+   per session. Nothing clears it. `code.write` does not clear it and
+   `code.commit` does not clear it. The repeated call still runs, at
+   `rota/core/runner.py:2084`, and its result is then thrown away and replaced
+   by the "unchanged" line. So a seat that reads a file, writes it, and reads
+   it back is told the file is unchanged, and the new content is discarded on
+   the way to it.
+
+   That reaches the Developer's own loop. Night 86's s172 wrote
+   `src/click/termui.py` and read it in the same session (observed: its tool
+   calls). The fix is to key the repeat memory by path and clear the paths a
+   write touches, before any refusal is added on top of it.
 3. **Cap the results of one turn, not only each result.** `SOURCE_CHARS` is
    14000 and the budget is 21139, so two source reads in one turn exceed
    everything the session can hold. The per-turn total is the missing cap.
