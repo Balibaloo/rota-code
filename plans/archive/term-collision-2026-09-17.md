@@ -114,3 +114,80 @@ The walk: night 85 from a worktree at the closing commit, from sentence
 two. It closes when the night reaches a batch and a commit, which is
 frame 33's walk too. If frame 35's wall stops the night first, that is
 the night's result and frame 34 stays validating.
+
+## The diff review of 6895000, 2026-09-18
+
+A read-only reviewer read the commit on a worktree, against eight
+numbered points, 112k on the harness line against a 65k cap, 49 tool
+calls. The reviewer built the night-84 fixture and ran the whole cycle
+in a real sandbox. The probes are named in the reviewer's report.
+
+The result, first and loudest: **the loop still closes on one common
+answer** (observed: the reviewer's probe ran cycles two and three and
+the tick fired each time). The fix breaks the loop when the ruling
+approves at least one row. The loop closes again when the ruling
+contests or revises every row. The deciding line is
+`rota/core/predicates.py:456`, `if any(i in ruled for i in ids)`, fed
+by `rota/roles/api.py:1033`, which writes the ruling ref for approved
+rows only.
+
+Parts B and the write pipeline hold. One function, `chain_verdict`,
+serves the runner's inbound, `_verdict_of` and `_landed_ruling`, with
+no second copy, and the walk terminates on a `seen` set (observed: the
+reviewer's read). Both new writes go through `ctx.writes`, and both
+tables are declared (observed: `ARTEFACT_TABLES` and `identity.py`).
+The commit adds no raw SQL write.
+
+Five of the six deviations hold. One does not: `rulings.rule` accepting
+a clarify as the page fails at its boundary, because a clarify has no
+numbered page and no open-status guard (observed: findings 2, 6 and 7).
+
+### The five high findings
+
+1. **A contest-only or revise-only ruling re-enters the loop**
+   (observed: the reviewer ruled both rows `contest`, adopt skipped
+   both, no ruling ref and no ledger row were written, and the tick
+   fired on cycles two and three). Cycle two runs in `report` mode,
+   whose tool list holds neither `rulings.rule` nor `ledger.log`, so
+   the cycle cannot write a reading at all. The whole defect is one
+   answer word away.
+2. **The clarify door tells the Liaison to approve a row the words
+   never named** (observed: `api.py:5004-5006` sets `order = order or
+   refs`, and the refusal text says a line the reply does not contest
+   is an approve). The reviewer landed an approve on both rows for the
+   reply "what time is the meeting". The tool rules for the Principal
+   at the one door the fix added.
+3. **One signoff keypress on the parked ledger row discharges the
+   collision for good** (observed: the reviewer parked the family, then
+   approved the parking row on the agenda page, and `term_collision`
+   read the row as ruled). A decision that records a non-answer becomes
+   the record that nobody ruled. Contest does the same.
+4. **The parking sentence must be exact** (observed: a paraphrase did
+   not park and the tick fired again). The ledger id is a hash of the
+   text, so every paraphrase writes a new row each cycle and the ledger
+   grows without bound. The one mechanism that holds the family between
+   cycles rests on a model copying seven words.
+5. **Nothing enforces the ruling before the relay** (reasoned: the
+   runner breaks an answering session as soon as `ctx.outbound` is
+   non-empty, and the brief asks for two calls in one turn with the
+   relay second). A model that relays first ends with no ruling. The
+   register case is 5/5 on qwen3:8b today, so the brief holds, but no
+   door holds it.
+
+### The four lows
+
+Finding 9 is the same line as finding 1: one approved sense silences a
+family that still holds a live contested sense, whose only other reader
+is the quarantined tick of frame 35. Finding 8 is an unfiltered read of
+the chain's ruling, which grew with this commit's walk. Findings 6 and
+7 are a clarify ruling that applies no state and a clarify page with no
+open-status guard.
+
+### The fix pass
+
+Findings 1, 2, 3, 4, 5, 8 and 9 go to a fresh implementer, cap 110k,
+with seven pinned tests. Findings 6 and 7 stay out (ruled: the
+assistant, they are low and off the delivery path). The implementer is
+fresh, not the one that wrote 6895000 (reasoned: a stated deviation
+from one implementer per frame, since that agent died with its
+session).
