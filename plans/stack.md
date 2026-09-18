@@ -165,6 +165,43 @@ Rules:
   waiting at 8ebbae1. This is a change from night 85, which ran beside
   a review that made no model call.
   Frame 35 is popped to `plans/archive/stack-2026-09-18.md`, verbatim.
+- Status 2026-09-18 06:05 (rota-dc): the diff review is in, 119k on the
+  harness line against 90k priced and a 65k cap, 44 tool calls. Nine
+  points answered, one high finding and four lows.
+  **The seat can rule a long page.** The reviewer sent night 85's real
+  landing wake to qwen3:8b live at num_ctx 12288, with the rows dropped.
+  The model evaluated 5565 tokens and returned one `rulings.rule` call
+  with 77 correct verdicts, and the ruling applied through the sandbox
+  (observed: the reviewer's `p_live.py` and `p_slice.py`). A batch can be
+  cut. The deciding line is `rota/core/runner.py:924`.
+  **The high finding: the size gate measures the wrong object.** The
+  gate reads `line_rows`, built from the page's rendered `order`, and
+  the copy that killed night 85 is `resolved_refs`, built from the
+  wake's refs. `order` is always a subset of `refs`, so the gate
+  under-measures by construction (observed: the reviewer's `p_gap.py`
+  and `p_scale.py`; night 85's own m27 plus the zero constraint `k0`
+  renders zero numbered lines, so `line_rows` is 2 characters, the gate
+  reports "fits", and `resolved_refs` travels with 70 rows and 21855
+  characters, for 7949 tokens against a 6146 budget where the same page
+  without that one ref is 5593). The bypass is unbounded.
+  **One deviation of the fix pass is overturned, and by the same
+  measurement that made it.** The implementer kept the duplicate rows by
+  size because dropping them cost two register cases 5/5 to 0/5. The
+  reviewer found those six landing cases only ever exercise the short
+  path, so the score did not measure the path it appeared to measure
+  (observed: `tests/rota/cases/l1_landing.yaml`). The live run answers
+  the fear. The size gate stays and the rows do not come back.
+  Three lows: `@surface:<file>` is a real run subject the new area door
+  refuses, so every session but the boundary's own is refused;
+  `_fit`'s budget is about 8250 tokens, above the 6146 the records now
+  plan against, so only `LANDING_ROWS_CHARS` defends the wake; and a
+  page that renders no numbered line still asks for a ruling, so rows
+  could close unruled.
+  Fix pass two is out to the same implementer, resumed, priced 50k, cap
+  70k, with four pinned tests. The page bound stays out of it, because
+  bounding the page is paging and Roman holds that ruling. The measured
+  numbers for that ruling: about 41.6 tokens a line, so about 90 lines
+  break the 6146 rule and about 240 lines collapse the 12288 window.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
