@@ -142,6 +142,13 @@ Rules:
   below, which both depend on this record.
 - Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed. Roman ruled the
   order at the grill.
+- Status 2026-09-18 17:20 (rota-ff): claimed by 9108c499. Roman chose this
+  frame over frame 38. The extraction is deterministic and done: 32 pages,
+  11 on night 85 and 21 on night 86, each rendered by the same
+  `render_page` the night used, each measured on qwen3:8b. The judgement
+  of the replies runs as a workflow of twelve agents, one per group of
+  pages. Ultracode is on for this session, so the agent spend will pass
+  the 80k estimate. The closing status carries the actual.
 
 ### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
 
