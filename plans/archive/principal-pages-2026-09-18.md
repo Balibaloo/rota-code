@@ -69,6 +69,13 @@ contested (observed: `rota/roles/principal.py`, `land`).
 | page tokens, smallest | 76 | 76 |
 | rows approved | 52 | 139 |
 | rows contested | 0 | 0 |
+| tokens across showings | 11696 | 7165 |
+| tokens of assumption and glossary pages | 5302 | 6184 |
+
+Night 85 delivered 11696 tokens of page across its 13 showings, because it
+showed the observed entries page three times. The assumption pages and the
+glossary page take 94 per cent of night 85's distinct page tokens and 86 per
+cent of night 86's. The two features the principal asked for take the rest.
 
 One page carries most of the volume of each night. Night 85's m27 is 3019 of
 5658 tokens, which is 53 per cent. Night 86's m30 is 2993 of 7165 tokens, which
@@ -200,7 +207,7 @@ numbers, and one of which names the file `src/click.term,py`, which does not
 exist. So the verdict for both nights is that the approval is not an informed
 one, and the reason is the per-line check the page asks for and defeats.
 
-## Six facts the next frames need
+## Eleven facts the next frames need
 
 1. **A fifth to a third of the rows the principal approved were written by a
    seat that had lost its brief.** Night 85 showed 46 `ledger` rows and 14 of
@@ -248,25 +255,73 @@ one, and the reason is the per-line check the page asks for and defeats.
    answered the Developer with refs, so the off-topic reply was one of three
    answers (observed: m67 from the Vision Keeper and m71 from the Architect).
 
-6. **A page asked the principal to approve a false statement about the
-   tooling.** Line 4 of night 86's page m75 reads: "Unable to modify
-   `src/click/termui.py` due to partial write restrictions; the existing
-   implementation may already satisfy the requirement implicitly or requires a
-   full file rewrite which is outside current scope." The Developer wrote that
-   row itself (observed: `ledger` row `l_d002235b32`, author developer, session
-   s172). No such restriction exists. The Developer called `code.write` on that
-   file with a span, four times, with the same text each time. Each call was
-   refused with the same message: "src/click/termui.py is not valid Python
-   (expected 'except' or 'finally' block, line 301) ... Your text itself does
-   not parse: line 2 of it is 'eof_default = default_on_eof'. Send only the
-   lines you add, whole statements; the file's own lines stay where they are."
-   The commit result said "committed: false ... nothing changed" (observed:
-   session s172, turns 5 to 8, and its 17 tool calls). The tool named the fault
-   and named the fix. The Developer repeated the call, then told the principal
-   the file could not be modified. The scripted principal approved the
-   statement. Frame 38 owns the category ruling. This one instance belongs to
-   its category 2, the model itself, because the model context said what was
-   wrong in plain words.
+6. **A page reported a wall to the principal in words that hide it.** Line 4 of
+   night 86's page m75 reads: "Unable to modify `src/click/termui.py` due to
+   partial write restrictions; the existing implementation may already satisfy
+   the requirement implicitly or requires a full file rewrite which is outside
+   current scope." The Developer wrote that row itself (observed: `ledger` row
+   `l_d002235b32`, author developer, session s172). The Developer made 21
+   `code.write` calls against that file across seven sessions, and the guard
+   refused them in two ways (observed: the `ERROR code.write` lines in `turns`,
+   three distinct texts):
+
+   - "this rewrite of `src/click/termui.py` drops clear, echo_via_pager, edit,
+     get_pager_file, getchar, hidden_prompt_func, launch, pause, progressbar,
+     prompt, secho, style, unstyle, and the batch's tests, its criteria or
+     other files use them. Either write the whole file with every existing
+     definition kept and your change added, or write only the new definitions
+     with start=998, end=998".
+   - "src/click/termui.py is not valid Python (expected 'except' or 'finally'
+     block, line 301) ... Your text itself does not parse ... Send only the
+     lines you add, whole statements".
+
+   So a restriction does exist, and the guard named two ways past it. The
+   Developer took neither, and the page then told the principal the file cannot
+   be modified and the code may already do the work. A person who reads that
+   line learns nothing about the real wall. Frame 38 owns the category ruling,
+   and this instance is evidence for it, because the model context named the
+   fault and the fix in plain words.
+
+7. **The page said "falsified" where the Critic gave up.** Night 86's pages m24
+   and m27 carry five lines of the form "The claim about `constraints:X` is
+   falsified and requires a ruling on its validity and scope", for
+   format_filename, paramtype, intrange, floatrange and float. The Critic
+   falsified none of them. The `challenges` table holds seven rows, three
+   falsified and four standing, and no row for any of the five (observed: the
+   table). `tick_attempts` holds exactly those five Critic challenge ticks,
+   each quarantined at three attempts (observed: the table). One Liaison
+   session, s103, woken on `tick:blindspot`, wrote all five ledger rows
+   (observed: the `receipts` rows). The scripted principal approved all five.
+   So the record now says the principal retired five stability constraints on
+   public names of click, on the strength of a verdict that does not exist. An
+   abandoned tick reached the page as a finding. This is the worst fault of
+   either night, and it is a defect of the write path, not of the model.
+
+8. **No page ever reports an outcome.** The four page kinds are understand,
+   touch, confirm and clarify. Every one asks for a ruling before work. None
+   reports what the work did (observed: the verbs and kinds of all 32 pages).
+   Night 86 cut a batch, committed at `da5e7e8`, ran 37 test runs and left
+   three failing at attempt 10. The principal was shown none of it.
+
+9. **The two nights are one run repeated, at the page level.** Both ran at
+   project commit `2c8cd3ac` with the same profile, models and pins (observed:
+   the `config` rows). Three page texts are byte-identical across the nights:
+   m2, and both confirms. 114 of night 86's 134 distinct numbered lines, which
+   is 85 per cent, were already shown on night 85. By characters the share is
+   84 per cent. A reader must not count the two nights as two samples of the
+   page set.
+
+10. **The record says the principal made 102 decisions.** Night 85 holds 45
+    `decisions` rows with author `principal`, and night 86 holds 57. Every one
+    reads "default taken at signoff: ..." (observed: the table). The person
+    said one sentence per page. Nothing in the record separates a default the
+    person read from one they did not.
+
+11. **The mechanism for "the answer did not land" was never used.** No message
+    of either night carries the status `unresolved`. Night 86 sets
+    `unresolved_note` twice and leaves the status alone (observed: the
+    `messages` table). The column exists for the case of fact 5, where an
+    answer lands and does not help.
 
 ## What a person should never have been shown
 
@@ -281,6 +336,8 @@ Four items on these pages are not fit for a person, and every one was approved
   source in `.utils` were renamed (e.g., to." Night 86's m24 carries three such
   lines.
 - The write claim of fact 6.
+- The five "is falsified and requires a ruling" lines of fact 7, which name a
+  verdict that no seat reached.
 
 ## What this record does not answer
 
@@ -309,4 +366,24 @@ Four items on these pages are not fit for a person, and every one was approved
   that grows with the repository, and it is 42 to 53 per cent of a night's page
   volume. The page alone is not the cap's customer. The seat prompt that
   carries the same rows is: 17195 tokens on night 85 against a 12288 window,
-  and 5248 tokens on night 86 for the same page.
+  and 5248 tokens on night 86 for the same page. So the cap belongs on the
+  session's working set, not on the page.
+- **A new frame, above all three**: fact 7. An abandoned tick reached the page
+  as a finding, and the principal retired five constraints on the strength of
+  it. One Liaison session wrote all five rows. A gate that refuses a page line
+  naming a verdict the `challenges` table does not hold would have stopped
+  every one. The fix is cheap and the fault is on the delivery path.
+
+## What the sweep added
+
+A thirteenth agent read the whole set and named what the record missed. Facts
+7 to 11 come from that pass. Each was checked against the databases before it
+was written here (observed: the queries of 2026-09-18).
+
+The same pass corrected this record. An earlier draft of fact 6 said no write
+restriction exists. The guard's own refusal text shows one does, and it names
+two ways past it. The correction stands in fact 6.
+
+One claim of the pass did not survive its check. It said neither night uses
+`unresolved_note`. Night 86 sets the column twice. The status `unresolved` is
+the part that was never used.
