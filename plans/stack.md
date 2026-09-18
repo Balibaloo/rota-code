@@ -52,6 +52,14 @@ Rules:
 - Status 2026-09-18 07:35 (rota-dc): pushed, unclaimed, unpriced. The
   same wall now stands one sentence earlier than on night 82, because
   sentence two's earlier walls are gone.
+- Status 2026-09-18 07:40 (rota-dc): the night ended at GAUNTLET-DONE,
+  203 sessions. **Sentence three cut a batch too**, `bg_2` for
+  `show_python_version`, its own request, after 23 steps and 4 asks
+  (observed: the final run database; both statements are `ratified`).
+  Sentence three has never merged cold and night 82 was stuck on
+  `exhausted` at 80 steps. The records path now carries both sentences
+  to a batch, and both stop at this frame's wall. `bg_2` is `pending`
+  with no commit, because the night ended first.
 
 ### 36. The present page is larger than the window (2026-09-18) [75d12c2b]
 
