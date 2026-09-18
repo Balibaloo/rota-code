@@ -244,6 +244,18 @@ Rules:
   again.
   Night 86 runs cold from a worktree at 8b15af8, from sentence two, the
   walk for frames 33, 34 and 36. Onboarding began 06:08.
+- Status 2026-09-18 07:05 (rota-dc): **night 86 cut a batch.** Onboarded
+  06:08 to 06:49, sentence two from 06:49, and the batch is `bg_1` for
+  the item `default_on_eof`, which is sentence two's own request
+  (observed: the run database at 141 sessions: one batch, one ticket,
+  five approved items, and **no open present**). Night 85 at the same
+  point had zero batches, zero tickets, the item at approval `draft` and
+  the present `m27` open for the whole night. The wall of this frame is
+  down on the delivery path, not only in a probe.
+  The batch is `pending` with no worktree and no head commit yet. The
+  frame's ends-when needs a commit, so the night runs on. A watcher
+  holds the batch's status, its head commit, the test runs and the
+  verdicts.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
