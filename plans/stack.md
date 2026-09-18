@@ -129,8 +129,17 @@ Rules:
   paging question of frame 36 folds into this frame (ruled: Roman, the
   higher cap exists to avoid paging), so paging is no longer a separate
   blocked question.
+- Status 2026-09-18 19:27 (rota-ff): claimed by 9108c499. Roman ordered 43
+  first, then 38, 37 and 33, with 41 and 42 as needed. The frame stays
+  unpriced until the scope is in, because Roman's design point 5 holds the
+  interaction with the RAM tracking open. Five read-only agents run now,
+  one per question: where the context size is chosen and whether the
+  `Wake` reaches it, how the model configuration tracks RAM, what fills a
+  seat prompt beside the page, what each wake's ref set does as the work
+  grows, and where a spill warning can be shown. The design record and the
+  price follow the scope.
 
-### 44. An abandoned tick reached the page as a finding (2026-09-18)
+### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
   claims about constraints are falsified: format_filename, paramtype,
@@ -162,6 +171,9 @@ Rules:
 - Status 2026-09-18 19:11 (rota-ff): pushed by 9108c499 from frame 40's
   record, unclaimed. The fault is on the delivery path and the fix is
   cheap.
+- Status 2026-09-18 19:27 (rota-ff): renumbered from 44 to 45. Session
+  0ca1c29e claimed the number 44 for the meta transfer two minutes after
+  this frame was pushed. The frame is otherwise unchanged.
 
 ### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
 
