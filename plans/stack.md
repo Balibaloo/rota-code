@@ -29,6 +29,52 @@ Rules:
 
 ## Stack
 
+### 43. Review the context length management system (2026-09-18) (Roman)
+
+- Rota workflow. Today one window size, 12288, serves every wake, and a
+  prompt that exceeds it collapses to half and loses its brief from the
+  front. Seven wakes build their refs from a whole query result with no
+  cap (observed: `rota/core/predicates.py`, the `refs=tuple(...)` sites
+  for `awaiting_confirm`, `contradiction`, `term_collision`, `grouping`,
+  `defer_baseline` twice, `observed_entries`, `quarantined` and
+  `constraint_zero`). Two of those grow with the repository:
+  `observed_entries` and `constraint_zero`. One of them, the
+  observed-entries page, already broke a night at 79 refs.
+- Roman's design, ruled at the grill 2026-09-18:
+  1. Each wake carries a flag saying whether its refs are bounded or
+     unbounded.
+  2. An unbounded wake gets a **second, higher context cap**, whose only
+     purpose is to avoid paging. The whole page is kept and the cost is
+     paid in turn speed.
+  3. **The gating factor is required quality, not low frequency**
+     (ruled: Roman, 2026-09-18, correcting the assistant's
+     recommendation). A wake gets the higher cap when it needs the whole
+     page to answer well.
+  4. When a spill is happening, warn about turn speed with specifics.
+     The warning stays visible and is not hidden until dismissed.
+  5. The cap derives from the model configuration system that tracks
+     system RAM. How the two interact is open and needs architecture
+     planning.
+- The cost that is not turn time (observed: `plans/operating-facts.md`):
+  a changed `num_ctx` re-allocates the KV cache, which in practice costs
+  a model reload in each direction. The measured spill penalty is not
+  gradual: qwen3:8b fits fully at 12.5 s a turn, a 27 per cent spill
+  takes over 100 s, 75 per cent on the GPU takes 153 s, and a model over
+  by 8 GB takes minutes. The practical budget is about 8 GB of the 10,
+  because the desktop takes 2.
+- Ends when: not priced. Architecture planning comes first, because
+  Roman holds the interaction with the RAM tracking open. Roman is also
+  questioning whether the frequent wakes should keep the single cap, so
+  the review covers every wake, not only the unbounded ones.
+- Waits on: frame 40, which measures the pages and names which ticks
+  grow without bound and how fast.
+- Reasoning: the grill of 2026-09-18, and
+  `plans/archive/night85-2026-09-18.md` for the overflow rule.
+- Status 2026-09-18 08:30 (rota-dc): pushed, unclaimed, unpriced. The
+  paging question of frame 36 folds into this frame (ruled: Roman, the
+  higher cap exists to avoid paging), so paging is no longer a separate
+  blocked question.
+
 ### 40. Read the messages the system puts to the principal (2026-09-18) (Roman)
 
 - Rota workflow. Before any principal is designed, read what the system
