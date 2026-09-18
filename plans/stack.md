@@ -60,9 +60,8 @@ Rules:
   6. Night 86 cold from a worktree at the closing commit reaches a
      batch: 20k here, about 40 minutes wall at night 85's rate.
   Total: 292k in agents, about 80k in this context.
-- Waits on: the frame 34 implementer, which holds the same four files in
-  the main checkout. Roman's ruling on paging is a separate line and
-  does not block the fitting fix.
+- Waits on: the diff review of 8ebbae1, then night 86. Roman's ruling on
+  paging is a separate line and does not block this frame.
 - Reasoning: `plans/archive/night85-2026-09-18.md`.
 - Status 2026-09-18 03:05 (rota-dc): pushed. The reviewer runs, cap 60k.
   The frame is Roman's to reorder. It is above frames 33, 34 and 35
@@ -152,60 +151,20 @@ Rules:
   measured: paging is a frame before step 5 of the order, breadth,
   where tips, icalendar and a non-Python repository each exceed this
   headroom.
-
-### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
-
-- Rota workflow. On night 84 `tick:observed_entries` ran three sessions,
-  s96 to s98, each with no parsable tool call, and was quarantined. The
-  glossary and the model rows were never presented, so nights 83 and
-  84 have no glossary ruling, where night 82 at d4bf679 landed one
-  through that tick (observed: the agent's read of the three run
-  databases, recorded in `plans/archive/term-collision-2026-09-17.md`).
-  A wall on the delivery path behind frame 34's. Frame 33's walk waits
-  on it too.
-- Ends when: the turns of s96 to s98 are read and the cause is on the
-  stack (20k, the same agent resumed); then a fix priced from the cause.
-- Waits on: nothing.
-- Reasoning: `plans/archive/term-collision-2026-09-17.md`, the second
-  wall.
-- Status 2026-09-17 20:48 (rota-02): pushed. The reviewer that read
-  frame 34's turns is resumed on s96 to s98, cap 20k.
-- Status 2026-09-17 20:51 (rota-02): validating. The cause is a
-  one-character door (observed: the agent's probe, 8k for the pass on
-  the harness line: the three sessions sent the same call with 56 bare
-  refs, the bare-list rewrite's id class lacks `#`, so
-  `argument#src_click` never matched and the lenient parser refused
-  the present; the same text without the hash rewrites to a list; the
-  prompt was 2.5k tokens against a 12288 window; the parser files did
-  not change since d4bf679). Not the model, not the brief. The door is
-  in at 65ca902, one pinned test, landed by the assistant (ruled: the
-  brief, a one-line door is the exception). The common root with frame
-  34: the second-sense rows are new in night 84's data, and two code
-  paths had never seen them. Walked by night 85 with frames 33 and 34.
-- Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. The peer that
-  held the frame was killed before it handed over (observed: Roman's
-  word and the session list, where the peer name is gone). The frame is
-  unchanged. It still closes on night 85.
-- Status 2026-09-18 02:55 (rota-dc): the door works on a live night
-  (observed: night 85's run database at 02:55, `tick:observed_entries`
-  ran one session, s109, which committed and presented
-  `glossary_terms:20, constraints:57, model`; the glossary holds 21
-  rows). Night 84 ran three sessions on the same tick with no parsable
-  tool call and quarantined it, and nights 83 and 84 landed no glossary
-  ruling. Night 85 also cleared onboarding in 35 minutes, from 02:16 to
-  02:51, where night 84 stuck in onboarding. The frame stays validating
-  until the night ends.
-- Note, not this frame (observed: the same database): a different tick
-  quarantined, `challenge for @claim:constraints`, two sessions, and
-  `tick_attempts` shows the Critic's challenge tick at three attempts on
-  two constraint claims, with `constraint_zero` at three. Rota workflow.
-  It is parked below, not diagnosed.
-- Status 2026-09-18 03:05 (rota-dc): closed by the night, on the
-  evidence of the whole run (observed: night 85 ran the tick once, the
-  session committed, the glossary holds 21 rows, and onboarding
-  completed in 35 minutes where night 84 stuck). The night's own wall
-  was frame 36, not this one. This frame's five lines move to
-  `plans/archive/stack-2026-09-18.md` at the next pop.
+- Status 2026-09-18 05:20 (rota-dc): gate by the assistant at 8ebbae1,
+  independent of the implementer's run: zero new reds, zero stale, 1909
+  passed, 652 s (observed: the gate's own summary). Cleaner than the
+  implementer's run, whose one red was the parked flaky screens case.
+  Ends-when line 5 is done, priced 12k. The diff review runs on a
+  worktree at 8ebbae1, cap 65k, nine points, the last of them whether a
+  cold night can now reach a batch.
+  Night 86 is held until the review ends, not run beside it (ruled: the
+  assistant; the review measures with the real tokeniser against the
+  same 3080 the night would use, and `plans/operating-facts.md` says to
+  queue GPU work serially). The worktree for the night is made and
+  waiting at 8ebbae1. This is a change from night 85, which ran beside
+  a review that made no model call.
+  Frame 35 is popped to `plans/archive/stack-2026-09-18.md`, verbatim.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
