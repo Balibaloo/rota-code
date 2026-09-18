@@ -152,6 +152,35 @@ def _big_present(db, lines=77):
     return pending_asks(db)[0]
 
 
+def _zero_present(db, rows=72):
+    """A page that renders no numbered line and still carries every row.
+
+    The zero constraint turns the page into "nothing here has been read yet",
+    which numbers nothing, while the refs still resolve. This is the reviewer's
+    case of 2026-09-18: night 85's own refs plus `k0`.
+    """
+    from rota.onboarding.boot import ZERO, ZERO_HEADLINE
+
+    refs = [ZERO]
+    db.execute("INSERT INTO constraints (id, headline, text) VALUES (?,?,?)",
+               (ZERO, ZERO_HEADLINE, "no survey has read these areas"))
+    for i in range(rows):
+        db.execute("INSERT INTO glossary_terms (id, term, sense_short, "
+                   "sense_body) VALUES (?,?,?,?)",
+                   (f"g{i}", f"term_{i}",
+                    f"The {i}th word the code uses for a command line idea.",
+                    f"A `term_{i}` is the object the decorator builds when a "
+                    f"function is marked as a command. It carries the name, "
+                    f"the parameters and the callback, and the runner invokes "
+                    f"it with a context."))
+        refs.append(f"g{i}")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th','liaison',"
+               "'principal','present',?,1,'open')", (json.dumps(refs),))
+    db.commit()
+    return pending_asks(db)[0]
+
+
 def _prompt_tokens(system: str, user: str) -> int:
     """The real tokeniser when the server answers, the measured ratio when it
     does not. A character count alone is what hid this: the wake was 64,294
@@ -213,6 +242,38 @@ def test_the_landing_wake_for_a_77_line_present_fits_the_window(db):
 
     tokens = _prompt_tokens(system, user)
     assert tokens < 6100, f"the landing wake is {tokens} tokens: half a 12,288 window"
+
+
+def test_a_page_with_more_refs_than_lines_drops_both_copies(db):
+    """
+    The size gate measured `line_rows`, which is built from the rendered page,
+    while `resolved_refs` is built from the wake's refs -- always the larger
+    set. A present of night 85's refs plus the zero constraint renders no
+    numbered line at all, so `line_rows` was two characters, the gate said
+    "fits", and 21,855 characters of rows travelled: 7,949 tokens against a
+    6,146 budget (the diff review of 8ebbae1). The gate weighs both copies now.
+    """
+    from rota.core.predicates import Wake
+    from rota.core.runner import build_prompt, push_working_set, resolve_inbound
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    ask = _zero_present(db)
+    assert ask.order == [], "the zero page must number nothing for this case"
+    msg = _reply(db, ask, "ok")
+    wake = Wake(role="liaison", kind="message", detail="converse",
+                message_id=msg, refs=ask.refs)
+    sb = build("liaison", db, mode="normal", session_id="sess_zero",
+               allow=prompts.mode_tools("liaison", "landing"))
+    inbound = resolve_inbound(db, wake)
+    system, user = build_prompt(
+        "liaison", sb, wake, push_working_set("liaison", sb, wake),
+        prompts.compose("liaison", "landing"), inbound)
+
+    assert "line_rows" not in inbound["landing"], "the rows rode the empty page"
+    assert "resolved_refs" not in inbound, "the second copy bypassed the gate"
+    tokens = _prompt_tokens(system, user)
+    assert tokens < 6100, f"the wake is {tokens} tokens: half a 12,288 window"
 
 
 def test_the_landing_seat_reads_a_row_it_was_not_sent(db):

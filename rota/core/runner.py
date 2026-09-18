@@ -456,6 +456,22 @@ def _render_cut(text: str, limit: int) -> str:
             f"characters) did not fit the window. Ask for what you need.")
 
 
+def _fit_budget(num_ctx: int, system_chars: int) -> int:
+    """
+    The characters a session's transcript may hold, for `_fit`.
+
+    Half the window, because half is what a session gets when it overflows:
+    ollama collapses a prompt over `num_ctx` to `num_ctx / 2 + 2` and keeps the
+    tail (finding 79). The old budget was two thirds of the window at four
+    characters to the token, about 8,250 tokens on a 12,288 window. That is
+    above the 6,146 the records plan against, so `_fit` never fired on a wake
+    the server would cut (the diff review of 8ebbae1). The system prompt is
+    charged against the same budget, and 3.97 characters to the token is the
+    measured ratio for these models.
+    """
+    return max(2000, int(num_ctx / 2 * 3.97) - system_chars)
+
+
 def _fit(transcript: list[str], budget: int) -> list[str]:
     """
     Keep the session inside its window, evicting the middle rather than the front.
@@ -921,7 +937,17 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 line_rows = _resolve_refs(conn, order)
                 for ref, resolved_row in line_rows.items():
                     resolved_row["table"] = _table_of(conn, ref)
-                if len(json.dumps(line_rows, default=str)) <= LANDING_ROWS_CHARS:
+                # Both copies, measured together. The gate read `line_rows`
+                # alone, which is built from the page's rendered order, while
+                # `resolved_refs` is built from the wake's refs -- always the
+                # larger set. A present of night 85's refs plus the zero
+                # constraint renders no numbered line at all, so `line_rows`
+                # was 2 characters, the gate said "fits", and 21,855
+                # characters of `resolved_refs` travelled: 7,949 tokens
+                # against a 6,146 budget (the diff review of 8ebbae1).
+                also = json.dumps(out.get("resolved_refs") or {}, default=str)
+                both = len(json.dumps(line_rows, default=str)) + len(also)
+                if both <= LANDING_ROWS_CHARS:
                     landing["line_rows"] = line_rows
                     fits = True
                 else:
@@ -929,9 +955,10 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                     landing["lines"] = {
                         str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
                         for i, ref in enumerate(order)}
+                    dropped = len(set(order) | set(out.get("resolved_refs") or {}))
                     landing["rows_not_shown"] = (
-                        f"the {len(order)} rows behind these lines do not fit "
-                        f"this window. Every line is on the page. "
+                        f"the {dropped} rows behind this page do not fit this "
+                        f"window. Every line is on the page. "
                         f"`rulings.line` reads the row behind one line")
                 earlier = [dict(r) for r in conn.execute(
                     "SELECT from_role, body_text FROM messages "
@@ -945,11 +972,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                 # named `asks`, both 8B models answered the "question" by
                 # sending the words back (2026-09-10, 5/5).
                 out.pop("asks", None)
-                # The same rows a second time, under the wake's own key. On a
-                # page that fits they stay: dropping them cost two register
-                # cases 5/5 to 0/5 on qwen3:8b (2026-09-18), and a repeated row
-                # is what the seat rules from. On a page that does not fit they
-                # are the 21,402 characters that killed night 85.
+                # The same rows a second time, under the wake's own key. They
+                # stay while both copies together fit. Above that they are the
+                # 21,402 characters that killed night 85, and a live seat
+                # ruled all 77 lines correctly without them (the diff review
+                # of 8ebbae1, qwen3:8b at num_ctx 12288, 5,565 tokens).
                 if not fits:
                     out.pop("resolved_refs", None)
                     # And the ids a third time. `landing.lines` numbers the
@@ -1770,10 +1797,7 @@ def run_session(
         stop_reason = ""
         turn_refusals: set[tuple[str, str]] = set()
 
-        # Four characters to the token is the same rough measure the cockpit
-        # uses. Two thirds of the window, because the system prompt is charged
-        # against the same budget and the reply needs room to land.
-        budget = max(2000, (pins.num_ctx * 4 * 2) // 3 - len(system))
+        budget = _fit_budget(pins.num_ctx, len(system))
 
         for iteration in range(1, max_iterations + 1):
             if stop_reason:

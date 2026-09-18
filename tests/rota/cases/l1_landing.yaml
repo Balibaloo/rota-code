@@ -189,3 +189,88 @@
   forbidden:
     writes: [statements, items, decisions, ledger]
     recipients: [vision_keeper, terminologist, architect, principal]
+
+- id: L1-LI-a-long-page-is-ruled-without-the-rows
+  tier: T1
+  role: liaison
+  prompt: landing
+  runs: 5
+  pass: 4
+  # The long-page path, which no case measured. Night 85 (2026-09-18): the
+  # landing wake for a 77-line present was 17,220 tokens against a 12,288
+  # window, ollama kept the tail, and the seat answered as a generic
+  # assistant. A page whose rows pass `LANDING_ROWS_CHARS` now travels as the
+  # page text, a map of line number to id and kind, and `rows_not_shown`. The
+  # rows are not in the wake at all, and the seat must still rule every line.
+  inbound: {from: principal, to: liaison, verb: converse,
+            body_refs: [<i1>, <i2>, <i3>, <i4>, <i5>, <i6>, <i7>, <i8>, <i9>],
+            cause: <m_present>,
+            body_text: "yes, that is all right, go ahead"}
+  fixture:
+    items:
+      - {id: <i1>, text: "The user types the total on the bill and the number of
+         people at the table, and the software reads both from the command line
+         rather than from a file, because the person running it has the receipt
+         in front of them and nothing else. Neither number is remembered between
+         runs, and a second run with the same numbers prints the same answer.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i2>, text: "The software prints each person's share to the nearest
+         cent, and prints the remainder on its own line when the total does not
+         divide evenly, so that the person paying the remainder can see what
+         they are covering. The rounding is stated in the output rather than
+         left for the reader to work out from the numbers.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i3>, text: "The user can give a tip as a percentage of the bill or
+         as a flat amount, and the software adds it to the total before it
+         divides. A tip given as a percentage is worked out on the bill alone,
+         never on a total that already includes an earlier tip, because a tip
+         on a tip is not what anybody at the table means.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i4>, text: "The software refuses a bill that is not a number and
+         says which value it could not read, rather than printing a share of
+         zero. It refuses a party of fewer than one person for the same reason.
+         Each refusal names the value it rejected and the value it expected,
+         in one sentence, on the error stream.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i5>, text: "The output is one block of plain text with one line
+         per person, and the currency symbol comes from the machine's own
+         settings rather than from a flag, because the person splitting a bill
+         is in one country at a time. A machine with no setting for it prints
+         the numbers alone.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i6>, text: "The software runs from one command with no
+         installation step beyond the interpreter, and prints its usage when it
+         is called with no arguments at all. The usage names every argument in
+         the order the command takes them, with one example line that a reader
+         can copy and change.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i7>, text: "The software reads an optional name for each person
+         at the table, and prints the name beside the share when it was given.
+         A party with no names prints as numbered people in the order they were
+         entered, and a party with some names prints the rest as numbers, so a
+         half-filled list is still readable.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i8>, text: "The software can split a bill unevenly when the user
+         gives a share per person, and it refuses a set of shares that does not
+         add up to the whole bill. The refusal prints the difference, so the
+         person correcting it can see how far out the numbers are without
+         adding them up again.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+      - {id: <i9>, text: "The software prints the total it worked from on the
+         first line of the output, including the tip, so that the person
+         reading the shares can check the arithmetic against the receipt in
+         their hand. The line names the bill and the tip apart, never as one
+         number the reader has to take on trust.",
+         kind: in_scope, provenance: decided, approval: draft, version: 1}
+    messages:
+      - {id: <m_present>, thread_id: t1, from_role: liaison, to_role: principal,
+         verb: present,
+         body_refs: '["<i1>","<i2>","<i3>","<i4>","<i5>","<i6>","<i7>","<i8>","<i9>"]',
+         seq: 1}
+  expect:
+    writes:
+      rulings: {count: 1,
+                text_includes: ['"<i1>": "approve"', '"<i9>": "approve"']}
+  forbidden:
+    writes: [statements, items, decisions, ledger]
+    recipients: [vision_keeper, terminologist, architect, principal]

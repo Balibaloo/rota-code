@@ -657,6 +657,27 @@ def test_a_single_oversized_block_is_cut(db):
         assert fitted[1:] == blocks[1:], "a later exchange was dropped"
 
 
+def test_the_fit_budget_is_half_the_window(db):
+    """
+    `_fit` is the backstop, and it was measuring the wrong window. Two thirds
+    of `num_ctx` is about 8,250 tokens on a 12,288 window, well above the 6,146
+    a session gets when the server cuts it, so `_fit` never fired on a wake the
+    server would collapse (the diff review of 8ebbae1). Half the window, at the
+    measured 3.97 characters to the token.
+    """
+    from rota.core.runner import _fit_budget
+
+    system = 4133                             # a landing system prompt, measured
+    budget = _fit_budget(12288, system)
+
+    assert (budget + system) / 3.97 <= 12288 / 2, \
+        f"{budget} characters is more than half a 12,288 window"
+    assert budget > 12_000, "a budget this small would cut every ordinary wake"
+    # A small window still leaves a floor, and a huge system prompt cannot
+    # drive the budget negative.
+    assert _fit_budget(2048, 9_000) == 2000
+
+
 def test_an_index_read_is_a_table_not_repeated_field_names(db):
     """
     JSON repeats every field name on every row, and an index read is nothing but

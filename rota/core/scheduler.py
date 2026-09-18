@@ -401,10 +401,14 @@ FRAME = "@frame"
 REORIENT = "@reorient"
 CLAIM_PREFIX = "@claim:"
 BLINDSPOTS = "@blindspots"
+SURFACE_PREFIX = "@surface:"
 # The whole set, for the ref door: a `@` ref is legal when it names an area
 # this run declared, and these are the subjects that are not directories.
+# `@surface:` belongs here, and was missed: `_boundary_wakes` wakes the
+# Architect on one, so the boundary session could ref its own subject and no
+# other session could name it (the diff review of 8ebbae1).
 PSEUDO_AREAS = (PROGRAM, PROSE, FRAME, REORIENT, BLINDSPOTS)
-PSEUDO_AREA_PREFIXES = (TERM_PREFIX, CLAIM_PREFIX)
+PSEUDO_AREA_PREFIXES = (TERM_PREFIX, CLAIM_PREFIX, SURFACE_PREFIX)
 ONBOARDING_TICKS = ("tick:frame", "tick:orient", "tick:reconcile",
                     "tick:define", "tick:survey", "tick:reorient",
                     "tick:boundary", "tick:challenge", "tick:blindspot")
@@ -417,9 +421,6 @@ def is_area(subject: str | None) -> bool:
 
 def term_of(subject: str | None) -> str:
     return subject[len(TERM_PREFIX):] if subject and subject.startswith(TERM_PREFIX) else ""
-
-
-SURFACE_PREFIX = "@surface:"
 
 
 def surface_of(subject: str | None) -> str:

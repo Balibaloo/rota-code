@@ -123,6 +123,13 @@ def test_an_at_ref_must_name_an_area_this_run_declared(tmp_path):
     # `@program` has no area row and still has assumptions to log.
     assert sb.call("ledger.log", about_ref="@program", about_table="items",
                    assumption="the whole program is one command")["id"]
+    # A boundary subject is a run subject like any other. `_boundary_wakes`
+    # wakes the Architect with `@surface:<file>`, and the door passed it only
+    # while the session's own area was that exact string, so every other seat
+    # was refused (the diff review of 8ebbae1).
+    assert sb.call("ledger.log", about_ref="@surface:intents.yaml",
+                   about_table="items",
+                   assumption="the schema file is the outside edge")["id"]
 
 
 def test_an_assumption_is_about_an_artefact_never_about_an_assumption(tmp_path):
