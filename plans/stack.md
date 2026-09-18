@@ -37,9 +37,31 @@ Rules:
   cap (observed: `rota/core/predicates.py`, the `refs=tuple(...)` sites
   for `awaiting_confirm`, `contradiction`, `term_collision`, `grouping`,
   `defer_baseline` twice, `observed_entries`, `quarantined` and
-  `constraint_zero`). Two of those grow with the repository:
-  `observed_entries` and `constraint_zero`. One of them, the
-  observed-entries page, already broke a night at 79 refs.
+  `constraint_zero`). The observed-entries page already broke a night at
+  79 refs.
+- **Three of those nine are not model turns at all** (observed:
+  `rota/core/predicates.py:57`, `SCHEDULER = "-"`, with the comment "no
+  role: the scheduler does this itself"). The two `do:defer_baseline`
+  wakes and `tick:constraint_zero` never become a prompt, so no set size
+  can overflow a window there. Six remain.
+- The assistant's first view of the six, read from the call sites and
+  not measured (reasoned: the gate is Roman's, required quality, so each
+  row asks whether the seat needs the whole set to answer well):
+
+  | wake | needs whole set | grows with | view |
+  | --- | --- | --- | --- |
+  | `tick:observed_entries` | yes, it is the whole project view | repository size | unbounded, higher cap |
+  | `tick:grouping` | yes, it cannot group what it cannot see | work in flight | unbounded, rarely exercised |
+  | `tick:term_collision` | yes, the senses rule against each other | senses of one word, 2 to 3 | unbounded, rarely exercised |
+  | `tick:awaiting_confirm` | no, each confirm is independent | backlog | bounded |
+  | `tick:quarantined` | no, a count plus specifics suffices | refs of one tick | bounded |
+  | `tick:contradiction` | no, resolved one at a time | backlog | bounded |
+
+  Of the three that need the whole set, **only `observed_entries` grows
+  with the repository**. The other two are bounded by things the system
+  already controls. So the higher cap has one hard customer today, and
+  it is the page that broke night 85. The claim most likely to be wrong
+  is that grouping stays small, and frame 40 tests it.
 - Roman's design, ruled at the grill 2026-09-18:
   1. Each wake carries a flag saying whether its refs are bounded or
      unbounded.
