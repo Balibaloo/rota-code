@@ -108,6 +108,13 @@ Rules:
   again). A per-page default verdict is not available at any time
   (ruled: `plans/composition.md`, the tool never rules for the
   Principal).
+- Status 2026-09-18 03:47 (rota-dc): line 3a is out to a fresh
+  implementer at a268266, priced 90k, cap 110k. The brief carries seven
+  items, the measured target of 6100 tokens for a 77-reference landing
+  wake, and the schema mark carried from frame 34's pass. The
+  implementer must measure with the real tokeniser, not by a character
+  count, and must find every site by its content, because a268266 moved
+  the lines the review named.
 
 ### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
 
@@ -325,6 +332,12 @@ Rules:
   recording, as its own small frame, since the door cannot read the
   words and only the seat can. The schema mark goes into frame 36's
   pass, which touches the same files.
+- Status 2026-09-18 03:47 (rota-dc): gate by the assistant at a268266,
+  on the same tree and independent of the implementer's run: zero new
+  reds, zero stale, 1903 passed, 504 s (observed: the gate's own
+  summary). The implementer's numbers hold. Ends-when lines 2 and 3 are
+  done, priced 90k and 6k against 144k and 12k actual. The frame stays
+  open for its walk, which is now night 86 behind frame 36.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
