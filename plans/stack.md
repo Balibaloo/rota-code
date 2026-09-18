@@ -157,6 +157,29 @@ Rules:
   databases of nights 82, 83 and 84 are copied to `.rota/` (observed:
   the only copies were in the dead peer's temporary directory, and the
   night script overwrites `clickI_prev.db`).
+- Status 2026-09-18 02:37 (rota-dc): the diff review is in, 112k on the
+  harness line against 65k priced and a 65k cap, 49 tool calls. Eight
+  points answered, five high findings and four lows. The loop still
+  closes on one common answer (observed: the reviewer built the night-84
+  fixture, ruled both rows `contest`, and the tick fired on cycles two
+  and three). The fix of 6895000 breaks the loop only when the ruling
+  approves at least one row. Part B and the write pipeline hold. One
+  deviation fails at its boundary: a clarify has no numbered page, so
+  the new door tells the Liaison to approve a row the words never named,
+  and the reviewer landed an approve on both rows for an unrelated
+  reply. Three more highs: a signoff on the parking row discharges the
+  collision for good, a paraphrase of the parking sentence never parks
+  and grows the ledger without bound, and no door holds the ruling
+  before the relay. The findings are in
+  `plans/archive/term-collision-2026-09-17.md`. A fresh implementer has
+  findings 1, 2, 3, 4, 5, 8 and 9 with seven pinned tests, priced 90k,
+  cap 110k (reasoned: a stated deviation from one implementer per frame,
+  since the agent that wrote 6895000 died with its session). Findings 6
+  and 7 stay out, low and off the delivery path. A new ends-when line:
+  the review's fixes are in and the gate is green, 90k. Night 85 keeps
+  running at 6895000 (reasoned: the yes-only principal's words test the
+  approve path, which 6895000 does break, so the night measures the
+  common path while the fix pass makes the other paths safe).
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
