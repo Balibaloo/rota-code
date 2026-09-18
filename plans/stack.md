@@ -293,6 +293,38 @@ Rules:
   tick that gave up at its attempt bound. The fix pass runs on, because
   the seven findings stand whatever stops the night. This frame's walk
   moves behind frame 36.
+- Status 2026-09-18 03:35 (rota-dc): the fix pass is in, 144k on the
+  harness line against 90k priced and a 110k cap, 141 tool calls, about
+  60 minutes (observed: the harness usage). Twelve files, 474
+  insertions, seven pinned tests and three older ones updated. All seven
+  findings fixed, each proved on a copy of the reviewer's own probes
+  (observed: the implementer's report; the reviewer's `p_ab.py` now
+  stops at "'1' is not a row of this question", which is finding 2's fix
+  showing itself). The shape: a `kind` column on `ledger` with a two
+  value check, a new op `ledger.unaddressed` that composes the parking
+  sentence machine-side, a partial map accepted on a clarify with each
+  unnamed ref parked, `term_collision` reading `per_item` for a named id
+  and going quiet only when every id of the family is ruled, and a relay
+  refused in `sandbox.py` while no ruling or ledger row is staged.
+  Eight deviations, all accepted (reasoned: each stated with its cause).
+  The notable ones: report mode holds `ledger.unaddressed` alone, since
+  `rulings.rule` there can only refuse and a tool that only refuses is a
+  trap; the parking class is `default`, not `assumption`, since
+  `test_vocabulary.py` refuses a word with two jobs; the relay guard
+  sits at the call in `sandbox.py`, not after it in `runner.py`. Gate by
+  the implementer: zero new reds, zero stale, 1903 passed, 506 s. An
+  earlier run showed four new reds, all the implementer's own, all
+  fixed. Committed at a268266. Gate by the assistant is running.
+  Rulings on the implementer's three open questions (ruled: the
+  assistant, in the smart zone): the schema mark moves, so an old run
+  database refuses a run instead of failing on its first ledger write,
+  which follows the precedent of the `provenance` refusal in
+  `plans/operating-facts.md`; the parking op stays on the Liaison's
+  chain, and another seat parking a word is a new frame, not this one;
+  a register case for a reply that is about something else is worth
+  recording, as its own small frame, since the door cannot read the
+  words and only the seat can. The schema mark goes into frame 36's
+  pass, which touches the same files.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [75d12c2b]
 
@@ -514,6 +546,12 @@ Rules:
 
 ## Parked
 
+- From frame 34's fix pass (reasoned: the implementer's third open
+  question): the door that lands a ruling cannot read the principal's
+  words, so a Liaison that carries the true words with an invented map
+  still lands a ruling. Only a seat check catches it. A register case
+  for "the reply is about something else", under the answering mode, is
+  the measurement. Rota workflow. A small frame, not yet pushed.
 - From night 85 (observed: the run database at 02:55): the Critic's
   challenge tick reached three attempts on `@claim:constraints:
   unprocessed` and `@claim:constraints:format_filename` and quarantined,
