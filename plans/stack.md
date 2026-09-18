@@ -49,7 +49,11 @@ Rules:
   3. **The gating factor is required quality, not low frequency**
      (ruled: Roman, 2026-09-18, correcting the assistant's
      recommendation). A wake gets the higher cap when it needs the whole
-     page to answer well.
+     page to answer well. The flag is hand-set (ruled: Roman,
+     2026-09-18, after the assistant proposed measuring it with a
+     register case per wake; a register case is hard to build and the
+     assistant did not price that, where a hand toggle costs nothing and
+     changes when evidence argues otherwise).
   4. When a spill is happening, warn about turn speed with specifics.
      The warning stays visible and is not hidden until dismissed.
   5. The cap derives from the model configuration system that tracks
@@ -322,6 +326,11 @@ Rules:
 - Status 2026-09-18 02:13 (rota-dc): claimed by 75d12c2b. The frame
   stays validating. Its walk is night 85, which waits on frame 34's
   diff review.
+- Status 2026-09-18 08:40 (rota-dc): **hand-off.** Session 75d12c2b
+  releases this frame at the stack commit below. The frame is unchanged
+  and unwalked. Its code is built, reviewed twice and gated. It needs a
+  merge, and a merge waits on frame 37, which waits on frame 38. A fresh
+  peer claims it.
 - Status 2026-09-18 07:55 (rota-dc): the frame stays open and unwalked.
   Night 86 got further than any night of this series, to two batches and
   one commit, and still never merged, so the refresh hook never fired
@@ -334,7 +343,7 @@ Rules:
   the trusted number. The earlier run beside night 86 gave three reds,
   all three named flaky and all three green on its own re-run.
 
-### 4. Roman's order from here (2026-09-14 12:58) (Roman) [75d12c2b]
+### 4. Roman's order from here (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
   road to the loop that merges cold on click. Steps: 1 the benchmark, 2
