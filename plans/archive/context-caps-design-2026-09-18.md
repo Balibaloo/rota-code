@@ -278,10 +278,27 @@ lines that each say "you already asked".
 The fix is four parts, in the order that removes the most context. Only the
 last two are about trimming.
 
-1. **Give the reading modes a search.** `code.probe` exists and returns index
-   rows, not files. A seat that can find does not pull eight files at the
-   largest span. Cost: one line per mode's tool list, and a brief that says
-   probe before source.
+1. **Give the reading modes a search, and give the search a place to read.**
+   `code.probe` exists and returns index rows, not files. It is missing from 14
+   modes (observed: every `.tools` file holding `code.source` and not
+   `code.probe`).
+
+   **A probe alone is not enough** (ruled: Roman, 2026-09-18, "a probe or
+   overview would also tell you where lines are"). `code_index` holds `grain`,
+   `grain_kind`, `area`, `fan_in`, `sym_kind` and `content_hash`. It holds **no
+   line numbers** (observed: `rota/core/schema.sql:370-381`). So a seat that
+   probes `confirm` learns the name, the kind and the area, and still has no
+   way to read it except `code.source(path, 0, 400)`.
+
+   The locate step must return a span. The indexer already parses each file to
+   find its symbols, so the start and end lines are known at build time and
+   thrown away. Two columns on `code_index`, returned by `code.probe`, turn a
+   400-line dump into a 40-line read.
+
+   **This collides with frame 33**, which rebuilt the index refresh path and is
+   built, reviewed twice, gated and unwalked. Two new columns change what a
+   refresh writes, so the two frames touch the same code. Order them, or merge
+   the column change into frame 33's unwalked commit.
 2. **Refuse the third identical call in a session, and fix the lie under it.**
    The runner already detects the repeat and answers "unchanged since you asked
    earlier this session; the answer is above". Today it answers that 327 times.
@@ -373,3 +390,39 @@ re-record of the affected register cases, and it runs only if Roman keeps it.
 - `_vram_from_ollama` is a stub returning `(None, None)` (observed:
   `rota/llm/discover.py:186-188`). On a machine without `nvidia-smi` every
   model reads as spilling.
+
+## 7. The judgement Roman made of this system
+
+"This seems quite undesigned" (ruled: Roman, 2026-09-18). The record agrees,
+and the evidence is in the code's own comments.
+
+Every guard here was added after a night failed, and each comment names that
+night: the result cap after a cut function made a Developer ask five more
+times; the source cap after night 79; the push cap after a survey read a cut
+working set and nobody said so; the wake cut after night 85's landing
+sessions; the middle eviction after ten of twelve areas closed while two spun
+for sixty sessions; the repeat line after a 14B re-sent the same batch eleven
+times; the identical-turn stop after the same; the index cut after the
+observed entries page.
+
+Each one is right about the night that caused it. **None of them was designed
+against the others, and no single place answers the question "what may this
+prompt contain".** The caps are per result, per push, per page. The trim is per
+transcript. The window is per session. Nothing sums, and the one function that
+could sum, `_fit`, is forbidden to touch the two blocks that are usually the
+problem.
+
+A designed version has one shape:
+
+1. One budget per turn, derived from the window, in one place.
+2. The parts of a prompt declared in priority order: the brief, the wake line,
+   the refs, the latest results, the older results.
+3. The budget allocated down that order, so a part that overruns takes from
+   what is below it and never from what is above it.
+4. Every cut announced in the same words, with the tool that fetches the rest.
+5. One number a test can assert: the assembled prompt is inside the budget, or
+   the runner says which part it cut and by how much.
+
+That is a frame of its own. It is larger than the four fixes above, and the
+four fixes do not need it. They are the repairs that stop the bleeding, and
+this is the design that stops the next one.
