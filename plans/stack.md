@@ -115,6 +115,43 @@ Rules:
   implementer must measure with the real tokeniser, not by a character
   count, and must find every site by its content, because a268266 moved
   the lines the review named.
+- Status 2026-09-18 05:05 (rota-dc): the fix pass is in, about 105k of
+  new content on the implementer's own estimate against 90k priced and
+  a 110k cap, 243 tool calls (observed: the implementer's report; the
+  harness counter it quotes measures replayed context, not spend).
+  Fifteen files, 428 insertions. Committed at 8ebbae1.
+  **The page fits.** Night 85's own 79-line present, rebuilt under the
+  new code, measures 17220 tokens before and **5593 after**, against a
+  6146 budget (observed: the implementer's tokeniser probe against
+  qwen3:8b with a nonce). A 77-line synthetic present measures 16138
+  before and 4592 after.
+  The shape: `_fit` cuts on every turn, since the early return moved
+  below the wake cut; a landing wake above `LANDING_ROWS_CHARS = 6000`
+  carries a line map of number to `id (table)` and a note, and drops
+  the duplicate rows; a new op `rulings.line` resolves the row behind
+  one numbered line; `ref_resolves` sends every `@` ref through an area
+  check; `SCHEMA_MARK` moves to `ledger-kind`.
+  Six deviations, all accepted, and two are measurements that overturn
+  the brief (reasoned: the implementer measured rather than argued).
+  Dropping the duplicate rows on every page, as the brief said, cost
+  two register cases 5/5 to 0/5 on five runs each, because the seat
+  rules from the repeated row. The cut is by size instead. Naming the
+  new op inside the ask paragraph cost another case 5/5 to 0/5, so the
+  sentence sits in the opening paragraph.
+  Gate by the implementer: one new red, the parked flaky screens case,
+  green on the gate's own re-run, 1908 passed. Register: stale 7 to 0,
+  green 102 to 106. Gate by the assistant is running. The diff review
+  is out on a worktree at 8ebbae1, cap 65k, nine points.
+  `plans/operating-facts.md` is corrected for the moved mark and for
+  the warm snapshot, which is now behind it (observed: the
+  implementer's first open question).
+- **The paging question sharpens.** Night 85's real page lands at 5593
+  tokens against 6146, so a small library leaves 550 tokens of headroom
+  and the page text alone is 3039 (observed: the implementer's
+  measurement). The recommendation is unchanged and the trigger is now
+  measured: paging is a frame before step 5 of the order, breadth,
+  where tips, icalendar and a non-Python repository each exceed this
+  headroom.
 
 ### 35. The observed-entries page is quarantined on cold click (2026-09-17) [75d12c2b]
 
