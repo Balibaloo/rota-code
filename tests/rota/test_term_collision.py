@@ -89,10 +89,17 @@ def _land_writes(db, ctx):
                  row["words"], row["status"]))
         elif table == "ledger":
             db.execute(
-                "INSERT INTO ledger (id, about_ref, about_table, "
-                "default_taken, status, author) VALUES (?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO ledger (id, about_ref, about_table, "
+                "default_taken, kind, status, author) VALUES (?,?,?,?,?,?,?)",
                 (rid, row["about_ref"], row["about_table"],
-                 row["default_taken"], row["status"], row["author"]))
+                 row["default_taken"], row["kind"], row["status"],
+                 row["author"]))
+        elif table == "refs":
+            db.execute(
+                "INSERT OR IGNORE INTO refs (src_table, src_id, kind, target) "
+                "VALUES (?,?,?,?)",
+                (row["src_table"], row["src_id"], row["kind"], row["target"]))
+    ctx.writes.clear()
     db.commit()
 
 
@@ -120,8 +127,13 @@ def test_the_liaison_rules_the_reply_and_the_relay_carries_the_ruling(db):
     sb, msg = _answering(
         db, "the first one. a group is the set of options, not the command")
 
+    # Row ids, not line numbers. A clarify numbers no line, and the page the
+    # door used to invent from the refs is a page the principal never saw.
+    with pytest.raises(ValueError, match="not a row of this question"):
+        sb.call("rulings.rule", rulings={"1": "approve", "2": "contest"},
+                words="the first one")
     out = sb.call("rulings.rule",
-                  rulings={"1": "approve", "2": "contest"},
+                  rulings={"g1": "approve", "g2": "contest"},
                   words="the first one. a group is the set of options, "
                         "not the command")
     assert out["per_item"] == {"g1": "approve", "g2": "contest"}
@@ -159,10 +171,12 @@ def test_an_answer_that_names_no_row_is_logged_and_parks_the_word(db):
         sb.call("rulings.rule", rulings={})
 
     for rid in ("g1", "g2"):
-        sb.call("ledger.log", about_ref=rid, about_table="glossary_terms",
-                assumption=f"{UNADDRESSED_ANSWER}: which sense of group the "
-                           f"project means")
+        sb.call("ledger.unaddressed", about_ref=rid,
+                question="which sense of group the project means")
     assert not sb.ctx.outbound, "an answer about something else relays nothing"
+    assert all(w[2]["kind"] == "unaddressed_answer"
+               for w in sb.ctx.writes if w[0] == "ledger"), (
+        "the door stamps the class; no predicate reads the prose")
 
     _land_writes(db, sb.ctx)
     assert term_collision(db) == [], (
@@ -206,13 +220,206 @@ def test_an_adopted_sense_is_a_ruled_sense(db):
         "a ruling that names no row rules nothing; two decided senses still "
         "collide")
 
-    # The ruling the principal gave on this word, adopted.
+    # The ruling the principal gave on this word, adopted. It names one sense
+    # of the two, so the other is still live and the word still collides.
     db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
                "VALUES ('r1','m2','{\"g1\": \"approve\"}','the options one',"
                "'landed')")
     seed_ref(db, "glossary_terms", "g1", "ruling", "r1")
     db.commit()
+    assert term_collision(db), "one ruled sense beside one live sense collides"
+
+    # The ruling on both senses. The second is contested, which is a ruling.
+    db.execute("INSERT INTO rulings (id, ask_id, per_item, words, status) "
+               "VALUES ('r2','m2','{\"g1\": \"approve\", \"g2\": \"contest\"}',"
+               "'the options one, not the command','landed')")
+    db.commit()
 
     assert db.execute("SELECT count(*) FROM decisions").fetchone()[0] == 0
     assert term_collision(db) == [], (
         "a row the ruling names is ruled, decision or no decision")
+
+
+def test_a_contest_only_ruling_parks_the_family(db):
+    """
+    Finding 1 of the diff review of 6895000: a ruling is a ruling.
+
+    The reviewer ruled every row `contest`. `glossary.adopt` skipped both
+    rows, so no `refs` row of kind `ruling` was written, no ledger row
+    existed, and the tick fired again on cycles two and three. Cycle two runs
+    in `report` mode, whose tool list could write neither a ruling nor a
+    reading.
+    """
+    _two_senses(db)
+    sb, msg = _answering(db, "neither: a group is the folder on disk")
+    out = sb.call("rulings.rule", rulings={"g1": "contest", "g2": "contest"},
+                  words="neither: a group is the folder on disk")
+    assert out["per_item"] == {"g1": "contest", "g2": "contest"}
+    _land_writes(db, sb.ctx)
+    apply_rulings(db)
+
+    assert _relay(db, msg)["principal_verdict"] == {"g1": "contest",
+                                                   "g2": "contest"}
+    db.execute("UPDATE messages SET status = 'answered' WHERE status = 'open'")
+    db.commit()
+    assert db.execute("SELECT count(*) FROM refs WHERE kind = 'ruling' "
+                      "AND src_table = 'glossary_terms'").fetchone()[0] == 0
+    assert term_collision(db) == [], (
+        "the principal ruled, so the word is settled for this cycle")
+
+
+def test_a_clarify_takes_a_partial_map_and_logs_the_rest(db):
+    """
+    Finding 2: the door told the Liaison to approve a row the words never
+    named.
+
+    `order` was filled from the refs, which gave a clarify a numbered page the
+    principal never saw. The door then refused a partial reading with "a line
+    the reply does not contest is approve". Silence is not consent.
+    """
+    _two_senses(db)
+    sb, _ = _answering(db, "the options one")
+    out = sb.call("rulings.rule", rulings={"g1": "approve"},
+                  words="the options one")
+    assert out["per_item"] == {"g1": "approve"}, "one row, one verdict"
+    assert out["parked"] == ["g2"], "the row the words missed is logged"
+
+    _land_writes(db, sb.ctx)
+    row = db.execute("SELECT about_ref, kind, status FROM ledger").fetchone()
+    assert (row["about_ref"], row["kind"], row["status"]) == (
+        "g2", "unaddressed_answer", "open")
+
+
+def test_a_reply_that_names_no_row_lands_no_approve(db):
+    """
+    Finding 2, the second half: the reviewer landed two approves for the
+    reply "what time is the meeting".
+
+    The door cannot read the words, so it holds the two facts it can check.
+    An empty map on a clarify is silence, not consent. A reading with no
+    words on file has nothing behind it.
+    """
+    _two_senses(db)
+    sb, _ = _answering(db, "what time is the meeting")
+    with pytest.raises(ValueError, match="rulings is a map"):
+        sb.call("rulings.rule", rulings={}, words="what time is the meeting")
+    with pytest.raises(ValueError, match="words is empty"):
+        sb.call("rulings.rule", rulings={"g1": "approve", "g2": "approve"})
+    assert not [w for w in sb.ctx.writes if w[0] == "rulings"], (
+        "no approve is on file for a reply that ruled nothing")
+
+
+def test_a_signoff_on_a_parking_row_does_not_rule_the_word(db):
+    """
+    Finding 3: one keypress discharged the collision for good.
+
+    The reviewer parked `group`, then approved the parking rows on the agenda
+    page. `land` wrote a decision whose refs name the sense, and the tick
+    read the sense as ruled. The word went silent with two live senses and no
+    ruling. A keypress on a row that says the answer missed the question
+    cannot answer the question.
+    """
+    _two_senses(db)
+    sb, _ = _answering(db, "ship the smallest thing that works")
+    for rid in ("g1", "g2"):
+        sb.call("ledger.unaddressed", about_ref=rid,
+                question="which sense of group the project means")
+    _land_writes(db, sb.ctx)
+    db.execute("UPDATE messages SET status = 'answered' WHERE status = 'open'")
+    db.commit()
+    assert term_collision(db) == [], "parked while the rows are open"
+
+    rows = [r["id"] for r in db.execute("SELECT id FROM ledger "
+                                        "WHERE status = 'open'")]
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq, status) VALUES ('m9','th2','liaison',"
+               "'principal','confirm',?,9,'open')", (json.dumps(rows),))
+    db.commit()
+    land(db, Ask(message_id="m9", verb="confirm", refs=rows),
+         Answer(verb="verdict", per_item={r: "approve" for r in rows},
+                text="ok"))
+    db.execute("UPDATE messages SET status = 'answered' WHERE status = 'open'")
+    db.commit()
+
+    assert db.execute("SELECT count(*) FROM decisions").fetchone()[0] == 2
+    assert term_collision(db), (
+        "the question comes back; the signoff discharged the ledger row and "
+        "not the collision")
+
+
+def test_a_paraphrased_parking_sentence_still_parks(db):
+    """
+    Finding 4: the predicate matched the parking sentence as a substring.
+
+    The reviewer's paraphrase did not park, and the tick fired again. The
+    ledger id was a hash of the text, so every paraphrase wrote a new row and
+    the ledger grew every cycle. The class is on the row now.
+    """
+    _two_senses(db)
+    sb, _ = _answering(db, "ship the smallest thing that works")
+    for rid in ("g1", "g2"):
+        sb.call("ledger.unaddressed", about_ref=rid,
+                question="Which sense of group is meant, do you think?")
+    _land_writes(db, sb.ctx)
+    db.execute("UPDATE messages SET status = 'answered' WHERE status = 'open'")
+    db.commit()
+    assert term_collision(db) == [], "the class parks it, not the wording"
+    assert db.execute("SELECT default_taken FROM ledger").fetchone()[0].startswith(
+        UNADDRESSED_ANSWER), "the prose still reads as the sentence"
+
+    # A second cycle in other words is the same row, not a second one.
+    for rid in ("g1", "g2"):
+        sb.call("ledger.unaddressed", about_ref=rid,
+                question="said another way, which one is group")
+    _land_writes(db, sb.ctx)
+    assert db.execute("SELECT count(*) FROM ledger").fetchone()[0] == 2
+
+
+def test_a_relay_before_the_ruling_is_refused(db):
+    """
+    Finding 5: nothing enforced the order the brief asks for.
+
+    The runner breaks the session as soon as `ctx.outbound` is non-empty, so
+    a session that relays first ends with no ruling and no ledger row. That
+    is the night-84 end state. The order is the door's now.
+    """
+    _two_senses(db)
+    sb, _ = _answering(db, "the options one")
+    with pytest.raises(ValueError, match="read the reply before you relay"):
+        sb.call("msg.relay_terminologist", refs=["g1", "g2"])
+
+    sb.call("rulings.rule", rulings={"g1": "approve", "g2": "contest"},
+            words="the options one")
+    assert sb.call("msg.relay_terminologist", refs=["g1", "g2"]), (
+        "the reading is on file, so the relay goes")
+
+
+def test_one_adopted_sense_does_not_silence_a_live_sense(db):
+    """
+    Finding 9: the word still means two things.
+
+    After the good path `g1` is adopted and `g2` stays live, observed and
+    unruled. The tick read one ruled id as the whole family and never fired
+    again, and the only other reader of that row is `observed_entries`,
+    which is quarantined.
+    """
+    _two_senses(db)
+    sb, msg = _answering(db, "the options one")
+    sb.call("rulings.rule", rulings={"g1": "approve"},
+            words="the options one")
+    _land_writes(db, sb.ctx)
+    apply_rulings(db)
+
+    from rota.core.sandbox import build
+
+    _relay(db, msg)
+    term = build("terminologist", db, mode="normal", session_id="sess_adopt",
+                 allow=["glossary.adopt"])
+    term.ctx.trigger = "m4"
+    assert term.call("glossary.adopt", ids=["g1", "g2"])["adopted"] == ["g1"]
+    _land_writes(db, term.ctx)
+    db.execute("UPDATE ledger SET status = 'resolved'")
+    db.execute("UPDATE messages SET status = 'answered' WHERE status = 'open'")
+    db.commit()
+
+    assert term_collision(db), "one live sense is still a collision"

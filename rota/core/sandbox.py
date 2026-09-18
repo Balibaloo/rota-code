@@ -900,6 +900,19 @@ def _escalation_over_removed_grain(ctx, refs) -> None:
                 f"{grain} again, or a wrapper under that name, and code.commit")
 
 
+def _reply_to_read(ctx: api.Ctx) -> bool:
+    """True when the principal's words answer an ask this session still owes a
+    reading for. That is the `answering` mode, and nothing else: a `verdict`
+    message carries a ruling `principal.land` already wrote."""
+    trigger = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT from_role, verb FROM messages WHERE id = ?",
+        (trigger,)).fetchone() if trigger else None
+    if row is None or row["from_role"] != "principal" or row["verb"] != "converse":
+        return False
+    return api._ask_of(ctx) is not None
+
+
 def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                prose: str = "") -> Callable:
     """
@@ -1555,6 +1568,26 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                     given = []
                 refs += [r for r in given
                          if isinstance(r, str) and r and r not in refs]
+        # The reading comes before the relay. The answering mode asks for two
+        # calls in one turn, the relay second, and the runner ends the session
+        # on the first outbound message. A session that relayed first ended
+        # with no ruling and no ledger row, which is the night-84 loop exactly
+        # (the diff review of 6895000). The order is the door's now.
+        #
+        # The principal's words, not the principal's verdict. A `verdict`
+        # message is already ruled: `principal.land` wrote the ruling at the
+        # keypress, and `verdict_signoff` relays it with nothing left to read.
+        # Only a `converse` reply to an open ask is a reading this seat owes.
+        if (verb == "relay" and ctx.role == "liaison"
+                and _reply_to_read(ctx)
+                and not any(w[0] in ("rulings", "ledger")
+                            for w in (ctx.writes or []))):
+            raise ValueError(
+                "read the reply before you relay it. This message answers a "
+                "question you asked, and the relay carries what the principal "
+                "ruled. Call rulings.rule with the rows the words settle, or "
+                "ledger.unaddressed for a row the answer says nothing about. "
+                "Then send the relay")
         if verb == "report" and ctx.trigger:
             row = ctx.conn.execute(
                 "SELECT body_refs FROM messages WHERE id = ?",

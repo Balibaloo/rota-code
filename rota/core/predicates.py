@@ -369,35 +369,47 @@ def term_collision(conn) -> list[Wake]:
     if not rows:
         return []
 
+    # A decision that resolves a parking row is not a ruling on the word. The
+    # diff review of 6895000 approved the parking row on the agenda page: the
+    # keypress wrote a decision whose refs name the sense, and the word went
+    # quiet for ever with two live senses and no ruling. One keypress on a
+    # row that says "the answer did not address the question" cannot answer
+    # the question. The class is on the ledger row, not in its prose.
     ruled: set[str] = set()
-    for d in conn.execute("SELECT refs FROM decisions"):
+    for d in conn.execute(
+            "SELECT d.refs AS refs FROM decisions d "
+            "LEFT JOIN ledger l ON l.id = d.resolves_ledger "
+            "WHERE d.resolves_ledger IS NULL OR l.kind IS NULL "
+            "OR l.kind != 'unaddressed_answer'"):
         try:
             ruled.update(json.loads(d["refs"] or "[]"))
         except (ValueError, TypeError):
             continue
 
-    # An adopted sense is a ruled sense. `glossary.adopt` writes a `refs` row
-    # of kind `ruling` and no decision (`api._adopt_rows`), so a family the
-    # principal had settled kept firing this tick.
+    # A ruling that names the row rules it, whatever the verdict. `contest`
+    # and `revise` are rulings: the principal answered, and the word is
+    # settled for this cycle. Reading approvals only, through `glossary.adopt`
+    # alone, sent a contest-only ruling round the loop again with no ledger
+    # row and no ruling ref to stop it (the diff review of 6895000).
+    for u in conn.execute(
+            "SELECT per_item FROM rulings WHERE status = 'landed'"):
+        try:
+            named = json.loads(u["per_item"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if isinstance(named, dict):
+            ruled.update(k for k in named if isinstance(k, str))
+
+    # An adopted sense is ruled by the same query: `glossary.adopt` writes a
+    # `refs` row of kind `ruling` and no decision (`api._adopt_rows`), and the
+    # ruling it rests on names the row.
     #
     # The ruling has to name the row, not merely exist. A `ruling` ref is what
     # the provenance view reads as `decided`, and a decided sense is not a
     # ruled collision: `L1-TE-put-a-word-with-two-senses-to-the-principal`
     # seeds two decided senses and is the case this tick exists for, and
     # `test_work_resting_on_an_unresolved_collision_is_not_offered` seeds one
-    # decided sense beside one observed. `_adopt_rows` skips any row the
-    # ruling does not approve, so a row adopted for real is always named.
-    for r in conn.execute(
-            "SELECT f.src_id AS src_id, u.per_item AS per_item FROM refs f "
-            "JOIN rulings u ON u.id = f.target "
-            "WHERE f.src_table = 'glossary_terms' AND f.kind = 'ruling' "
-            "AND u.status = 'landed'"):
-        try:
-            named = json.loads(r["per_item"] or "{}")
-        except (ValueError, TypeError):
-            continue
-        if r["src_id"] in named:
-            ruled.add(r["src_id"])
+    # decided sense beside one observed. The fixture ruling names no row.
 
     # Already put to somebody. `contradiction` -- the twin this predicate was
     # built from, named two paragraphs up -- has had this check all along and
@@ -444,17 +456,25 @@ def term_collision(conn) -> list[Wake]:
     # Parked, not discharged, as the open message above is. The row stays open
     # in the ledger and in `outstanding` until a decision resolves it, and the
     # decision names the row, so `ruled` takes over from there.
+    # The class is the column, never the prose. A paraphrase of the parking
+    # sentence parked nothing and wrote a new ledger row every cycle (the
+    # diff review of 6895000). No predicate may rest on a model copying a
+    # sentence, so the door stamps `kind` and this reads it.
     for r in conn.execute(
             "SELECT about_ref FROM ledger WHERE status = 'open' "
-            "AND about_table = 'glossary_terms' AND author = 'liaison' "
-            "AND lower(default_taken) LIKE ?", (f"%{UNADDRESSED_ANSWER}%",)):
+            "AND about_table = 'glossary_terms' "
+            "AND kind = 'unaddressed_answer'"):
         raised.add(r["about_ref"])
 
     wakes = []
     for r in rows:
         ids = sorted(r["ids"].split(","))
-        if any(i in ruled for i in ids):
-            continue                      # somebody has ruled on this word
+        if all(i in ruled for i in ids):
+            continue                      # every sense of this word is ruled
+        # Every sense, not any sense. One adopted sense beside one live,
+        # observed, contested sense is still a word that means two things, and
+        # the only other reader of that row is `observed_entries`, which is
+        # quarantined (the diff review of 6895000).
         if any(i in raised for i in ids):
             continue                      # it is already in front of somebody
         wakes.append(Wake("terminologist", "tick:term_collision",

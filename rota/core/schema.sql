@@ -525,11 +525,22 @@ CREATE TABLE IF NOT EXISTS test_runs (       -- the mechanical gate before Criti
 -- Journals: multi-writer, one author per entry, append-only.
 -- ---------------------------------------------------------------------------
 
+-- `kind` is the class of the row, stamped by the door that wrote it. A
+-- predicate reads the column, never the prose: the diff review of 6895000
+-- found `term_collision` matching the parking sentence as a substring of
+-- model-written text, so a paraphrase re-opened the loop and wrote a new
+-- row every cycle. An `assumption` is the ordinary row. An
+-- `unaddressed_answer` row says the principal's answer did not address the
+-- row the question was about. The ordinary class is `default`, after
+-- `default_taken`: the word `assumption` is the artefact's noun already, and
+-- one word carries one job (`tests/rota/test_vocabulary.py`).
 CREATE TABLE IF NOT EXISTS ledger (
     id             TEXT PRIMARY KEY,
     about_ref      TEXT NOT NULL,
     about_table    TEXT NOT NULL,
     default_taken  TEXT NOT NULL,
+    kind           TEXT NOT NULL DEFAULT 'default'
+                   CHECK (kind IN ('default','unaddressed_answer')),
     status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
     author         TEXT NOT NULL,
     version        INTEGER NOT NULL DEFAULT 1

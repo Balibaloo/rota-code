@@ -2043,6 +2043,15 @@
     },
     {
       "s": "liaison",
+      "t": "ledger",
+      "type": "writes",
+      "v": "unaddressed",
+      "n": "a row the principal's answer did not address",
+      "rows": "delta",
+      "label": "an answer that missed a row parks the row, visibly"
+    },
+    {
+      "s": "liaison",
       "t": "surveys",
       "type": "writes",
       "v": "attest",

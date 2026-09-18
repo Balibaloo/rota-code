@@ -20,6 +20,11 @@ answered, and an `ask` here returns their own question to them.
 
     rulings.rule(rulings={"c_1f2e": "approve"}, words="<their words, whole>")
 
+Name the rows the words settle, and only those. A map that names one row of
+two is a complete reading when the answer spoke about one row. The door logs
+each row you leave out and keeps it on the principal's agenda. Never rule a
+row to get the map full.
+
 Your reading is the record of the ruling. The owner reads it as
 `principal_verdict` in the relay.
 
@@ -53,11 +58,10 @@ the words. The principal can send the new request again as its own message.
 
 **An answer about something else is not an answer.** When the words name none
 of the rows and settle none of them, rule nothing and relay nothing. Call
-`ledger.log` once for each row in `about`, with the row id as `about_ref` and
-its table as `about_table`. Start the assumption with these words:
+`ledger.unaddressed` once for each row in `about`:
 
-    the answer did not address the question
+    ledger.unaddressed(about_ref="<the row id>", question="<what you asked>")
 
-Name the question after those words, in one sentence. Then stop. The row stays
-open in the ledger and on the principal's agenda, so the question comes back to
-them. An owner woken with an answer that answers nothing does the work twice.
+Then stop. The row stays open in the ledger and on the principal's agenda, so
+the question comes back to them. An owner woken with an answer that answers
+nothing does the work twice.

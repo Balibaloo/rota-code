@@ -139,7 +139,7 @@ def test_item_provenance_readers_include_a_column_fragment(index):
 
 def test_every_op_of_the_graph_joins_a_function(index):
     pairs = map_tool.op_table()
-    assert len(pairs) == 87
+    assert len(pairs) == 88
     joined = map_tool.ops(index)
     assert set(pairs) == set(joined)
     # The five `cite` ops register in a loop with no decorator.

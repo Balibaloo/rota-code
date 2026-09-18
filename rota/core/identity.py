@@ -85,7 +85,11 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
     "tool_calls": ("journal", "the evidence log"),
     "receipts": ("journal", "what a session touched"),
     "claims": ("journal", "who held what, when"),
-    "ledger": ("journal", "assumptions as made; deduping would falsify"),
+    "ledger": ("journal", "assumptions as made; deduping would falsify. The "
+                          "`kind` column is the exception: a classed row keys "
+                          "on (about_table, about_ref, kind), so a paraphrase "
+                          "of the same class is one row, not a new one every "
+                          "cycle"),
     "decisions": ("journal", "reasons as given"),
     "verdicts": ("journal", "one judgement of one commit"),
     "test_runs": ("journal", "one execution, one row"),

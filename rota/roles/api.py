@@ -991,8 +991,28 @@ def _ruled_ids(ctx: Ctx) -> set[str] | None:
     if found is None:
         return None
     _, verdict = found
-    return {i for i, ruling in verdict.items()
-            if ruling in ("approve", "approved", "confirm", "confirmed")}
+    approved = {i for i, ruling in verdict.items()
+                if ruling in ("approve", "approved", "confirm", "confirmed")}
+    # The rows this wake carries, and no others. The runner filters the
+    # verdict to the relay's own refs before it shows it (`runner.py`, the
+    # `principal_verdict` block), and this did not, so a chain walk that now
+    # spans the whole chain let a session adopt an ancestor's ruling on a row
+    # it was never woken about (the diff review of 6895000).
+    mine = _wake_refs(ctx)
+    return {i for i in approved if i in mine} if mine else approved
+
+
+def _wake_refs(ctx: Ctx) -> set[str]:
+    """The rows the wake named: the trigger message's refs, or the tick's."""
+    trigger = getattr(ctx, "trigger", None)
+    row = ctx.conn.execute(
+        "SELECT body_refs FROM messages WHERE id = ?",
+        (trigger,)).fetchone() if trigger else None
+    try:
+        given = json.loads(row["body_refs"] or "[]") if row else []
+    except (TypeError, ValueError):
+        given = []
+    return {r for r in given if isinstance(r, str)} or set(ctx.wake_refs or ())
 
 
 def _landed_ruling(ctx: Ctx) -> str | None:
@@ -5001,10 +5021,18 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
     # door above would then read an empty ruling as "approve all", which is
     # the reading this fix exists to stop: silence is not consent
     # (`principal.land`, the empty-converse walk of clickI).
-    if ask["verb"] == "clarify":
+    #
+    # The page stays empty. Filling `order` from the refs gave the reply a
+    # numbered page the principal never saw, and the door then refused a
+    # partial reading with "a line the reply does not contest is approve".
+    # The diff review of 6895000 landed two approves for the reply "what time
+    # is the meeting" through that door. A clarify takes a partial map, and
+    # each row the map leaves out is parked, not approved.
+    is_clarify = ask["verb"] == "clarify"
+    if is_clarify:
         batches_only = False
-        order = order or refs
-    if isinstance(rulings, dict) and not rulings and (not order or batches_only):
+    if (isinstance(rulings, dict) and not rulings and not is_clarify
+            and (not order or batches_only)):
         rid = new_id("r", ctx.conn)
         ctx.writes.append(("rulings", rid, {
             "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
@@ -5017,7 +5045,8 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             "rulings is a map of page line number (or row id) to approve, "
             "contest or revise, for example {\"1\": \"approve\", "
             "\"2\": \"contest\"}")
-    order = order or refs
+    if not is_clarify:
+        order = order or refs
     per_item: dict[str, str] = {}
     for key, ruling in rulings.items():
         key = str(key).strip()
@@ -5026,30 +5055,65 @@ def rulings_rule(ctx: Ctx, rulings: dict | None = None, words: str = "",
             raise ValueError(
                 f"line {key}: {ruling!r} is not a ruling. Each line takes "
                 f"approve, contest or revise")
-        if key.isdigit() and 1 <= int(key) <= len(order):
+        if order and key.isdigit() and 1 <= int(key) <= len(order):
             per_item[order[int(key) - 1]] = ruling
         elif key in refs:
             per_item[key] = ruling
+        elif is_clarify:
+            raise ValueError(
+                f"{key!r} is not a row of this question. A clarify numbers no "
+                f"line, so each key is a row id from `about`: "
+                f"{', '.join(refs)}")
         else:
             raise ValueError(
                 f"{key!r} is not a line of the page. The page numbers its "
                 f"rows 1 to {len(order)}; use those numbers")
-    unnamed = [str(i + 1) for i, r in enumerate(order) if r not in per_item]
-    if unnamed:
+    if not is_clarify:
+        unnamed = [str(i + 1) for i, r in enumerate(order) if r not in per_item]
+        if unnamed:
+            raise ValueError(
+                f"lines {', '.join(unnamed)} have no ruling. Every line of the "
+                f"page takes one: the ask closes when the ruling lands. A line "
+                f"the reply does not contest is approve")
+    if is_clarify and not (words or "").strip():
+        # A reading rests on the principal's words. The door cannot read them,
+        # so it holds the one fact it can check: a ruling with no words on
+        # file is a ruling with nothing behind it.
         raise ValueError(
-            f"lines {', '.join(unnamed)} have no ruling. Every line of the "
-            f"page takes one: the ask closes when the ruling lands. A line "
-            f"the reply does not contest is approve")
+            "a reading carries the principal's words, and words is empty. "
+            "Pass the reply, whole")
     if any(v != "approve" for v in per_item.values()) and not (words or "").strip():
         raise ValueError(
             "a contest carries the principal's words to the row's owner, and "
             "words is empty. Pass the reply, whole")
+    # Each row the answer left out is parked, one ledger row each, with the
+    # class on the row. The obligation stays visible and countable until a
+    # ruling discharges it (`plans/composition.md`, Records).
+    parked = []
+    if is_clarify:
+        from ..core.predicates import UNADDRESSED_ANSWER
+
+        asked = " ".join((ask["body_text"] or "the question").split())
+        for r in refs:
+            if r in per_item:
+                continue
+            table = _table_of_ref(ctx.conn, r)
+            if table is None:
+                continue
+            _stage_ledger(ctx, r, table, f"{UNADDRESSED_ANSWER}: {asked}",
+                          UNADDRESSED_KIND)
+            parked.append(r)
     rid = new_id("r", ctx.conn)
     ctx.writes.append(("rulings", rid, {
         "id": rid, "ask_id": ask["id"], "reply_id": ctx.trigger,
         "per_item": json.dumps(per_item), "words": (words or "").strip(),
         "status": "open"}))
-    return {"id": rid, "per_item": per_item}
+    out = {"id": rid, "per_item": per_item}
+    if parked:
+        out["parked"] = parked
+        out["note"] = ("the answer said nothing about these rows, so each one "
+                       "is logged and stays on the principal's agenda")
+    return out
 
 
 @op("rulings", "load")
@@ -5099,11 +5163,7 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
     # A rota row under another table's name. A path or an entry as the
     # subject stays legal: reconcile logs "README says X" about README.md
     # under items, and that is the shape the design asks for.
-    home = next((t for t in ("items", "statements", "criteria", "tickets",
-                             "tests", "constraints", "glossary_terms",
-                             "model_areas", "frame_rulings")
-                 if ctx.conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
-                                     (about_ref,)).fetchone()), None)
+    home = _table_of_ref(ctx.conn, about_ref)
     if home and about_table != home:
         raise ValueError(
             f"{about_ref!r} is a row of {home}, not of {about_table}. "
@@ -5135,15 +5195,71 @@ def ledger_log(ctx: Ctx, about_ref: str, about_table: str,
                 "agrees, that is the answer: surveys.attest(outcome='none_found', "
                 "citations=[the file]), and no ledger row")
 
+    return {"id": _stage_ledger(ctx, about_ref, about_table, assumption)}
+
+
+# The tables a ledger row can be about, in the order `ledger.log` checks them.
+LEDGER_HOMES = ("items", "statements", "criteria", "tickets", "tests",
+                "constraints", "glossary_terms", "model_areas", "frame_rulings")
+# The class of a parking row: the principal answered, and the answer said
+# nothing about this row. The door stamps the class; no model writes it.
+UNADDRESSED_KIND = "unaddressed_answer"
+
+
+def _table_of_ref(conn, ref: str) -> str | None:
+    """The table the row lives in, or None."""
+    return next((t for t in LEDGER_HOMES
+                 if conn.execute(f"SELECT 1 FROM {t} WHERE id = ?",
+                                 (ref,)).fetchone()), None)
+
+
+def _stage_ledger(ctx: Ctx, about_ref: str, about_table: str, assumption: str,
+                  kind: str = "default") -> str:
+    """Stage one ledger row of one class, and return its id.
+
+    A classed row keys on its class, not on its prose (`identity.py`). The
+    diff review of 6895000 found a paraphrased parking sentence writing a new
+    row every cycle, so the ledger grew without bound and nothing parked.
+    """
     import hashlib
 
-    digest = hashlib.sha256(
-        f"{about_table}|{about_ref}|{assumption}".encode()).hexdigest()[:10]
-    id = f"l_{digest}"
+    seed = (f"{about_table}|{about_ref}|{kind}" if kind != "default"
+            else f"{about_table}|{about_ref}|{assumption}")
+    id = "l_" + hashlib.sha256(seed.encode()).hexdigest()[:10]
     ctx.writes.append(("ledger", id, {
         "about_ref": about_ref, "about_table": about_table,
-        "default_taken": assumption, "status": "open", "author": ctx.role}))
-    return {"id": id}
+        "default_taken": assumption, "kind": kind, "status": "open",
+        "author": ctx.role}))
+    return id
+
+
+@op("ledger", "unaddressed")
+def ledger_unaddressed(ctx: Ctx, about_ref: str, question: str) -> dict:
+    """
+    The principal answered, and the answer said nothing about this row.
+
+    One call for each row the answer missed. The row stays open in the ledger
+    and on the principal's agenda, so the question comes back to them. Give
+    the question you asked, in one sentence. The door writes the class.
+
+    Never rule a row the words do not settle. The principal rules, and you
+    write what they ruled (`plans/composition.md`, Records).
+    """
+    from ..core.predicates import UNADDRESSED_ANSWER
+
+    table = _table_of_ref(ctx.conn, about_ref)
+    if table is None:
+        raise ValueError(
+            f"{about_ref!r} names no row. about_ref is the id of a row the "
+            f"question was about, from `about_rows`")
+    said = (question or "").strip()
+    if not said:
+        raise ValueError(
+            "question is the question you put to the principal, in one "
+            "sentence. The row is parked against that question")
+    id = _stage_ledger(ctx, about_ref, table,
+                       f"{UNADDRESSED_ANSWER}: {said}", UNADDRESSED_KIND)
+    return {"id": id, "about_ref": about_ref, "parked": True}
 
 
 @op("ledger", "list")

@@ -31,3 +31,11 @@ Then stop. Measured on a live run (tipsG, 2026-09-09): one collision was
 reported eight times, each report became a clarify, and the principal gave
 the same answer eight times. The answers were on file. Asking again spends
 the one budget that cannot be topped up on a question already settled.
+
+**Read `prior_answers` against the rows before you relay them.** When those
+words name none of the rows and settle none of them, they are not an answer
+to this report. Relay nothing. Call `ledger.unaddressed` once for each ref of
+the report, with the question the report raises. Then stop. The rows stay on
+the principal's agenda. Night 84 (2026-09-17): the same words were relayed
+verbatim to the Terminologist, which could do nothing with them, and the
+three sessions ran seventeen times.
