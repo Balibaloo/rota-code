@@ -230,8 +230,20 @@ Rules:
   about 11900 characters of rendered page (observed: 60 lines measure
   3688 tokens, night 85's 77 lines measure 5455, and 120 lines measure
   6311).
-  Gate by the assistant is running. Night 86 runs cold from a worktree
-  at 8b15af8, from sentence two, the walk for frames 33, 34 and 36.
+  Gate by the assistant at 8b15af8: three new reds, all three named
+  flaky by the gate itself and all three green on the gate's own re-run,
+  three passed in 1.54 s (observed: the gate's flaky lines and its
+  re-run). The three are `test_arc_delivery_loop_slices_batches_and_
+  tests`, `test_arc_global_negative_no_writes_by_non_owners`, which is
+  parked flaky already, and `test_marking_the_same_run_twice_unmarks_it`.
+  This run competed with night 86 for the machine, where the
+  implementer's clean run at the same commit did not (reasoned: three
+  flaky in one run is more than any earlier run of this session, and the
+  three are timing cases). The gate re-runs after the night, for a
+  number taken on a quiet machine. Do not run the gate beside a night
+  again.
+  Night 86 runs cold from a worktree at 8b15af8, from sentence two, the
+  walk for frames 33, 34 and 36. Onboarding began 06:08.
 
 ### 34. The term-collision loop on click, cold (2026-09-17) [75d12c2b]
 
