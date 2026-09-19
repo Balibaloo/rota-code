@@ -902,6 +902,44 @@ Rules:
   `.rota/clickI_night87.db`, `probes/frame43/p_night.py` on it, the four
   numbers beside night 86's corrected baseline, and the closing status with the
   actuals. Then remove both worktrees.
+- Status 2026-09-19 16:32 (rota-95): **the frame's measurement is in, taken on
+  the night in flight, and the ends-when is met on its hard test.** The night
+  is still running sentence 1, so these numbers are partial and they already
+  cover 780 model turns against night 86's 825. Measured with
+  `probes/frame43/p_night.py` on the live database, opened read-only.
+
+  | number | night 86 | night 87, partial |
+  | --- | ---: | ---: |
+  | middle evicted | 297 of 825, 36.0 per cent | 212 of 780, 27.2 per cent |
+  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 780, and 71 confirmed at `wake_room` |
+  | sessions cut by the server | 15 of 203, 14 of them real | **0 of 180** |
+  | tokens discarded | 179117, 179267 over the real cuts | **0** |
+  | largest prompt | 27155 tokens | **8191 tokens** |
+  | turns over 16384 | 12 | **0** |
+  | turns over 12288 | 14 | **0** |
+
+  **The mechanism is closed, not just the number** (observed: the largest
+  prompt is 8191 tokens, and `_fit_budget` at 16384 is about 32522 characters,
+  which is 8192 tokens at the runner's own ratio). So `_fit` now binds on the
+  largest prompt of the night and holds every prompt at or under half the
+  window. A prompt that cannot pass half the window cannot exceed the window,
+  so no session can be cut by the server. Zero is therefore a property and not
+  a lucky night.
+  **Three of the four numbers improve and one is flat.** The flat one is the
+  wake cut, 10.9 per cent against 10.4, and the cross-check moves it the other
+  way: 14 of the 85 notices come from the reply cut and not the wake, so the
+  true wake-cut rate is 71 of 780, 9.1 per cent, against night 86's 10.4. Both
+  readings sit inside the night-to-night variance this session measured, where
+  nights 85 and 86 swung from 0.5 per cent to 10.4 on the same code.
+  **This is why the acceptance question was asked** (reasoned: the assistant,
+  2026-09-19). The four rates cannot carry the frame, because two consecutive
+  nights on nearly the same code differ by up to twenty times. The largest
+  prompt moved 6 per cent between those two nights and moved 70 per cent
+  between night 86 and this one. The question stands for Roman: close on the
+  largest prompt, with the four rates recorded beside night 86's.
+  What remains: the `GAUNTLET-DONE` line, the final numbers on the whole night,
+  a copy of the database to `.rota/clickI_night87.db`, the closing status with
+  the actuals, and both worktrees removed.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
