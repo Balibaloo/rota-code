@@ -681,17 +681,19 @@ Rules:
   **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65).**
   Read this before you claim frame 43.
 
-  1. **State.** All four repairs are committed. The frame's commits are
-     7045226 repair 2, 9881938 the spans, 5241cb9 repair 1, 34c3e72
-     repairs 3 and 4. A fix pass for the diff review's seven findings was
-     in flight when this block was written. **Check `git status` first**:
-     a dirty tree means that pass landed and was never committed, and its
-     report is lost with the session. If the tree is dirty and you have no
-     report, revert to the last commit and re-run the fix pass from the
-     seven findings above. Do not guess what the diff was for.
-  2. **What remains to close the frame.** The seven fixes, then the window
-     rise to 16384 with the spill monitor, which no pass has done, then
-     the night against night 86's four numbers.
+  1. **State, updated 11:55.** All four repairs and all seven diff-review
+     fixes are committed. The tree is clean and the review worktree is
+     removed. The frame's commits, in order: 7045226 repair 2, 9881938 the
+     spans, 5241cb9 repair 1, 34c3e72 repairs 3 and 4, 8ca1028 the seven
+     fixes. The register is backed up at
+     `.rota/cassettes_backup_2026-09-19-frame43-closing.db`, 749 MB.
+     The gate at 8ca1028, run by the assistant, not piped: **21 failed,
+     1941 passed, zero new reds, zero stale, one red gone.** One better
+     than the baseline and 26 tests richer.
+  2. **What remains to close the frame.** Two things only. The window rise
+     to 16384 with the spill monitor, which no pass has done. Then the
+     night, from a worktree at the closing commit, against night 86's four
+     numbers.
   3. **The window rise is the largest single cost in the frame and it has
      a fork.** Raise it in the shipped profiles, never in
      `DEFAULT_NUM_CTX`. The constant stales all 396 live recordings, about
