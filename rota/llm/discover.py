@@ -61,6 +61,27 @@ class System:
 
 
 @dataclass(frozen=True)
+class Resident:
+    """
+    One model the server holds right now, and the window it allocated.
+
+    Named rather than a tuple: three unlabelled integers at a call site say
+    nothing, and the third one is the whole point. `num_ctx` is
+    `context_length` from `/api/ps`, and None means the server reported
+    none.
+    """
+    name: str
+    size: int                        # weights plus cache, wherever they sit
+    size_vram: int                   # the part of `size` that is on the card
+    num_ctx: int | None = None
+
+    @property
+    def spill(self) -> int:
+        """What the server put in RAM. RAM is where the turn time goes."""
+        return max(0, self.size - self.size_vram)
+
+
+@dataclass(frozen=True)
 class Fit:
     model: str
     provider: str
@@ -194,24 +215,34 @@ def _vram_from_ollama() -> tuple[int | None, int | None]:
     return None, None
 
 
-def loaded(endpoint: str = OLLAMA) -> dict[str, tuple[int, int]] | None:
+def loaded(endpoint: str = OLLAMA) -> dict[str, Resident] | None:
     """
-    What Ollama holds right now: name -> (size, size_vram). One model at a
-    time on this machine, swapped at each role change.
+    What Ollama holds right now: name -> `Resident`. One model at a time on
+    this machine, swapped at each role change.
 
     `None` means the server did not answer. `{}` means it answered and holds
     nothing. The two used to share the value `{}`, so a monitor stayed
     silent when it could not see the card, which reads as good news.
+
+    `num_ctx` is `context_length` from `/api/ps`, which is the window the
+    server allocated. Read that, never the window the run asked for: a pin
+    that never reached the server is the fault this reading exists to find
+    (observed: probes/frame43/p_window.py, 2026-09-19).
     """
     try:
         ps = _get(f"{endpoint}/api/ps")
     except Exception:
         return None
-    return {m["name"]: (int(m.get("size") or 0), int(m.get("size_vram") or 0))
-            for m in ps.get("models") or []}
+    out: dict[str, Resident] = {}
+    for m in ps.get("models") or []:
+        ctx = m.get("context_length")
+        out[m["name"]] = Resident(
+            m["name"], int(m.get("size") or 0), int(m.get("size_vram") or 0),
+            int(ctx) if ctx else None)
+    return out
 
 
-def spill_of(held: dict[str, tuple[int, int]] | None,
+def spill_of(held: dict[str, Resident] | None,
              model: str | None = None) -> dict | None:
     """
     The spill of one loaded model, in bytes. Pure: it reads no server.
@@ -223,16 +254,43 @@ def spill_of(held: dict[str, tuple[int, int]] | None,
     `model` names the desk's model. A name the card does not hold falls back
     to the worst spill on the card, so the row never reports the wrong load
     as healthy.
+
+    `num_ctx` is the window the server allocated, and it can be None on a
+    server too old to report one.
     """
     if held is None:
         return None
     if not held:
-        return {"model": "", "size": 0, "size_vram": 0, "spill": 0}
+        return {"model": "", "size": 0, "size_vram": 0, "spill": 0,
+                "num_ctx": None}
     name = model if model in held else max(
-        held, key=lambda k: (held[k][0] - held[k][1], held[k][0]))
-    size, vram = held[name]
-    return {"model": name, "size": size, "size_vram": vram,
-            "spill": max(0, size - vram)}
+        held, key=lambda k: (held[k].spill, held[k].size))
+    one = held[name]
+    return {"model": name, "size": one.size, "size_vram": one.size_vram,
+            "spill": one.spill, "num_ctx": one.num_ctx}
+
+
+def spill_line(seen: dict | None) -> str:
+    """
+    One plain line for a spill row, or "" when nothing was read.
+
+    The night is headless, so this line is the only place an operator sees
+    the card. It names both windows when they differ, because a pin that
+    never reached the server is the fault a profile file cannot disprove.
+    Pure: the caller reads the row, and this writes the sentence.
+    """
+    if not seen:
+        return ""
+    if not seen.get("seen"):
+        return f"CARD UNSEEN {seen.get('endpoint')}: /api/ps did not answer"
+    gb = 1 << 30
+    pinned, given = seen.get("num_ctx"), seen.get("allocated_ctx")
+    window = (f"{pinned}" if given in (None, pinned)
+              else f"{pinned} PINNED but {given} GIVEN")
+    state = "SPILLS" if (seen.get("spill") or 0) > 0 else "FITS"
+    return (f"CARD {state} {seen.get('model')} at {window}: "
+            f"{(seen.get('size') or 0) / gb:.2f} GB resident, "
+            f"{(seen.get('spill') or 0) / gb:.2f} GB in RAM")
 
 
 def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:

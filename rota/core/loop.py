@@ -130,6 +130,11 @@ def note_spill(conn: sqlite3.Connection, session_id: str, *,
     `seen` false says the server did not answer. A monitor that cannot see
     the card must say so, because silence reads as good news.
 
+    The row carries both windows. `num_ctx` is what the session pinned and
+    `allocated_ctx` is what `/api/ps` says the server gave it. A row where
+    the two differ is a pin that never reached the server, which no profile
+    file can prove and only the allocated number can show.
+
     The row is written only when the numbers move. `at` is therefore the
     time the spill last changed, and the history holds one entry per change
     instead of one per session.
@@ -151,6 +156,7 @@ def note_spill(conn: sqlite3.Connection, session_id: str, *,
     spill = discover.spill_of(held, model)
     seen = {"seen": spill is not None, "endpoint": endpoint,
             "model": (spill or {}).get("model") or model, "num_ctx": window,
+            "allocated_ctx": (spill or {}).get("num_ctx"),
             "size": (spill or {}).get("size", 0),
             "size_vram": (spill or {}).get("size_vram", 0),
             "spill": (spill or {}).get("spill", 0),

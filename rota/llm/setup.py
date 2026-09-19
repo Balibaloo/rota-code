@@ -41,8 +41,8 @@ class Plan:
     groups: list[str]
 
 
-def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None = None,
-         loaded_ctx: int | None = None) -> Plan:
+def plan(driving: bool = False, num_ctx: int = 12288,
+         table: list[dict] | None = None) -> Plan:
     if driving:
         raise Driving("a run is driving; discovery would evict its models. "
                       "Pause the run first")
@@ -69,8 +69,15 @@ def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None =
             recorded.add(r["model"])
     rows = []
     for m in found:
-        lb = held.get(m.name, (0, 0))[0] or None
-        f = D.fit_of(m, machine, num_ctx, loaded_bytes=lb, loaded_ctx=loaded_ctx)
+        # The measurement belongs to the model that was loaded, so it is per
+        # row. `/api/ps` reports the window the server allocated, and that
+        # window is what lets `fit_of` answer for another one. A model the
+        # card does not hold has no measurement, and the metadata answers
+        # (observed: probes/frame43/p_window.py, 2026-09-19).
+        one = held.get(m.name)
+        f = D.fit_of(m, machine, num_ctx,
+                     loaded_bytes=(one.size if one else None) or None,
+                     loaded_ctx=(one.num_ctx if one else None) or None)
         rows.append(Row(m.provider, m.name, f.fit, (f.need_bytes or 0) >> 20 or None,
                         scores.get(m.name, {}), m.name in recorded))
     # The derived groups when the table has them (step 7), the roles before.

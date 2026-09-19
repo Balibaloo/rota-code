@@ -50,8 +50,31 @@ def test_an_unreachable_server_and_an_empty_card_are_different_answers(monkeypat
     assert D.loaded("http://localhost:1") == {}
 
     monkeypatch.setattr(D, "_get", lambda *a, **k: {
-        "models": [{"name": "qwen3:8b", "size": 7947, "size_vram": 7947}]})
-    assert D.loaded("http://localhost:1") == {"qwen3:8b": (7947, 7947)}
+        "models": [{"name": "qwen3:8b", "size": 7947, "size_vram": 7947,
+                    "context_length": 16384}]})
+    assert D.loaded("http://localhost:1") == {
+        "qwen3:8b": D.Resident("qwen3:8b", 7947, 7947, 16384)}
+
+
+def test_loaded_reads_the_window_the_server_allocated(monkeypatch):
+    """
+    `/api/ps` reports `context_length`, which is the window the server gave
+    the model. It is not the window the run asked for, and the difference is
+    the only proof that a pin reached the server (observed:
+    probes/frame43/p_window.py, 2026-09-19: qwen3:8b reported 16384 and 6.89
+    GB with zero spill).
+
+    A named shape rather than a longer tuple: three unlabelled integers at a
+    call site say nothing, and the third one is the whole point.
+    """
+    monkeypatch.setattr(D, "_get", lambda *a, **k: {"models": [
+        {"name": "qwen3:8b", "size": 7398, "size_vram": 7398, "context_length": 16384},
+        {"name": "old:7b", "size": 100, "size_vram": 60}]})
+    held = D.loaded("http://x")
+    assert held["qwen3:8b"].num_ctx == 16384 and held["qwen3:8b"].spill == 0
+    # A server too old to report a window must not break the shape: None
+    # means "cannot say", like every other unknown here.
+    assert held["old:7b"].num_ctx is None and held["old:7b"].spill == 40
 
 
 def test_loaded_reads_the_endpoint_it_is_given(monkeypatch):
@@ -75,14 +98,18 @@ def test_loaded_reads_the_endpoint_it_is_given(monkeypatch):
 
 def test_the_spill_of_one_model_is_pure_arithmetic():
     gb = 1 << 30
-    held = {"gemma3:12b": (11 * gb, 8 * gb), "qwen3:8b": (7 * gb, 7 * gb)}
+    held = {"gemma3:12b": D.Resident("gemma3:12b", 11 * gb, 8 * gb, 12288),
+            "qwen3:8b": D.Resident("qwen3:8b", 7 * gb, 7 * gb, 16384)}
     assert D.spill_of(held, "gemma3:12b") == {
-        "model": "gemma3:12b", "size": 11 * gb, "size_vram": 8 * gb, "spill": 3 * gb}
+        "model": "gemma3:12b", "size": 11 * gb, "size_vram": 8 * gb,
+        "spill": 3 * gb, "num_ctx": 12288}
     assert D.spill_of(held, "qwen3:8b")["spill"] == 0
+    assert D.spill_of(held, "qwen3:8b")["num_ctx"] == 16384
     # A name the card does not hold falls back to the worst spill, so the
     # row never reports the wrong load as healthy.
     assert D.spill_of(held, "nothing:here")["model"] == "gemma3:12b"
-    assert D.spill_of({}) == {"model": "", "size": 0, "size_vram": 0, "spill": 0}
+    assert D.spill_of({}) == {"model": "", "size": 0, "size_vram": 0,
+                              "spill": 0, "num_ctx": None}
     assert D.spill_of(None) is None
 
 
@@ -110,6 +137,65 @@ def test_fit_tells_one_window_from_another_without_the_kv_metadata():
     # number measured, and no claim about any other window.
     flat = D.fit_of(m, machine, 24576, loaded_bytes=int(5.77 * gb))
     assert flat.need_bytes == int(5.77 * gb)
+
+
+def test_the_plan_feeds_the_measurement_of_each_loaded_model(monkeypatch):
+    """
+    The guard is decoration until something feeds it, and the shipped flow
+    is `setup.plan`. Driven through the plan on purpose: the mechanism was
+    right and no caller passed the window, so the routed model's fit was the
+    weights alone at every window.
+
+    The window comes from `/api/ps` per model, not from one argument for the
+    whole plan: it belongs to the model that was loaded.
+    """
+    from rota.llm import setup
+
+    gb = 1 << 30
+    routed = D.Model("ollama", "qwen3.5:9b", size_bytes=5 * gb,
+                     meta={"block_count": 36})          # no head_count_kv
+    monkeypatch.setattr(D, "providers", lambda *a, **k: [
+        D.Provider("ollama", "ollama", "http://x")])
+    monkeypatch.setattr(D, "models", lambda *a, **k: [routed])
+    monkeypatch.setattr(D, "system", lambda: D.System(
+        "windows", ram_bytes=32 * gb, vram_total_bytes=6 * gb, vram_free_bytes=1 * gb))
+    monkeypatch.setattr(D, "loaded", lambda *a, **k: {
+        "qwen3.5:9b": D.Resident("qwen3.5:9b", int(5.77 * gb), int(5.77 * gb), 12288)})
+
+    table = [{"model": "qwen3.5:9b", "capability": "DV", "score": 1.0, "cases": 5}]
+    small = setup.plan(num_ctx=12288, table=table).rows[0]
+    big = setup.plan(num_ctx=24576, table=table).rows[0]
+    assert small.need_mib < big.need_mib, \
+        "the plan cannot tell one window from another for the routed model"
+    assert (small.fit, big.fit) == ("in_vram", "spills")
+
+    # A model the card does not hold has no measurement, and the metadata
+    # answers. The fallback must stay, or an unloaded model has no row.
+    monkeypatch.setattr(D, "loaded", lambda *a, **k: {})
+    assert setup.plan(num_ctx=12288, table=table).rows[0].need_mib
+
+
+def test_the_night_line_names_both_windows_when_they_differ():
+    """
+    The night is headless, and `probes/walk.py` prints this line. A pin that
+    never reached the server is the fault the window rise would otherwise
+    ship blind, and no profile file can disprove it.
+    """
+    gb = 1 << 30
+    seen = {"seen": True, "model": "qwen3:8b", "endpoint": "http://x",
+            "num_ctx": 16384, "allocated_ctx": 16384, "size": 7 * gb,
+            "size_vram": 7 * gb, "spill": 0, "at": "now"}
+    line = D.spill_line(seen)
+    assert line.startswith("CARD FITS qwen3:8b at 16384:") and "0.00 GB in RAM" in line
+    assert "PINNED" not in line, "one window, said once"
+
+    missed = D.spill_line(dict(seen, allocated_ctx=12288))
+    assert "16384 PINNED but 12288 GIVEN" in missed
+
+    # A server too old to report a window says nothing about one.
+    assert "PINNED" not in D.spill_line(dict(seen, allocated_ctx=None))
+    assert D.spill_line(dict(seen, seen=False)).startswith("CARD UNSEEN")
+    assert D.spill_line({}) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +236,7 @@ def test_the_loop_reads_the_card_once_per_session(db):
 
     def reader(endpoint):
         calls.append(endpoint)
-        return {"qwen3:8b": (8 * gb, 6 * gb)}
+        return {"qwen3:8b": D.Resident("qwen3:8b", 8 * gb, 6 * gb, 12288)}
 
     s = loop.step(db, backend=_backend(["TOOL: msg.present_principal(refs=[])", "done"]),
                   pins=Pins(model="qwen3:8b", num_ctx=16384), spill_reader=reader)
@@ -160,8 +246,11 @@ def test_the_loop_reads_the_card_once_per_session(db):
     row = config.get(db, "spill_seen")
     assert row["seen"] is True and row["model"] == "qwen3:8b"
     assert row["spill"] == 2 * gb and row["size"] == 8 * gb
-    assert row["endpoint"] == "http://localhost:11435" and row["num_ctx"] == 16384
-    assert row["at"]
+    assert row["endpoint"] == "http://localhost:11435" and row["at"]
+    # Both windows: what the session pinned, and what the server gave it.
+    # This row says the pin did not reach the server, which is the fault the
+    # rise would otherwise ship blind.
+    assert row["num_ctx"] == 16384 and row["allocated_ctx"] == 12288
 
     # The same reading twice writes no second history entry: the history
     # grows when the spill moves, not once a session.

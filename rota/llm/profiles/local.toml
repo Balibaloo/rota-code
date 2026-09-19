@@ -7,8 +7,10 @@ name = "local"
 kind = "ollama"
 timeout = 300
 
-# The 3080 sets this number (2026-09-19): qwen3:8b needs 7.40 GB at
-# 16384 and 8.01 GB at 20480, which leaves a 10 GB card nothing.
+# The 3080 sets this number: qwen3:8b needs 6.89 to 7.40 GB at 16384
+# with no spill, and 8.01 GB at 20480, which leaves a 10 GB card
+# nothing (the design record and probes/frame43/p_window.py, both
+# 2026-09-19).
 [pins]
 temperature = 0.0
 num_ctx = 16384

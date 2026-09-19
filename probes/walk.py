@@ -17,6 +17,7 @@ os.environ.setdefault("ROTA_ONESHOT", "1")
 
 from rota.core import config as _config
 from rota.core.db import connect
+from rota.llm.discover import spill_line as _spill_line
 from rota.core.loop import step
 from rota.llm.llm import Pins
 from rota.roles.principal import Answer, pending_asks, pump, render_state
@@ -175,18 +176,14 @@ _last_card = None
 def card_line() -> None:
     global _last_card
     seen = _config.get(conn, "spill_seen") or {}
-    key = (seen.get("seen"), seen.get("model"), seen.get("num_ctx"), seen.get("spill"))
+    key = (seen.get("seen"), seen.get("model"), seen.get("num_ctx"),
+           seen.get("allocated_ctx"), seen.get("spill"))
     if not seen or key == _last_card:
         return
     _last_card = key
-    if not seen.get("seen"):
-        print(f"CARD UNSEEN {seen.get('endpoint')}: /api/ps did not answer", flush=True)
-        return
-    gb = 1 << 30
-    state = "SPILLS" if (seen.get("spill") or 0) > 0 else "FITS"
-    print(f"CARD {state} {seen.get('model')} at {seen.get('num_ctx')}: "
-          f"{(seen.get('size') or 0) / gb:.2f} GB resident, "
-          f"{(seen.get('spill') or 0) / gb:.2f} GB in RAM", flush=True)
+    # The sentence is `discover.spill_line`, so a test can read it. This
+    # script runs on import and nothing can import it.
+    print(_spill_line(seen), flush=True)
 
 
 _last_n, _last_change = -1, _time.time()

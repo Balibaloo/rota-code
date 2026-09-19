@@ -203,8 +203,11 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
 
     Setting("spill_seen", {},
             "The last reading of the card, written by the loop after a "
-            "session ends: endpoint, model, window, size, size_vram, spill "
-            "and at. The spill is `size` minus `size_vram`, which is what "
+            "session ends: endpoint, model, num_ctx, allocated_ctx, size, "
+            "size_vram, spill and at. `num_ctx` is what the session pinned "
+            "and `allocated_ctx` is what /api/ps says the server gave it, "
+            "so a pin that never reached the server is visible. "
+            "The spill is `size` minus `size_vram`, which is what "
             "Ollama put in RAM, and RAM is where the turn time goes -- "
             "qwen3:8b runs a turn in 12.5 s when it fits and over 100 s at "
             "a 27 per cent spill. `seen` false means the server did not "

@@ -32,10 +32,14 @@ def test_every_shipped_profile_pins_the_measured_window():
     """
     16384 in every shipped profile, and 12288 at the Critic's gemma desk.
 
-    The number is measured on the 3080 (2026-09-19, `/api/ps` after a
-    one-token generate at each window): qwen3:8b needs 7.40 GB at 16384 and
-    8.01 GB at 20480, so 20480 leaves a 10 GB card and its desktop nothing.
-    16384 leaves about 0.6 GB and raises the planning budget by a third.
+    The number is measured on the 3080, `/api/ps` after a one-token
+    generate at each window. Two readings, and they disagree. The design
+    record of 2026-09-19 has qwen3:8b at 7.40 GB at 16384 and 8.01 GB at
+    20480. `probes/frame43/p_window.py` measured 6.89 GB at 16384 on the
+    same card later that day, with zero spill. Both are recorded here,
+    because a record must not hold a figure its own probe contradicts. The
+    ruling stands on either number: 20480 leaves a 10 GB card and its
+    desktop nothing, and 16384 raises the planning budget by a third.
 
     The two gemma profiles keep the Critic at 12288. gemma3:12b needs 10.87
     GB at 12288 and already spills, so a wider window buys that desk nothing
