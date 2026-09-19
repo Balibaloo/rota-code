@@ -22,7 +22,13 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
-OLLAMA = "http://localhost:11434"
+from .llm import OLLAMA_HOST
+
+# One default host for the package, read from the environment like
+# `rota/llm/llm.py:44` does. A bare literal measured the wrong card: the
+# recorder runs on 11435, and both servers answer on this box, so the
+# reading looked plausible instead of failing.
+OLLAMA = OLLAMA_HOST
 LLAMACPP = "http://localhost:8080"
 
 
@@ -188,15 +194,45 @@ def _vram_from_ollama() -> tuple[int | None, int | None]:
     return None, None
 
 
-def loaded(endpoint: str = OLLAMA) -> dict[str, tuple[int, int]]:
-    """What Ollama holds right now: name -> (size, size_vram). One model at
-    a time on this machine, swapped at each role change."""
+def loaded(endpoint: str = OLLAMA) -> dict[str, tuple[int, int]] | None:
+    """
+    What Ollama holds right now: name -> (size, size_vram). One model at a
+    time on this machine, swapped at each role change.
+
+    `None` means the server did not answer. `{}` means it answered and holds
+    nothing. The two used to share the value `{}`, so a monitor stayed
+    silent when it could not see the card, which reads as good news.
+    """
     try:
         ps = _get(f"{endpoint}/api/ps")
     except Exception:
-        return {}
+        return None
     return {m["name"]: (int(m.get("size") or 0), int(m.get("size_vram") or 0))
             for m in ps.get("models") or []}
+
+
+def spill_of(held: dict[str, tuple[int, int]] | None,
+             model: str | None = None) -> dict | None:
+    """
+    The spill of one loaded model, in bytes. Pure: it reads no server.
+
+    `size` minus `size_vram` is what Ollama put in RAM, and RAM is where the
+    turn time goes. An empty card gives a zero row, which is a measurement.
+    `None` for `held` gives `None`, because "cannot see" is not "no spill".
+
+    `model` names the desk's model. A name the card does not hold falls back
+    to the worst spill on the card, so the row never reports the wrong load
+    as healthy.
+    """
+    if held is None:
+        return None
+    if not held:
+        return {"model": "", "size": 0, "size_vram": 0, "spill": 0}
+    name = model if model in held else max(
+        held, key=lambda k: (held[k][0] - held[k][1], held[k][0]))
+    size, vram = held[name]
+    return {"model": name, "size": size, "size_vram": vram,
+            "spill": max(0, size - vram)}
 
 
 def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:
@@ -213,18 +249,33 @@ def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:
 
 
 def fit_of(model: Model, sys_: System, num_ctx: int, resident: int = 1,
-           loaded_bytes: int | None = None) -> Fit:
+           loaded_bytes: int | None = None, loaded_ctx: int | None = None) -> Fit:
     """Weights plus KV cache at `num_ctx`, against VRAM then RAM. `resident`
     is how many such models are loaded at once. Ollama keeps one resident
     and swaps at each role change (measured 2026-09-11: /api/ps shows one
     model at a time), so the default is one; a server that keeps two needs
-    the set, which is the open question the plan names."""
+    the set, which is the open question the plan names.
+
+    `loaded_bytes` is a measurement from `/api/ps`, and `loaded_ctx` is the
+    window the server loaded at. Pass both and the fit answers for any
+    window, even when the metadata gives no KV size. Pure: it reads no
+    server, so the caller passes what `loaded()` returned."""
     kv = kv_cache_bytes(model.meta, num_ctx) if model.meta else None
     weights = model.size_bytes
+    if kv is None and loaded_bytes and weights and loaded_ctx:
+        # The metadata cannot always give a KV size: qwen3.5:9b reports no
+        # `head_count_kv`, so the need was the weights alone and every
+        # window passed by construction. What the server loaded above the
+        # weights is the cache at the window it loaded at, and the cache is
+        # linear in the window, so the measurement gives the missing size.
+        kv = max(0, loaded_bytes - weights) * num_ctx // loaded_ctx
     if weights is None and loaded_bytes is None:
         return Fit(model.name, model.provider, "unknown", None, kv, None, None)
-    # A loaded model's own size is the measurement; arithmetic is the estimate.
-    need = (loaded_bytes if loaded_bytes else (weights or 0) + (kv or 0)) * max(1, resident)
+    # A loaded model's own size is the measurement; arithmetic is the
+    # estimate. The measurement holds for one window only, so it answers
+    # here only while nothing gives the cache at the window asked about.
+    one = loaded_bytes if (kv is None and loaded_bytes) else (weights or 0) + (kv or 0)
+    need = one * max(1, resident)
     if sys_.vram_total_bytes is None and sys_.ram_bytes is None:
         fit = "unknown"
     elif sys_.vram_total_bytes is not None and need <= sys_.vram_total_bytes:

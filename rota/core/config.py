@@ -201,6 +201,24 @@ SETTINGS: dict[str, Setting] = {s.key: s for s in [
             "written by `rota elect` or a chat verdict. Empty means not yet "
             "elected. A ruling, not plumbing: every change is history."),
 
+    Setting("spill_seen", {},
+            "The last reading of the card, written by the loop after a "
+            "session ends: endpoint, model, window, size, size_vram, spill "
+            "and at. The spill is `size` minus `size_vram`, which is what "
+            "Ollama put in RAM, and RAM is where the turn time goes -- "
+            "qwen3:8b runs a turn in 12.5 s when it fits and over 100 s at "
+            "a 27 per cent spill. `seen` false means the server did not "
+            "answer, which is not the same as no spill. The loop reads "
+            "/api/ps once per session, so no render path makes an HTTP "
+            "call. Written by the machine, never by the principal."),
+
+    Setting("spill_dismissed", {},
+            "The model and the spill size the principal dismissed the "
+            "warning for. Per model and per spill (ruled 2026-09-19): "
+            "gemma3:12b spills 2.7 GB at 12288 today and that desk is "
+            "warned once, while a spill that grows warns again. A single "
+            "flag would let an old dismissal hide the next window rise."),
+
     Setting("run_state", "running",
             "running dispatches; stopping finishes what is running and "
             "dispatches nothing more; halted stops now. Resume is explicit.",

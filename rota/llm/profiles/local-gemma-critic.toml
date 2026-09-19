@@ -9,9 +9,11 @@ name = "local-gemma-critic"
 kind = "ollama"
 timeout = 300
 
+# The 3080 sets this number (2026-09-19): qwen3:8b needs 7.40 GB at
+# 16384 and 8.01 GB at 20480, which leaves a 10 GB card nothing.
 [pins]
 temperature = 0.0
-num_ctx = 12288
+num_ctx = 16384
 
 [models]
 default = "qwen3:8b"
@@ -31,3 +33,6 @@ developer = "qwen3.5:9b"
 # tokens against 12288 and the reply was cut. The 9B at 16k fits the 3080.
 [context]
 developer = 16384
+# The Critic's desk keeps 12288. gemma3:12b needs 10.87 GB there and already
+# spills on a 10 GB card, so a wider window buys that desk nothing.
+critic = 12288

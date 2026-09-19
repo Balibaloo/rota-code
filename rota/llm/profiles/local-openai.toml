@@ -10,9 +10,11 @@ kind = "litellm"
 endpoint = "http://localhost:11434/v1"
 timeout = 300
 
+# The 3080 sets this number (2026-09-19): qwen3:8b needs 7.40 GB at
+# 16384 and 8.01 GB at 20480, which leaves a 10 GB card nothing.
 [pins]
 temperature = 0.0
-num_ctx = 12288
+num_ctx = 16384
 
 [models]
 default = "openai/qwen3:8b"

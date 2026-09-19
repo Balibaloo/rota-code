@@ -15,6 +15,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("ROTA_ONESHOT", "1")
 
+from rota.core import config as _config
 from rota.core.db import connect
 from rota.core.loop import step
 from rota.llm.llm import Pins
@@ -163,6 +164,31 @@ def write_snapshot() -> None:
 
 asked = 0
 import time as _time
+
+
+# The night has no TUI, so the card's reading goes to the log. One line per
+# change, flushed: a night that does not spill must leave the evidence that
+# it did not, and a night that does must name the model and the size.
+_last_card = None
+
+
+def card_line() -> None:
+    global _last_card
+    seen = _config.get(conn, "spill_seen") or {}
+    key = (seen.get("seen"), seen.get("model"), seen.get("num_ctx"), seen.get("spill"))
+    if not seen or key == _last_card:
+        return
+    _last_card = key
+    if not seen.get("seen"):
+        print(f"CARD UNSEEN {seen.get('endpoint')}: /api/ps did not answer", flush=True)
+        return
+    gb = 1 << 30
+    state = "SPILLS" if (seen.get("spill") or 0) > 0 else "FITS"
+    print(f"CARD {state} {seen.get('model')} at {seen.get('num_ctx')}: "
+          f"{(seen.get('size') or 0) / gb:.2f} GB resident, "
+          f"{(seen.get('spill') or 0) / gb:.2f} GB in RAM", flush=True)
+
+
 _last_n, _last_change = -1, _time.time()
 _n0 = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
 _t0 = _time.time()
@@ -218,6 +244,7 @@ for i in range(cap):
         # wake and the log held nothing, because the failure was silent and
         # stdout was block-buffered into a file.
         print(f"FAILED {s.wake}: {(s.outcome.errors or ['?'])[-1][:200]}", flush=True)
+    card_line()
     if s is None or s.wake is None:
         if ONBOARD_ONLY:
             write_snapshot()

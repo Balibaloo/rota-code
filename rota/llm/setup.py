@@ -41,14 +41,17 @@ class Plan:
     groups: list[str]
 
 
-def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None = None) -> Plan:
+def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None = None,
+         loaded_ctx: int | None = None) -> Plan:
     if driving:
         raise Driving("a run is driving; discovery would evict its models. "
                       "Pause the run first")
     table = B.load() if table is None else table
     providers = D.providers()
     machine = D.system()
-    held = D.loaded()
+    # `loaded` says None when the server did not answer, and the plan reads
+    # that as "nothing measured": the arithmetic still gives every row.
+    held = D.loaded() or {}
     found: list[D.Model] = []
     for p in providers:
         try:
@@ -67,7 +70,7 @@ def plan(driving: bool = False, num_ctx: int = 12288, table: list[dict] | None =
     rows = []
     for m in found:
         lb = held.get(m.name, (0, 0))[0] or None
-        f = D.fit_of(m, machine, num_ctx, loaded_bytes=lb)
+        f = D.fit_of(m, machine, num_ctx, loaded_bytes=lb, loaded_ctx=loaded_ctx)
         rows.append(Row(m.provider, m.name, f.fit, (f.need_bytes or 0) >> 20 or None,
                         scores.get(m.name, {}), m.name in recorded))
     # The derived groups when the table has them (step 7), the roles before.

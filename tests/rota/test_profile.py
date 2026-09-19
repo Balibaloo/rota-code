@@ -25,7 +25,40 @@ def test_the_shipped_local_profile_loads_and_names_a_judge_per_desk():
     assert p.routing() == "critic=qwen3.5:9b,developer=qwen3.5:9b,terminologist=qwen3.5:9b,tester=qwen3.5:9b"
     assert isinstance(p.backend(), OllamaBackend)
     pins = p.pins_for("critic")
-    assert (pins.model, pins.temperature, pins.num_ctx) == ("qwen3.5:9b", 0.0, 12288)
+    assert (pins.model, pins.temperature, pins.num_ctx) == ("qwen3.5:9b", 0.0, 16384)
+
+
+def test_every_shipped_profile_pins_the_measured_window():
+    """
+    16384 in every shipped profile, and 12288 at the Critic's gemma desk.
+
+    The number is measured on the 3080 (2026-09-19, `/api/ps` after a
+    one-token generate at each window): qwen3:8b needs 7.40 GB at 16384 and
+    8.01 GB at 20480, so 20480 leaves a 10 GB card and its desktop nothing.
+    16384 leaves about 0.6 GB and raises the planning budget by a third.
+
+    The two gemma profiles keep the Critic at 12288. gemma3:12b needs 10.87
+    GB at 12288 and already spills, so a wider window buys that desk nothing
+    and would cost turn speed.
+
+    `DEFAULT_NUM_CTX` stays at 12288 on purpose: the window is part of the
+    cassette key, so raising the constant re-keys every live recording in
+    the repository, and raising the profiles re-keys none.
+    """
+    from rota.llm.llm import DEFAULT_NUM_CTX
+
+    # The shipped folder, never `available()`: a user profile of the same
+    # name wins the lookup, and this test is about what rota ships.
+    shipped = {f.stem: P.Profile.from_toml(f) for f in sorted(P.SHIPPED.glob("*.toml"))}
+    assert len(shipped) == 8, f"expected the eight shipped profiles, got {sorted(shipped)}"
+    for name, p in shipped.items():
+        assert p.pins.get("num_ctx") == 16384, f"{name} does not pin 16384"
+    for name in ("local-gemma-critic", "local-gemma-dev"):
+        p = shipped[name]
+        assert p.model_for("critic") == "gemma3:12b"
+        assert p.pins_for("critic").num_ctx == 12288, \
+            f"{name} raised the window of a desk that already spills"
+    assert DEFAULT_NUM_CTX == 12288
 
 
 def test_a_project_profile_wins_and_a_missing_one_says_where_it_looked(tmp_path):

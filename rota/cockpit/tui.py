@@ -70,6 +70,49 @@ def _now() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
+def spill_bit(seen: dict | None, dismissed: dict | None) -> str:
+    """
+    What the pulse says while the card spills into RAM, or "" for silence.
+
+    Pure, and it makes no HTTP call. `refresh_pulse` runs from five places
+    on the render path, so the loop reads `/api/ps` once per session and
+    writes the row, and this reads the row.
+
+    The warning stands until it is dismissed, and the dismissal is per model
+    and per spill size (ruled 2026-09-19). gemma3:12b needs 10.87 GB at
+    12288 and spills about 2.7 GB on a 10 GB card today, so the Critic's
+    desk is warned once. A spill that grows warns again, so no old
+    dismissal can hide the next window rise.
+
+    The cost is measured (plans/operating-facts.md): qwen3:8b runs a turn in
+    12.5 s when it fits, over 100 s at a 27 per cent spill, and 153 s with
+    only 75 per cent of the model on the GPU.
+    """
+    if not seen:
+        return ""                       # no reading yet, which is not a claim
+    model = seen.get("model") or "the model"
+    spill = int(seen.get("spill") or 0)
+    size = int(seen.get("size") or 0)
+    dis = dismissed or {}
+    hushed = (dis.get("model") == model
+              and int(dis.get("spill") or 0) >= spill)
+    if not seen.get("seen"):
+        if hushed:
+            return ""
+        return (f"[yellow]no answer from {seen.get('endpoint') or 'ollama'}: "
+                f"the spill monitor is blind, alt+s hides this[/yellow]")
+    if spill <= 0 or hushed:
+        return ""
+    share = spill / size if size else 1.0
+    # Coloured like the loop-cap bit: red past the point the measurement
+    # calls unusable, yellow while it is only a cost. A 27 per cent spill
+    # takes a qwen3:8b turn from 12.5 s to over 100 s.
+    colour = "red" if share >= 0.25 else "yellow"
+    return (f"[{colour}]{model} spills {spill / (1 << 30):.1f} GB to RAM "
+            f"({share * 100:.0f}% of it): a turn costs 100 s and more, "
+            f"not 12.5 s. alt+s dismisses[/{colour}]")
+
+
 class QueuedPrincipal:
     """
     The principal, answering from the UI instead of from stdin.
@@ -238,6 +281,9 @@ class RotaApp(App):
         ("alt+w", "wipe", "wipe"),
         ("alt+b", "cockpit", "cockpit"),
         ("alt+m", "model_setup", "model setup"),
+        # `alt+`, for the reason the comment above gives. `s` because
+        # `alt+p`, `alt+r`, `alt+w` and `alt+b` are already spoken for.
+        ("alt+s", "dismiss_spill", "dismiss the spill warning"),
         ("ctrl+c", "request_quit", "quit"),
     ]
 
@@ -540,7 +586,40 @@ class RotaApp(App):
         if count > 1:
             colour = "red" if count > cap * 0.5 else "yellow"
             bits.append(f"[{colour}]{edge} ×{count} of {cap}[/{colour}]")
+        # The third number, and the one a log cannot give either: the card.
+        # A spill costs a factor of eight in turn speed, and it is invisible
+        # from inside a session. Every turn commits, and each one takes
+        # eight times as long. The loop writes the reading; nothing here
+        # calls out, because this method runs on the render path.
+        try:
+            bit = spill_bit(config.get(self.conn, "spill_seen"),
+                            config.get(self.conn, "spill_dismissed"))
+        except sqlite3.Error:
+            bit = ""
+        if bit:
+            bits.append(bit)
         self.query_one("#pulse", Static).update("\n".join(bits))
+
+    def action_dismiss_spill(self) -> None:
+        """
+        Hide the spill warning for this model at this spill size.
+
+        Not a flag. A dismissal names the model and the spill it accepted
+        (ruled 2026-09-19), so the Critic's gemma desk is answered once and
+        a spill that grows asks again. A single flag would let today's
+        dismissal hide the next window rise, which is the one thing this
+        monitor exists to catch.
+        """
+        if not self._needs_run():
+            return
+        seen = config.get(self.conn, "spill_seen") or {}
+        if not seen:
+            self.say("nothing read from the card yet", "system", "blue")
+            return
+        config.set(self.conn, "spill_dismissed",
+                   {"model": seen.get("model") or "", "spill": int(seen.get("spill") or 0)},
+                   author="principal")
+        self.refresh_pulse()
 
     def action_toggle_run_state(self) -> None:
         """

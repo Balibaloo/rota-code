@@ -100,7 +100,7 @@ def test_a_user_profile_is_written_from_a_shipped_one(tmp_path, monkeypatch):
     assert path == tmp_path / "profiles" / "mine.toml"
     back = profile.find("mine")
     assert back.default_model == "qwen3:8b" and back.roles == {"critic": "llama3.1:8b"}
-    assert back.pins.get("num_ctx") == 12288 and "key" not in path.read_text(encoding="utf-8")
+    assert back.pins.get("num_ctx") == 16384 and "key" not in path.read_text(encoding="utf-8")
 
 
 def test_capability_groups_come_from_the_modes_tools():

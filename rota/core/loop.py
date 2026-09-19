@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from . import config
 from . import lifecycle
@@ -96,6 +97,72 @@ class Trace:
         return sum(1 for s in self.steps if s.productive)
 
 
+def _spill_endpoint(backend) -> str | None:
+    """
+    The Ollama server this run talks to, or None when it talks to none.
+
+    Read from the backend, never from a literal. The recorder runs on 11435
+    and both servers answer on this box, so a fixed host measures the wrong
+    card and the reading looks plausible instead of failing.
+
+    A wrapping backend is not followed on purpose: a replayed suite runs
+    behind `RecordingBackend`, holds no model, and must make no call.
+    """
+    if backend is None:
+        return llm.OLLAMA_HOST          # what `run_session` builds for itself
+    host = getattr(backend, "host", None)
+    if host:
+        return str(host)
+    routed = getattr(backend, "default", None)      # RoutedBackend
+    return str(getattr(routed, "host", "")) or None
+
+
+def note_spill(conn: sqlite3.Connection, session_id: str, *,
+               backend=None, reader=None) -> dict | None:
+    """
+    Read the card once, after a session, and write what it says to config.
+
+    The reading happens here because it must not happen on a render path:
+    `refresh_pulse` is called from five places while the screen redraws. One
+    session is one reading, taken while the model is still resident, which
+    is the only moment `/api/ps` has anything to report.
+
+    `seen` false says the server did not answer. A monitor that cannot see
+    the card must say so, because silence reads as good news.
+
+    The row is written only when the numbers move. `at` is therefore the
+    time the spill last changed, and the history holds one entry per change
+    instead of one per session.
+    """
+    from ..llm import discover
+
+    endpoint = _spill_endpoint(backend)
+    if endpoint is None:
+        return None                     # no Ollama in this run, nothing to read
+    read = reader or discover.loaded
+    try:
+        held = read(endpoint)
+    except Exception:
+        held = None
+    row = conn.execute(
+        "SELECT model, num_ctx FROM sessions WHERE id = ?", (session_id,)).fetchone()
+    model = (row["model"] if row else "") or ""
+    window = (row["num_ctx"] if row else None) or None
+    spill = discover.spill_of(held, model)
+    seen = {"seen": spill is not None, "endpoint": endpoint,
+            "model": (spill or {}).get("model") or model, "num_ctx": window,
+            "size": (spill or {}).get("size", 0),
+            "size_vram": (spill or {}).get("size_vram", 0),
+            "spill": (spill or {}).get("spill", 0),
+            "at": datetime.now().isoformat(timespec="seconds")}
+    prior = config.get(conn, "spill_seen") or {}
+    if {k: v for k, v in prior.items() if k != "at"} == \
+            {k: v for k, v in seen.items() if k != "at"}:
+        return prior                    # nothing moved; the history records changes
+    config.set(conn, "spill_seen", seen, author="loop")
+    return seen
+
+
 def step(
     conn: sqlite3.Connection,
     *,
@@ -105,6 +172,7 @@ def step(
     principal_present: bool = True,
     max_iterations: int | None = None,
     on_completion=None,
+    spill_reader=None,
 ) -> Step:
     """
     One iteration: offer pending asks to the principal, then wake one role.
@@ -246,6 +314,17 @@ def step(
             result.note = (result.note + " " if result.note else "") + \
                 f"quarantined past the attempt cap: {', '.join(gone)}"
         conn.commit()
+
+    # One reading of the card per session, taken here and nowhere else. A
+    # failed session loaded the model too, so it is read either way.
+    try:
+        note_spill(conn, result.outcome.session_id,
+                   backend=backend, reader=spill_reader)
+    except Exception:                   # noqa: BLE001 -- see below
+        # Broad on purpose. A monitor that fails the work it watches is
+        # worse than no monitor: the session committed, and a reading of
+        # the card cannot be allowed to take that outcome away.
+        pass
 
     return result
 

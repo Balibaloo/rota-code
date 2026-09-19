@@ -79,6 +79,7 @@ the cockpit renders; this is only ever the current call.
 | `alt+w` | wipe: worktrees, processes, then the file |
 | `alt+b` | the cockpit, on the run you are in |
 | `alt+m` | model setup: the providers and models this machine can serve, what it holds, a recommendation, and a profile file written from it |
+| `alt+s` | dismiss the spill warning for this model at this spill size. A spill that grows warns again |
 
 Everything that destroys something arms rather than fires, and the confirmation
 is typing the run's name — the same rule `rota wipe` uses, and it costs the one
@@ -86,6 +87,14 @@ thing a yes/no cannot: you have to know which run you are in. `alt+o` is on that
 list because `indexer.build` opens with `DELETE FROM code_index`; a run with
 nothing indexed yet does not ask, because arming everything is how
 confirmations stop being read.
+
+**The pulse warns when the card spills.** Ollama loads what fits in VRAM and
+puts the rest in RAM, and the run keeps working. Every turn still commits, and
+each one takes about eight times as long: a qwen3:8b turn costs 12.5 s when the
+model fits and over 100 s at a 27 per cent spill. The loop reads `/api/ps` once
+per session and writes the numbers to config, so no redraw makes an HTTP call.
+The warning stands until `alt+s` dismisses it. A dismissal names the model and
+the spill it accepted, so a spill that grows warns again.
 
 **Single-step is on by default.** After every completion — every model turn,
 whether or not it carried a tool call — the seat holds the worker thread open

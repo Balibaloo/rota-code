@@ -231,6 +231,57 @@ async def test_every_binding_survives_the_input_having_focus(tmp_path, project):
 
 
 # ---------------------------------------------------------------------------
+# The spill warning
+# ---------------------------------------------------------------------------
+
+async def test_the_pulse_warns_about_a_spill_and_alt_s_dismisses_it(
+        tmp_path, project, monkeypatch):
+    """
+    The warning stands until it is dismissed, and the pulse makes no call.
+
+    `refresh_pulse` runs from five places on the render path, so the loop
+    reads `/api/ps` once per session and writes the row. The reader raises
+    here: a render that calls out fails this test rather than costing a
+    redraw a network timeout.
+    """
+    from rota.core import config
+    from rota.llm import discover
+
+    def explode(*a, **k):
+        raise AssertionError("a render path called out to the card")
+
+    monkeypatch.setattr(discover, "loaded", explode)
+    monkeypatch.setattr(discover, "_get", explode)
+
+    gb = 1 << 30
+    app = _app(tmp_path, project)
+    async with app.run_test() as pilot:
+        config.set(app.conn, "spill_seen",
+                   {"seen": True, "model": "gemma3:12b", "endpoint": "http://x",
+                    "num_ctx": 12288, "size": 11 * gb, "size_vram": 8 * gb,
+                    "spill": 3 * gb, "at": "now"}, author="loop")
+        app.refresh_pulse()
+        await pilot.pause()
+        assert "gemma3:12b" in str(app.query_one("#pulse").content)
+
+        await pilot.press("alt+s")
+        await pilot.pause()
+        assert config.get(app.conn, "spill_dismissed") == \
+            {"model": "gemma3:12b", "spill": 3 * gb}
+        assert "gemma3:12b" not in str(app.query_one("#pulse").content)
+
+        # A spill that grew is a new fact, and an old dismissal cannot hide
+        # it. This frame raises the window, so that is the case that matters.
+        config.set(app.conn, "spill_seen",
+                   {"seen": True, "model": "gemma3:12b", "endpoint": "http://x",
+                    "num_ctx": 16384, "size": 11 * gb, "size_vram": 7 * gb,
+                    "spill": 4 * gb, "at": "later"}, author="loop")
+        app.refresh_pulse()
+        await pilot.pause()
+        assert "gemma3:12b" in str(app.query_one("#pulse").content)
+
+
+# ---------------------------------------------------------------------------
 # Single-step
 # ---------------------------------------------------------------------------
 

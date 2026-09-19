@@ -14,9 +14,11 @@ name = "local-gemma-dev"
 kind = "ollama"
 timeout = 300
 
+# The 3080 sets this number (2026-09-19): qwen3:8b needs 7.40 GB at
+# 16384 and 8.01 GB at 20480, which leaves a 10 GB card nothing.
 [pins]
 temperature = 0.0
-num_ctx = 12288
+num_ctx = 16384
 
 [models]
 default = "qwen3:8b"
@@ -24,6 +26,11 @@ tester = "qwen3.5:9b"
 critic = "gemma3:12b"
 terminologist = "qwen3.5:9b"
 developer = "openai/gemma-4-26B-A4B-it-UD-Q8_K_XL.gguf"
+
+# The Critic's desk keeps 12288. gemma3:12b needs 10.87 GB there and already
+# spills on a 10 GB card, so a wider window buys that desk nothing.
+[context]
+critic = 12288
 
 [[endpoints]]
 model = "openai/gemma-4-26B-A4B-it-UD-Q8_K_XL.gguf"
