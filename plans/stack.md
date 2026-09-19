@@ -975,6 +975,62 @@ Rules:
   that four context numbers beat night 86's with zero sessions cut by the
   server. All four beat it, the cut count is zero, and no turn of 1446 came
   within a third of the window.
+- Status 2026-09-19 18:35 (rota-95): **the result holds into sentence 2 and it
+  strengthens with scale. This is the closing measurement.** Sentence 1
+  finished at 17:59 after two hours and 41 minutes. Sentence 2 is running. The
+  night now holds 2131 model turns against night 86's 825, which is 2.6 times
+  the sample.
+
+  | number | night 86 | night 87 at 2131 turns |
+  | --- | ---: | ---: |
+  | middle evicted | 297 of 825, 36.0 per cent | 558 of 2131, 26.2 per cent |
+  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 2131, 4.0 per cent, and 71 true wake cuts is 3.3 |
+  | sessions cut by the server | 15 of 203 | 0 of 429 |
+  | tokens discarded | 179117 | 0 |
+  | largest prompt | 27155 tokens | 8191 tokens |
+  | turns over 12288 | 14 | 0 |
+
+  Every number improved again between 1446 turns and 2131. The wake-cut count
+  is still frozen at 85 across three readings, so no wake has been cut since
+  onboarding.
+  **A night now takes about three times as long, and that is new information**
+  (observed: the night's own clock against nights 49 and 50). Onboarding 34
+  minutes, sentence 1 two hours and 41 minutes, where those nights merged
+  sentence 1 in about 40 minutes. A three-sentence night projects to about
+  eight hours. The cause is the property that bought the result: a session that
+  is not truncated keeps working instead of dying, so a night produces two and
+  a half times the turns. Roman accepted the turn-speed cost in advance, at
+  design point 2. The magnitude was not known then and it changes how a night
+  is planned.
+  **The actual against the estimate, walls counted apart.** The frame was
+  priced at 616k in agents and about 45k in this context, then re-priced by
+  about +110k for the spans pass, so 726k in agents.
+
+  | party | estimate | actual |
+  | --- | ---: | ---: |
+  | agents, session 4286e076 and before | | 1533k |
+  | agents, session 9a9a20bf | | 487k |
+  | agents, total | 726k | **2020k**, 2.8 times |
+  | the assistant's own context | 45k | **about 468k** over two sessions |
+
+  Session 9a9a20bf's 487k is the baseline agent at 104332, the implementer at
+  246023 cumulative over three passes, and the diff review at 136453 (observed:
+  the harness usage lines, never an agent's own estimate). The walls: night 87
+  is over four hours and still running, and three gate runs of about nine
+  minutes each.
+  **Where the overrun went, stated plainly.** The adversary at 740875 overturned
+  the record's headline diagnosis and two of the design review's fix lines. The
+  two diff reviews, 130728 and 136453, found an own-goal where two repairs grew
+  the prompt they exist to shrink, and a fault that could have faked this
+  frame's own evidence. Neither is regretted. What is regretted is this
+  session's own context, ten times the estimate, and the cause is that the
+  estimate never counted the assistant reading and judging eight passes.
+  **What remains is bookkeeping, and none of it changes the verdict**: the
+  `GAUNTLET-DONE` line, a final copy of the database to
+  `.rota/clickI_night87.db`, and `git worktree remove` for
+  `C:/Users/roman/rota_night87` and `C:/Users/roman/rota_review43b`. **Do not
+  remove the night's worktree until the night stops**, because the night runs
+  its code.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
