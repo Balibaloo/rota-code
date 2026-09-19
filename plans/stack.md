@@ -235,6 +235,38 @@ Rules:
   section 7 is pushed as frame 46, unpriced, waiting on this frame's
   night (ruled: Roman, 2026-09-19). **Both grill questions are now
   closed, so the frame may write code once the design review returns.**
+- Status 2026-09-19 04:17 (rota-65): design review in, 107763 tokens on the
+  harness line against 80k priced, 78 tool calls, 8.5 minutes (observed:
+  the harness usage). Fourteen findings, six high. The reviewer named the
+  overrun's cause: the graph chase of its first finding, which the brief's
+  points did not anticipate.
+  **The finding that saves the frame: adding `code.probe` to a `.tools`
+  file does nothing unless `rota/design/graph.json` grants the verb**
+  (observed: the assistant's own read, `code.probe` appears twice in
+  `graph.json`, for `architect` and for `developer`, and nowhere else).
+  `rota/core/sandbox.py` drops a name the graph did not grant, in silence.
+  So repair 1 as the design record briefed it would have been a no-op for
+  `critic`, `terminologist` and `vision_keeper`. Session s10, the record's
+  headline evidence for repair 1, is `vision_keeper/reconcile`. The repair
+  would have shipped green and done nothing for its own main customer.
+  No test asserts that a `.tools` name is graph-granted.
+  The count is 19 `.tools` files and 3 graph edges, not the record's 14
+  (observed: the reviewer's file scan). The architect's five modes are the
+  cheapest, because the edge already exists.
+  Four more that change the brief: the repeat branch runs for every op, so
+  a `code.commit` was answered "unchanged since you asked earlier this
+  session" on night 86 s145 and the seat then re-issued the same commit
+  three times; `already_run` drives a call hold as well as the repeat
+  render, so the record's "key it by path" would break the hold; a refusal
+  that raises can end a session at the fourth refusal; and repair 4 makes
+  repair 2's stale line fire far more often, so repair 2 must land first,
+  which the ruled order already does.
+  **One finding is not yet settled and it is the price**: the reviewer
+  says all four repairs re-key the cassettes, and marked it PLAUSIBLE.
+  The adversary is out now, as `plans/operating-facts.md:308` requires,
+  with six refuters, one measurement of the re-record, and a completeness
+  critic. The gate runs beside it on a quiet machine. The code tree has
+  not moved since the trusted gate at 8b15af8.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
