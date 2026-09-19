@@ -896,3 +896,181 @@ def test_the_same_refusal_three_times_ends_the_session(db):
     assert outcome.iterations == 4, outcome.iterations
     assert any("refused the same way in four turns" in e for e in outcome.errors)
     assert "will not be accepted again" in backend.calls[3][1], "the third turn is told once"
+
+
+# --- the repeat memory (frame 43) -------------------------------------------
+#
+# `already_run` was a set built once a session and cleared by nothing, and the
+# key went in before the call ran. Three faults came out of that, and each test
+# below pins one of them. The fourth test pins the bound the repeats needed.
+
+
+@pytest.fixture
+def worktree(db, tmp_path):
+    """A Developer with somewhere to write. No git: only the commit needs it."""
+    root = tmp_path / "wt"
+    (root / "src").mkdir(parents=True)
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('i1','delete an account','in_scope','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status, worktree) "
+               "VALUES ('b1','i1','running',?)", (str(root),))
+    db.commit()
+    return root
+
+
+def wake_developer():
+    return Wake(role="developer", kind="tick:batch_start", refs=("b1",))
+
+
+def test_a_read_after_a_write_is_not_told_the_file_is_unchanged(db, worktree):
+    """
+    Night 86's s145 read `src/click/termui.py` at 1014 lines, wrote it,
+    committed it, and was then answered "unchanged since you asked earlier this
+    session". Its next read proves the file was 998 lines by then. The repeated
+    read had already run, and the new content was thrown away on the way to the
+    line that denied it.
+
+    The answers are compared, so this needs no read-after-write case of its own.
+    """
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    backend = ScriptedBackend([
+        "TOOL: code.source(path='src/acct.py')",
+        "TOOL: code.write(path='src/acct.py', text='def delete(x):"
+        "\n    return \"tombstoned\"\n')",
+        "TOOL: code.source(path='src/acct.py')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    third = backend.calls[3][1]
+    assert "tombstoned" in third, "the read came back with the file it had been shown before"
+    assert "unchanged since you asked" not in third, "the session was told a lie"
+
+
+def test_a_call_that_failed_and_then_worked_is_served_not_swallowed(db, worktree):
+    """
+    The key was registered before the call ran, so a call that failed and was
+    sent again unchanged had its success answered with "unchanged since you
+    asked earlier this session". The result was gone and no turn could get it
+    back. No night recorded it; the adversary of 2026-09-19 found it by reading.
+
+    The file arrives between the two turns and not from a tool, so this pins the
+    registration alone and not the invalidation a write does.
+    """
+    seen = []
+
+    def between_turns():
+        seen.append(1)
+        if len(seen) == 2:
+            (worktree / "src" / "acct.py").write_text("VALUE = 1\n\ndef delete(x):\n    return x\n")
+
+    line = "TOOL: code.write(path='src/acct.py', text='VALUE = 2\n', start=0, end=1)"
+    backend = ScriptedBackend([line, line, "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1",
+                          on_completion=between_turns)
+
+    assert outcome.committed, outcome.errors
+    assert "does not exist" in backend.calls[1][1], "the first write was meant to fail"
+    assert "unchanged since you asked" not in backend.calls[2][1], \
+        "the retry succeeded and the session was told it had changed nothing"
+    assert (worktree / "src" / "acct.py").read_text().startswith("VALUE = 2")
+
+
+def test_a_repeated_write_is_the_same_act_and_is_answered_as_one(db, worktree):
+    """
+    A write is not indexed by the path it writes, so no invalidation reaches
+    it. Indexed, a commit dropped the key of the write in its own reply and the
+    next identical write paid full freight again: two full results where the
+    old code had two lines (frame 43, pass 2). A commit changes what a read of
+    a path returns. It does not change what the write that landed it returns.
+    """
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    write = ("TOOL: code.write(path='src/acct.py', text='def delete(x):"
+             "\n    return \"tombstoned\"\n')")
+    backend = ScriptedBackend([write, f"Writing it again.\n{write}", "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    assert "bytes" in backend.calls[1][1], "the first write was not served in full"
+    assert "unchanged since you asked" in backend.calls[2][1], \
+        "the second write paid full freight for an answer that had not changed"
+
+
+def test_two_spans_of_one_file_are_both_served_in_full(db, worktree):
+    """
+    The memory is keyed by the call and never by the path. Keyed by the path,
+    every page after the first of a walked file would be answered "unchanged":
+    667 disjoint reads across nights 85 and 86, against a false hold that costs
+    three batches.
+    """
+    (worktree / "src" / "big.py").write_text(
+        "".join(f"VALUE_{i} = {i}\n" for i in range(20)))
+    backend = ScriptedBackend([
+        "TOOL: code.source(path='src/big.py', start=0, end=5)",
+        "TOOL: code.source(path='src/big.py', start=10, end=15)",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    assert "VALUE_0 = 0" in backend.calls[1][1]
+    second = backend.calls[2][1]
+    assert "VALUE_12 = 12" in second, "the second page was suppressed as a repeat"
+    assert "unchanged since you asked" not in second
+
+
+def test_the_third_identical_call_is_refused_and_the_session_runs_on(db):
+    """
+    Session s71 sent 331 calls in one reply on both nights and 327 came back as
+    the repeat line, about 90,000 characters that became turn 2's whole prompt.
+    The second asking is answered with the line. The third is refused, counted
+    like any other refusal, and the session goes on.
+    """
+    for i in range(20):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "vision_keeper", "scope " + "detail " * 20))
+
+    # The prose varies and the call does not, which is the case the counter
+    # exists for: a reply that repeats verbatim is already stopped a turn later.
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([f"Reading.\n{ask}", f"Again.\n{ask}",
+                               f"Once more.\n{ask}", "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    assert outcome.iterations == 4, "the refusal ended the session"
+    assert "unchanged since you asked" in backend.calls[2][1], "the second asking is answered"
+    assert "asked three times" in backend.calls[3][1], "the third asking was answered again"
+    counted = [e for e in outcome.errors if "asked three times" in e]
+    assert counted, \
+        "the refusal is not counted, so a seat can repeat it while varying its prose"
+    # `rota/testkit/fixtures.py:913` reads a dotted prefix as a call a guard
+    # threw out and takes it off the forbidden-call score. This call ran, so
+    # the name goes after the colon and the prefix carries no dot.
+    assert "." not in counted[0].split(":", 1)[0], counted[0]
+
+
+def test_an_action_is_held_behind_a_fresh_read_and_not_behind_a_repeat(db):
+    """
+    `already_run` drives the hold as well as the repeat line, and the hold keeps
+    the semantics it has today: the call is the key. A read the session has
+    already been answered asks nothing outstanding, so it holds nothing.
+    """
+    ask = ("TOOL: decisions.search(query='scope')\n"
+           "TOOL: problem.assert(id='i9', text='and export them', kind='in_scope')")
+    backend = ScriptedBackend([ask, ask, "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    assert "NOT RUN" in backend.calls[1][1], "the action ran on a read the session had not seen"
+    # The transcript carries the first hold forward, so the count is the test.
+    assert backend.calls[2][1].count("NOT RUN") == 1, "the repeated read held the action again"
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, \
+        "the write never landed"

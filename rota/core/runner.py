@@ -1606,6 +1606,36 @@ def _terms_named_in(sb: sandbox_mod.Sandbox, asked: str) -> list[str]:
     return found
 
 
+def _norm_path(path: str) -> str:
+    """One spelling of a path, so a write clears a read that spelled it
+    differently. Separators only: stripping a leading dot would rename
+    `.venv/x`."""
+    path = path.replace("\\", "/")
+    return path[2:] if path.startswith("./") else path
+
+
+def _path_arg(sb: sandbox_mod.Sandbox, call: Any) -> str:
+    """
+    The file path a call names, or "" when it names none.
+
+    This indexes the session's repeat memory so a write can drop the answers
+    about the file it changed. It is for invalidation only and never looks a
+    call up (frame 43, 2026-09-19): a path key on the lookup would answer
+    "unchanged" to 667 disjoint paging reads across nights 85 and 86.
+    """
+    args = dict(getattr(call, "args", None) or {})
+    if getattr(call, "pos", None):
+        try:
+            artefact, fn = call.name.split(".", 1)
+            args = sandbox_mod._bind_positional(
+                getattr(sb[artefact], fn), call.pos, args, call.name)
+        except Exception:
+            # An unbindable argument list is the dispatch's problem. No path.
+            return ""
+    path = args.get("path")
+    return _norm_path(path) if isinstance(path, str) and path else ""
+
+
 def run_session(
     conn: sqlite3.Connection,
     wake: Wake,
@@ -1785,6 +1815,30 @@ def run_session(
                 pushed_keys.add(sb.call_key(name, (), {"area": sb.ctx.area}))
                 pushed_keys.add(sb.call_key(name, (sb.ctx.area,), {}))
         already_run: set[str] = set()
+        # What each call answered, how often that answer came back, and which
+        # keys a path answers. Frame 43 (2026-09-19): `already_run` was a set
+        # nothing ever cleared, so "the answer is above" was said about answers
+        # that had changed. Night 86's s145 read `src/click/termui.py` at 1014
+        # lines, wrote it, committed it, and was then told the file was
+        # unchanged, while its next read proves 998 lines. The repeated call
+        # runs either way, so the two renders are compared and the line is said
+        # only when they match.
+        #
+        # `by_path` invalidates and never looks a call up. The lookup stays
+        # keyed by the call, because a path key would answer "unchanged" to 667
+        # disjoint paging reads across nights 85 and 86 -- s17 walks click.py in
+        # 400-line pages -- to close a false hold that costs three batches.
+        answered: dict[str, str] = {}
+        repeated: dict[str, int] = {}
+        by_path: dict[str, set[str]] = {}
+
+        def forget(path: str) -> None:
+            """Drop what a path answered. A write makes those answers false."""
+            for gone in by_path.pop(_norm_path(path), ()):
+                already_run.discard(gone)
+                answered.pop(gone, None)
+                repeated.pop(gone, None)
+
         turns: list[Turn] = []
         cut_retried = False
         # The same call refused the same way, counted. clickI night 42
@@ -2044,6 +2098,7 @@ def run_session(
                 # but it is not a repeat either, because the session has not
                 # asked before. It is served.
                 key = sb.call_key(call.name, call.pos, call.args)
+                call_path = _path_arg(sb, call)
                 # Nor is any spelling of a read that was pushed. The `area`
                 # variants above were the first instance; the define phase
                 # produced the second in its first session, with
@@ -2080,9 +2135,63 @@ def run_session(
 
                 try:
                     repeat = key in already_run
-                    already_run.add(key)
                     result = sb.call(call.name, *call.pos, **call.args)
-                    if repeat:
+                    # A write is the one act that can change an answer the
+                    # session already holds, so it drops what that path has
+                    # been read as. A commit names the paths it reached in its
+                    # result. Neither drops a write: see the registration
+                    # below.
+                    if call.name == "code.write" and call_path:
+                        forget(call_path)
+                    elif call.name == "code.commit" and isinstance(result, dict):
+                        for touched in result.get("touched") or ():
+                            if isinstance(touched, str):
+                                forget(touched)
+                    shown = _render(result, SOURCE_CHARS if call.name == 'code.source' else RESULT_CHARS)
+                    # The answer is the same answer, or it is not. Nothing else
+                    # decides the line below, so read-after-write needs no case
+                    # of its own.
+                    unchanged = repeat and answered.get(key) == shown
+                    # Registered after the call, never before it. Registered
+                    # first, a call that failed and was then sent again with
+                    # identical arguments had its success swallowed by the
+                    # repeat line (frame 43, 2026-09-19).
+                    already_run.add(key)
+                    answered[key] = shown
+                    # A write is never indexed by the path it writes, so no
+                    # invalidation reaches it. A commit changes what a read of
+                    # that path returns; it does not change what the write that
+                    # landed it returns. Indexed, a commit dropped the key of
+                    # the write in its own reply, and the next identical write
+                    # paid full freight again (frame 43, pass 2, 2026-09-19).
+                    if call_path and call.name != "code.write":
+                        by_path.setdefault(call_path, set()).add(key)
+                    if unchanged and repeated.get(key, 0) >= 1:
+                        # The third identical call, refused. Session s71 sent
+                        # 331 calls in one reply on both nights, 327 of them
+                        # answered by the line below, and those 90,000
+                        # characters of repeats became turn 2's whole prompt.
+                        # Counted like any other refusal: the refusal counter is
+                        # the only guard that stops a seat that repeats its
+                        # calls while varying the prose around them.
+                        why = ("asked three times this session and the answer "
+                               "has not changed; not answered again")
+                        repeated[key] = repeated.get(key, 0) + 1
+                        # The name goes after the colon. `rota/testkit/
+                        # fixtures.py:913` reads a dotted prefix as a call a
+                        # guard threw out and takes it off the forbidden-call
+                        # score, and this call ran: the refusal is of the
+                        # answer, not of the act.
+                        outcome.errors.append(f"repeat refused: {call.name} {why}")
+                        turn_refusals.add((call.name, why[:160]))
+                        seat_refusals = getattr(sb.ctx, "refusals", None)
+                        if seat_refusals is not None:
+                            seat_refusals.append((call.name, why, "Repeat"))
+                        feedback.append(
+                            f"ERROR {_call_tag(call, len(calls))}: {why}. Use "
+                            f"the answer above, or finish without it.")
+                    elif unchanged:
+                        repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
                         # times and `glossary.consult` twice, and each copy paid
                         # full freight into a transcript that was already
@@ -2111,7 +2220,7 @@ def run_session(
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session; the answer is above.")
                     else:
-                        feedback.append(f"OK {call.name} -> {_render(result, SOURCE_CHARS if call.name == 'code.source' else RESULT_CHARS)}")
+                        feedback.append(f"OK {call.name} -> {shown}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     # Six encodes in one reply, three refused: which three?

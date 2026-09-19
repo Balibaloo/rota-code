@@ -209,6 +209,23 @@ def test_committing_nothing_says_so_rather_than_inventing_a_commit(project):
     assert out["committed"] is False and "nothing changed" in out["why"]
 
 
+def test_the_note_on_an_empty_commit_names_the_ending(project):
+    """
+    "Say so and finish" named no ending, and the seat picked the one tool it
+    had. ACT-DV-edit-inside-the-function (2026-09-19): the Developer read this
+    note, answered that the criteria were met, and sent `msg.challenge_tester`,
+    the one message `developer/tests_failing.md` gives the mode. A mode with a
+    single message tool reads an unnamed ending as that message.
+    """
+    db, _ = project
+    lifecycle.start(db, "b1")
+    sb = build("developer", db, batch_id="b1")
+
+    note = sb.call("code.commit", message="nothing to do")["note"]
+    assert "end the session" in note, note
+    assert "no message to anybody" in note, note
+
+
 def test_a_write_cannot_escape_the_worktree(project):
     db, _ = project
     lifecycle.start(db, "b1")

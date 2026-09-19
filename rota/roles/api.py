@@ -8652,9 +8652,17 @@ def code_commit(ctx: Ctx, message: str) -> dict:
         # a real assumption, and ended -- five runs of five, twice, with
         # `code.write` never called. The result now carries the fork the
         # session is actually at.
+        #
+        # "Say so and finish" named no ending, and the seat picked the one
+        # tool it had: ACT-DV-edit-inside-the-function (2026-09-19) answered
+        # that the criteria were met and sent `msg.challenge_tester`, the one
+        # message `developer/tests_failing.md` gives it. The note now says
+        # which ending, because a mode with a single message tool reads any
+        # unnamed ending as that message.
         return {"committed": False, "why": "nothing changed",
                 "note": ("the tree is exactly as you found it. If the "
-                         "criteria are already met, say so and finish; if "
+                         "criteria are already met, say so in your reply and "
+                         "end the session, with no message to anybody; if "
                          "you were going to change the code, the change "
                          "comes first: code.write, then commit")}
 
