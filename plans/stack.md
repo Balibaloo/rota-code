@@ -413,6 +413,37 @@ Rules:
   A meta note for the next peer: do not pipe `python -m rota.tools.gate`
   through `tail`. This session did, and cut the five lines CLAUDE.md says
   to read (observed: the run at 06:05 kept only the traceback re-run).
+- Status 2026-09-19 06:30 (rota-65): **the red is diagnosed and the cause
+  is not the refusal. Repair 2 told the truth and the truth was bad
+  advice.** A read-only agent read the failing session's turns, 60883
+  tokens, 41 tool calls (observed: the harness usage). The assistant's own
+  hypothesis, that the refusal wording made the seat escalate, is wrong:
+  no refusal appears in any of the 15 failing rows.
+  The turn-4 prompt moved by exactly two lines and nothing else in 8.6k
+  moved (observed: a unified diff of the two recorded `user` fields, keys
+  `78524f0c...` and `6787a79e...`). Where the seat used to read `OK
+  code.commit -> unchanged since you asked earlier`, it now reads the real
+  result, `{"committed": false, "why": "nothing changed", "note": "... If
+  the criteria are already met, say so and finish ..."}`. The seat obeyed
+  that note, said the criteria were met, and called
+  `msg.challenge_tester`, which is the one message its mode names
+  (observed: `rota/roles/prompts/developer/tests_failing.md:25`).
+  **So repair 2 unmasked a pre-existing bad note.** The note at
+  `rota/roles/api.py:8655-8659` is old. The old behaviour hid it behind a
+  lie. The case passed 5 of 5 in all 23 earlier loads, 335 rows, and only
+  the tree changed. This is the register earning its cost: no unit test
+  would have caught a change in what a seat decides.
+  Three defects go to pass 2, cap 60k. A commit forgets the write that
+  landed it, because `forget(touched)` discards the write key the same
+  reply registered. The note must name the ending instead of saying
+  "finish". And the repeat refusal is scored as a call a guard threw out,
+  because `outcome.errors` entries with a dotted prefix are subtracted at
+  `rota/testkit/fixtures.py:615`, so a repeated forbidden call gets a
+  silent discount.
+  One fact for any later re-record: a case's pinned model wins over
+  `ROTA_MODEL`. `ACT-DV-edit-inside-the-function` pins `qwen3.5:9b`
+  (observed: `tests/rota/cases/l1_acts.yaml:187`), and the register holds
+  zero rows for it under qwen3:8b.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
