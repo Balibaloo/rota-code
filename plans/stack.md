@@ -831,6 +831,39 @@ Rules:
   closing commit, then night 87. The closing sequence is
   `probes/frame43/CLOSING.md`, kept in the repository, because this frame has
   already lost two pointers to a dead session's temporary directory.
+- Status 2026-09-19 14:46 (rota-95): **the frame's code is complete at
+  a072b28. Night 87 is running and the diff review is out.** The gate over
+  pass 7 and the workflow adoption together, read whole: 21 failed, 1994
+  passed, zero new reds, zero stale, one red gone, 525.2 s (observed: the
+  gate's five lines). The arithmetic closes exactly. Pass 7's own gate read
+  1956 passes and the adoption adds 38.
+  Pass 7 cost about 30k against a 60k cap, 32 tool calls. It closed pass 6's
+  deviation 4, and the fact that closed it is that `/api/ps` reports
+  `context_length`. The spill row now carries the window the server allocated
+  beside the session's pin, so a profile that never reached the model is
+  visible instead of assumed. One number was corrected in nine places, because
+  the design record's 7.40 GB stood in the test docstring and in all eight
+  profiles against this session's measured 6.89 GB.
+  **Night 87 launched at 14:44 from a worktree at f320568**, detached through
+  `Start-Process`, because a tool timeout is ten minutes and a night is two
+  hours. The launcher is `.rota/launch_night87.sh` and the log is
+  `.rota/night87.log`. `ROTA_RUNS` points at the main checkout, so the
+  database survives the worktree. The worktree's `local.toml` reads 16384,
+  checked before the launch.
+  The diff review runs read-only on a second worktree at the same commit, cap
+  90k, eight numbered points. Its first point is the one this session most
+  wants: repair 3's per-turn cap of 20000 characters was sized against a
+  12288 window, and the budget at 16384 is about 32522, so the cap is now
+  proportionally tighter than it was designed to be.
+  **Remove both worktrees at the close**: `git worktree remove
+  C:/Users/roman/rota_night87` and `git worktree remove
+  C:/Users/roman/rota_review43b`.
+  **The reserve is empty and no session can join it yet** (observed: `python
+  rota/tools/handover.py peers`, exit 1, at 14:46). The brief's 300k rule
+  says to tell Roman, and Roman is told. The cause is that the permission rule
+  of the kit's step 1 is not installed, so a standby that arms a watcher meets
+  a prompt and parks. Two of the kit's seven steps need Roman, and
+  `plans/operating-facts.md` names both.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
