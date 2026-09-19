@@ -310,8 +310,99 @@ Meta workflow. Ruled by Roman on 2026-09-17. The chain that built the tooling is
 - A completeness critic earns its cost. The thirteenth agent of frame 40 read the whole set and found the worst fault of both nights, which the twelve page judges had all missed, because the fault is visible only when the page is compared with the register (observed 2026-09-18, frame 40). Check every one of its claims against the data before it enters a record. Two of its claims did not survive that check.
 - A standby peer waits with no frame. Its prime: "You are a standby peer. Do not claim a frame and do not read the stack yet. Reply with your session id in one line, then wait. Reply to any message within one turn. A hand-off arrives by message from a peer: a frame number and a stack commit. When it does, follow the wake steps in CLAUDE.md and claim that frame."
 - The liveness probe before a hand-off: list the peers, then send every one "Reply in one line: your session id, and whether you hold a frame or are a clean standby." A send succeeds even to a closed session, and the row stays listed, so a successful send proves nothing (observed: 2026-09-17, four rows, three replies within a minute, one row closed). The reply is the only signal. Hand off to the first clean peer that answers. Tell the others to stand by.
-- A message drains at the receiver's next tool round. A session that sits idle at its prompt never takes one, so the send reports success and the peer's user sees nothing (observed 2026-09-18: four probes sent, one reply, and Roman saw no message in two sessions started seconds earlier). The fix is one keystroke in the receiving session, which drains the queue. A hand-off that depends on a message alone can therefore stall with no error.
+- **Corrected 2026-09-19 (observed: the kit's measurement of 248 cross-session messages in one machine's history, `meta/CONTRACTS.md`).** The bullet below said that a message never reaches an idle session. That sentence is false and it was measured false. A message does arrive, and fast. It is the wrong carrier for a hand-off for three other reasons, which are in the blocks under this list. The false sentence had already entered a stack status line and a commit message, so a prediction gated. The old bullet is kept here, struck, because the record of a wrong fact is worth more than its deletion.
+- ~~A message drains at the receiver's next tool round. A session that sits idle at its prompt never takes one, so the send reports success and the peer's user sees nothing (observed 2026-09-18: four probes sent, one reply, and Roman saw no message in two sessions started seconds earlier). The fix is one keystroke in the receiving session, which drains the queue. A hand-off that depends on a message alone can therefore stall with no error.~~ What the four probes of 2026-09-18 actually measured is unknown. A parked session drains nothing, and a permission prompt parks a session, so the likeliest cause is a parked receiver and not an idle one.
 - A peer's picture of who holds what goes stale within hours and it is confidently wrong. At the hand-off of frame 43 (2026-09-19) the one peer that answered the liveness probe reported that session 9108c499 held frames 33, 4 and 43, and told the probing session to check with it first. 9108c499 had handed frame 43 away that morning and its inbox had already refused a message with ENOINBOX, so the session was gone. The same reply named a stack commit about twenty commits behind. Meta workflow. Read the stack for who holds what. A peer's account of another peer is hearsay, and correcting it is worth a message, because an uncorrected one routes the next session into a double claim.
 - The peer list shows peer names, never session ids. Roman names a peer by session id. The two cannot be matched without a probe, and a probe needs the peer to take a tool round. When a hand-off must land, give Roman the line to paste into the new session instead: the stack commit, and "follow the wake steps in CLAUDE.md" (reasoned: 2026-09-18, two named session ids could not be matched to any listed peer).
 - The Agent tool fixes the list of agent types at session start and reads a type's body at each spawn. A session started before a type landed restarts before it claims a frame that needs the type. An edit to a type's body needs no restart (observed: frame 29's probe, 2026-09-17).
 - A forked session keeps its transcript and gets a new session id and a new peer name. It re-claims its frames with the new id (observed: 2026-09-17, cc3d4e4e forked to 3b4093c6).
+
+### The reserve, adopted 2026-09-19
+
+Meta workflow. The hand-off is a file, not a message. The tool is
+`rota/tools/handover.py`, adopted from the kit on 2026-09-19 with 38 tests
+green in this repository. The reserve lives in `.handover/` at the repository
+root, a worktree shares the same one, and `.gitignore` holds it. It is machine
+state and not a record. `python rota/tools/handover.py peers` prints it. The
+record of a hand-off is the status line in the stack.
+
+A peer's name changes when its session restarts. A session id does not. So
+address a peer by the session id, and record the name only so that a person
+can find the window.
+
+The context hook enrols every session that sends a prompt, in
+`.handover/sessions/`, with its peer name and its context estimate. So a
+session Roman only pasted into is still reachable, and `peers` shows which
+standby is the cleanest. An unread claim returns to the queue as a vacancy
+after fifteen minutes, so a session that wakes and cannot act does not hold a
+frame still.
+
+Two facts about the harness decide the whole mechanism. Both were read from
+one machine's own transcripts. Re-read them on this machine before anyone
+writes another rule about them.
+
+- An idle session does receive a message, and fast. Of 248 cross-session
+  messages, none was lost. 57 that landed in sessions idle for over five
+  minutes drained in a median of 0.010 seconds, one across 35.8 hours
+  (observed: the transcripts of five projects).
+- A session parked mid-turn drains nothing. One session held its inbound
+  messages for six hours while it waited on a tool decision. A permission
+  prompt parks a session the same way (observed: the same corpus).
+
+Three things a message cannot do, which is why the hand-off uses a file. Each
+one cost a real hand-off.
+
+- It cannot carry a session id. A peer is addressed by name, a name is
+  recycled between sessions, and one session answered to two names on two
+  days. A sender once broadcast a frame with the words "claim it only if your
+  session id is 4286e076" (observed).
+- It cannot prove it landed. Four sends to a listed but closed session
+  returned success and reached nobody. One receiver woke in 68 milliseconds
+  after 15.7 hours and spent its whole turn on a usage-limit notice
+  (observed).
+- It is not free for the receiver. A one-line liveness probe made a standby
+  answer and then read the git log and the stack unprompted, in the same turn.
+  The probe spends the asset it is measuring (observed). This repository saw
+  the same thing on 2026-09-19.
+
+Numbers to measure once on this machine. The values below are borrowed from
+the machine the tool was built on.
+
+- The wake: the time from the claim file appearing to the standby's first
+  turn. 6 seconds (borrowed).
+- The cost of waiting: nothing. A process blocks, and the model spends no
+  tokens until it wakes (borrowed).
+- The cost of arming a standby: one command and one line of reply. Not yet
+  measured here.
+- The cost of a re-arm when the wait runs out: one turn per hour of standby
+  duty by default. Not yet measured here, so the `--wait` value is not yet
+  chosen.
+- How long the harness lets a background process live. A heartbeat beat 150
+  times over 49.7 minutes on the kit's machine and then ended on its own
+  clock. The longest gap between two beats was 22 seconds against a 20 second
+  interval. The ceiling is above 50 minutes and is otherwise unknown
+  (borrowed). Measure it here, then set `--wait` below it.
+
+**Two of the kit's seven update steps need Roman.** This session's permission
+classifier refuses every edit under `.claude/settings.json` and
+`.claude/hooks/`, so two pieces are staged and not installed.
+
+1. The permission rule. One line in `.claude/settings.json`, under
+   `permissions.allow`: `"Bash(python rota/tools/handover.py:*)"`. Until it
+   lands, a session that arms a watcher meets a permission prompt and parks,
+   which is the one failure this mechanism exists to prevent.
+2. The hook's three functions. The merged file is staged at
+   `probes/handover_hook_staged.py`, and its own docstring carries the copy
+   command and the stdin check. It compiles clean. It is not tested against
+   stdin, because the classifier refuses that too. Until it lands,
+   `.handover/sessions/` is never written, so `peers` cannot see a session
+   that armed no watcher, and a hand-off that finds an empty reserve is never
+   announced to the next session.
+
+The rest is installed and the brief already carries the new rule. So the main
+path works once step 1 lands: a standby arms, a sender hands, the standby
+takes. The drought path and the enrolment wait on step 2.
+
+The two bullets above that describe the liveness probe and the standby's
+pasted prime are superseded by the brief's `# Standby duty` section. They are
+kept because they carry the measurements that argued for the change.

@@ -17,6 +17,10 @@ env/
 # Crashes
 .crashes/
 
+# The hand-off reserve: claim files, heartbeats and one lock per session.
+# Machine-local by nature, because a reserve is the sessions on this box.
+.handover/
+
 # rota framework state
 .rota/
 .rota-coverage.json
