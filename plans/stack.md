@@ -444,6 +444,38 @@ Rules:
   `ROTA_MODEL`. `ACT-DV-edit-inside-the-function` pins `qwen3.5:9b`
   (observed: `tests/rota/cases/l1_acts.yaml:187`), and the register holds
   zero rows for it under qwen3:8b.
+- Status 2026-09-19 07:11 (rota-65): **repair 2 is committed at 7045226.
+  The gate is clean on the assistant's own run: 22 failed, 1922 passed,
+  zero new reds, zero reds gone, zero stale, 514.5 s.** The 22 are the
+  baseline's own and 1915 passes plus 7 new tests is 1922 (observed: the
+  gate's five lines, read whole and not piped). `ACT-DV-edit-inside-the-
+  function` is green 5 of 5 on qwen3.5:9b, in the live re-record and in a
+  replay after it.
+  Pass 2 cost 33602 tokens against a 60k cap, 173771 cumulative for the
+  agent over two passes, 27 tool calls. Two deviations, both accepted.
+  **The first corrected this session's brief with evidence**: the
+  write-commit-write case cannot be pinned, because `code.write`'s result
+  embeds `written, not committed`, which a commit necessarily empties, so
+  two identical writes spanning a commit never compare equal. The
+  implementer pinned the observable write-then-write form instead and
+  verified it fails on the pass 1 code. Its conclusion, which this session
+  accepts: **defect 2, the note, was the whole of the red.**
+  The register is backed up by the SQLite backup API, 722 MB in 14 s, to
+  `.rota/cassettes_backup_2026-09-19-frame43-repair2.db`. The publish stays
+  Roman's and is not done.
+  A meta observation, not yet a fact: two different TUI screen tests
+  flaked in this session, `test_sorting_holds_the_view_you_had_scrolled_to`
+  at 04:30 under load, and `test_opening_a_stale_run_is_refused_with_the_
+  reason` at 06:55 with nothing else running. The gate named both flaky and
+  re-ran both green. The second one weakens this session's own line in
+  `plans/operating-facts.md` that load is the cause. The screens suite may
+  be flaky on its own.
+  Actual against the 616k estimate, walls apart: design review 107763,
+  adversary 740875 in eight agents, the red's diagnosis 60883, implementer
+  173771 over two passes, the assistant's gate and re-record runs about
+  30k: 1113k. The adversary is the overrun and it is not regretted, because
+  it overturned the headline diagnosis and two of the review's fix lines.
+  Next: the spans pass, then repair 1, then repairs 3 and 4.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
@@ -873,6 +905,23 @@ Rules:
   built, F1 parked.
 
 ## Parked
+
+- From frame 43's pass 2 (observed: the implementer's measurement):
+  `code.write`'s result embeds `written, not committed`, which lists what
+  differs between HEAD and the tree (`rota/roles/api.py:8435-8446`). So a
+  write's answer depends on what else is uncommitted, and two identical
+  writes that span a commit can never compare equal. Under repair 2 that is
+  honest, and it means a Developer that repeats one write across commits
+  keeps paying full freight. The fix, if it is ever wanted, is to move that
+  field out of the write's result and into the commit's. Rota workflow. Not
+  frame 43's.
+- From the same pass (observed: the implementer's count): 231 recorded
+  prompts still carry the old empty-commit note, across five models. Only 8
+  were reached by the live L1 and L3 replay under the current pins, and
+  those 8 were re-earned. The rest are not replayed by any live suite, so
+  they cost nothing today (reasoned: the assistant, from the price agent's
+  finding that 14971 of 18270 rows carry superseded instructions). They go
+  stale the day a frame widens the replay to those models. Rota workflow.
 
 - (observed: a read-only agent read of this session's own workflow
   artifacts, 2026-09-18) `.claude/settings.local.json` still allows two
