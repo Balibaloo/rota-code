@@ -593,6 +593,59 @@ Rules:
   is the only instrument that can show this frame worked, because the
   largest prompt in the whole register is 31127 characters against night
   85's 110250 (observed: section 9.8 of the design record).
+- Status 2026-09-19 10:30 (rota-65): **all four repairs are built. Pass 5
+  is in.** 61426 tokens against a 110k cap, 393346 cumulative over five
+  passes, 54 tool calls (observed: the harness usage). The implementer's
+  gate: 23 failed, 1935 passed, zero stale, one red gone, two new reds and
+  **the implementer proved both flaky rather than taking the gate's word**:
+  it ran the new `test_arc_synthetic` case four times over plus alone, and
+  it never reproduced.
+  The per-turn cap is `SOURCE_CHARS` plus `RESULT_CHARS`, 20000, and the
+  arithmetic is the reason: one whole source read is 14000 and must not be
+  bitten, because night 79 is the case where a cut span was re-asked five
+  times and nothing was written; a 60-row probe plus a source read is 16200
+  and must fit; two source reads are 28000 and must not. The room is also
+  charged against the wake and the reply, so the cut falls where the
+  sentence that names it is still useful.
+  Repair 4 is the cap on the last two blocks and nothing else. The
+  middle-eviction guard stays at four, `_cap_exchange` guards itself at
+  three, and it is applied on all three of `_fit`'s returns (observed: the
+  assistant's read of `rota/core/runner.py:599-614`).
+  Repairs 3 and 4 cost two recordings and no case, against section 9.5's
+  price of 0 to 2 and about 6. The register holds 18429 rows.
+  **A parked finding worth a frame of its own** (reasoned: the
+  implementer): `test_screens.py` flaked five times today across four
+  different tests and `test_arc_synthetic` once. Both files run a whole
+  screen or a whole arc. A flake that moves around a file is usually shared
+  state, not one bad assertion.
+- Status 2026-09-19 10:45 (rota-65): **all four repairs are committed. The
+  frame's closing commit is 34c3e72 and the diff review is out.** The
+  assistant's own gate on that tree: 22 failed, 1936 passed, zero stale,
+  one red gone, one new red which is a fifth different screens test, re-run
+  green (observed: the gate's five lines, read whole). 1915 plus 21 new
+  tests is 1936.
+  **The frame's four commits**, in order: 7045226 repair 2, 9881938 the
+  spans, 5241cb9 repair 1, 34c3e72 repairs 3 and 4. Against the frame's
+  base at 90cd57e: 37 files, 678 insertions, 28 deletions.
+  The diff review runs read-only on a worktree at
+  `C:/Users/roman/rota_review43`, detached at 34c3e72, cap 90k, eight
+  numbered points. **Remove that worktree when the review closes**:
+  `git worktree remove C:/Users/roman/rota_review43`.
+  **What remains to close this frame**: the review's findings, then a
+  night from a worktree at the closing commit, measured against night 86's
+  four numbers. Night 86 is the baseline: 297 of 825 turns had their middle
+  evicted, 86 turns had the wake itself cut, 15 sessions were cut by the
+  server, 179117 tokens discarded. The night is the only instrument that
+  can show this frame worked.
+  **A note for the night's operator.** The window has NOT been raised. Ends
+  when line 1 of this frame says the window rises to 16384 for every wake
+  with a spill monitor, and no pass has done it. Section 9.5 says why it
+  was left last: raising `DEFAULT_NUM_CTX` stales all 396 live recordings,
+  about two hours, and raising the shipped profiles instead stales none.
+  Section 9.7 carries three faults that must be fixed with it: gemma3:12b
+  already spills at 12288 and two of the eight profiles ship it, the fit
+  table cannot tell 12288 from 16384 for qwen3.5:9b, and the monitor reads
+  a bare `localhost:11434` so a Titan run measures the wrong card.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
