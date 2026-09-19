@@ -229,16 +229,23 @@ def loaded(endpoint: str = OLLAMA) -> dict[str, Resident] | None:
     that never reached the server is the fault this reading exists to find
     (observed: probes/frame43/p_window.py, 2026-09-19).
     """
+    out: dict[str, Resident] = {}
     try:
+        # The body is built inside the guard, not after it. A malformed
+        # answer used to raise out of here, and `setup.plan` does not
+        # contain that. The 3 second timeout in `_get` stays: a monitor
+        # that blocks the caller is its own fault.
         ps = _get(f"{endpoint}/api/ps")
+        for m in ps.get("models") or []:
+            name = m.get("name") or m.get("model")
+            if not name:
+                continue                 # a row that names nothing says nothing
+            ctx = m.get("context_length")
+            out[name] = Resident(
+                name, int(m.get("size") or 0), int(m.get("size_vram") or 0),
+                int(ctx) if ctx else None)
     except Exception:
         return None
-    out: dict[str, Resident] = {}
-    for m in ps.get("models") or []:
-        ctx = m.get("context_length")
-        out[m["name"]] = Resident(
-            m["name"], int(m.get("size") or 0), int(m.get("size_vram") or 0),
-            int(ctx) if ctx else None)
     return out
 
 
@@ -255,6 +262,12 @@ def spill_of(held: dict[str, Resident] | None,
     to the worst spill on the card, so the row never reports the wrong load
     as healthy.
 
+    `matched` says whether the row is the model that was asked for. The
+    caller needs it: a session's own window belongs beside its own model,
+    and a card that holds another model must not lend its window to the
+    session's pin. A night swaps models at every role change, so without
+    the flag a swap can manufacture a pin-mismatch alarm.
+
     `num_ctx` is the window the server allocated, and it can be None on a
     server too old to report one.
     """
@@ -262,12 +275,27 @@ def spill_of(held: dict[str, Resident] | None,
         return None
     if not held:
         return {"model": "", "size": 0, "size_vram": 0, "spill": 0,
-                "num_ctx": None}
-    name = model if model in held else max(
+                "num_ctx": None, "matched": False}
+    matched = bool(model) and model in held
+    name = model if matched else max(
         held, key=lambda k: (held[k].spill, held[k].size))
     one = held[name]
     return {"model": name, "size": one.size, "size_vram": one.size_vram,
-            "spill": one.spill, "num_ctx": one.num_ctx}
+            "spill": one.spill, "num_ctx": one.num_ctx, "matched": matched}
+
+
+def measured_of(held: dict[str, Resident] | None, name: str) -> dict:
+    """
+    The `fit_of` keywords for one model's measurement, or `{}` for none.
+
+    One place builds the pair, so the plan's table and the recommendation
+    beside it cannot answer from different evidence. A model the card does
+    not hold has no measurement, and the metadata answers.
+    """
+    one = (held or {}).get(name)
+    if one is None or not one.size:
+        return {}
+    return {"loaded_bytes": one.size, "loaded_ctx": one.num_ctx or None}
 
 
 def spill_line(seen: dict | None) -> str:
@@ -285,12 +313,20 @@ def spill_line(seen: dict | None) -> str:
         return f"CARD UNSEEN {seen.get('endpoint')}: /api/ps did not answer"
     gb = 1 << 30
     pinned, given = seen.get("num_ctx"), seen.get("allocated_ctx")
-    window = (f"{pinned}" if given in (None, pinned)
-              else f"{pinned} PINNED but {given} GIVEN")
+    # The mismatch is named only when both windows are known. A row for
+    # another model carries neither, because a swap must not manufacture
+    # this alarm.
+    if pinned and given and given != pinned:
+        window = f"{pinned} PINNED but {given} GIVEN"
+    elif pinned or given:
+        window = f"{pinned or given}"
+    else:
+        window = "an unstated window"
     state = "SPILLS" if (seen.get("spill") or 0) > 0 else "FITS"
+    whose = "" if seen.get("matched", True) else ", another desk's model"
     return (f"CARD {state} {seen.get('model')} at {window}: "
             f"{(seen.get('size') or 0) / gb:.2f} GB resident, "
-            f"{(seen.get('spill') or 0) / gb:.2f} GB in RAM")
+            f"{(seen.get('spill') or 0) / gb:.2f} GB in RAM{whose}")
 
 
 def _vram_from_nvidia_smi() -> tuple[int | None, int | None]:
@@ -346,10 +382,17 @@ def fit_of(model: Model, sys_: System, num_ctx: int, resident: int = 1,
 
 
 def recommend(found: list[Model], sys_: System, benchmarks: list[dict],
-              groups: list[str], num_ctx: int = 12288, resident: int = 1) -> dict[str, Fit | None]:
+              groups: list[str], num_ctx: int = 12288, resident: int = 1,
+              held: dict[str, Resident] | None = None) -> dict[str, Fit | None]:
     """One model per capability group: the best-scoring recorded model that
     fits, else the best that spills. Unrecorded models are shown by the
-    caller, never ranked here."""
+    caller, never ranked here.
+
+    `held` is what `loaded()` returned, and each model's fit reads its own
+    row. Without it the pick answered from the weights alone while the plan
+    beside it answered from the measurement: gemma3:12b showed `spills` at
+    11.76 GB in the table and `in_vram` at 8.20 GB in the recommendation
+    (observed by the diff review of frame 43, 2026-09-19)."""
     scored: dict[str, dict[str, float]] = {}
     for b in benchmarks:
         # One recorded case is not a ranking. The first table put qwen3.5:4b
@@ -357,7 +400,8 @@ def recommend(found: list[Model], sys_: System, benchmarks: list[dict],
         if int(b.get("cases", 3) or 0) < 3:
             continue
         scored.setdefault(b["capability"], {})[b["model"]] = float(b["score"])
-    fits = {m.name: fit_of(m, sys_, num_ctx, resident) for m in found}
+    fits = {m.name: fit_of(m, sys_, num_ctx, resident,
+                           **measured_of(held, m.name)) for m in found}
     out: dict[str, Fit | None] = {}
     for group in groups:
         ranked = sorted(scored.get(group, {}).items(), key=lambda kv: -kv[1])

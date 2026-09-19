@@ -102,14 +102,16 @@ def test_the_spill_of_one_model_is_pure_arithmetic():
             "qwen3:8b": D.Resident("qwen3:8b", 7 * gb, 7 * gb, 16384)}
     assert D.spill_of(held, "gemma3:12b") == {
         "model": "gemma3:12b", "size": 11 * gb, "size_vram": 8 * gb,
-        "spill": 3 * gb, "num_ctx": 12288}
+        "spill": 3 * gb, "num_ctx": 12288, "matched": True}
     assert D.spill_of(held, "qwen3:8b")["spill"] == 0
     assert D.spill_of(held, "qwen3:8b")["num_ctx"] == 16384
     # A name the card does not hold falls back to the worst spill, so the
-    # row never reports the wrong load as healthy.
-    assert D.spill_of(held, "nothing:here")["model"] == "gemma3:12b"
+    # row never reports the wrong load as healthy. `matched` says so, and
+    # the caller needs it: that row's window is not the asker's.
+    fallback = D.spill_of(held, "nothing:here")
+    assert fallback["model"] == "gemma3:12b" and fallback["matched"] is False
     assert D.spill_of({}) == {"model": "", "size": 0, "size_vram": 0,
-                              "spill": 0, "num_ctx": None}
+                              "spill": 0, "num_ctx": None, "matched": False}
     assert D.spill_of(None) is None
 
 
@@ -175,6 +177,75 @@ def test_the_plan_feeds_the_measurement_of_each_loaded_model(monkeypatch):
     assert setup.plan(num_ctx=12288, table=table).rows[0].need_mib
 
 
+def test_a_malformed_ps_body_is_a_blind_monitor_not_a_crash():
+    """
+    The dict build used to sit after the `try`, so a body with no `name`
+    raised out of `loaded`. `note_spill` contains that and `setup.plan` does
+    not, so one malformed answer took the model-setup screen down.
+    """
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(D, "_get", lambda *a, **k: {"models": "not a list"})
+        assert D.loaded("http://x") is None
+        monkeypatch.setattr(D, "_get", lambda *a, **k: {"models": [{"size": 1}]})
+        assert D.loaded("http://x") == {}, "a row that names nothing says nothing"
+        # `model` is the other spelling Ollama uses for the name.
+        monkeypatch.setattr(D, "_get", lambda *a, **k: {
+            "models": [{"model": "qwen3:8b", "size": 10, "size_vram": 4}]})
+        assert D.loaded("http://x")["qwen3:8b"].spill == 6
+    finally:
+        monkeypatch.undo()
+
+
+def test_the_recommendation_reads_the_same_measurement_as_the_table():
+    """
+    One screen said `spills` at 11.76 GB in the row and `in_vram` at 8.20 GB
+    in the recommendation for gemma3:12b, because `recommend` called `fit_of`
+    with no measurement (observed by the diff review of frame 43,
+    2026-09-19). The pick and the table must answer from one evidence.
+    """
+    gb = 1 << 30
+    # The review's own numbers: 8.20 GB of weights, 11.76 GB loaded. The
+    # metadata gives no `head_count_kv`, so only the measurement can say
+    # what the cache costs.
+    m = D.Model("ollama", "gemma3:12b", size_bytes=int(8.20 * gb),
+                meta={"block_count": 48})
+    machine = D.System("windows", ram_bytes=32 * gb, vram_total_bytes=10 * gb,
+                       vram_free_bytes=1 * gb)
+    bench = [{"model": "gemma3:12b", "capability": "judge", "score": 0.9, "cases": 5}]
+    held = {"gemma3:12b": D.Resident("gemma3:12b", int(11.76 * gb), 9 * gb, 16384)}
+
+    blind = D.recommend([m], machine, bench, ["judge"], num_ctx=16384)
+    fed = D.recommend([m], machine, bench, ["judge"], num_ctx=16384, held=held)
+    table = D.fit_of(m, machine, 16384, **D.measured_of(held, "gemma3:12b"))
+
+    assert fed["judge"].need_bytes == table.need_bytes, \
+        "the pick and the table read different evidence"
+    assert fed["judge"].fit == table.fit == "spills"
+    assert blind["judge"].fit == "in_vram", "the review's own reading"
+    assert blind["judge"].need_bytes < fed["judge"].need_bytes
+    assert D.measured_of(None, "gemma3:12b") == {}
+    assert D.measured_of(held, "nothing:here") == {}
+
+
+def test_the_plan_answers_for_the_window_a_run_actually_uses():
+    """
+    Both screens call `plan(driving=False)` with no window, so the fit
+    column and the pick answered for 12288 while the profile that screen
+    writes pins 16384. The default comes from the profile now.
+
+    `DEFAULT_NUM_CTX` is not the number to compare against: it stays at
+    12288 because it keys every live recording in the repository.
+    """
+    from rota.llm import profile as P
+    from rota.llm.llm import DEFAULT_NUM_CTX
+    from rota.llm.setup import default_window
+
+    pinned = P.Profile.from_toml(P.SHIPPED / "local.toml").pins.get("num_ctx")
+    assert default_window() == pinned == 16384
+    assert DEFAULT_NUM_CTX == 12288, "the constant keys the recordings"
+
+
 def test_the_night_line_names_both_windows_when_they_differ():
     """
     The night is headless, and `probes/walk.py` prints this line. A pin that
@@ -196,6 +267,14 @@ def test_the_night_line_names_both_windows_when_they_differ():
     assert "PINNED" not in D.spill_line(dict(seen, allocated_ctx=None))
     assert D.spill_line(dict(seen, seen=False)).startswith("CARD UNSEEN")
     assert D.spill_line({}) == ""
+
+    # A row for another desk's model carries no window and says whose it is,
+    # so a model swap can never print the mismatch alarm.
+    other = D.spill_line({"seen": True, "model": "gemma3:12b", "spill": 3 * gb,
+                          "size": 11 * gb, "num_ctx": None,
+                          "allocated_ctx": None, "matched": False})
+    assert "another desk's model" in other and "PINNED" not in other
+    assert "an unstated window" in other
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +337,38 @@ def test_the_loop_reads_the_card_once_per_session(db):
               pins=Pins(model="qwen3:8b", num_ctx=16384), spill_reader=reader)
     assert len(calls) == 2
     assert len(config.history(db, "spill_seen")) == 1
+
+
+def test_another_desks_model_on_the_card_raises_no_pin_alarm(db):
+    """
+    The alarm this frame exists to raise must not be manufactured by a model
+    swap, and a night swaps at every role change.
+
+    Measured by the diff review (2026-09-19): a session on qwen3:8b pinned at
+    16384, with the card holding gemma3:12b at 12288, wrote
+    `{model: gemma3:12b, num_ctx: 16384, allocated_ctx: 12288}` and the night
+    line printed `CARD SPILLS gemma3:12b at 16384 PINNED but 12288 GIVEN`.
+    Two models, one alarm, and neither number was the other's.
+
+    The row still reports the spill it found. It just does not lend that
+    model's window to this session's pin.
+    """
+    gb = 1 << 30
+
+    def reader(endpoint):
+        return {"gemma3:12b": D.Resident("gemma3:12b", 11 * gb, 8 * gb, 12288)}
+
+    s = loop.step(db, backend=_backend(["TOOL: msg.present_principal(refs=[])", "done"]),
+                  pins=Pins(model="qwen3:8b", num_ctx=16384), spill_reader=reader)
+    assert s.outcome is not None, f"no session ran: {s}"
+
+    row = config.get(db, "spill_seen")
+    assert row["model"] == "gemma3:12b", "the spill it found is still reported"
+    assert row["spill"] == 3 * gb
+    assert row["matched"] is False
+    assert row["num_ctx"] is None and row["allocated_ctx"] is None, \
+        "a swap manufactured a pin-mismatch alarm"
+    assert "PINNED" not in D.spill_line(row)
 
 
 def test_a_server_that_does_not_answer_writes_that_it_was_not_seen(db):
@@ -324,7 +435,46 @@ def test_a_blind_monitor_says_so():
               "num_ctx": 16384, "size": 0, "size_vram": 0, "spill": 0, "at": "now"}
     bit = spill_bit(unseen, {})
     assert "11435" in bit and "blind" in bit
-    assert spill_bit(unseen, {"model": "qwen3:8b", "spill": 0}) == ""
+    # Only a dismissal that names the blindness hides it.
+    assert spill_bit(unseen, {"model": "qwen3:8b", "spill": 0, "blind": True}) == ""
+
+
+def test_a_dismissed_spill_does_not_hide_a_server_that_went_blind():
+    """
+    The order that used to go silent: a 3 GB spill, `alt+s`, then the server
+    stops answering. `note_spill` overwrites the row with `seen: False` and
+    `spill: 0`, and every dismissal is `>= 0`, so the blind branch was
+    hushed by the spill dismissal and the pulse said nothing.
+
+    Blindness is the one state the `seen` flag exists to break.
+    """
+    from rota.cockpit.tui import spill_bit
+
+    gb = 1 << 30
+    spilling = {"seen": True, "model": "qwen3:8b", "endpoint": "http://x",
+                "num_ctx": 16384, "allocated_ctx": 16384, "size": 11 * gb,
+                "size_vram": 8 * gb, "spill": 3 * gb, "at": "now"}
+    accepted = {"model": "qwen3:8b", "spill": 3 * gb, "blind": False}
+    assert spill_bit(spilling, accepted) == "", "the spill was accepted"
+
+    blind = dict(spilling, seen=False, size=0, size_vram=0, spill=0)
+    assert "blind" in spill_bit(blind, accepted), \
+        "a dismissed spill hid a server that stopped answering"
+
+
+def test_a_hand_written_row_loses_the_bit_and_never_the_pulse():
+    """
+    `config.set` validates the outer type only, and config is the
+    principal's direct-edit space. `{"spill": "lots"}` raised `ValueError`
+    inside the render path, which is a broken seat rather than a bad row.
+    """
+    from rota.cockpit.tui import spill_bit
+
+    assert spill_bit({"seen": True, "model": "x", "spill": "lots",
+                      "size": "plenty"}, {}) == ""
+    assert spill_bit({"seen": True, "model": None, "spill": None,
+                      "size": None}, {"spill": "none"}) == ""
+    assert spill_bit("not a row", None) == ""
 
 
 def test_the_settings_are_declared_and_the_row_is_json():

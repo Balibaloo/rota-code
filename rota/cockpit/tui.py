@@ -70,6 +70,21 @@ def _now() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
+def _as_int(value) -> int:
+    """
+    A number from the row, or 0 when the row holds something else.
+
+    `config.set` validates the outer type only, and config is the
+    principal's direct-edit space. A hand-written `{"spill": "lots"}` used
+    to raise `ValueError` inside the pulse, on the render path, which is a
+    broken seat rather than a bad reading.
+    """
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def spill_bit(seen: dict | None, dismissed: dict | None) -> str:
     """
     What the pulse says while the card spills into RAM, or "" for silence.
@@ -88,16 +103,21 @@ def spill_bit(seen: dict | None, dismissed: dict | None) -> str:
     12.5 s when it fits, over 100 s at a 27 per cent spill, and 153 s with
     only 75 per cent of the model on the GPU.
     """
-    if not seen:
+    if not isinstance(seen, dict) or not seen:
         return ""                       # no reading yet, which is not a claim
-    model = seen.get("model") or "the model"
-    spill = int(seen.get("spill") or 0)
-    size = int(seen.get("size") or 0)
-    dis = dismissed or {}
+    model = str(seen.get("model") or "the model")
+    spill = _as_int(seen.get("spill"))
+    size = _as_int(seen.get("size"))
+    dis = dismissed if isinstance(dismissed, dict) else {}
     hushed = (dis.get("model") == model
-              and int(dis.get("spill") or 0) >= spill)
+              and _as_int(dis.get("spill")) >= spill)
     if not seen.get("seen"):
-        if hushed:
+        # A blind row carries `spill: 0`, and any dismissal at any size is
+        # `>= 0`, so the ordinary rule hushed blindness as well: dismiss a
+        # 3 GB spill, let the server stop answering, and the pulse went
+        # quiet. Blindness is the one state the `seen` flag exists to break,
+        # so only a dismissal that names blindness hides it.
+        if dis.get("blind") and dis.get("model") == model:
             return ""
         return (f"[yellow]no answer from {seen.get('endpoint') or 'ollama'}: "
                 f"the spill monitor is blind, alt+s hides this[/yellow]")
@@ -594,7 +614,9 @@ class RotaApp(App):
         try:
             bit = spill_bit(config.get(self.conn, "spill_seen"),
                             config.get(self.conn, "spill_dismissed"))
-        except sqlite3.Error:
+        except (sqlite3.Error, ValueError, TypeError):
+            # Config is the principal's direct-edit space, so the row can
+            # hold anything. A bad reading loses the bit, never the pulse.
             bit = ""
         if bit:
             bits.append(bit)
@@ -616,8 +638,13 @@ class RotaApp(App):
         if not seen:
             self.say("nothing read from the card yet", "system", "blue")
             return
+        # `blind` is its own dismissal. A server that stops answering is a
+        # different fact from a spill, so accepting one never hides the
+        # other.
         config.set(self.conn, "spill_dismissed",
-                   {"model": seen.get("model") or "", "spill": int(seen.get("spill") or 0)},
+                   {"model": seen.get("model") or "",
+                    "spill": _as_int(seen.get("spill")),
+                    "blind": not seen.get("seen")},
                    author="principal")
         self.refresh_pulse()
 

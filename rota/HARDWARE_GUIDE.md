@@ -25,7 +25,7 @@ intended workflow.
 | Question | Answer | Why |
 | --- | --- | --- |
 | Is 4K context usable for intended Rota use? | **No.** | Rota's measured largest prompt is about 9.2K tokens. At 4K, the model loses instructions or working-set material before it has room to answer. |
-| Minimum selectable Rota context | **12,288 tokens** | It is the first established configuration that holds the known working set plus Rota's 2,048-token output cap. |
+| Minimum selectable Rota context | **12,288 tokens** | It is the first established configuration that holds the known working set plus Rota's 2,048-token output cap. The shipped profiles pin **16,384** since 2026-09-19, so 12,288 is the floor and no longer the standard. |
 | Are models below 7B reliable enough as the primary agent? | **No.** | They can be useful for narrow classification or summarization, but not as Rota's general tool-use worker. Tool syntax may be correct while judgement, constraint following, recovery after a tool error, and multi-turn consistency are not. |
 | Minimum local model class | **7B/8B instruct or agent model** | This is the smallest class worth exposing as a primary local profile. |
 | Is CPU offload acceptable? | **No.** | A slow single completion multiplies across tool turns; do not present an offloaded profile as a usable Rota configuration. |
@@ -37,8 +37,8 @@ output cap, treat about 80% of `num_ctx` as usable input budget.
 
 | Selected context | Approximate input budget | User-facing meaning |
 | ---: | ---: | --- |
-| 12,288 | ~9.8K | Standard Rota working set; minimum menu option. |
-| 16,384 | ~13.1K | Extended working set; show only when the selected model remains `100% GPU`. |
+| 12,288 | ~9.8K | The floor. Minimum menu option, and what `DEFAULT_NUM_CTX` still keys every recording with. |
+| 16,384 | ~13.1K | Standard Rota working set: what every shipped profile pins since 2026-09-19. qwen3:8b holds it on a 10 GB card at 6.89 to 7.40 GB with no spill. Show it only while the selected model remains `100% GPU`. |
 | 24,576 | ~19.7K | Long working set; show only for a model/GPU pair that passed KV-cache validation. |
 | 32,768+ | Variable | Advanced server-class option; must be tested for the exact model and GPU. |
 
@@ -154,7 +154,9 @@ new local profile becomes `verified`, run:
 ```powershell
 ollama pull <tag>
 $env:ROTA_MODEL = "<tag>"
-$env:ROTA_NUM_CTX = "12288"
+# The profile pins the window and wins over this variable. Set it only to
+# measure another window, and use 16384, which is what the profiles pin.
+$env:ROTA_NUM_CTX = "16384"
 
 ollama ps
 python -m rota.tools.probe_tools --runs 3

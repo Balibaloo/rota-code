@@ -15,13 +15,26 @@ things and a cassette of one is not evidence about the other.
 from __future__ import annotations
 
 import json
+import os
 import statistics
 import sys
 import time
 import urllib.error
 import urllib.request
 
-OLLAMA = "http://localhost:11434"
+# The environment's host, never a literal. The recorder runs on 11435 and
+# both servers answer on this box, so a fixed host measures the wrong card
+# and the reading looks plausible instead of failing.
+OLLAMA = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+
+# The window a run uses, read from the shipped profile. 8192 was below every
+# real window, so this probe measured tool calling through a window no desk
+# has (the diff review of frame 43, 2026-09-19).
+try:
+    from ..llm.setup import default_window as _default_window
+    NUM_CTX = _default_window()
+except Exception:                        # a probe must still run standalone
+    NUM_CTX = 16384
 
 # One real operation, with the enum the sandbox validates. Vision Keeper asserting
 # a scope item is the simplest thing any role does.
@@ -64,7 +77,7 @@ USER = ("Ratified statement s1: \"users can delete their account\".\n"
         "Record it as item i1.")
 
 
-def chat(model: str, system: str, user: str, *, tools=None, num_ctx=8192,
+def chat(model: str, system: str, user: str, *, tools=None, num_ctx=NUM_CTX,
          timeout=900) -> tuple[dict, float]:
     body = {
         "model": model, "stream": False,

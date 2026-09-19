@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from . import benchmarks as B
 from . import discover as D
+from . import llm as llm_mod
 from . import profile as profile_mod
 
 
@@ -41,11 +42,32 @@ class Plan:
     groups: list[str]
 
 
-def plan(driving: bool = False, num_ctx: int = 12288,
+def default_window() -> int:
+    """
+    The window the shipped profiles pin, which is what a run uses.
+
+    Read from the profile, never written here as a literal. The screens
+    answered for 12288 while the profile they write pins 16384, so the fit
+    column and the pick described a run nobody starts. `DEFAULT_NUM_CTX`
+    stays at 12288 because it keys every live recording, so it is not the
+    number to compare against either.
+    """
+    try:
+        pinned = profile_mod.Profile.from_toml(
+            profile_mod.SHIPPED / "local.toml").pins.get("num_ctx")
+        return int(pinned) if pinned else llm_mod.DEFAULT_NUM_CTX
+    except Exception:
+        return llm_mod.DEFAULT_NUM_CTX
+
+
+def plan(driving: bool = False, num_ctx: int | None = None,
          table: list[dict] | None = None) -> Plan:
     if driving:
         raise Driving("a run is driving; discovery would evict its models. "
                       "Pause the run first")
+    # The window a run uses, not a literal. The refusal above comes first,
+    # so a driving call reads no file.
+    num_ctx = default_window() if num_ctx is None else num_ctx
     table = B.load() if table is None else table
     providers = D.providers()
     machine = D.system()
@@ -74,10 +96,7 @@ def plan(driving: bool = False, num_ctx: int = 12288,
         # window is what lets `fit_of` answer for another one. A model the
         # card does not hold has no measurement, and the metadata answers
         # (observed: probes/frame43/p_window.py, 2026-09-19).
-        one = held.get(m.name)
-        f = D.fit_of(m, machine, num_ctx,
-                     loaded_bytes=(one.size if one else None) or None,
-                     loaded_ctx=(one.num_ctx if one else None) or None)
+        f = D.fit_of(m, machine, num_ctx, **D.measured_of(held, m.name))
         rows.append(Row(m.provider, m.name, f.fit, (f.need_bytes or 0) >> 20 or None,
                         scores.get(m.name, {}), m.name in recorded))
     # The derived groups when the table has them (step 7), the roles before.
@@ -85,7 +104,11 @@ def plan(driving: bool = False, num_ctx: int = 12288,
     if not groups:
         groups = sorted({r["capability"] for r in table
                          if not r["capability"].startswith(("transport:", "walk:"))})
-    rec = D.recommend(found, machine, table, groups, num_ctx=num_ctx, resident=1)
+    # The same measurements the table above used. The pick read the weights
+    # alone before, so one screen could say `spills` in the row and
+    # `in_vram` in the recommendation for one model.
+    rec = D.recommend(found, machine, table, groups, num_ctx=num_ctx,
+                      resident=1, held=held)
     recommendation = {g: (fit.model if fit else None) for g, fit in rec.items()}
     return Plan(providers, machine, rows, recommendation, groups)
 

@@ -390,7 +390,9 @@ bytes) and two *imported* files, and named the area's own `frontmatter.ts` and
 `intents.ts` -- the parser, where every frontmatter key a user writes is read
 by name -- as "did not fit". The Architect attested `none_found` for the one
 area that holds the program's largest commitment, from a prompt of 6,644
-characters in a 12,288-token window. The push is now 10,000 characters, the
+characters in a 12,288-token window, which is the window of that night. The
+shipped profiles pin 16,384 since 2026-09-19, and the budget below is a
+character count that does not move with the window. The push is now 10,000 characters, the
 area's own files whole while they fit, then a head of each own file that does
 not, then the imports with what remains; an own file is never shown less than
 an import. (It was 14,000 for one pass: at a 20,000-character prompt the same

@@ -135,6 +135,12 @@ def note_spill(conn: sqlite3.Connection, session_id: str, *,
     the two differ is a pin that never reached the server, which no profile
     file can prove and only the allocated number can show.
 
+    Both windows are stamped only when the card holds the session's own
+    model. A night swaps models at every role change, so a row for another
+    model would lend its window to this session's pin and manufacture the
+    one alarm this frame exists to raise. Such a row still reports its
+    spill, and `model` says whose it is.
+
     The row is written only when the numbers move. `at` is therefore the
     time the spill last changed, and the history holds one entry per change
     instead of one per session.
@@ -154,9 +160,14 @@ def note_spill(conn: sqlite3.Connection, session_id: str, *,
     model = (row["model"] if row else "") or ""
     window = (row["num_ctx"] if row else None) or None
     spill = discover.spill_of(held, model)
+    # The card named a model, and it is not the one this session ran on.
+    # Neither window belongs to that row, so neither is stamped.
+    other = bool(spill and spill.get("model") and not spill.get("matched"))
     seen = {"seen": spill is not None, "endpoint": endpoint,
-            "model": (spill or {}).get("model") or model, "num_ctx": window,
-            "allocated_ctx": (spill or {}).get("num_ctx"),
+            "model": (spill or {}).get("model") or model,
+            "num_ctx": None if other else window,
+            "allocated_ctx": None if other else (spill or {}).get("num_ctx"),
+            "matched": not other,
             "size": (spill or {}).get("size", 0),
             "size_vram": (spill or {}).get("size_vram", 0),
             "spill": (spill or {}).get("spill", 0),

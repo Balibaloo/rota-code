@@ -266,8 +266,10 @@ async def test_the_pulse_warns_about_a_spill_and_alt_s_dismisses_it(
 
         await pilot.press("alt+s")
         await pilot.pause()
+        # `blind` is its own dismissal: accepting a spill never hides a
+        # server that later stops answering.
         assert config.get(app.conn, "spill_dismissed") == \
-            {"model": "gemma3:12b", "spill": 3 * gb}
+            {"model": "gemma3:12b", "spill": 3 * gb, "blind": False}
         assert "gemma3:12b" not in str(app.query_one("#pulse").content)
 
         # A spill that grew is a new fact, and an old dismissal cannot hide

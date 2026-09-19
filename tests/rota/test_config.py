@@ -151,17 +151,25 @@ def test_the_sampled_suites_do_not_pin_a_smaller_window():
 
     A pin is not wrong in itself. A pin *below* the default is, because that is
     the shape the drift took and nothing noticed for weeks.
+
+    The comparison is against the window the shipped profiles pin, not
+    `DEFAULT_NUM_CTX`. Frame 43 raised the profiles to 16384 and left the
+    constant at 12288, because the constant keys every live recording. A
+    guard that reads the constant would have stayed green while the suites
+    measured the system through a window no run uses, which is the drift
+    this test was written about.
     """
     import re
-    from rota.llm.llm import DEFAULT_NUM_CTX
     from rota import paths
+    from rota.llm.setup import default_window
 
+    window = default_window()
     for name in ("test_l1.py", "test_l3.py"):
         src = (paths.REPO / "tests" / "rota" / name).read_text(encoding="utf-8")
         for pinned in re.findall(r"Pins\([^)]*num_ctx\s*=\s*(\d+)", src):
-            assert int(pinned) >= DEFAULT_NUM_CTX, (
-                f"{name} pins num_ctx={pinned} below the default "
-                f"{DEFAULT_NUM_CTX}; prompts will be clipped at the front")
+            assert int(pinned) >= window, (
+                f"{name} pins num_ctx={pinned} below the window the shipped "
+                f"profiles pin, {window}; prompts will be clipped at the front")
 
 
 def test_model_routing_names_ticks_and_only_ticks():
