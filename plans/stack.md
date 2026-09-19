@@ -195,6 +195,20 @@ Rules:
   90k does not carry. The window rises in the shipped profiles instead
   (observed: `rota/llm/profiles/local.toml:12`), and the register keeps
   its keys at zero cost. The implementer's brief must say so.
+  The design review of ends-when line 6 is out, cap 80k, ten numbered
+  points. It does not wait on either grill question, so it runs now.
+  The 536k scope report is rescued into
+  `plans/archive/context-caps-scope-2026-09-18.json` at b4396a2. The design
+  record had pointed at session 9108c499's scratchpad, which is deleted
+  with the session (observed: the pointer was dead from this checkout and
+  the peer's inbox refused a message, so that session has ended). A
+  record's pointer never names a session scratchpad.
+  **The design review runs on Opus, a stated deviation from "Opus builds,
+  Fable judges"** (observed: the first launch died at once with "You've
+  reached your Fable limit", HTTP 429). Fable is unavailable today, and
+  this session is itself Opus. The review's main lever is a context that
+  never traced the code, and that lever survives the model change. Cross
+  family judgement does not.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
