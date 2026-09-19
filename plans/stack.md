@@ -285,6 +285,62 @@ Rules:
   commit to commit. It re-baselines on a quiet machine after the
   adversary returns, so that every later acceptance in this frame
   compares against a clean tree at a known commit.
+- Status 2026-09-19 05:05 (rota-65): **the adversary is in and the design
+  changed. The corrections are section 9 of the design record.** Eight
+  agents, 740875 tokens, 302 tool calls, 46 minutes (observed: the harness
+  usage). Six refuters, one measurement of the re-record, one completeness
+  critic.
+  All six findings came back REFUTED, which is itself a bias signal, so
+  each is recorded by its evidence and not by its verdict. Two of the
+  review's fix lines would have made the frame worse. The completeness
+  critic found more than the review did.
+  What changed, in the order that matters:
+  1. **Repair 4 is half dead** (observed: the assistant's own read of
+     `rota/core/runner.py:505-512`). At turn 2 the transcript holds three
+     blocks and the middle eviction takes `transcript[1:-2]`, which is
+     empty, so lowering the guard evicts nothing. The code's own comment
+     already records that this fault was found after night 85 and fixed by
+     moving the wake cut above the guard. Removing the guard makes head and
+     tail overlap and turns `test_runner.py:657` red. Repair 4 reduces to
+     capping the last two blocks. **This overturns section 2b, the
+     record's headline diagnosis.**
+  2. **Repair 1 costs about what it saves while the spans are parked.** A
+     probe renders 5553 characters at the median, and 5 of the 15 commonest
+     patterns hit the 200-row cap and truncate at 6084. Without the span
+     columns a probe is still followed by `code.source(path, 0, 400)`. The
+     open judgement: give `code.probe` a row limit, or hold its brief line
+     until the spans land.
+  3. **Repair 2 keeps its purpose and loses both proposed fixes.** The
+     commit was not swallowed, `code.write` is affected in zero sessions,
+     and the "six sessions" is one. The corrected fix registers the key
+     after the call succeeds, stores the render, and answers "unchanged"
+     only when the new render matches. That also fixes a defect no record
+     saw: the key is added before the call, so a write that fails and then
+     succeeds identically has its success swallowed.
+  4. **The stale line cannot accept this frame** (observed:
+     `rota/tools/casestatus.py:77-81` matches case, prompt hash and model,
+     and `num_ctx` is in the cassette key and not in the match; the
+     assistant read it). The gate reports zero stale after a change that
+     re-keys 14757 of 18270 cassettes. Acceptance needs the replay suite's
+     result, not the stale count.
+  5. **The price is measured.** The four repairs stale 98 of 385 live
+     recordings, 20 to 25 minutes. The window rise is four times all four
+     together: the constant route stales all 396, about two hours, and the
+     profile route stales none. The profile route is confirmed by
+     measurement now, not reasoned.
+  6. Three faults in the monitor that no record named: gemma3:12b already
+     spills at 12288 and two of the eight raised profiles ship it, so a
+     warn-until-dismissed monitor fires forever on the Critic's desk; the
+     fit table cannot tell 12288 from 16384 for qwen3.5:9b, so design point
+     5's guard is decoration for the routed model; and the monitor reads
+     `localhost:11434` from a bare literal, so a Titan run measures the
+     wrong card.
+  7. **The register does not contain the fault this frame fixes.** The
+     largest live L1 prompt is 31127 characters against night 85's 110250.
+     The suite cannot show this frame worked. Only the night can, which is
+     now measured rather than preferred.
+  Next: the implementer's brief from section 9, then pass 1. The gate
+  re-baselines first on a quiet machine.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
