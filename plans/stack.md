@@ -209,6 +209,29 @@ Rules:
   this session is itself Opus. The review's main lever is a context that
   never traced the code, and that lever survives the model change. Cross
   family judgement does not.
+- Status 2026-09-19 04:12 (rota-65): **grill question 1 is ruled. The four
+  repairs are one frame, four implementer passes, one night** (ruled:
+  Roman, 2026-09-19, after he asked which four and read the list). The
+  four are ends-when lines 2 to 5, in that order: `code.probe` to the 14
+  reading modes, the repeat memory keyed by path and cleared by a write,
+  a per-turn cap on the total of the results, and `_fit` trimming turn 2.
+  Ends-when line 1, the window rise and the spill monitor, is Roman's
+  ruling 1 of 2026-09-19 and is not one of the four.
+  The reason on the record: this is one wall, and the repairs interact.
+  Repair 1 changes what a seat pulls, which changes whether repairs 3 and
+  4 ever fire, so four separate closes would not give four separate
+  measurements.
+  **Repair 1 ships weaker than the design record assumed** (reasoned: the
+  assistant, reading ruling 2 against section 5 of the record). Ruling 2
+  moved the symbol spans to a frame after frame 33, so `code.probe`
+  returns the name, the kind and the area with no line numbers. A seat
+  that probes still reads `code.source(path, 0, 400)`. The repair goes
+  from dumping eight guessed files to dumping one found file, which is
+  most of the saving. The spans frame later turns 400 lines into 40.
+  **Repair 2 is a correctness fix, not a context fix**: the "unchanged
+  since you asked earlier" line is sometimes false, and the runner
+  discards the true answer on the way to saying it.
+  Grill question 2 goes to Roman now.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
