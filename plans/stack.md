@@ -864,6 +864,44 @@ Rules:
   of the kit's step 1 is not installed, so a standby that arms a watcher meets
   a prompt and parks. Two of the kit's seven steps need Roman, and
   `plans/operating-facts.md` names both.
+- Status 2026-09-19 15:38 (rota-95): **the diff review's eight faults are
+  fixed and committed at 6408b64. The night is at its design pages and every
+  card line says the window arrived.** The review cost 136453 tokens against
+  90k priced, 65 tool calls, 14.7 minutes (observed: the harness usage). Pass
+  8 cost about 52k against a 90k cap.
+  The gate, run beside the night and read whole: 23 failed, 1998 passed, zero
+  stale, one red gone. Both new reds are `tests/rota/test_screens.py` and the
+  gate re-ran both green in 5.15 s. **That file has now flaked six times today
+  across five different tests, with and without load.** The arithmetic closes:
+  21 baseline reds plus two flakes, and six new tests.
+  **The fault that mattered could have faked this frame's own evidence**
+  (observed: the reviewer's probe). `spill_of` falls back to the worst spill on
+  the card when the session's model is absent, and the loop stamped the
+  session's pin beside that other model's numbers. A night swaps models at
+  every role change, so the pinned-but-given alarm was manufacturable by a
+  swap. The row now carries a matched flag.
+  **The night runs from f320568 and the closing commit is 6408b64. This
+  session judges the night still valid** (reasoned: pass 8 touches no file on
+  the prompt path). Pass 8 changed `rota/cockpit/tui.py`, `rota/core/loop.py`'s
+  `note_spill`, `rota/llm/discover.py`, `rota/llm/setup.py`,
+  `rota/tools/probe_tools.py`, two guides and the tests. It did not touch
+  `rota/core/runner.py`, so `_fit`, the wake cut and the server-cut note are
+  byte for byte what the night runs. The four context numbers are therefore the
+  same at either commit. Only the card line's precision differs, and every card
+  line this night printed names the session's own model. Killing the night
+  would cost the 50 minutes already run and two more hours for an identical
+  measurement.
+  **The window arrived, proven by the night and not by a probe** (observed:
+  `.rota/night87.log`). Every card line reads `CARD FITS`: qwen3:8b at 16384
+  with 6.89 GB resident and 0.00 GB in RAM, qwen3.5:9b at 16384 with 5.50 GB
+  and 0.00 GB, alternating as the desks swap. No line reports a spill and no
+  line reports a pin that did not arrive. That closes ends-when line 1, which
+  bought Roman's ruling of 2026-09-19 with the evidence that it is not
+  spilling. The numbers match this session's own probe exactly.
+  What remains: the night's `GAUNTLET-DONE` line, a copy of its database to
+  `.rota/clickI_night87.db`, `probes/frame43/p_night.py` on it, the four
+  numbers beside night 86's corrected baseline, and the closing status with the
+  actuals. Then remove both worktrees.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
