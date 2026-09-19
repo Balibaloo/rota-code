@@ -481,6 +481,14 @@ def test_a_broad_probe_answers_with_definitions_before_files(world):
     assert hits[1]["grain_kind"] == "symbol", \
         f"a definition sorts under {PROBE_ROWS} files: {[h['grain'] for h in hits[:3]]}"
     assert hits[1]["line_start"] == 10 and hits[1]["line_end"] == 20
+    # The note says the order it used, and a path row says what to read rather
+    # than a span of no lines: `code.source(path, 0, 0)` returns nothing, and
+    # only a Python file has the `defs` map to rescue the seat.
+    assert "definitions in name order" in hits[0]["grain"], hits[0]["grain"]
+    paths = [r for r in hits if r["grain_kind"] == "path"]
+    assert paths, "the fixture has no path rows to check"
+    assert all(r["line_start"] == "whole file" and r["line_end"] == ""
+               for r in paths), paths[0]
 
 
 def test_an_empty_probe_says_when_the_index_is_behind(world):

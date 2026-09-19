@@ -5661,6 +5661,13 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
 # `termui` and `tests` each hit the cap and truncated at about 6084. The two
 # span columns add about a quarter to a row. A truncated probe is the worst of
 # both: the seat pays for the rows and loses the tail without being told which.
+#
+# What a full probe costs, corrected: 61 rows render 4,415 characters on a
+# real 2,871-symbol index (the diff review of 34c3e72, F2). The first estimate
+# of this comment, about 2,200, was taken on short grains and was half the
+# truth. A turn that probes and then reads therefore spends about 4.4k before
+# the source read starts, which is why the first source read of a turn has a
+# floor under it in `rota/core/runner.py`.
 PROBE_ROWS = 60
 
 
@@ -5673,9 +5680,15 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
                          "pattern='line_total')`."}]
     # The span is why the probe is worth a turn: `line_start` and `line_end`
     # are the arguments of the `code.source` that follows, so a name becomes a
-    # forty-line read instead of a four-hundred-line dump. A path grain carries
-    # the column's default, 0 and 0, and carries it explicitly -- `_as_table`
-    # drops a ragged row set back to JSON, which costs more than the two cells.
+    # forty-line read instead of a four-hundred-line dump.
+    #
+    # A path grain has no definition to point at, and it said 0 and 0. The
+    # brief tells the seat to read the span the probe gives, and
+    # `code.source(path, 0, 0)` slices `lines[0:0]` and returns nothing -- the
+    # `defs` map rescues a Python file and nothing rescues the rest (the diff
+    # review of 34c3e72, F6). The row says what to do instead, and it keeps
+    # both keys: `_as_table` drops a ragged row set back to JSON, which costs
+    # more than the two cells.
     # A definition before a file. `build` gives every symbol a fan-in of 0
     # (`rota/onboarding/indexer.py:456`), so ordering by fan-in alone put every
     # matching path above every matching definition, and a broad pattern could
@@ -5688,6 +5701,9 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
         "ORDER BY CASE grain_kind WHEN 'symbol' THEN 0 ELSE 1 END, "
         "fan_in DESC, grain LIMIT ?", (f"%{pattern}%", PROBE_ROWS)))
     if hits:
+        for row in hits:
+            if row["grain_kind"] != "symbol":
+                row["line_start"], row["line_end"] = "whole file", ""
         total = ctx.conn.execute(
             "SELECT COUNT(*) AS n FROM code_index WHERE grain LIKE ?",
             (f"%{pattern}%",)).fetchone()["n"]
@@ -5695,10 +5711,14 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
             # The note is a row of the same shape, so the table survives. It
             # does not offer a next range, because this op has no range
             # argument: the only way to see the rest is a narrower pattern.
-            hits.insert(0, {"grain": f"{total} grains match '{pattern}' and the "
-                                     f"{len(hits)} with the most fan-in are "
-                                     f"below. The pattern is too broad. Probe "
-                                     f"a longer name to reach the rest.",
+            # It says the order it actually used: every symbol has a fan-in of
+            # 0, so the definitions come back in name order and the files after
+            # them by fan-in (the diff review of 34c3e72, F7).
+            hits.insert(0, {"grain": f"{total} grains match '{pattern}'. The "
+                                     f"{len(hits)} below are the definitions in "
+                                     f"name order, then the files by fan-in. "
+                                     f"The pattern is too broad. Probe a longer "
+                                     f"name to reach the rest.",
                             "grain_kind": "", "area": "", "fan_in": "",
                             "line_start": "", "line_end": ""})
         return hits

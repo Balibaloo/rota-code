@@ -1142,6 +1142,118 @@ def test_a_result_with_no_room_left_is_named_rather_than_stubbed(db, worktree):
     assert "VALUE_0800" not in block, "the withheld result was served anyway"
 
 
+def test_a_withheld_result_is_not_remembered_as_an_answer(db, worktree):
+    """
+    The withholding sentence is the same sentence for every call, so a key
+    withheld twice compared equal to itself and the seat was told the answer
+    was unchanged since it asked -- about a result it had never been shown.
+    The same registration cleared `fresh_read`, so the hold stopped holding
+    (the diff review of 34c3e72, F1).
+    """
+    (worktree / "src" / "big.py").write_text(_wide_file(1300))
+    # The two reads move each turn, so each turn fills its own room and the
+    # third call is withheld twice. A repeated read costs a line, which would
+    # leave room the second time and hide the fault.
+    def reply(at):
+        return (f"TOOL: code.source(path='src/big.py', start={at}, end={at + 400})\n"
+                f"TOOL: code.source(path='src/big.py', start={at + 400}, "
+                f"end={at + 800})\n"
+                f"TOOL: criteria.load(batch_id='b1')")
+
+    backend = ScriptedBackend([reply(0), reply(100), "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    first = backend.calls[1][1].split(reply(0))[-1]
+    second = backend.calls[2][1].split(reply(100))[-1]
+    assert "OK criteria.load -> ran, and this turn has no room left" in first, first[-400:]
+    assert "OK criteria.load -> ran, and this turn has no room left" in second, \
+        "the second withholding was answered as an unchanged result"
+    assert "OK criteria.load -> unchanged" not in second, \
+        "the seat was told a result it has never seen has not changed"
+
+
+def test_a_read_after_a_write_still_holds_nothing(db, worktree):
+    """
+    `forget` discarded the key from `already_run` too, and `already_run` drives
+    `fresh_read`. So the read of a written path became outstanding again and
+    the next [read, write] batch held the write that used to run. A seat
+    re-sending that batch oscillates: run, held, run, held (the diff review of
+    34c3e72, F3).
+    """
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    write = ("TOOL: code.write(path='src/acct.py', text='def delete(x):"
+             "\n    return \"one\"\n')")
+    again = ("TOOL: code.source(path='src/acct.py')\n"
+             "TOOL: code.write(path='src/acct.py', text='def delete(x):"
+             "\n    return \"two\"\n')")
+    backend = ScriptedBackend([
+        "TOOL: code.source(path='src/acct.py')", write, again, "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    assert backend.calls[3][1].count("NOT RUN") == 0, \
+        "the write was held behind a read the session had already been answered"
+    assert '"two"' in (worktree / "src" / "acct.py").read_text(), \
+        "the second write never ran"
+
+
+def test_one_repeat_refusal_a_turn_however_many_copies_arrive(db):
+    """
+    The refusal is longer than the line it replaces: 149 characters against 90
+    for `surveys.consult`. Session s71 sent 331 calls in one reply, so 327
+    copies of it grew the prompt both repairs exist to shrink (the diff review
+    of 34c3e72, F4). One sentence is the warning.
+    """
+    for i in range(20):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "vision_keeper", "scope " + "detail " * 20))
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend(["\n".join([ask] * 5), "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert outcome.committed, outcome.errors
+    block = backend.calls[1][1]
+    assert block.count("asked three times") == 1, block.count("asked three times")
+    assert block.count("unchanged since you asked") == 1, "the second copy is the line"
+    assert len([e for e in outcome.errors if "repeat refused" in e]) == 1, \
+        outcome.errors
+
+
+def test_fit_pays_for_the_notice_it_inserts(db):
+    """
+    The packing loop reserved nothing for its own eviction notice, so the
+    transcript came back over the budget and `_cap_exchange` read the deficit
+    as room it could lend. `_exchange_cut` promises a number a test can assert
+    (the diff review of 34c3e72, F5).
+    """
+    from rota.core.runner import _fit
+
+    # Sized so the packing fills its room exactly: the middle blocks divide it
+    # with two characters to spare, and the latest exchange is small enough
+    # that `_cap_exchange` lends its floor rather than cutting. That is the
+    # shape the 116-character overrun was measured on.
+    tight = (["W" * 500] + ["m" * 420 for _ in range(12)]
+             + ["r" * 48, "r" * 48])
+    fitted = _fit(list(tight), budget=4000)
+    assert sum(len(b) + 2 for b in fitted) <= 4000, \
+        f"over the budget by {sum(len(b) + 2 for b in fitted) - 4000}"
+    assert any("dropped to fit" in b for b in fitted), "nothing was evicted"
+    assert fitted[-2:] == tight[-2:], "the latest exchange was cut instead"
+
+    for budget in (4000, 6000, 12000):
+        blocks = ["WAKE " + "w" * 900] + [f"turn {i} " + "x" * 1200
+                                          for i in range(1, 21)]
+        fitted = _fit(blocks, budget=budget)
+        assert sum(len(b) + 2 for b in fitted) <= budget, \
+            f"over the budget at {budget}: {sum(len(b) + 2 for b in fitted)}"
+        assert any("dropped to fit" in b for b in fitted), "nothing was evicted"
+        assert fitted[-1] == blocks[-1], "the latest results went instead"
+
+
 def test_a_probe_and_a_source_read_both_survive_one_turn(db, worktree):
     """
     The case the total is sized around. A probe of 60 rows renders about 2,200

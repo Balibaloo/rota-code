@@ -483,6 +483,13 @@ def _render_cut(text: str, limit: int) -> str:
             f"characters) did not fit the window. Ask for what you need.")
 
 
+def _dropped_note(dropped: int) -> str:
+    """What the middle eviction leaves in place of the blocks it took."""
+    return (f"[{dropped} earlier exchange(s) dropped to fit the window. "
+            f"Your instructions and your latest results are intact; "
+            f"re-read anything you still need.]")
+
+
 # The floor under a cut exchange. Two thousand characters is about 500 tokens:
 # enough for the seat's own last sentence and one result to survive as
 # something to act on.
@@ -600,7 +607,13 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
         return _cap_exchange(transcript, budget)
 
     head, tail = transcript[:1], transcript[-2:]
-    room = budget - sum(len(t) + 2 for t in head + tail)
+    # The notice is part of the prompt, so the packing pays for it. Unreserved,
+    # the transcript came back up to 116 characters over the budget and
+    # `_cap_exchange` read the deficit as room it could lend (the diff review
+    # of 34c3e72, F5). Reserved at the longest it can be, which is the notice
+    # for every block dropping.
+    room = (budget - sum(len(t) + 2 for t in head + tail)
+            - len(_dropped_note(len(transcript))) - 2)
     middle: list[str] = []
     for block in reversed(transcript[1:-2]):
         if room - len(block) - 2 < 0:
@@ -611,10 +624,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     dropped = len(transcript) - len(head) - len(middle) - len(tail)
     if not dropped:
         return _cap_exchange(transcript, budget)
-    return _cap_exchange(
-        head + [f"[{dropped} earlier exchange(s) dropped to fit the window. "
-                f"Your instructions and your latest results are intact; "
-                f"re-read anything you still need.]"] + middle + tail, budget)
+    return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail, budget)
 
 
 def _as_table(result: Any) -> str | None:
@@ -1921,9 +1931,22 @@ def run_session(
         by_path: dict[str, set[str]] = {}
 
         def forget(path: str) -> None:
-            """Drop what a path answered. A write makes those answers false."""
+            """
+            Drop what a path answered. A write makes those answers false.
+
+            `already_run` is left alone, and that is the whole of the rule:
+            section 9.3 rules the path index is for invalidation only and the
+            hold keeps today's semantics exactly. `already_run` drives
+            `fresh_read`, so discarding a key made the read of a written path
+            outstanding again, and the next [read, write] batch held the write
+            that used to run. A seat re-sending that batch oscillates: run,
+            held, run, held (the diff review of 34c3e72, F3).
+
+            The staleness still works without it. The call is still a repeat,
+            `answered` no longer holds a render to match, so nothing can equal
+            the fresh one and the new result is served.
+            """
             for gone in by_path.pop(_norm_path(path), ()):
-                already_run.discard(gone)
                 answered.pop(gone, None)
                 repeated.pop(gone, None)
 
@@ -2132,6 +2155,12 @@ def run_session(
                               max(budget - len(transcript[0])
                                   - len(completion.text) - 6 - _CUT_NOTE_CHARS,
                                   _MIN_EXCHANGE))
+            # The turn's first source read takes its own cap whatever the room
+            # says: see the floor at the render below.
+            source_served = False
+            # One repeat refusal per key per turn. The copies are the fault it
+            # exists to stop, and each one is longer than the line it replaces.
+            refused_keys: set[str] = set()
             if cut_note:
                 feedback.append(f"ERROR reply cut: {cut_note}")
             held = []
@@ -2262,14 +2291,25 @@ def run_session(
                     # the turn's room binds comes back inside that room. A
                     # result its own cap binds keeps the whole cap: the
                     # reserve at the top of the turn covers that one.
-                    cap = min(SOURCE_CHARS if call.name == 'code.source'
-                              else RESULT_CHARS,
-                              max(result_room - _CUT_NOTE_CHARS, 0))
-                    shown = (_render(result, cap) if cap >= MIN_RESULT_CHARS else
-                             f"ran, and this turn has no room left for its "
+                    #
+                    # The turn's first source read is the exception: it takes
+                    # SOURCE_CHARS whatever the room holds. `_fit` lets the
+                    # wake reach two thirds of the budget, and at that size the
+                    # room falls to 5,491 -- under the 6,000 at which the 9B
+                    # re-asked a cut span five times and never wrote (the note
+                    # at `SOURCE_CHARS` above). Repair 3 is here to stop the
+                    # *second* source read, and a floor under the first still
+                    # does that. `_cap_exchange` absorbs the overrun.
+                    limit = (SOURCE_CHARS if call.name == 'code.source'
+                             else RESULT_CHARS)
+                    cap = (limit if call.name == 'code.source' and not source_served
+                           else min(limit, max(result_room - _CUT_NOTE_CHARS, 0)))
+                    withheld = cap < MIN_RESULT_CHARS
+                    shown = (f"ran, and this turn has no room left for its "
                              f"result ({min(TURN_RESULT_CHARS, budget):,} "
                              f"characters of results already). Ask for it "
-                             f"again in your next turn, on its own")
+                             f"again in your next turn, on its own"
+                             if withheld else _render(result, cap))
                     # The answer is the same answer, or it is not. Nothing else
                     # decides the line below, so read-after-write needs no case
                     # of its own.
@@ -2278,16 +2318,25 @@ def run_session(
                     # first, a call that failed and was then sent again with
                     # identical arguments had its success swallowed by the
                     # repeat line (frame 43, 2026-09-19).
-                    already_run.add(key)
-                    answered[key] = shown
-                    # A write is never indexed by the path it writes, so no
-                    # invalidation reaches it. A commit changes what a read of
-                    # that path returns; it does not change what the write that
-                    # landed it returns. Indexed, a commit dropped the key of
-                    # the write in its own reply, and the next identical write
-                    # paid full freight again (frame 43, pass 2, 2026-09-19).
-                    if call_path and call.name != "code.write":
-                        by_path.setdefault(call_path, set()).add(key)
+                    #
+                    # A withheld result is registered by nothing. The sentence
+                    # above is the same sentence for every call, so a second
+                    # withholding of the same key compared equal to the first
+                    # and the seat was told the answer was unchanged since it
+                    # asked -- about a result it had never been shown (the diff
+                    # review of 34c3e72, F1).
+                    if not withheld:
+                        already_run.add(key)
+                        answered[key] = shown
+                        # A write is never indexed by the path it writes, so no
+                        # invalidation reaches it. A commit changes what a read
+                        # of that path returns; it does not change what the
+                        # write that landed it returns. Indexed, a commit
+                        # dropped the key of the write in its own reply, and
+                        # the next identical write paid full freight again
+                        # (frame 43, pass 2, 2026-09-19).
+                        if call_path and call.name != "code.write":
+                            by_path.setdefault(call_path, set()).add(key)
                     if unchanged and repeated.get(key, 0) >= 1:
                         # The third identical call, refused. Session s71 sent
                         # 331 calls in one reply on both nights, 327 of them
@@ -2296,22 +2345,34 @@ def run_session(
                         # Counted like any other refusal: the refusal counter is
                         # the only guard that stops a seat that repeats its
                         # calls while varying the prose around them.
+                        #
+                        # Once per key per turn, and the later copies get no
+                        # line at all. The refusal is longer than the line it
+                        # replaces -- 149 characters against 90 for
+                        # `surveys.consult`, 173 against 86 for `code.source` --
+                        # so 327 copies of it grew the very prompt repair 2 and
+                        # repair 3 exist to shrink (the diff review of 34c3e72,
+                        # F4). One sentence is the warning. The copies are the
+                        # fault.
                         why = ("asked three times this session and the answer "
                                "has not changed; not answered again")
                         repeated[key] = repeated.get(key, 0) + 1
-                        # The name goes after the colon. `rota/testkit/
-                        # fixtures.py:913` reads a dotted prefix as a call a
-                        # guard threw out and takes it off the forbidden-call
-                        # score, and this call ran: the refusal is of the
-                        # answer, not of the act.
-                        outcome.errors.append(f"repeat refused: {call.name} {why}")
-                        turn_refusals.add((call.name, why[:160]))
-                        seat_refusals = getattr(sb.ctx, "refusals", None)
-                        if seat_refusals is not None:
-                            seat_refusals.append((call.name, why, "Repeat"))
-                        feedback.append(
-                            f"ERROR {_call_tag(call, len(calls))}: {why}. Use "
-                            f"the answer above, or finish without it.")
+                        if key not in refused_keys:
+                            refused_keys.add(key)
+                            # The name goes after the colon. `rota/testkit/
+                            # fixtures.py:913` reads a dotted prefix as a call a
+                            # guard threw out and takes it off the forbidden-call
+                            # score, and this call ran: the refusal is of the
+                            # answer, not of the act.
+                            outcome.errors.append(
+                                f"repeat refused: {call.name} {why}")
+                            turn_refusals.add((call.name, why[:160]))
+                            seat_refusals = getattr(sb.ctx, "refusals", None)
+                            if seat_refusals is not None:
+                                seat_refusals.append((call.name, why, "Repeat"))
+                            feedback.append(
+                                f"ERROR {_call_tag(call, len(calls))}: {why}. Use "
+                                f"the answer above, or finish without it.")
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
@@ -2348,6 +2409,7 @@ def run_session(
                         # line carries is charged with it.
                         result_room = max(
                             0, result_room - len(shown) - len(call.name) - 7)
+                        source_served = source_served or call.name == 'code.source'
                         feedback.append(f"OK {call.name} -> {shown}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
