@@ -940,6 +940,41 @@ Rules:
   What remains: the `GAUNTLET-DONE` line, the final numbers on the whole night,
   a copy of the database to `.rota/clickI_night87.db`, the closing status with
   the actuals, and both worktrees removed.
+- Status 2026-09-19 17:35 (rota-95): **all four numbers now beat night 86, on
+  1446 model turns against night 86's 825. The frame's ends-when is met as
+  written.** The night is still on sentence 1 after two hours and a quarter,
+  and it has already produced 275 sessions against night 86's 203. The
+  database is copied to `.rota/clickI_night87_partial.db`, 30.7 MB, because the
+  night script keeps one generation and the launch after next destroys it.
+
+  | number | night 86 | night 87 at 1446 turns |
+  | --- | ---: | ---: |
+  | middle evicted | 297 of 825, 36.0 per cent | 450 of 1446, 31.1 per cent |
+  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 1446, 5.9 per cent, and 71 true wake cuts is 4.9 |
+  | sessions cut by the server | 15 of 203 | 0 of 275 |
+  | tokens discarded | 179117 | 0 |
+  | largest prompt | 27155 tokens | 8191 tokens |
+
+  **The wake-cut count is frozen at 85 and has not moved since 780 turns**
+  (observed: two readings of the same probe an hour apart). So every wake cut
+  happened during onboarding and none has happened since. As a rate it keeps
+  falling, so number 2 is clearly better and not flat, which corrects this
+  session's reading of an hour ago.
+  Middle eviction rose as a rate between the two readings, 27.2 to 31.1 per
+  cent, and that is the expected direction: a session that is no longer cut
+  lives longer, so more sessions pass four blocks and evict a middle. It still
+  beats night 86.
+  **The wall cost is real and Roman accepted it in advance** (observed: the
+  night's own clock, and design point 2 of 2026-09-18, "the whole page is kept
+  and the cost is paid in turn speed"). Onboarding took 34 minutes. Sentence 1
+  has run two and a quarter hours and is not done, where nights 49 and 50
+  merged sentence 1 in about 40 minutes. The cause is the same property that
+  bought the result: sessions are not truncated, so they keep working instead
+  of dying. A night is now a much longer night.
+  **This frame is ready for Roman to declare finished.** The ends-when asks
+  that four context numbers beat night 86's with zero sessions cut by the
+  server. All four beat it, the cut count is zero, and no turn of 1446 came
+  within a third of the window.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
