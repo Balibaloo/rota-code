@@ -23,6 +23,20 @@ they need the virtual environment.
 | `p_index.py` | a pre-change database through the new `init_db`, then the probe's render size. | the migration, and the probe at 4415 characters |
 | `p_modes.py`, `p_modes2.py`, `p_md.py` | every `.tools` file against the graph's grants, and the 11 brief lines compared for identity. | repair 1's 11 modes |
 | `measure_turn.py` | the arithmetic behind `TURN_RESULT_CHARS`. | repair 3's number |
+| `p_window.py` | a model's size, its VRAM and its spill at a window, from `/api/ps` after a one-token generate. | ends-when line 1, the evidence that 16384 does not spill |
+
+The window measurement, taken on 2026-09-19 12:55 by session 9a9a20bf on the
+3080 at one slot, idle, with nothing else loaded:
+
+| model | window asked | window allocated | size | spill |
+| --- | ---: | ---: | ---: | ---: |
+| qwen3:8b, the night's default | 16384 | 16384 | 6.89 GB | 0.00 GB |
+| qwen3.5:9b, the four judging desks | 16384 | 16384 | 5.50 GB | 0.00 GB |
+
+Three facts from that run. Neither of the night's models spills at 16384. The
+second model evicts the first, so the two never sum on this card. Both numbers
+are below section 8's table, 6.89 against 7.40 and 5.50 against 5.91, so the
+recommended window has more headroom than the design record claimed.
 
 Two limits, stated where the record states them. The spans are verified against
 Python only, so the other grammars in `languages.LANGUAGES` are unexercised. The
