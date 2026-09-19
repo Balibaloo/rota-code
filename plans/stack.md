@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 43. Review the context length management system (2026-09-18) (Roman) [4286e076]
+### 43. Review the context length management system (2026-09-18) (Roman) [UNCLAIMED, handed off 2026-09-19 12:35]
 
 - Rota workflow. Today one window size, 12288, serves every wake, and a
   prompt that exceeds it collapses to half and loses its brief from the
@@ -678,8 +678,29 @@ Rules:
   only, 77 of 77 symbols matching `ast`. The other grammars in
   `languages.LANGUAGES` are unexercised.
 
-  **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65).**
-  Read this before you claim frame 43.
+- Status 2026-09-19 12:35 (rota-65): **HAND-OFF. Session 4286e076 releases
+  frame 43 at the stack commit below, on Roman's word.** The code is
+  complete, committed and gated. The tree is clean. Nothing is in flight.
+  The frame is released at 336k of context, not at the 400k the brief
+  names, because Roman ruled the hand-off rather than the window rise
+  (ruled: Roman, 2026-09-19, "Letshand over"). The reason it was offered:
+  the night takes two hours of wall and this session could have started it
+  but not finished diagnosing it.
+  Spent, walls apart, against the 616k estimate: design review 107763,
+  adversary 740875 in eight agents, the red's diagnosis 60883, diff review
+  130728, implementer 433322 over six passes, the assistant's own gate and
+  re-record runs about 60k. **1533k in agents, about 100k in this
+  context.** The overrun is the adversary and the diff review, and neither
+  is regretted: the adversary overturned the headline diagnosis and two of
+  the review's own fix lines, and the diff review found an own-goal where
+  two repairs together grew the prompt they exist to shrink.
+  What this frame bought, measured: the suite is one red better than its
+  baseline and 26 tests richer, and the red that went green is
+  `L1-VK-reconcile-the-readme`, the mode of session s10, which is the
+  session the whole frame was written from.
+
+  **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65),
+  updated 12:35 at the hand-off.** Read this before you claim frame 43.
 
   1. **State, updated 11:55.** All four repairs and all seven diff-review
      fixes are committed. The tree is clean and the review worktree is
