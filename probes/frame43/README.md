@@ -65,6 +65,26 @@ The count is a floor by design. A session that fails later loses its note
 prints the reconstruction beside the note count so a later night cannot hide
 one.
 
+## What the window rise can and cannot buy
+
+The frame's ends-when asks for zero sessions cut by the server. **The window
+rise alone cannot deliver it** (observed: session 9a9a20bf, the prompt
+estimates in night 86's own 15 notes).
+
+Twelve of the fifteen noted prompts are above 16384 tokens. The rise from
+12288 to 16384 clears two of the fourteen real cuts, s24 at 14511 tokens and
+s142 at 13967. The largest is s71 at 27155 tokens, then s17 at 26007, and ten
+more between 17556 and 19883.
+
+So a night that shows zero cuts shows the four repairs working, not the
+window. The window is headroom. This is the prediction to hold the night
+against, and it names the sessions to read first if the night still shows a
+cut.
+
+The three largest prompts are the sessions the repairs were written from. s71
+is cited in repair 2's commit message and in repair 3's comment. s10, at 19216
+tokens, is the `vision_keeper/reconcile` session that repair 1 exists for.
+
 Two limits, stated where the record states them. The spans are verified against
 Python only, so the other grammars in `languages.LANGUAGES` are unexercised. The
 `_fit` fuzz uses random text, not real transcripts, so it bounds the shape and
