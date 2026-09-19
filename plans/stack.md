@@ -476,6 +476,60 @@ Rules:
   30k: 1113k. The adversary is the overrun and it is not regretted, because
   it overturned the headline diagnosis and two of the review's fix lines.
   Next: the spans pass, then repair 1, then repairs 3 and 4.
+- Status 2026-09-19 07:54 (rota-65): **pass 3, the symbol spans, is in.**
+  50325 tokens against a 110k cap, 228483 cumulative for the agent over
+  three passes, 40 tool calls (observed: the harness usage). Five files,
+  189 insertions. The implementer's gate: 22 failed, 1927 passed, zero new
+  reds, zero stale. The arithmetic closes, 1915 plus 7 plus 5 is 1927, and
+  the 22 are the baseline's own. The assistant's own gate runs now.
+  `code_index` gains `line_start` and `line_end`, the parser keeps the
+  definition node's span at `rota/onboarding/indexer.py:131`, `build`
+  writes them, the migration sits in `init_db` behind `_has_column`, and
+  `code.probe` returns them capped at 60 rows with a note when the pattern
+  matched more.
+  Three deviations, all accepted. The sharpest: `SCHEMA_MARK` did not move,
+  because the mark refuses a database outright and a migrated database is
+  not behind the schema (reasoned: the implementer, and the comment in
+  `init_db` states it).
+  **The entanglement risk with frame 33 did not fire, and it is now
+  measured** (observed: the implementer's read of
+  `rota/onboarding/indexer.py:479-484`). The freshness aggregate reads
+  `grain`, `area` and `content_hash` of path grains only, and a path
+  grain's span is constant at 0, so no area hash moves and no attested
+  survey reopens. `refresh` needs no change, because both of its paths call
+  `build`, which deletes and rewrites every row. A test pins it.
+  **One real finding inside frame 33's code, left unfixed on purpose**
+  (observed: the implementer, `rota/onboarding/indexer.py:454` and the
+  `stack.pop()` walk): `build` uses `INSERT OR IGNORE` and the parser does
+  not visit definitions in source order, so a file that defines one name
+  twice stores an arbitrary one of them. Before this pass that only decided
+  `sym_kind`. Now it decides which lines a seat reads. The fix is a design
+  choice between the first definition, the largest, or one grain per
+  definition. It is frame 33's code and it is not this pass's to make.
+  **A defect this pass introduced, folded into pass 4**: the probe orders
+  by `fan_in DESC` and `build` gives every symbol a fan-in of 0, so every
+  matching path sorts above every matching symbol. With the new 60-row cap
+  a broad pattern can spend the whole cap on paths and return no definition
+  at all, which defeats the probe's new purpose. Pass 4 orders symbols
+  first, and pays one re-record for both changes instead of two.
+- Status 2026-09-19 08:10 (rota-65): **the spans are committed at 9881938
+  and pass 4, repair 1, is out, cap 120k.** The assistant's own gate: 23
+  failed, 1926 passed, zero stale, 628.1 s (observed: the gate's five
+  lines, read whole). The arithmetic closes: 1915 plus 12 new tests is
+  1927, less one flake is 1926, and 22 baseline reds plus that flake is 23.
+  **A correction to this session's own operating fact.** At 04:30 this
+  session wrote that a fan-out of agents flakes the timing cases, from one
+  case. Two more have since flaked in the same file, one of them with
+  nothing else running. Three different tests of `tests/rota/test_screens.py`
+  flaked across five gate runs today, and the gate named and re-ran all
+  three green. So the file is flaky and load is not the cause. The line in
+  `plans/operating-facts.md` is rewritten to say that, and it says what it
+  used to claim.
+  Pass 4 carries the trap that would have made repair 1 a silent no-op, the
+  14 modes, the per-mode brief line rather than `base.md` at 4.5 times the
+  re-record, the ordering fix from pass 3, and the guard that was missing:
+  a test that every op named in every `.tools` file is granted by the
+  graph.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
