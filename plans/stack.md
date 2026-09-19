@@ -385,6 +385,34 @@ Rules:
   The 14 re-record now. Section 9.5 priced 18 to 47 recordings.
   Section 9.6's open number is resolved and the record says so: the price
   agent's 8 stale L1 cases do not reproduce under the gate's pins.
+- Status 2026-09-19 06:21 (rota-65): **the re-record earned back 13 of the
+  14, and the fourteenth is a real red that repair 2 caused.** The
+  re-record wrote 27 cassettes in 2m42s and replayed 1833 (observed: the
+  recorder's own line). The gate then found one new red, not flaky:
+  `ACT-DV-edit-inside-the-function`, 0 of 5 runs, needing 4, with
+  "forbidden call to `msg.challenge_tester`" on every run. A stale case
+  reads as "no recording for the current prompt". This one answers and
+  answers wrongly, so it is a behaviour change and not a missing cassette.
+  The working hypothesis, not yet the cause: repair 2 refuses a third
+  identical call with "asked three times this session and the answer has
+  not changed; not answered again", and the Developer escalates to
+  challenging the tester instead of finishing. A read-only agent is
+  reading the newly recorded turns against the previous ones, because
+  CLAUDE.md says a cause goes on the stack only after the failing
+  session's turns are read.
+  **The spans pass is cheaper than this session told Roman.** `refresh`
+  does not write index rows. Both of its paths call `build` (observed:
+  `rota/onboarding/indexer.py:559`, `:579`), and the only column `refresh`
+  writes itself is `area`. Both `INSERT INTO code_index` statements are in
+  `build`. So the span columns land in `build` and `refresh` inherits
+  them. The entanglement with frame 33's unwalked code is much smaller
+  than the reviewer's phrase "not cheap in the write path" implied, and
+  this session passed that phrase on without checking which function
+  writes. The migration pattern already exists at
+  `rota/llm/cassettes.py:93-100`.
+  A meta note for the next peer: do not pipe `python -m rota.tools.gate`
+  through `tail`. This session did, and cut the five lines CLAUDE.md says
+  to read (observed: the run at 06:05 kept only the traceback re-run).
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
