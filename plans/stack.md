@@ -341,6 +341,50 @@ Rules:
      now measured rather than preferred.
   Next: the implementer's brief from section 9, then pass 1. The gate
   re-baselines first on a quiet machine.
+- Status 2026-09-19 05:54 (rota-65): **the gate is re-baselined clean and
+  pass 1 is in and accepted.**
+  The baseline is now `f3a7e41`, a committed tree: 22 failed, 1915 passed,
+  zero new reds, zero stale, 497.0 s (observed: the gate's five lines).
+  That also confirms the flake of 04:30, because the same TUI test passes
+  on a quiet machine, 1915 against 1914.
+  **Roman ruled at 05:40: do the spans now** (ruled: Roman, 2026-09-19,
+  reversing the timing of his ruling 2 of the same day, not its reason).
+  The reason survives, because the spans do not edit frame 33's commit
+  `7e53796`. They add a commit above it, so frame 33's two reviews and its
+  gate stay valid for what they covered. The cost Roman accepted: the
+  write path is `rota/onboarding/indexer.refresh`, which is frame 33's
+  code, unwalked since 2026-09-17 (observed: `python -m rota.tools.map
+  table code_index`, 9 writers, 6 in `indexer.py`). A fault there at the
+  night is now harder to attribute between the two frames. The parser half
+  is cheap: the tree-sitter node and its start and end points are in hand
+  one line before the span is dropped (observed:
+  `rota/onboarding/indexer.py:131`).
+  The spans run as a pass inside frame 43, not as a new frame, because
+  Roman ruled the repairs are one frame and one night measures the set.
+  The order is now: repair 2 (done), the spans, repair 1 at ten times
+  rather than five, repair 3, repair 4, one re-record, the night. The
+  frame re-prices by about +110k in agents for the spans pass.
+  **Pass 1, repair 2**: 136616 tokens on the harness line against a 120k
+  cap, 68 tool calls, 30 minutes (observed: the harness usage). 103 lines
+  in `rota/core/runner.py`, 152 in `tests/rota/test_runner.py`, five
+  pinned tests. The implementer stashed its change and re-ran the five:
+  three fail on the old runner, two pass as guards. Four deviations, all
+  accepted (reasoned: each states its cause, and the first is the sharpest
+  — the new refusal enters `sb.ctx.refusals` as `(name, why, "Repeat")`
+  because `rota/core/db.py:736` keys a derived re-ask on `"Wall"`).
+  Judged by spot reads from a context that never wrote the file: the key
+  is registered after the call at `:2158`, `call_key` is still the lookup
+  at both `:2116` and `:2137`, `by_path` only invalidates, the refusal is
+  a `feedback` line with no raise, and both files are LF with zero CR
+  bytes.
+  **The gate proved section 9.6 the hard way.** 36 failed against the 22
+  baseline, 14 new reds, and `stale (0): none`. Every one of the 14 is a
+  STALE report in its own traceback. The arithmetic closes: 1915 plus 5
+  new minus 14 staled is 1906. So the acceptance rule for this frame is to
+  classify every new red from its traceback, never from the stale line.
+  The 14 re-record now. Section 9.5 priced 18 to 47 recordings.
+  Section 9.6's open number is resolved and the record says so: the price
+  agent's 8 stale L1 cases do not reproduce under the gate's pins.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 

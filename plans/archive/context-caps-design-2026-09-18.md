@@ -642,13 +642,25 @@ CLAUDE.md says the stale line is part of every acceptance. For this frame the
 stale line is partly blind. Acceptance needs the replay suite's own result, not
 the stale count alone.
 
-One number is unresolved. The price agent's replay reports 8 of 117 L1 cases
-missing a recording under qwen3:8b, all Developer cases, each at a turn after
-the first. The gate on the same tree at 04:30 reported zero stale and no red
-among them. The gate is the instrument CLAUDE.md names, and the likely cause of
-the difference is the probe's own pins, because `_think_for` reads
-`ROTA_PROFILE` and a probe shell does not carry it. The implementer confirms
-this before the baseline, or the 8 read as frame 43's damage.
+**Resolved, 2026-09-19 05:54.** The price agent's replay reported 8 of 117 L1
+cases missing a recording under qwen3:8b, all Developer cases. The number does
+not reproduce. At the clean baseline `f3a7e41` the gate reported zero stale,
+and the implementer of pass 1 found all 14 of the cases it touched green
+before its change (observed: the implementer's pass 1 report, and the gate's
+own five lines at 05:22). The difference is the probe shell's own pins, because
+`_think_for` reads `ROTA_PROFILE` and a probe shell does not carry it. The 8
+are not frame 43's damage and they are not stale. **This is the second time in
+this frame that a measurement taken outside the gate disagreed with the gate.
+The gate's pins are the ones that count.**
+
+The blindness above is real and was confirmed the hard way. Pass 1 changed the
+transcript, and the gate reported `stale (0): none` while 14 L1 cases failed
+with "STALE: no recording for the current prompt" in their own tracebacks
+(observed: the gate's five lines at pass 1, 36 failed against a 22 baseline).
+The arithmetic closes exactly: 1915 baseline passes, plus 5 new tests, minus 14
+staled, is 1906. So the acceptance rule for this frame is: read the new reds
+and classify each as stale or red from its traceback. Never accept on the stale
+line alone.
 
 ### 9.7 The window rise and the monitor, corrected
 
