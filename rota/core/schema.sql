@@ -377,7 +377,14 @@ CREATE TABLE IF NOT EXISTS code_index (
     -- the rest. The freshness predicate compares aggregates of this column,
     -- which is what keeps it a pure query -- the filesystem was consulted
     -- once, by the indexer, and the database remembers.
-    content_hash TEXT NOT NULL DEFAULT ''
+    content_hash TEXT NOT NULL DEFAULT '',
+    -- Where the definition is, in the file the grain names; symbol grains
+    -- only, 0 and 0 for the rest. The parser has the span and threw it away,
+    -- so a seat that probed a name could only read the file at 400 lines a
+    -- time. The two numbers are what `code.source(path, start, end)` takes:
+    -- 0-based, and the end is one line past the definition.
+    line_start  INTEGER NOT NULL DEFAULT 0,
+    line_end    INTEGER NOT NULL DEFAULT 0
 );
 
 -- Each area's aggregate content, as main last stood. Stamped by onboarding and

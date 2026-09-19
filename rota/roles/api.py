@@ -5655,6 +5655,15 @@ def schedule_reask(ctx: Ctx, what_is_missing: str) -> dict:
 # reading it grants no contact to its author.
 # ---------------------------------------------------------------------------
 
+# How many grains one probe returns. It was 200, and 200 rows of the six
+# columns render past `RESULT_CHARS`: measured on a 1048-row index, a probe
+# rendered 5553 characters at the median and `option`, `test`, `click`,
+# `termui` and `tests` each hit the cap and truncated at about 6084. The two
+# span columns add about a quarter to a row. A truncated probe is the worst of
+# both: the seat pays for the rows and loses the tail without being told which.
+PROBE_ROWS = 60
+
+
 @op("code", "probe")
 def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
     if not (pattern or "").strip():
@@ -5662,10 +5671,29 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
                          "nothing. Probe by the name the failing test calls, "
                          "or the word you are tracing -- `code.probe("
                          "pattern='line_total')`."}]
+    # The span is why the probe is worth a turn: `line_start` and `line_end`
+    # are the arguments of the `code.source` that follows, so a name becomes a
+    # forty-line read instead of a four-hundred-line dump. A path grain carries
+    # the column's default, 0 and 0, and carries it explicitly -- `_as_table`
+    # drops a ragged row set back to JSON, which costs more than the two cells.
     hits = _rows(ctx.conn.execute(
-        "SELECT grain, grain_kind, area, fan_in FROM code_index "
-        "WHERE grain LIKE ? ORDER BY fan_in DESC LIMIT 200", (f"%{pattern}%",)))
+        "SELECT grain, grain_kind, area, fan_in, line_start, line_end "
+        "FROM code_index WHERE grain LIKE ? "
+        "ORDER BY fan_in DESC LIMIT ?", (f"%{pattern}%", PROBE_ROWS)))
     if hits:
+        total = ctx.conn.execute(
+            "SELECT COUNT(*) AS n FROM code_index WHERE grain LIKE ?",
+            (f"%{pattern}%",)).fetchone()["n"]
+        if total > len(hits):
+            # The note is a row of the same shape, so the table survives. It
+            # does not offer a next range, because this op has no range
+            # argument: the only way to see the rest is a narrower pattern.
+            hits.insert(0, {"grain": f"{total} grains match '{pattern}' and the "
+                                     f"{len(hits)} with the most fan-in are "
+                                     f"below. The pattern is too broad. Probe "
+                                     f"a longer name to reach the rest.",
+                            "grain_kind": "", "area": "", "fan_in": "",
+                            "line_start": "", "line_end": ""})
         return hits
     # Nothing matched, and the index of this batch may be the reason. The
     # lifecycle and the runner record a failed refresh under `index:<batch>`,

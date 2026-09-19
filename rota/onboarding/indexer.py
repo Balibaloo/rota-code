@@ -66,7 +66,8 @@ def _parser(language: str):
 @dataclass
 class FileFacts:
     path: str
-    symbols: list[tuple[str, str]] = field(default_factory=list)   # (name, kind)
+    # (name, kind, first line, one line past the last)
+    symbols: list[tuple[str, str, int, int]] = field(default_factory=list)
     imports: list[str] = field(default_factory=list)
     # What the file held, so the index can say later whether it still does.
     content_hash: str = ""
@@ -128,7 +129,15 @@ def parse_file(path: str, source: bytes, lang: Language) -> FileFacts:
             if name is not None:
                 from .languages import kind_of
 
-                facts.symbols.append((_text(name, source), kind_of(node.type)))
+                # The definition's span, not the name's: a reader wants the
+                # whole function. The numbers are the two `code.source(path,
+                # start, end)` takes, so a seat copies them straight into the
+                # read. Tree-sitter's points are 0-based and `end_point.row`
+                # is the last line of the definition, so the end is one past
+                # it (measured on the pack's Python grammar, 2026-09-19).
+                facts.symbols.append((
+                    _text(name, source), kind_of(node.type),
+                    node.start_point[0], node.end_point[0] + 1))
             # Do not descend: a method inside a class is the class's business,
             # and indexing every nested closure turns the index into the parse
             # tree with extra steps.
@@ -443,10 +452,12 @@ def build(conn: sqlite3.Connection, root: str | Path) -> IndexReport:
                 "INSERT INTO code_index (grain, grain_kind, fan_in, content_hash) "
                 "VALUES (?, 'path', ?, ?)",
                 (f.path, fan_in.get(f.path, 0), f.content_hash))
-            for symbol, kind in f.symbols:
+            for symbol, kind, line_start, line_end in f.symbols:
                 conn.execute(
-                    "INSERT OR IGNORE INTO code_index (grain, grain_kind, fan_in, sym_kind) "
-                    "VALUES (?, 'symbol', 0, ?)", (f"{f.path}::{symbol}", kind))
+                    "INSERT OR IGNORE INTO code_index "
+                    "(grain, grain_kind, fan_in, sym_kind, line_start, line_end) "
+                    "VALUES (?, 'symbol', 0, ?, ?, ?)",
+                    (f"{f.path}::{symbol}", kind, line_start, line_end))
                 report.symbols += 1
         conn.executemany("INSERT INTO code_edges (src, dst) VALUES (?, ?)",
                          sorted(edges))

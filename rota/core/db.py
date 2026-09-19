@@ -213,6 +213,15 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         conn.close()
         raise RuntimeError(stale)
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    # `executescript` adds a table, never a column, and a run database under
+    # `.rota/` outlives the schema. The symbol spans are added in place rather
+    # than behind `SCHEMA_MARK`, because the mark refuses a database outright
+    # and these two columns need no decision: the next refresh fills them, and
+    # 0 and 0 until then means the same as a path grain's default, no span.
+    for column in ("line_start", "line_end"):
+        if not _has_column(conn, "code_index", column):
+            conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
+                         f"INTEGER NOT NULL DEFAULT 0")
     conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                  (SCHEMA_KEY, SCHEMA_MARK))
     return conn

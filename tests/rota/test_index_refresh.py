@@ -332,6 +332,132 @@ def test_a_run_from_before_the_table_is_stamped_when_it_opens(tmp_path):
     gitfixture.cleanup(repo)
 
 
+# --- the symbol spans (frame 43, pass 3) ------------------------------------
+#
+# The index knew where every definition was and threw it away one line after
+# the parser found it, so a seat that probed a name could only read the file
+# four hundred lines at a time.
+
+
+def test_a_probe_returns_the_span_of_the_definition(world):
+    """
+    The two numbers are `code.source(path, start, end)`'s own arguments, so the
+    seat reads the function and not the file. 0-based, and the end is one line
+    past the definition.
+    """
+    db, repo, tree = world
+    _commit_the_new_function(db)
+
+    row = [r for r in _probe(db, "echo_json", batch_id="b1")
+           if r["grain"] == f"{NEW_FILE}::echo_json"][0]
+    start, end = row["line_start"], row["line_end"]
+    lines = NEW_BODY.splitlines()
+    assert lines[start].startswith("def echo_json"), lines[start]
+    assert end == len(lines), (start, end)
+
+    sb = build_sandbox("developer", db, batch_id="b1", mode="tests_failing",
+                       allow=prompts.mode_tools("developer", "tests_failing"))
+    out = sb.call("code.source", path=NEW_FILE, start=start, end=end)
+    assert out["text"].startswith("def echo_json"), out["text"]
+    assert "print(json.dumps(obj))" in out["text"], "the span stops short of the body"
+
+
+def test_a_path_grain_carries_no_span(world):
+    """A file is not a definition. Path grains take the column's default, and
+    they carry it rather than omitting it: a ragged row set drops `_as_table`
+    back to JSON, which costs more than the two cells."""
+    db, repo, tree = world
+    spans = {(r["line_start"], r["line_end"]) for r in db.execute(
+        "SELECT line_start, line_end FROM code_index WHERE grain_kind = 'path'")}
+    assert spans == {(0, 0)}, spans
+
+
+def test_a_refresh_keeps_the_span_of_a_symbol_the_batch_added(world):
+    """
+    `refresh` writes one column of its own, `area`. Every other column comes
+    from the `build` it calls first, so the spans are current by construction.
+    Pinned because frame 43 changed what `build` writes and frame 33 owns this
+    path.
+    """
+    db, repo, tree = world
+    _commit_the_new_function(db)
+    grain = f"{NEW_FILE}::echo_json"
+    before = db.execute(
+        "SELECT line_start, line_end FROM code_index WHERE grain = ?",
+        (grain,)).fetchone()
+    assert (before["line_start"], before["line_end"]) == (3, 5), dict(before)
+
+    indexer.refresh(db, tree, main=False, batch_id="b1")
+
+    after = db.execute(
+        "SELECT line_start, line_end, area FROM code_index WHERE grain = ?",
+        (grain,)).fetchone()
+    assert (after["line_start"], after["line_end"]) == (3, 5), dict(after)
+    assert after["area"], "the refresh restores the area over the rebuilt row"
+
+
+def test_a_database_from_before_the_spans_gains_the_columns(tmp_path):
+    """
+    `executescript` adds a table, never a column, and a run database under
+    `.rota/` outlives the schema. The columns arrive on the next open and the
+    rows already there are left where they are.
+    """
+    path = tmp_path / "rota.db"
+    db = init_db(path)
+    # The table as it stood before this change, written out. `DROP COLUMN`
+    # cannot make it: SQLite re-parses the stored CREATE text and the schema's
+    # comments leave a trailing comma behind the dropped column.
+    db.execute("DROP TABLE code_index")
+    db.execute("CREATE TABLE code_index ("
+               "grain TEXT PRIMARY KEY, "
+               "grain_kind TEXT NOT NULL CHECK (grain_kind IN "
+               "('path','symbol','table','route')), "
+               "area TEXT, fan_in INTEGER NOT NULL DEFAULT 0, "
+               "sym_kind TEXT NOT NULL DEFAULT '', "
+               "content_hash TEXT NOT NULL DEFAULT '')")
+    db.execute("INSERT INTO code_index (grain, grain_kind) VALUES ('src/a.py','path')")
+    db.commit()
+    db.close()
+
+    again = init_db(path)
+    have = {r[1] for r in again.execute("PRAGMA table_info(code_index)")}
+    assert {"line_start", "line_end"} <= have, have
+    rows = [tuple(r) for r in again.execute(
+        "SELECT grain, line_start, line_end FROM code_index")]
+    assert rows == [("src/a.py", 0, 0)], rows
+    again.close()
+
+
+def test_a_broad_probe_is_capped_and_says_which_way_out(world):
+    """
+    A truncated probe is the worst of both: the seat pays for the rows and
+    loses the tail without being told which. The cap is the op's, the note is
+    the op's, and the note offers no next range because the op has no range.
+    """
+    from rota.core.runner import RESULT_CHARS, _render
+    from rota.roles.api import PROBE_ROWS
+
+    db, repo, tree = world
+    for i in range(PROBE_ROWS + 40):
+        db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, "
+                   "line_start, line_end) VALUES (?, 'symbol', 'function', ?, ?)",
+                   (f"src/pkg/module_{i:03d}.py::render_{i:03d}", i, i + 12))
+    db.commit()
+
+    total = db.execute("SELECT COUNT(*) n FROM code_index "
+                       "WHERE grain LIKE '%render_%'").fetchone()["n"]
+    hits = _probe(db, "render_", batch_id="b1")
+    assert len(hits) == PROBE_ROWS + 1, "the cap, and one row saying so"
+    assert "too broad" in hits[0]["grain"], hits[0]
+    assert "next range" not in hits[0]["grain"], "this op has no range argument"
+    assert f"{total} grains match" in hits[0]["grain"], hits[0]
+    assert total > PROBE_ROWS, "the fixture did not overflow the cap"
+
+    shown = _render(hits)
+    assert len(shown) < RESULT_CHARS, len(shown)
+    assert "TRUNCATED" not in shown, "the cap must land before the renderer's"
+
+
 def test_an_empty_probe_says_when_the_index_is_behind(world):
     """The recorded reason reaches the role the stale index misleads."""
     db, repo, tree = world
