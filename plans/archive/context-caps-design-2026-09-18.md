@@ -6,7 +6,14 @@ back the parts the code answers differently.
 
 The scope is five read-only agents, 536k in agents, 282 tool calls, every claim
 carried with a file and a line (observed: the harness usage and
-`scratchpad/frame40/scope43.json`, kept for the implementer).
+`plans/archive/context-caps-scope-2026-09-18.json`, the five agents'
+reports, kept for the implementer).
+
+The scope report was written to a session scratchpad, which is deleted with
+the session. Session 9108c499 ended and its inbox is gone. The file was
+copied into the archive on 2026-09-19 (observed: session 4286e076 found the
+pointer dead from its own checkout and the file alive in the dead session's
+temp directory). **A record's pointer never names a session scratchpad.**
 
 ## 1. What exists today
 
