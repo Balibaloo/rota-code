@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 43. Review the context length management system (2026-09-18) (Roman)
+### 43. Review the context length management system (2026-09-18) (Roman) [4286e076]
 
 - Rota workflow. Today one window size, 12288, serves every wake, and a
   prompt that exceeds it collapses to half and loses its brief from the
@@ -182,6 +182,19 @@ Rules:
   context bound: whether the four repairs are one frame or four, and
   whether the designed budget of section 7 becomes its own frame now. The
   peer that takes this frame asks them before it writes code.
+- Status 2026-09-19 04:02 (rota-65): claimed by 4286e076 at 83d789a. The
+  hand-off came as Roman's paste, not as a peer message (observed: Roman,
+  2026-09-19, "session messaging for hand off is not working"). The two
+  grill questions go to Roman now, with a third the claim read found.
+  **The third: raising the window must not re-key the register.** The
+  cassette key holds `pins.num_ctx` (observed:
+  `rota/llm/cassettes.py:118`), and the register's `num_ctx` is unpinned,
+  so it takes `DEFAULT_NUM_CTX`, 12288 (observed: `rota/llm/llm.py:43`,
+  `tests/rota/test_l1.py:35`). An implementer that raises the constant
+  turns every L1 and L3 recording stale in one edit, which the frame's
+  90k does not carry. The window rises in the shipped profiles instead
+  (observed: `rota/llm/profiles/local.toml:12`), and the register keeps
+  its keys at zero cost. The implementer's brief must say so.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
