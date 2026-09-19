@@ -24,6 +24,7 @@ they need the virtual environment.
 | `p_modes.py`, `p_modes2.py`, `p_md.py` | every `.tools` file against the graph's grants, and the 11 brief lines compared for identity. | repair 1's 11 modes |
 | `measure_turn.py` | the arithmetic behind `TURN_RESULT_CHARS`. | repair 3's number |
 | `p_window.py` | a model's size, its VRAM and its spill at a window, from `/api/ps` after a one-token generate. | ends-when line 1, the evidence that 16384 does not spill |
+| `p_night.py` | the four context numbers of a night, from the night's database. Reproduces night 86's 297 of 825, 86, 15 and 179117 exactly. | the frame's ends-when, which compares a night against night 86 |
 
 The window measurement, taken on 2026-09-19 12:55 by session 9a9a20bf on the
 3080 at one slot, idle, with nothing else loaded:
@@ -37,6 +38,32 @@ Three facts from that run. Neither of the night's models spills at 16384. The
 second model evicts the first, so the two never sum on this card. Both numbers
 are below section 8's table, 6.89 against 7.40 and 5.50 against 5.91, so the
 recommended window has more headroom than the design record claimed.
+
+## The baseline of night 86, corrected
+
+`p_night.py` reproduces all four recorded numbers of night 86. It also finds
+four faults in them, and two change how a later night is read (observed:
+session 9a9a20bf verified the first fault with its own query).
+
+1. **One of the 15 cut sessions was not cut.** s168 reports `used = 12261` and
+   `estimate = 12111` against a 12288 window, so the prompt fit. It fired the
+   `used >= num_ctx * 0.98` clause at `rota/llm/llm.py:416`, not the overflow
+   clause. Its term in the discarded sum is minus 150 tokens. The true figures
+   are 14 cuts and 179267 tokens.
+2. **So "zero sessions cut" needs both numbers.** Report the note count and
+   the count of turns whose estimate exceeds the window. A prompt at 98 per
+   cent of the window reads as a cut and is not one. At 16384 that clause
+   fires at 16056.
+3. **Number 4 has no baseline before night 86.** Night 85's notes carry an
+   earlier format with no estimate, so the discarded tokens cannot be summed
+   there.
+4. **Number 2 compares by text, not by mechanism.** Night 85's two notices sit
+   at an offset its own budget explains and the current formula does not.
+
+The count is a floor by design. A session that fails later loses its note
+(`rota/core/runner.py:2826`). No cut was lost on either night, and the probe
+prints the reconstruction beside the note count so a later night cannot hide
+one.
 
 Two limits, stated where the record states them. The spans are verified against
 Python only, so the other grammars in `languages.LANGUAGES` are unexercised. The
