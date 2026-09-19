@@ -678,6 +678,41 @@ Rules:
   only, 77 of 77 symbols matching `ast`. The other grammars in
   `languages.LANGUAGES` are unexercised.
 
+  **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65).**
+  Read this before you claim frame 43.
+
+  1. **State.** All four repairs are committed. The frame's commits are
+     7045226 repair 2, 9881938 the spans, 5241cb9 repair 1, 34c3e72
+     repairs 3 and 4. A fix pass for the diff review's seven findings was
+     in flight when this block was written. **Check `git status` first**:
+     a dirty tree means that pass landed and was never committed, and its
+     report is lost with the session. If the tree is dirty and you have no
+     report, revert to the last commit and re-run the fix pass from the
+     seven findings above. Do not guess what the diff was for.
+  2. **What remains to close the frame.** The seven fixes, then the window
+     rise to 16384 with the spill monitor, which no pass has done, then
+     the night against night 86's four numbers.
+  3. **The window rise is the largest single cost in the frame and it has
+     a fork.** Raise it in the shipped profiles, never in
+     `DEFAULT_NUM_CTX`. The constant stales all 396 live recordings, about
+     two hours of model time. The profiles stale none. This is measured,
+     not reasoned. Section 9.7 carries three faults that must land with it.
+  4. **You cannot resume this session's implementer.** Its six passes of
+     context die with the session. Brief a fresh one from section 9 of the
+     design record and from the findings in the statuses above.
+  5. **The gate baseline is machine-local.** `.rota-gate.json` is
+     gitignored and stands at f3a7e41: 22 failed, 1915 passed, zero stale.
+     On another machine, re-baseline before you trust "zero new reds".
+  6. **Acceptance for this frame does not use the stale line.** It is
+     blind here: `num_ctx` and a mode prompt are in the cassette key and
+     not in `rota/tools/casestatus.py`'s match. Classify every new red
+     from its own traceback. Treat `test_screens.py` and
+     `test_arc_synthetic.py` as flaky until a re-run says otherwise.
+  7. **Clean up.** `git worktree remove C:/Users/roman/rota_review43`.
+  8. **The probes are kept**, in `probes/frame43/`, with a README that
+     says which finding each one measures. An agent's scratchpad dies with
+     its session, and this frame already lost one pointer that way.
+
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
 - Rota workflow. Today no single place answers the question "what may this
@@ -1106,6 +1141,15 @@ Rules:
   built, F1 parked.
 
 ## Parked
+
+- (observed: `git worktree list`, 2026-09-19) Four worktrees of two ended
+  sessions are still registered and still on disk, 583 files each:
+  `wt-33` of session 3b4093c6, and `wt-34`, `wt-36` and `wt-86` of session
+  75d12c2b. Both sessions are gone. The directories live under the
+  sessions' temp directories, so they break the moment temp is cleaned.
+  Meta workflow. `git worktree remove` each, or `git worktree prune` after
+  the directories go. Not removed by 4286e076, because another session's
+  worktree is not its to delete.
 
 - From frame 43's pass 2 (observed: the implementer's measurement):
   `code.write`'s result embeds `written, not committed`, which lists what
