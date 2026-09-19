@@ -646,6 +646,37 @@ Rules:
   already spills at 12288 and two of the eight profiles ship it, the fit
   table cannot tell 12288 from 16384 for qwen3.5:9b, and the monitor reads
   a bare `localhost:11434` so a Titan run measures the wrong card.
+- Status 2026-09-19 11:05 (rota-65): **the diff review found seven defects
+  and one of them is an own-goal. A fix pass is out, cap 80k.** The review
+  cost 130728 tokens against 90k priced, 61 tool calls, 12.7 minutes
+  (observed: the harness usage). It probed by running code: 120000 random
+  transcripts through `_fit`, every symbol of four real files against
+  Python's `ast`, and a pre-change database through the new `init_db`.
+  **F4 is the own-goal and only a diff review finds it.** The repeat
+  refusal is about twice the length of the "unchanged" line it replaces,
+  and repair 3 charges none of it against the turn. Measured at s71's 331
+  calls, its 327 repeat lines become 329 longer ones, 48723 characters
+  against 29430 for one op and 56571 against 28122 for another. **s71 is
+  the session cited in repair 2's commit message and in repair 3's own
+  comment, so the two repairs together grow the prompt they exist to
+  shrink.** The fix is to emit the refusal once per key per turn.
+  **F1, high**: a withheld result is registered as an answer, and every
+  stub is byte-identical, so a seat is told "the answer is above" for a
+  result it has never been shown, and four such turns end the session.
+  **F2, high**: `result_room` is charged against the wake, and `_fit` lets
+  the wake reach two thirds of the budget, so a source read can be cut to
+  5191 characters. That is below the 6000 that night 79 records as the
+  point where the 9B re-asked a cut span five times and never wrote. The
+  review also corrects pass 3's own number: a 61-row probe renders 4415
+  characters on a real 2871-symbol index, not the 2200 in the comment.
+  F3 medium, `forget` clears `already_run` and so moves the read-hold that
+  section 9.3 ruled must not move. F5 low, `_fit` overruns by its own
+  notice, 116 characters. F6 low, a path grain says its span is 0 and 0 and
+  the brief tells the seat to read it. F7 low, the note row names fan-in
+  where the rule is now alphabetical.
+  One limit of the review, stated: the spans are verified against Python
+  only, 77 of 77 symbols matching `ast`. The other grammars in
+  `languages.LANGUAGES` are unexercised.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
