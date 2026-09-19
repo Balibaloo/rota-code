@@ -267,6 +267,24 @@ Rules:
   with six refuters, one measurement of the re-record, and a completeness
   critic. The gate runs beside it on a quiet machine. The code tree has
   not moved since the trusted gate at 8b15af8.
+- Status 2026-09-19 04:30 (rota-65): **the gate is green on this tree and
+  the pre-code number is taken.** 23 failed, 1914 passed, 27 skipped,
+  zero stale, 521.9 s (observed: the gate's own five lines). One new red,
+  `test_screens.py::test_sorting_holds_the_view_you_had_scrolled_to`, and
+  the gate named it flaky and re-ran it green in 2.27 s. So the real
+  count is zero new reds and zero stale, which matches the trusted number
+  at 8b15af8.
+  **The flaky red has a cause, and it is mine** (reasoned: the gate ran
+  from 04:14 to 04:23, the adversary's agents started at 04:16, so the
+  two overlapped, and the test that flaked is a timing-sensitive TUI
+  test). `plans/operating-facts.md` already says the gate beside a night
+  flakes the timing cases. A fan-out of agents is the same load. The line
+  is added there.
+  The baseline in `.rota-gate.json` is still `e75e67d` from an
+  uncommitted tree of 2026-09-17, so the gate says the compare is not
+  commit to commit. It re-baselines on a quiet machine after the
+  adversary returns, so that every later acceptance in this frame
+  compares against a clean tree at a known commit.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
