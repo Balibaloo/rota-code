@@ -494,9 +494,30 @@ appears exactly twice, once for `architect` and once for `developer`).
 `rota/core/sandbox.py:506-515` drops a name the graph did not grant, in
 silence. So a `.tools` edit alone changes nothing for `critic`,
 `terminologist` or `vision_keeper`. Session s10, this record's headline
-evidence for repair 1, is `vision_keeper/reconcile`. Repair 1 as section 5
-briefed it would have gone green and done nothing for its own main customer.
-No test asserts that a `.tools` name is graph-granted.
+evidence for repair 1, is `vision_keeper/reconcile`. So the three grant edges
+are genuinely required, and section 5 did not name them.
+
+**Corrected 2026-09-19, after pass 4 (observed: the assistant's own read of
+`tests/rota/test_prompts.py:190`).** The rest of this finding was wrong and
+this record carried it for a day. The review said "no test asserts that a
+`.tools` name is graph-granted" and this session repeated it. A test does:
+`test_a_mode_narrowing_cannot_widen_the_role` walks every role, every mode and
+every `.tools` name against `build(role, conn).functions()`, which is the
+graph's grant. The implementer proved it by removing the `vision_keeper` edge
+and getting four failing lines.
+
+So repair 1 could not have shipped green. It would have gone red in the suite.
+The silent drop at `rota/core/sandbox.py:506-515` is real at runtime, and the
+suite catches it at the mode level before runtime.
+
+**The lesson is about this session, not about the reviewer.** The finding had
+two halves. This session checked the half that one grep settles, the graph's
+edges, confirmed it, and then repeated the other half on trust. A finding is
+not confirmed because part of it is.
+
+The one real gap the new test closes: `prompts.available()` globs `<role>/*.md`
+in the role's own directory, so the A/B variant `.tools` files under
+`<role>/<name>/` are enumerated by nothing and the old test cannot see them.
 
 The count is 19 `.tools` files, of which **14 are modes and 5 are A/B prompt
 variants** selected by `ROTA_PROMPTS` (observed: `rota/roles/prompts.py:42-59`,

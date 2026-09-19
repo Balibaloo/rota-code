@@ -530,6 +530,50 @@ Rules:
   re-record, the ordering fix from pass 3, and the guard that was missing:
   a test that every op named in every `.tools` file is granted by the
   graph.
+- Status 2026-09-19 09:30 (rota-65): **pass 4 is in and the suite is one
+  red better than the baseline.** 110691 tokens against a 120k cap, 331495
+  cumulative over four passes, 91 tool calls, 75 minutes (observed: the
+  harness usage). The implementer's gate: 21 failed, 1931 passed, zero new
+  reds, zero stale, and **one red gone,
+  `test_l1.py::test_l1_case[L1-VK-reconcile-the-readme]`**. That case is
+  `vision_keeper/reconcile`, the mode of session s10, which is the session
+  repair 1 exists for. The assistant's own gate runs now.
+  **A correction this session owes, and it reverses its own headline**
+  (observed: the assistant's read of `tests/rota/test_prompts.py:190`).
+  The status of 04:17 said repair 1 "would have shipped green and done
+  nothing" and that "no test asserts that a `.tools` name is graph-granted".
+  The second half is false. `test_a_mode_narrowing_cannot_widen_the_role`
+  walks every role, every mode and every `.tools` name against the graph's
+  grant, and the implementer proved it by removing an edge and getting four
+  failing lines. Repair 1 could not have shipped green. It would have gone
+  red.
+  What stands: `code.probe` was granted to `architect` and `developer` only,
+  so the three edges were genuinely required and section 5 did not name
+  them. The silent drop in `rota/core/sandbox.py` is real at runtime.
+  The lesson is this session's. The finding had two halves, this session
+  checked the half one grep settles and repeated the other on trust. A
+  finding is not confirmed because part of it is. Section 9.1 of the design
+  record carries the correction.
+  **Three of the 14 modes are held out, each measured 0 of 5 with the
+  probe** (observed: the implementer, three cases that were green at the
+  baseline): `terminologist/criteria`, `terminologist/survey` and
+  `architect/survey`. All three are already pushed the source they work
+  from, `[code.area]` or the callables list. A mode whose prompt already
+  carries the code does not need a search, and the paragraph offering one
+  costs the mode its output. Eleven modes shipped.
+  **The wording cost three cases and took three measured iterations.**
+  "Probe for a name before you read a file" was read by an 8B as "instead
+  of reading", and two survey cases went 0 of 5 by probing and never
+  reading. Adding "The probe finds the lines. It never replaces the read."
+  fixed that and exposed the next fault: the example `pattern='line_total'`
+  was copied out of the brief into an artefact, and a constraint shipped
+  with `line_total` as both its id and its headline. The line that shipped
+  names no identifier.
+  A fact worth keeping for any re-record: **reverting a prompt to its
+  committed text restores its recordings.** A mode put back replayed 30
+  cassettes, zero recorded, and went green (observed: the implementer, on
+  `architect/survey`). 101 cassettes were recorded across three wordings
+  and the register holds 18409 rows.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
