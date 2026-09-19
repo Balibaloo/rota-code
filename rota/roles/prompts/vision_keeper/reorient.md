@@ -22,6 +22,10 @@ three things is true:
 Two or three real revisions beat ten restatements. An item that was already
 right is left alone, and most should be.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 End with `surveys.attest(outcome="found", citations=[a path the account
 describes])` when you revised anything, or `outcome="none_found"` when the
 draft survived its own vocabulary — a real answer, and a good sign.

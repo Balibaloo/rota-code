@@ -8,6 +8,10 @@ mechanical — the diff's grains intersect a constraint's bindings — so the
 question is not "is there anything I dislike" but "does this diff satisfy or
 violate each constraint it touched".
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 `findings.find` per constraint checked: the constraint id, `satisfied` or
 `violated`, and the grain that brought it into range. Nothing else. There is no
 field for why, and that is not an oversight — your reasoning belongs in

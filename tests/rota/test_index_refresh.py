@@ -458,6 +458,31 @@ def test_a_broad_probe_is_capped_and_says_which_way_out(world):
     assert "TRUNCATED" not in shown, "the cap must land before the renderer's"
 
 
+def test_a_broad_probe_answers_with_definitions_before_files(world):
+    """
+    `build` gives every symbol a fan-in of 0, so an order by fan-in alone put
+    every matching path above every matching definition. With the 60-row cap a
+    broad pattern could spend the whole cap on paths and hand back no span,
+    which is the one thing the probe is now for.
+    """
+    from rota.roles.api import PROBE_ROWS
+
+    db, repo, tree = world
+    for i in range(PROBE_ROWS):
+        db.execute("INSERT INTO code_index (grain, grain_kind, fan_in) "
+                   "VALUES (?, 'path', ?)", (f"src/pkg/render_{i:03d}.py", 50 + i))
+    db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, line_start, "
+               "line_end) VALUES ('src/pkg/one.py::render_total','symbol',"
+               "'function',10,20)")
+    db.commit()
+
+    hits = _probe(db, "render_", batch_id="b1")
+    assert "too broad" in hits[0]["grain"], "the fixture did not overflow the cap"
+    assert hits[1]["grain_kind"] == "symbol", \
+        f"a definition sorts under {PROBE_ROWS} files: {[h['grain'] for h in hits[:3]]}"
+    assert hits[1]["line_start"] == 10 and hits[1]["line_end"] == 20
+
+
 def test_an_empty_probe_says_when_the_index_is_behind(world):
     """The recorded reason reaches the role the stale index misleads."""
     db, repo, tree = world

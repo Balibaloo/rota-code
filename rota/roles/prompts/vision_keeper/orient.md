@@ -26,6 +26,10 @@ ruling the principal makes — which is the point.
 `code.source` any file `[code.front]` names and did not show, if the front
 leaves the program unexplained.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 Then `surveys.attest(outcome="found", citations=[the paths you read])`, and
 stop. If the front shows a tree with no product in it — a library of helpers,
 scripts around something else — `surveys.attest(outcome="none_found",

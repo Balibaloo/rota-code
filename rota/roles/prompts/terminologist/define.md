@@ -37,6 +37,10 @@ not the rare one.
 `code.source` a file the concordance makes you want to read whole — the one
 that declares the word is usually enough.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 `[code.concordance]` also carries the file that declares the word, whole where
 it fits. Read it: what the word *does* is in that file, not in the three lines
 that mention it.

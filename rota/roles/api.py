@@ -5676,10 +5676,17 @@ def code_probe(ctx: Ctx, pattern: str = "") -> list[dict]:
     # forty-line read instead of a four-hundred-line dump. A path grain carries
     # the column's default, 0 and 0, and carries it explicitly -- `_as_table`
     # drops a ragged row set back to JSON, which costs more than the two cells.
+    # A definition before a file. `build` gives every symbol a fan-in of 0
+    # (`rota/onboarding/indexer.py:456`), so ordering by fan-in alone put every
+    # matching path above every matching definition, and a broad pattern could
+    # spend the whole cap on paths and return no span at all. Fan-in still
+    # ranks inside each kind, and the grain breaks the tie so the rows are the
+    # same rows on every run.
     hits = _rows(ctx.conn.execute(
         "SELECT grain, grain_kind, area, fan_in, line_start, line_end "
         "FROM code_index WHERE grain LIKE ? "
-        "ORDER BY fan_in DESC LIMIT ?", (f"%{pattern}%", PROBE_ROWS)))
+        "ORDER BY CASE grain_kind WHEN 'symbol' THEN 0 ELSE 1 END, "
+        "fan_in DESC, grain LIMIT ?", (f"%{pattern}%", PROBE_ROWS)))
     if hits:
         total = ctx.conn.execute(
             "SELECT COUNT(*) AS n FROM code_index WHERE grain LIKE ?",

@@ -5,6 +5,10 @@ this repository that reads it. `[problem.baseline]` is what this program does
 for its user. `[model.consult]` is what is already committed. The subject is
 named on the `Refs:` line.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 You are standing on the boundary. On the other side of this file is someone
 who has never seen this repository's source: a user typing keys into their own
 files, a registry that knows this project by an id and a version, a platform

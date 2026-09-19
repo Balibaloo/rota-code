@@ -11,6 +11,10 @@ find the declaration — or the counterexample. If it names a consequence
 `code.source` anything the cited files point at; a claim is often defeated
 one import away from where it was written.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 Then exactly one verdict, and either way it carries a line from a file you
 opened — your opinion is not evidence, in either direction:
 

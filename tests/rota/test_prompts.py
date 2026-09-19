@@ -204,6 +204,81 @@ def test_a_mode_narrowing_cannot_widen_the_role():
     assert not problems, "\n".join(problems)
 
 
+def test_every_tools_file_names_only_what_the_graph_granted():
+    """
+    The silent half of the rule above, and the trap it leaves.
+
+    `rota/core/sandbox.py:506-515` drops a name the graph did not grant without
+    a word, so a `.tools` line for an ungranted op is a no-op that ships green.
+    The test above catches it for a mode, because `available()` enumerates the
+    role's `*.md` files -- and that glob cannot see the A/B variants under
+    `<role>/<name>/`, whose `.tools` files replace a mode's when `ROTA_PROMPTS`
+    names them. This walks the files instead of the modes.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    root = paths.PACKAGE / "roles" / "prompts"
+    granted: dict[str, set[str]] = {}
+    problems, seen = [], 0
+    for tools in sorted(root.rglob("*.tools")):
+        rel = tools.relative_to(root)
+        role = rel.parts[0]
+        have = granted.setdefault(role, set(build(role, conn).functions()))
+        for line in tools.read_text(encoding="utf-8").splitlines():
+            fn = line.strip()
+            if not fn or fn.startswith("#"):
+                continue
+            seen += 1
+            if fn not in have:
+                problems.append(f"{rel.as_posix()} names {fn}, which the graph "
+                                f"never granted {role}")
+    assert seen > 100, f"the walk found almost nothing: {seen}"
+    assert not problems, "\n".join(problems)
+
+
+def test_a_reading_mode_can_search_before_it_reads():
+    """
+    Night 86, s10: the Vision Keeper on `reconcile` has six ops and one of them
+    looks at code, a whole-file dump. With no way to search it guessed eight
+    filenames and pulled every one at 400 lines, four times over -- 63,023
+    characters of results for two sentences that cite one file.
+
+    The `.tools` line alone would not have reached it. The graph grants the
+    verb and the sandbox drops what the graph did not grant.
+    """
+    import pathlib
+    import tempfile
+
+    conn = init_db(pathlib.Path(tempfile.mkdtemp()) / "rota.db")
+    # Three reading modes are deliberately not here, each held out by its own
+    # measurement on qwen3:8b (2026-09-19):
+    #
+    #   terminologist/criteria    names a surface a test would call, and a new
+    #                             behaviour's surface does not exist yet. With
+    #                             a search it named `calculate_tip` from the
+    #                             index: 0/5, L1-TE-a-new-behaviour-is-a-new-
+    #                             callable.
+    #   terminologist/survey      probed and never read: 0/5,
+    #                             L1-TE-survey-an-area-for-its-terms.
+    #   architect/survey          wrote no constraint at all: 0/5,
+    #                             L1-AR-survey-an-exported-name.
+    #
+    # All three are pushed the source they work from -- `[code.area]`, or the
+    # callables list. A mode whose prompt already carries the code does not
+    # need a search, and the paragraph that offers one costs it its output.
+    for role, mode in (("vision_keeper", "reconcile"), ("vision_keeper", "orient"),
+                       ("vision_keeper", "reorient"), ("vision_keeper", "survey"),
+                       ("critic", "challenge"), ("terminologist", "define"),
+                       ("terminologist", "term_collision"),
+                       ("architect", "boundary"), ("architect", "frame")):
+        sb = build(role, conn, mode=mode, allow=prompts.mode_tools(role, mode))
+        assert "code.probe" in sb.functions(), f"{role}/{mode} cannot search"
+        assert "code.probe" in prompts.compose(role, mode), \
+            f"{role}/{mode} holds the tool and never names it"
+
+
 def test_every_operation_is_offered_by_some_mode():
     """
     A `.tools` narrowing can only remove. Today every role still has at least

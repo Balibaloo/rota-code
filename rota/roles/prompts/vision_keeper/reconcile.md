@@ -24,6 +24,10 @@ difference, a marketing sentence, an installation note — not findings.
 
 `code.source` any file you need to check a claim against.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 End with `surveys.attest(outcome="found", citations=[the README's path and
 what you checked])` when you logged anything, or
 `surveys.attest(outcome="none_found", citations=[the README's path])` when

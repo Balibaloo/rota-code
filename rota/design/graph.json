@@ -541,6 +541,36 @@
       "depth": "index"
     },
     {
+      "s": "critic",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "rows": "query",
+      "depth": "index",
+      "label": "challenge: the name the claim turns on, and the lines that define it"
+    },
+    {
+      "s": "terminologist",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "rows": "query",
+      "depth": "index",
+      "label": "a term is a word the code uses somewhere; the probe says where before a file is opened"
+    },
+    {
+      "s": "vision_keeper",
+      "t": "code",
+      "type": "reads",
+      "v": "probe",
+      "n": "modules",
+      "rows": "query",
+      "depth": "index",
+      "label": "reconcile: find the behaviour by name rather than guess which file holds it (night 86, s10 pulled eight files at 400 lines for two sentences)"
+    },
+    {
       "s": "architect",
       "t": "code",
       "type": "reads",

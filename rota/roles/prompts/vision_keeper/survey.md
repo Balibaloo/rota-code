@@ -8,6 +8,10 @@ their vocabulary, from the code rather than from a README.
 behaviour. `problem.assert` each behaviour as an `in_scope` item with provenance
 `observed`.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 **Both endings run through `code.source`.** You can end this session having
 asserted what the area does, or having read it and found no behaviour of its own
 to state — an area that is all types and constants legitimately ends the second

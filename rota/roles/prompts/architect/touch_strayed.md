@@ -10,6 +10,10 @@ is:
   something, a file the item never asked for, a change beside the work. Name it
   in `mistakes`; the Developer is woken to take it out.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 One call: `batches.judge_touch(batch_id, foreseen=[...], mistakes=[...],
 reason="...")`, every path in one list or the other. The reason is one
 sentence a person can read at review.

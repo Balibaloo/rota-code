@@ -24,3 +24,7 @@ to compose, `glossary.same(keep, drop, why)` records that — `why` saying, in
 the senses' own words, what they share.
 
 `code.source` any file the concordance makes you want to read whole.
+
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.

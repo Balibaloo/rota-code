@@ -24,6 +24,10 @@ Weigh what a directory *holds* over what it is called, and weigh the entry
 imports over the README — a page of badges says less than where the root
 file points. `code.source` any entry you need to open to be sure.
 
+**Probe for a name, then read the span it gives.** `code.probe` names the
+file and the lines that define a name, and `code.source` reads those lines.
+The probe finds the lines. It never replaces the read.
+
 One `frame.assign(path=..., kind=..., reason=<five words>)` per top-level
 entry, each entry once — and then, in the same turn, the ending:
 

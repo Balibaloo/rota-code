@@ -43,6 +43,10 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
     always implied by the graph. A third: `verdicts.claim_encodes`, the branch
     a fail verdict must take before it can name a criterion -- the structural
     fork for `CR-a-test-that-encodes-nothing` (2026-09-03).
+
+    A fourth: `code.probe`, granted 2026-09-19. A challenge turns on one name,
+    and the Critic could only find it by dumping a file. The probe says which
+    file and which lines, and `code.source` still does the reading.
     """
     sb = build("critic", db)
     artefact_fns = {f for f in sb.functions() if not f.startswith("msg.")}
@@ -50,7 +54,7 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
         "criteria.load", "tests.load", "code.read", "verdicts.emit",
         "verdicts.claim_encodes",
         "challenge.load", "challenge.uphold", "challenge.break",
-        "challenge.vacuous", "code.source",
+        "challenge.vacuous", "code.source", "code.probe",
     }
     # Its only outbound channels are the two disputes it is entitled to raise.
     assert {f for f in sb.functions() if f.startswith("msg.")} == {
