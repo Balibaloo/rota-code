@@ -574,6 +574,25 @@ Rules:
   cassettes, zero recorded, and went green (observed: the implementer, on
   `architect/survey`). 101 cassettes were recorded across three wordings
   and the register holds 18409 rows.
+- Status 2026-09-19 09:45 (rota-65): **repair 1 is committed at 5241cb9.
+  Pass 5 carries repairs 3 and 4, the last two, cap 110k.** The assistant's
+  own gate: 22 failed, 1930 passed, zero stale, one red gone, one new red
+  which is the screens flake re-run green (observed: the gate's five lines,
+  read whole). The arithmetic closes: 1915 plus 16 new tests is 1931, less
+  one flake is 1930. The screens diagnosis is settled, because the new red
+  is the same test that flaked at 04:30: four flakes today across three
+  tests of one file, with and without load.
+  Pass 5's brief carries section 9.2 as a prohibition, not a suggestion.
+  The guard must not go below three blocks, because the record's headline
+  fix evicts nothing at turn 2 and makes head and tail overlap. Repair 4 is
+  one thing, the cap on the last two blocks.
+  **Frame state for a successor.** Repairs 2 and 1 and the spans are
+  committed at 7045226, 9881938 and 5241cb9. Repairs 3 and 4 are out. What
+  remains after them: one diff review on a worktree at the closing commit,
+  one re-record, and the night against night 86's four numbers. The night
+  is the only instrument that can show this frame worked, because the
+  largest prompt in the whole register is 31127 characters against night
+  85's 110250 (observed: section 9.8 of the design record).
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
