@@ -426,3 +426,37 @@ A designed version has one shape:
 That is a frame of its own. It is larger than the four fixes above, and the
 four fixes do not need it. They are the repairs that stop the bleeding, and
 this is the design that stops the next one.
+
+## 8. Roman's rulings of 2026-09-19, and the measurement that sets the number
+
+**Ruling 1.** The higher window goes to every wake, not to a chosen few. The
+system must monitor strictly when the higher window actually spills into RAM
+(ruled: Roman, 2026-09-19). So the flag on `Wake` is dropped. There is one
+window, it is higher, and a monitor watches the spill.
+
+**Ruling 2.** The symbol spans on `code_index` are a frame after frame 33, not
+a change to frame 33's unwalked commit (ruled: Roman, 2026-09-19).
+
+**The monitor already exists.** Ollama's `/api/ps` reports `size` and
+`size_vram` per loaded model. The difference is the spill, in bytes. No
+instrumentation in the model path is needed.
+
+**The ceiling, measured on the night card on 2026-09-19** (observed: the 3080
+at one slot, idle, `/api/ps` after a one-token generate at each window):
+
+| model | 12288 | 16384 | 20480 | 24576 |
+| --- | ---: | ---: | ---: | ---: |
+| qwen3:8b, the default | 6.79 GB | 7.40 GB | 8.01 GB | 9.04 GB, spills 0.62 |
+| qwen3.5:9b, the routed model | 5.77 GB | 5.91 GB | 6.04 GB | not measured |
+
+qwen3:8b costs 0.61 GB for each 4096 tokens of window. qwen3.5:9b costs 0.14
+GB for the same, so the default model is the binding one.
+
+**Recommended number: 16384.** 20480 fits at 8.01 GB, which is the whole
+practical budget of a 10 GB card and leaves nothing for a busy desktop. 16384
+leaves 0.6 GB of headroom and raises the planning budget from 6144 to 8192
+tokens, which is a third more.
+
+A note for the implementer: the Titan measures about double these numbers,
+because it runs at two slots and allocates a KV cache for each. Read
+`/api/ps` on the card the run uses, never on the other one.
