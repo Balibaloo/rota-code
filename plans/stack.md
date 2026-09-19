@@ -698,6 +698,18 @@ Rules:
   baseline and 26 tests richer, and the red that went green is
   `L1-VK-reconcile-the-readme`, the mode of session s10, which is the
   session the whole frame was written from.
+  **The liveness probe found no clean standby** (observed: three peers
+  probed at 12:35, one answered). `rota-c1`, session 1f54b02f, holds no
+  frame and is not clean, because it carries the architecture review of
+  2026-09-15. `rota-b1` and `rota-95` did not answer. So the hand-off goes
+  by Roman's paste, not by message, which is what
+  `plans/operating-facts.md` already says to do when a hand-off must land.
+  The one answer carried three stale facts and they are corrected in that
+  peer's inbox: it believed session 9108c499 still held frames 33, 4 and
+  43, when 9108c499 had handed 43 away that morning and its inbox had
+  already refused a message with ENOINBOX. It also named a stack commit
+  about twenty commits behind. A peer's account of another peer is
+  hearsay. The stack is the record.
 
   **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65),
   updated 12:35 at the hand-off.** Read this before you claim frame 43.
