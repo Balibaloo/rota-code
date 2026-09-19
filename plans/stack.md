@@ -777,6 +777,60 @@ Rules:
   Next, in order: pass 6, cap 120k, for the rise in the six other profiles
   and the monitor with section 9.7's five faults. Then the gate, one diff
   review of that commit, and the night against night 86's four numbers.
+- Status 2026-09-19 13:58 (rota-95): **the window rise and the monitor are
+  committed at 3f923ba. The night's baseline is rebuilt, and one of its four
+  numbers is wrong.** The gate on that tree, read whole and not piped: 21
+  failed, 1953 passed, zero new reds, zero stale, one red gone, 527.2 s
+  (observed: the gate's five lines). The arithmetic closes. The hand-off left
+  1941 passes and pass 6 adds 12 tests.
+  **The baseline had no method, and now it has one.** The agent that computed
+  night 86's four numbers kept its query in a scratchpad, which died with its
+  session. `probes/frame43/p_night.py` rebuilds the query and reproduces all
+  four numbers exactly. Night 85 confirms the denominator on a second sample.
+  The denominator 825 is the model turns, which `user <> ''` separates from
+  the session notes.
+  **One recorded number is wrong** (observed: session 9a9a20bf verified it
+  with its own query). Session s168 reports a prompt of 12111 tokens against a
+  12288 window, so nothing was cut. It fired the `used >= num_ctx * 0.98`
+  clause at `rota/llm/llm.py:416`, not the overflow clause, and its term in
+  the discarded sum is minus 150 tokens. The true baseline is 14 cuts and
+  179267 tokens. So acceptance reads two numbers: the note count, and the
+  count of turns whose estimate exceeds the window. At 16384 that clause fires
+  at 16056.
+  **The window rise alone cannot buy this frame's ends-when** (observed: the
+  prompt estimates in night 86's own notes). Twelve of the fifteen cut prompts
+  are above 16384 tokens. The rise clears two of the fourteen real cuts. So a
+  night that shows zero cuts shows the four repairs working, and the window is
+  headroom. The three largest cut prompts are the sessions the repairs were
+  written from. If a cut survives, read s71 at 27155 tokens first.
+  **The window does not spill at 16384** (observed:
+  `probes/frame43/p_window.py`, the 3080 at one slot, idle). qwen3:8b takes
+  6.89 GB and qwen3.5:9b takes 5.50 GB, both fully in VRAM. Both are below
+  section 8's table, so the recommended window has more headroom than the
+  design record claimed. The second model evicts the first, so the two never
+  sum on this card.
+  Pass 6 cost 166286 tokens against a 120k cap, 127 tool calls, 55 minutes.
+  The overrun is three gate runs. The baseline agent cost 104332 against 70k.
+  **Pass 7 is out, cap 60k, and it exists because pass 6 left one of section
+  9.7's three faults half fixed.** The implementer wired `fit_of` to take a
+  measured size and no caller passes the window, so design point 5's guard is
+  still decoration for the routed model. `/api/ps` reports `context_length`,
+  which this session read twice today, so the window needs no guess. The pass
+  also makes the spill row carry the window the server allocated beside the
+  session's pin. That is the only evidence that can prove the rise reached the
+  server, and the profile's pin is not that proof.
+  **A question for Roman, with a recommended answer.** CONTRIBUTING.md forbids
+  a `Co-Authored-By` footer on a commit, and Roman ruled the same on
+  2026-09-04. The harness instructs every session to add one. Four of the five
+  commits before this session's carry it, so every peer has resolved the
+  conflict the same way in silence. Recommended answer: keep the footer until
+  Roman rules, because the history is already uniform and one session stopping
+  alone fixes nothing. The rule is Roman's and the record should say which
+  wins.
+  What remains: pass 7 and its gate, one diff review on a worktree at the
+  closing commit, then night 87. The closing sequence is
+  `probes/frame43/CLOSING.md`, kept in the repository, because this frame has
+  already lost two pointers to a dead session's temporary directory.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
