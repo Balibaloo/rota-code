@@ -231,7 +231,51 @@ Rules:
   **Repair 2 is a correctness fix, not a context fix**: the "unchanged
   since you asked earlier" line is sometimes false, and the runner
   discards the true answer on the way to saying it.
-  Grill question 2 goes to Roman now.
+  Grill question 2 is ruled the same minute: the designed budget of
+  section 7 is pushed as frame 46, unpriced, waiting on this frame's
+  night (ruled: Roman, 2026-09-19). **Both grill questions are now
+  closed, so the frame may write code once the design review returns.**
+
+### 46. One designed budget for a prompt (2026-09-19) (Roman)
+
+- Rota workflow. Today no single place answers the question "what may this
+  prompt contain". The caps are per result, per push and per page. The trim
+  is per transcript. The window is per session. Nothing sums them, and the
+  one function that could sum them, `_fit`, is forbidden to touch the two
+  blocks that are usually the problem (observed:
+  `plans/archive/context-caps-design-2026-09-18.md`, section 7).
+- Every guard in the system was added after a night failed, and each
+  comment in the code names that night: the result cap, the source cap,
+  the push cap, the wake cut, the middle eviction, the repeat line, the
+  identical-turn stop, the index cut (observed: the same record, and the
+  code's own comments). Each one is right about the night that caused it.
+  **None of them was designed against the others.** Roman judged the
+  system on 2026-09-18: "This seems quite undesigned" (ruled: Roman).
+- The shape, in five parts (reasoned: the design record's section 7,
+  written from the scope of 536k):
+  1. One budget for a turn, derived from the window, in one place.
+  2. The parts of a prompt declared in priority order: the brief, the
+     wake line, the refs, the latest results, the older results.
+  3. The budget is allocated down that order. A part that overruns takes
+     from what is below it and never from what is above it.
+  4. Every cut is announced in the same words, and the words name the
+     tool that fetches the rest.
+  5. One number a test can assert.
+- Ends when: a test asserts that an assembled prompt is inside its
+  budget, or that the runner named which part it cut and by how much.
+  Not priced. The price waits on night 87, because frame 43's four
+  numbers say how much of the bleeding the four repairs already stopped
+  (ruled: Roman, 2026-09-19, push it now and price it later).
+- Waits on: frame 43, and on frame 43's night. Roman orders this frame
+  against 45, 41, 42, 38 and 37.
+- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
+  and the scope it was written from,
+  `plans/archive/context-caps-scope-2026-09-18.json`.
+- Status 2026-09-19 04:14 (rota-65): pushed by 4286e076, unclaimed,
+  unpriced. The frame exists so the obligation stays countable. The four
+  repairs of frame 43 do not need it, and the design record says so. This
+  is the design that stops the next fault. The four repairs stop the
+  bleeding.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
