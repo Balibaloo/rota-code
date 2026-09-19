@@ -1074,3 +1074,148 @@ def test_an_action_is_held_behind_a_fresh_read_and_not_behind_a_repeat(db):
     assert backend.calls[2][1].count("NOT RUN") == 1, "the repeated read held the action again"
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1, \
         "the write never landed"
+
+
+# --- the per-turn total, and the cap on the latest exchange (frame 43) ------
+#
+# The caps were per result, per push and per page. Nothing added a turn up, and
+# `_fit` was forbidden to touch the two blocks that are usually the problem.
+
+
+def _wide_file(lines: int) -> str:
+    """A file whose every line is wide enough that a 400-line read is over
+    `SOURCE_CHARS`."""
+    return "".join(f"VALUE_{i:04d} = {'x' * 48!r}\n" for i in range(lines))
+
+
+def test_two_source_reads_in_one_turn_are_capped_as_a_turn(db, worktree):
+    """
+    `SOURCE_CHARS` is 14,000 and `_fit_budget(12288, 4000)` is 20,391, so two
+    capped source reads in one reply are 28,000 characters: more than the whole
+    session may hold, and nothing added them up.
+
+    The first read keeps its own cap. The second takes what is left and says
+    where it was cut, in the sentence the per-result cap already says.
+    """
+    from rota.core.runner import TURN_RESULT_CHARS
+
+    (worktree / "src" / "big.py").write_text(_wide_file(900))
+    reply = ("TOOL: code.source(path='src/big.py', start=0, end=400)\n"
+             "TOOL: code.source(path='src/big.py', start=400, end=800)")
+    backend = ScriptedBackend([reply, "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    block = backend.calls[1][1].split(reply)[-1]      # this turn's results
+    assert "VALUE_0000" in block, "the first read lost its head"
+    assert "VALUE_0400" in block, "the second read was withheld whole"
+    assert len(block) <= TURN_RESULT_CHARS, f"the turn was not summed: {len(block)}"
+    # Both cuts say where they fell and which call fetches the rest, which is
+    # the sentence the per-result cap already says.
+    assert block.count("TRUNCATED") == 2, block.count("TRUNCATED")
+    assert "start=216, end=400" in block, "the first cut names no continuation"
+    assert "end=800" in block and "start=4" in block, \
+        "the second cut names no continuation"
+
+
+def test_a_result_with_no_room_left_is_named_rather_than_stubbed(db, worktree):
+    """
+    A result cut to nothing is worse than no result: it looks like a short
+    answer, and the seat has no reason to ask again for something it does not
+    know was cut. So the last call of a full turn is told it ran and told when
+    to ask again.
+    """
+    (worktree / "src" / "big.py").write_text(_wide_file(1300))
+    reply = "\n".join(
+        f"TOOL: code.source(path='src/big.py', start={s}, end={s + 400})"
+        for s in (0, 400, 800))
+    backend = ScriptedBackend([reply, "Done."])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    block = backend.calls[1][1].split(reply)[-1]
+    assert "no room left" in block, "the third read vanished in silence"
+    assert "Ask for it again in your next turn" in block, \
+        "the seat is not told how to get it"
+    assert "VALUE_0800" not in block, "the withheld result was served anyway"
+
+
+def test_a_probe_and_a_source_read_both_survive_one_turn(db, worktree):
+    """
+    The case the total is sized around. A probe of 60 rows renders about 2,200
+    characters and a source span up to 14,000, so probe-then-read is about
+    16,200 and has to fit whole. A cut span is re-asked and never read (night
+    79), which is the failure a smaller total would cause.
+    """
+    (worktree / "src" / "mid.py").write_text(_wide_file(190))
+    for i in range(60):
+        db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, "
+                   "line_start, line_end) VALUES (?, 'symbol', 'function', ?, ?)",
+                   (f"src/pkg/mod_{i:03d}.py::render_{i:03d}", i, i + 9))
+    db.commit()
+    backend = ScriptedBackend([
+        "TOOL: code.probe(pattern='render_')\n"
+        "TOOL: code.source(path='src/mid.py', start=0, end=400)",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert outcome.committed, outcome.errors
+    block = backend.calls[1][1]
+    assert "render_000" in block and "render_059" in block, "the probe was cut"
+    assert "VALUE_0000" in block and "VALUE_0189" in block, "the read was cut"
+    assert "TRUNCATED" not in block, "the turn cut what it had room for"
+    assert "no room left" not in block, "a result was withheld with room to spare"
+
+
+def test_a_latest_exchange_over_the_budget_is_cut_to_fit(db):
+    """
+    `_fit` kept the first block and the last two, capped the first, and neither
+    capped the last two nor checked their sum -- so it could not get under the
+    budget when the latest exchange was itself over it, and it did not try.
+    Turn 2 is three blocks, which is where this bites.
+    """
+    from rota.core.runner import _fit
+
+    fitted = _fit(["WAKE: survey src/billing", "reply " * 3000, "results " * 3000],
+                  budget=12_000)
+
+    assert sum(len(b) + 2 for b in fitted) <= 12_000, "still over the budget"
+    assert len(fitted) == 3, "a block was dropped instead of cut"
+    assert fitted[0] == "WAKE: survey src/billing", "the wake was touched"
+    assert fitted[1].startswith("reply "), "the reply lost its head"
+    assert fitted[2].startswith("results "), "the results lost their head"
+    assert all("did not fit the window" in b for b in fitted[1:]), \
+        "the exchange was cut in silence"
+
+
+def test_the_exchange_cap_leaves_a_short_block_whole(db):
+    """Half each, and a block under its half lends the rest to the other. A
+    seat's one-line reply must not cost its results half the window."""
+    from rota.core.runner import _fit
+
+    fitted = _fit(["WAKE", "ok", "results " * 3000], budget=12_000)
+
+    assert fitted[1] == "ok", "the short reply was cut for no gain"
+    assert len(fitted[2]) > 11_000, "the results did not take the room the reply left"
+    assert sum(len(b) + 2 for b in fitted) <= 12_000
+
+
+def test_one_and_two_block_transcripts_keep_their_shape(db):
+    """
+    The guard stays at three. Below it `head = transcript[:1]` and `tail =
+    transcript[-2:]` overlap, so the wake would be emitted twice and `dropped`
+    would go negative (the design review of 2026-09-19, section 9.2).
+    """
+    from rota.core.runner import _fit
+
+    one = _fit(["WAKE " + "x" * 50_000], budget=12_000)
+    assert len(one) == 1 and one[0].startswith("WAKE ")
+    assert one[0].count("WAKE ") == 1, "the wake was emitted twice"
+
+    two = _fit(["WAKE " + "x" * 50_000, "turn 1"], budget=12_000)
+    assert len(two) == 2 and two[1] == "turn 1", "the reply was cut at two blocks"
+    assert two[0].count("WAKE ") == 1, "the wake was emitted twice"

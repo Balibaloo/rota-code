@@ -407,6 +407,33 @@ SOURCE_CHARS = 14000
 # backstop a page above them; `_fit` still keeps the whole prompt in the
 # window, announced.
 PUSH_CHARS = 20000
+# What one turn's results may sum to. The per-result caps above are per
+# result, and nothing added them up: two `code.source` reads in one reply are
+# 28,000 characters, and `_fit_budget(12288, 4000)` is 20,391 -- so one turn
+# could produce more than the whole session may hold. Measured: two capped
+# source reads exceed the budget on 1,367 of 1,367 recorded turns at 12,288,
+# and still exceed it at 16,384 whenever the system prompt runs past 4,522
+# characters.
+#
+# The number is the two caps it is made of, and the arithmetic is the point:
+#
+#   one source span whole, at SOURCE_CHARS      14,000  (night 79: a cut span
+#                                                        is re-asked, not read)
+#   one other result at its own cap             + 6,000
+#                                               = 20,000
+#
+# A probe is the other result this has to carry: 60 rows render about 2,200 and
+# never more than RESULT_CHARS, so probe-then-read costs about 16,200 and fits
+# whole. Two source reads do not, and the second one is cut where `_render`
+# says the cut fell. Sizing this below 16,200 would bite the source read the
+# seat actually needs, which is the failure recorded above at night 79.
+TURN_RESULT_CHARS = SOURCE_CHARS + RESULT_CHARS
+# Under this, a result says nothing a session can act on, so it is withheld
+# whole and named instead of being served as a stub.
+MIN_RESULT_CHARS = 400
+# What `_render`'s own cut notice costs, at its longest: the TRUNCATED
+# sentence plus the `code.source` call that fetches the rest of a span.
+_CUT_NOTE_CHARS = 300
 
 # The model writing the harness's half of the conversation.
 #
@@ -454,6 +481,66 @@ def _render_cut(text: str, limit: int) -> str:
         return text
     return (text[:limit] + f"\n... the rest of your wake ({len(text) - limit:,} "
             f"characters) did not fit the window. Ask for what you need.")
+
+
+# The floor under a cut exchange. Two thousand characters is about 500 tokens:
+# enough for the seat's own last sentence and one result to survive as
+# something to act on.
+_MIN_EXCHANGE = 2000
+
+
+def _exchange_cut(text: str, limit: int) -> str:
+    """
+    Cut a block of the latest exchange, saying so. The wake's own contract,
+    with one difference: the notice is paid for out of the limit rather than
+    added to it, so the block that comes back is inside the room it was given
+    and `_fit` can promise a number a test can assert.
+    """
+    if len(text) <= limit:
+        return text
+    keep = limit
+    for _ in range(4):
+        note = (f"\n... {len(text) - keep:,} characters of this exchange did "
+                f"not fit the window. Ask again for what you still need.")
+        if keep + len(note) <= limit:
+            break
+        keep = max(limit - len(note), 0)
+    return text[:keep] + note
+
+
+def _cap_exchange(transcript: list[str], budget: int) -> list[str]:
+    """
+    Cut the latest exchange when it alone will not fit.
+
+    `_fit` keeps the first block and the last two, and capped only the first.
+    The last two were neither capped nor summed, so the trim could not get
+    under the budget when the latest exchange was itself over it -- and it did
+    not try. Night 85 and night 86: 86 of 366 and 57 of 825 turns went over,
+    and every session the server cut had an over-budget turn first.
+
+    The two blocks are the seat's own reply and the results it asked for. They
+    share what the rest of the transcript leaves, half each, and a block under
+    its half keeps everything and lends the remainder to the other. Never below
+    `_MIN_EXCHANGE`, because a notice alone tells a session nothing.
+
+    Fewer than three blocks is not an exchange: at two, `transcript[-2:]` is
+    the wake itself, which the cut above has already bounded.
+    """
+    if len(transcript) < 3:
+        return transcript
+    room = max(budget - sum(len(t) + 2 for t in transcript[:-2]), _MIN_EXCHANGE)
+    reply, results = transcript[-2:]
+    if len(reply) + len(results) + 4 <= room:
+        return transcript
+    share = max((room - 4) // 2, _MIN_EXCHANGE // 2)
+    if len(reply) <= share:
+        reply_room, results_room = len(reply), room - 4 - len(reply)
+    elif len(results) <= share:
+        reply_room, results_room = room - 4 - len(results), len(results)
+    else:
+        reply_room = results_room = share
+    return transcript[:-2] + [_exchange_cut(reply, reply_room),
+                              _exchange_cut(results, results_room)]
 
 
 def _fit_budget(num_ctx: int, system_chars: int) -> int:
@@ -510,7 +597,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     # 12,288 window, ollama kept the tail, and each seat answered as a generic
     # assistant with no tool call. Only the middle eviction below needs four.
     if len(transcript) < 4:
-        return transcript
+        return _cap_exchange(transcript, budget)
 
     head, tail = transcript[:1], transcript[-2:]
     room = budget - sum(len(t) + 2 for t in head + tail)
@@ -523,10 +610,11 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
 
     dropped = len(transcript) - len(head) - len(middle) - len(tail)
     if not dropped:
-        return transcript
-    return head + [f"[{dropped} earlier exchange(s) dropped to fit the window. "
-                   f"Your instructions and your latest results are intact; "
-                   f"re-read anything you still need.]"] + middle + tail
+        return _cap_exchange(transcript, budget)
+    return _cap_exchange(
+        head + [f"[{dropped} earlier exchange(s) dropped to fit the window. "
+                f"Your instructions and your latest results are intact; "
+                f"re-read anything you still need.]"] + middle + tail, budget)
 
 
 def _as_table(result: Any) -> str | None:
@@ -2026,6 +2114,24 @@ def run_session(
                 break
 
             feedback = []
+            # The room this turn's results share, spent in call order. A
+            # result takes the smaller of its own cap and what is left, so the
+            # first read of a turn is never cut by a later one, and the refusal
+            # and error lines are not charged: a seat that loses a refusal
+            # sends the same call again.
+            #
+            # Charged against what `_fit` promises to keep -- the wake and the
+            # latest exchange -- so the cut lands here, where the sentence
+            # names the call that fetches the rest, rather than in
+            # `_cap_exchange`, which can only say the block was cut.
+            # `_render` puts its notice *outside* the limit it was given, so a
+            # cut result overruns its cap by the sentence that says where the
+            # cut fell. One such notice is reserved here, for the last result
+            # of the turn: every earlier one is charged exactly below.
+            result_room = min(TURN_RESULT_CHARS,
+                              max(budget - len(transcript[0])
+                                  - len(completion.text) - 6 - _CUT_NOTE_CHARS,
+                                  _MIN_EXCHANGE))
             if cut_note:
                 feedback.append(f"ERROR reply cut: {cut_note}")
             held = []
@@ -2147,7 +2253,23 @@ def run_session(
                         for touched in result.get("touched") or ():
                             if isinstance(touched, str):
                                 forget(touched)
-                    shown = _render(result, SOURCE_CHARS if call.name == 'code.source' else RESULT_CHARS)
+                    # The result's own cap, or what this turn has left of its
+                    # total, whichever is smaller. `_render` says where it cut
+                    # and, for a source span, the exact call that fetches the
+                    # rest -- so the per-turn total reuses the sentence the
+                    # per-result cap already says rather than inventing one.
+                    # The notice is paid for out of what is left, so a result
+                    # the turn's room binds comes back inside that room. A
+                    # result its own cap binds keeps the whole cap: the
+                    # reserve at the top of the turn covers that one.
+                    cap = min(SOURCE_CHARS if call.name == 'code.source'
+                              else RESULT_CHARS,
+                              max(result_room - _CUT_NOTE_CHARS, 0))
+                    shown = (_render(result, cap) if cap >= MIN_RESULT_CHARS else
+                             f"ran, and this turn has no room left for its "
+                             f"result ({min(TURN_RESULT_CHARS, budget):,} "
+                             f"characters of results already). Ask for it "
+                             f"again in your next turn, on its own")
                     # The answer is the same answer, or it is not. Nothing else
                     # decides the line below, so read-after-write needs no case
                     # of its own.
@@ -2220,6 +2342,12 @@ def run_session(
                             f"OK {call.name} -> unchanged since you asked "
                             f"earlier this session; the answer is above.")
                     else:
+                        # Charged here and nowhere else: a repeat costs a line,
+                        # not a result, and a turn of repeats must not use up
+                        # the room a real read needs. The `OK <name> -> ` the
+                        # line carries is charged with it.
+                        result_room = max(
+                            0, result_room - len(shown) - len(call.name) - 7)
                         feedback.append(f"OK {call.name} -> {shown}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
