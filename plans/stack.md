@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 43. Review the context length management system (2026-09-18) (Roman) [UNCLAIMED, handed off 2026-09-19 12:35]
+### 43. Review the context length management system (2026-09-18) (Roman) [9a9a20bf]
 
 - Rota workflow. Today one window size, 12288, serves every wake, and a
   prompt that exceeds it collapses to half and loses its brief from the
@@ -747,6 +747,36 @@ Rules:
   8. **The probes are kept**, in `probes/frame43/`, with a README that
      says which finding each one measures. An agent's scratchpad dies with
      its session, and this frame already lost one pointer that way.
+
+- Status 2026-09-19 12:45 (rota-95): **claimed by 9a9a20bf. The profile
+  route is now read end to end, so the window rise reaches every wake of a
+  night.** Roman pasted the hand-off at stack commit 4cb1dd0. The tree
+  stands one commit above it at 83ce151, which is another peer's verdict on
+  the architecture review of 2026-09-15 and touches no code of this frame.
+  The route, checked before any brief (observed: this session's own read).
+  `probes/walk.py:122` takes `pins_for(None)` from the run's frozen profile.
+  `num_ctx` is a member of `PIN_KEYS` at `rota/llm/profile.py:34`.
+  `routed_pins` keeps `pins.num_ctx` at `rota/core/runner.py:131`, unless the
+  profile names a per-role window. `local.toml` names no `[context]` table,
+  and the night onboards with `--profile local` (observed:
+  `probes/gauntlet_click.sh:61`). So one line of `local.toml` raises every
+  wake, and `tests/rota/test_config.py:162` stays true, because it asks only
+  that a pin is not below `DEFAULT_NUM_CTX`.
+  This check is deliberate. Pass 4 of this frame nearly shipped a no-op,
+  because a `.tools` edit needed a graph grant that no record named. The
+  profile route is the same shape of risk and it is now measured.
+  **The monitor's dismissal rule is this session's judgement** (reasoned:
+  section 9.7 offers a fork, and each arm alone hides a true cost). The two
+  arms answer two questions, so this frame takes both. The two gemma
+  profiles stay at 12288, because gemma3:12b already needs 10.87 GB there
+  and a rise buys it nothing. The monitor still reports that spill, because
+  the spill costs turn speed and the operator must know. A warning is
+  dismissed per model and per spill size. A dismissed warning returns when
+  the spill grows, so the Critic's desk is warned once and this frame's own
+  rise is never masked.
+  Next, in order: pass 6, cap 120k, for the rise in the six other profiles
+  and the monitor with section 9.7's five faults. Then the gate, one diff
+  review of that commit, and the night against night 86's four numbers.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
