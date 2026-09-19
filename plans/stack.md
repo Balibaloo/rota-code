@@ -111,10 +111,34 @@ Rules:
   `wake_detail` columns. If the columns are all it sees, the flag
   travels as a third column or is looked up from the tick name. Ask
   `python -m rota.tools.map` before grepping.
-- Ends when: not priced. Architecture planning comes first, because
-  Roman holds the interaction with the RAM tracking open. Roman is also
-  questioning whether the frequent wakes should keep the single cap, so
-  the review covers every wake, not only the unbounded ones.
+- Ends when: a night runs from the frame's closing commit and its four
+  context numbers beat night 86's, with zero sessions cut by the server.
+  Night 86 is the baseline: 297 of 825 turns had their middle evicted, 86
+  turns had the wake itself cut, 15 sessions were cut by the server, and
+  179117 tokens were discarded (observed:
+  `plans/archive/context-caps-design-2026-09-18.md`). Each line priced from
+  the anchors in `plans/operating-facts.md`, walls counted apart:
+  1. The window rises to 16384 for every wake, and a spill monitor reads
+     `/api/ps` and warns with specifics until dismissed: 90k. Buys: Roman's
+     ruling of 2026-09-19, with the evidence that it is not spilling.
+  2. `code.probe` reaches the 14 reading modes, with a brief line that
+     orders probe before source, and the touched modes re-recorded: 100k
+     (the sweep 60k, the re-records 40k). Buys: a seat can find instead of
+     dump, which is the fault that costs the most.
+  3. The repeat memory is keyed by path and cleared by a write, then a
+     third identical call is refused: 80k. Buys: a read after a write
+     returns the file, and the 327-line loop ends.
+  4. A per-turn cap on the total of results: 70k. Buys: two source reads
+     cannot exceed what the session can hold.
+  5. `_fit` trims turn 2 and caps the last two blocks: 70k. Buys: the
+     backstop catches what the four above miss.
+  6. A design review of the design record before any code: 80k.
+  7. One diff review on a worktree at the commit: 70k.
+  8. The gate before each commit, the stale line read: 36k.
+  9. The night, and its four numbers beside night 86's: 20k in this
+     context, about two hours wall.
+  Total: 616k in agents, about 45k in this context. The scope is already
+  spent: 536k in five agents.
 - Waits on: nothing now. Frame 40 closed on 2026-09-18 with
   `plans/archive/principal-pages-2026-09-18.md`. It measured the pages the
   principal was shown, not the ticks, so the claim that grouping stays
@@ -138,6 +162,26 @@ Rules:
   seat prompt beside the page, what each wake's ref set does as the work
   grows, and where a spill warning can be shown. The design record and the
   price follow the scope.
+- Status 2026-09-19 03:57 (rota-ff): **the design is settled and the frame
+  is priced. No code is written.** The record is
+  `plans/archive/context-caps-design-2026-09-18.md`. The scope cost 536k in
+  five agents, 282 tool calls. Roman ruled twice on 2026-09-19: the higher
+  window goes to every wake with a strict spill monitor, so the flag on
+  `Wake` is dropped; and the symbol spans are a frame after frame 33.
+  What the design found, against the frame's own first view: the page is
+  not the problem. Turn 2 is. A seat asks for reads at turn 1, the results
+  arrive at turn 2, and `_fit` returns early below four blocks, so turn 2
+  is never trimmed. The cause upstream of that is that 14 reading modes
+  hold `code.source` and no `code.probe`, so a seat that must find
+  something can only dump files. Session s10 pulled eight files four times,
+  63023 characters, to write two sentences citing one file.
+  The window ceiling is measured on the night card at one slot: qwen3:8b
+  fits at 20480 using 8.01 GB and spills by 0.62 GB at 24576. 16384 is the
+  recommended number, which leaves the desktop 0.6 GB.
+  **Two grill questions are unasked**, because the session reached its
+  context bound: whether the four repairs are one frame or four, and
+  whether the designed budget of section 7 becomes its own frame now. The
+  peer that takes this frame asks them before it writes code.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
