@@ -32,6 +32,17 @@ Rules:
 
 ## Stack
 
+**Roman's order, ruled 2026-09-21 00:29.** 46, then 54, then the one read that
+frames 47 and 53 share, then 48, then 55, then 49, then 45, 38, 37, 41, 42, 33,
+4. Frame 52's port runs inside frame 46's tail, after line 5, so it is not in
+this list. Frame 51 folds into 52 (ruled: Roman, asked with three other options
+and this one recommended: the acceptance's own instruments come before the next
+frame that is judged by them).
+This replaces the order of 2026-09-20, which named 46, 47, 48, 45, 38, 37, 41,
+42, 33, 4 and predates frames 51, 53, 54 and 55. **The file is not reordered to
+match yet**, because rule 1 says top frame first and frame 46 is still open. The
+next session to close 46 reorders the file to this list.
+
 ### 46. One designed budget for a prompt (2026-09-19) (Roman) [cb5428a2]
 
 - Rota workflow. Today no single place answers the question "what may this
