@@ -403,13 +403,25 @@ The hook prints one JSON object and exits 0. It wrote its row to
 `.handover/sessions/`, and `peers` read that row back and named the session.
 That is acceptance line 12, so the enrolment path is proved.
 
-**Acceptance lines 7 to 11 and 13 are not run.** Each needs two sessions at
-once: a standby that arms without a prompt, a hand-off that wakes exactly one
-of several, the drought case, and a claim that comes back after fifteen
-minutes. Run them the first time two sessions are open, and record the wake
-time here against the borrowed 6 seconds. A stricter user-level or enterprise
-permission setting can still override a project `allow` rule, and line 7 is
-the check that would find it.
+**Acceptance lines 7, 8 and 9 are proved** (observed: session 9a9a20bf handed
+frame 43 to session 0549dc76 at 2026-09-20 02:51, with three standbys armed).
+Line 7: all three armed by the `/standby` command and `peers` showed all three
+free, so no permission prompt parked any of them and the project `allow` rule
+holds. Line 8: the standby woke with no keystroke, and the sender read
+`CONFIRMED` 7 seconds after the claim, against the borrowed 6. Line 9: exactly
+one of the three woke, and the other two still answered as free with fresh
+heartbeats and no turn spent.
+
+**Acceptance lines 10, 11 and 13 are not run.** They need an empty reserve, an
+orphaned claim, and a fifteen minute wait.
+
+**The arm command must not ask for a name** (observed: session 0549dc76,
+2026-09-20 02:52). A session cannot read its own peer name until it lists its
+peers, so a name typed at arm time is a guess. That session typed a
+description, and its row then named nobody a message could reach, which is the
+fallback route when `hand` exits 4. The tool now takes the enrolled name from
+the hook's row and keeps `--name` only for a checkout with no hook. The
+`/standby` command and the brief no longer ask for a name.
 
 The two bullets above that describe the liveness probe and the standby's
 pasted prime are superseded by the brief's `# Standby duty` section. They are

@@ -29,1115 +29,72 @@ Rules:
 
 ## Stack
 
-### 43. Review the context length management system (2026-09-18) (Roman) [0549dc76]
+### 46. One designed budget for a prompt (2026-09-19) (Roman) [0549dc76]
 
-- Rota workflow. Today one window size, 12288, serves every wake, and a
-  prompt that exceeds it collapses to half and loses its brief from the
-  front. Seven wakes build their refs from a whole query result with no
-  cap (observed: `rota/core/predicates.py`, the `refs=tuple(...)` sites
-  for `awaiting_confirm`, `contradiction`, `term_collision`, `grouping`,
-  `defer_baseline` twice, `observed_entries`, `quarantined` and
-  `constraint_zero`). The observed-entries page already broke a night at
-  79 refs.
-- **Three of those nine are not model turns at all** (observed:
-  `rota/core/predicates.py:57`, `SCHEDULER = "-"`, with the comment "no
-  role: the scheduler does this itself"). The two `do:defer_baseline`
-  wakes and `tick:constraint_zero` never become a prompt, so no set size
-  can overflow a window there. Six remain.
-- The assistant's first view of the six, read from the call sites and
-  not measured (reasoned: the gate is Roman's, required quality, so each
-  row asks whether the seat needs the whole set to answer well):
-
-  | wake | needs whole set | grows with | view |
-  | --- | --- | --- | --- |
-  | `tick:observed_entries` | yes, it is the whole project view | repository size | unbounded, higher cap |
-  | `tick:grouping` | yes, it cannot group what it cannot see | work in flight | unbounded, rarely exercised |
-  | `tick:term_collision` | yes, the senses rule against each other | senses of one word, 2 to 3 | unbounded, rarely exercised |
-  | `tick:awaiting_confirm` | no, each confirm is independent | backlog | bounded |
-  | `tick:quarantined` | no, a count plus specifics suffices | refs of one tick | bounded |
-  | `tick:contradiction` | no, resolved one at a time | backlog | bounded |
-
-  Of the three that need the whole set, **only `observed_entries` grows
-  with the repository**. The other two are bounded by things the system
-  already controls. So the higher cap has one hard customer today, and
-  it is the page that broke night 85. The claim most likely to be wrong
-  is that grouping stays small, and frame 40 tests it.
-- Roman's design, ruled at the grill 2026-09-18:
-  1. Each wake carries a flag saying whether its refs are bounded or
-     unbounded.
-  2. An unbounded wake gets a **second, higher context cap**, whose only
-     purpose is to avoid paging. The whole page is kept and the cost is
-     paid in turn speed.
-  3. **The gating factor is required quality, not low frequency**
-     (ruled: Roman, 2026-09-18, correcting the assistant's
-     recommendation). A wake gets the higher cap when it needs the whole
-     page to answer well. The flag is hand-set (ruled: Roman,
-     2026-09-18, after the assistant proposed measuring it with a
-     register case per wake; a register case is hard to build and the
-     assistant did not price that, where a hand toggle costs nothing and
-     changes when evidence argues otherwise).
-  4. When a spill is happening, warn about turn speed with specifics.
-     The warning stays visible and is not hidden until dismissed.
-  5. The cap derives from the model configuration system that tracks
-     system RAM. How the two interact is open and needs architecture
-     planning.
-- The cost that is not turn time (observed: `plans/operating-facts.md`):
-  a changed `num_ctx` re-allocates the KV cache, which in practice costs
-  a model reload in each direction. The measured spill penalty is not
-  gradual: qwen3:8b fits fully at 12.5 s a turn, a 27 per cent spill
-  takes over 100 s, 75 per cent on the GPU takes 153 s, and a model over
-  by 8 GB takes minutes. The practical budget is about 8 GB of the 10,
-  because the desktop takes 2.
-- Where the flag lives (observed: `rota/core/scheduler.py:32`, the
-  `Wake` frozen dataclass): `Wake` holds five fields, `role`, `kind`,
-  `message_id`, `refs` and `detail`, under a one-line class docstring.
-  **Only `kind` is documented**, by an inline comment naming its values.
-  The other four carry nothing, so no per-field convention exists to
-  follow. The flag would be the sixth field and the second with a
-  comment. Document every field when the frame runs, because the
-  structure is small and the flag's meaning is not obvious from its
-  name.
-- **The flag is not a boolean** (reasoned: the assistant, at the grill;
-  a boolean loses the reason and the reason is what a later reader
-  needs). Each unbounded wake is unbounded in a different dimension:
-  `observed_entries` in repository size, `grouping` in work in flight,
-  `term_collision` in the senses of one word. A short string naming the
-  growth dimension carries the same decision and keeps the why. It also
-  answers the question the flag raises, which is "bounded by what".
-- **Open, for the architecture planning**: the flag must reach the
-  runner, which sizes the prompt. A field on `Wake` is the natural home.
-  It is not traced whether the runner sees the `Wake` object where it
-  chooses the context size, or only the stored `wake_kind` and
-  `wake_detail` columns. If the columns are all it sees, the flag
-  travels as a third column or is looked up from the tick name. Ask
-  `python -m rota.tools.map` before grepping.
-- Ends when: a night runs from the frame's closing commit and its four
-  context numbers beat night 86's, with zero sessions cut by the server.
-  Night 86 is the baseline: 297 of 825 turns had their middle evicted, 86
-  turns had the wake itself cut, 15 sessions were cut by the server, and
-  179117 tokens were discarded (observed:
-  `plans/archive/context-caps-design-2026-09-18.md`). Each line priced from
-  the anchors in `plans/operating-facts.md`, walls counted apart:
-  1. The window rises to 16384 for every wake, and a spill monitor reads
-     `/api/ps` and warns with specifics until dismissed: 90k. Buys: Roman's
-     ruling of 2026-09-19, with the evidence that it is not spilling.
-  2. `code.probe` reaches the 14 reading modes, with a brief line that
-     orders probe before source, and the touched modes re-recorded: 100k
-     (the sweep 60k, the re-records 40k). Buys: a seat can find instead of
-     dump, which is the fault that costs the most.
-  3. The repeat memory is keyed by path and cleared by a write, then a
-     third identical call is refused: 80k. Buys: a read after a write
-     returns the file, and the 327-line loop ends.
-  4. A per-turn cap on the total of results: 70k. Buys: two source reads
-     cannot exceed what the session can hold.
-  5. `_fit` trims turn 2 and caps the last two blocks: 70k. Buys: the
-     backstop catches what the four above miss.
-  6. A design review of the design record before any code: 80k.
-  7. One diff review on a worktree at the commit: 70k.
-  8. The gate before each commit, the stale line read: 36k.
-  9. The night, and its four numbers beside night 86's: 20k in this
-     context, about two hours wall.
-  Total: 616k in agents, about 45k in this context. The scope is already
-  spent: 536k in five agents.
-- Waits on: nothing now. Frame 40 closed on 2026-09-18 with
-  `plans/archive/principal-pages-2026-09-18.md`. It measured the pages the
-  principal was shown, not the ticks, so the claim that grouping stays
-  small is still untested. What it does give this frame: the observed
-  entries page is 3019 tokens on night 85 and 2993 on night 86, and the
-  same page landed a ruling on one night and not the other. The seat
-  prompt around it was 17195 tokens on night 85 and 5248 on night 86, so
-  the cap belongs on the session's working set and not on the page.
-- Reasoning: the grill of 2026-09-18, and
-  `plans/archive/night85-2026-09-18.md` for the overflow rule.
-- Status 2026-09-18 08:30 (rota-dc): pushed, unclaimed, unpriced. The
-  paging question of frame 36 folds into this frame (ruled: Roman, the
-  higher cap exists to avoid paging), so paging is no longer a separate
-  blocked question.
-- Status 2026-09-18 19:27 (rota-ff): claimed by 9108c499. Roman ordered 43
-  first, then 38, 37 and 33, with 41 and 42 as needed. The frame stays
-  unpriced until the scope is in, because Roman's design point 5 holds the
-  interaction with the RAM tracking open. Five read-only agents run now,
-  one per question: where the context size is chosen and whether the
-  `Wake` reaches it, how the model configuration tracks RAM, what fills a
-  seat prompt beside the page, what each wake's ref set does as the work
-  grows, and where a spill warning can be shown. The design record and the
-  price follow the scope.
-- Status 2026-09-19 03:57 (rota-ff): **the design is settled and the frame
-  is priced. No code is written.** The record is
-  `plans/archive/context-caps-design-2026-09-18.md`. The scope cost 536k in
-  five agents, 282 tool calls. Roman ruled twice on 2026-09-19: the higher
-  window goes to every wake with a strict spill monitor, so the flag on
-  `Wake` is dropped; and the symbol spans are a frame after frame 33.
-  What the design found, against the frame's own first view: the page is
-  not the problem. Turn 2 is. A seat asks for reads at turn 1, the results
-  arrive at turn 2, and `_fit` returns early below four blocks, so turn 2
-  is never trimmed. The cause upstream of that is that 14 reading modes
-  hold `code.source` and no `code.probe`, so a seat that must find
-  something can only dump files. Session s10 pulled eight files four times,
-  63023 characters, to write two sentences citing one file.
-  The window ceiling is measured on the night card at one slot: qwen3:8b
-  fits at 20480 using 8.01 GB and spills by 0.62 GB at 24576. 16384 is the
-  recommended number, which leaves the desktop 0.6 GB.
-  **Two grill questions are unasked**, because the session reached its
-  context bound: whether the four repairs are one frame or four, and
-  whether the designed budget of section 7 becomes its own frame now. The
-  peer that takes this frame asks them before it writes code.
-- Status 2026-09-19 04:02 (rota-65): claimed by 4286e076 at 83d789a. The
-  hand-off came as Roman's paste, not as a peer message (observed: Roman,
-  2026-09-19, "session messaging for hand off is not working"). The two
-  grill questions go to Roman now, with a third the claim read found.
-  **The third: raising the window must not re-key the register.** The
-  cassette key holds `pins.num_ctx` (observed:
-  `rota/llm/cassettes.py:118`), and the register's `num_ctx` is unpinned,
-  so it takes `DEFAULT_NUM_CTX`, 12288 (observed: `rota/llm/llm.py:43`,
-  `tests/rota/test_l1.py:35`). An implementer that raises the constant
-  turns every L1 and L3 recording stale in one edit, which the frame's
-  90k does not carry. The window rises in the shipped profiles instead
-  (observed: `rota/llm/profiles/local.toml:12`), and the register keeps
-  its keys at zero cost. The implementer's brief must say so.
-  The design review of ends-when line 6 is out, cap 80k, ten numbered
-  points. It does not wait on either grill question, so it runs now.
-  The 536k scope report is rescued into
-  `plans/archive/context-caps-scope-2026-09-18.json` at b4396a2. The design
-  record had pointed at session 9108c499's scratchpad, which is deleted
-  with the session (observed: the pointer was dead from this checkout and
-  the peer's inbox refused a message, so that session has ended). A
-  record's pointer never names a session scratchpad.
-  **The design review runs on Opus, a stated deviation from "Opus builds,
-  Fable judges"** (observed: the first launch died at once with "You've
-  reached your Fable limit", HTTP 429). Fable is unavailable today, and
-  this session is itself Opus. The review's main lever is a context that
-  never traced the code, and that lever survives the model change. Cross
-  family judgement does not.
-- Status 2026-09-19 04:12 (rota-65): **grill question 1 is ruled. The four
-  repairs are one frame, four implementer passes, one night** (ruled:
-  Roman, 2026-09-19, after he asked which four and read the list). The
-  four are ends-when lines 2 to 5, in that order: `code.probe` to the 14
-  reading modes, the repeat memory keyed by path and cleared by a write,
-  a per-turn cap on the total of the results, and `_fit` trimming turn 2.
-  Ends-when line 1, the window rise and the spill monitor, is Roman's
-  ruling 1 of 2026-09-19 and is not one of the four.
-  The reason on the record: this is one wall, and the repairs interact.
-  Repair 1 changes what a seat pulls, which changes whether repairs 3 and
-  4 ever fire, so four separate closes would not give four separate
-  measurements.
-  **Repair 1 ships weaker than the design record assumed** (reasoned: the
-  assistant, reading ruling 2 against section 5 of the record). Ruling 2
-  moved the symbol spans to a frame after frame 33, so `code.probe`
-  returns the name, the kind and the area with no line numbers. A seat
-  that probes still reads `code.source(path, 0, 400)`. The repair goes
-  from dumping eight guessed files to dumping one found file, which is
-  most of the saving. The spans frame later turns 400 lines into 40.
-  **Repair 2 is a correctness fix, not a context fix**: the "unchanged
-  since you asked earlier" line is sometimes false, and the runner
-  discards the true answer on the way to saying it.
-  Grill question 2 is ruled the same minute: the designed budget of
-  section 7 is pushed as frame 46, unpriced, waiting on this frame's
-  night (ruled: Roman, 2026-09-19). **Both grill questions are now
-  closed, so the frame may write code once the design review returns.**
-- Status 2026-09-19 04:17 (rota-65): design review in, 107763 tokens on the
-  harness line against 80k priced, 78 tool calls, 8.5 minutes (observed:
-  the harness usage). Fourteen findings, six high. The reviewer named the
-  overrun's cause: the graph chase of its first finding, which the brief's
-  points did not anticipate.
-  **The finding that saves the frame: adding `code.probe` to a `.tools`
-  file does nothing unless `rota/design/graph.json` grants the verb**
-  (observed: the assistant's own read, `code.probe` appears twice in
-  `graph.json`, for `architect` and for `developer`, and nowhere else).
-  `rota/core/sandbox.py` drops a name the graph did not grant, in silence.
-  So repair 1 as the design record briefed it would have been a no-op for
-  `critic`, `terminologist` and `vision_keeper`. Session s10, the record's
-  headline evidence for repair 1, is `vision_keeper/reconcile`. The repair
-  would have shipped green and done nothing for its own main customer.
-  No test asserts that a `.tools` name is graph-granted.
-  The count is 19 `.tools` files and 3 graph edges, not the record's 14
-  (observed: the reviewer's file scan). The architect's five modes are the
-  cheapest, because the edge already exists.
-  Four more that change the brief: the repeat branch runs for every op, so
-  a `code.commit` was answered "unchanged since you asked earlier this
-  session" on night 86 s145 and the seat then re-issued the same commit
-  three times; `already_run` drives a call hold as well as the repeat
-  render, so the record's "key it by path" would break the hold; a refusal
-  that raises can end a session at the fourth refusal; and repair 4 makes
-  repair 2's stale line fire far more often, so repair 2 must land first,
-  which the ruled order already does.
-  **One finding is not yet settled and it is the price**: the reviewer
-  says all four repairs re-key the cassettes, and marked it PLAUSIBLE.
-  The adversary is out now, as `plans/operating-facts.md:308` requires,
-  with six refuters, one measurement of the re-record, and a completeness
-  critic. The gate runs beside it on a quiet machine. The code tree has
-  not moved since the trusted gate at 8b15af8.
-- Status 2026-09-19 04:30 (rota-65): **the gate is green on this tree and
-  the pre-code number is taken.** 23 failed, 1914 passed, 27 skipped,
-  zero stale, 521.9 s (observed: the gate's own five lines). One new red,
-  `test_screens.py::test_sorting_holds_the_view_you_had_scrolled_to`, and
-  the gate named it flaky and re-ran it green in 2.27 s. So the real
-  count is zero new reds and zero stale, which matches the trusted number
-  at 8b15af8.
-  **The flaky red has a cause, and it is mine** (reasoned: the gate ran
-  from 04:14 to 04:23, the adversary's agents started at 04:16, so the
-  two overlapped, and the test that flaked is a timing-sensitive TUI
-  test). `plans/operating-facts.md` already says the gate beside a night
-  flakes the timing cases. A fan-out of agents is the same load. The line
-  is added there.
-  The baseline in `.rota-gate.json` is still `e75e67d` from an
-  uncommitted tree of 2026-09-17, so the gate says the compare is not
-  commit to commit. It re-baselines on a quiet machine after the
-  adversary returns, so that every later acceptance in this frame
-  compares against a clean tree at a known commit.
-- Status 2026-09-19 05:05 (rota-65): **the adversary is in and the design
-  changed. The corrections are section 9 of the design record.** Eight
-  agents, 740875 tokens, 302 tool calls, 46 minutes (observed: the harness
-  usage). Six refuters, one measurement of the re-record, one completeness
-  critic.
-  All six findings came back REFUTED, which is itself a bias signal, so
-  each is recorded by its evidence and not by its verdict. Two of the
-  review's fix lines would have made the frame worse. The completeness
-  critic found more than the review did.
-  What changed, in the order that matters:
-  1. **Repair 4 is half dead** (observed: the assistant's own read of
-     `rota/core/runner.py:505-512`). At turn 2 the transcript holds three
-     blocks and the middle eviction takes `transcript[1:-2]`, which is
-     empty, so lowering the guard evicts nothing. The code's own comment
-     already records that this fault was found after night 85 and fixed by
-     moving the wake cut above the guard. Removing the guard makes head and
-     tail overlap and turns `test_runner.py:657` red. Repair 4 reduces to
-     capping the last two blocks. **This overturns section 2b, the
-     record's headline diagnosis.**
-  2. **Repair 1 costs about what it saves while the spans are parked.** A
-     probe renders 5553 characters at the median, and 5 of the 15 commonest
-     patterns hit the 200-row cap and truncate at 6084. Without the span
-     columns a probe is still followed by `code.source(path, 0, 400)`. The
-     open judgement: give `code.probe` a row limit, or hold its brief line
-     until the spans land.
-  3. **Repair 2 keeps its purpose and loses both proposed fixes.** The
-     commit was not swallowed, `code.write` is affected in zero sessions,
-     and the "six sessions" is one. The corrected fix registers the key
-     after the call succeeds, stores the render, and answers "unchanged"
-     only when the new render matches. That also fixes a defect no record
-     saw: the key is added before the call, so a write that fails and then
-     succeeds identically has its success swallowed.
-  4. **The stale line cannot accept this frame** (observed:
-     `rota/tools/casestatus.py:77-81` matches case, prompt hash and model,
-     and `num_ctx` is in the cassette key and not in the match; the
-     assistant read it). The gate reports zero stale after a change that
-     re-keys 14757 of 18270 cassettes. Acceptance needs the replay suite's
-     result, not the stale count.
-  5. **The price is measured.** The four repairs stale 98 of 385 live
-     recordings, 20 to 25 minutes. The window rise is four times all four
-     together: the constant route stales all 396, about two hours, and the
-     profile route stales none. The profile route is confirmed by
-     measurement now, not reasoned.
-  6. Three faults in the monitor that no record named: gemma3:12b already
-     spills at 12288 and two of the eight raised profiles ship it, so a
-     warn-until-dismissed monitor fires forever on the Critic's desk; the
-     fit table cannot tell 12288 from 16384 for qwen3.5:9b, so design point
-     5's guard is decoration for the routed model; and the monitor reads
-     `localhost:11434` from a bare literal, so a Titan run measures the
-     wrong card.
-  7. **The register does not contain the fault this frame fixes.** The
-     largest live L1 prompt is 31127 characters against night 85's 110250.
-     The suite cannot show this frame worked. Only the night can, which is
-     now measured rather than preferred.
-  Next: the implementer's brief from section 9, then pass 1. The gate
-  re-baselines first on a quiet machine.
-- Status 2026-09-19 05:54 (rota-65): **the gate is re-baselined clean and
-  pass 1 is in and accepted.**
-  The baseline is now `f3a7e41`, a committed tree: 22 failed, 1915 passed,
-  zero new reds, zero stale, 497.0 s (observed: the gate's five lines).
-  That also confirms the flake of 04:30, because the same TUI test passes
-  on a quiet machine, 1915 against 1914.
-  **Roman ruled at 05:40: do the spans now** (ruled: Roman, 2026-09-19,
-  reversing the timing of his ruling 2 of the same day, not its reason).
-  The reason survives, because the spans do not edit frame 33's commit
-  `7e53796`. They add a commit above it, so frame 33's two reviews and its
-  gate stay valid for what they covered. The cost Roman accepted: the
-  write path is `rota/onboarding/indexer.refresh`, which is frame 33's
-  code, unwalked since 2026-09-17 (observed: `python -m rota.tools.map
-  table code_index`, 9 writers, 6 in `indexer.py`). A fault there at the
-  night is now harder to attribute between the two frames. The parser half
-  is cheap: the tree-sitter node and its start and end points are in hand
-  one line before the span is dropped (observed:
-  `rota/onboarding/indexer.py:131`).
-  The spans run as a pass inside frame 43, not as a new frame, because
-  Roman ruled the repairs are one frame and one night measures the set.
-  The order is now: repair 2 (done), the spans, repair 1 at ten times
-  rather than five, repair 3, repair 4, one re-record, the night. The
-  frame re-prices by about +110k in agents for the spans pass.
-  **Pass 1, repair 2**: 136616 tokens on the harness line against a 120k
-  cap, 68 tool calls, 30 minutes (observed: the harness usage). 103 lines
-  in `rota/core/runner.py`, 152 in `tests/rota/test_runner.py`, five
-  pinned tests. The implementer stashed its change and re-ran the five:
-  three fail on the old runner, two pass as guards. Four deviations, all
-  accepted (reasoned: each states its cause, and the first is the sharpest
-  — the new refusal enters `sb.ctx.refusals` as `(name, why, "Repeat")`
-  because `rota/core/db.py:736` keys a derived re-ask on `"Wall"`).
-  Judged by spot reads from a context that never wrote the file: the key
-  is registered after the call at `:2158`, `call_key` is still the lookup
-  at both `:2116` and `:2137`, `by_path` only invalidates, the refusal is
-  a `feedback` line with no raise, and both files are LF with zero CR
-  bytes.
-  **The gate proved section 9.6 the hard way.** 36 failed against the 22
-  baseline, 14 new reds, and `stale (0): none`. Every one of the 14 is a
-  STALE report in its own traceback. The arithmetic closes: 1915 plus 5
-  new minus 14 staled is 1906. So the acceptance rule for this frame is to
-  classify every new red from its traceback, never from the stale line.
-  The 14 re-record now. Section 9.5 priced 18 to 47 recordings.
-  Section 9.6's open number is resolved and the record says so: the price
-  agent's 8 stale L1 cases do not reproduce under the gate's pins.
-- Status 2026-09-19 06:21 (rota-65): **the re-record earned back 13 of the
-  14, and the fourteenth is a real red that repair 2 caused.** The
-  re-record wrote 27 cassettes in 2m42s and replayed 1833 (observed: the
-  recorder's own line). The gate then found one new red, not flaky:
-  `ACT-DV-edit-inside-the-function`, 0 of 5 runs, needing 4, with
-  "forbidden call to `msg.challenge_tester`" on every run. A stale case
-  reads as "no recording for the current prompt". This one answers and
-  answers wrongly, so it is a behaviour change and not a missing cassette.
-  The working hypothesis, not yet the cause: repair 2 refuses a third
-  identical call with "asked three times this session and the answer has
-  not changed; not answered again", and the Developer escalates to
-  challenging the tester instead of finishing. A read-only agent is
-  reading the newly recorded turns against the previous ones, because
-  CLAUDE.md says a cause goes on the stack only after the failing
-  session's turns are read.
-  **The spans pass is cheaper than this session told Roman.** `refresh`
-  does not write index rows. Both of its paths call `build` (observed:
-  `rota/onboarding/indexer.py:559`, `:579`), and the only column `refresh`
-  writes itself is `area`. Both `INSERT INTO code_index` statements are in
-  `build`. So the span columns land in `build` and `refresh` inherits
-  them. The entanglement with frame 33's unwalked code is much smaller
-  than the reviewer's phrase "not cheap in the write path" implied, and
-  this session passed that phrase on without checking which function
-  writes. The migration pattern already exists at
-  `rota/llm/cassettes.py:93-100`.
-  A meta note for the next peer: do not pipe `python -m rota.tools.gate`
-  through `tail`. This session did, and cut the five lines CLAUDE.md says
-  to read (observed: the run at 06:05 kept only the traceback re-run).
-- Status 2026-09-19 06:30 (rota-65): **the red is diagnosed and the cause
-  is not the refusal. Repair 2 told the truth and the truth was bad
-  advice.** A read-only agent read the failing session's turns, 60883
-  tokens, 41 tool calls (observed: the harness usage). The assistant's own
-  hypothesis, that the refusal wording made the seat escalate, is wrong:
-  no refusal appears in any of the 15 failing rows.
-  The turn-4 prompt moved by exactly two lines and nothing else in 8.6k
-  moved (observed: a unified diff of the two recorded `user` fields, keys
-  `78524f0c...` and `6787a79e...`). Where the seat used to read `OK
-  code.commit -> unchanged since you asked earlier`, it now reads the real
-  result, `{"committed": false, "why": "nothing changed", "note": "... If
-  the criteria are already met, say so and finish ..."}`. The seat obeyed
-  that note, said the criteria were met, and called
-  `msg.challenge_tester`, which is the one message its mode names
-  (observed: `rota/roles/prompts/developer/tests_failing.md:25`).
-  **So repair 2 unmasked a pre-existing bad note.** The note at
-  `rota/roles/api.py:8655-8659` is old. The old behaviour hid it behind a
-  lie. The case passed 5 of 5 in all 23 earlier loads, 335 rows, and only
-  the tree changed. This is the register earning its cost: no unit test
-  would have caught a change in what a seat decides.
-  Three defects go to pass 2, cap 60k. A commit forgets the write that
-  landed it, because `forget(touched)` discards the write key the same
-  reply registered. The note must name the ending instead of saying
-  "finish". And the repeat refusal is scored as a call a guard threw out,
-  because `outcome.errors` entries with a dotted prefix are subtracted at
-  `rota/testkit/fixtures.py:615`, so a repeated forbidden call gets a
-  silent discount.
-  One fact for any later re-record: a case's pinned model wins over
-  `ROTA_MODEL`. `ACT-DV-edit-inside-the-function` pins `qwen3.5:9b`
-  (observed: `tests/rota/cases/l1_acts.yaml:187`), and the register holds
-  zero rows for it under qwen3:8b.
-- Status 2026-09-19 07:11 (rota-65): **repair 2 is committed at 7045226.
-  The gate is clean on the assistant's own run: 22 failed, 1922 passed,
-  zero new reds, zero reds gone, zero stale, 514.5 s.** The 22 are the
-  baseline's own and 1915 passes plus 7 new tests is 1922 (observed: the
-  gate's five lines, read whole and not piped). `ACT-DV-edit-inside-the-
-  function` is green 5 of 5 on qwen3.5:9b, in the live re-record and in a
-  replay after it.
-  Pass 2 cost 33602 tokens against a 60k cap, 173771 cumulative for the
-  agent over two passes, 27 tool calls. Two deviations, both accepted.
-  **The first corrected this session's brief with evidence**: the
-  write-commit-write case cannot be pinned, because `code.write`'s result
-  embeds `written, not committed`, which a commit necessarily empties, so
-  two identical writes spanning a commit never compare equal. The
-  implementer pinned the observable write-then-write form instead and
-  verified it fails on the pass 1 code. Its conclusion, which this session
-  accepts: **defect 2, the note, was the whole of the red.**
-  The register is backed up by the SQLite backup API, 722 MB in 14 s, to
-  `.rota/cassettes_backup_2026-09-19-frame43-repair2.db`. The publish stays
-  Roman's and is not done.
-  A meta observation, not yet a fact: two different TUI screen tests
-  flaked in this session, `test_sorting_holds_the_view_you_had_scrolled_to`
-  at 04:30 under load, and `test_opening_a_stale_run_is_refused_with_the_
-  reason` at 06:55 with nothing else running. The gate named both flaky and
-  re-ran both green. The second one weakens this session's own line in
-  `plans/operating-facts.md` that load is the cause. The screens suite may
-  be flaky on its own.
-  Actual against the 616k estimate, walls apart: design review 107763,
-  adversary 740875 in eight agents, the red's diagnosis 60883, implementer
-  173771 over two passes, the assistant's gate and re-record runs about
-  30k: 1113k. The adversary is the overrun and it is not regretted, because
-  it overturned the headline diagnosis and two of the review's fix lines.
-  Next: the spans pass, then repair 1, then repairs 3 and 4.
-- Status 2026-09-19 07:54 (rota-65): **pass 3, the symbol spans, is in.**
-  50325 tokens against a 110k cap, 228483 cumulative for the agent over
-  three passes, 40 tool calls (observed: the harness usage). Five files,
-  189 insertions. The implementer's gate: 22 failed, 1927 passed, zero new
-  reds, zero stale. The arithmetic closes, 1915 plus 7 plus 5 is 1927, and
-  the 22 are the baseline's own. The assistant's own gate runs now.
-  `code_index` gains `line_start` and `line_end`, the parser keeps the
-  definition node's span at `rota/onboarding/indexer.py:131`, `build`
-  writes them, the migration sits in `init_db` behind `_has_column`, and
-  `code.probe` returns them capped at 60 rows with a note when the pattern
-  matched more.
-  Three deviations, all accepted. The sharpest: `SCHEMA_MARK` did not move,
-  because the mark refuses a database outright and a migrated database is
-  not behind the schema (reasoned: the implementer, and the comment in
-  `init_db` states it).
-  **The entanglement risk with frame 33 did not fire, and it is now
-  measured** (observed: the implementer's read of
-  `rota/onboarding/indexer.py:479-484`). The freshness aggregate reads
-  `grain`, `area` and `content_hash` of path grains only, and a path
-  grain's span is constant at 0, so no area hash moves and no attested
-  survey reopens. `refresh` needs no change, because both of its paths call
-  `build`, which deletes and rewrites every row. A test pins it.
-  **One real finding inside frame 33's code, left unfixed on purpose**
-  (observed: the implementer, `rota/onboarding/indexer.py:454` and the
-  `stack.pop()` walk): `build` uses `INSERT OR IGNORE` and the parser does
-  not visit definitions in source order, so a file that defines one name
-  twice stores an arbitrary one of them. Before this pass that only decided
-  `sym_kind`. Now it decides which lines a seat reads. The fix is a design
-  choice between the first definition, the largest, or one grain per
-  definition. It is frame 33's code and it is not this pass's to make.
-  **A defect this pass introduced, folded into pass 4**: the probe orders
-  by `fan_in DESC` and `build` gives every symbol a fan-in of 0, so every
-  matching path sorts above every matching symbol. With the new 60-row cap
-  a broad pattern can spend the whole cap on paths and return no definition
-  at all, which defeats the probe's new purpose. Pass 4 orders symbols
-  first, and pays one re-record for both changes instead of two.
-- Status 2026-09-19 08:10 (rota-65): **the spans are committed at 9881938
-  and pass 4, repair 1, is out, cap 120k.** The assistant's own gate: 23
-  failed, 1926 passed, zero stale, 628.1 s (observed: the gate's five
-  lines, read whole). The arithmetic closes: 1915 plus 12 new tests is
-  1927, less one flake is 1926, and 22 baseline reds plus that flake is 23.
-  **A correction to this session's own operating fact.** At 04:30 this
-  session wrote that a fan-out of agents flakes the timing cases, from one
-  case. Two more have since flaked in the same file, one of them with
-  nothing else running. Three different tests of `tests/rota/test_screens.py`
-  flaked across five gate runs today, and the gate named and re-ran all
-  three green. So the file is flaky and load is not the cause. The line in
-  `plans/operating-facts.md` is rewritten to say that, and it says what it
-  used to claim.
-  Pass 4 carries the trap that would have made repair 1 a silent no-op, the
-  14 modes, the per-mode brief line rather than `base.md` at 4.5 times the
-  re-record, the ordering fix from pass 3, and the guard that was missing:
-  a test that every op named in every `.tools` file is granted by the
-  graph.
-- Status 2026-09-19 09:30 (rota-65): **pass 4 is in and the suite is one
-  red better than the baseline.** 110691 tokens against a 120k cap, 331495
-  cumulative over four passes, 91 tool calls, 75 minutes (observed: the
-  harness usage). The implementer's gate: 21 failed, 1931 passed, zero new
-  reds, zero stale, and **one red gone,
-  `test_l1.py::test_l1_case[L1-VK-reconcile-the-readme]`**. That case is
-  `vision_keeper/reconcile`, the mode of session s10, which is the session
-  repair 1 exists for. The assistant's own gate runs now.
-  **A correction this session owes, and it reverses its own headline**
-  (observed: the assistant's read of `tests/rota/test_prompts.py:190`).
-  The status of 04:17 said repair 1 "would have shipped green and done
-  nothing" and that "no test asserts that a `.tools` name is graph-granted".
-  The second half is false. `test_a_mode_narrowing_cannot_widen_the_role`
-  walks every role, every mode and every `.tools` name against the graph's
-  grant, and the implementer proved it by removing an edge and getting four
-  failing lines. Repair 1 could not have shipped green. It would have gone
-  red.
-  What stands: `code.probe` was granted to `architect` and `developer` only,
-  so the three edges were genuinely required and section 5 did not name
-  them. The silent drop in `rota/core/sandbox.py` is real at runtime.
-  The lesson is this session's. The finding had two halves, this session
-  checked the half one grep settles and repeated the other on trust. A
-  finding is not confirmed because part of it is. Section 9.1 of the design
-  record carries the correction.
-  **Three of the 14 modes are held out, each measured 0 of 5 with the
-  probe** (observed: the implementer, three cases that were green at the
-  baseline): `terminologist/criteria`, `terminologist/survey` and
-  `architect/survey`. All three are already pushed the source they work
-  from, `[code.area]` or the callables list. A mode whose prompt already
-  carries the code does not need a search, and the paragraph offering one
-  costs the mode its output. Eleven modes shipped.
-  **The wording cost three cases and took three measured iterations.**
-  "Probe for a name before you read a file" was read by an 8B as "instead
-  of reading", and two survey cases went 0 of 5 by probing and never
-  reading. Adding "The probe finds the lines. It never replaces the read."
-  fixed that and exposed the next fault: the example `pattern='line_total'`
-  was copied out of the brief into an artefact, and a constraint shipped
-  with `line_total` as both its id and its headline. The line that shipped
-  names no identifier.
-  A fact worth keeping for any re-record: **reverting a prompt to its
-  committed text restores its recordings.** A mode put back replayed 30
-  cassettes, zero recorded, and went green (observed: the implementer, on
-  `architect/survey`). 101 cassettes were recorded across three wordings
-  and the register holds 18409 rows.
-- Status 2026-09-19 09:45 (rota-65): **repair 1 is committed at 5241cb9.
-  Pass 5 carries repairs 3 and 4, the last two, cap 110k.** The assistant's
-  own gate: 22 failed, 1930 passed, zero stale, one red gone, one new red
-  which is the screens flake re-run green (observed: the gate's five lines,
-  read whole). The arithmetic closes: 1915 plus 16 new tests is 1931, less
-  one flake is 1930. The screens diagnosis is settled, because the new red
-  is the same test that flaked at 04:30: four flakes today across three
-  tests of one file, with and without load.
-  Pass 5's brief carries section 9.2 as a prohibition, not a suggestion.
-  The guard must not go below three blocks, because the record's headline
-  fix evicts nothing at turn 2 and makes head and tail overlap. Repair 4 is
-  one thing, the cap on the last two blocks.
-  **Frame state for a successor.** Repairs 2 and 1 and the spans are
-  committed at 7045226, 9881938 and 5241cb9. Repairs 3 and 4 are out. What
-  remains after them: one diff review on a worktree at the closing commit,
-  one re-record, and the night against night 86's four numbers. The night
-  is the only instrument that can show this frame worked, because the
-  largest prompt in the whole register is 31127 characters against night
-  85's 110250 (observed: section 9.8 of the design record).
-- Status 2026-09-19 10:30 (rota-65): **all four repairs are built. Pass 5
-  is in.** 61426 tokens against a 110k cap, 393346 cumulative over five
-  passes, 54 tool calls (observed: the harness usage). The implementer's
-  gate: 23 failed, 1935 passed, zero stale, one red gone, two new reds and
-  **the implementer proved both flaky rather than taking the gate's word**:
-  it ran the new `test_arc_synthetic` case four times over plus alone, and
-  it never reproduced.
-  The per-turn cap is `SOURCE_CHARS` plus `RESULT_CHARS`, 20000, and the
-  arithmetic is the reason: one whole source read is 14000 and must not be
-  bitten, because night 79 is the case where a cut span was re-asked five
-  times and nothing was written; a 60-row probe plus a source read is 16200
-  and must fit; two source reads are 28000 and must not. The room is also
-  charged against the wake and the reply, so the cut falls where the
-  sentence that names it is still useful.
-  Repair 4 is the cap on the last two blocks and nothing else. The
-  middle-eviction guard stays at four, `_cap_exchange` guards itself at
-  three, and it is applied on all three of `_fit`'s returns (observed: the
-  assistant's read of `rota/core/runner.py:599-614`).
-  Repairs 3 and 4 cost two recordings and no case, against section 9.5's
-  price of 0 to 2 and about 6. The register holds 18429 rows.
-  **A parked finding worth a frame of its own** (reasoned: the
-  implementer): `test_screens.py` flaked five times today across four
-  different tests and `test_arc_synthetic` once. Both files run a whole
-  screen or a whole arc. A flake that moves around a file is usually shared
-  state, not one bad assertion.
-- Status 2026-09-19 10:45 (rota-65): **all four repairs are committed. The
-  frame's closing commit is 34c3e72 and the diff review is out.** The
-  assistant's own gate on that tree: 22 failed, 1936 passed, zero stale,
-  one red gone, one new red which is a fifth different screens test, re-run
-  green (observed: the gate's five lines, read whole). 1915 plus 21 new
-  tests is 1936.
-  **The frame's four commits**, in order: 7045226 repair 2, 9881938 the
-  spans, 5241cb9 repair 1, 34c3e72 repairs 3 and 4. Against the frame's
-  base at 90cd57e: 37 files, 678 insertions, 28 deletions.
-  The diff review runs read-only on a worktree at
-  `C:/Users/roman/rota_review43`, detached at 34c3e72, cap 90k, eight
-  numbered points. **Remove that worktree when the review closes**:
-  `git worktree remove C:/Users/roman/rota_review43`.
-  **What remains to close this frame**: the review's findings, then a
-  night from a worktree at the closing commit, measured against night 86's
-  four numbers. Night 86 is the baseline: 297 of 825 turns had their middle
-  evicted, 86 turns had the wake itself cut, 15 sessions were cut by the
-  server, 179117 tokens discarded. The night is the only instrument that
-  can show this frame worked.
-  **A note for the night's operator.** The window has NOT been raised. Ends
-  when line 1 of this frame says the window rises to 16384 for every wake
-  with a spill monitor, and no pass has done it. Section 9.5 says why it
-  was left last: raising `DEFAULT_NUM_CTX` stales all 396 live recordings,
-  about two hours, and raising the shipped profiles instead stales none.
-  Section 9.7 carries three faults that must be fixed with it: gemma3:12b
-  already spills at 12288 and two of the eight profiles ship it, the fit
-  table cannot tell 12288 from 16384 for qwen3.5:9b, and the monitor reads
-  a bare `localhost:11434` so a Titan run measures the wrong card.
-- Status 2026-09-19 11:05 (rota-65): **the diff review found seven defects
-  and one of them is an own-goal. A fix pass is out, cap 80k.** The review
-  cost 130728 tokens against 90k priced, 61 tool calls, 12.7 minutes
-  (observed: the harness usage). It probed by running code: 120000 random
-  transcripts through `_fit`, every symbol of four real files against
-  Python's `ast`, and a pre-change database through the new `init_db`.
-  **F4 is the own-goal and only a diff review finds it.** The repeat
-  refusal is about twice the length of the "unchanged" line it replaces,
-  and repair 3 charges none of it against the turn. Measured at s71's 331
-  calls, its 327 repeat lines become 329 longer ones, 48723 characters
-  against 29430 for one op and 56571 against 28122 for another. **s71 is
-  the session cited in repair 2's commit message and in repair 3's own
-  comment, so the two repairs together grow the prompt they exist to
-  shrink.** The fix is to emit the refusal once per key per turn.
-  **F1, high**: a withheld result is registered as an answer, and every
-  stub is byte-identical, so a seat is told "the answer is above" for a
-  result it has never been shown, and four such turns end the session.
-  **F2, high**: `result_room` is charged against the wake, and `_fit` lets
-  the wake reach two thirds of the budget, so a source read can be cut to
-  5191 characters. That is below the 6000 that night 79 records as the
-  point where the 9B re-asked a cut span five times and never wrote. The
-  review also corrects pass 3's own number: a 61-row probe renders 4415
-  characters on a real 2871-symbol index, not the 2200 in the comment.
-  F3 medium, `forget` clears `already_run` and so moves the read-hold that
-  section 9.3 ruled must not move. F5 low, `_fit` overruns by its own
-  notice, 116 characters. F6 low, a path grain says its span is 0 and 0 and
-  the brief tells the seat to read it. F7 low, the note row names fan-in
-  where the rule is now alphabetical.
-  One limit of the review, stated: the spans are verified against Python
-  only, 77 of 77 symbols matching `ast`. The other grammars in
-  `languages.LANGUAGES` are unexercised.
-
-- Status 2026-09-19 12:35 (rota-65): **HAND-OFF. Session 4286e076 releases
-  frame 43 at the stack commit below, on Roman's word.** The code is
-  complete, committed and gated. The tree is clean. Nothing is in flight.
-  The frame is released at 336k of context, not at the 400k the brief
-  names, because Roman ruled the hand-off rather than the window rise
-  (ruled: Roman, 2026-09-19, "Letshand over"). The reason it was offered:
-  the night takes two hours of wall and this session could have started it
-  but not finished diagnosing it.
-  Spent, walls apart, against the 616k estimate: design review 107763,
-  adversary 740875 in eight agents, the red's diagnosis 60883, diff review
-  130728, implementer 433322 over six passes, the assistant's own gate and
-  re-record runs about 60k. **1533k in agents, about 100k in this
-  context.** The overrun is the adversary and the diff review, and neither
-  is regretted: the adversary overturned the headline diagnosis and two of
-  the review's own fix lines, and the diff review found an own-goal where
-  two repairs together grew the prompt they exist to shrink.
-  What this frame bought, measured: the suite is one red better than its
-  baseline and 26 tests richer, and the red that went green is
-  `L1-VK-reconcile-the-readme`, the mode of session s10, which is the
-  session the whole frame was written from.
-  **The liveness probe found no clean standby** (observed: three peers
-  probed at 12:35, one answered). `rota-c1`, session 1f54b02f, holds no
-  frame and is not clean, because it carries the architecture review of
-  2026-09-15. `rota-b1` and `rota-95` did not answer. So the hand-off goes
-  by Roman's paste, not by message, which is what
-  `plans/operating-facts.md` already says to do when a hand-off must land.
-  The one answer carried three stale facts and they are corrected in that
-  peer's inbox: it believed session 9108c499 still held frames 33, 4 and
-  43, when 9108c499 had handed 43 away that morning and its inbox had
-  already refused a message with ENOINBOX. It also named a stack commit
-  about twenty commits behind. A peer's account of another peer is
-  hearsay. The stack is the record.
-
-  **HAND-OFF BLOCK, written 2026-09-19 11:20 by 4286e076 (rota-65),
-  updated 12:35 at the hand-off.** Read this before you claim frame 43.
-
-  1. **State, updated 11:55.** All four repairs and all seven diff-review
-     fixes are committed. The tree is clean and the review worktree is
-     removed. The frame's commits, in order: 7045226 repair 2, 9881938 the
-     spans, 5241cb9 repair 1, 34c3e72 repairs 3 and 4, 8ca1028 the seven
-     fixes. The register is backed up at
-     `.rota/cassettes_backup_2026-09-19-frame43-closing.db`, 749 MB.
-     The gate at 8ca1028, run by the assistant, not piped: **21 failed,
-     1941 passed, zero new reds, zero stale, one red gone.** One better
-     than the baseline and 26 tests richer.
-  2. **What remains to close the frame.** Two things only. The window rise
-     to 16384 with the spill monitor, which no pass has done. Then the
-     night, from a worktree at the closing commit, against night 86's four
-     numbers.
-  3. **The window rise is the largest single cost in the frame and it has
-     a fork.** Raise it in the shipped profiles, never in
-     `DEFAULT_NUM_CTX`. The constant stales all 396 live recordings, about
-     two hours of model time. The profiles stale none. This is measured,
-     not reasoned. Section 9.7 carries three faults that must land with it.
-  4. **You cannot resume this session's implementer.** Its six passes of
-     context die with the session. Brief a fresh one from section 9 of the
-     design record and from the findings in the statuses above.
-  5. **The gate baseline is machine-local.** `.rota-gate.json` is
-     gitignored and stands at f3a7e41: 22 failed, 1915 passed, zero stale.
-     On another machine, re-baseline before you trust "zero new reds".
-  6. **Acceptance for this frame does not use the stale line.** It is
-     blind here: `num_ctx` and a mode prompt are in the cassette key and
-     not in `rota/tools/casestatus.py`'s match. Classify every new red
-     from its own traceback. Treat `test_screens.py` and
-     `test_arc_synthetic.py` as flaky until a re-run says otherwise.
-  7. **Clean up.** `git worktree remove C:/Users/roman/rota_review43`.
-  8. **The probes are kept**, in `probes/frame43/`, with a README that
-     says which finding each one measures. An agent's scratchpad dies with
-     its session, and this frame already lost one pointer that way.
-
-- Status 2026-09-19 12:45 (rota-95): **claimed by 9a9a20bf. The profile
-  route is now read end to end, so the window rise reaches every wake of a
-  night.** Roman pasted the hand-off at stack commit 4cb1dd0. The tree
-  stands one commit above it at 83ce151, which is another peer's verdict on
-  the architecture review of 2026-09-15 and touches no code of this frame.
-  The route, checked before any brief (observed: this session's own read).
-  `probes/walk.py:122` takes `pins_for(None)` from the run's frozen profile.
-  `num_ctx` is a member of `PIN_KEYS` at `rota/llm/profile.py:34`.
-  `routed_pins` keeps `pins.num_ctx` at `rota/core/runner.py:131`, unless the
-  profile names a per-role window. `local.toml` names no `[context]` table,
-  and the night onboards with `--profile local` (observed:
-  `probes/gauntlet_click.sh:61`). So one line of `local.toml` raises every
-  wake, and `tests/rota/test_config.py:162` stays true, because it asks only
-  that a pin is not below `DEFAULT_NUM_CTX`.
-  This check is deliberate. Pass 4 of this frame nearly shipped a no-op,
-  because a `.tools` edit needed a graph grant that no record named. The
-  profile route is the same shape of risk and it is now measured.
-  **The monitor's dismissal rule is this session's judgement** (reasoned:
-  section 9.7 offers a fork, and each arm alone hides a true cost). The two
-  arms answer two questions, so this frame takes both. The two gemma
-  profiles stay at 12288, because gemma3:12b already needs 10.87 GB there
-  and a rise buys it nothing. The monitor still reports that spill, because
-  the spill costs turn speed and the operator must know. A warning is
-  dismissed per model and per spill size. A dismissed warning returns when
-  the spill grows, so the Critic's desk is warned once and this frame's own
-  rise is never masked.
-  Next, in order: pass 6, cap 120k, for the rise in the six other profiles
-  and the monitor with section 9.7's five faults. Then the gate, one diff
-  review of that commit, and the night against night 86's four numbers.
-- Status 2026-09-19 13:58 (rota-95): **the window rise and the monitor are
-  committed at 3f923ba. The night's baseline is rebuilt, and one of its four
-  numbers is wrong.** The gate on that tree, read whole and not piped: 21
-  failed, 1953 passed, zero new reds, zero stale, one red gone, 527.2 s
-  (observed: the gate's five lines). The arithmetic closes. The hand-off left
-  1941 passes and pass 6 adds 12 tests.
-  **The baseline had no method, and now it has one.** The agent that computed
-  night 86's four numbers kept its query in a scratchpad, which died with its
-  session. `probes/frame43/p_night.py` rebuilds the query and reproduces all
-  four numbers exactly. Night 85 confirms the denominator on a second sample.
-  The denominator 825 is the model turns, which `user <> ''` separates from
-  the session notes.
-  **One recorded number is wrong** (observed: session 9a9a20bf verified it
-  with its own query). Session s168 reports a prompt of 12111 tokens against a
-  12288 window, so nothing was cut. It fired the `used >= num_ctx * 0.98`
-  clause at `rota/llm/llm.py:416`, not the overflow clause, and its term in
-  the discarded sum is minus 150 tokens. The true baseline is 14 cuts and
-  179267 tokens. So acceptance reads two numbers: the note count, and the
-  count of turns whose estimate exceeds the window. At 16384 that clause fires
-  at 16056.
-  **The window rise alone cannot buy this frame's ends-when** (observed: the
-  prompt estimates in night 86's own notes). Twelve of the fifteen cut prompts
-  are above 16384 tokens. The rise clears two of the fourteen real cuts. So a
-  night that shows zero cuts shows the four repairs working, and the window is
-  headroom. The three largest cut prompts are the sessions the repairs were
-  written from. If a cut survives, read s71 at 27155 tokens first.
-  **The window does not spill at 16384** (observed:
-  `probes/frame43/p_window.py`, the 3080 at one slot, idle). qwen3:8b takes
-  6.89 GB and qwen3.5:9b takes 5.50 GB, both fully in VRAM. Both are below
-  section 8's table, so the recommended window has more headroom than the
-  design record claimed. The second model evicts the first, so the two never
-  sum on this card.
-  Pass 6 cost 166286 tokens against a 120k cap, 127 tool calls, 55 minutes.
-  The overrun is three gate runs. The baseline agent cost 104332 against 70k.
-  **Pass 7 is out, cap 60k, and it exists because pass 6 left one of section
-  9.7's three faults half fixed.** The implementer wired `fit_of` to take a
-  measured size and no caller passes the window, so design point 5's guard is
-  still decoration for the routed model. `/api/ps` reports `context_length`,
-  which this session read twice today, so the window needs no guess. The pass
-  also makes the spill row carry the window the server allocated beside the
-  session's pin. That is the only evidence that can prove the rise reached the
-  server, and the profile's pin is not that proof.
-  **A question for Roman, with a recommended answer.** CONTRIBUTING.md forbids
-  a `Co-Authored-By` footer on a commit, and Roman ruled the same on
-  2026-09-04. The harness instructs every session to add one. Four of the five
-  commits before this session's carry it, so every peer has resolved the
-  conflict the same way in silence. Recommended answer: keep the footer until
-  Roman rules, because the history is already uniform and one session stopping
-  alone fixes nothing. The rule is Roman's and the record should say which
-  wins.
-  What remains: pass 7 and its gate, one diff review on a worktree at the
-  closing commit, then night 87. The closing sequence is
-  `probes/frame43/CLOSING.md`, kept in the repository, because this frame has
-  already lost two pointers to a dead session's temporary directory.
-- Status 2026-09-19 14:46 (rota-95): **the frame's code is complete at
-  a072b28. Night 87 is running and the diff review is out.** The gate over
-  pass 7 and the workflow adoption together, read whole: 21 failed, 1994
-  passed, zero new reds, zero stale, one red gone, 525.2 s (observed: the
-  gate's five lines). The arithmetic closes exactly. Pass 7's own gate read
-  1956 passes and the adoption adds 38.
-  Pass 7 cost about 30k against a 60k cap, 32 tool calls. It closed pass 6's
-  deviation 4, and the fact that closed it is that `/api/ps` reports
-  `context_length`. The spill row now carries the window the server allocated
-  beside the session's pin, so a profile that never reached the model is
-  visible instead of assumed. One number was corrected in nine places, because
-  the design record's 7.40 GB stood in the test docstring and in all eight
-  profiles against this session's measured 6.89 GB.
-  **Night 87 launched at 14:44 from a worktree at f320568**, detached through
-  `Start-Process`, because a tool timeout is ten minutes and a night is two
-  hours. The launcher is `.rota/launch_night87.sh` and the log is
-  `.rota/night87.log`. `ROTA_RUNS` points at the main checkout, so the
-  database survives the worktree. The worktree's `local.toml` reads 16384,
-  checked before the launch.
-  The diff review runs read-only on a second worktree at the same commit, cap
-  90k, eight numbered points. Its first point is the one this session most
-  wants: repair 3's per-turn cap of 20000 characters was sized against a
-  12288 window, and the budget at 16384 is about 32522, so the cap is now
-  proportionally tighter than it was designed to be.
-  **Remove both worktrees at the close**: `git worktree remove
-  C:/Users/roman/rota_night87` and `git worktree remove
-  C:/Users/roman/rota_review43b`.
-  **The reserve is empty and no session can join it yet** (observed: `python
-  rota/tools/handover.py peers`, exit 1, at 14:46). The brief's 300k rule
-  says to tell Roman, and Roman is told. The cause is that the permission rule
-  of the kit's step 1 is not installed, so a standby that arms a watcher meets
-  a prompt and parks. Two of the kit's seven steps need Roman, and
-  `plans/operating-facts.md` names both.
-- Status 2026-09-19 15:38 (rota-95): **the diff review's eight faults are
-  fixed and committed at 6408b64. The night is at its design pages and every
-  card line says the window arrived.** The review cost 136453 tokens against
-  90k priced, 65 tool calls, 14.7 minutes (observed: the harness usage). Pass
-  8 cost about 52k against a 90k cap.
-  The gate, run beside the night and read whole: 23 failed, 1998 passed, zero
-  stale, one red gone. Both new reds are `tests/rota/test_screens.py` and the
-  gate re-ran both green in 5.15 s. **That file has now flaked six times today
-  across five different tests, with and without load.** The arithmetic closes:
-  21 baseline reds plus two flakes, and six new tests.
-  **The fault that mattered could have faked this frame's own evidence**
-  (observed: the reviewer's probe). `spill_of` falls back to the worst spill on
-  the card when the session's model is absent, and the loop stamped the
-  session's pin beside that other model's numbers. A night swaps models at
-  every role change, so the pinned-but-given alarm was manufacturable by a
-  swap. The row now carries a matched flag.
-  **The night runs from f320568 and the closing commit is 6408b64. This
-  session judges the night still valid** (reasoned: pass 8 touches no file on
-  the prompt path). Pass 8 changed `rota/cockpit/tui.py`, `rota/core/loop.py`'s
-  `note_spill`, `rota/llm/discover.py`, `rota/llm/setup.py`,
-  `rota/tools/probe_tools.py`, two guides and the tests. It did not touch
-  `rota/core/runner.py`, so `_fit`, the wake cut and the server-cut note are
-  byte for byte what the night runs. The four context numbers are therefore the
-  same at either commit. Only the card line's precision differs, and every card
-  line this night printed names the session's own model. Killing the night
-  would cost the 50 minutes already run and two more hours for an identical
-  measurement.
-  **The window arrived, proven by the night and not by a probe** (observed:
-  `.rota/night87.log`). Every card line reads `CARD FITS`: qwen3:8b at 16384
-  with 6.89 GB resident and 0.00 GB in RAM, qwen3.5:9b at 16384 with 5.50 GB
-  and 0.00 GB, alternating as the desks swap. No line reports a spill and no
-  line reports a pin that did not arrive. That closes ends-when line 1, which
-  bought Roman's ruling of 2026-09-19 with the evidence that it is not
-  spilling. The numbers match this session's own probe exactly.
-  What remains: the night's `GAUNTLET-DONE` line, a copy of its database to
-  `.rota/clickI_night87.db`, `probes/frame43/p_night.py` on it, the four
-  numbers beside night 86's corrected baseline, and the closing status with the
-  actuals. Then remove both worktrees.
-- Status 2026-09-19 16:32 (rota-95): **the frame's measurement is in, taken on
-  the night in flight, and the ends-when is met on its hard test.** The night
-  is still running sentence 1, so these numbers are partial and they already
-  cover 780 model turns against night 86's 825. Measured with
-  `probes/frame43/p_night.py` on the live database, opened read-only.
-
-  | number | night 86 | night 87, partial |
-  | --- | ---: | ---: |
-  | middle evicted | 297 of 825, 36.0 per cent | 212 of 780, 27.2 per cent |
-  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 780, and 71 confirmed at `wake_room` |
-  | sessions cut by the server | 15 of 203, 14 of them real | **0 of 180** |
-  | tokens discarded | 179117, 179267 over the real cuts | **0** |
-  | largest prompt | 27155 tokens | **8191 tokens** |
-  | turns over 16384 | 12 | **0** |
-  | turns over 12288 | 14 | **0** |
-
-  **The mechanism is closed, not just the number** (observed: the largest
-  prompt is 8191 tokens, and `_fit_budget` at 16384 is about 32522 characters,
-  which is 8192 tokens at the runner's own ratio). So `_fit` now binds on the
-  largest prompt of the night and holds every prompt at or under half the
-  window. A prompt that cannot pass half the window cannot exceed the window,
-  so no session can be cut by the server. Zero is therefore a property and not
-  a lucky night.
-  **Three of the four numbers improve and one is flat.** The flat one is the
-  wake cut, 10.9 per cent against 10.4, and the cross-check moves it the other
-  way: 14 of the 85 notices come from the reply cut and not the wake, so the
-  true wake-cut rate is 71 of 780, 9.1 per cent, against night 86's 10.4. Both
-  readings sit inside the night-to-night variance this session measured, where
-  nights 85 and 86 swung from 0.5 per cent to 10.4 on the same code.
-  **This is why the acceptance question was asked** (reasoned: the assistant,
-  2026-09-19). The four rates cannot carry the frame, because two consecutive
-  nights on nearly the same code differ by up to twenty times. The largest
-  prompt moved 6 per cent between those two nights and moved 70 per cent
-  between night 86 and this one. The question stands for Roman: close on the
-  largest prompt, with the four rates recorded beside night 86's.
-  What remains: the `GAUNTLET-DONE` line, the final numbers on the whole night,
-  a copy of the database to `.rota/clickI_night87.db`, the closing status with
-  the actuals, and both worktrees removed.
-- Status 2026-09-19 17:35 (rota-95): **all four numbers now beat night 86, on
-  1446 model turns against night 86's 825. The frame's ends-when is met as
-  written.** The night is still on sentence 1 after two hours and a quarter,
-  and it has already produced 275 sessions against night 86's 203. The
-  database is copied to `.rota/clickI_night87_partial.db`, 30.7 MB, because the
-  night script keeps one generation and the launch after next destroys it.
-
-  | number | night 86 | night 87 at 1446 turns |
-  | --- | ---: | ---: |
-  | middle evicted | 297 of 825, 36.0 per cent | 450 of 1446, 31.1 per cent |
-  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 1446, 5.9 per cent, and 71 true wake cuts is 4.9 |
-  | sessions cut by the server | 15 of 203 | 0 of 275 |
-  | tokens discarded | 179117 | 0 |
-  | largest prompt | 27155 tokens | 8191 tokens |
-
-  **The wake-cut count is frozen at 85 and has not moved since 780 turns**
-  (observed: two readings of the same probe an hour apart). So every wake cut
-  happened during onboarding and none has happened since. As a rate it keeps
-  falling, so number 2 is clearly better and not flat, which corrects this
-  session's reading of an hour ago.
-  Middle eviction rose as a rate between the two readings, 27.2 to 31.1 per
-  cent, and that is the expected direction: a session that is no longer cut
-  lives longer, so more sessions pass four blocks and evict a middle. It still
-  beats night 86.
-  **The wall cost is real and Roman accepted it in advance** (observed: the
-  night's own clock, and design point 2 of 2026-09-18, "the whole page is kept
-  and the cost is paid in turn speed"). Onboarding took 34 minutes. Sentence 1
-  has run two and a quarter hours and is not done, where nights 49 and 50
-  merged sentence 1 in about 40 minutes. The cause is the same property that
-  bought the result: sessions are not truncated, so they keep working instead
-  of dying. A night is now a much longer night.
-  **This frame is ready for Roman to declare finished.** The ends-when asks
-  that four context numbers beat night 86's with zero sessions cut by the
-  server. All four beat it, the cut count is zero, and no turn of 1446 came
-  within a third of the window.
-- Status 2026-09-19 18:35 (rota-95): **the result holds into sentence 2 and it
-  strengthens with scale. This is the closing measurement.** Sentence 1
-  finished at 17:59 after two hours and 41 minutes. Sentence 2 is running. The
-  night now holds 2131 model turns against night 86's 825, which is 2.6 times
-  the sample.
-
-  | number | night 86 | night 87 at 2131 turns |
-  | --- | ---: | ---: |
-  | middle evicted | 297 of 825, 36.0 per cent | 558 of 2131, 26.2 per cent |
-  | wake itself cut | 86 of 825, 10.4 per cent | 85 of 2131, 4.0 per cent, and 71 true wake cuts is 3.3 |
-  | sessions cut by the server | 15 of 203 | 0 of 429 |
-  | tokens discarded | 179117 | 0 |
-  | largest prompt | 27155 tokens | 8191 tokens |
-  | turns over 12288 | 14 | 0 |
-
-  Every number improved again between 1446 turns and 2131. The wake-cut count
-  is still frozen at 85 across three readings, so no wake has been cut since
-  onboarding.
-  **A night now takes about three times as long, and that is new information**
-  (observed: the night's own clock against nights 49 and 50). Onboarding 34
-  minutes, sentence 1 two hours and 41 minutes, where those nights merged
-  sentence 1 in about 40 minutes. A three-sentence night projects to about
-  eight hours. The cause is the property that bought the result: a session that
-  is not truncated keeps working instead of dying, so a night produces two and
-  a half times the turns. Roman accepted the turn-speed cost in advance, at
-  design point 2. The magnitude was not known then and it changes how a night
-  is planned.
-  **The actual against the estimate, walls counted apart.** The frame was
-  priced at 616k in agents and about 45k in this context, then re-priced by
-  about +110k for the spans pass, so 726k in agents.
-
-  | party | estimate | actual |
-  | --- | ---: | ---: |
-  | agents, session 4286e076 and before | | 1533k |
-  | agents, session 9a9a20bf | | 487k |
-  | agents, total | 726k | **2020k**, 2.8 times |
-  | the assistant's own context | 45k | **about 468k** over two sessions |
-
-  Session 9a9a20bf's 487k is the baseline agent at 104332, the implementer at
-  246023 cumulative over three passes, and the diff review at 136453 (observed:
-  the harness usage lines, never an agent's own estimate). The walls: night 87
-  is over four hours and still running, and three gate runs of about nine
-  minutes each.
-  **Where the overrun went, stated plainly.** The adversary at 740875 overturned
-  the record's headline diagnosis and two of the design review's fix lines. The
-  two diff reviews, 130728 and 136453, found an own-goal where two repairs grew
-  the prompt they exist to shrink, and a fault that could have faked this
-  frame's own evidence. Neither is regretted. What is regretted is this
-  session's own context, ten times the estimate, and the cause is that the
-  estimate never counted the assistant reading and judging eight passes.
-  **What remains is bookkeeping, and none of it changes the verdict**: the
-  `GAUNTLET-DONE` line, a final copy of the database to
-  `.rota/clickI_night87.db`, and `git worktree remove` for
-  `C:/Users/roman/rota_night87` and `C:/Users/roman/rota_review43b`. **Do not
-  remove the night's worktree until the night stops**, because the night runs
-  its code.
-- Status 2026-09-20 02:17 (rota-95): **night 87 is complete and the frame's
-  ends-when is met on the whole night. The bookkeeping is done.**
-  `GAUNTLET-DONE 23:53`, exit 0. The night ran nine hours and nine minutes and
-  produced 746 sessions and 3599 model turns, which is 4.4 times night 86's
-  825. The database is at `.rota/clickI_night87.db`. Both worktrees are
-  removed.
-
-  | number | night 86 | night 87, whole |
-  | --- | ---: | ---: |
-  | middle evicted | 297 of 825, 36.0 per cent | 810 of 3599, 22.5 per cent |
-  | wake itself cut | 86 of 825, 10.4 per cent | 71 true wake cuts of 3599, 2.0 per cent |
-  | sessions cut by the server | 15 of 203 | 0 of 746 |
-  | tokens discarded | 179117 | 0 |
-  | largest prompt | 27155 tokens | 8191 tokens |
-  | turns over 12288 | 14 | 0 |
-
-  **The true wake-cut count is frozen at 71 across four readings**, taken at
-  780, 1446, 2131 and 3599 turns. Every wake cut happened during onboarding,
-  and none happened in three sentences of work.
-  **One thing got worse and it is not in the four numbers** (observed: the
-  probe's own cross-check, which separates the two callers of `_render_cut`).
-  The reply cut fired 140 times on night 87 and once on night 86. Per turn that
-  is 3.9 per cent against 0.1, so about thirty times more often. A wider budget
-  lets a seat write a longer reply, and the reply cap now bites where it did
-  not before. The four numbers are unaffected, because the probe counts the
-  wake cut by its offset and not by its words. **This is a finding for a frame
-  of its own**: either the reply cap should scale with the window, or a seat
-  that writes past it should be told before it is trimmed.
-  **What the frame bought, measured**: no prompt of 3599 came within a third
-  of the window, where night 86 sent twelve prompts over 16384 and one of
-  27155. The suite is one red better than its baseline and 44 tests richer.
-  The cost is that a night takes about three times as long.
-  This frame is complete. Roman declares finished.
-- Status 2026-09-20 02:40 (rota-95): **session 9a9a20bf closes out at about
-  400k. Everything is committed and the tree is clean. No hand-off claim is
-  written, because nothing is in flight.** Frame 43's code, its night, its
-  measurement and its bookkeeping are all done. The frame waits on one word
-  from Roman and on nothing else.
-  **No `hand` command was run, and that is deliberate** (reasoned: the
-  assistant). The brief's 400k rule hands a frame to a standby so the work
-  continues. This frame has no work left to continue, so a claim would tell a
-  fresh session to take a finished frame. The next session reads the stack and
-  starts from Roman's order.
-  **The kit's hand-off is fully installed as of 02:30**, so the next session
-  that is made a standby arms with one command and no paste. Acceptance line 12
-  is proved. Lines 7 to 11 and 13 need two sessions at once and are named as
-  unrun in `plans/operating-facts.md`.
-  **What the next session picks up, in the order this session would take it.**
-  1. Roman declares frame 43 finished, and the frame moves verbatim to
-     `plans/archive/stack-2026-09-20.md`.
-  2. Push frame 46, the designed budget, which waited on this frame's night.
-     The night has now run.
-  3. Push the reply-cut finding as a frame. The reply cut fired 140 times on
-     night 87 and once on night 86, about thirty times more often per turn.
-  4. Push the `test_screens.py` flakiness as a frame. Six flakes today across
-     five tests of one file, with and without load.
-  5. Frames 33 and 4 still carry session 9108c499's claim, and that session has
-     ended. Releasing another session's claim is Roman's word, not a peer's.
-  **Three questions are open and none of them blocks the work**: whether frame
-  43 closes on the largest prompt or on the four rates, which this night made
-  moot by beating both; whether a commit carries a `Co-Authored-By` footer,
-  where CONTRIBUTING.md and the harness disagree and every peer has resolved it
-  in silence; and the two dead claims above.
-- Status 2026-09-20 02:51 (rota-95): **HAND-OFF. Session 0549dc76 holds frame
-  43 at commit df96b4b. The file hand-off worked on its first real use.**
-  `python rota/tools/handover.py hand --frame 43 --commit df96b4b --sender
-  9a9a20bf` exited 0 and printed `CONFIRMED: 0549dc76 holds frame 43, 7s after
-  the claim`. This session handed off at about 409k, which is the number the
-  brief sets, and not on a guess.
-  **Four of the kit's acceptance lines are now proved on this machine**
-  (observed: `peers` before and after the hand). Line 7: three sessions armed
-  by the `/standby` command and all three appeared free, so no permission
-  prompt parked any of them and the project rule holds. Line 8: the standby
-  woke with no keystroke and the sender read `CONFIRMED`, 7 seconds against the
-  borrowed 6. Line 9: exactly one of the three woke, and the other two still
-  answer as free with fresh heartbeats and no turn spent. Line 12: the hook
-  enrolled this session, which armed no watcher, and `peers` named it.
-  Lines 10, 11 and 13 stay unrun. They need an empty reserve, an orphaned
-  claim and a fifteen minute wait.
-  **What this session's own hand-off corrects.** The frame's earlier hand-off
-  of 2026-09-19 went by Roman's paste, because a liveness probe found no clean
-  standby and a record said peer messaging was broken. That sentence was
-  measured false, the rule is replaced, and the replacement has now carried a
-  frame. The correction cost one prediction that gated for a day.
-  Frame 43 needs one word from Roman and nothing else. The new holder's work is
-  the list in the status above.
-- Status 2026-09-20 02:55 (rota-52): **claimed by 0549dc76. The take was clean
-  and the frame is unchanged.** The hand-off arrived as a claim file, the
-  watcher woke this session with no keystroke, and `take` exited 0 naming frame
-  43 at df96b4b. The tree is clean and nothing is in flight.
-  This session confirms the frame's own state and adds nothing to it. The code
-  is built, reviewed, gated, walked on night 87, and the four numbers beat
-  night 86. The frame waits on Roman's word and on nothing else.
-  **The arm command asks for a name the session cannot know** (observed: this
-  session's own row). `/standby` asks the session to type its peer name, and a
-  session does not see its peer name until it lists its peers. This session
-  typed a description, `Opus5-standby`, and `peers` printed it, so a peer that
-  wanted to message this session would have addressed a name that reaches
-  nobody. The enrolling hook already writes the true name, `rota-52`, in
-  `.handover/sessions/0549dc76.json`, and the peer state shadows it. The row is
-  corrected by hand. **The fix belongs in the tool**: `--name` should default
-  to the enrolled name, and `/standby` should stop asking for it. That is a
-  one-line door and it is not this frame's work.
-- Status 2026-09-20 03:00 (rota-52): **the two findings of the closing status
-  are pushed as frames 47 and 48.** Frame 43's own list of what the next
-  session picks up is now three items, not five: Roman's word on 43, frame 46's
-  price, and the two dead claims of 9108c499 on frames 33 and 4.
+- Rota workflow. Today no single place answers the question "what may this
+  prompt contain". The caps are per result, per push and per page. The trim
+  is per transcript. The window is per session. Nothing sums them, and the
+  one function that could sum them, `_fit`, is forbidden to touch the two
+  blocks that are usually the problem (observed:
+  `plans/archive/context-caps-design-2026-09-18.md`, section 7).
+- Every guard in the system was added after a night failed, and each
+  comment in the code names that night: the result cap, the source cap,
+  the push cap, the wake cut, the middle eviction, the repeat line, the
+  identical-turn stop, the index cut (observed: the same record, and the
+  code's own comments). Each one is right about the night that caused it.
+  **None of them was designed against the others.** Roman judged the
+  system on 2026-09-18: "This seems quite undesigned" (ruled: Roman).
+- The shape, in five parts (reasoned: the design record's section 7,
+  written from the scope of 536k):
+  1. One budget for a turn, derived from the window, in one place.
+  2. The parts of a prompt declared in priority order: the brief, the
+     wake line, the refs, the latest results, the older results.
+  3. The budget is allocated down that order. A part that overruns takes
+     from what is below it and never from what is above it.
+  4. Every cut is announced in the same words, and the words name the
+     tool that fetches the rest.
+  5. One number a test can assert.
+- Ends when: a test asserts that an assembled prompt is inside its
+  budget, or that the runner named which part it cut and by how much.
+  Not priced. The price waits on night 87, because frame 43's four
+  numbers say how much of the bleeding the four repairs already stopped
+  (ruled: Roman, 2026-09-19, push it now and price it later).
+- Waits on: nothing. Frame 43 closed on 2026-09-20 and is in
+  `plans/archive/stack-2026-09-20.md`. This is the top frame.
+- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
+  and the scope it was written from,
+  `plans/archive/context-caps-scope-2026-09-18.json`.
+- Status 2026-09-19 04:14 (rota-65): pushed by 4286e076, unclaimed,
+  unpriced. The frame exists so the obligation stays countable. The four
+  repairs of frame 43 do not need it, and the design record says so. This
+  is the design that stops the next fault. The four repairs stop the
+  bleeding.
+- Status 2026-09-20 03:00 (rota-52): **the wait is discharged. Night 87 ran
+  and this frame can be priced.** The four numbers say how much of the
+  bleeding the four repairs already stopped: the middle eviction fell from
+  36.0 per cent of turns to 22.5, the wake cut from 10.4 per cent to 2.0, the
+  sessions cut by the server from 15 of 203 to 0 of 746, and the tokens
+  discarded from 179117 to 0. The largest prompt of 3599 turns was 8191
+  tokens against a 16384 window, where night 86 sent one of 27155.
+  **The number that argues for this frame is the one that got worse.** No
+  prompt came near the window, and the reply cut still fired 140 times. A
+  budget that is right per part and never summed is exactly the fault frame
+  47 now carries a case of. The pricing grill is Roman's to call.
+- Status 2026-09-20 03:35 (rota-52): **claimed by 0549dc76. Frame 43 is closed
+  and the stack now reads in Roman's order** (ruled: Roman, 2026-09-20, "46,
+  next just work your way down the table, in order"). The order is 46, 47, 48,
+  45, 38, 37, 41, 42, 33, 4, and the file is reordered to match, because rule 1
+  says top frame first. This replaces the order of 2026-09-18, which named 43,
+  38, 37 and 33 and predates frames 45 to 48.
+  **Frame 43 closed on Roman's order of the frame below it** (reasoned: the
+  assistant; Roman read the frame's summary and named the next frame, which is
+  the declaration the frame waited for). The frame moved verbatim to
+  `plans/archive/stack-2026-09-20.md`, 1109 lines. Reopen it by moving it back
+  if that reading is wrong.
+  The scope runs now, because the frame is a shape with no price. Six
+  read-only agents, one question each, and the price and the design record
+  follow. Frame 43's own scope of the same path cost 536k in five agents, so
+  that is the anchor.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -1197,59 +154,6 @@ Rules:
   The second case had no load, so load is not the cause and the file is the
   suspect.
 
-### 46. One designed budget for a prompt (2026-09-19) (Roman)
-
-- Rota workflow. Today no single place answers the question "what may this
-  prompt contain". The caps are per result, per push and per page. The trim
-  is per transcript. The window is per session. Nothing sums them, and the
-  one function that could sum them, `_fit`, is forbidden to touch the two
-  blocks that are usually the problem (observed:
-  `plans/archive/context-caps-design-2026-09-18.md`, section 7).
-- Every guard in the system was added after a night failed, and each
-  comment in the code names that night: the result cap, the source cap,
-  the push cap, the wake cut, the middle eviction, the repeat line, the
-  identical-turn stop, the index cut (observed: the same record, and the
-  code's own comments). Each one is right about the night that caused it.
-  **None of them was designed against the others.** Roman judged the
-  system on 2026-09-18: "This seems quite undesigned" (ruled: Roman).
-- The shape, in five parts (reasoned: the design record's section 7,
-  written from the scope of 536k):
-  1. One budget for a turn, derived from the window, in one place.
-  2. The parts of a prompt declared in priority order: the brief, the
-     wake line, the refs, the latest results, the older results.
-  3. The budget is allocated down that order. A part that overruns takes
-     from what is below it and never from what is above it.
-  4. Every cut is announced in the same words, and the words name the
-     tool that fetches the rest.
-  5. One number a test can assert.
-- Ends when: a test asserts that an assembled prompt is inside its
-  budget, or that the runner named which part it cut and by how much.
-  Not priced. The price waits on night 87, because frame 43's four
-  numbers say how much of the bleeding the four repairs already stopped
-  (ruled: Roman, 2026-09-19, push it now and price it later).
-- Waits on: Roman's word on frame 43, and on nothing else. Frame 43's night
-  ran on 2026-09-20 and its four numbers are in frame 43's status of 02:17.
-  Roman orders this frame against 47, 48, 45, 41, 42, 38 and 37.
-- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
-  and the scope it was written from,
-  `plans/archive/context-caps-scope-2026-09-18.json`.
-- Status 2026-09-19 04:14 (rota-65): pushed by 4286e076, unclaimed,
-  unpriced. The frame exists so the obligation stays countable. The four
-  repairs of frame 43 do not need it, and the design record says so. This
-  is the design that stops the next fault. The four repairs stop the
-  bleeding.
-- Status 2026-09-20 03:00 (rota-52): **the wait is discharged. Night 87 ran
-  and this frame can be priced.** The four numbers say how much of the
-  bleeding the four repairs already stopped: the middle eviction fell from
-  36.0 per cent of turns to 22.5, the wake cut from 10.4 per cent to 2.0, the
-  sessions cut by the server from 15 of 203 to 0 of 746, and the tokens
-  discarded from 179117 to 0. The largest prompt of 3599 turns was 8191
-  tokens against a 16384 window, where night 86 sent one of 27155.
-  **The number that argues for this frame is the one that got worse.** No
-  prompt came near the window, and the reply cut still fired 140 times. A
-  budget that is right per part and never summed is exactly the fault frame
-  47 now carries a case of. The pricing grill is Roman's to call.
-
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
@@ -1285,55 +189,6 @@ Rules:
 - Status 2026-09-18 19:27 (rota-ff): renumbered from 44 to 45. Session
   0ca1c29e claimed the number 44 for the meta transfer two minutes after
   this frame was pushed. The frame is otherwise unchanged.
-
-### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
-
-- Rota workflow. `probes/walk.py` has the seam already: `class
-  Principal` with one method, `respond(ask)`, which receives the
-  rendered page and returns words or a per-item verdict. A sub-agent
-  slots in there. It is a diagnostic, not a replacement (ruled: Roman,
-  2026-09-18). Its output is understanding, which then builds the
-  deterministic principal of frame 42, or it shows where the system
-  fails and needs fixing. Underlying assumption, ruled by Roman: the
-  agent principal gives only reasonable answers.
-- Ends when: a night runs with an agent principal and its record says,
-  per page, what the agent answered and what the system did with it. It
-  must exercise at least one path the yes-only principal never reaches,
-  the term-collision tick being the known one, which frame 34's fix has
-  still never walked. Not priced until frame 40's record exists. Opus is
-  allowed and cost is not a constraint (ruled: Roman, 2026-09-18).
-- Waits on: nothing now. Frame 40 closed on 2026-09-18 with
-  `plans/archive/principal-pages-2026-09-18.md`. It names the four page
-  kinds, the ten pages whose reply was not fully reasonable, and the paths
-  no principal has walked: nothing was contested on either night.
-- Reasoning: `probes/walk.py:81-110`, the `Principal` class and the
-  existing `WALK_CONTEST` principal by moment, which is the half-built
-  form of this idea.
-- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
-
-### 42. The designed principal, and whether zero temperature is consistent (2026-09-18) (Roman)
-
-- Rota workflow. A deterministic principal built by hand to represent a
-  careful person, option B of the grill (ruled: Roman, 2026-09-18). It
-  keeps nights comparable, which an agent principal cannot.
-  **The concern on the record** (reasoned: the assistant raised it and
-  Roman accepted the underlying assumption): a principal tuned until the
-  run passes is a test that always passes. The principal encodes what a
-  plausible person would say. A run that still fails is then a finding,
-  not a tuning target.
-  **The assumption to validate** (ruled: Roman, 2026-09-18): that a
-  zero-temperature model is consistent enough to give similar responses
-  to the same problem set. Nothing measures that today.
-- Ends when: two lines. First, the consistency assumption is measured:
-  the same problem set replayed N times at temperature zero, with the
-  spread reported. Second, the designed principal exists and a night
-  runs on it. Not priced until frame 40's record exists.
-- Waits on: frame 41. Frame 40 closed on 2026-09-18 with
-  `plans/archive/principal-pages-2026-09-18.md`. A designed principal needs
-  an answer for four page kinds, and the understand kind is 23 of the 32
-  pages.
-- Reasoning: the grill of 2026-09-18.
-- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
 ### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
 
@@ -1394,6 +249,55 @@ Rules:
   `exhausted` at 80 steps. The records path now carries both sentences
   to a batch, and both stop at this frame's wall. `bg_2` is `pending`
   with no commit, because the night ended first.
+
+### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
+
+- Rota workflow. `probes/walk.py` has the seam already: `class
+  Principal` with one method, `respond(ask)`, which receives the
+  rendered page and returns words or a per-item verdict. A sub-agent
+  slots in there. It is a diagnostic, not a replacement (ruled: Roman,
+  2026-09-18). Its output is understanding, which then builds the
+  deterministic principal of frame 42, or it shows where the system
+  fails and needs fixing. Underlying assumption, ruled by Roman: the
+  agent principal gives only reasonable answers.
+- Ends when: a night runs with an agent principal and its record says,
+  per page, what the agent answered and what the system did with it. It
+  must exercise at least one path the yes-only principal never reaches,
+  the term-collision tick being the known one, which frame 34's fix has
+  still never walked. Not priced until frame 40's record exists. Opus is
+  allowed and cost is not a constraint (ruled: Roman, 2026-09-18).
+- Waits on: nothing now. Frame 40 closed on 2026-09-18 with
+  `plans/archive/principal-pages-2026-09-18.md`. It names the four page
+  kinds, the ten pages whose reply was not fully reasonable, and the paths
+  no principal has walked: nothing was contested on either night.
+- Reasoning: `probes/walk.py:81-110`, the `Principal` class and the
+  existing `WALK_CONTEST` principal by moment, which is the half-built
+  form of this idea.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
+
+### 42. The designed principal, and whether zero temperature is consistent (2026-09-18) (Roman)
+
+- Rota workflow. A deterministic principal built by hand to represent a
+  careful person, option B of the grill (ruled: Roman, 2026-09-18). It
+  keeps nights comparable, which an agent principal cannot.
+  **The concern on the record** (reasoned: the assistant raised it and
+  Roman accepted the underlying assumption): a principal tuned until the
+  run passes is a test that always passes. The principal encodes what a
+  plausible person would say. A run that still fails is then a finding,
+  not a tuning target.
+  **The assumption to validate** (ruled: Roman, 2026-09-18): that a
+  zero-temperature model is consistent enough to give similar responses
+  to the same problem set. Nothing measures that today.
+- Ends when: two lines. First, the consistency assumption is measured:
+  the same problem set replayed N times at temperature zero, with the
+  spread reported. Second, the designed principal exists and a night
+  runs on it. Not priced until frame 40's record exists.
+- Waits on: frame 41. Frame 40 closed on 2026-09-18 with
+  `plans/archive/principal-pages-2026-09-18.md`. A designed principal needs
+  an answer for four page kinds, and the understand kind is 23 of the 32
+  pages.
+- Reasoning: the grill of 2026-09-18.
+- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [9108c499]
 
