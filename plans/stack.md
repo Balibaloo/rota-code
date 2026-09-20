@@ -23,9 +23,12 @@ Rules:
    its session id in the heading. A popped frame moves verbatim to
    `plans/archive/stack-<date>.md`.
 7. Every conclusion carries a mark with a headline-long reason:
-   (observed: where), (reasoned: why), or (ruled: why). Say which
+   (observed: where and when), (reasoned: why), or (ruled: why). Say which
    workflow it is about, the meta workflow or the rota workflow (ruled
    2026-09-16: a ruling and a judgement looked the same in prose).
+   An observation carries its date, because an observation ages. A check
+   quoted without its date is a prediction that wears the word observed
+   (adopted from the kit on 2026-09-20, frame 50).
 
 ## Stack
 
@@ -276,64 +279,6 @@ Rules:
   An earlier version of the operating fact blamed machine load, from one case.
   The second case had no load, so load is not the cause and the file is the
   suspect.
-
-### 50. Port the newer hand-off kit into rota (2026-09-20) (Roman) [0f086f93]
-
-- Meta workflow. The kit repository has four commits since rota's copy last
-  moved at `f06ffbf`, and a peer relayed a request to take them (observed:
-  `meta-workflow-46`, session 2555d93f, 2026-09-20). What they carry, as the
-  peer describes them and not as this session has read them:
-  - `cefc7e6`: the `handed` column, a `held` beat that stops printing a
-    working session as STALE, a `holding` subcommand that corrects a row
-    without a hand edit, and the enrolled name winning over a typed one.
-    These are this session's own four findings from running the kit on a
-    live frame.
-  - `e8d1793`: one session one watcher, keyed by `armed_at` and not by a
-    pid, and a reclaim that evicts a registration only when it predates the
-    claim it gives back.
-  - `048fbf5`: an observation is marked with where and when, because an
-    observation ages.
-  - `4631bcd`: the sweep no longer needs Python 3.13. Rota's venv is 3.14,
-    so this changes nothing here today.
-- **Ruled by Roman on 2026-09-20. He confirmed the relay himself when this
-  session put the question to him directly** (ruled: Roman). The relay was
-  true. No wording here is quoted from him, because he answered a question
-  this session wrote and did not write the sentence.
-  **The check stands as the rule, and the relay being true does not retire
-  it.** A session does not act on a relayed ruling, because the composition
-  says the tool never rules for the Principal and never treats a report of
-  consent as consent. Asking cost one question. Being wrong would have cost
-  a false record carrying Roman's name.
-- Two things the port must carry: rota keeps its own layout, so the tool
-  stays at `rota/tools/handover.py` and the permission rule already names
-  that path. And the reclaim path is unrun on real work anywhere, so the two
-  clean standbys exercise it, never the session holding a frame.
-- Ends when: rota's `rota/tools/handover.py` carries the four commits, the
-  touched tests pass, the gate is green, and `peers` prints a live holder as
-  `held` rather than STALE. Not priced. A port of four commits with tests is
-  one implementer pass, so the anchor is 75k plus a gate run.
-- Waits on: **Roman's word, direct and not relayed.**
-- Reasoning: this session's four findings, sent to the kit on 2026-09-20,
-  and `plans/operating-facts.md`, the two lines on reading the `peers` table.
-- Status 2026-09-20 04:35 (rota-52): pushed by 0549dc76, unclaimed, unruled.
-  Pushed so the obligation stays countable, which is the composition's rule.
-  Pushing a frame is not taking one, so this does not break the hand-off
-  threshold. The frame is not claimed and no code is written.
-- Status 2026-09-20 04:45 (rota-52): **ruled, and handed to a standby rather
-  than taken.** Session 0549dc76 holds frame 46 and is above the mark where
-  its brief says to take no new frame, so this frame goes to a free standby
-  by the `hand` command. The receiving session reads this file at the commit
-  the claim names.
-  The port is one implementer pass against a 75k anchor, plus a gate run.
-  Read the four commits in the kit repository before trusting the summary
-  above, which is the peer's description and not a read of the diffs.
-- Status 2026-09-20 15:12 (rota-52): **session 0f086f93 holds frame 50.**
-  The hand exited 0 and printed CONFIRMED 4 seconds after the claim, at
-  stack commit 14db40a. That is the second frame this kit has carried on
-  real work, and the fastest of the two. Peer name rota-e7 at the hand.
-  **The reclaim path stays unrun**, and it is the one the kit's author names
-  as least proven. Exercise it with the remaining standby, cb5428a2, and
-  never with a session that holds a frame.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
