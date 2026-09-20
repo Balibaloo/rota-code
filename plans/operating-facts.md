@@ -415,6 +415,25 @@ heartbeats and no turn spent.
 **Acceptance lines 10, 11 and 13 are not run.** They need an empty reserve, an
 orphaned claim, and a fifteen minute wait.
 
+**Read the `peers` table correctly. Two of its columns mislead.**
+
+- **A holder's heartbeat is stale by design.** The watcher exits when it
+  delivers the claim, so a live session that holds a frame shows STALE in the
+  beat column. STALE means dead only for a row whose state is `standby`.
+- **The `frame` column names the frame that was handed, not the frame the
+  session holds now.** Nothing updates it when the session moves to the next
+  frame. On 2026-09-20 session 0549dc76 showed frame 43 while it held frame
+  46, and frame 43 was closed and in the archive, so the row contradicted the
+  stack. Correct the row by hand in `.handover/peers/<sid>.json` until the
+  tool takes a frame number.
+
+**A peer message is not a record** (observed: 2026-09-20). A session from
+another project reported that a hand-off from 7b95045e had gone to rota-02.
+The handover log held no row for 7b95045e, and rota-02 still answered as a
+free standby with a fresh heartbeat. The box is per checkout at
+`<repo>/.handover`, so a hand-off in another project writes to another box.
+Check the log before you act on a peer's account of a hand-off.
+
 **The arm command must not ask for a name** (observed: session 0549dc76,
 2026-09-20 02:52). A session cannot read its own peer name until it lists its
 peers, so a name typed at arm time is a guess. That session typed a
