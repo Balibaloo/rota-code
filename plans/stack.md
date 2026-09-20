@@ -1064,6 +1064,36 @@ Rules:
   27155. The suite is one red better than its baseline and 44 tests richer.
   The cost is that a night takes about three times as long.
   This frame is complete. Roman declares finished.
+- Status 2026-09-20 02:40 (rota-95): **session 9a9a20bf closes out at about
+  400k. Everything is committed and the tree is clean. No hand-off claim is
+  written, because nothing is in flight.** Frame 43's code, its night, its
+  measurement and its bookkeeping are all done. The frame waits on one word
+  from Roman and on nothing else.
+  **No `hand` command was run, and that is deliberate** (reasoned: the
+  assistant). The brief's 400k rule hands a frame to a standby so the work
+  continues. This frame has no work left to continue, so a claim would tell a
+  fresh session to take a finished frame. The next session reads the stack and
+  starts from Roman's order.
+  **The kit's hand-off is fully installed as of 02:30**, so the next session
+  that is made a standby arms with one command and no paste. Acceptance line 12
+  is proved. Lines 7 to 11 and 13 need two sessions at once and are named as
+  unrun in `plans/operating-facts.md`.
+  **What the next session picks up, in the order this session would take it.**
+  1. Roman declares frame 43 finished, and the frame moves verbatim to
+     `plans/archive/stack-2026-09-20.md`.
+  2. Push frame 46, the designed budget, which waited on this frame's night.
+     The night has now run.
+  3. Push the reply-cut finding as a frame. The reply cut fired 140 times on
+     night 87 and once on night 86, about thirty times more often per turn.
+  4. Push the `test_screens.py` flakiness as a frame. Six flakes today across
+     five tests of one file, with and without load.
+  5. Frames 33 and 4 still carry session 9108c499's claim, and that session has
+     ended. Releasing another session's claim is Roman's word, not a peer's.
+  **Three questions are open and none of them blocks the work**: whether frame
+  43 closes on the largest prompt or on the four rates, which this night made
+  moot by beating both; whether a commit carries a `Co-Authored-By` footer,
+  where CONTRIBUTING.md and the harness disagree and every peer has resolved it
+  in silence; and the two dead claims above.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
