@@ -1031,6 +1031,39 @@ Rules:
   `C:/Users/roman/rota_night87` and `C:/Users/roman/rota_review43b`. **Do not
   remove the night's worktree until the night stops**, because the night runs
   its code.
+- Status 2026-09-20 02:17 (rota-95): **night 87 is complete and the frame's
+  ends-when is met on the whole night. The bookkeeping is done.**
+  `GAUNTLET-DONE 23:53`, exit 0. The night ran nine hours and nine minutes and
+  produced 746 sessions and 3599 model turns, which is 4.4 times night 86's
+  825. The database is at `.rota/clickI_night87.db`. Both worktrees are
+  removed.
+
+  | number | night 86 | night 87, whole |
+  | --- | ---: | ---: |
+  | middle evicted | 297 of 825, 36.0 per cent | 810 of 3599, 22.5 per cent |
+  | wake itself cut | 86 of 825, 10.4 per cent | 71 true wake cuts of 3599, 2.0 per cent |
+  | sessions cut by the server | 15 of 203 | 0 of 746 |
+  | tokens discarded | 179117 | 0 |
+  | largest prompt | 27155 tokens | 8191 tokens |
+  | turns over 12288 | 14 | 0 |
+
+  **The true wake-cut count is frozen at 71 across four readings**, taken at
+  780, 1446, 2131 and 3599 turns. Every wake cut happened during onboarding,
+  and none happened in three sentences of work.
+  **One thing got worse and it is not in the four numbers** (observed: the
+  probe's own cross-check, which separates the two callers of `_render_cut`).
+  The reply cut fired 140 times on night 87 and once on night 86. Per turn that
+  is 3.9 per cent against 0.1, so about thirty times more often. A wider budget
+  lets a seat write a longer reply, and the reply cap now bites where it did
+  not before. The four numbers are unaffected, because the probe counts the
+  wake cut by its offset and not by its words. **This is a finding for a frame
+  of its own**: either the reply cap should scale with the window, or a seat
+  that writes past it should be told before it is trimmed.
+  **What the frame bought, measured**: no prompt of 3599 came within a third
+  of the window, where night 86 sent twelve prompts over 16384 and one of
+  27155. The suite is one red better than its baseline and 44 tests richer.
+  The cost is that a night takes about three times as long.
+  This frame is complete. Roman declares finished.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
