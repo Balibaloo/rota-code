@@ -64,31 +64,41 @@ Rules:
      resumed pass 15k). Buys: the system learns a prompt does not fit
      before it pays for the answer. Today the only whole-prompt
      measurement runs after the reply.
-  2. `PUSH_CHARS` becomes a total for the pushed block and not a limit per
-     key, and the ops' upstream budgets are charged against it: 80k.
-     Buys: the part that is about 58 per cent of a 90th-percentile prompt
-     stops being uncapped in aggregate. This is the highest value single
-     repair in the frame.
+  2. **`decisions.search` gets a character budget**, at
+     `rota/core/runner.py:1634-1644`: 80k plus 30k of re-records, 110k.
+     Buys: the op that is 55.5 per cent of all pushed characters stops
+     saturating `PUSH_CHARS` on nearly every push. It runs up to six
+     queries and keeps every row, and `decisions_search` has no LIMIT.
+     **`PUSH_CHARS` as a total is a separate and much smaller line**,
+     worth at most 1605 characters on night 87's largest wake, and it
+     waits on this one (repriced 2026-09-20 from the design review, which
+     measured both).
   3. One wording for a cut, and every cut names the call that fetches the
-     rest: 90k (the sweep 50k, the re-records 40k). Buys: a seat can
-     always recover what it lost. Six wordings exist and four of eighteen
-     strings name a recovery call.
+     rest: 60k. Buys: a seat can always recover what it lost. Six
+     wordings exist and four of eighteen strings name a recovery call.
+     About 17 assertion sites in three test files, and no cassette in the
+     register carries `TRUNCATED` or the ask-for-the-next-range line, so
+     the re-record allowance moves to line 5.
   4. The eviction notice and the repeat line stop contradicting each
-     other: 40k. Buys: 8 of 8183 prompts stop telling a seat two opposite
-     things. The code measures the contradiction and leaves it open.
-  5. The silent cuts get a notice or a recorded reason: 70k. Buys: the
-     principal's ledger stops being shorter than the challenge row it
-     derives from.
+     other, with a named test: 40k plus 20k of re-records, 60k. Buys: 8
+     of 8183 prompts stop telling a seat two opposite things.
+  5. The silent cuts get a notice to the seat, and separately a recorded
+     reason: 100k plus 20k of re-records, 120k, and it is two lines not
+     one. Buys: the principal's ledger stops being shorter than the
+     challenge row it derives from. 25 or more sites in
+     `rota/roles/api.py` alone.
   6. A design review of the design record before any code: 80k.
   7. One diff review on a worktree at the commit: 90k.
   8. The gate before each commit, the stale line read: 36k.
   9. A walk, because the frame changes what a seat is told: 20k in this
      context, about nine hours wall.
-  Total: 596k in agents, about 45k in this context. **The scope is already
-  spent: 1206692 tokens in 12 agents, 459 tool calls, 19.2 minutes**, which
-  is 2.2 times frame 43's 536k scope of the same path. The verify stage is
-  where the excess went, and it earned it: 11 of 218 facts came back WRONG
-  or UNVERIFIABLE.
+  Total: 666k in agents after the reprice, about 45k in this context.
+  **Already spent: the scope at 1206692 tokens in 12 agents, and the design
+  review at 106746 tokens in 56 tool calls**, 1313438 in all. The scope is
+  2.2 times frame 43's 536k on the same path, and the verify stage is where
+  the excess went. Both stages earned it: 11 of 218 scope facts came back
+  WRONG or UNVERIFIABLE, and the design review then broke three of the
+  record's own claims with probes over night 87 and the register.
 - Waits on: nothing. Frame 43 closed on 2026-09-20 and is in
   `plans/archive/stack-2026-09-20.md`. This is the top frame.
 - Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
@@ -168,11 +178,46 @@ Rules:
   which is ends-when line 1 and does not exist today, plus a margin for the
   chat template that nobody has measured, and it re-keys the register where
   the stale line cannot see it.
-  **Recommended answer: keep the halving, and build line 1 first.** The
-  measurement is the thing that makes the question answerable at all, and it
-  is worth building whether or not the budget then rises. Revisit the halving
-  only when a night shows prompts pressing the ceiling. Today 117 of 3599
-  turns come within 520 characters of it, which is 3.3 per cent.
+  **Recommended answer: keep the halving, and spend the frame on line 2
+  first.** The recommendation survives the design review and the reason
+  changed. The denied demand is real and large: on night 87 the cut notices
+  account for 8784628 characters denied against 6946907 delivered, so the
+  caps removed 1.26 times what they delivered. **But the demand is denied
+  upstream by `decisions.search` saturating `PUSH_CHARS` on nearly every
+  push, and not by the half-window ceiling.** Raising the ceiling would not
+  deliver one character more while that op is unbudgeted.
+- Status 2026-09-20 04:20 (rota-52): **the design review is in and it broke
+  three of the record's claims with probes. The record and the price are
+  corrected. Still no code.** 106746 tokens against 80k priced, 56 tool
+  calls, 8 minutes. The overrun went into the three probes that produced the
+  findings, which is the same trade frame 43's design review made.
+  **The record named the wrong ops.** It said `code.area`, `code.front` and
+  `code.boundary` fill the wake. They fire in 10 pushes of 463 on night 87.
+  `decisions.search` is 55.5 per cent of all pushed characters, has no LIMIT
+  and no budget, and its median pushed size is 20105 characters, which is
+  `PUSH_CHARS` plus the notice.
+  **The record's headline number was a theoretical maximum that never
+  happens.** It said four pushed reads can put 80000 characters into a wake.
+  Night 87's largest pushed block is 21605, and capping the block once would
+  remove at most 1605 characters.
+  **A whole-prompt check placed where the existing one sits would be dead to
+  every recorded case**, because `truncated` is assigned only in
+  `OllamaBackend` and the suite replays through `ReplayOnlyBackend`. That is
+  frame 43's `graph.json` shape again, caught before any code this time. The
+  check goes in `run_session` beside `_fit`.
+  **The halving is Ollama-specific**, so the ruling is now "half the window
+  on Ollama". `LiteLLMBackend` never sends the window, so on those profiles
+  the halving discards half the budget and defends against nothing.
+  Also corrected: two caps derive from the budget and not three.
+  `TURN_RESULT_CHARS` is two night constants and does not move with
+  `num_ctx`. Lines 2, 4 and 5 re-key the register and now carry re-record
+  allowances, 326 of 18435 cassettes for line 2 alone. Line 3 is 30k cheaper
+  and line 5 is 50k dearer and is two lines.
+  **One finding is parked, not actioned**: `_fit`'s promise is not a
+  theorem. A fuzz of 4000 transcripts broke it 1540 times, on a two-block
+  transcript and at the `max(2000, ...)` floor. The runner reaches neither
+  today, because it appends a reply and a results block every turn. Line 1's
+  test states the precondition rather than closing the hole.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
