@@ -9,12 +9,16 @@ You are a standby in the reserve. Do these four things, and nothing else.
    characters after the word `Session`.
 2. Arm one watcher. Use the Bash tool with its background flag, so that
    the process outlives this turn:
-   `python rota/tools/handover.py standby --sid <your session id> --name <your peer name>`
+   `python rota/tools/handover.py standby --sid <your session id>`
+   Do not pass a name. The hook enrolled your peer name already, and you
+   cannot read that name before step 3.
 3. Run `python rota/tools/handover.py peers` in the foreground. Find
    your own session id in the table. A background command returns at once
-   and can still fail, so this step turns a hope into a fact.
-4. Reply with one line: your session id, your peer name, and the word
-   standby. Then stop.
+   and can still fail, so this step turns a hope into a fact. The name
+   beside your session id is your peer name, and it is the address a
+   message uses.
+4. Reply with one line: your session id, the peer name the table printed,
+   and the word standby. Then stop.
 
 Read nothing else. Do not read the composition page, the stack, or any
 file. Do not plan any work. Every token you spend now is a token the

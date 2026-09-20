@@ -396,6 +396,28 @@ def test_a_session_that_holds_a_frame_cannot_rejoin_the_reserve(box, capsys):
     assert peer(box, "aaaa1111")["state"] == "holding", "the frame stayed held"
 
 
+def enrol(box_path, sid, name):
+    """Write what the context hook writes, so a test can arm against it."""
+    sessions = box_path / handover.BOX / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / (sid + ".json")).write_text(
+        json.dumps({"sid": sid, "name": name}), encoding="utf-8")
+
+
+def test_the_enrolled_name_beats_a_typed_one(box):
+    """A session cannot read its own peer name, so it must not be asked for it."""
+    enrol(box, "aaaa1111", "rota-52")
+    arm(box, "aaaa1111", name="a-description-not-a-name")
+    assert peer(box, "aaaa1111")["name"] == "rota-52", \
+        "the row named nobody a message could reach"
+
+
+def test_a_typed_name_is_kept_when_no_hook_enrolled_the_session(box):
+    """The fallback matters on a checkout whose hook is not installed."""
+    arm(box, "aaaa1111", name="rota-52")
+    assert peer(box, "aaaa1111")["name"] == "rota-52"
+
+
 def test_a_take_cannot_happen_twice(box):
     """The claim moves into a receipt, so a second take has nothing to read."""
     arm(box, "aaaa1111")

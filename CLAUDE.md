@@ -69,16 +69,22 @@ spends nothing while it waits.
 When Roman makes you a standby, arm one watcher and stop:
 
 ```
-python rota/tools/handover.py standby --sid <your session id> --name <your current peer name>
+python rota/tools/handover.py standby --sid <your session id>
 ```
 
 One line, and no line continuation. A backslash continues a line in Git
 Bash and breaks it in PowerShell.
 
+Do not pass a name. The hook enrolled your peer name when your session
+started, and the tool reads it. A session cannot read its own peer name
+until it lists its peers, so a typed name is a guess. One session typed a
+description, and its row then named nobody a message could reach.
+
 Run it with the Bash tool and its background flag. Then run
 `python rota/tools/handover.py peers` and find your own session id in
 the table. A background command returns at once and can still fail, so
-prove the arm before you report it.
+prove the arm before you report it. The name beside your session id is
+your peer name, and it is the address a message uses.
 
 The process blocks on your claim file and writes a heartbeat every twenty
 seconds. It costs you no tokens while it blocks. The harness wakes you
