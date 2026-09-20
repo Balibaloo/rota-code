@@ -843,7 +843,7 @@ Rules:
 - Reasoning: the grill of 2026-09-18.
 - Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
-### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17) [9108c499]
+### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17)
 
 - Rota workflow. Step 3 of the order. The code index is built at
   onboarding and never refreshed after a commit, so a batch's own
@@ -988,8 +988,13 @@ Rules:
   The frame stays validating and unwalked. It cannot advance today. The
   walk needs a merge, a merge waits on frame 37, and frame 37 waits on
   frame 38.
+- Status 2026-09-21 00:20 (rota-02): **the claim of session `9108c499` is
+  released on Roman's word** (ruled: Roman, 2026-09-21, asked with three other
+  options). That session has ended, so the id in the heading named a seat no
+  message could reach. The frame is unclaimed, it keeps its place in Roman's
+  order, and it stays validating. Nothing else about it changed.
 
-### 4. Roman's order from here (2026-09-14 12:58) (Roman) [9108c499]
+### 4. Roman's order from here (2026-09-14 12:58) (Roman)
 
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
   road to the loop that merges cold on click. Steps: 1 the benchmark, 2
@@ -1024,6 +1029,13 @@ Rules:
 - Status 2026-09-18 17:07 (rota-ff): claimed by 9108c499 at the hand-off.
   Step 3's code is built, reviewed twice and gated, and it stays
   unwalked. Frame 38 decides whether step 2 returns.
+- Status 2026-09-21 00:20 (rota-02): **the claim of session `9108c499` is
+  released on Roman's word** (ruled: Roman, 2026-09-21, asked with three other
+  options, one of which was to close this frame). That session has ended. **The
+  frame stays open and is not discharged**: Roman's order of 2026-09-20 named
+  frame 46 and then the table in order, which is an order inside this frame's
+  step list and not a replacement for it. Steps 4 to 7 are still unbuilt.
+  The frame is unclaimed and keeps its place at the bottom of the stack.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
