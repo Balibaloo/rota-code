@@ -70,6 +70,65 @@ def test_the_agenda_wake_pushes_the_pages_seven_and_counts_the_rest(tmp_path):
     assert shown["open and not on this page"].startswith("3 more")
 
 
+# Six words the subject says, each with more matching rulings than the budget
+# holds. Every word is its own `decisions.search` query at the push site.
+_DECISION_WORDS = ("scope", "budget", "window", "latency", "cache", "retry")
+
+
+def _decision_push(tmp_path, per_word=8):
+    """The rows the push would have sent whole, and the block it sends now."""
+    db = init_db(tmp_path / "rota.db")
+    for word in _DECISION_WORDS:
+        for k in range(per_word):
+            db.execute("INSERT INTO decisions (id, author, text) VALUES "
+                       "(?, 'architect', ?)",
+                       (f"d_{word}_{k}", f"the {word} ruling {k}: " + "x" * 200))
+    db.commit()
+    sb = build("architect", db, mode="unresolved",
+               allow=prompts.mode_tools("architect", "unresolved"))
+    pushed = push_working_set("architect", sb,
+                              Wake("architect", "tick:unresolved", refs=()),
+                              asked=" ".join(_DECISION_WORDS))
+    raw = {w: sb.call("decisions.search", query=w) for w in _DECISION_WORDS}
+    return raw, pushed["decisions.search"]
+
+
+def test_the_decision_push_is_inside_its_own_budget(tmp_path):
+    """Night 87 (2026-09-20): `decisions.search` was 55.5 per cent of every
+    pushed character, and its median push was `PUSH_CHARS` plus the truncation
+    notice. The budget is the record's own, below the backstop."""
+    from rota.core import runner
+    raw, block = _decision_push(tmp_path)
+    assert len(runner._render(raw, runner.PUSH_CHARS)) > 2 * runner.DECISIONS_PUSH_CHARS
+    shown = runner._render(block, runner.PUSH_CHARS)     # the cap build_prompt uses
+    assert len(shown) <= runner.DECISIONS_PUSH_CHARS, len(shown)
+    assert "TRUNCATED" not in shown
+
+
+def test_every_word_that_matched_keeps_a_row_of_the_decision_push(tmp_path):
+    """Round robin by row. First come gave word one every row it had, and the
+    other five words' rulings never arrived."""
+    _raw, block = _decision_push(tmp_path)
+    rows = {w: block[w] for w in _DECISION_WORDS if w in block}
+    assert sorted(rows) == sorted(_DECISION_WORDS), sorted(block)
+    assert all(len(v) >= 1 for v in rows.values()), {w: len(v) for w, v in rows.items()}
+    kept = sum(len(v) for v in rows.values())
+    assert len(rows[_DECISION_WORDS[0]]) < kept
+
+
+def test_the_cut_decision_push_names_the_call_for_the_rest(tmp_path):
+    """A push has no range to ask for, so the backstop's "ask for the next
+    range" named no call a seat could make. The notice names one."""
+    _raw, block = _decision_push(tmp_path)
+    notes = block["not shown"]
+    for word in _DECISION_WORDS:
+        dropped = 8 - len(block[word])
+        assert dropped > 0, word
+        want = (f'{dropped} of 8 rows for "{word}" are not shown. '
+                f'Call decisions.search(query="{word}") for all 8.')
+        assert want in notes, (word, notes)
+
+
 def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):
     """clickI night 37 (2026-09-13): the wake said "1 abandoned" and nothing
     else, and the Liaison sent refs=["tick:quarantined"] three times."""

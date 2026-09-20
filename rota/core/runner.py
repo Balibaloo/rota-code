@@ -407,6 +407,16 @@ SOURCE_CHARS = 14000
 # backstop a page above them; `_fit` still keeps the whole prompt in the
 # window, announced.
 PUSH_CHARS = 20000
+# The decision record's own share of a push, budgeted below the backstop above.
+# Night 87 (2026-09-20, frame 46's design review, probe 2 over 463 pushes):
+# `decisions.search` was 55.5 per cent of every pushed character, and its median
+# push was 20,105 characters -- `PUSH_CHARS` plus the truncation notice. So it
+# saturated the backstop on nearly every push. The site runs up to six queries
+# and the op has no LIMIT, so the cut chose the rows and nobody chose the cut.
+# Worse, the backstop's notice says to ask for the next range, and a push has no
+# range to ask for. 6,000 is `RESULT_CHARS`: what one asked-for result may cost,
+# spent here on a read nobody asked for.
+DECISIONS_PUSH_CHARS = 6000
 # What one turn's results may sum to. The per-result caps above are per
 # result, and nothing added them up: two `code.source` reads in one reply are
 # 28,000 characters, and `_fit_budget(12288, 4000)` is 20,391 -- so one turn
@@ -1641,8 +1651,62 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             if rows:
                 hits[word] = rows
         if hits:
-            pushed["decisions.search"] = hits
+            pushed["decisions.search"] = _budget_decision_hits(hits)
     return pushed
+
+
+# One wording for every word the budget cut. A push has no range to ask for, so
+# the notice names the call that returns the word's rows whole.
+_DECISION_DROPPED = ('{dropped} of {total} rows for "{word}" are not shown. '
+                     'Call decisions.search(query="{word}") for all {total}.')
+
+
+def _decision_block(hits: dict[str, list[Any]],
+                    kept: dict[str, list[Any]]) -> dict[str, Any]:
+    """The pushed block for the rows kept so far, with a notice per cut word."""
+    block: dict[str, Any] = {w: rows for w, rows in kept.items() if rows}
+    notes = [_DECISION_DROPPED.format(word=w, total=len(hits[w]),
+                                      dropped=len(hits[w]) - len(rows))
+             for w, rows in kept.items() if len(rows) < len(hits[w])]
+    if notes:
+        block["not shown"] = notes
+    return block
+
+
+def _budget_decision_hits(hits: dict[str, list[Any]],
+                          limit: int = DECISIONS_PUSH_CHARS) -> dict[str, Any]:
+    """
+    Up to six words' matches inside one character budget, round robin by row.
+
+    `decisions.search` has no LIMIT and the site runs a query per subject word,
+    so the rows arrived whole and `PUSH_CHARS` chose which ones the seat saw:
+    the record's share of a push was 55.5 per cent, and the median push sat at
+    the backstop (night 87, 2026-09-20).
+
+    Round robin, because rank by word order is rank by the order the subject
+    happened to say its words in. First come gave word one every row it had and
+    the other five words' matches never arrived. Every word that matched keeps
+    its first row: the op returns `substr(text,1,200)`, so six first rows are
+    about 2,000 characters and the guarantee is affordable.
+    """
+    kept: dict[str, list[Any]] = {w: [] for w in hits}
+    for word, rows in hits.items():
+        if rows:
+            kept[word].append(rows[0])
+    open_words = [w for w, rows in hits.items() if len(rows) > 1]
+    while open_words:
+        for word in list(open_words):
+            candidate = dict(kept)
+            candidate[word] = kept[word] + [hits[word][len(kept[word])]]
+            # `_render` at this limit returns the block whole while it fits, and
+            # a longer cut text when it does not, so the length is the test.
+            if len(_render(_decision_block(hits, candidate), limit)) > limit:
+                open_words.remove(word)       # this word is full, the rest go on
+                continue
+            kept[word] = candidate[word]
+            if len(kept[word]) == len(hits[word]):
+                open_words.remove(word)
+    return _decision_block(hits, kept)
 
 
 _DECISION_STOP = frozenset("""
