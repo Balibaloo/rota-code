@@ -410,6 +410,35 @@ next session to close 46 reorders the file to this list.
   exists for is a single-turn shape, so it is unaffected.
   Line 5 runs next, the silent cuts, and it is the last build line. The port of
   frame 52 follows it on Roman's order.
+- Status 2026-09-21 00:41 (rota-02): **all five build lines are built, judged and
+  committed. Line 5 is at `0cc624b`.** Rota workflow. A silent cut now has two
+  outputs: a notice to the seat through `cut_note`, and a reason on the session's
+  own account through `Ctx.cuts` and `session_note`. No new table.
+  **Four sites of sixty are converted, and the choice is measured** (observed: the
+  agent's count over 18435 cassettes, 2026-09-21). Three are the challenge rows,
+  which are the design record's named consequence: the principal's ledger row was
+  shorter than the verdict it derives from and nothing said so. The fourth is the
+  batch's diff at 20000 characters. The other fifty-six are listed by family with
+  a reason, in the pass's report: headline projections, code-view snippets,
+  samples inside a view, ids, existence probes, quotes inside a refusal, and two
+  that already say "(first part only)".
+  **One latent trap is closed by a door** (observed: this session's read of
+  `rota/testkit/fixtures.py:914`, 2026-09-21). The fixtures read the text before
+  an error's first colon as a refused call whenever it holds a dot. Every
+  recorded cut's prefix is prose today, so nothing is miscounted. `_cut`'s
+  docstring now says to keep a dot out of `what`.
+  **A third test file flakes** (observed: the gate at line 5, 2026-09-21).
+  `tests/rota/test_arc_synthetic.py` the gate itself declared flaky, and
+  `tests/rota/test_handover.py::test_one_claim_wakes_exactly_one_standby` passes
+  47 of 47 three times alone. With `test_screens.py` that is three files, and the
+  finding is on frame 48.
+  **Price for the five lines: 297433 tokens cumulative in one resumed agent,
+  against 666k priced for the whole frame** (observed: the harness usage line).
+  The five build lines were priced at 440k of that. No pass reached its cap.
+  **The diff review of ends-when line 7 runs now**, read-only on a worktree at
+  `0cc624b`, priced 90k. The port of frame 52 waits on one fact: the kit
+  repository's path is in no rota record, so this session asked the peer that
+  reported the release.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -487,6 +516,22 @@ next session to close 46 reorders the file to this list.
   timing test and a screen test have nothing in common but the suite they run
   in, so the suspect moves from what the file's tests share to what the run
   shares.
+- Status 2026-09-21 00:41 (rota-02): **a third file flakes, and two of the three
+  are wall-clock tests** (observed: the gate at frame 46's lines 2 and 5,
+  2026-09-21). `tests/rota/test_arc_synthetic.py::test_arc_delivery_loop_slices_batches_and_tests`
+  came up red under the gate and the gate re-ran it green itself.
+  `tests/rota/test_handover.py` has now given two different reds under the gate,
+  `test_a_newer_watcher_retires_the_older_one` and
+  `test_one_claim_wakes_exactly_one_standby`, and the whole file passes 47 of 47
+  three times alone.
+  **So the ends-when's one file is now three**, and widening it is still Roman's
+  order to give. The first read changes with the evidence: `test_handover.py`'s
+  two reds both sleep and both hold a deadline, so the suspect is a deadline
+  measured against a machine that is running sixteen agents, and not shared
+  state.
+  **The cost is now counted.** Four of frame 46's five gate runs needed a
+  judgement by hand on a red the gate had already re-run green, or on a red in a
+  file the pass never touched.
 
 ### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
 
@@ -697,7 +742,7 @@ next session to close 46 reorders the file to this list.
   8192, so no recording measures the 16384 window the nights run at. Frame 54
   owns the repair.
 
-### 52. Take the kit's release into rota (2026-09-20) [unruled]
+### 52. Take the kit's release into rota (2026-09-20) (Roman) [cb5428a2]
 
 - Meta workflow. Seven commits in the kit repository since rota's port at
   `58f7960`. A peer says Roman is releasing them (observed:
@@ -739,6 +784,36 @@ next session to close 46 reorders the file to this list.
 - Status 2026-09-20 16:20 (rota-52): pushed by 0549dc76, unclaimed, unruled.
   Pushed so the obligation stays countable, and named to Roman rather than
   taken. This session holds frame 46 and takes no new frame.
+- Status 2026-09-21 00:45 (rota-02): **Roman ruled the port, and it runs inside
+  frame 46's tail, after line 5** (ruled: Roman, 2026-09-20, asked with three
+  other options and this one recommended). Claimed by cb5428a2, which holds
+  frame 46. **Frame 51 folds into this frame** on the same ruling.
+  **The kit is at `https://github.com/Balibaloo/claude-stack-workflow.git`, and
+  the clone is from the URL and not from the path** (observed: the peer
+  `meta-workflow-46`, 2026-09-21). Its checkout on this machine is
+  `D:/repos/_AI/meta-workflow` and everything is pushed, so the two agree. No
+  rota record had named the repository until now.
+  **Six of the seven are real work, not seven** (observed: the same peer, which
+  checked rota rather than trusting its own list). `048fbf5`, that an observation
+  carries where and when, is already in rota: session 0f086f93 ported the rule
+  itself at `a2c0541` when it closed frame 50. So the price drops by one commit.
+  **The kit's head is two commits past what Roman ruled, and this session takes
+  the ruling and not the head** (observed: the peer, 2026-09-21). `edd7a95` stops
+  the install's own hook test writing a row for a session that never existed, and
+  `bd5d379` scopes an acceptance grep and records the reclaim default at 15.0
+  minutes. Both are defect fixes and neither is a rule change. **So the install
+  clones with history and checks out `80bd49e`**, which is exactly the release
+  Roman named. The two fixes wait for his word, which the peer has already put to
+  him, and this session does not ask again.
+  **One consequence of holding at `80bd49e`, and the guard for it**: without
+  `edd7a95` the install's own hook test can write a phantom row into the reserve.
+  The port checks `peers` after the test and removes any row for a session id
+  that does not exist.
+  **The two behaviour-changing commits are read before they install**, as this
+  frame requires. Expect every context number in rota to rise by about 8 per
+  cent on the day `80bd49e` lands, because the hook stops scaling transcript
+  bytes and starts reading the harness's own count. A jump on that day is a
+  correction and never growth.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
