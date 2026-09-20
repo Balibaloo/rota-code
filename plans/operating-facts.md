@@ -434,6 +434,21 @@ free standby with a fresh heartbeat. The box is per checkout at
 `<repo>/.handover`, so a hand-off in another project writes to another box.
 Check the log before you act on a peer's account of a hand-off.
 
+**The harness peer list is machine-wide and never says which repository a
+session works in** (observed: `ListAgents` on 2026-09-20 listed rota
+sessions beside `finance-dashboard-20` and two `meta-workflow` sessions).
+This is why the old liveness probe could hand a frame across projects: a
+session in another project answers "clean standby" truthfully in its own
+sense, and the sender cannot tell. A peer in the kit repository reported on
+2026-09-20 that this had sent a Finance Dashboard frame to a rota session
+(reasoned: the peer's account, which matches what this session saw
+independently when `finance-dashboard-20` probed rota peers).
+
+**The reserve in `.handover` does not have that fault**, because it lives in
+the checkout and can only offer sessions that armed in rota. That is the
+reason the probe was replaced, and the replacement is installed here at
+56f2ab3 and proved on frame 43 at 02:51.
+
 **The arm command must not ask for a name** (observed: session 0549dc76,
 2026-09-20 02:52). A session cannot read its own peer name until it lists its
 peers, so a name typed at arm time is a guess. That session typed a
