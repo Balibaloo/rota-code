@@ -112,6 +112,15 @@ class Ctx:
     # that acts on it, and `tool_calls` already logs the call itself for
     # the record.
     verdict_claims: dict = None
+    # What this session's ops shortened, one line each, for the record rather
+    # than for the prompt. A silent cut writes no string at all, so a reader of
+    # the record could not tell a short account from a shortened one, and the
+    # principal's ledger row can be shorter than the challenge row it derives
+    # from (frame 46's design record, section 2.7). The runner drains this into
+    # `outcome.errors`, which `session_note` writes as the session's last turn.
+    # Session-scoped like `refusals`: the reason only has to outlive the session
+    # that made the cut.
+    cuts: list = None
 
     def __post_init__(self):
         if self.writes is None:
@@ -132,6 +141,55 @@ class Ctx:
             self.kind_facts = {}
         if self.verdict_claims is None:
             self.verdict_claims = {}
+        if self.cuts is None:
+            self.cuts = []
+
+
+# What a role can do about words a row did not keep: nothing, and the habit
+# that makes the loss harmless. The row holds the first characters, so the
+# deciding sentence belongs first.
+_WORDS_NOT_KEPT = ("Nothing returns the words the row did not keep. Put what "
+                   "decides it first.")
+
+
+def _cut(ctx: "Ctx", what: str, kept: int, whole: int, unit: str,
+         call: str = "") -> str:
+    """
+    Record a cut for the reader, and return the seat's notice when it has one.
+
+    Two outputs, because two readers ask different questions. The seat asks
+    what it is looking at, so the notice goes in the result through `cut_note`
+    and reads like every other cut. A reader of the record asks how often the
+    system shortens what a role wrote, and no prompt survives to answer that,
+    so the reason goes on the session's own account.
+
+    A site with no call for the seat passes none, and records the reason alone.
+    The principal's ledger row is that case: the Critic cannot act on a row
+    that is not its own, and a reader of the record still has to be able to
+    count it (frame 46's design record, section 2.7).
+
+    Keep a dot out of `what`. The recorded reason joins the session's errors,
+    and `testkit.fixtures` reads the text before the first colon as a refused
+    call whenever that text holds a dot. So "the batch's diff" is safe and
+    "code.diff" would be counted as a refusal on every case that cuts.
+    """
+    if whole <= kept:
+        return ""
+    cuts = getattr(ctx, "cuts", None)
+    if cuts is not None:
+        cuts.append(f"cut {what}: {whole - kept} of {whole} {unit} not stored")
+    if not call:
+        return ""
+    from ..core.runner import cut_note
+    return cut_note(what, whole - kept, whole, unit, call)
+
+
+def _cut_words(ctx: "Ctx", what: str, fields: dict) -> str:
+    """The notice for a row that stored a prefix of what a role wrote."""
+    notes = [_cut(ctx, f"{what} {name}", cap, len(text), "characters",
+                  _WORDS_NOT_KEPT)
+             for name, (text, cap) in fields.items()]
+    return " ".join(note for note in notes if note)
 
 
 def op(artefact: str, verb: str):
@@ -7067,7 +7125,13 @@ def challenge_uphold(ctx: Ctx, citation: str, quote: str,
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "stands", "citation": citation,
         "quote": quote.strip()[:300], "why": (why or "").strip()[:300]}))
-    return {"id": f"{table}:{row}", "verdict": "stands"}
+    out = {"id": f"{table}:{row}", "verdict": "stands"}
+    # The row keeps a prefix, and until now it kept it in silence.
+    cut = _cut_words(ctx, "the challenge row's", {
+        "quote": (quote.strip(), 300), "why": ((why or "").strip(), 300)})
+    if cut:
+        out["not_shown"] = cut
+    return out
 
 
 @op("challenge", "break")
@@ -7123,8 +7187,23 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
                           f"{why.strip()[:160]}. The claim stands in the "
                           f"record until ruled."),
         "author": "critic"}))
-    return {"id": f"{table}:{row}", "verdict": "falsified",
-            "note": "recorded, and on the principal's ledger"}
+    out = {"id": f"{table}:{row}", "verdict": "falsified",
+           "note": "recorded, and on the principal's ledger"}
+    # The seat's notice covers the seat's own row. The ledger row derives from
+    # the same words at 160 characters, so it can be shorter than the challenge
+    # row it comes from -- the consequence section 2.7 names. That cut is
+    # recorded and carries no notice: the row is the principal's, and the Critic
+    # has no call that changes it.
+    cut = _cut_words(ctx, "the challenge row's", {
+        "quote": (quote.strip(), 300),
+        "why": ((why.strip() + (f" [{flagged}]" if flagged else "")), 460)})
+    _cut(ctx, "the principal's ledger row, from this verdict's quote",
+         160, len(quote.strip()), "characters")
+    _cut(ctx, "the principal's ledger row, from this verdict's why",
+         160, len(why.strip()), "characters")
+    if cut:
+        out["not_shown"] = cut
+    return out
 
 
 @op("challenge", "vacuous")
@@ -7155,8 +7234,14 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
                           f"{why.strip()[:200]}. An empty claim is kept in "
                           f"the record until ruled."),
         "author": "critic"}))
-    return {"id": f"{table}:{row}", "verdict": "unfounded",
-            "note": "recorded, and on the principal's ledger"}
+    out = {"id": f"{table}:{row}", "verdict": "unfounded",
+           "note": "recorded, and on the principal's ledger"}
+    cut = _cut_words(ctx, "the challenge row's", {"why": (why.strip(), 300)})
+    _cut(ctx, "the principal's ledger row, from this verdict's why",
+         200, len(why.strip()), "characters")
+    if cut:
+        out["not_shown"] = cut
+    return out
 
 
 @op("code", "tree")
@@ -7440,7 +7525,12 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
         if len(w) >= 3:
             words.add(w)
             words.add(w.rstrip("s"))
+    # Recorded, and no notice. A candidate list the seat picks one name from is
+    # the case section 2.7's count is for: a reader can ask how often the index
+    # was wider than the twenty rows a wake showed, and a sentence on every such
+    # result would cost a page for something no seat can act on.
     if not words:
+        _cut(ctx, "the candidate symbols", 20, len(rows), "rows")
         return rows[:20]
     hits = []
     for r in rows:
@@ -7450,6 +7540,9 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
         tokens |= {t.rstrip("s") for t in tokens}
         if tokens & words:
             hits.append(r)
+    _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows")
+    if not hits:
+        _cut(ctx, "the candidate symbols", 20, len(rows), "rows")
     return hits[:40] or rows[:20]
 
 
@@ -7580,6 +7673,15 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
             [*GIT, "-C", row["worktree"], "diff", "HEAD~1", "--unified=3"],
             capture_output=True, text=True, timeout=30)
         result = {"batch": bid, "diff": out.stdout[:20000]}
+        # Silent until now, and pushed to the wake a seat uses to restore what
+        # its diff broke (frame 46's design record, section 2.7). A seat reading
+        # 20,000 characters of a longer diff cannot tell which files it is not
+        # being shown, and the cap is not moved by this line.
+        cut = _cut(ctx, "this batch's diff", 20000, len(out.stdout), "characters",
+                   "code.source reads any file the diff names, as it stands "
+                   "now.")
+        if cut:
+            result["not_shown"] = cut
         # The diff above is HEAD~1 against the working tree, so it shows an
         # edit that no commit holds as if it were committed. Night 62
         # (2026-09-14, finding 68): a Developer session ended at the cap

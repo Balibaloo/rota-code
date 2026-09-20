@@ -2846,6 +2846,14 @@ def run_session(
                 m for m in result.messages
                 if not (m.to_role == "principal" and m.verb == "confirm")]
         after_landing(conn, result)
+        # The record's half of a cut. An op that shortens what a role wrote
+        # leaves a reason on the context, and `session_note` writes the runner's
+        # account as the session's last turn, so a reader counts what the system
+        # cut without replaying a prompt. The seat's half is the notice in the
+        # result, and the two are independent on purpose: the principal's ledger
+        # row is cut where the Critic has no call to change it (frame 46's
+        # design record, section 2.7).
+        outcome.errors.extend(getattr(sb.ctx, "cuts", None) or ())
         session_note(conn, session_id, outcome.errors)
         outcome.committed = True
         outcome.result = result
