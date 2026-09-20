@@ -339,6 +339,43 @@ Rules:
   300k cold anchor, so the resume rule holds** (observed: two passes,
   2026-09-20).
   Line 3 runs now, one wording for every cut, in the same agent.
+- Status 2026-09-20 18:59 (rota-02): **ends-when line 3 is built, judged and
+  committed at `8681667`. The gate's new red is not this frame's, and the proof
+  cost four re-records.** Rota workflow. `cut_note` owns the wording at six
+  sites, and seven strings folded into one form. Ten strings remain, each for a
+  named reason. Two sites keep their old wording on purpose: the landing page's
+  `rows_not_shown`, which sits inside a recorded prompt, and the eviction notice
+  and repeat line, which are line 4.
+  **`L1-TE-survey-an-area-for-its-terms` is a pre-existing regression that the
+  register was hiding** (observed: four re-records of five runs each,
+  2026-09-20 17:50 to 18:30). The bisect, in order: the new wording 0/5, the
+  imperative restored 0/5, `code.area`'s old wording back 0/5, the whole of
+  pass 3 reverted 0/5, and the two source files at `88f476a` 0/5. So no line of
+  this frame causes it. The seat calls `code.area` and never `code.source`,
+  identically in all 20 runs, so it is a stable behaviour and not noise.
+  **The register held a green that the live model does not reproduce** (observed:
+  the register's own rows, 2026-09-20 18:40). Load `qwen3:8b@248599` gave the
+  case 10 of 10. It replayed green twice today, then failed 20 of 20 on fresh
+  recordings at the same model, the same 12288 window and temperature zero. A
+  cassette is a record of what a model once said. A replay of it is not evidence
+  that the model still says it.
+  **The green recordings are recoverable and this session is not restoring
+  them.** `.rota/cassettes_backup_2026-09-19-frame43-closing.db` holds them.
+  Restoring them would hide a real regression behind a cassette. So the gate now
+  reads 23 known reds where it read 22, and the 23rd is named and owned by frame
+  55.
+  **One record of this session was wrong and is corrected in place** (ruled: the
+  assistant, 2026-09-20): a comment and a test docstring claimed the imperative
+  in a cut sentence was load bearing, from the first re-record alone. The bisect
+  disproved it. Both now say the imperative follows the rule in `CLAUDE.md`, and
+  that no case measures the difference.
+  **The register runs at 12288 and the nights run at 16384** (observed: every
+  cassette's `num_ctx`, 2026-09-20). No cassette in the register was ever
+  recorded at 16384. So the register does not measure the window frame 43
+  shipped. That is a finding for frame 54 and not a line of this frame.
+  Price: the agent's pass cost is unread for line 3 alone, because the harness
+  reports the agent cumulatively. Cumulative after three passes: 205227 tokens.
+  Line 4 runs next, the eviction notice against the repeat line.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -412,6 +449,75 @@ Rules:
   in, so the suspect moves from what the file's tests share to what the run
   shares.
 
+### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
+
+- Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
+  `prompt_hash` and model. The cassette key covers more than that: the prompt's
+  text, the mode prompt and `num_ctx` (observed: the file's own comment at
+  `:71-77`, and the cassette table's columns, 2026-09-20).
+- **One narrow key gives two opposite symptoms.** A `num_ctx` change leaves no
+  row at the current hash, so the case reads stale, and that is frame 49's 72. A
+  prompt-text change leaves the hash alone, so the rows still match and the case
+  reads green while the suite cannot replay it (observed: frame 46's line 3,
+  2026-09-20, where the gate said STALE and `casestatus` said 72 before and 72
+  after).
+- **So "zero stale" cannot gate.** It is a line in every acceptance this
+  repository writes, frame 46's included, and the true count is unknown.
+- **A second finding for the same frame: the register runs at 12288 and the
+  nights run at 16384** (observed: every cassette's `num_ctx`, 2026-09-20). No
+  cassette was ever recorded at 16384, so the register does not measure the
+  window frame 43 shipped.
+- Ends when: `casestatus` matches everything the cassette key covers, a test
+  asserts that a prompt-text change makes a case read stale, and the true count
+  is measured and recorded. Priced from the anchors: the first read names the
+  key's fields against the report's match, 20k. Buys the number nobody has. The
+  repair and its test, 80k. Buys an acceptance line that can fail. The true
+  count then replaces 72 in frame 49, and the re-records are frame 49's work and
+  not this frame's.
+- Waits on: nothing. **Roman ruled it a frame of its own, above 49, on
+  2026-09-20** (ruled: Roman, asked with three other options and the fold into
+  49 recommended).
+- Reasoning: frame 46's status line of 2026-09-20 18:59, and the comment at
+  `rota/tools/casestatus.py:71-77`, which names the fault and predates the frame.
+- Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
+  frame exists so the obligation stays countable. This session holds frame 46
+  and takes no new frame.
+
+### 55. A recorded green does not reproduce live (2026-09-20)
+
+- Meta workflow. `L1-TE-survey-an-area-for-its-terms` has 10 of 10 green on load
+  `qwen3:8b@248599`. It replayed green twice on 2026-09-20, then failed 20 of 20
+  on four fresh recordings at the same model, the same 12288 window and
+  temperature zero (observed: the register's own rows and four re-records,
+  2026-09-20 17:50 to 18:40).
+- **The failure is stable, so it is not noise.** In all 20 runs the seat calls
+  `code.area`, `glossary.amend`, `glossary.consult`, `problem.baseline`,
+  `surveys.attest` and `surveys.consult`, and never `code.source`, which the case
+  requires.
+- **No line of frame 46 causes it** (observed: the bisect in frame 46's status
+  line of 18:59). The two source files at `88f476a`, before the frame's first
+  commit, record 0/5.
+- **What is not known**: whether the model behind the tag changed, or whether a
+  fresh run builds a prompt that differs from the recording in a way the
+  cassette key does not capture. The green recordings are in
+  `.rota/cassettes_backup_2026-09-19-frame43-closing.db`.
+- **This is the 23rd known red, and it is not restored to green.** Restoring the
+  backup's cassettes would hide a regression behind a cassette. Every acceptance
+  that says "zero new reds" now counts 23 and names this frame for the 23rd.
+- Ends when: the cause is named in a record, and the case is either re-earned
+  green or written off with a reason. Priced: one probe that sends the backup's
+  recorded prompt to the live model at the same pins and compares the completion,
+  40k. Buys the answer to whether a cassette is still evidence. The repair's
+  price follows the cause.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-20 18:59, which carries the
+  bisect, and the backup named above.
+- Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed. Found while
+  judging frame 46's line 3. The re-records that found it were run on the
+  standing rule that a re-record is cheap. **The rule holds on tokens and it is
+  wrong about consequence**: a re-record spends a green that the live model may
+  not give back.
+
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
 - Meta workflow. A stale case is unmeasured, not bad. It means the composed
@@ -442,6 +548,11 @@ Rules:
   re-record runs without asking).
 - Waits on: a quiet machine. The scope of frame 46 is running now, and the
   register's re-record contends with it for the GPU.
+- Waits on: frame 54, added 2026-09-20 19:00 by cb5428a2. **The 72 is not the
+  count.** The report's match is narrower than the cassette key, so a case whose
+  prompt text moved reads green here. Re-recording 72 cases before the count is
+  right would re-earn the wrong set. Frame 55 adds the second reason: a
+  re-record can spend a green the live model does not give back.
 - Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 9.6,
   and the gate baseline at `.rota-gate.json`.
 - Status 2026-09-20 03:10 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
