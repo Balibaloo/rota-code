@@ -553,6 +553,68 @@ def test_asking_the_same_read_twice_does_not_pay_twice(db):
     assert len(second) - len(first) < 400, "the repeat cost nearly as much as the first"
 
 
+def _seed_decisions(db, n=20):
+    """Rows whose text every query below matches, so two keys answer alike."""
+    for i in range(n):
+        db.execute("INSERT INTO decisions (id, author, text) VALUES (?,?,?)",
+                   (f"d{i:02d}", "vision_keeper", "scope " + "detail " * 20))
+
+
+def test_the_repeat_line_does_not_point_at_an_evicted_answer(db):
+    """
+    Two notices in one prompt said opposite things. The eviction notice says the
+    earlier exchanges were dropped and to re-read what you need. The repeat line
+    said the answer is above. Once the eviction has taken the block that held
+    the answer, the answer is not above, and the seat was sent to read a turn
+    that is not there. Measured on 8 of 8,183 recorded prompts, all 8 of those
+    that could carry both (frame 46's design record, section 2.6).
+
+    The eviction notice is true as written, so the repeat line gives way: the
+    result is served again and says why. A window this small floors the budget
+    at 2,000 characters, so turn 3 evicts the middle, which is where turn 1's
+    answer lives.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([ask,
+                               "thinking. " * 300 + "\nTOOL: decisions.search(query='detail')",
+                               ask, "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
+
+    assert outcome.committed, outcome.errors
+    served = backend.calls[3][1]                 # turn 3's results, as turn 4 saw them
+    assert _EVICTED_PHRASE in served, "the eviction is not in this prompt at all"
+    assert "the answer is above" not in served, \
+        "the seat was sent to read a turn the eviction took"
+    assert f"the earlier answer was {_EVICTED_PHRASE}" in served, \
+        "the repeat said nothing about the eviction"
+    assert "decisions.search ran again" in served, "the line names no call"
+
+
+def test_the_repeat_line_still_points_above_while_the_answer_is_there(db):
+    """
+    Conditional, not a blanket removal. Nothing is evicted here, so the answer
+    really is above and the second asking still costs a line rather than four
+    thousand characters. 4,907 of 18,435 cassettes carry that line.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([ask, ask, "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=12288))
+
+    assert outcome.committed, outcome.errors
+    second = backend.calls[2][1]
+    assert "unchanged since you asked" in second and "the answer is above" in second, \
+        "the repeat was re-rendered in full with nothing evicted"
+    assert _EVICTED_PHRASE not in second, "nothing was evicted in this session"
+
+
 def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
     """
     Asking for what you were already handed is not asking a question.

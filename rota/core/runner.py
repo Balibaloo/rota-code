@@ -514,9 +514,16 @@ def _render_cut(text: str, limit: int) -> str:
         "Nothing returns a wake. Ask by name for the reads you need.")
 
 
+# The phrase the eviction notice carries, and the phrase the repeat line reads
+# to learn that the middle is gone. One place, so the notice and the reader of
+# the notice cannot drift apart. The notice's text is unchanged: 270 of 18,435
+# cassettes carry it (measured 2026-09-20).
+_EVICTED_PHRASE = "dropped to fit the window"
+
+
 def _dropped_note(dropped: int) -> str:
     """What the middle eviction leaves in place of the blocks it took."""
-    return (f"[{dropped} earlier exchange(s) dropped to fit the window. "
+    return (f"[{dropped} earlier exchange(s) {_EVICTED_PHRASE}. "
             f"Your instructions and your latest results are intact; "
             f"re-read anything you still need.]")
 
@@ -2457,7 +2464,19 @@ def run_session(
                     # The answer is the same answer, or it is not. Nothing else
                     # decides the line below, so read-after-write needs no case
                     # of its own.
-                    unchanged = repeat and answered.get(key) == shown
+                    would_repeat = repeat and answered.get(key) == shown
+                    # And the answer is above only while the block that carried
+                    # it is still in this prompt. The middle eviction takes
+                    # blocks, and the repeat line then sent a seat to read a
+                    # turn that is not there: 8 of 8,183 recorded prompts
+                    # carried both lines, and all 8 of the 8 that could
+                    # (frame 46's design record, section 2.6). The eviction
+                    # notice is true as written, so the repeat line is what
+                    # gives way. A repeat the eviction emptied is not
+                    # suppressed.
+                    evicted = (_EVICTED_PHRASE in user
+                               and answered.get(key, "") not in user)
+                    unchanged = would_repeat and not evicted
                     # Registered after the call, never before it. Registered
                     # first, a call that failed and was then sent again with
                     # identical arguments had its success swallowed by the
@@ -2526,20 +2545,20 @@ def run_session(
                         # session did could have changed it -- so say so in a
                         # line rather than in four thousand characters.
                         #
-                        # Known hole, left open deliberately: "the answer is
-                        # above" is false once `_fit` has evicted the middle,
-                        # and `_fit`'s own notice says "re-read anything you
-                        # still need" -- so the two lines contradict each other
-                        # and the session is sent looking for something that was
-                        # deleted. Measured across 8,183 recorded prompts: 8
-                        # carry the eviction notice, and all 8 carry this line
-                        # too, so it is certain whenever it can happen. It is
-                        # also 0.1% of prompts, and it is not what drives the
-                        # repeated reads -- 1,249 prompts carry this line with
-                        # nothing evicted, where the answer really is above and
-                        # the session asked again regardless. Worth closing by
-                        # serving the full result when anything was dropped;
-                        # not worth a full re-record on its own.
+                        # This line claims the answer is above, and `evicted`
+                        # above is what makes the claim true. The hole it used
+                        # to leave open is closed: when the eviction took the
+                        # block that held the answer, the branch below serves
+                        # the result again instead of pointing at it. The line
+                        # itself is unchanged, because it is true whenever it is
+                        # now reached. 4,907 of 18,435 cassettes carry it and
+                        # 572 carry its pushed twin (measured 2026-09-20), so
+                        # the words stay as they are.
+                        #
+                        # The eviction is not what drives the repeated reads.
+                        # 1,249 prompts carry this line with nothing evicted,
+                        # where the answer really is above and the session asked
+                        # again regardless.
                         feedback.append(
                             f"OK {call.name} -> was run for you before you "
                             f"started; the answer is in the list above."
@@ -2554,7 +2573,18 @@ def run_session(
                         result_room = max(
                             0, result_room - len(shown) - len(call.name) - 7)
                         source_served = source_served or call.name == 'code.source'
-                        feedback.append(f"OK {call.name} -> {shown}")
+                        if would_repeat:
+                            # The eviction emptied this key, so the result is
+                            # served a second time and says why. The seat is
+                            # told what happened and never told to read a turn
+                            # the window took. Counted as a repeat, so the third
+                            # asking still meets the refusal above.
+                            repeated[key] = repeated.get(key, 0) + 1
+                        feedback.append(
+                            f"OK {call.name} -> the earlier answer was "
+                            f"{_EVICTED_PHRASE}, so this prompt does not hold "
+                            f"it. {call.name} ran again: {shown}"
+                            if would_repeat else f"OK {call.name} -> {shown}")
                 except Exception as exc:               # tool error, not session-fatal
                     outcome.errors.append(f"{call.name}: {exc}")
                     # Six encodes in one reply, three refused: which three?
