@@ -386,25 +386,30 @@ the machine the tool was built on.
   interval. The ceiling is above 50 minutes and is otherwise unknown
   (borrowed). Measure it here, then set `--wait` below it.
 
-**Two of the kit's seven update steps need Roman.** This session's permission
-classifier refuses every edit under `.claude/settings.json` and
-`.claude/hooks/`, so two pieces are staged and not installed.
+**All seven of the kit's update steps are installed, 2026-09-20 02:30.** The
+last two needed Roman to approve them by hand. A session running in auto mode
+has every edit under `.claude/settings.json` and `.claude/hooks/` refused by
+the permission classifier, so those two were staged and Roman approved the
+calls.
 
-1. The permission rule. One line in `.claude/settings.json`, under
-   `permissions.allow`: `"Bash(python rota/tools/handover.py:*)"`. Until it
-   lands, a session that arms a watcher meets a permission prompt and parks,
-   which is the one failure this mechanism exists to prevent.
-2. The hook's three functions. The merged file is staged at
-   `probes/handover_hook_staged.py`, and its own docstring carries the copy
-   command and the stdin check. It compiles clean. It is not tested against
-   stdin, because the classifier refuses that too. Until it lands,
-   `.handover/sessions/` is never written, so `peers` cannot see a session
-   that armed no watcher, and a hand-off that finds an empty reserve is never
-   announced to the next session.
+- The permission rule is `"Bash(python rota/tools/handover.py:*)"` in
+  `.claude/settings.json`, which is tracked. A per-call approval expires with
+  its session. This rule does not, because it is a file every session reads.
+- The hook at `.claude/hooks/context_count.py` carries `repo_root`, `enrol`,
+  `peer_name` and `waiting`.
 
-The rest is installed and the brief already carries the new rule. So the main
-path works once step 1 lands: a standby arms, a sender hands, the standby
-takes. The drought path and the enrolment wait on step 2.
+Checked as the kit requires (observed: session 9a9a20bf, 2026-09-20 02:30).
+The hook prints one JSON object and exits 0. It wrote its row to
+`.handover/sessions/`, and `peers` read that row back and named the session.
+That is acceptance line 12, so the enrolment path is proved.
+
+**Acceptance lines 7 to 11 and 13 are not run.** Each needs two sessions at
+once: a standby that arms without a prompt, a hand-off that wakes exactly one
+of several, the drought case, and a claim that comes back after fifteen
+minutes. Run them the first time two sessions are open, and record the wake
+time here against the borrowed 6 seconds. A stricter user-level or enterprise
+permission setting can still override a project `allow` rule, and line 7 is
+the check that would find it.
 
 The two bullets above that describe the liveness probe and the standby's
 pasted prime are superseded by the brief's `# Standby duty` section. They are
