@@ -678,6 +678,98 @@ def test_the_fit_budget_is_half_the_window(db):
     assert _fit_budget(2048, 9_000) == 2000
 
 
+def _seed(path):
+    """The `db` fixture's rows, on a path of the caller's choosing. Two runs of
+    one session need two databases seeded the same way."""
+    conn = init_db(path)
+    conn.execute("INSERT INTO entries (id, author, text, ts_order) "
+                 "VALUES ('u1','principal','let users delete their account',1)")
+    conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
+                 "VALUES ('m1','t1','liaison','vision_keeper','deliver',1)")
+    return conn
+
+
+def _replayed(tmp_path, script, pins):
+    """
+    One session recorded, then the same session replayed from the cassette.
+
+    The check under test has to fire on the path the register runs on.
+    `truncated` is assigned in `OllamaBackend` alone, so a whole-prompt check
+    placed beside it was dead for every recorded case, and frame 43 shipped
+    that fault once. Two fresh databases seeded alike give both runs the same
+    prompt, so the cassette hits and `ReplayOnlyBackend` never calls a model.
+    """
+    from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
+                                    open_dev_db)
+
+    dev = open_dev_db(tmp_path / "dev.db")
+    run_session(_seed(tmp_path / "recorded.db"), wake_vision_keeper(),
+                backend=RecordingBackend(ScriptedBackend(list(script)), dev),
+                pins=pins)
+    outcome = run_session(_seed(tmp_path / "replayed.db"), wake_vision_keeper(),
+                          backend=ReplayOnlyBackend(dev), pins=pins)
+    assert outcome.result is not None and outcome.result.turns, outcome.errors
+    return outcome
+
+
+def _overruns(turns, num_ctx):
+    """Each turn's prompt, and how far past its budget the prompt went."""
+    from rota.core.runner import _fit_budget
+
+    return [(t, len(t.user) - _fit_budget(num_ctx, len(t.system))) for t in turns]
+
+
+def test_the_assembled_prompt_of_a_replayed_turn_is_inside_the_budget(tmp_path):
+    """
+    Nothing measured the assembled prompt before the send. The only
+    whole-prompt number came back with the reply, and the budget the prompt was
+    built against was never checked against the prompt itself.
+
+    The invariant is `_fit`'s promise, and it holds for the shape the runner
+    builds: a wake, then a reply and a results block on every turn. Two shapes
+    break it, and the runner reaches neither. `_cap_exchange` returns a
+    two-block transcript untouched, and at the `max(2000, ...)` floor it lends
+    room the budget does not hold.
+    """
+    from rota.core.runner import _prompt_overrun
+
+    pins = Pins(model="scripted", temperature=0.0, num_ctx=12288)
+    outcome = _replayed(tmp_path, [
+        "TOOL: problem.assert(id='i1', text='users can delete their account', "
+        "kind='in_scope')", "Done."], pins)
+
+    assert outcome.committed, outcome.errors
+    for turn, over in _overruns(outcome.result.turns, 12288):
+        assert over <= 0, f"turn {turn.seq} is {over} characters over its budget"
+        assert _prompt_overrun(turn.system, turn.user,
+                               len(turn.user) - over) == ""
+    assert not [e for e in outcome.errors if "over budget" in e], outcome.errors
+
+
+def test_an_over_budget_prompt_is_named_before_it_is_sent(tmp_path):
+    """
+    The line a session leaves when the prompt outgrew its budget. The shape is
+    the `max(2000, ...)` floor: a window this small floors the budget at 2,000
+    characters, `_cap_exchange` then lends each block of the latest exchange
+    its own floor of 1,000, and the wake rides on top. The runner does not
+    reach this window, and the check is what says so when it does.
+    """
+    pins = Pins(model="scripted", temperature=0.0, num_ctx=512)
+    outcome = _replayed(tmp_path, [
+        "TOOL: problem.assert(id='i1', text='users can delete their account', "
+        "kind='in_scope')\n" + "saying it again. " * 400, "Done."], pins)
+
+    lines = [e for e in outcome.errors if e.startswith("prompt over budget")]
+    over_turns = [(t, n) for t, n in _overruns(outcome.result.turns, 512) if n > 0]
+    assert over_turns, "nothing overran, so the line proves nothing"
+    assert len(lines) == len(over_turns), (lines, [n for _t, n in over_turns])
+    for line, (turn, over) in zip(lines, over_turns):
+        assert f"by {over} characters" in line, line
+        part, size = max(("the system prompt", len(turn.system)),
+                         ("the transcript", len(turn.user)), key=lambda p: p[1])
+        assert f"{part} is the largest part at {size}" in line, line
+
+
 def test_an_index_read_is_a_table_not_repeated_field_names(db):
     """
     JSON repeats every field name on every row, and an index read is nothing but

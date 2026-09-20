@@ -637,6 +637,40 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail, budget)
 
 
+def _prompt_overrun(system: str, user: str, budget: int) -> str:
+    """
+    The assembled prompt against its budget, measured before the send.
+
+    Nothing measured the whole prompt on the way out. The one whole-prompt
+    number arrived with the reply, from `truncated`, which only `OllamaBackend`
+    assigns -- so the check was dead for every replayed case, and frame 43
+    shipped that fault once already (frame 46's design review, 2026-09-20).
+    This runs above every backend, so a cassette exercises it.
+
+    The budget is `_fit_budget(num_ctx, len(system))`, which charged the system
+    prompt already. So the whole prompt's room is that budget plus the system
+    prompt, and what is measured here is `_fit`'s promise about the string the
+    backend receives.
+
+    The promise is a precondition, not a theorem. A fuzz of 4,000 transcripts
+    broke it 1,540 times: `_cap_exchange` returns a two-block transcript
+    untouched, and at the `max(2000, ...)` floor it lends room the budget does
+    not hold. The runner reaches neither shape today, because it appends a
+    reply and a results block on every turn.
+
+    Measure only. Line 3 of frame 46 owns the wording of a cut, so this names
+    the largest part and how far past the budget the prompt went.
+    """
+    limit = len(system) + budget
+    whole = len(system) + len(user)
+    if whole <= limit:
+        return ""
+    part, size = (("the system prompt", len(system)) if len(system) >= len(user)
+                  else ("the transcript", len(user)))
+    return (f"prompt over budget by {whole - limit} characters: {part} is the "
+            f"largest part at {size}")
+
+
 def _as_table(result: Any) -> str | None:
     """
     A list of uniform rows as a table, or None if it is not one.
@@ -2035,6 +2069,12 @@ def run_session(
             outcome.iterations = iteration
             transcript = _fit(transcript, budget)
             user = "\n\n".join(transcript)
+            # Above every backend, because the only whole-prompt measurement ran
+            # on the reply and `truncated` is an Ollama field: replayed cases
+            # never reached it.
+            over_budget = _prompt_overrun(system, user, budget)
+            if over_budget:
+                outcome.errors.append(over_budget)
             _started = time.perf_counter()
             completion = backend.complete(system, user, pins, tools=schemas)
             outcome.completions.append(completion.text)
