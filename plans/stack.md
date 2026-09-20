@@ -169,9 +169,21 @@ Rules:
   derives from the others, which its own citation refutes twice over.
   The design review of ends-when line 6 runs now. It does not wait on the
   ruling below.
-- Waits on: **one ruling from Roman, and nothing else.** Ends-when lines 2 to
-  5 do not depend on it and can be built while it waits.
-  **The question: does the prompt budget stay at half the window?** The
+- Waits on: **nothing. The ruling this frame waited for was never this
+  frame's question** (ruled: Roman, 2026-09-20, by sending the assistant
+  back to what the frame says it is for).
+  **This frame is a design frame and not a capacity frame.** Its own first
+  three lines say so: nothing sums the caps, none was designed against the
+  others, and Roman judged the system undesigned. All five parts are
+  structural, and the ends-when is a test asserting an invariant, not a
+  night showing bigger prompts. Nothing in the frame is about giving a seat
+  more room.
+  **The half-window question is a capacity question and it is now frame 53.**
+  This session found it while scoping and then let it gate a frame it does
+  not belong to. The halving stands here, because this frame was never about
+  changing it. Build lines 1 to 5 as priced.
+  The question that moved to frame 53, kept here for the reasoning: does the
+  prompt budget stay at half the window? The
   budget is half because ollama collapses a prompt over `num_ctx` to
   `num_ctx / 2 + 2` and keeps the tail, which cuts the brief off the front
   (observed: the docstring at `rota/core/runner.py:566`, finding 79). Keeping
@@ -216,6 +228,25 @@ Rules:
   `num_ctx`. Lines 2, 4 and 5 re-key the register and now carry re-record
   allowances, 326 of 18435 cassettes for line 2 alone. Line 3 is 30k cheaper
   and line 5 is 50k dearer and is two lines.
+  **HAND-OFF at 16:50.** Session 0549dc76 releases the whole stack and
+  stops. Roman ordered the hand-off so frame 46's implementer pass runs in
+  a fresh context instead of starting near this session's limit.
+  **What the next session picks up, in order.**
+  1. Frame 46 waits on nothing. Build the five priced lines, starting with
+     line 2, the `decisions.search` budget, which is the one the design
+     review named as the real repair.
+  2. Line 1's check goes in `run_session` beside `_fit` at
+     `rota/core/runner.py:1972`, above every backend. Placed where the
+     existing one sits it would be dead to every recorded case.
+  3. Two frames are pushed and unruled, and Roman assigns them: 52, the
+     kit's release, and 53, the half-window capacity question. Frame 51
+     folds into 52 if 52 is ruled.
+  4. Frame 49, the 72 stale cases, still has no owner and no cause.
+  5. Frames 33 and 4 still carry session 9108c499's claim, and that session
+     has ended. Releasing another session's claim is Roman's word.
+  **Read before trusting**: the design record's sections 2.4 and 5 were
+  rewritten after the design review measured them wrong. Read the record as
+  it stands, not the commit that first wrote it.
   **One finding is parked, not actioned**: `_fit`'s promise is not a
   theorem. A fuzz of 4000 transcripts broke it 1540 times, on a two-block
   transcript and at the `max(2000, ...)` floor. The runner reaches neither
@@ -348,6 +379,39 @@ Rules:
   a design question for the kit**: clear the frame and leave the state alone,
   or set the state from the beat. The second reads the truth and the first
   writes less.
+
+### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
+
+- Rota workflow. A capacity question, split out of frame 46 on 2026-09-20
+  because frame 46 is a design frame and this is not its question.
+- `_fit_budget` gives a turn `max(2000, int(num_ctx / 2 * 3.97) - system)`
+  characters (observed: `rota/core/runner.py:566`). The halving exists
+  because ollama collapses a prompt over `num_ctx` to `num_ctx / 2 + 2` and
+  keeps the tail, which cuts the brief off the front. **So a 16384 window
+  carries at most 8192 tokens of prompt, and frame 43's rise bought the
+  lower half only** (observed: night 87's largest prompt was 8191 tokens,
+  two characters under exactly half).
+- **The halving is Ollama-specific** (observed: `rota/llm/llm.py:443`).
+  `LiteLLMBackend` never sends the window, so on those profiles the halving
+  discards half the declared budget and defends against nothing. The
+  fraction belongs to the backend, not to "the window".
+- The number that argues for the frame: night 87's cuts denied 8784628
+  characters against 6946907 delivered, so the caps removed 1.26 times what
+  they delivered (observed: frame 46's design review, probe 4).
+- **The number is not yet an argument for raising anything**, because
+  nothing says the denied characters were load bearing. A denied repeat
+  costs nothing. A denied verdict or tool call is a correctness fault. Frame
+  47 asks the same question about trimmed replies, so the two share a first
+  read.
+- Ends when: not priced. The first read says how much of the denied demand
+  was load bearing, and only then does the fraction become a ruling. Raising
+  it needs frame 46's line 1 first, because nothing measures the assembled
+  prompt before the send.
+- Waits on: frame 46's line 1, and Roman's word. Roman orders it.
+- Reasoning: `plans/archive/prompt-budget-design-2026-09-20.md`, section 5,
+  and the design review's finding 6.
+- Status 2026-09-20 16:45 (rota-52): pushed by 0549dc76, unclaimed, unruled.
+  Split out so a capacity question stops gating a coherence frame.
 
 ### 52. Take the kit's release into rota (2026-09-20) [unruled]
 
