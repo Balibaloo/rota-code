@@ -277,6 +277,50 @@ Rules:
   The second case had no load, so load is not the cause and the file is the
   suspect.
 
+### 50. Port the newer hand-off kit into rota (2026-09-20) [BLOCKED, unruled]
+
+- Meta workflow. The kit repository has four commits since rota's copy last
+  moved at `f06ffbf`, and a peer relayed a request to take them (observed:
+  `meta-workflow-46`, session 2555d93f, 2026-09-20). What they carry, as the
+  peer describes them and not as this session has read them:
+  - `cefc7e6`: the `handed` column, a `held` beat that stops printing a
+    working session as STALE, a `holding` subcommand that corrects a row
+    without a hand edit, and the enrolled name winning over a typed one.
+    These are this session's own four findings from running the kit on a
+    live frame.
+  - `e8d1793`: one session one watcher, keyed by `armed_at` and not by a
+    pid, and a reclaim that evicts a registration only when it predates the
+    claim it gives back.
+  - `048fbf5`: an observation is marked with where and when, because an
+    observation ages.
+  - `4631bcd`: the sweep no longer needs Python 3.13. Rota's venv is 3.14,
+    so this changes nothing here today.
+- **This frame is not ruled and must not be started** (reasoned: the
+  assistant). The peer says it relays Roman's word. A relayed ruling is not
+  a ruling this session can act on, because the composition says the tool
+  never rules for the Principal and never treats a report of consent as
+  consent. Roman is in the conversation and one word settles it. The cost of
+  waiting is zero: nothing is blocked on the port, and the two standbys are
+  spending nothing.
+  The peer's own record tonight includes one confidently stated false
+  premise, retracted after a check (observed: it wrote a rule from an undated
+  snapshot and withdrew it). That is a reason to verify, not an accusation.
+- Two things the port must carry: rota keeps its own layout, so the tool
+  stays at `rota/tools/handover.py` and the permission rule already names
+  that path. And the reclaim path is unrun on real work anywhere, so the two
+  clean standbys exercise it, never the session holding a frame.
+- Ends when: rota's `rota/tools/handover.py` carries the four commits, the
+  touched tests pass, the gate is green, and `peers` prints a live holder as
+  `held` rather than STALE. Not priced. A port of four commits with tests is
+  one implementer pass, so the anchor is 75k plus a gate run.
+- Waits on: **Roman's word, direct and not relayed.**
+- Reasoning: this session's four findings, sent to the kit on 2026-09-20,
+  and `plans/operating-facts.md`, the two lines on reading the `peers` table.
+- Status 2026-09-20 04:35 (rota-52): pushed by 0549dc76, unclaimed, unruled.
+  Pushed so the obligation stays countable, which is the composition's rule.
+  Pushing a frame is not taking one, so this does not break the hand-off
+  threshold. The frame is not claimed and no code is written.
+
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
 - Meta workflow. A stale case is unmeasured, not bad. It means the composed
