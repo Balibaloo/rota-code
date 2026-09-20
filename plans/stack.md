@@ -425,6 +425,11 @@ Rules:
   many of the 140 cuts lost a verdict, a ruling or a tool call, and returns a
   category: cosmetic, or on the delivery path. The price follows the category.
 - Waits on: nothing. Roman orders it against 46, 48, 45, 41, 42, 38 and 37.
+- Waits on: **nothing, and it shares its first read with frame 53**, added
+  2026-09-21 00:25 by cb5428a2. The two frames ask one question of the same
+  night: of the denied characters and the 140 trimmed replies, how many lost a
+  verdict, a ruling or a tool call? One read answers both, about 60k, on frame
+  46's walk night rather than on night 87.
 - Reasoning: `probes/frame43/README.md`, which says which probe measures
   which finding, and the two night databases it reads.
 - Status 2026-09-20 03:00 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
@@ -649,11 +654,37 @@ Rules:
   was load bearing, and only then does the fraction become a ruling. Raising
   it needs frame 46's line 1 first, because nothing measures the assembled
   prompt before the send.
-- Waits on: frame 46's line 1, and Roman's word. Roman orders it.
+- Waits on: **frame 46's walk, not its line 1** (reasoned: the assistant,
+  2026-09-21, recommending to Roman). Line 1 is built and committed at
+  `cb0649c`, so the measurement this frame needed exists. The number it needs
+  does not. The 8784628 denied characters are night 87's, and night 87 ran
+  before `decisions.search` had a budget. The design review named that op as
+  55.5 per cent of all pushed characters and the upstream cause of the denial,
+  and line 2 capped it at 6000 characters on 2026-09-20. So the denial figure
+  has moved and nobody knows by how much. Frame 46's ends-when line 9 already
+  pays for a walk, so the fresh number costs this frame nothing.
 - Reasoning: `plans/archive/prompt-budget-design-2026-09-20.md`, section 5,
   and the design review's finding 6.
 - Status 2026-09-20 16:45 (rota-52): pushed by 0549dc76, unclaimed, unruled.
   Split out so a capacity question stops gating a coherence frame.
+- Status 2026-09-21 00:25 (rota-02): **the halving stays, and the frame waits for
+  one shared read** (reasoned: the assistant's recommendation to Roman,
+  2026-09-21; Roman asked for it rather than picking from four). The read is one
+  question for this frame and frame 47 together: of the denied characters and the
+  140 trimmed replies, how many lost a verdict, a ruling or a tool call? About
+  60k. A cosmetic answer closes both frames. An answer on the delivery path
+  prices both.
+  **Two options are recorded as rejected, with the reason** (reasoned: the same
+  recommendation). Making the fraction the backend's is right in principle and
+  ships unmeasured: no cassette covers a `LiteLLMBackend` profile and nothing
+  runs one today, so the shape is recorded and the work waits for a profile that
+  uses it. Raising it on Ollama needs a margin for the chat template that nobody
+  has measured, and a miss cuts the brief off the front, which is the fault the
+  halving exists to prevent.
+  **A third finding of 2026-09-20 belongs to this frame's evidence, not its
+  ends-when**: every cassette in the register was recorded at `num_ctx` 12288 or
+  8192, so no recording measures the 16384 window the nights run at. Frame 54
+  owns the repair.
 
 ### 52. Take the kit's release into rota (2026-09-20) [unruled]
 
