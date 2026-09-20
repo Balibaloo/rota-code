@@ -56,9 +56,39 @@ Rules:
   5. One number a test can assert.
 - Ends when: a test asserts that an assembled prompt is inside its
   budget, or that the runner named which part it cut and by how much.
-  Not priced. The price waits on night 87, because frame 43's four
-  numbers say how much of the bleeding the four repairs already stopped
-  (ruled: Roman, 2026-09-19, push it now and price it later).
+  **Priced 2026-09-20 from the scope.** Each line carries a price from the
+  anchors in `plans/operating-facts.md` and the behaviour it buys, walls
+  counted apart:
+  1. One place measures the assembled prompt before the send, and a test
+     asserts the whole prompt is inside the budget: 90k (cold 75k, one
+     resumed pass 15k). Buys: the system learns a prompt does not fit
+     before it pays for the answer. Today the only whole-prompt
+     measurement runs after the reply.
+  2. `PUSH_CHARS` becomes a total for the pushed block and not a limit per
+     key, and the ops' upstream budgets are charged against it: 80k.
+     Buys: the part that is about 58 per cent of a 90th-percentile prompt
+     stops being uncapped in aggregate. This is the highest value single
+     repair in the frame.
+  3. One wording for a cut, and every cut names the call that fetches the
+     rest: 90k (the sweep 50k, the re-records 40k). Buys: a seat can
+     always recover what it lost. Six wordings exist and four of eighteen
+     strings name a recovery call.
+  4. The eviction notice and the repeat line stop contradicting each
+     other: 40k. Buys: 8 of 8183 prompts stop telling a seat two opposite
+     things. The code measures the contradiction and leaves it open.
+  5. The silent cuts get a notice or a recorded reason: 70k. Buys: the
+     principal's ledger stops being shorter than the challenge row it
+     derives from.
+  6. A design review of the design record before any code: 80k.
+  7. One diff review on a worktree at the commit: 90k.
+  8. The gate before each commit, the stale line read: 36k.
+  9. A walk, because the frame changes what a seat is told: 20k in this
+     context, about nine hours wall.
+  Total: 596k in agents, about 45k in this context. **The scope is already
+  spent: 1206692 tokens in 12 agents, 459 tool calls, 19.2 minutes**, which
+  is 2.2 times frame 43's 536k scope of the same path. The verify stage is
+  where the excess went, and it earned it: 11 of 218 facts came back WRONG
+  or UNVERIFIABLE.
 - Waits on: nothing. Frame 43 closed on 2026-09-20 and is in
   `plans/archive/stack-2026-09-20.md`. This is the top frame.
 - Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
@@ -95,6 +125,54 @@ Rules:
   read-only agents, one question each, and the price and the design record
   follow. Frame 43's own scope of the same path cost 536k in five agents, so
   that is the anchor.
+- Status 2026-09-20 03:35 (rota-52): **the scope is in, the design record is
+  written, and the frame is priced. No code is written.** The record is
+  `plans/archive/prompt-budget-design-2026-09-20.md`. The evidence is
+  `plans/archive/prompt-budget-scope-2026-09-20.json` and its digest beside
+  it, both rescued into the repository, because a record's pointer never
+  names a session scratchpad.
+  **The frame's own premise is half wrong, and the half that is wrong is load
+  bearing** (observed: the scope, verified). One budget already exists and
+  already binds: `_fit_budget` caps the system string plus the user string at
+  `max(2000, int(num_ctx / 2 * 3.97) - system_chars)`
+  (`rota/core/runner.py:566`). Three caps derive from it rather than from a
+  night, and `result_room` at `:2154` is an allocator in everything but name.
+  The frame may not say that nothing sums.
+  **What is actually wrong, in the order it costs.** Half of every window is
+  unreachable by construction, so frame 43's rise from 12288 to 16384 bought
+  the lower half only and a prompt can never pass 8192 tokens while the
+  halving stands. Nothing measures the assembled prompt before the send, and
+  the only whole-prompt measurement runs after the reply arrives. The system
+  prompt is charged to the budget and never cut. `PUSH_CHARS` is applied per
+  key and not as a total, so a wake can carry 80000 characters before `_fit`
+  runs, and the pushed working set is the largest part of a
+  90th-percentile prompt.
+  **Three tests already assert three different numbers** (observed: three
+  verifiers, each correcting its own scope), so the frame's fifth part is
+  partly built and the design must pick which number is the promise.
+  **The verify stage earned its cost.** 11 of 218 facts came back WRONG or
+  UNVERIFIABLE, including a composition share the verifier reproduced at 58.6
+  per cent against the scope's 48.3, and a claim that six caps exist and none
+  derives from the others, which its own citation refutes twice over.
+  The design review of ends-when line 6 runs now. It does not wait on the
+  ruling below.
+- Waits on: **one ruling from Roman, and nothing else.** Ends-when lines 2 to
+  5 do not depend on it and can be built while it waits.
+  **The question: does the prompt budget stay at half the window?** The
+  budget is half because ollama collapses a prompt over `num_ctx` to
+  `num_ctx / 2 + 2` and keeps the tail, which cuts the brief off the front
+  (observed: the docstring at `rota/core/runner.py:566`, finding 79). Keeping
+  the halving is safe and permanent: a 16384 window carries at most 8192
+  tokens of prompt for ever, and frame 43's rise is worth half of what it
+  reads as. Raising it needs the assembled prompt measured before the send,
+  which is ends-when line 1 and does not exist today, plus a margin for the
+  chat template that nobody has measured, and it re-keys the register where
+  the stale line cannot see it.
+  **Recommended answer: keep the halving, and build line 1 first.** The
+  measurement is the thing that makes the question answerable at all, and it
+  is worth building whether or not the budget then rises. Revisit the halving
+  only when a night shows prompts pressing the ceiling. Today 117 of 3599
+  turns come within 520 characters of it, which is 3.3 per cent.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
