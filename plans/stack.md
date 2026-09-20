@@ -32,7 +32,7 @@ Rules:
 
 ## Stack
 
-### 46. One designed budget for a prompt (2026-09-19) (Roman) [0549dc76]
+### 46. One designed budget for a prompt (2026-09-19) (Roman) [cb5428a2]
 
 - Rota workflow. Today no single place answers the question "what may this
   prompt contain". The caps are per result, per push and per page. The trim
@@ -247,6 +247,15 @@ Rules:
   **Read before trusting**: the design record's sections 2.4 and 5 were
   rewritten after the design review measured them wrong. Read the record as
   it stands, not the commit that first wrote it.
+  **Session cb5428a2 holds frame 46 and the stack.** The hand exited 0 and
+  printed CONFIRMED 6 seconds after the claim, at stack commit 88f476a. The
+  seat was named rather than left to the queue, because the queue ranks on
+  arm time and the other free standby held 152k against this one's 20k. The
+  queue and the rule agreed today, and naming it cost nothing.
+  **A small finding for the kit** (observed: 2026-09-20 16:51): `--to` takes
+  a session id and refuses a peer name, while `peers` prints the name in the
+  column a reader would copy. The refusal is loud and lists the ids, so it
+  costs one retry and nothing worse.
   **One finding is parked, not actioned**: `_fit`'s promise is not a
   theorem. A fuzz of 4000 transcripts broke it 1540 times, on a two-block
   transcript and at the `max(2000, ...)` floor. The runner reaches neither
