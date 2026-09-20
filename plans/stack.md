@@ -277,7 +277,7 @@ Rules:
   The second case had no load, so load is not the cause and the file is the
   suspect.
 
-### 50. Port the newer hand-off kit into rota (2026-09-20) (Roman)
+### 50. Port the newer hand-off kit into rota (2026-09-20) (Roman) [0f086f93]
 
 - Meta workflow. The kit repository has four commits since rota's copy last
   moved at `f06ffbf`, and a peer relayed a request to take them (observed:
@@ -327,6 +327,13 @@ Rules:
   The port is one implementer pass against a 75k anchor, plus a gate run.
   Read the four commits in the kit repository before trusting the summary
   above, which is the peer's description and not a read of the diffs.
+- Status 2026-09-20 15:12 (rota-52): **session 0f086f93 holds frame 50.**
+  The hand exited 0 and printed CONFIRMED 4 seconds after the claim, at
+  stack commit 14db40a. That is the second frame this kit has carried on
+  real work, and the fastest of the two. Peer name rota-e7 at the hand.
+  **The reclaim path stays unrun**, and it is the one the kit's author names
+  as least proven. Exercise it with the remaining standby, cb5428a2, and
+  never with a session that holds a frame.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
