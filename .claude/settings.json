@@ -1,4 +1,6 @@
 {
+  "agentPushNotifEnabled": true,
+  "inputNeededNotifEnabled": true,
   "permissions": {
     "allow": [
       "Bash(python rota/tools/handover.py:*)"
