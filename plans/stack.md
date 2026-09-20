@@ -308,6 +308,37 @@ Rules:
   was the gate's one new red. It passes 5 of 5 alone in 3.3 seconds each, so
   the suite's fan-out is the trigger. It touches no code of this pass.
   Line 1 runs now, in the same agent, resumed by message.
+- Status 2026-09-20 17:41 (rota-02): **ends-when line 1 is built, judged and
+  committed at `cb0649c`.** Rota workflow. `_prompt_overrun` runs in
+  `run_session`, beside `_fit` and above every backend, so a cassette
+  exercises it. Two tests assert the invariant on the replay path.
+  **The brief's arithmetic was wrong and the agent's reading is right** (ruled:
+  the assistant, 2026-09-20, from `_fit_budget`'s own docstring).
+  `_fit_budget` charges the system prompt already, so the whole prompt's room
+  is the budget plus the system prompt. The brief's literal wording charged the
+  system prompt twice and would have fired on nearly every healthy turn.
+  **The overrun line reaches the record and fails no case** (observed: this
+  session's read of `rota/core/db.py:907` and `rota/testkit/fixtures.py:914`,
+  2026-09-20 17:30). `session_note` writes `outcome.errors` as one more turn.
+  The fixtures count an error as a refused call only when the text before the
+  first colon holds a dot, and this line's prefix holds none.
+  **One blind spot of the invariant, recorded and not fixed.** At the
+  `max(2000, ...)` floor the limit is the system prompt plus 2000, which can
+  exceed half the window. So the check cannot see a system prompt that
+  overruns the window on its own. The test's own case shows it: 9231
+  characters against a window half of about 1016, and the line reported 322.
+  The window question is frame 53.
+  **The suite holds a strict and a slack version of one promise** (observed:
+  the agent's four verified sites, 2026-09-20).
+  `tests/rota/test_runner.py:634` permits a 50 per cent overrun of `_fit`'s
+  number, where three other tests assert it exactly. Line 3's pass tightens
+  it, and a red there is a defect of `_fit` and not a test to bend.
+  **Price: 61021 tokens for the resumed pass, against 90k priced for line 1**
+  (observed: the harness usage line, 131512 cumulative for the agent minus
+  70491 at pass 1). Cold pass 1 cost 70491. **Both passes are far under the
+  300k cold anchor, so the resume rule holds** (observed: two passes,
+  2026-09-20).
+  Line 3 runs now, one wording for every cut, in the same agent.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
