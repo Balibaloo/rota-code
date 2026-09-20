@@ -53,6 +53,22 @@ three warnings only:
   A hand-off is Roman's assignment, continued. Do not wait for
   Roman to name the peer.
 
+  **A hand-off means you stop and the stack goes to one session** (ruled:
+  Roman, 2026-09-20). It is never a way to give side work to a second
+  worker while you keep running. Run `hand` only when this session is
+  stopping. One session holds the stack at a time.
+
+  A task that looks like it belongs to a fresh session is a frame on the
+  stack for whoever holds it next. It is not a claim posted to a standby.
+  A standby's clean context is reserved for taking over, and spending it
+  on parallel work buys a worse seat for the hand-off that follows.
+
+  This session broke that rule on 2026-09-20. It handed a frame it had
+  never held, kept working, and put two live sessions in one checkout.
+  Both wrote `plans/stack.md`, and one was part-way through editing
+  `rota/tools/handover.py`, which is the tool the next hand-off needs.
+  The port landed clean, so the cost was the risk and not a loss.
+
 Why the count arrives every turn: the harness cannot know which turn is
 the last, so it says the number each time. Why you ignore it until 300k:
 your judgement holds to 400k, and below 300k the number changes nothing
