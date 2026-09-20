@@ -376,6 +376,29 @@ Rules:
   Price: the agent's pass cost is unread for line 3 alone, because the harness
   reports the agent cumulatively. Cumulative after three passes: 205227 tokens.
   Line 4 runs next, the eviction notice against the repeat line.
+- Status 2026-09-21 00:17 (rota-02): **ends-when line 4 is built, judged and
+  committed at `27d0de8`. No wording moved, and the cassette counts are why.**
+  Rota workflow. A repeated call is suppressed only while the transcript still
+  holds its answer. After an eviction the runner serves the result again and
+  says the earlier answer was dropped.
+  **The measurement that shaped the fix** (observed: the agent's count over
+  18435 cassettes, 2026-09-20): the repeat line is in 4907 cassettes, its pushed
+  twin in 572, the eviction notice in 270, and the refusal in 20. So a wording
+  change here would have re-keyed 5779 recordings. The new sentence is in none.
+  168 cassettes carry the eviction notice and the repeat line together, and the
+  gate moved none of them.
+  **The deviation is accepted and it is the better reading** (ruled: the
+  assistant, 2026-09-21): the brief said the line tells the seat to call again,
+  and the agent serves the result instead. The runner holds it at that moment,
+  and a seat whose window has just overflowed should not spend a turn fetching
+  what is in hand.
+  **The gate carries one new red and it is frame 55's**, named and not chased:
+  22 failed against a baseline of 22, one red gone, zero new stale.
+  **One risk is open and recorded**: after an eviction two consecutive repeats of
+  one key are each served whole before the refusal fires. The storm the refusal
+  exists for is a single-turn shape, so it is unaffected.
+  Line 5 runs next, the silent cuts, and it is the last build line. The port of
+  frame 52 follows it on Roman's order.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -517,6 +540,13 @@ Rules:
   standing rule that a re-record is cheap. **The rule holds on tokens and it is
   wrong about consequence**: a re-record spends a green that the live model may
   not give back.
+- Status 2026-09-21 00:17 (rota-02): **Roman ruled the re-record rule stands**
+  (ruled: Roman, 2026-09-20, asked with a snapshot-first option recommended).
+  A re-record runs without asking. A spent green is the price of the truth, and
+  the truth is what an acceptance needs. **So this frame is a finding and not a
+  loss**, and the sentence above is the assistant's reading, now overruled on
+  what to do about it. The register holds what the model still does.
+  The cause is still unnamed, so the frame stays open on its own ends-when.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
