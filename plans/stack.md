@@ -29,7 +29,7 @@ Rules:
 
 ## Stack
 
-### 43. Review the context length management system (2026-09-18) (Roman) [9a9a20bf]
+### 43. Review the context length management system (2026-09-18) (Roman) [0549dc76]
 
 - Rota workflow. Today one window size, 12288, serves every wake, and a
   prompt that exceeds it collapses to half and loses its brief from the
@@ -1117,6 +1117,85 @@ Rules:
   frame. The correction cost one prediction that gated for a day.
   Frame 43 needs one word from Roman and nothing else. The new holder's work is
   the list in the status above.
+- Status 2026-09-20 02:55 (rota-52): **claimed by 0549dc76. The take was clean
+  and the frame is unchanged.** The hand-off arrived as a claim file, the
+  watcher woke this session with no keystroke, and `take` exited 0 naming frame
+  43 at df96b4b. The tree is clean and nothing is in flight.
+  This session confirms the frame's own state and adds nothing to it. The code
+  is built, reviewed, gated, walked on night 87, and the four numbers beat
+  night 86. The frame waits on Roman's word and on nothing else.
+  **The arm command asks for a name the session cannot know** (observed: this
+  session's own row). `/standby` asks the session to type its peer name, and a
+  session does not see its peer name until it lists its peers. This session
+  typed a description, `Opus5-standby`, and `peers` printed it, so a peer that
+  wanted to message this session would have addressed a name that reaches
+  nobody. The enrolling hook already writes the true name, `rota-52`, in
+  `.handover/sessions/0549dc76.json`, and the peer state shadows it. The row is
+  corrected by hand. **The fix belongs in the tool**: `--name` should default
+  to the enrolled name, and `/standby` should stop asking for it. That is a
+  one-line door and it is not this frame's work.
+- Status 2026-09-20 03:00 (rota-52): **the two findings of the closing status
+  are pushed as frames 47 and 48.** Frame 43's own list of what the next
+  session picks up is now three items, not five: Roman's word on 43, frame 46's
+  price, and the two dead claims of 9108c499 on frames 33 and 4.
+
+### 47. The reply cut fires thirty times more often (2026-09-20)
+
+- Rota workflow. The window rose to 16384 in frame 43 and the reply cap did
+  not. So a seat writes a longer reply, and the reply cut now bites where it
+  did not before (reasoned: frame 43's closing read of its own night; the
+  wider budget is the only input that changed).
+- The measurement, which separates the two callers of `_render_cut` (observed:
+  `probes/frame43/`, the cross-check run against `.rota/clickI_night87.db` and
+  `.rota/clickI_night86.db`): the reply cut fired 140 times of 3599 turns on
+  night 87, 3.9 per cent, against once of 825 on night 86, 0.1 per cent.
+- The finding is not in frame 43's four numbers and does not change them
+  (observed: the same probe). The probe counts a wake cut by its offset, not
+  by its words, so a trimmed reply never entered the four rates. Frame 43's
+  ends-when is met whatever this frame finds.
+- **What is not yet known**: whether a trimmed reply loses content the records
+  need. A cut reply that only loses a repeated sentence costs nothing. A cut
+  reply that loses a verdict or a tool call is a correctness fault, and frame
+  45 is the standing example of a page that named a verdict no row held.
+- Two candidate fixes are named on frame 43's record and neither is chosen:
+  the reply cap scales with the window, or a seat that writes past the cap is
+  told before it is trimmed.
+- Ends when: not priced. The first read names the reply cap's site, counts how
+  many of the 140 cuts lost a verdict, a ruling or a tool call, and returns a
+  category: cosmetic, or on the delivery path. The price follows the category.
+- Waits on: nothing. Roman orders it against 46, 48, 45, 41, 42, 38 and 37.
+- Reasoning: `probes/frame43/README.md`, which says which probe measures
+  which finding, and the two night databases it reads.
+- Status 2026-09-20 03:00 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
+  The frame exists so the obligation stays countable. It was found by the
+  frame that caused it, on the night that proved that frame.
+
+### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
+
+- Meta workflow. One test file gives a new red that the gate itself re-runs
+  green. Six flakes on 2026-09-19 across five different tests of that one
+  file, with and without machine load, and `test_arc_synthetic.py` flaked once
+  (observed: `plans/operating-facts.md`, the flaky-file line, which names
+  three of the six by test and by time).
+- The read on the record (reasoned: frame 43's implementer): both files run a
+  whole screen or a whole arc, and a flake that moves around a file is usually
+  shared state, not one bad assertion.
+- **The cost is the acceptance line, not the tests.** Every gate run of frame
+  43 needed a judgement by hand on a red the gate had already re-run green.
+  "Zero new reds" is the stale line's companion in every acceptance this
+  repository writes, and it is weakened for as long as one file answers
+  differently on two runs of one commit.
+- Ends when: the cause is named in a record, and `tests/rota/test_screens.py`
+  runs twenty times in a row with zero failures, once on a quiet machine and
+  once under a fan-out of agents. Not priced. The first read is what the file's
+  tests share: a screen object, a database, a temporary directory or a clock.
+- Waits on: nothing. Roman orders it against 46, 47, 45, 41, 42, 38 and 37.
+- Reasoning: `plans/operating-facts.md`, the line that says the file is flaky
+  and that load is not the cause, with the three named cases and their times.
+- Status 2026-09-20 03:00 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
+  An earlier version of the operating fact blamed machine load, from one case.
+  The second case had no load, so load is not the cause and the file is the
+  suspect.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
@@ -1148,8 +1227,9 @@ Rules:
   Not priced. The price waits on night 87, because frame 43's four
   numbers say how much of the bleeding the four repairs already stopped
   (ruled: Roman, 2026-09-19, push it now and price it later).
-- Waits on: frame 43, and on frame 43's night. Roman orders this frame
-  against 45, 41, 42, 38 and 37.
+- Waits on: Roman's word on frame 43, and on nothing else. Frame 43's night
+  ran on 2026-09-20 and its four numbers are in frame 43's status of 02:17.
+  Roman orders this frame against 47, 48, 45, 41, 42, 38 and 37.
 - Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
   and the scope it was written from,
   `plans/archive/context-caps-scope-2026-09-18.json`.
@@ -1158,6 +1238,17 @@ Rules:
   repairs of frame 43 do not need it, and the design record says so. This
   is the design that stops the next fault. The four repairs stop the
   bleeding.
+- Status 2026-09-20 03:00 (rota-52): **the wait is discharged. Night 87 ran
+  and this frame can be priced.** The four numbers say how much of the
+  bleeding the four repairs already stopped: the middle eviction fell from
+  36.0 per cent of turns to 22.5, the wake cut from 10.4 per cent to 2.0, the
+  sessions cut by the server from 15 of 203 to 0 of 746, and the tokens
+  discarded from 179117 to 0. The largest prompt of 3599 turns was 8191
+  tokens against a 16384 window, where night 86 sent one of 27155.
+  **The number that argues for this frame is the one that got worse.** No
+  prompt came near the window, and the reply cut still fired 140 times. A
+  budget that is right per part and never summed is exactly the fault frame
+  47 now carries a case of. The pricing grill is Roman's to call.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
