@@ -276,6 +276,38 @@ Rules:
   **One cross-project hand-off reached this session before the rota claim and
   was retracted by its sender** (observed: two peer messages, 2026-09-20).
   Nothing of that frame was claimed, and this stack never carried it.
+- Status 2026-09-20 17:19 (rota-02): **ends-when line 2 is built, judged and
+  committed at `6364927`.** Rota workflow. The pushed `decisions.search` block
+  now spends one budget of its own, `DECISIONS_PUSH_CHARS`, 6000 characters.
+  The rows go round robin by row, so every word that matched keeps a row. One
+  wording names the call that returns a cut word's rows.
+  **The measurement on the test's data: 13542 characters before the budget and
+  5989 after** (observed: the pass's own test, 2026-09-20). The op in
+  `rota/roles/api.py` is unchanged, so a seat that asks for it keeps today's
+  contract. `PUSH_CHARS` is unchanged.
+  **Price against the estimate: 70491 tokens in one agent pass against 110k
+  priced, and the 30k re-record allowance was not spent** (observed: the
+  harness's usage line, and `casestatus` before and after). The register reads
+  72 stale both sides of the change, so this line staled nothing. The gate
+  reads 22 failed against a baseline of 22, one red gone, and zero new stale.
+  The estimate assumed the push is in a cassette key. It is not.
+  **Three design points were open in the record and this session ruled them**
+  (ruled: the assistant, 2026-09-20, because the record priced the line and
+  named no numbers): the budget is 6000 because that is `RESULT_CHARS`, what
+  one asked-for result may cost. The allocation is round robin because word
+  order is the order the subject happened to speak. The op keeps its contract
+  because a seat's own call is the recovery the notice names.
+  **One wording defect is recorded and not fixed.** The notice promises "all
+  N" rows, and the recovery call cuts at `RESULT_CHARS` when a word matches
+  more rows than 6000 characters hold (reasoned: the caps are both 6000, and a
+  wide word overruns the asked result too). Line 3 rewrites every cut wording,
+  so the promise is corrected there and not in a pass of its own.
+  **A second test file flakes, and it is not the one frame 48 names**
+  (observed: the gate at `a6e0d5c`, and five runs of the test alone,
+  2026-09-20 17:10). `tests/rota/test_handover.py::test_a_newer_watcher_retires_the_older_one`
+  was the gate's one new red. It passes 5 of 5 alone in 3.3 seconds each, so
+  the suite's fan-out is the trigger. It touches no code of this pass.
+  Line 1 runs now, in the same agent, resumed by message.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -334,6 +366,20 @@ Rules:
   An earlier version of the operating fact blamed machine load, from one case.
   The second case had no load, so load is not the cause and the file is the
   suspect.
+- Status 2026-09-20 17:19 (rota-02): **a second file flakes the same way, and
+  the frame does not own it yet** (observed: the gate at `a6e0d5c`, and five
+  runs of the test alone, 2026-09-20 17:10).
+  `tests/rota/test_handover.py::test_a_newer_watcher_retires_the_older_one` was
+  the gate's one new red under frame 46's line 2. It passes 5 of 5 alone, at
+  3.3 seconds each, and the pass touched no handover code. So the suite's
+  fan-out is the trigger and the file is the second suspect.
+  **The line is added here and not to frame 46, because this frame owns the
+  fault class.** The frame is unclaimed, so no session's frame is edited. The
+  ends-when still names one file. Widening it to two is Roman's order to give.
+  **The reading this adds: the shared state is not a screen.** A watcher
+  timing test and a screen test have nothing in common but the suite they run
+  in, so the suspect moves from what the file's tests share to what the run
+  shares.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
