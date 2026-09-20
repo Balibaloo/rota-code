@@ -154,6 +154,45 @@ Rules:
   The second case had no load, so load is not the cause and the file is the
   suspect.
 
+### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
+
+- Meta workflow. A stale case is unmeasured, not bad. It means the composed
+  prompt moved and nobody has re-earned the result since. Today 72 of 128
+  model-facing cases are stale, against 47 green and 9 failing (observed:
+  `python -m rota.tools.casestatus`, run 2026-09-20 03:10).
+- **The obligation belongs to nobody.** Frame 43 is closed. Its record said in
+  advance that the stale line could not accept it, because `num_ctx` and a
+  mode prompt are in the cassette key and not in `rota/tools/casestatus.py`'s
+  match (observed:
+  `plans/archive/context-caps-design-2026-09-18.md`, section 9.6). So the
+  frame closed on its night, correctly, and the register was left where it
+  was.
+- **When the 72 appeared is not known, and the record disagrees with itself**
+  (observed: two sources). The gate's stored baseline at f3a7e41, 2026-09-19
+  05:22, holds `"stale": 0`. Frame 43's status of 15:38 on the same day reads
+  the gate whole at 6408b64 and says zero stale. Every commit after 6408b64
+  touched only `plans/`, `.claude/` and `probes/`, and none of those composes a
+  prompt. Night 87 ran after that gate. The first read is therefore whether a
+  night writes the register, and what a case's prompt hash is taken over.
+- **This frame stales nothing of its own** (observed: this session's own
+  check, 2026-09-20 03:10). The count is 72 with the handover fix in the tree
+  and 72 without it, so the door of `f06ffbf` is not a cause.
+- Ends when: the cause is named in a record, the 72 are re-recorded or
+  written off case by case with a reason, and `casestatus` reads zero stale.
+  Not priced. A re-record is cheap and needs a quiet machine, so the price is
+  mostly wall time and not tokens (observed: the standing guidance that a
+  re-record runs without asking).
+- Waits on: a quiet machine. The scope of frame 46 is running now, and the
+  register's re-record contends with it for the GPU.
+- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 9.6,
+  and the gate baseline at `.rota-gate.json`.
+- Status 2026-09-20 03:10 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
+  Roman orders it. It sits here because it was found here, and not because it
+  outranks frame 45. **The reason it is a frame at all**: "zero stale" is a
+  line in every acceptance this repository writes, and a line that reads 72
+  cannot gate anything. An acceptance that nobody can fail is not an
+  acceptance.
+
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
