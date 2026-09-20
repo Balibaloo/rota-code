@@ -1094,6 +1094,29 @@ Rules:
   moot by beating both; whether a commit carries a `Co-Authored-By` footer,
   where CONTRIBUTING.md and the harness disagree and every peer has resolved it
   in silence; and the two dead claims above.
+- Status 2026-09-20 02:51 (rota-95): **HAND-OFF. Session 0549dc76 holds frame
+  43 at commit df96b4b. The file hand-off worked on its first real use.**
+  `python rota/tools/handover.py hand --frame 43 --commit df96b4b --sender
+  9a9a20bf` exited 0 and printed `CONFIRMED: 0549dc76 holds frame 43, 7s after
+  the claim`. This session handed off at about 409k, which is the number the
+  brief sets, and not on a guess.
+  **Four of the kit's acceptance lines are now proved on this machine**
+  (observed: `peers` before and after the hand). Line 7: three sessions armed
+  by the `/standby` command and all three appeared free, so no permission
+  prompt parked any of them and the project rule holds. Line 8: the standby
+  woke with no keystroke and the sender read `CONFIRMED`, 7 seconds against the
+  borrowed 6. Line 9: exactly one of the three woke, and the other two still
+  answer as free with fresh heartbeats and no turn spent. Line 12: the hook
+  enrolled this session, which armed no watcher, and `peers` named it.
+  Lines 10, 11 and 13 stay unrun. They need an empty reserve, an orphaned
+  claim and a fifteen minute wait.
+  **What this session's own hand-off corrects.** The frame's earlier hand-off
+  of 2026-09-19 went by Roman's paste, because a liveness probe found no clean
+  standby and a record said peer messaging was broken. That sentence was
+  measured false, the rule is replaced, and the replacement has now carried a
+  frame. The correction cost one prediction that gated for a day.
+  Frame 43 needs one word from Roman and nothing else. The new holder's work is
+  the list in the status above.
 
 ### 46. One designed budget for a prompt (2026-09-19) (Roman)
 
