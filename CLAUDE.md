@@ -106,8 +106,22 @@ On that wake, read the task output and act on the exit code.
 - 2: you hold a frame already, so you are not a standby. Report the frame
   you hold and stop.
 
+The peers table has a `handed` column. It names the frame the mailbox
+delivered to a session. It never names the frame that session holds now.
+The stack is the record of that. When you close a handed frame and take
+another, correct the column:
+
+```
+python rota/tools/handover.py holding --sid <your session id> --frame <n>
+```
+
+Write `--frame none` when you hold no frame. A row that contradicts the
+stack sends a reader to the wrong place.
+
 Arm one watcher only. Two watchers for one session write two heartbeats
-and race for one claim.
+and race for one claim. The tool enforces this from 2026-09-20. The older
+watcher reads the newer one's arm time, prints that it stands down, and
+exits 1.
 
 On wake:
 
@@ -213,7 +227,12 @@ the terminal.
 
 Records: a conclusion goes to a record when it forms. Every conclusion
 carries a mark, each with a reason the size of a commit headline:
-(observed: where), (reasoned: why), or (ruled: why). Say which workflow a statement is about: the meta
+(observed: where and when), (reasoned: why), or (ruled: why). An
+observation carries its date, because an observation ages. A check you
+ran an hour ago and quote now without its date is a prediction that wears
+the word observed. A prediction never gates. An assertion about what a
+mechanism does is (reasoned) until you run it, however sound it feels.
+Say which workflow a statement is about: the meta
 workflow, this build session, or the rota workflow, the seats. Five lines
 per frame: what, ends when, waits on, a pointer to the reasoning, a dated
 status. The status line's time comes from the clock, never from memory.

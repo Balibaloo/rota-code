@@ -352,6 +352,42 @@ writes another rule about them.
   messages for six hours while it waited on a tool decision. A permission
   prompt parks a session the same way (observed: the same corpus).
 
+Four assertions that felt sound and were never run, all on 2026-09-20, in the
+same week the rule against them was written down. Keep the list. The shape
+repeats and the cost is always a rule that gates. Three are the kit's, adopted
+in frame 50. The fourth happened in this repository.
+
+- "Session messaging did not carry it." Written into a record and a commit
+  message from one hand-off that arrived four minutes late. The message had
+  arrived (observed: the transcripts, 2026-09-20).
+- "The kit update is not installed in that project." A check ran before the
+  update landed. A session quoted it afterwards as current, then broadcast it
+  to four sessions as a rule. That rule would have stopped a session at 400k
+  holding a frame it could have handed. The receiving session caught it in
+  minutes (observed: the peer's reply and commit 56f2ab3, 2026-09-20).
+- "That reclaim hazard is reachable from ordinary operation." Asserted from
+  reading the code, then disproved by the first test written for it. A
+  re-armed watcher reads the waiting claim on its first poll (observed: the
+  test `test_a_re_armed_watcher_takes_an_unread_claim_at_once`, 2026-09-20).
+- "The two glob implementations disagree on 30 cases, then on 171." Both
+  numbers were faults in the comparison, not in either implementation. The
+  third run, with the harness fixed, found 5 real ones (observed: a
+  destination's own report, 2026-09-20).
+
+**A session's brief and slash commands are fixed when the session starts**
+(observed: session 0f086f93, 2026-09-20 15:12). That session started at 02:37.
+Commit f06ffbf changed `CLAUDE.md` and `.claude/commands/standby.md` at 03:10
+to stop asking a standby for its peer name. At 15:12 the session still held the
+02:37 text, and it armed by the old instruction. The arm failed, because the
+session had no name to type. It then spent one `ListAgents` call to learn its
+own name and armed again.
+
+So a change to the brief does not reach a standby that is already armed. After
+any change to `CLAUDE.md` or to a command file, the armed standbys hold the old
+text until Roman restarts them. Two routes exist and neither is free. Restart
+the standby, which spends its clean context. Or message it, which spends a
+turn. Prefer the change that is safe under both texts, as f06ffbf was.
+
 Three things a message cannot do, which is why the hand-off uses a file. Each
 one cost a real hand-off.
 
@@ -415,17 +451,39 @@ heartbeats and no turn spent.
 **Acceptance lines 10, 11 and 13 are not run.** They need an empty reserve, an
 orphaned claim, and a fifteen minute wait.
 
+**The reclaim is covered by tests from 2026-09-20, frame 50, and it is still
+unrun on live machine state.** Two ported tests carry it. One shows that a
+re-armed watcher reads a waiting claim on its first poll, so the feared case
+never reaches the reclaim clock. The other shows that the eviction removes a
+registration only when the registration predates the claim. Frame 50 did not
+wake the last free standby to repeat that on the live box, because the two
+tests now answer the question the live run was for (reasoned: the frame's
+instruction to exercise it was written before those tests existed).
+
+**The second live hand-off ran on 2026-09-20 at 15:12.** Session 0549dc76
+handed frame 50 to session 0f086f93 at stack commit 14db40a. The sender read
+CONFIRMED 4 seconds after the claim, against 7 seconds on frame 43 and the
+borrowed 6.
+
 **Read the `peers` table correctly. Two of its columns mislead.**
 
-- **A holder's heartbeat is stale by design.** The watcher exits when it
-  delivers the claim, so a live session that holds a frame shows STALE in the
-  beat column. STALE means dead only for a row whose state is `standby`.
-- **The `frame` column names the frame that was handed, not the frame the
-  session holds now.** Nothing updates it when the session moves to the next
-  frame. On 2026-09-20 session 0549dc76 showed frame 43 while it held frame
-  46, and frame 43 was closed and in the archive, so the row contradicted the
-  stack. Correct the row by hand in `.handover/peers/<sid>.json` until the
-  tool takes a frame number.
+- **A holder's heartbeat stops by design.** The watcher exits when it delivers
+  the claim, so a live session that holds a frame writes no more beats. Until
+  2026-09-20 the table printed STALE there, which says a working session died.
+  The table now prints `held` for a row in state `holding`. STALE still means
+  dead, and only for a row whose state is `standby`.
+- **The column is named `handed` from 2026-09-20, frame 50.** It names the
+  frame the mailbox delivered, not the frame the session holds now. Nothing
+  updates it when the session moves to the next frame. On 2026-09-20 session
+  0549dc76 showed frame 43 while it held frame 46, and frame 43 was closed
+  and in the archive, so the row contradicted the stack. Correct it with
+  `python rota/tools/handover.py holding --sid <sid> --frame <n>`, or
+  `--frame none` when the session holds no frame. The hand edit of
+  `.handover/peers/<sid>.json` is no longer needed (observed: the ported
+  `cmd_holding` and its test, 2026-09-20).
+- **Both corrections are proved on the live table** (observed: `peers` at
+  2026-09-20 15:33, with sessions 0549dc76 and 0f086f93 both in state
+  `holding`). Each row read `held` and named the frame the mailbox delivered.
 
 **A peer message is not a record** (observed: 2026-09-20). A session from
 another project reported that a hand-off from 7b95045e had gone to rota-02.

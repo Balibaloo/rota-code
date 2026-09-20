@@ -29,6 +29,7 @@ from pathlib import Path
 import pytest
 
 from rota.tools import handover
+from rota.tools.handover import _write_json
 
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
@@ -78,6 +79,20 @@ def peer(box_path, sid):
 
 def claim(box_path, sid):
     return box_path / handover.BOX / "claims" / (sid + ".json")
+
+
+def age_the_arm(box_path, sid, seconds):
+    """Move a registration back in time, so a scene reads as it would live.
+
+    A reclaim evicts a registration only when it predates the claim, so a
+    test that ages a claim must age the arm that saw it too. Otherwise the
+    scene says a watcher armed after a claim it demonstrably answered.
+    """
+    api = handover.Box(box_path)
+    state = api.read_state(sid)
+    state["armed_at"] = time.time() - seconds
+    state["since"] = state["armed_at"]
+    api.write_state(sid, state)
 
 
 def arm(box_path, sid, name="peer", wait=10.0):
@@ -418,6 +433,30 @@ def test_a_typed_name_is_kept_when_no_hook_enrolled_the_session(box):
     assert peer(box, "aaaa1111")["name"] == "rota-52"
 
 
+def test_the_hook_name_beats_the_typed_name(box):
+    """A session cannot know its own peer name, so its guess must not win.
+
+    Reported from a live frame: a session typed a description as its
+    name, `peers` printed it, and a peer wanting to use the message
+    fallback would have addressed a name that reaches nobody.
+    """
+    arm(box, "aaaa1111", name="Opus5-standby")
+    api = handover.Box(box)
+    _write_json(api.sessions / "aaaa1111.json",
+                {"sid": "aaaa1111", "name": "rota-52", "est": 12, "t": time.time()})
+    row = [r for r in api.queue(handover.STALE) if r["sid"] == "aaaa1111"][0]
+    assert row["name"] == "rota-52", "the registry name the hook wrote wins"
+    assert row["est"] == 12
+
+
+def test_a_typed_name_still_serves_a_checkout_with_no_hook(box):
+    """The hook is the kit's, and a destination may not have installed it."""
+    arm(box, "aaaa1111", name="typed-only")
+    row = [r for r in handover.Box(box).queue(handover.STALE)
+           if r["sid"] == "aaaa1111"][0]
+    assert row["name"] == "typed-only"
+
+
 def test_a_take_cannot_happen_twice(box):
     """The claim moves into a receipt, so a second take has nothing to read."""
     arm(box, "aaaa1111")
@@ -438,6 +477,7 @@ def test_an_unread_claim_returns_to_the_queue(box, capsys):
     stale_claim = json.loads(path.read_text(encoding="utf-8"))
     stale_claim["t"] = time.time() - 3600
     path.write_text(json.dumps(stale_claim), encoding="utf-8")
+    age_the_arm(box, "aaaa1111", 7200)   # the watcher armed before the claim
     capsys.readouterr()
 
     run(box, "peers", "--reclaim", "60")
@@ -463,6 +503,7 @@ def test_a_reclaim_does_not_offer_the_dead_watcher_again(box):
     aged = json.loads(path.read_text(encoding="utf-8"))
     aged["t"] = time.time() - 3600
     path.write_text(json.dumps(aged), encoding="utf-8")
+    age_the_arm(box, "aaaa1111", 7200)   # the watcher armed before the claim
 
     api = handover.Box(box)
     assert len(api.reclaim(60)) == 1
@@ -639,6 +680,108 @@ def test_drop_cancels_a_vacancy(box, capsys):
               (box / handover.BOX / "log.jsonl").read_text(
                   encoding="utf-8").splitlines()]
     assert "vacancy_dropped" in events
+
+
+def test_a_re_armed_watcher_takes_an_unread_claim_at_once(box):
+    """Why the feared case does not arise, recorded so nobody re-argues it.
+
+    A watcher times out, a claim lands while nothing is blocking, and the
+    session re-arms as it is told to. The fear was that the reclaim would
+    later evict that healthy session. It cannot: the new watcher reads the
+    waiting claim on its first poll and exits, so the claim is gone long
+    before any reclaim clock runs out. The self-heal is the defence, and
+    the guard below is only the belt.
+    """
+    api = handover.Box(box)
+    _write_json(api.claim_file("aaaa1111"),
+                {"frame": "7", "commit": "abc1234", "from_sid": "ffff9999",
+                 "t": time.time() - 3600, "iso": "an hour ago"})
+
+    thread, result = arm(box, "aaaa1111", wait=10)
+    thread.join(timeout=5)
+    assert result.get("code") == 0, "the re-armed watcher woke on the old claim"
+    assert run(box, "take", "--sid", "aaaa1111") == 0
+    assert peer(box, "aaaa1111")["frame"] == "7"
+
+
+def test_a_reclaim_evicts_only_a_registration_older_than_the_claim(box):
+    """The eviction checks the assumption its comment used to assert.
+
+    Evicting says "the watcher that was blocking saw this claim and
+    exited". That holds only when the registration predates the claim. A
+    newer registration belongs to a watcher that never saw it.
+    """
+    api = handover.Box(box)
+    now = time.time()
+
+    def scene(sid, armed_at):
+        api.write_state(sid, {"sid": sid, "since": armed_at, "since_iso": "then",
+                              "armed_at": armed_at, "beat": armed_at,
+                              "state": "standby", "frame": None})
+        _write_json(api.claim_file(sid),
+                    {"frame": "7", "commit": "abc1234", "t": now - 3600,
+                     "iso": "an hour ago"})
+
+    scene("aaaa1111", now - 7200)      # armed before the claim: spent
+    scene("bbbb2222", now - 60)        # armed after it: a live watcher's seat
+    assert len(api.reclaim(60)) == 2, "both frames go back to the queue"
+    assert not api.peer_file("aaaa1111").exists()
+    assert api.peer_file("bbbb2222").exists(), "the newer registration survived"
+
+
+def test_a_newer_watcher_retires_the_older_one(box):
+    """One session, one watcher. Two would race for one claim."""
+    first, first_result = arm(box, "aaaa1111", wait=10)
+    time.sleep(0.05)
+    second, second_result = arm(box, "aaaa1111", wait=10)
+
+    first.join(timeout=5)
+    assert first_result.get("code") == 1, "the older watcher stood down"
+    assert second.is_alive(), "the newer one kept the seat"
+    assert handover.Box(box).peer_file("aaaa1111").exists()
+
+    run(box, "release", "--sid", "aaaa1111")
+    second.join(timeout=5)
+
+
+def test_a_holder_is_not_printed_as_stale(box, capsys):
+    """Its watcher exits when it delivers the claim, so the beat stops by design.
+
+    Reported from a live frame: a working session read STALE for an hour,
+    which says the session died.
+    """
+    arm(box, "aaaa1111")
+    run(box, "hand", "--frame", "7", "--commit", "abc1234", "--confirm", "0.1")
+    run(box, "take", "--sid", "aaaa1111")
+    api = handover.Box(box)
+    state = api.read_state("aaaa1111")
+    state["beat"] = time.time() - 9000          # an hour of honest silence
+    api.write_state("aaaa1111", state)
+    capsys.readouterr()
+
+    run(box, "peers")
+    out = capsys.readouterr().out
+    row = [line for line in out.splitlines() if line.startswith("aaaa1111")][0]
+    assert "held" in row and "STALE" not in row
+    assert "handed" in out, "the column says what it means"
+
+
+def test_holding_corrects_the_handed_column(box, capsys):
+    """A row that contradicts the stack sends a reader to the wrong place."""
+    arm(box, "aaaa1111")
+    run(box, "hand", "--frame", "43", "--commit", "abc1234", "--confirm", "0.1")
+    run(box, "take", "--sid", "aaaa1111")
+    assert peer(box, "aaaa1111")["frame"] == "43"
+    capsys.readouterr()
+
+    assert run(box, "holding", "--sid", "aaaa1111", "--frame", "46") == 0
+    assert "was 43, and now reads 46" in capsys.readouterr().out
+    assert peer(box, "aaaa1111")["frame"] == "46"
+
+    assert run(box, "holding", "--sid", "aaaa1111", "--frame", "none") == 0
+    assert peer(box, "aaaa1111")["frame"] is None
+    assert peer(box, "aaaa1111")["state"] == "standby"
+    assert run(box, "holding", "--sid", "bbbb2222", "--frame", "1") == 1
 
 
 def test_the_sid_decides_the_address_and_not_the_name(box):

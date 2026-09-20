@@ -136,6 +136,8 @@ Exit codes, no overlap.
              2 a usage error or a claim that will not open.
     drop     0 the vacancy is cancelled, 1 no vacancy names that frame,
              2 a usage error.
+    holding  0 the handed column is corrected, 1 the session is not in the
+             reserve, 2 a usage error.
 
 Exit 1 never means "something went wrong here". A write that fails and a
 file that will not open both return 2 or 6, because a session that reads
@@ -372,7 +374,11 @@ class Box:
                              and state.get("state") == "standby")
             enrolled = self.enrolled(sid) or {}
             state["est"] = enrolled.get("est")
-            state["name"] = state.get("name") or enrolled.get("name") or ""
+            # The hook reads the name from the harness registry. A session
+            # cannot know its own peer name without asking for a peer list,
+            # so a name typed at arm time is a guess, and a wrong name is
+            # unaddressable on the one route that needs it. The hook wins.
+            state["name"] = enrolled.get("name") or state.get("name") or ""
             out.append(state)
         out.sort(key=lambda s: float(s.get("since", 0)))
         return out
@@ -410,15 +416,22 @@ class Box:
                 os.unlink(staging)
             except OSError:
                 pass
-            # Its watcher saw this claim and exited, so that session is not
-            # waiting for anything any more. Its heartbeat can still look
-            # fresh, and a sender would then hand the frame to a session
-            # that nothing is watching. Take it out of the reserve, and let
-            # it arm again if it is still alive.
-            try:
-                self.peer_file(sid).unlink()
-            except FileNotFoundError:
-                pass
+            # The watcher that was blocking when this claim arrived saw it
+            # and exited, so that registration is waiting for nothing and a
+            # sender must not be offered it. But a session that timed out,
+            # re-armed, and is blocking again owns a NEWER registration, and
+            # that one is alive. Evicting it would tell a healthy standby to
+            # leave the reserve and never come back. So the registration
+            # goes only when it predates the claim.
+            armed_at = float(state.get("armed_at", 0) or 0)
+            if armed_at <= float(claim.get("t", 0)):
+                try:
+                    self.peer_file(sid).unlink()
+                except FileNotFoundError:
+                    pass
+            else:
+                self.note("reclaim_kept_newer_watcher", sid=sid,
+                          armed_at=armed_at, claim_t=claim.get("t"))
             self.note("reclaimed", sid=sid, frame=claim.get("frame"),
                       after=round(now - float(claim.get("t", now))))
             back.append(claim)
@@ -586,6 +599,11 @@ def cmd_standby(args: argparse.Namespace, box: Box) -> int:
         "watcher_pid": os.getpid(),
         "since": t,
         "since_iso": iso,
+        # `since` keeps the queue order across a re-arm. `armed_at` is this
+        # watcher's own start, and it decides two things a heartbeat cannot:
+        # which of two watchers for one session is the newer, and whether a
+        # registration predates the claim a reclaim is giving back.
+        "armed_at": t,
         "beat": t,
         "state": "standby",
         "frame": None,
@@ -633,9 +651,20 @@ def cmd_standby(args: argparse.Namespace, box: Box) -> int:
             return 1
         if time.monotonic() - last_beat >= args.beat:
             last_beat = time.monotonic()
-            state["beat"] = time.time()
+            # Read before writing, so the beat updates one field and never
+            # restores this watcher's own view of the rest. That is what
+            # lets a newer watcher be seen here at all.
+            current = box.read_state(args.sid)
+            if current and float(current.get("armed_at", 0) or 0) > state["armed_at"]:
+                box.note("watcher_retired", sid=args.sid,
+                         mine=state["armed_at"], newer=current.get("armed_at"))
+                print("a newer watcher arms this session, so this one stops.")
+                print("One session, one watcher. Do not arm again from here.")
+                return 1
+            merged = current or state
+            merged["beat"] = time.time()
             try:
-                box.write_state(args.sid, state)
+                box.write_state(args.sid, merged)
             except OSError:
                 pass
             # A vacancy can appear while this standby is already waiting,
@@ -655,7 +684,7 @@ def cmd_standby(args: argparse.Namespace, box: Box) -> int:
 def _print_queue(rows: list[dict], stale: float) -> int:
     """Print the reserve and return how many standbys are free to take a frame."""
     print("%-10s %-22s %-9s %-7s %-6s %-6s %s" % (
-        "sid", "name", "state", "beat", "frame", "ctx", "armed"))
+        "sid", "name", "state", "beat", "handed", "ctx", "armed"))
     free = 0
     for r in rows:
         beat = "%.0fs" % r["age"] if r["live"] else "STALE"
@@ -664,6 +693,11 @@ def _print_queue(rows: list[dict], stale: float) -> int:
         shown = r.get("state", "?")
         if r["claimed"] and shown == "standby":
             shown = "woken"
+        if shown == "holding":
+            # A holder's watcher exited when it delivered the claim, so the
+            # beat stops by design. Printing STALE there says a working
+            # session died.
+            beat = "held"
         if r["free"]:
             free += 1
         est = r.get("est")
@@ -675,6 +709,9 @@ def _print_queue(rows: list[dict], stale: float) -> int:
     print("%d free standby, %d row(s). A heartbeat older than %.0fs is stale." % (
         free, len(rows), stale))
     print("free means live, armed, and not already claimed by another sender.")
+    print("handed is the frame this mailbox delivered, and not the frame a")
+    print("session holds now. The stack is the record of that. A session that")
+    print("moved on corrects the column with the holding command.")
     return free
 
 
@@ -949,6 +986,35 @@ def cmd_drop(args: argparse.Namespace, box: Box) -> int:
     return 0
 
 
+def cmd_holding(args: argparse.Namespace, box: Box) -> int:
+    """Say which frame this session holds now, or that it holds none.
+
+    The mailbox records the frame it delivered, and it cannot know what
+    happened next. A session took frame 43, closed it, claimed frame 46,
+    and its row still read 43 an hour later, so a live row contradicted
+    the stack. There was no command for it and the file was edited by
+    hand. Machine state that a person has to edit by hand is a defect.
+    """
+    state = box.read_state(args.sid)
+    if not state:
+        print("%s is not in the reserve, so there is nothing to correct." % args.sid)
+        return 1
+    was = state.get("frame")
+    if args.frame.lower() in ("none", "-", ""):
+        state["frame"] = None
+        state["state"] = "standby" if state.get("state") == "holding" else state.get("state")
+    else:
+        state["frame"] = args.frame
+        state["state"] = "holding"
+    box.write_state(args.sid, state)
+    box.note("holding_set", sid=args.sid, was=was, now=state["frame"])
+    print("%s: handed was %s, and now reads %s." % (
+        args.sid, was if was is not None else "-",
+        state["frame"] if state["frame"] is not None else "-"))
+    print("The stack is still the record of what you hold. This is the doorbell.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="A hand-off that lands in a session that sits idle.")
@@ -960,7 +1026,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--sid", required=True,
                    help="this session id, the eight characters the hook prints")
     s.add_argument("--name", default=None,
-                   help="a fallback peer name, used only when the hook enrolled none")
+                   help="only for a checkout with no context hook. The hook reads "
+                        "the true peer name from the harness registry and wins.")
     s.add_argument("--wait", type=float, default=WAIT,
                    help="seconds to block before it asks to be armed again")
     s.add_argument("--beat", type=float, default=BEAT,
@@ -993,6 +1060,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("release", help="leave the reserve")
     r.add_argument("--sid", required=True)
+
+    o = sub.add_parser("holding", help="correct the frame this session holds")
+    o.add_argument("--sid", required=True)
+    o.add_argument("--frame", required=True,
+                   help="the frame held now, or none when the session holds one no longer")
 
     d = sub.add_parser("drop", help="cancel a hand-off that waits for nobody")
     d.add_argument("--frame", required=True, help="the frame to stop offering")
@@ -1044,6 +1116,7 @@ def main(argv: list[str] | None = None) -> int:
         return {
             "standby": cmd_standby, "peers": cmd_peers, "hand": cmd_hand,
             "take": cmd_take, "release": cmd_release, "drop": cmd_drop,
+            "holding": cmd_holding,
         }[args.cmd](args, box)
     except Unreadable as exc:
         print("a file is on disk and will not open: %s" % exc, file=sys.stderr)
