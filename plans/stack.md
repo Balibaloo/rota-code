@@ -319,6 +319,36 @@ Rules:
   cannot gate anything. An acceptance that nobody can fail is not an
   acceptance.
 
+### 51. `holding --frame none` writes a row that lies (2026-09-20)
+
+- Meta workflow. The command sets a session's state back to `standby` when
+  the session names no frame. It does not check that a watcher is running.
+  A session that finishes a frame and clears its column is then printed as a
+  standby with a dead heartbeat, and the table's own rule says STALE means
+  dead for a `standby` row (observed: session 0f086f93 at 2026-09-20 15:56,
+  immediately after it closed frame 50).
+- **The row is safe and it is still false.** A sender never offers it,
+  because `free` needs a live beat. The fault is that the table says a live
+  session died, which is the same fault class the `held` beat was written to
+  fix. The session left the reserve with `release` to make its row honest.
+- **This is a finding from running the port on live state, not from reading
+  it** (observed: the live table, 2026-09-20 15:56). The kit's own four
+  findings came the same way, from frame 43.
+- Ends when: a session that clears its frame is not printed as a live
+  standby, and a test asserts it. The kit hears the finding either way,
+  because the kit owns `cmd_holding`. Not priced. This is a one-line door
+  plus one test, so the anchor is 20k.
+- Waits on: nothing. It is small and it can wait behind Roman's order.
+- Reasoning: the closing status of frame 50 in
+  `plans/archive/stack-2026-09-20.md`, and the peers-table rules in
+  `plans/operating-facts.md`.
+- Status 2026-09-20 15:56 (rota-e7): pushed by 0f086f93, unclaimed. Pushed so
+  the obligation stays countable. It sits below Roman's ordered frames,
+  because it does not outrank them. **Two candidate fixes, and the choice is
+  a design question for the kit**: clear the frame and leave the state alone,
+  or set the state from the beat. The second reads the truth and the first
+  writes less.
+
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
