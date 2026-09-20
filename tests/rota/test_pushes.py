@@ -102,7 +102,7 @@ def test_the_decision_push_is_inside_its_own_budget(tmp_path):
     assert len(runner._render(raw, runner.PUSH_CHARS)) > 2 * runner.DECISIONS_PUSH_CHARS
     shown = runner._render(block, runner.PUSH_CHARS)     # the cap build_prompt uses
     assert len(shown) <= runner.DECISIONS_PUSH_CHARS, len(shown)
-    assert "TRUNCATED" not in shown
+    assert "CUT the result" not in shown, "the backstop cut what the budget should have"
 
 
 def test_every_word_that_matched_keeps_a_row_of_the_decision_push(tmp_path):
@@ -117,16 +117,31 @@ def test_every_word_that_matched_keeps_a_row_of_the_decision_push(tmp_path):
 
 
 def test_the_cut_decision_push_names_the_call_for_the_rest(tmp_path):
-    """A push has no range to ask for, so the backstop's "ask for the next
-    range" named no call a seat could make. The notice names one."""
+    """
+    A push has no range to ask for, so the backstop's "ask for the next range"
+    named no call a seat could make. The notice names one, in the wording every
+    cut uses.
+
+    It promises what the call returns and no count. `decisions.search` comes
+    back through `_render` at `RESULT_CHARS`, which is the same 6,000 characters
+    the push holds, so "for all 8" was a promise the call could not keep.
+
+    The sentence is an imperative, because `CLAUDE.md` rules the imperative for
+    an instruction. No case measures the difference: the wording was suspected
+    of breaking `L1-TE-survey-an-area-for-its-terms` and it does not. That case
+    records 0/5 on both wordings, and at the commit before this frame
+    (2026-09-20, frame 46 line 3).
+    """
     _raw, block = _decision_push(tmp_path)
     notes = block["not shown"]
     for word in _DECISION_WORDS:
         dropped = 8 - len(block[word])
         assert dropped > 0, word
-        want = (f'{dropped} of 8 rows for "{word}" are not shown. '
-                f'Call decisions.search(query="{word}") for all 8.')
+        want = (f'CUT the rulings for "{word}": {dropped} of 8 rows are not '
+                f'shown. Call decisions.search(query="{word}") for that word\'s '
+                f'rows, as far as one result fits.')
         assert want in notes, (word, notes)
+        assert notes[0].split(". ", 1)[1].startswith("Call ")
 
 
 def test_a_quarantined_tick_names_the_batch_it_stalled_on(tmp_path):

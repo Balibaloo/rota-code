@@ -455,7 +455,7 @@ def test_a_broad_probe_is_capped_and_says_which_way_out(world):
 
     shown = _render(hits)
     assert len(shown) < RESULT_CHARS, len(shown)
-    assert "TRUNCATED" not in shown, "the cap must land before the renderer's"
+    assert "CUT " not in shown, "the cap must land before the renderer's"
 
 
 def test_a_broad_probe_answers_with_definitions_before_files(world):

@@ -441,8 +441,8 @@ TURN_RESULT_CHARS = SOURCE_CHARS + RESULT_CHARS
 # Under this, a result says nothing a session can act on, so it is withheld
 # whole and named instead of being served as a stub.
 MIN_RESULT_CHARS = 400
-# What `_render`'s own cut notice costs, at its longest: the TRUNCATED
-# sentence plus the `code.source` call that fetches the rest of a span.
+# What `_render`'s own cut notice costs, at its longest: the `cut_note` sentence
+# plus the `code.source` call that fetches the rest of a span.
 _CUT_NOTE_CHARS = 300
 
 # The model writing the harness's half of the conversation.
@@ -485,12 +485,33 @@ FABRICATED_RESULT = re.compile(r"^\s*(?:OK|ERROR)\s+[a-z_]+\.[a-z_]+\s*(?:->|:)"
 LANDING_ROWS_CHARS = 6_000
 
 
+def cut_note(what: str, not_shown: int, total: int, unit: str, call: str) -> str:
+    """
+    The one wording every cut uses, and the one place that owns it.
+
+    Six wordings said the same thing, and four of eighteen strings named a call
+    the seat could make (frame 46's design review, section 2.6, 2026-09-20). A
+    pushed read was told to ask for the next range, and a push has no range to
+    ask for, so the recovery sentence named nothing a seat could call.
+
+    The order is the order of the seat's questions: what was cut, how much is
+    not shown, then the call that returns it. `CUT` leads, so one word finds
+    every cut in a prompt, a session record or a test.
+
+    `call` is a whole sentence. A site with no call to name says so plainly,
+    because naming a call that does not work is worse than naming none.
+    """
+    return (f"CUT {what}: {not_shown:,} of {total:,} {unit} are not shown. "
+            f"{call}")
+
+
 def _render_cut(text: str, limit: int) -> str:
     """Cut, saying so. The same contract `_render` keeps for a tool result."""
     if len(text) <= limit:
         return text
-    return (text[:limit] + f"\n... the rest of your wake ({len(text) - limit:,} "
-            f"characters) did not fit the window. Ask for what you need.")
+    return text[:limit] + chr(10) + cut_note(
+        "your wake", len(text) - limit, len(text), "characters",
+        "Nothing returns a wake. Ask by name for the reads you need.")
 
 
 def _dropped_note(dropped: int) -> str:
@@ -517,8 +538,9 @@ def _exchange_cut(text: str, limit: int) -> str:
         return text
     keep = limit
     for _ in range(4):
-        note = (f"\n... {len(text) - keep:,} characters of this exchange did "
-                f"not fit the window. Ask again for what you still need.")
+        note = chr(10) + cut_note(
+            "this exchange", len(text) - keep, len(text), "characters",
+            "Nothing returns an earlier turn. Call again what you still need.")
         if keep + len(note) <= limit:
             break
         keep = max(limit - len(note), 0)
@@ -748,8 +770,9 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
                 or json.dumps(result, default=str))
     if len(text) <= limit:
         return text
-    note = (f"... TRUNCATED after {limit} of {len(text)} characters. "
-            f"Ask for the next range if you need it.")
+    # A result the seat asked for has no next range unless it is a span, so the
+    # sentence says what this result can do and nothing more.
+    call = "Nothing returns the rest of this result. Ask for a narrower part."
     # A source span cut mid-function: say the line the cut fell at and the
     # call that fetches the rest. Night 74 (2026-09-15, finding 77): the 9B
     # read version_option (207 lines, 8692 characters) six times, saw the
@@ -761,10 +784,11 @@ def _render(result: Any, limit: int = RESULT_CHARS) -> str:
         if 0 <= at < limit:
             emitted = text[at + len(marker):limit].count(chr(10))
             cut_line = result["start"] + emitted
-            note += (f" The cut fell at line {cut_line}: the rest is "
-                     f"code.source(path='{result.get('path')}', start={cut_line}, "
-                     f"end={result.get('end')})")
-    return text[:limit] + chr(10) + note
+            call = (f"The cut fell at line {cut_line}: "
+                    f"code.source(path='{result.get('path')}', start={cut_line}, "
+                    f"end={result.get('end')}) returns the rest.")
+    return text[:limit] + chr(10) + cut_note(
+        "the result", len(text) - limit, len(text), "characters", call)
 
 
 def trigger_message(conn: sqlite3.Connection, wake: Wake) -> str | None:
@@ -1098,6 +1122,11 @@ def resolve_inbound(conn: sqlite3.Connection, wake: Wake) -> dict[str, Any]:
                         str(i + 1): f"{ref} ({_table_of(conn, ref) or 'row'})"
                         for i, ref in enumerate(order)}
                     dropped = len(set(order) | set(out.get("resolved_refs") or {}))
+                    # Not `cut_note` yet. This string is inside a recorded
+                    # prompt, so one wording here costs a re-record:
+                    # `L1-LI-a-long-page-is-ruled-without-the-rows` went stale
+                    # on it (frame 46, line 3, 2026-09-20). It already names
+                    # `rulings.line`, so the seat has its call.
                     landing["rows_not_shown"] = (
                         f"the {dropped} rows behind this page do not fit this "
                         f"window. Every line is on the page. "
@@ -1689,18 +1718,29 @@ def push_working_set(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
     return pushed
 
 
-# One wording for every word the budget cut. A push has no range to ask for, so
-# the notice names the call that returns the word's rows whole.
-_DECISION_DROPPED = ('{dropped} of {total} rows for "{word}" are not shown. '
-                     'Call decisions.search(query="{word}") for all {total}.')
+def _decision_dropped(word: str, kept: int, total: int) -> str:
+    """
+    What the budget left out for one word, in the wording every cut uses.
+
+    The call promised "for all {total}" and could not keep it: `decisions.search`
+    comes back through `_render` at `RESULT_CHARS`, the same 6,000 characters the
+    push holds, so a widely matching word overruns the asked result as well. The
+    sentence says what the call returns and counts nothing it cannot promise.
+
+    The sentence stays an imperative, because `CLAUDE.md` rules the imperative
+    for an instruction. No case measures the difference.
+    """
+    return cut_note(
+        f'the rulings for "{word}"', total - kept, total, "rows",
+        f'Call decisions.search(query="{word}") for that word\'s rows, as far '
+        f'as one result fits.')
 
 
 def _decision_block(hits: dict[str, list[Any]],
                     kept: dict[str, list[Any]]) -> dict[str, Any]:
     """The pushed block for the rows kept so far, with a notice per cut word."""
     block: dict[str, Any] = {w: rows for w, rows in kept.items() if rows}
-    notes = [_DECISION_DROPPED.format(word=w, total=len(hits[w]),
-                                      dropped=len(hits[w]) - len(rows))
+    notes = [_decision_dropped(w, len(rows), len(hits[w]))
              for w, rows in kept.items() if len(rows) < len(hits[w])]
     if notes:
         block["not shown"] = notes

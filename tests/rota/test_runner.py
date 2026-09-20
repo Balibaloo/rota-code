@@ -189,7 +189,7 @@ def test_a_result_under_the_cap_arrives_whole(db):
     from rota.core.runner import RESULT_CHARS, _render
 
     text = _render({"path": "signature.py", "body": "x" * 100})
-    assert "TRUNCATED" not in text
+    assert "CUT " not in text
     assert "x" * 100 in text
     assert len(text) <= RESULT_CHARS
 
@@ -206,16 +206,17 @@ def test_a_cut_result_says_it_was_cut_and_by_how_much(db):
     full = "y" * (RESULT_CHARS * 2)
     text = _render({"body": full})
 
-    assert "TRUNCATED" in text, "the cut is invisible to the model"
+    assert "CUT the result" in text, "the cut is invisible to the model"
     # Against the rendered length, not the JSON-encoded one. A dict carrying
     # long text now renders as text -- `code.area` and `code.source` handed
     # source to the model as an escaped JSON string, every newline a literal
     # `\n` -- so the total the notice reports is the size of what the
     # model would actually have been shown.
     shown = len(full) + len(chr(10) + "[body]" + chr(10))
-    assert str(RESULT_CHARS) in text and str(shown) in text, \
+    assert f"{shown - RESULT_CHARS:,} of {shown:,}" in text, \
         "the notice must say how much was withheld, not merely that some was"
-    assert "Ask for the next range" in text, "no way offered to get the rest"
+    assert "Nothing returns the rest of this result" in text, \
+        "a result with no next range must say so rather than name one"
 
 
 def test_a_long_read_reaches_the_model_past_the_old_cap(db):
@@ -616,7 +617,7 @@ def test_the_pushed_working_set_obeys_the_same_cap_as_a_fetched_one(db):
 
     assert len(user) < PUSH_CHARS + 2000, \
         f"the pushed working set is uncapped: {len(user):,} characters"
-    assert "TRUNCATED" in user, "it was cut without saying so"
+    assert "CUT the result" in user, "it was cut without saying so"
 
 
 def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
@@ -631,9 +632,9 @@ def test_a_wake_too_big_for_the_window_is_cut_rather_than_protected(db):
     fitted = _fit(["WAKE " + "x" * 50_000, "turn 1", "turn 2", "turn 3"],
                   budget=12_000)
 
-    assert sum(len(b) + 2 for b in fitted) <= 12_000 * 1.5, "still overflowing"
+    assert sum(len(b) + 2 for b in fitted) <= 12_000, "still overflowing"
     assert fitted[0].startswith("WAKE "), "the wake lost its head, not its tail"
-    assert "did not fit" in fitted[0], "the wake was cut silently"
+    assert "CUT your wake" in fitted[0], "the wake was cut silently"
     assert fitted[-1] == "turn 3", "the latest exchange was dropped instead"
 
 
@@ -653,7 +654,7 @@ def test_a_single_oversized_block_is_cut(db):
         fitted = _fit(list(blocks), budget=12_000)
         assert len(fitted[0]) < 12_000, f"{len(blocks)} block(s) went uncut"
         assert fitted[0].startswith("WAKE "), "the wake lost its head"
-        assert "did not fit" in fitted[0], "the wake was cut silently"
+        assert "CUT your wake" in fitted[0], "the wake was cut silently"
         assert fitted[1:] == blocks[1:], "a later exchange was dropped"
 
 
@@ -902,9 +903,9 @@ def test_a_pushed_read_is_not_cut_at_the_result_cap():
     from rota.core import runner
 
     big = {"area": "src/x", "source": "x" * 12000}
-    assert "TRUNCATED" in runner._render(big)
-    assert "TRUNCATED" not in runner._render(big, runner.PUSH_CHARS)
-    assert "TRUNCATED" in runner._render({"source": "x" * (runner.PUSH_CHARS + 10)},
+    assert "CUT the result" in runner._render(big)
+    assert "CUT the result" not in runner._render(big, runner.PUSH_CHARS)
+    assert "CUT the result" in runner._render({"source": "x" * (runner.PUSH_CHARS + 10)},
                                          runner.PUSH_CHARS)
 
 
@@ -1205,7 +1206,7 @@ def test_two_source_reads_in_one_turn_are_capped_as_a_turn(db, worktree):
     assert len(block) <= TURN_RESULT_CHARS, f"the turn was not summed: {len(block)}"
     # Both cuts say where they fell and which call fetches the rest, which is
     # the sentence the per-result cap already says.
-    assert block.count("TRUNCATED") == 2, block.count("TRUNCATED")
+    assert block.count("CUT the result") == 2, block.count("CUT the result")
     assert "start=216, end=400" in block, "the first cut names no continuation"
     assert "end=800" in block and "start=4" in block, \
         "the second cut names no continuation"
@@ -1371,7 +1372,7 @@ def test_a_probe_and_a_source_read_both_survive_one_turn(db, worktree):
     block = backend.calls[1][1]
     assert "render_000" in block and "render_059" in block, "the probe was cut"
     assert "VALUE_0000" in block and "VALUE_0189" in block, "the read was cut"
-    assert "TRUNCATED" not in block, "the turn cut what it had room for"
+    assert "CUT the result" not in block, "the turn cut what it had room for"
     assert "no room left" not in block, "a result was withheld with room to spare"
 
 
@@ -1392,7 +1393,7 @@ def test_a_latest_exchange_over_the_budget_is_cut_to_fit(db):
     assert fitted[0] == "WAKE: survey src/billing", "the wake was touched"
     assert fitted[1].startswith("reply "), "the reply lost its head"
     assert fitted[2].startswith("results "), "the results lost their head"
-    assert all("did not fit the window" in b for b in fitted[1:]), \
+    assert all("CUT this exchange" in b for b in fitted[1:]), \
         "the exchange was cut in silence"
 
 

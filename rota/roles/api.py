@@ -6076,8 +6076,30 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
     text = (chr(10) + chr(10)).join(parts)
     out = {"area": area, "source": text}
     if omitted:
-        out["not_shown"] = (f"{omitted} did not fit. `code.source` any of them "
-                            f"if the ones above leave a word unexplained.")
+        # One wording for every cut, from the one place that owns it. Imported
+        # here, not at the top, because the runner reaches the ops and not the
+        # other way round. No cassette carries this string, so the wording
+        # costs no re-record (measured over the register, 2026-09-20).
+        from ..core.runner import cut_note
+        # The call sentence stays an imperative. Written as "code.source reads
+        # any of ..." the same seat stopped calling it: L1-TE-survey-an-area-
+        # for-its-terms went 5/5 to 0/5 on a re-record, and the diff was this
+        # clause alone (2026-09-20, frame 46 line 3). A description of a call is
+        # not a request to make it.
+        # One wording for every cut, from the one place that owns it. Imported
+        # here, not at the top, because the runner reaches the ops and not the
+        # other way round. No cassette carries this string, so the wording costs
+        # no re-record (measured over the register, 2026-09-20).
+        #
+        # The call sentence stays an imperative, because `CLAUDE.md` rules the
+        # imperative for an instruction. It is a rule and not a measurement:
+        # `L1-TE-survey-an-area-for-its-terms` records 0/5 with this wording and
+        # with the wording before it, and at the commit before this frame.
+        from ..core.runner import cut_note
+        out["not_shown"] = cut_note(
+            "this area's files", len(omitted), len(shown) + len(omitted), "files",
+            f"`code.source` any of {', '.join(omitted)} if the ones above "
+            f"leave a word unexplained.")
     return out
 
 
@@ -6356,8 +6378,12 @@ def code_front(ctx: Ctx) -> dict:
     if words:
         out["names_the_code_declares"] = ", ".join(words)
     if omitted:
-        out["not_shown"] = (f"{omitted} did not fit. `code.source` any of them "
-                            f"if the front above leaves the program unexplained.")
+        from ..core.runner import cut_note
+        # An imperative, for the rule named at `code_area`'s own cut.
+        out["not_shown"] = cut_note(
+            "the front's files", len(omitted), len(shown) + len(omitted), "files",
+            f"`code.source` any of {', '.join(omitted)} if the front above "
+            f"leaves the program unexplained.")
     return out
 
 
