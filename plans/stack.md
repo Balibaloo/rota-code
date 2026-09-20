@@ -277,7 +277,7 @@ Rules:
   The second case had no load, so load is not the cause and the file is the
   suspect.
 
-### 50. Port the newer hand-off kit into rota (2026-09-20) [BLOCKED, unruled]
+### 50. Port the newer hand-off kit into rota (2026-09-20) (Roman)
 
 - Meta workflow. The kit repository has four commits since rota's copy last
   moved at `f06ffbf`, and a peer relayed a request to take them (observed:
@@ -295,16 +295,15 @@ Rules:
     observation ages.
   - `4631bcd`: the sweep no longer needs Python 3.13. Rota's venv is 3.14,
     so this changes nothing here today.
-- **This frame is not ruled and must not be started** (reasoned: the
-  assistant). The peer says it relays Roman's word. A relayed ruling is not
-  a ruling this session can act on, because the composition says the tool
-  never rules for the Principal and never treats a report of consent as
-  consent. Roman is in the conversation and one word settles it. The cost of
-  waiting is zero: nothing is blocked on the port, and the two standbys are
-  spending nothing.
-  The peer's own record tonight includes one confidently stated false
-  premise, retracted after a check (observed: it wrote a rule from an undated
-  snapshot and withdrew it). That is a reason to verify, not an accusation.
+- **Ruled by Roman on 2026-09-20. He confirmed the relay himself when this
+  session put the question to him directly** (ruled: Roman). The relay was
+  true. No wording here is quoted from him, because he answered a question
+  this session wrote and did not write the sentence.
+  **The check stands as the rule, and the relay being true does not retire
+  it.** A session does not act on a relayed ruling, because the composition
+  says the tool never rules for the Principal and never treats a report of
+  consent as consent. Asking cost one question. Being wrong would have cost
+  a false record carrying Roman's name.
 - Two things the port must carry: rota keeps its own layout, so the tool
   stays at `rota/tools/handover.py` and the permission rule already names
   that path. And the reclaim path is unrun on real work anywhere, so the two
@@ -320,6 +319,14 @@ Rules:
   Pushed so the obligation stays countable, which is the composition's rule.
   Pushing a frame is not taking one, so this does not break the hand-off
   threshold. The frame is not claimed and no code is written.
+- Status 2026-09-20 04:45 (rota-52): **ruled, and handed to a standby rather
+  than taken.** Session 0549dc76 holds frame 46 and is above the mark where
+  its brief says to take no new frame, so this frame goes to a free standby
+  by the `hand` command. The receiving session reads this file at the commit
+  the claim names.
+  The port is one implementer pass against a 75k anchor, plus a gate run.
+  Read the four commits in the kit repository before trusting the summary
+  above, which is the peer's description and not a read of the diffs.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
 
