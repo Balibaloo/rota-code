@@ -28,6 +28,15 @@ three warnings only:
   for that session to take the frame. Read the exit code, and write the
   status line from it.
 
+  **Read the `ctx` column before you let the order choose** (observed:
+  2026-09-20, a re-armed session sat in the reserve at 152k beside a
+  clean one at 20k). The queue ranks on arm time and nothing ranks on
+  context, so the oldest free standby can be the worst seat. A standby is
+  worth handing to because its context is clean, so a hand-off that picks
+  a loaded session gives away the whole reason for the reserve. Run
+  `peers` first. If the oldest free row is not the cleanest, name the one
+  you want with `--to <name>`.
+
   - 0: a named session holds the frame. Write that session id in the
     status line. Stop.
   - 4: the claim waits unread. Name that session in the status line, and
