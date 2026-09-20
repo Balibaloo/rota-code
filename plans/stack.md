@@ -261,6 +261,21 @@ Rules:
   transcript and at the `max(2000, ...)` floor. The runner reaches neither
   today, because it appends a reply and a results block every turn. Line 1's
   test states the precondition rather than closing the hole.
+- Status 2026-09-20 16:52 (rota-02): **session cb5428a2 takes frame 46 and the
+  stack.** The take exited 0 at stack commit 88f476a, 6 seconds after the
+  claim (observed: the watcher's output, 2026-09-20 16:51). Meta workflow.
+  This context is clean at 23k, so the implementer pass starts here. Roman
+  ordered the hand-off for that reason.
+  **The build starts at line 2, the `decisions.search` character budget.** The
+  design review named that op as the real repair, and line 1's check goes in
+  `run_session` beside `_fit`.
+  **Four questions wait on Roman and none of them gates this frame** (observed:
+  the stack as it stands, 2026-09-20 16:52): frames 52 and 53 are unruled,
+  frame 49 has no owner, and frames 33 and 4 carry the claim of session
+  9108c499, which has ended.
+  **One cross-project hand-off reached this session before the rota claim and
+  was retracted by its sender** (observed: two peer messages, 2026-09-20).
+  Nothing of that frame was claimed, and this stack never carried it.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
