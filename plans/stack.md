@@ -349,6 +349,49 @@ Rules:
   or set the state from the beat. The second reads the truth and the first
   writes less.
 
+### 52. Take the kit's release into rota (2026-09-20) [unruled]
+
+- Meta workflow. Seven commits in the kit repository since rota's port at
+  `58f7960`. A peer says Roman is releasing them (observed:
+  `meta-workflow-46`, 2026-09-20). **Not ruled. Roman assigns.** The last
+  relay of his word was true and the check still stands, because the tool
+  never treats a report of consent as consent.
+- **Two change behaviour and are read before the frame is priced properly.**
+  - `aec98ba`, the hand-off order. The oldest free standby **under a 300k
+    ceiling**, so a loaded session is used up before a fresh one is spent.
+    This answers the fault written into `CLAUDE.md` at `d43cb14`, where the
+    queue ranked on arm time alone and could hand a frame to a 152k seat
+    beside a clean 20k one. A reserve whose standbys are all past the
+    ceiling is a drought and says so, which is a different report from an
+    empty reserve. A session past the ceiling is refused the arm, because a
+    seat no hand-off can use makes the reserve read larger than it is.
+  - `80bd49e`, the context count. **The hook reads the harness's own usage
+    instead of scaling transcript bytes, and the shipped 0.6 factor read 8
+    per cent low.** So every count in rota rises on the day this installs,
+    and a session near a threshold crosses it on the install and not on
+    growth. Read a jump as a correction, never as growth.
+- The rest, as the peer describes them and not as this session has read the
+  diffs: `b057b0d` carries the `spent` fix, so frame 51 closes by porting
+  rather than by designing, and it states the rule this session wrote at
+  `ca8beb8`. `b0cfb92` records the three rows-that-lie as one fault and adds
+  that a standby is not a correspondent. `6b66648` rules that a frame carries
+  a name and the name travels with the number. `3dd823d` says copying a claim
+  never observes it. `707fcac` fixes three defects in the install procedure.
+- **Frame 51 folds into this one if it is ruled**, because `b057b0d` carries
+  the fix that frame 51 would otherwise design.
+- Ends when: rota carries the seven commits, the touched tests pass, the gate
+  is green with the stale line read, and `peers` refuses to arm a session
+  past the ceiling. About 110k: one implementer pass at the 75k anchor, a
+  gate run, and a read of the two behaviour-changing commits before the port.
+  The install is a fresh clone to `meta-update`, the "Update an installation"
+  section, then delete the clone.
+- Waits on: **Roman's word, direct and not relayed.**
+- Reasoning: frame 50's port at `58f7960`, and the seat fault recorded in
+  `CLAUDE.md` at `d43cb14`.
+- Status 2026-09-20 16:20 (rota-52): pushed by 0549dc76, unclaimed, unruled.
+  Pushed so the obligation stays countable, and named to Roman rather than
+  taken. This session holds frame 46 and takes no new frame.
+
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
