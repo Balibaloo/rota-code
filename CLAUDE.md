@@ -195,6 +195,22 @@ Escalate as a blocked frame: the question and a recommended answer.
 Triggers: a ruling is needed, a wall survives three cycles, a change
 touches the composition, or the budget is spent.
 
+An escalation reaches Roman on his phone. Roman ruled on 2026-09-20 that
+a decision must notify, and not only a prompt. Two routes, and you pick
+one:
+
+- Ask with `AskUserQuestion`. The harness pushes the waiting question by
+  itself, because `inputNeededNotifEnabled` is set. Use this route when
+  the answer is a choice between named options.
+- Send one `PushNotification` that names the decision and your
+  recommended answer. Use this route when the escalation is a blocked
+  frame in prose.
+
+One notification per stop, and never one per question. A notification
+that Roman did not need costs his attention, which is the scarcest
+budget. Do not notify for progress, and do not notify while Roman reads
+the terminal.
+
 Records: a conclusion goes to a record when it forms. Every conclusion
 carries a mark, each with a reason the size of a commit headline:
 (observed: where), (reasoned: why), or (ruled: why). Say which workflow a statement is about: the meta
