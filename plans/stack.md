@@ -556,12 +556,26 @@ next session to close 46 reorders the file to this list.
      turn 6, and turn 6 still says the answer is above. Fix: test against the
      prompt the line will appear in, or drop "the answer is above" and always
      serve.
-  2. **The serve branch counts a repeat twice.** It does its own
-     `repeated[key] += 1` on top of the ordinary count, so the refusal fires a
-     turn early. In `s137` that ended the session at turn 9 with nothing
-     written. Night 87's `s132` is the same wake, the same span, the same
-     eviction-plus-"answer is above" contradiction, and it survived to 20 turns
-     and committed at turn 15. Fix: remove the extra increment.
+  2. **The refusal became unreachable while an eviction stands, and this is the
+     defect that cost the night** (observed: this session's read of
+     `rota/core/runner.py:2546-2625`, 2026-09-21, correcting the diagnosis).
+     The diagnosis said the serve counts a repeat twice. It does not: the three
+     increments at `:2565`, `:2583` and `:2625` are mutually exclusive per call,
+     so every repeat is counted once. The real mechanism is worse. The refusal
+     at `:2546` reads `if unchanged and repeated.get(key, 0) >= 1`, and
+     `unchanged` is false whenever the answer was evicted. The eviction notice
+     is sticky, because `_fit` writes it back every turn. **So while an eviction
+     stands, a repeating seat is served in full for ever and is never refused.**
+     In `s137` turns 7, 8 and 9 were each served and the session died on the
+     identical-turn stop with nothing written. Night 87's `s132` is the same
+     wake, the same span and the same contradiction, and it survived to 20 turns
+     and committed at turn 15, because the refusal was still reachable there.
+     **The fix is one line**: the refusal must test `would_repeat` rather than
+     `unchanged`, so the third identical call is refused whether or not its
+     answer was evicted, and the serve happens at most once per key. This
+     session did not make the change: a one-line door still needs the test that
+     asserts the refusal fires under a standing eviction, and this session is at
+     375k.
   **The new machinery's reach, for the record** (observed: GLOB counts over
   night 88): 78 of 645 prompts carry a `CUT` notice, in 22 of 191 sessions. 13
   sessions carry a `cut ...` error. 21 prompts in 8 sessions carry the evicted
