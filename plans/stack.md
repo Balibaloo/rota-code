@@ -397,6 +397,71 @@ a different question and the night is then opened once.
   session is the only live one. **So this frame has nowhere to hand to.** The
   warning is given at 234k rather than at the 300k mark, because opening a
   window is Roman's action and it needs his time, not this session's.
+- Status 2026-09-21 18:20 (rota-36): **pass 3 of three is in, judged and
+  committed at `5882b5f`. The register is migrated and every recording
+  survived.** Meta workflow. 179k on the harness line against a 250k cap, 88
+  tool calls, 43 minutes (observed: the harness usage). A fresh agent took
+  this pass, because the first was at 276k.
+  **The clone is pristine and the cassettes are byte-identical across all
+  three files** (observed: the holding session's own digest over all 18604
+  cassette rows and ten columns in each file, 2026-09-21). The clone reads 9
+  columns and 204058 rows. The new register reads 14 columns and 157071 rows.
+  All three digest to `f9adc4f1f48bb79d`. **Not one recording was lost or
+  altered.**
+  **The join resolves 76.7 per cent, and the number was measured before the
+  migration ran** (observed: the tool's own dry run over the clone,
+  2026-09-21). The frame's warning to the implementer was that revision 1's
+  backfill looked sound and fired on zero rows. So this pass measured three
+  rules first: a completion match needing every candidate to agree gives 40.1
+  per cent, an intersection across a session's replies gives 81.2, and the
+  same rule without chains gives the 76.7 that shipped.
+  **A chain's rows do not migrate, and the implementer measured two rescue
+  rules before giving up rather than guessing.** A chain runs two sessions and
+  the transcript keeps leg two only, so leg one's cassette is unidentifiable
+  and half the stamped hash is unknowable. Leg one's brief as a prefix would
+  stamp today's text onto rows from every earlier era. The recording order
+  verifies for 2781 of 9184 chain rows. Both rejected, 10795 rows stay in the
+  clone.
+  **The cost is one case's evidence and four greens moved to provisional**
+  (observed: `casestatus --model qwen3:8b`, run by the holding session on the
+  migrated register, 2026-09-21). Before: 21 failing, 0 stale, 107 green.
+  After: 20 failing, 4 provisional, 0 stale, 1 never measured, 103 green. The
+  same cases pass and the same cases fail. **The zero stale is now honest**,
+  and the door still refuses a replay at 16384 on the new register.
+  **The 28-case shortfall right after the swap fell to one, and the reason is
+  worth keeping.** The suite replays from cassettes and not from `case_runs`,
+  and every cassette migrated. So the gate's own replay pass re-earned 645
+  rows for free, each with five real columns read off a cassette. **A
+  migration that keeps every cassette costs almost no GPU.**
+  **The design's note marking where the defaults stop is moot.** Under the
+  clone ruling there are no defaults: every migrated row's five columns are
+  read off the cassette that earned it.
+  **A fourth model-less command was found and repaired by the holding
+  session** (observed: the report's own output, 2026-09-21). Frame 60 repaired
+  the tiers' STALE message and their three usage lines. `casestatus`'s own
+  advice line was a fourth site, telling the reader to re-earn a case under
+  whatever was ambient. It now prints through the one `rerecord_command` the
+  tiers use, so it names the model and the window it read under. A one-line
+  door, so it did not go to an agent.
+- **What is left before this frame closes, 2026-09-21 18:20.**
+  1. The diff review, out now on a worktree at `5882b5f`. Required, because
+     the frame changes the schema.
+  2. One re-record: `L3-a-failed-verdict-turns-into-a-fix`. It is stale
+     against the pre-swap register too, so the cause is in the tree and not
+     the migration, and there is no green to spend. It runs after the review,
+     so a write does not cross the reviewer's read.
+  3. The four provisionals clear on a second load more than two hours after
+     the gate, at no GPU cost. No re-record is needed for them, and none is
+     wanted: a re-record would spend four greens to learn nothing.
+  4. Re-baseline the gate at the closing commit. It still reads `f3a7e41` of
+     2026-09-19, so three pre-existing reds show as new in every pass.
+  5. **Republish the register, which is Roman's and is held** (parked in this
+     file). The row count moved from 204058 to 157071, so
+     `rota/testkit/cassette_store.py:328` will now see a difference where it
+     saw none. The closing status needs the manifest tag.
+  **The six other chain cases are not re-recorded, and that is a decision.**
+  They came back green from their own cassettes, and a cassette is the
+  recording. Re-recording them would spend six greens to learn nothing.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
