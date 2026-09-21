@@ -89,6 +89,11 @@ two rules set them: an instrument is repaired before the work it accepts, and
 a shared walk is not split.
 
 1. **Batch A**, frames 54, 60, 55, 49, with **frame 48** beside it.
+   **Frames 54, 60 and 49 closed on 2026-09-21, on one frame's work.** The
+   batch was right that they were one repair. Frame 63, one composition of
+   the system text, is the half of frame 54 that could not close, and it
+   takes the batch's head. Frame 55 follows it, and frame 48 still stands
+   beside them.
 2. **Batch C**, frames 58, 38, 37. This step releases frame 33.
 3. **Frame 56**.
 4. **Batch B**, the one read, then frames 59 and 61, then 47 and 53, with
@@ -103,7 +108,7 @@ they are the gauntlet and the end state and no step names them.
 
 | Batch | Frames, in order | The one thing they share |
 | --- | --- | --- |
-| A, the cassette key | 54, 60, 55, 49 | One repair: the key that names a recording. The writer and the reader must name the same fields. |
+| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21; **63, then 55** remain | One repair: the key that names a recording. The writer and the reader must name the same fields. |
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
 | C, the night's stall | 58, 38, 37 | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
@@ -158,452 +163,49 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman) [75f21e35]
+### 63. One composition of the system text (2026-09-21)
 
-- **Batch A, the cassette key. First of four.** The batch's one shared thing is the key that names a recording. This frame is the reader's half: `casestatus` matches on three fields and the cassette key covers more. Frame 60, the re-record command the suite prints uses the wrong model, is the writer's half and runs next.
-
-- Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
-  `prompt_hash` and model. The cassette key covers more than that: the prompt's
-  text, the mode prompt and `num_ctx` (observed: the file's own comment at
-  `:71-77`, and the cassette table's columns, 2026-09-20).
-- **One narrow key gives two opposite symptoms.** A `num_ctx` change leaves no
-  row at the current hash, so the case reads stale, and that is frame 49's 72. A
-  prompt-text change leaves the hash alone, so the rows still match and the case
-  reads green while the suite cannot replay it (observed: frame 46's line 3,
-  2026-09-20, where the gate said STALE and `casestatus` said 72 before and 72
-  after).
-- **So "zero stale" cannot gate.** It is a line in every acceptance this
-  repository writes, frame 46's included, and the true count is unknown.
-- **A second finding for the same frame: the register runs at 12288 and the
-  nights run at 16384** (observed: every cassette's `num_ctx`, 2026-09-20). No
-  cassette was ever recorded at 16384, so the register does not measure the
-  window frame 43 shipped.
-- Ends when: `casestatus` matches everything the cassette key covers, a test
-  asserts that a prompt-text change makes a case read stale, and the true count
-  is measured and recorded. Priced from the anchors: the first read names the
-  key's fields against the report's match, 20k. Buys the number nobody has. The
-  repair and its test, 80k. Buys an acceptance line that can fail. The true
-  count then replaces 72 in frame 49, and the re-records are frame 49's work and
-  not this frame's.
-- Waits on: nothing. **Roman ruled it a frame of its own, above 49, on
-  2026-09-20** (ruled: Roman, asked with three other options and the fold into
-  49 recommended).
-- Reasoning: frame 46's status line of 2026-09-20 18:59, and the comment at
-  `rota/tools/casestatus.py:71-77`, which names the fault and predates the frame.
-- Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
-  frame exists so the obligation stays countable. This session holds frame 46
-  and takes no new frame.
-- Status 2026-09-21 14:25 (rota-36): **claimed by 75f21e35, and the first read
-  is done. It costs the frame its price, because the repair is a schema change
-  and not a wider `WHERE` clause.** Meta workflow.
-  **The two keys, field by field** (observed: `rota/llm/cassettes.py:105-120`,
-  `rota/llm/llm.py:47-92` and `rota/tools/casestatus.py:75-82`, 2026-09-21).
-  The cassette key covers seven things: the model, the temperature, `num_ctx`,
-  the protocol, the system text, the user text, and any optional pin that is
-  set. The report matches three: the case id, `prompt_hash` and the model.
-  **`prompt_hash` is not in the cassette key at all.** It is a sha256 of
-  `fixtures.instructions_for(case)` and it is written to `case_runs` as a
-  fingerprint of the role's instructions only.
-  **Four of the seven have no column to match on.** `case_runs` holds
-  `case_id`, `model`, `prompt_hash`, `run_no`, `passed`, `problems`, `seq`,
-  `transcript` and `load_id`. It records no `num_ctx`, no temperature, no
-  protocol and no extras. So the repair cannot be a wider match. **The table
-  must carry the key before the report can read it**, and 204058 existing rows
-  then need a backfill or a write-off.
-  **A second ambient variable joins the key, and a document tells the reader
-  to set it.** Frame 60 found `ROTA_MODEL`. This read found `ROTA_NUM_CTX`.
-  The suite deliberately does not pin `num_ctx`, at
-  `tests/rota/test_l1.py:35-41`, so it takes `DEFAULT_NUM_CTX`, which reads
-  `ROTA_NUM_CTX` and defaults to 12288. The gate sets `ROTA_MODEL` and never
-  `ROTA_NUM_CTX`. **`rota/HARDWARE_GUIDE.md:159` tells the reader to set
-  `ROTA_NUM_CTX` to 16384.**
-  **Measured, not reasoned** (observed: `key_for` run over a real cassette's
-  own system and user text, 2026-09-21). One recording's key at 12288 finds
-  its row. The same text at 16384 finds nothing, and at 8192 finds nothing.
-  **No cassette in the register is at 16384**: 15091 are at 12288 and 3513 at
-  8192, of 18604. Every temperature is 0.0.
-  **So the worst case is the whole register and not 72 cases.** A suite run
-  with `ROTA_NUM_CTX=16384` misses every cassette. `record_case_run` returns
-  without writing when a run failed for want of a cassette, at
-  `rota/llm/cassettes.py:360-361`, and `casestatus` filters the same rows out
-  of what it reads. **A whole suite run in which nothing replayed leaves the
-  register reporting the previous greens, with no stale and no new red.**
-  **The reprice, for Roman.** The read was priced at 20k and cost about 25k.
-  The repair was priced at 80k for a wider match and a test. It is now a
-  schema change on `case_runs`, a backfill decision for 204058 rows, and a
-  door that stops an ambient variable from joining the key in silence. The
-  frame is blocked on that ruling and the question is below.
-- Status 2026-09-21 14:35 (rota-36): **Roman ruled twice, and the frame is
-  unblocked.** Meta workflow.
-  **The existing rows are written off, not re-recorded** (ruled: Roman,
-  2026-09-21, asked with two other answers). The backfill writes 12288, 0.0,
-  the text protocol and no extras, and it records why. Every current green
-  stays readable, the next run at another window reads stale, and no green is
-  spent. Frame 55 is the reason re-recording everything was rejected: a
-  re-record can spend a green the live model does not give back.
-  **Frame 60 folds into this frame's repair** (ruled: Roman, 2026-09-21, asked
-  with two other answers). One door covers `ROTA_MODEL` and `ROTA_NUM_CTX`
-  together, because both are ambient variables that join the cassette key in
-  silence. **So frame 60's third ends-when clause moves here**, which is the
-  test that a run outside the gate does not silently take a different key from
-  the register's. Frame 60 keeps its first two clauses, which are the message
-  that names no model and the two test files that disagree.
-- **The ends-when, as the ruling leaves it** (reasoned: the first read and
-  Roman's two rulings, 2026-09-21). It replaces the line above.
-  1. `case_runs` carries the cassette key's missing fields, and the report
-     matches on them.
-  2. The 204058 existing rows are backfilled as 12288, 0.0, text, no extras,
-     with the reason recorded. A row whose cassette is findable at 8192 by its
-     own text takes 8192.
-  3. One door refuses a suite run whose ambient variables would build a key
-     the register does not hold, and it names the variable. It covers
-     `ROTA_MODEL` and `ROTA_NUM_CTX`.
-  4. A test asserts that a prompt-text change makes a case read stale.
-  5. A test asserts that a run outside the gate does not silently take a
-     different key from the register's.
-  6. The true stale count is measured and recorded, and it replaces the 72 in
-     frame 49.
-  A diff review is required, because the frame changes the schema.
-- Status 2026-09-21 15:05 (rota-36): **the design review is in and the design
-  was not safe to build. Revision 2 is written and the frame is blocked on one
-  ruling.** Meta workflow. 133k on the harness line against 100k priced, 70
-  tool calls, 16 minutes (observed: the harness usage). Verdict: three high
-  defects and nineteen findings. The record is
-  `plans/archive/register-key-design-2026-09-21.md`, whose section 10 lists
-  every change and its source.
-  **The review paid for itself on one finding, and it is not in the design.**
-  `rota/tools/casestatus.py:142` defaults `--model` to `llama3.1:8b` and
-  `status()` never reads `ROTA_MODEL`. The bare command prints 67 stale. With
-  `--model qwen3:8b` it prints **0 stale, 107 green, 21 failing** (observed:
-  the holding session's own run of both commands at 41746ca, 2026-09-21).
-  **So frame 49's 72 is a default-model artefact.** The fix moves into this
-  frame's ends-when as line 7.
-  **This frame's own cited reasoning is a wrong comment.**
-  `rota/tools/casestatus.py:71-73` says `prompt_hash` misses the mode prompt.
-  It does not: `instructions_for` calls `compose`, which appends the mode
-  piece (observed: `rota/roles/prompts.py:94-100` and
-  `rota/testkit/fixtures.py:836-842`, 2026-09-21). **The text truly outside
-  the hash is the runner's session prose and the tool list.**
-  `instructions_for` is a strict prefix of a cassette's system for **117 of
-  117** cases and exact for none, and **42 of the 117 already hold recordings
-  under more than one system text**, one of them seven (observed: the holding
-  session's measurement, 2026-09-21). So the false green comes from a tools
-  edit, and it is history and not a latent risk.
-  **Three more corrections that change the build.** `ROTA_PROFILE` is a third
-  ambient variable and only one of the three suite files reads it. The
-  backfill's 8192 step fires on zero cases, so it is deleted. The backfill's
-  one `UPDATE` takes 4.72 s against a 5.0 s busy timeout under `-n auto`, so
-  it is a one-shot script and not part of `open_dev_db`.
-- **The ends-when gains a line, 2026-09-21.**
-  7. `casestatus` names its model, or refuses when none is named. The measured
-     0 stale and 21 failing under `qwen3:8b` are recorded in frame 49.
-- Status 2026-09-21 15:20 (rota-36): **Roman ruled, and the answer is none of
-  the three offered** (ruled: Roman, 2026-09-21: "clone this as a backup
-  legacy dB and migrate over what's useful, full re-record is approved if
-  necessary"). Meta workflow. The frame is unblocked and ends-when 1 closes in
-  full.
-  **The ruling separates two things this frame had joined**: the record of
-  what the model did, and the evidence that gates an acceptance. A clone keeps
-  the first. The new register holds only the second. So frame 55's objection
-  is answered, because a re-record no longer destroys a green. It moves the
-  green into history, where it stays readable.
-  **This supersedes the write-off ruling of 14:35 for the system text**, and
-  it keeps it for the four columns of rows that migrate. **A full re-record is
-  approved**, so the frame is no longer priced against a re-record it must
-  avoid. Frame 49's re-records fold into this frame's migration.
-  **What "useful" means, and it is measurable** (reasoned: the holding
-  session, from the review's probes 7 and 8). A cassette is already keyed by
-  the whole text, so every cassette is useful as it stands. A `case_runs` row
-  is useful when the cassette it used can be identified, because the whole-text
-  hash is then computable from that cassette. The review measured about 77 per
-  cent identifiable by the completion-text join, with 22.9 per cent not
-  separable. The migration measures the real number and records it.
-  **The ends-when changes, and the design record's revision 3 carries it.**
-- Status 2026-09-21 16:54 (rota-36): **pass 1 of three is in, judged and
-  committed at `f9c9402`.** Meta workflow. 204k on the harness line against a
-  250k cap, 119 tool calls, 49 minutes (observed: the harness usage).
-  **The register is cloned, and the clone came before the code could touch
-  it.** `tests/rota/cassettes-legacy-2026-09-21.db` is a byte copy of the
-  pre-migration register: 9 columns, 204058 rows, 18604 cassettes (observed:
-  the holding session's own read of both files, 2026-09-21). The live register
-  is still 9 columns. `.gitignore` excludes the clone, because it is 780 MB.
-  **The frame's central fault is repaired, and the holding session measured it
-  rather than reading the report** (observed: `casestatus` run twice on a copy
-  of the clone, 2026-09-21). At the window the recordings hold: 21 failing, 0
-  stale, 107 green. **The same register at 16384, which is the window the
-  nights run and `rota/HARDWARE_GUIDE.md:159` tells the reader to set: 128
-  stale, 0 green.** Before the pass it said 107 green. The acceptance line can
-  now fail.
-  **The report now prints the key it read under.** That one line is what stops
-  frame 49's 72 from happening again: a count quoted without its model is a
-  true number about nothing.
-  **`system_hash` is written and not matched, and the blocker is named in the
-  code** (observed: the comment at the match in `rota/tools/casestatus.py`).
-  The report cannot compose the system text, because `run_session` builds it
-  from a sandbox over the case's seeded database and no second definition
-  exists to call. **Matching on a value the report cannot compute would stale
-  every case.** Closing it wants one composition that serves the runner and
-  the report, and that is a frame and not a line. The obligation is recorded
-  here so it stays countable.
-  **Seven deviations, all accepted with their causes stated.** The one worth
-  keeping: `CaseResult` had to carry the system text, and three early returns
-  in `run_chain` were missing it. The agent found that by counting the rows a
-  gate run wrote, not by reading the code.
-  **The gate: 4 new reds, zero stale, 477 s.** Three of the four fail at
-  `97f05ff` with no changes, proven in a worktree at HEAD, and two of those
-  three are the subjects of open frames: `L1-TE-survey-an-area-for-its-terms`
-  is frame 55's own case and `ACT-TS-five-criteria-one-per-reply` is frame
-  61's. The fourth is flaky and the gate re-ran it green.
-  **The gate's baseline is `f3a7e41` of 2026-09-19, two days behind.** It is
-  re-baselined at this frame's closing commit and not before, so the next
-  passes are judged against the same line.
-  **Next: pass 2 is the door and frame 60's two remaining clauses. Pass 3 is
-  the migration out of the clone, then the re-record, the gate and the diff
-  review.**
-- Status 2026-09-21 17:26 (rota-36): **pass 2 of three is in, judged and
-  committed at `b7c5af0`. Frame 60's repair is built.** Meta workflow. 67k on
-  the harness line for the pass against a 150k cap, 276k cumulative for that
-  agent, 51 tool calls, 30 minutes (observed: the harness usage).
-  **The door is verified in both directions by the holding session, not read
-  from the report** (observed: two runs against a copy of the clone,
-  2026-09-21). A replay at `ROTA_NUM_CTX=16384` is refused, and the message
-  names the variable, its value, where the value came from, and the two
-  windows the register holds. The same run with `ROTA_L1=1` collects 120
-  tests, so a first recording is not refused, which was the design review's
-  finding 7.
-  **One deviation is a correction to the design and it is accepted.** Section
-  5 said the door compares the ambient tuple against `SELECT DISTINCT model,
-  num_ctx, temperature FROM cassettes`. That triple cannot answer for the
-  think pin, because an optional pin lives inside the key's hash and the
-  cassette table has no column for it. The door recomputes the key for that
-  one field. The design was wrong and the implementer said so with the
-  reason.
-  **`ROTA_MODEL_FORCE` is deliberately not a recording switch**, although
-  `rota/tools/gate.py:44` lists it beside the three that are. It moves the key
-  and records nothing, so a run that sets it is a replay and still needs the
-  door (observed: the constant's own comment at
-  `rota_serial_plugin.py:50-53`).
-  **The gate: 4 new reds, zero stale, 468 s, and failed held at 25**, the same
-  as pass 1's closing run, while passed rose by the twelve tests the pass
-  adds. Three of the four are the same pre-existing L1 ids. The fourth is
-  `test_arc_synthetic.py`, which the gate re-ran green and which frame 48
-  owns.
-  **The live register is still 9 columns and 204058 rows** (observed: the
-  holding session's read after the pass, 2026-09-21). The door reads it
-  read-only, so no suite run can migrate it. Pass 3 chooses that moment.
-- Status 2026-09-21 17:26 (rota-36): **the reserve is empty and Roman is
-  told** (observed: `python rota/tools/handover.py peers`, 2026-09-21 17:26).
-  Meta workflow. Both other sessions are spent, at 373k and 341k, and this
-  session is the only live one. **So this frame has nowhere to hand to.** The
-  warning is given at 234k rather than at the 300k mark, because opening a
-  window is Roman's action and it needs his time, not this session's.
-- Status 2026-09-21 18:20 (rota-36): **pass 3 of three is in, judged and
-  committed at `5882b5f`. The register is migrated and every recording
-  survived.** Meta workflow. 179k on the harness line against a 250k cap, 88
-  tool calls, 43 minutes (observed: the harness usage). A fresh agent took
-  this pass, because the first was at 276k.
-  **The clone is pristine and the cassettes are byte-identical across all
-  three files** (observed: the holding session's own digest over all 18604
-  cassette rows and ten columns in each file, 2026-09-21). The clone reads 9
-  columns and 204058 rows. The new register reads 14 columns and 157071 rows.
-  All three digest to `f9adc4f1f48bb79d`. **Not one recording was lost or
-  altered.**
-  **The join resolves 76.7 per cent, and the number was measured before the
-  migration ran** (observed: the tool's own dry run over the clone,
-  2026-09-21). The frame's warning to the implementer was that revision 1's
-  backfill looked sound and fired on zero rows. So this pass measured three
-  rules first: a completion match needing every candidate to agree gives 40.1
-  per cent, an intersection across a session's replies gives 81.2, and the
-  same rule without chains gives the 76.7 that shipped.
-  **A chain's rows do not migrate, and the implementer measured two rescue
-  rules before giving up rather than guessing.** A chain runs two sessions and
-  the transcript keeps leg two only, so leg one's cassette is unidentifiable
-  and half the stamped hash is unknowable. Leg one's brief as a prefix would
-  stamp today's text onto rows from every earlier era. The recording order
-  verifies for 2781 of 9184 chain rows. Both rejected, 10795 rows stay in the
-  clone.
-  **The cost is one case's evidence and four greens moved to provisional**
-  (observed: `casestatus --model qwen3:8b`, run by the holding session on the
-  migrated register, 2026-09-21). Before: 21 failing, 0 stale, 107 green.
-  After: 20 failing, 4 provisional, 0 stale, 1 never measured, 103 green. The
-  same cases pass and the same cases fail. **The zero stale is now honest**,
-  and the door still refuses a replay at 16384 on the new register.
-  **The 28-case shortfall right after the swap fell to one, and the reason is
-  worth keeping.** The suite replays from cassettes and not from `case_runs`,
-  and every cassette migrated. So the gate's own replay pass re-earned 645
-  rows for free, each with five real columns read off a cassette. **A
-  migration that keeps every cassette costs almost no GPU.**
-  **The design's note marking where the defaults stop is moot.** Under the
-  clone ruling there are no defaults: every migrated row's five columns are
-  read off the cassette that earned it.
-  **A fourth model-less command was found and repaired by the holding
-  session** (observed: the report's own output, 2026-09-21). Frame 60 repaired
-  the tiers' STALE message and their three usage lines. `casestatus`'s own
-  advice line was a fourth site, telling the reader to re-earn a case under
-  whatever was ambient. It now prints through the one `rerecord_command` the
-  tiers use, so it names the model and the window it read under. A one-line
-  door, so it did not go to an agent.
-- **What is left before this frame closes, 2026-09-21 18:20.**
-  1. The diff review, out now on a worktree at `5882b5f`. Required, because
-     the frame changes the schema.
-  2. One re-record: `L3-a-failed-verdict-turns-into-a-fix`. It is stale
-     against the pre-swap register too, so the cause is in the tree and not
-     the migration, and there is no green to spend. It runs after the review,
-     so a write does not cross the reviewer's read.
-  3. The four provisionals clear on a second load more than two hours after
-     the gate, at no GPU cost. No re-record is needed for them, and none is
-     wanted: a re-record would spend four greens to learn nothing.
-  4. Re-baseline the gate at the closing commit. It still reads `f3a7e41` of
-     2026-09-19, so three pre-existing reds show as new in every pass.
-  5. **Republish the register, which is Roman's and is held** (parked in this
-     file). The row count moved from 204058 to 157071, so
-     `rota/testkit/cassette_store.py:328` will now see a difference where it
-     saw none. The closing status needs the manifest tag.
-  **The six other chain cases are not re-recorded, and that is a decision.**
-  They came back green from their own cassettes, and a cassette is the
-  recording. Re-recording them would spend six greens to learn nothing.
-- Status 2026-09-21 18:45 (rota-36): **the diff review is in: safe to close,
-  with corrections. A fix pass is out.** Meta workflow. 203k on the harness
-  line against a 120k cap, 83 tool calls, 25 minutes (observed: the harness
-  usage). It ran read-only on a worktree at `5882b5f`. Eight of the ten
-  numbered points confirmed, three high findings, three low, and six probes
-  that reproduced the pass's own numbers independently.
-  **The review confirmed the migration rather than taking it on trust.** 800
-  random migrated rows checked against the cassettes: zero missing hashes,
-  zero wrong columns, zero prefix failures of 379. 3000 rows checked for
-  ambiguity: zero migrated on an ambiguous match. All five dropped categories
-  reproduce over the full 204058.
-  **The highest finding is frame 60's fault surviving in a second place, and
-  it is the place a person looks** (observed: the reviewer's probe on the
-  migrated register, 2026-09-21). `rota/cockpit/progress.py:214-250` is a
-  second reader of `case_runs`. It matches on `prompt_hash` alone and takes
-  the model from the first row it sees, so it reports `llama3.1:8b` and 98
-  pass, 19 fail, while `casestatus --model qwen3:8b` reports 103 green, 20
-  failing. **Two instruments, two answers, and the cockpit is the page a
-  person reads.** The scope report of this frame never found it, because the
-  frame was written about the report and not about every reader.
-  **The second high finding is a trap the approved re-record would have
-  sprung.** The door runs for every pytest invocation, before anything is
-  collected, so a file that calls no model is refused. It does not fire today
-  only because the register happens to hold 11 models. A re-record to a
-  qwen-only register would make every bare `pytest` command fail. The fix
-  moves the check to a hook that runs after collection, where the collected
-  items are a fact rather than a guess.
-  **The third high finding is the acceptance line, and it is the repair
-  working.** The gate now reads `stale (1)`, for
-  `L3-a-failed-verdict-turns-into-a-fix`. The register used to call that case
-  green while the suite could not replay it. **So the line that could not
-  fail now fails**, which is what this frame was opened to buy.
-  **Three low findings**: the think pin is guarded in one direction only, a
-  crashed session writes an empty `system_hash` that reads like a legacy row,
-  and the migration replaces an existing target silently because the
-  `--expect-*` guards default to off.
-  **One finding is recorded and needs no fix**: the four provisionals clear
-  themselves. `trust` groups by `load_id`, which is `model@epoch//7200`, so
-  the next gate run in another two-hour window gives the second confirming
-  load. They are not a re-record obligation.
-- Status 2026-09-21 19:10 (rota-36): **the fix pass is in, judged and
-  committed at `42b8950`. All six findings are closed.** Meta workflow. 292k
-  on the harness line against a 150k cap, 69 tool calls (observed: the
-  harness usage). **The overrun is one item**: fix 1's named mechanism does
-  not work and the agent measured why before choosing another.
-  **The prediction that the four provisionals clear themselves is now
-  observed** (observed: `casestatus --model qwen3:8b`, run by the holding
-  session after the fix pass, 2026-09-21). The report reads 107 green, 20
-  failing, 1 never measured, 0 provisional. **That is the same 107 green the
-  register held before the migration.** So the migration's whole cost is one
-  chain case, and that case was stale before this frame touched anything.
-  **Fix 1 is measured in both numbers, as the brief asked** (observed: every
-  test file run at 16384 with no model named, 2026-09-21). Before: 99 of 99
-  files refused. After: 4 of 99, and the four are the files that open the
-  register. The holding session checked both ends: `test_bounds.py` collects
-  2 tests at 16384, and `test_l1.py` is refused there.
-  **The deviation on fix 1 is accepted and it is the useful kind.** The brief
-  said to move the check to a hook that runs after collection. The agent
-  built that, ran it, and got `INTERNALERROR> assert not crashitem` with the
-  reason nowhere in the output, because under xdist that hook runs on the
-  workers. **A door that refuses without saying why is the shape the plugin
-  exists to prevent**, so the four register-reading files call the door
-  themselves at module scope, where xdist prints the collect error with its
-  message. Both measurements are in the plugin's docstring.
-  **Fix 2 is verified by the holding session**: the cockpit's L1 panel now
-  reports `qwen3:8b` where it reported `llama3.1:8b`, and the agent measured
-  zero disagreements across the 117 case ids the two instruments share. One
-  `wanted_pins`, one `carries_the_key`, one `matching_runs`, called by both.
-  The panel keeps its raw connection so it still never migrates, and it falls
-  back to the narrow question on a register written before this frame.
-  **One new fact for frame 48, and it is a fifth file.**
-  `tests/rota/test_screens.py::test_sorting_holds_the_view_you_had_scrolled_to`
-  was the flaky fourth red in this gate run, and `test_handover.py` was the
-  flaky fourth in the run before it, on the same tree (observed: the agent's
-  two gate runs, 2026-09-21). **The same tree gives a different flaky file
-  each run**, which is the strongest evidence yet that the fault is the
-  fan-out and not any one file.
-  **One red is named for the re-record and is not this frame's.**
-  `L3-a-challenge-reaches-the-role-that-can-answer-it` fails at 0 of 5 when
-  its file runs alone, and it fails identically at HEAD with every change
-  stashed. The gate's baseline already holds it.
-
-### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
-
-- **Batch A, the cassette key. Second of four.** This frame is the writer's half of the same fault. `casestatus` matches `model` as well as the case id and the prompt hash (observed: `rota/tools/casestatus.py:75-82`, 2026-09-21), so a case re-recorded outside the gate writes a row under `llama3.1:8b` that the report, asking for `qwen3:8b`, cannot see. **That makes this frame a producer of frame 49's stale count**, and not only an instrument fault.
-
-- Meta workflow. `tests/rota/test_l1.py:34` reads
-  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
-  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
-  sets nothing (observed: both files, 2026-09-21).
-- **The suite's own STALE message tells you to re-earn a case with
-  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
-  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
-  names no model. **So following the repository's own instruction re-records
-  the register against a model the register does not hold**, for every case
-  whose file pins none.
-- **The cost is measured, not predicted** (observed: the same 20 case ids run
-  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
-  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
-  `L2-DV-name-the-block-rather-than-retry` and
-  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
-  model alone. Both scored 0 of 5 on the wrong model.
-- **This session followed the instruction and read two false regressions from
-  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
-  spent, and it found the cause. The frame exists so the next session does not
-  spend it again.
-- Ends when: the message names a model, the two test files agree on which
-  model a direct run uses, and a test asserts that a run outside the gate does
-  not silently take a different model from the register's. Priced from the
-  anchors: one door and one test, 30k.
-- Waits on: nothing. Roman orders it.
-- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
-  the two case regressions.
-- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
-  **This is not a model question and it is not frame 55's.** Frame 55 says a
-  recorded green does not reproduce live on one model. This says two commands
-  that both claim to re-earn a case use two different models. This session
-  holds frame 46 and takes no new frame.
-- Status 2026-09-21 14:35 (rota-36): **the repair folds into frame 54, the
-  register's match is narrower than the cassette key** (ruled: Roman,
-  2026-09-21, asked with two other answers). Meta workflow. Frame 54's first
-  read found a second ambient variable, `ROTA_NUM_CTX`, that joins the
-  cassette key exactly as `ROTA_MODEL` does. One door covers both, so the two
-  frames share one repair, which is what batch A said they were.
-  **This frame keeps two of its three ends-when clauses**: the STALE message
-  names a model, and the two test files agree on which model a direct run
-  uses. **The third clause moves to frame 54**, which is the test that a run
-  outside the gate does not silently take a different key from the
-  register's. So this frame is now a door and a message, and its 30k price
-  holds.
-- Status 2026-09-21 17:26 (rota-36): **both remaining clauses are built, in
-  frame 54's pass 2 at `b7c5af0`.** Meta workflow. The frame stays open until
-  frame 54's closing gate, because its repair rides in that frame's commits
-  and an acceptance reads one gate.
-  **What was built.** One `rerecord_command` in `rota/testkit/fixtures.py`
-  names the model and the window, and the three tiers print it. A test forbids
-  the old model-less form anywhere in those files, so it cannot come back.
-  The three tier files now agree on the think rule, through the one
-  `think_for` that pass 1 moved into `rota/llm/llm.py`.
-  **The third clause was already moved to frame 54** and it is the door,
-  which pass 2 also built. So this frame's work is done and only its
-  acceptance waits.
+- **Batch A's successor. It is the half of frame 54 that could not close.**
+- Meta workflow. A cassette is keyed by the whole system text the model
+  receives. A result row now carries `system_hash` over that text, and **the
+  report does not match on it**, because no reader can compose the text. It
+  is built inside `run_session` from a sandbox over the case's seeded
+  database, and there is no second definition to call (observed: frame 54's
+  pass 1, and the comment at the match in `rota/tools/casestatus.py`,
+  2026-09-21).
+- **So the fault frame 54 was opened for is still open.** A change to a
+  `.tools` file, a tool signature or the runner's session prose moves the
+  cassette key and leaves the result row's `prompt_hash` alone, and the case
+  reads green while the suite cannot replay it.
+- **It is history, not a risk** (observed: frame 54's measurement over the
+  suite's 117 single-session cases, 2026-09-21). `instructions_for` is a
+  strict prefix of a cassette's system for 117 of 117 cases, and **42 of the
+  117 already hold recordings under more than one system text**, one of them
+  seven. The register holds 830 distinct system texts.
+- **The evidence already exists.** Every row written since frame 54 carries a
+  real `system_hash`, so the column is filling while this frame waits. A
+  crashed session stamps `unbuilt` and a legacy write-off is empty, so three
+  states are distinguishable.
+- **The known cost, which is why frame 54 did not just do it.** Widening the
+  match restales every case whose tools moved, and the migrated chain rows
+  carry no hash at all. Roman has already approved a full re-record, and
+  frame 54 measured that a re-record is cheap when the cassettes survive: its
+  own 28-case shortfall fell to one, because the suite replays from cassettes.
+- Ends when: one function composes the system text and both `run_session` and
+  the report call it; the report matches on `system_hash`; a test asserts that
+  a `.tools` edit makes a case read stale; and the cases that restale are
+  re-recorded or written off with a reason. Priced from the anchors: one read
+  that names what `build_prompt` needs and whether it can be given a
+  case instead of a session, 40k. Buys the answer to whether one composition
+  is possible at all. The repair and its tests, 90k. The re-record is wall
+  time on a quiet machine.
+- Waits on: nothing. Frame 54 closed and left this.
+- Reasoning: `plans/archive/register-key-design-2026-09-21.md`, sections 2 and
+  9, and frame 54's closing status in `plans/archive/stack-2026-09-21.md`.
+- Status 2026-09-21 19:40 (rota-36): pushed by 75f21e35, unclaimed, priced.
+  **The one warning for whoever takes it**: frame 54 was priced at 80k from a
+  code comment that named the wrong mechanism, and it cost 1251k. Read
+  `build_prompt` before you price this frame again.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
@@ -648,69 +250,6 @@ a different question and the night is then opened once.
   loss**, and the sentence above is the assistant's reading, now overruled on
   what to do about it. The register holds what the model still does.
   The cause is still unnamed, so the frame stays open on its own ends-when.
-
-### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
-
-- **Batch A, the cassette key. Fourth of four, and the batch's output.** The true stale count is what the batch exists to produce. Both frames above move the count: frame 54 by widening the match, frame 60 by stopping a write under an unpinned model. This frame re-records what is left. It already waits on frame 54, and it now waits on frame 60 for the same reason.
-
-- Meta workflow. A stale case is unmeasured, not bad. It means the composed
-  prompt moved and nobody has re-earned the result since. Today 72 of 128
-  model-facing cases are stale, against 47 green and 9 failing (observed:
-  `python -m rota.tools.casestatus`, run 2026-09-20 03:10).
-- **The obligation belongs to nobody.** Frame 43 is closed. Its record said in
-  advance that the stale line could not accept it, because `num_ctx` and a
-  mode prompt are in the cassette key and not in `rota/tools/casestatus.py`'s
-  match (observed:
-  `plans/archive/context-caps-design-2026-09-18.md`, section 9.6). So the
-  frame closed on its night, correctly, and the register was left where it
-  was.
-- **When the 72 appeared is not known, and the record disagrees with itself**
-  (observed: two sources). The gate's stored baseline at f3a7e41, 2026-09-19
-  05:22, holds `"stale": 0`. Frame 43's status of 15:38 on the same day reads
-  the gate whole at 6408b64 and says zero stale. Every commit after 6408b64
-  touched only `plans/`, `.claude/` and `probes/`, and none of those composes a
-  prompt. Night 87 ran after that gate. The first read is therefore whether a
-  night writes the register, and what a case's prompt hash is taken over.
-- **This frame stales nothing of its own** (observed: this session's own
-  check, 2026-09-20 03:10). The count is 72 with the handover fix in the tree
-  and 72 without it, so the door of `f06ffbf` is not a cause.
-- Ends when: the cause is named in a record, the 72 are re-recorded or
-  written off case by case with a reason, and `casestatus` reads zero stale.
-  Not priced. A re-record is cheap and needs a quiet machine, so the price is
-  mostly wall time and not tokens (observed: the standing guidance that a
-  re-record runs without asking).
-- Waits on: a quiet machine. The scope of frame 46 is running now, and the
-  register's re-record contends with it for the GPU.
-- Waits on: frame 54, added 2026-09-20 19:00 by cb5428a2. **The 72 is not the
-  count.** The report's match is narrower than the cassette key, so a case whose
-  prompt text moved reads green here. Re-recording 72 cases before the count is
-  right would re-earn the wrong set. Frame 55 adds the second reason: a
-  re-record can spend a green the live model does not give back.
-- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 9.6,
-  and the gate baseline at `.rota-gate.json`.
-- Status 2026-09-21 15:05 (rota-36): **the 72 is a default-model artefact,
-  and this frame's central contradiction is resolved** (observed: the holding
-  session's run of both commands at 41746ca, 2026-09-21, found by frame 54's
-  design review). `rota/tools/casestatus.py:142` defaults `--model` to
-  `llama3.1:8b`, and `status()` never reads `ROTA_MODEL`. The bare command,
-  which is what this frame ran on 2026-09-20, prints 67 stale. The same
-  command with `--model qwen3:8b` prints **0 stale, 107 green, 21 failing**.
-  **So the gate's baseline of zero stale and this frame's 72 were both
-  right.** They named different models. `rota/tools/gate.py:38-39` already
-  carried the cause in a comment: "under llama `casestatus.status` calls 62
-  qwen-green cases stale". The comment predates this frame.
-  **The frame shrinks and it does not close.** There is no 72-case re-record.
-  What remains is the 21 failing under the suite's model, and the question of
-  what a green means, which is batch A's question and frame 54's repair. The
-  ends-when's "casestatus reads zero stale" is already true under a named
-  model, and false under the tool's default. Frame 54 owns the default's fix.
-
-- Status 2026-09-20 03:10 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
-  Roman orders it. It sits here because it was found here, and not because it
-  outranks frame 45. **The reason it is a frame at all**: "zero stale" is a
-  line in every acceptance this repository writes, and a line that reads 72
-  cannot gate anything. An acceptance that nobody can fail is not an
-  acceptance.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
