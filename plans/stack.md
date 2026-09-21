@@ -22,7 +22,13 @@ Rules:
 6. The session that holds a frame writes the first eight characters of
    its session id in the heading. A popped frame moves verbatim to
    `plans/archive/stack-<date>.md`.
-7. Every conclusion carries a mark with a headline-long reason:
+7. Every frame carries a name of a few words in its heading, and every
+   mention of it carries that name with the number. A number alone is an
+   index into this file, so a reader who meets one has to open the file
+   to learn what it means. That holds in a status line, in a commit
+   message, in a message to a peer, and when you answer Roman (adopted
+   from the kit on 2026-09-21, frame 52).
+8. Every conclusion carries a mark with a headline-long reason:
    (observed: where and when), (reasoned: why), or (ruled: why). Say which
    workflow it is about, the meta workflow or the rota workflow (ruled
    2026-09-16: a ruling and a judgement looked the same in prose).
@@ -439,6 +445,43 @@ next session to close 46 reorders the file to this list.
   `0cc624b`, priced 90k. The port of frame 52 waits on one fact: the kit
   repository's path is in no rota record, so this session asked the peer that
   reported the release.
+- Status 2026-09-21 00:59 (rota-02): **the diff review of line 7 is in. It
+  confirmed a high-severity regression in line 4 and four small defects, and it
+  paid for itself twice over.** 135663 tokens against 90k priced, 61 tool calls,
+  on a worktree at `0cc624b`. Rota workflow.
+  **Line 4's fix defeats the repeat guard for two identical calls in one reply**
+  (observed: the review's probe A6, 2026-09-21, CONFIRMED). An answer produced in
+  the current turn is never in the current turn's prompt, so after any eviction
+  every repeat of one key takes the serve-again branch. The eviction notice is
+  sticky, because `_fit` writes it back into the transcript. One reply with three
+  identical reads produced 14189 characters, three full results and zero
+  refusals, where the same reply before line 4 produced 242 characters, one line
+  and one refusal. **That is the s71 storm shape the refusal exists to stop, so
+  it is a regression and not a trade.** The repair is in pass 6 now: record the
+  turn a key was answered in, and call it evicted only when that turn is earlier
+  than this one.
+  **Four small defects, all CONFIRMED, all in pass 6**: the at-least-one-row
+  guarantee sits outside the budget check, so a 9000-character row renders a
+  block at 6123 against 6000 and the seat reads two cuts for one block. The
+  overrun limit is the transcript budget and not the window's half, which differs
+  at the `max(2000, ...)` floor. `loop.py:53` prints the first error, so an
+  overrun line can hide a failed session's reason. `code.diff`'s new notice names
+  `code.source`, which `architect/escalate` and `architect/exhausted` do not
+  grant, which is the fault this line set out to remove.
+  **One records fault of this session is cleared in the same pass**: a comment at
+  `rota/roles/api.py:6141-6155` existed twice, one copy carrying the retracted
+  claim about the imperative. A reader must not get two answers to one question.
+  **One finding is recorded and not fixed, because it is dormant** (observed: the
+  review's finding 7, PLAUSIBLE): `backend.complete` also sends
+  `tools=schemas`, 13350 characters for `architect/unresolved`, and no budget
+  charges it. `native_tools = true` exists in
+  `rota/llm/profiles/local-openai-native.toml` and no production caller passes
+  it. The frame's premise survives here: two numbers can still add past the
+  budget with nothing saying so, and this is the pair.
+  **The review's own measurement opened a frame: 603 of 18435 recorded prompts
+  exceed the budget `_fit` promises, the worst by 67295 characters.** That is
+  frame 56. It unparks the fuzz finding this frame shelved, which said the runner
+  reaches no breaking shape today.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -532,6 +575,37 @@ next session to close 46 reorders the file to this list.
   **The cost is now counted.** Four of frame 46's five gate runs needed a
   judgement by hand on a red the gate had already re-run green, or on a red in a
   file the pass never touched.
+
+### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
+
+- Rota workflow. `_fit` promises that a turn's transcript fits
+  `_fit_budget(num_ctx, len(system))`. **603 of 18435 cassettes hold a prompt
+  that does not, and the worst exceeds it by 67295 characters** (observed: frame
+  46's diff review, read-only SQL over `tests/rota/cassettes.db`, 2026-09-21).
+- **This unparks a finding frame 46 shelved.** That finding said `_fit`'s promise
+  is not a theorem, a fuzz of 4000 transcripts broke it 1540 times, and **the
+  runner reaches neither breaking shape today**. The register says the runner
+  reaches some shape, 603 times.
+- **What is not known**: whether the 603 are historical, recorded before a cap
+  that now holds, or whether a live path builds a prompt without `_fit`. Frame
+  46's line 1 measures only what `run_session` assembles, so a path that does not
+  go through `run_session` is still unmeasured.
+- **Why it matters beyond tidiness**: a prompt over `num_ctx` is collapsed by
+  ollama to `num_ctx / 2 + 2` with the tail kept, which cuts the brief off the
+  front. That is the fault the halving exists to prevent, and these 603 prompts
+  are the shape that reaches it.
+- Ends when: the cause is named in a record, and either the 603 are shown to be
+  historical with the reason, or the live path that overruns is named and a test
+  holds the line. Priced: one read that groups the 603 by role, mode and date,
+  and checks whether each came through `run_session`, 40k. Buys the difference
+  between an old scar and an open wound. The repair's price follows the cause.
+- Waits on: nothing. Roman orders it. It sits above 54 only in the file, and
+  Roman's order of 2026-09-21 does not name it yet.
+- Reasoning: frame 46's status line of 2026-09-21 00:59, and the parked finding
+  in frame 46's status line of 2026-09-20 16:50.
+- Status 2026-09-21 01:00 (rota-02): pushed by cb5428a2, unclaimed, priced. Found
+  by the diff review while probing a different point, which is the second finding
+  this frame's reviews produced that its tests could not.
 
 ### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
 
