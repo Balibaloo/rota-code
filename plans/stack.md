@@ -752,36 +752,6 @@ next session to close 46 reorders the file to this list.
   cannot gate anything. An acceptance that nobody can fail is not an
   acceptance.
 
-### 51. `holding --frame none` writes a row that lies (2026-09-20)
-
-- Meta workflow. The command sets a session's state back to `standby` when
-  the session names no frame. It does not check that a watcher is running.
-  A session that finishes a frame and clears its column is then printed as a
-  standby with a dead heartbeat, and the table's own rule says STALE means
-  dead for a `standby` row (observed: session 0f086f93 at 2026-09-20 15:56,
-  immediately after it closed frame 50).
-- **The row is safe and it is still false.** A sender never offers it,
-  because `free` needs a live beat. The fault is that the table says a live
-  session died, which is the same fault class the `held` beat was written to
-  fix. The session left the reserve with `release` to make its row honest.
-- **This is a finding from running the port on live state, not from reading
-  it** (observed: the live table, 2026-09-20 15:56). The kit's own four
-  findings came the same way, from frame 43.
-- Ends when: a session that clears its frame is not printed as a live
-  standby, and a test asserts it. The kit hears the finding either way,
-  because the kit owns `cmd_holding`. Not priced. This is a one-line door
-  plus one test, so the anchor is 20k.
-- Waits on: nothing. It is small and it can wait behind Roman's order.
-- Reasoning: the closing status of frame 50 in
-  `plans/archive/stack-2026-09-20.md`, and the peers-table rules in
-  `plans/operating-facts.md`.
-- Status 2026-09-20 15:56 (rota-e7): pushed by 0f086f93, unclaimed. Pushed so
-  the obligation stays countable. It sits below Roman's ordered frames,
-  because it does not outrank them. **Two candidate fixes, and the choice is
-  a design question for the kit**: clear the frame and leave the state alone,
-  or set the state from the beat. The second reads the truth and the first
-  writes less.
-
 ### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
 
 - Rota workflow. A capacity question, split out of frame 46 on 2026-09-20
@@ -840,79 +810,6 @@ next session to close 46 reorders the file to this list.
   ends-when**: every cassette in the register was recorded at `num_ctx` 12288 or
   8192, so no recording measures the 16384 window the nights run at. Frame 54
   owns the repair.
-
-### 52. Take the kit's release into rota (2026-09-20) (Roman) [cb5428a2]
-
-- Meta workflow. Seven commits in the kit repository since rota's port at
-  `58f7960`. A peer says Roman is releasing them (observed:
-  `meta-workflow-46`, 2026-09-20). **Not ruled. Roman assigns.** The last
-  relay of his word was true and the check still stands, because the tool
-  never treats a report of consent as consent.
-- **Two change behaviour and are read before the frame is priced properly.**
-  - `aec98ba`, the hand-off order. The oldest free standby **under a 300k
-    ceiling**, so a loaded session is used up before a fresh one is spent.
-    This answers the fault written into `CLAUDE.md` at `d43cb14`, where the
-    queue ranked on arm time alone and could hand a frame to a 152k seat
-    beside a clean 20k one. A reserve whose standbys are all past the
-    ceiling is a drought and says so, which is a different report from an
-    empty reserve. A session past the ceiling is refused the arm, because a
-    seat no hand-off can use makes the reserve read larger than it is.
-  - `80bd49e`, the context count. **The hook reads the harness's own usage
-    instead of scaling transcript bytes, and the shipped 0.6 factor read 8
-    per cent low.** So every count in rota rises on the day this installs,
-    and a session near a threshold crosses it on the install and not on
-    growth. Read a jump as a correction, never as growth.
-- The rest, as the peer describes them and not as this session has read the
-  diffs: `b057b0d` carries the `spent` fix, so frame 51 closes by porting
-  rather than by designing, and it states the rule this session wrote at
-  `ca8beb8`. `b0cfb92` records the three rows-that-lie as one fault and adds
-  that a standby is not a correspondent. `6b66648` rules that a frame carries
-  a name and the name travels with the number. `3dd823d` says copying a claim
-  never observes it. `707fcac` fixes three defects in the install procedure.
-- **Frame 51 folds into this one if it is ruled**, because `b057b0d` carries
-  the fix that frame 51 would otherwise design.
-- Ends when: rota carries the seven commits, the touched tests pass, the gate
-  is green with the stale line read, and `peers` refuses to arm a session
-  past the ceiling. About 110k: one implementer pass at the 75k anchor, a
-  gate run, and a read of the two behaviour-changing commits before the port.
-  The install is a fresh clone to `meta-update`, the "Update an installation"
-  section, then delete the clone.
-- Waits on: **Roman's word, direct and not relayed.**
-- Reasoning: frame 50's port at `58f7960`, and the seat fault recorded in
-  `CLAUDE.md` at `d43cb14`.
-- Status 2026-09-20 16:20 (rota-52): pushed by 0549dc76, unclaimed, unruled.
-  Pushed so the obligation stays countable, and named to Roman rather than
-  taken. This session holds frame 46 and takes no new frame.
-- Status 2026-09-21 00:45 (rota-02): **Roman ruled the port, and it runs inside
-  frame 46's tail, after line 5** (ruled: Roman, 2026-09-20, asked with three
-  other options and this one recommended). Claimed by cb5428a2, which holds
-  frame 46. **Frame 51 folds into this frame** on the same ruling.
-  **The kit is at `https://github.com/Balibaloo/claude-stack-workflow.git`, and
-  the clone is from the URL and not from the path** (observed: the peer
-  `meta-workflow-46`, 2026-09-21). Its checkout on this machine is
-  `D:/repos/_AI/meta-workflow` and everything is pushed, so the two agree. No
-  rota record had named the repository until now.
-  **Six of the seven are real work, not seven** (observed: the same peer, which
-  checked rota rather than trusting its own list). `048fbf5`, that an observation
-  carries where and when, is already in rota: session 0f086f93 ported the rule
-  itself at `a2c0541` when it closed frame 50. So the price drops by one commit.
-  **The kit's head is two commits past what Roman ruled, and this session takes
-  the ruling and not the head** (observed: the peer, 2026-09-21). `edd7a95` stops
-  the install's own hook test writing a row for a session that never existed, and
-  `bd5d379` scopes an acceptance grep and records the reclaim default at 15.0
-  minutes. Both are defect fixes and neither is a rule change. **So the install
-  clones with history and checks out `80bd49e`**, which is exactly the release
-  Roman named. The two fixes wait for his word, which the peer has already put to
-  him, and this session does not ask again.
-  **One consequence of holding at `80bd49e`, and the guard for it**: without
-  `edd7a95` the install's own hook test can write a phantom row into the reserve.
-  The port checks `peers` after the test and removes any row for a session id
-  that does not exist.
-  **The two behaviour-changing commits are read before they install**, as this
-  frame requires. Expect every context number in rota to rise by about 8 per
-  cent on the day `80bd49e` lands, because the hook stops scaling transcript
-  bytes and starts reading the harness's own count. A jump on that day is a
-  correction and never growth.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
