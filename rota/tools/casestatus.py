@@ -192,8 +192,17 @@ def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
         out.append("  provisional greened on one load after being red: "
                    "re-earn on a second load before quoting it as fixed")
     if counts["STALE"] or counts["NEW"]:
-        out.append("  stale is unmeasured, not bad: "
-                   "ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q")
+        # Through the one definition the tiers print, because this footer was
+        # the last place that still named no model. Frame 60 repaired the
+        # tiers' own STALE message and their usage lines, and the report's
+        # advice line was a fourth site nobody had read: it told the reader to
+        # re-earn a case under whatever was ambient, which is how two cases
+        # flipped from fail to pass on the model alone (observed: frame 60,
+        # the same 20 case ids run twice, 2026-09-21).
+        out.append("  stale is unmeasured, not bad: " + fixtures.rerecord_command(
+            Pins(model=model or "", num_ctx=DEFAULT_NUM_CTX,
+                 think=think_for(model) if model else None),
+            "tests/rota/test_l1.py"))
     out.append("")
 
     for r in rows:

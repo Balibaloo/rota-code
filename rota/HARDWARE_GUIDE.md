@@ -156,6 +156,8 @@ ollama pull <tag>
 $env:ROTA_MODEL = "<tag>"
 # The profile pins the window and wins over this variable. Set it only to
 # measure another window, and use 16384, which is what the profiles pin.
+# The register holds 8192 and 12288 only. A replay at another window is
+# refused, and the refusal names ROTA_NUM_CTX (frame 54, 2026-09-21).
 $env:ROTA_NUM_CTX = "16384"
 
 ollama ps

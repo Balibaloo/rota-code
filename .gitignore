@@ -33,11 +33,12 @@ tests/rota/cassettes.db
 tests/rota/cassettes.db-wal
 tests/rota/cassettes.db-shm
 tests/rota/cassettes.db.gz
-# The legacy clone of the register, kept as history (ruled: Roman,
-# 2026-09-21, frame 54). Never tracked: it is 780 MB.
-tests/rota/cassettes-legacy-*.db
-tests/rota/cassettes-legacy-*.db-wal
-tests/rota/cassettes-legacy-*.db-shm
+# Every other copy of the register: the legacy clone kept as history (ruled:
+# Roman, 2026-09-21, frame 54), the live file moved aside before a swap, and
+# a migration's target. Never tracked: each one is about 780 MB.
+tests/rota/cassettes-*.db
+tests/rota/cassettes-*.db-wal
+tests/rota/cassettes-*.db-shm
 tests/rota/*.part
 
 # a TUI database written by an old default, at the repo root and in rota/cockpit/

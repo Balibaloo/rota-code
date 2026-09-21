@@ -26,10 +26,11 @@ import rota_serial_plugin
 from rota import paths
 from rota.llm import llm
 from rota.llm.cassettes import (KEY_COLUMNS, key_for, open_dev_db,
-                                record_case_run)
+                                record_case_run, system_hash)
 from rota.llm.llm import DEFAULT_NUM_CTX, Pins
+from rota.roles import prompts
 from rota.testkit import fixtures
-from rota.tools import casestatus
+from rota.tools import casestatus, migrate_register
 
 #: One real role and one real mode, so `instructions_for` composes the same
 #: brief the tier would and the hash is earned rather than invented.
@@ -385,3 +386,204 @@ def test_the_stale_message_names_the_profile_when_one_is_set(monkeypatch):
     said = fixtures.rerecord_command(
         Pins(model=THINKING_MODEL, temperature=0.0), "tests/rota/test_l3.py")
     assert f"ROTA_PROFILE={PROFILE}" in said
+
+
+# ---------------------------------------------------------------------------
+# The migration out of the legacy clone
+# ---------------------------------------------------------------------------
+
+
+def _legacy(tmp_path, rows, cassettes, name="legacy.db"):
+    """
+    A source register: cassettes, and results earned under them.
+
+    Built with `open_dev_db` rather than a second copy of the old DDL. The
+    migration reads nine named columns from the source, so a source with the
+    new columns behaves as the clone does, and the schema stays defined once.
+    """
+    path = tmp_path / name
+    db = open_dev_db(path)
+    for pins, system, user, completion, protocol in cassettes:
+        db.execute(
+            "INSERT INTO cassettes (key, model, temperature, num_ctx, "
+            "prompt_hash, system, user, completion, backend) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (key_for(system, user, pins, protocol), pins.model,
+             pins.temperature, pins.num_ctx, "h", system, user, completion,
+             "test"))
+    for seq, (case_id, model, transcript) in enumerate(rows, start=1):
+        db.execute(
+            "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
+            "passed, problems, transcript, seq) VALUES (?,?,?,1,1,'[]',?,?)",
+            (case_id, model, "h", json.dumps(transcript), seq))
+    db.close()
+    return path
+
+
+def _run(source, target):
+    src = migrate_register.open_source(source)
+    result = migrate_register.migrate(src, target)
+    src.close()
+    return result["tally"]
+
+
+def _landed(target):
+    db = sqlite3.connect(str(target))
+    db.row_factory = sqlite3.Row
+    rows = [dict(r) for r in db.execute("SELECT * FROM case_runs ORDER BY seq")]
+    db.close()
+    return rows
+
+
+def test_a_row_lands_with_the_five_values_of_the_cassette_it_used(tmp_path):
+    """
+    The whole point of the migration. The four pins and the system hash come
+    off the cassette that earned the row, so a migrated green is a green about
+    a named key rather than about a default.
+    """
+    pins = Pins(model=MODEL, temperature=0.0, num_ctx=8192, think=True)
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "the reply"}])],
+        cassettes=[(pins, "the system text", "the user text", "the reply",
+                    "text")])
+    tally = _run(source, tmp_path / "new.db")
+
+    assert tally["migrated"] == 1
+    row = _landed(tmp_path / "new.db")[0]
+    assert (row["num_ctx"], row["temperature"], row["protocol"]) == (
+        8192, 0.0, "text")
+    assert row["extras"] == json.dumps({"think": True}, sort_keys=True)
+    assert row["system_hash"] == system_hash("the system text")
+
+
+def test_a_row_with_no_identifiable_cassette_does_not_land(tmp_path):
+    """
+    It stays in the clone, which is history. Guessing its window would write a
+    measurement that nobody made, and a default reads exactly like one.
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "never recorded"}]),
+              ("L1-LI-the-register-key", MODEL, [])],
+        cassettes=[(pins, "the system text", "the user text", "the reply",
+                    "text")])
+    tally = _run(source, tmp_path / "new.db")
+
+    assert tally["migrated"] == 0
+    assert tally["rows"] == 2
+    assert _landed(tmp_path / "new.db") == []
+
+
+def test_one_reply_under_two_system_texts_needs_a_second_reply(tmp_path):
+    """
+    The join is the intersection and not the union. A short reply is recorded
+    under many system texts, so one reply rarely names one cassette. A
+    session's replies all came from one system text, so two replies do.
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    cassettes = [(pins, "system one", "user one", "yes", "text"),
+                 (pins, "system two", "user two", "yes", "text"),
+                 (pins, "system one", "user three", "and here is why", "text")]
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "yes"}]),
+              ("L1-LI-the-register-key", MODEL,
+               [{"say": "yes"}, {"say": "and here is why"}])],
+        cassettes=cassettes)
+    tally = _run(source, tmp_path / "new.db")
+
+    assert tally["migrated"] == 1, "the ambiguous row stays behind"
+    assert tally["left: the replies name more than one cassette"] == 1
+    assert _landed(tmp_path / "new.db")[0]["system_hash"] == system_hash(
+        "system one")
+
+
+def test_a_chains_rows_do_not_migrate(tmp_path):
+    """
+    A chain runs two sessions and its transcript holds only leg two's replies,
+    so leg one's system text cannot be identified. Two rules were measured and
+    both failed: leg one's brief as a prefix names only the system the tree
+    composes today, and the recording order names the right cassette for 2781
+    of 9184 chain rows (observed: frame 54's pass 3, 2026-09-21).
+    """
+    chain = sorted(migrate_register.chain_ids())[0]
+    pins = Pins(model=MODEL, temperature=0.0)
+    source = _legacy(
+        tmp_path,
+        rows=[(chain, MODEL, [{"say": "leg two spoke"}])],
+        cassettes=[(pins, "leg two's system", "u", "leg two spoke", "text")])
+    tally = _run(source, tmp_path / "new.db")
+
+    assert tally["migrated"] == 0
+    assert tally["left: a chain runs two sessions"] == 1
+
+
+def test_a_chains_system_hash_joins_both_legs():
+    """
+    Both legs, joined by a blank line, the way `instructions_for` joins a
+    chain's two briefs. Either leg can be why a chain stopped working, so
+    either leg's text must be able to stale it. A hash over leg two alone
+    would leave a rewritten leg one invisible.
+    """
+    result = fixtures.CaseResult(case_id="c", run=1, passed=True,
+                                 systems=["leg one's system",
+                                          "leg two's system"])
+    assert result.system_text() == "leg one's system\n\nleg two's system"
+    assert system_hash(result.system_text()) != system_hash("leg two's system")
+
+    # The same join, in the one place the register already agreed on it.
+    case = next(c for c in fixtures.load_case(
+        paths.CASES / "l3_handoffs.yaml") if c.get("first"))
+    legs = [case["first"], case["then"]]
+    assert fixtures.instructions_for(case) == "\n\n".join(
+        prompts.compose(leg["role"],
+                        leg.get("prompt") or leg.get("verb") or leg.get("tick", ""))
+        for leg in legs)
+
+
+def test_the_migration_is_idempotent(tmp_path):
+    """
+    Run it twice and the target is the same register. The tool writes a new
+    file and the caller swaps it in, so a second run after a failed swap must
+    not double a row or refuse to start.
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "the reply"}])],
+        cassettes=[(pins, "the system text", "u", "the reply", "text")])
+    target = tmp_path / "new.db"
+
+    first = _run(source, target)
+    once = _landed(target)
+    second = _run(source, target)
+
+    assert first["migrated"] == second["migrated"] == 1
+    assert _landed(target) == once
+    db = sqlite3.connect(str(target))
+    assert db.execute("SELECT COUNT(*) FROM cassettes").fetchone()[0] == 1
+    db.close()
+
+
+def test_the_migration_refuses_a_source_that_has_moved(tmp_path):
+    """
+    The clone is the only copy of the pre-migration evidence. A source whose
+    shape differs from the shape that was cloned is a source something has
+    written to, and the whole point of the clone is that nothing did.
+    """
+    source = _legacy(tmp_path, rows=[], cassettes=[])
+    src = migrate_register.open_source(source)
+    with pytest.raises(SystemExit):
+        migrate_register.check_source(src, runs=204058)
+    src.close()
+
+
+def test_the_migration_never_writes_to_its_source(tmp_path):
+    """`mode=ro` and nothing else. SQLite refuses the write at the handle."""
+    source = _legacy(tmp_path, rows=[], cassettes=[])
+    src = migrate_register.open_source(source)
+    with pytest.raises(sqlite3.OperationalError):
+        src.execute("DELETE FROM case_runs")
+    src.close()
