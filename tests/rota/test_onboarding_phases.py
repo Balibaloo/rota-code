@@ -791,8 +791,8 @@ def test_a_constraint_kept_to_nobody_outside_is_refused(project):
 
 def test_a_session_that_repeats_itself_verbatim_ends(project):
     """At temperature zero a repeated completion is a fixed point: the prompt
-    has only grown by "the answer is above", so the next turn is this one
-    again. One 14B survey session paid for that eleven times."""
+    has only grown by the repeat line, so the next turn is this one again. One
+    14B survey session paid for that eleven times."""
     from rota.core.runner import run_session
     from rota.llm.llm import ScriptedBackend
 

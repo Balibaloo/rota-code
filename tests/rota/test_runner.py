@@ -594,11 +594,18 @@ def test_the_repeat_line_does_not_point_at_an_evicted_answer(db):
     assert "decisions.search ran again" in served, "the line names no call"
 
 
-def test_the_repeat_line_still_points_above_while_the_answer_is_there(db):
+def test_the_repeat_line_claims_nothing_about_this_prompt(db):
     """
-    Conditional, not a blanket removal. Nothing is evicted here, so the answer
-    really is above and the second asking still costs a line rather than four
-    thousand characters. 4,907 of 18,435 cassettes carry that line.
+    The line is read one turn after it is written, and the eviction runs in
+    between. "The answer is above" was true when the guard wrote it and false
+    when the seat read it: night 88's s137 saw the span at turns 3, 4 and 5,
+    saw it gone at turn 6, and was told at turn 6 that the answer was above.
+
+    So the line names the call that returned the answer and says nothing about
+    where the answer sits. A line that makes no claim about this prompt cannot
+    be one turn early. Both wordings survive, one for a pushed answer and one
+    for an answer the seat asked for: 4,907 of 18,435 cassettes carry the
+    asked-for line and 572 carry the pushed twin (measured 2026-09-20).
     """
     from rota.core.runner import _EVICTED_PHRASE
 
@@ -610,9 +617,41 @@ def test_the_repeat_line_still_points_above_while_the_answer_is_there(db):
 
     assert outcome.committed, outcome.errors
     second = backend.calls[2][1]
-    assert "unchanged since you asked" in second and "the answer is above" in second, \
+    line = [ln for ln in second.splitlines()
+            if ln.startswith("OK decisions.search ->")][-1]
+    assert "unchanged since you asked earlier this session" in line, \
         "the repeat was re-rendered in full with nothing evicted"
+    assert "What decisions.search returned then still stands" in line, \
+        f"the line names no call: {line}"
+    assert "above" not in line, f"the line still points at a block: {line}"
     assert _EVICTED_PHRASE not in second, "nothing was evicted in this session"
+
+
+def test_the_pushed_repeat_line_also_claims_nothing_about_this_prompt(db):
+    """
+    The pushed twin. A read the wake already ran is served when the seat asks
+    for it, because "you already have this" reads to an 8B model as "there is
+    nothing here for you" -- see the note at `fresh_read`. The second asking is
+    a line, and the line carries the same claim the asked-for one carries: the
+    call that returned the answer, and nothing about where the answer sits.
+    """
+    db.execute("INSERT INTO items (id, text, kind) VALUES (?,?,?)",
+               ("i01", "people can close their account", "in_scope"))
+
+    ask = "TOOL: problem.consult()"
+    backend = ScriptedBackend([ask, f"Again.\n{ask}", "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=12288))
+
+    assert outcome.committed, outcome.errors
+    second = backend.calls[2][1]
+    line = [ln for ln in second.splitlines()
+            if ln.startswith("OK problem.consult ->")][-1]
+    assert "was run for you before you started" in line, \
+        f"the pushed wording is gone: {line}"
+    assert "What problem.consult returned then still stands" in line, \
+        f"the line names no call: {line}"
+    assert "above" not in line, f"the line still points at a block: {line}"
 
 
 def test_repeats_inside_one_reply_are_suppressed_after_an_eviction(db):
@@ -649,6 +688,103 @@ def test_repeats_inside_one_reply_are_suppressed_after_an_eviction(db):
         "the eviction is named once, for the asking that earned it"
     assert any("asked three times" in e for e in outcome.errors), \
         "the second asking in the same reply was not refused"
+    assert len(block) < 9_000, \
+        f"the repeats paid full freight: {len(block):,} characters"
+
+
+def _evicting_repeats(ask: str) -> list[str]:
+    """
+    A script whose eviction still stands when the third asking arrives.
+
+    Turn 2 is long enough to push turn 1 out of a 2,000 character budget, and
+    every later result is cut to the floor, so the answer never comes back
+    into the prompt whole. The prose varies because three identical turns end
+    a session, and the count here is of callings, not of turns.
+    """
+    return [ask,
+            "thinking. " * 300 + "\nTOOL: decisions.search(query='detail')",
+            f"Again.\n{ask}", f"Once more.\n{ask}", "Done."]
+
+
+def test_the_refusal_fires_while_an_eviction_stands(db):
+    """
+    The eviction notice is sticky, because `_fit` writes it back every turn,
+    and the answer it took never comes back. Tested against `unchanged`, the
+    refusal was unreachable for as long as the notice stood, so a repeating
+    seat was served in full for ever. Night 88's s137 served turns 7, 8 and 9
+    and then died on the identical-turn stop with nothing written. Night 87's
+    s132 is the same wake and the same span, and it committed at turn 15,
+    because the refusal was still reachable there.
+
+    So the refusal tests `would_repeat`: the third identical calling is
+    refused whether or not the eviction emptied its answer.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend(_evicting_repeats(ask))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
+
+    assert outcome.committed, outcome.errors
+    third = backend.calls[3][1]              # the prompt the third calling read
+    assert _EVICTED_PHRASE in third, "nothing is evicted, so this shape proves nothing"
+    assert "the earlier answer was" in third, \
+        "the second calling was not served under the eviction"
+    assert any("asked three times" in e for e in outcome.errors), \
+        "the third calling was never refused while the eviction stood"
+    assert "asked three times" in backend.calls[4][1], \
+        "the seat was not told why its third calling went unanswered"
+
+
+def test_a_result_is_served_at_most_twice_for_one_key(db):
+    """
+    Once on the first asking, and once more when an eviction emptied it. The
+    third asking meets the refusal, so the same answer can never be rendered a
+    third time. The second serve says the earlier answer was taken, which is
+    what `_EVICTED_PHRASE` is for.
+    """
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend(_evicting_repeats(ask))
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
+
+    assert outcome.committed, outcome.errors
+    served = [backend.calls[i][1].split("\n\n")[-1] for i in (1, 3, 4)]
+    assert served[0].count("OK decisions.search ->") == 1, "the first asking was not served"
+    assert served[1].count("the earlier answer was") == 1, \
+        "the second serve did not say the earlier answer was taken"
+    assert served[2].count("OK decisions.search ->") == 0, \
+        f"the result was served a third time: {served[2][:200]}"
+
+
+def test_three_identical_calls_in_one_reply_meet_the_refusal(db):
+    """
+    The s71 storm, in its own reply. Session s71 sent 331 calls in one reply on
+    both nights and 327 came back as the repeat line, about 90,000 characters
+    that became turn 2's whole prompt. An answer made this turn cannot be in
+    this turn's prompt, so membership alone read every such repeat as evicted
+    and served it again: three identical calls came back as 14,189 characters
+    and no refusal (the diff review of 0cc624b, finding 1). The turn a key was
+    answered in is what separates the two cases, and this shape must stay
+    closed.
+    """
+    _seed_decisions(db)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend(["\n".join([ask] * 3), "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=12288))
+
+    assert outcome.committed, outcome.errors
+    block = backend.calls[1][1].split("\n\n")[-1]        # this turn's results
+    assert block.count("OK decisions.search ->") == 2, \
+        "one result and one line, not one result per calling"
+    assert block.count("unchanged since you asked") == 1, "the second copy is the line"
+    assert block.count("asked three times") == 1, "the third copy is the refusal"
+    assert len([e for e in outcome.errors if "repeat refused" in e]) == 1, \
+        outcome.errors
     assert len(block) < 9_000, \
         f"the repeats paid full freight: {len(block):,} characters"
 

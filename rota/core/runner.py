@@ -2302,8 +2302,8 @@ def run_session(
 
             # A turn identical to the one before it is the session saying it
             # has nothing more to say. At temperature zero the model is a
-            # function of its prompt, and the prompt has only grown by "the
-            # answer is above"; the next completion will be this one again.
+            # function of its prompt, and the prompt has only grown by the
+            # repeat line; the next completion will be this one again.
             # Measured: a 14B survey session wrote two terms, never attested,
             # and re-sent the byte-identical batch eleven times at forty
             # seconds each. The attempt bound still governs what the unfinished
@@ -2543,7 +2543,20 @@ def run_session(
                         # (frame 43, pass 2, 2026-09-19).
                         if call_path and call.name != "code.write":
                             by_path.setdefault(call_path, set()).add(key)
-                    if unchanged and repeated.get(key, 0) >= 1:
+                    # `would_repeat`, not `unchanged`: the refusal counts the
+                    # askings, and an eviction does not make an asking new.
+                    # Tested against `unchanged`, this branch was unreachable
+                    # for as long as the eviction notice stood, and the notice
+                    # is sticky because `_fit` writes it back every turn. A
+                    # repeating seat was then served in full for ever. Night
+                    # 88's s137 served turns 7, 8 and 9 and died on the
+                    # identical-turn stop with nothing written. Night 87's s132
+                    # is the same wake and the same span, and it committed at
+                    # turn 15, because the refusal was still reachable there.
+                    #
+                    # So a result is served at most twice per key: once on the
+                    # first asking, and once more when an eviction emptied it.
+                    if would_repeat and repeated.get(key, 0) >= 1:
                         # The third identical call, refused. Session s71 sent
                         # 331 calls in one reply on both nights, 327 of them
                         # answered by the line below, and those 90,000
@@ -2576,9 +2589,15 @@ def run_session(
                             seat_refusals = getattr(sb.ctx, "refusals", None)
                             if seat_refusals is not None:
                                 seat_refusals.append((call.name, why, "Repeat"))
+                            # The refusal names the call that returned the
+                            # answer, and says nothing about where the answer
+                            # sits. "Use the answer above" was false whenever
+                            # an eviction had taken it, and this branch is now
+                            # reached in exactly that case.
                             feedback.append(
                                 f"ERROR {_call_tag(call, len(calls))}: {why}. Use "
-                                f"the answer above, or finish without it.")
+                                f"what {call.name} returned earlier, or finish "
+                                f"without it.")
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
@@ -2588,15 +2607,23 @@ def run_session(
                         # session did could have changed it -- so say so in a
                         # line rather than in four thousand characters.
                         #
-                        # This line claims the answer is above, and `evicted`
-                        # above is what makes the claim true. The hole it used
-                        # to leave open is closed: when the eviction took the
-                        # block that held the answer, the branch below serves
-                        # the result again instead of pointing at it. The line
-                        # itself is unchanged, because it is true whenever it is
-                        # now reached. 4,907 of 18,435 cassettes carry it and
-                        # 572 carry its pushed twin (measured 2026-09-20), so
-                        # the words stay as they are.
+                        # The line names the call that returned the answer. It
+                        # says nothing about where the answer sits, because a
+                        # claim about this prompt is written one turn before it
+                        # is read, and the eviction runs in between. `evicted`
+                        # is tested against the prompt the seat has just read,
+                        # so "the answer is above" was true when the guard wrote
+                        # it and false when the seat read it: night 88's s137
+                        # saw the span at turns 3, 4 and 5, saw it gone at turn
+                        # 6, and was told at turn 6 that the answer was above.
+                        # One claim removed closes that, because a line that
+                        # makes no claim about this prompt cannot be one turn
+                        # early.
+                        #
+                        # Two wordings, and the provenance is the difference.
+                        # 4,907 of 18,435 cassettes carry the asked-for line and
+                        # 572 carry the pushed twin (measured 2026-09-20), so
+                        # each keeps the half that names how the call ran.
                         #
                         # The eviction is not what drives the repeated reads.
                         # 1,249 prompts carry this line with nothing evicted,
@@ -2604,10 +2631,12 @@ def run_session(
                         # again regardless.
                         feedback.append(
                             f"OK {call.name} -> was run for you before you "
-                            f"started; the answer is in the list above."
+                            f"started. What {call.name} returned then still "
+                            f"stands."
                             if key in pushed_keys else
                             f"OK {call.name} -> unchanged since you asked "
-                            f"earlier this session; the answer is above.")
+                            f"earlier this session. What {call.name} returned "
+                            f"then still stands.")
                     else:
                         # Charged here and nowhere else: a repeat costs a line,
                         # not a result, and a turn of repeats must not use up
