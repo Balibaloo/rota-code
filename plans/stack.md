@@ -688,6 +688,40 @@ next session to close 46 reorders the file to this list.
   **The diagnosis runs now, read-only over both cassette databases**, priced
   80k. It must say which half of the change causes each regression, the
   refusal or the wording, and whether the case asserts the old text.
+- Status 2026-09-21 05:36 (rota-e7): **the repair costs exactly one case, and
+  three of the four suspects were faults in the measurement.** Rota workflow.
+  132970 tokens in the diagnosis against 80k priced.
+  **Two of the four were the wrong model, and that is frame 60** (observed:
+  the same 20 ids run twice, 2026-09-21 05:16 and 05:33). Without
+  `ROTA_MODEL`, 16 pass. With `ROTA_MODEL=qwen3:8b`, 18 pass.
+  `L2-DV-name-the-block-rather-than-retry` and
+  `L1-VK-the-account-before-the-behaviours` flip from 0 of 5 to a pass on the
+  model alone. **This session followed the instruction the suite prints, and
+  the instruction names no model.**
+  **The third is pre-existing** (observed: the control at the right model,
+  2026-09-21 05:35). `L1-AR-annotate-a-batch` scores 0 of 5 on the pre-repair
+  worktree too, so it is frame 55's shape and not a cost of this frame.
+  **The fourth is this frame's, and it is proven by a single-variable diff**
+  (observed: the diagnosis over `tests/rota/cassettes.db`, 2026-09-21).
+  `ACT-TS-five-criteria-one-per-reply` is pinned to `qwen3.5:9b`, so no model
+  confound touches it. Run `seq 204694` passed 5 of 5 and run `seq 205419`
+  failed 0 of 5. Turns 1 to 10 are byte-identical. The turn 11 prompt differs
+  by five repeat lines, **115 bytes in 10622**. With the old text the Tester
+  called `tests.encode` and reached five tests. With the new text it wrote
+  prose, called nothing, and stopped at four. The case asserts
+  `writes.tests: 5..5` and quotes no wording, so the requirement stands.
+  **The refusal half never ran in that case** (observed: the same diagnosis).
+  At turn 10 the five `ledger.log` keys were on their first repeat, so
+  `repeated[key]` was 0 and both versions took the `elif unchanged` branch.
+  **So the two halves are separable and only one of them costs anything.** The
+  refusal half fixes the stall that killed night 88's s137 and costs no
+  measured case. The wording half fixes a line that lies one turn early and
+  costs `ACT-TS`.
+  **One caution on every number above** (reasoned: the diagnosis): five runs
+  of a replayed case are one sample, because run 1 records and runs 2 to 5
+  replay the same cassettes. A 0 of 5 is one live sample, not five.
+  **The trade is Roman's and it is put to him now**, because it trades a true
+  record against a measured case, and it changes what this frame closes on.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
