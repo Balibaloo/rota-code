@@ -59,6 +59,79 @@ which is not a claim that they rank below it (reasoned: the assistant, placing
 what Roman has not yet ordered rather than guessing an order for it). **Frame
 57 is Roman's own ask and it is the one most likely misplaced here.**
 
+**Roman ruled twice on 2026-09-21 13:40.** Frame 60, the re-record command the
+suite prints uses the wrong model, moves below frame 54, the register's match
+is narrower than the cassette key (ruled: Roman, asked with the reason that an
+instrument fault ranks where the instrument ranks). And **the next session
+starts with frame 62, batch the open frames, before it takes any of them**
+(ruled: Roman, "make the next session start with a batching frame that
+organises the current frames"). So the placement note above is superseded for
+every frame frame 62 batches.
+
+### 62. Batch the open frames (2026-09-21) (Roman)
+
+- Meta workflow. **Roman's ask, 2026-09-21 13:40**: the next session starts
+  with a frame that organises the current frames into batches. This frame is
+  that. It is the first thing the session holding the stack does, and it takes
+  no other frame until this one closes.
+- **The stack is 21 frames and it is worked one at a time.** Today two of them
+  turned out to be one fault in two places, and the second was found only
+  because the first was being worked (observed: this session, 2026-09-21).
+  Frame 54, the register's match is narrower than the cassette key, says the
+  report matches on too little. Frame 60, the re-record command the suite
+  prints uses the wrong model, says the recorder writes under a key the report
+  cannot see. Neither is complete without the other.
+- **Candidates a batching pass should test, not adopt** (reasoned: this
+  session, from what it read while holding frame 46, one designed budget for a
+  prompt). Each is a guess with a reason, and the pass must confirm or break it
+  by reading the frames:
+  - **The register's truth**: 54, the register's match is narrower than the
+    cassette key. 60, the re-record command the suite prints uses the wrong
+    model. 55, a recorded green does not reproduce live. 49, the register is 72
+    cases stale and no frame owns it. All four answer one question: what does a
+    green in the register mean? 49 already waits on 54.
+  - **The night's stall**: 37, the Developer exhausts ten attempts on the
+    tests. 38, the regression between night 70 and night 86. 58, a retried tick
+    re-runs the identical session. Night 89 showed all three alive on
+    2026-09-21, with 3 developer sessions of 191 and a NULL `head_commit` on
+    every batch.
+  - **What a seat is told**: 59, the ledger row is shorter than the reasoning
+    it rules from. 61, an unmet obligation is visible only while something
+    points back at it. 47, the reply cut fires thirty times more often. All
+    three are about a seat losing something it needed.
+  - **The window's size**: 53, does a prompt get more than half the window. 56,
+    603 recorded prompts exceed the budget `_fit` promises. Roman already ruled
+    that 47 and 53 share one read, so a batch may cross these groups.
+  - **Unbatched so far**: 45, an abandoned tick reached the page as a finding.
+    48, `tests/rota/test_screens.py` is flaky. 41, a sub-agent drives the walk
+    as the principal. 42, the designed principal, and whether zero temperature
+    is consistent. 33, finding 42, the code index refreshed after a commit. 57,
+    why anything spills into system RAM. 4, Roman's order from here. 2, the
+    gauntlet on the lineage. 1, the end state.
+- **A batch is not a folder.** A batch earns its name only if its frames share
+  one first read, or one repair, or one walk. Two frames that merely sound
+  alike are two frames. The pass must say, for each batch, what the single
+  shared thing is, and must leave a frame alone when it shares nothing.
+- Ends when: every open frame names the batch it belongs to or says it belongs
+  to none, each batch names the one thing its frames share and the order inside
+  it, and Roman has ruled the order of the batches. Priced from the anchors:
+  one read over the open frames that proposes the batches, 60k. Buys an order
+  that is worked in shared reads instead of one frame at a time. The ruling and
+  the rewrite of this file, 20k in the holding session.
+- Waits on: nothing. It is the top frame and Roman put it there.
+- Reasoning: this file, and frame 46's closing status in
+  `plans/archive/stack-2026-09-21.md`, which is where the 54-and-60 pair was
+  found.
+- Status 2026-09-21 13:40 (rota-e7): **pushed by 0f086f93 on Roman's ask, and
+  handed rather than held.** This session is past the mark where its brief
+  stops it taking a frame, so it pushes this frame, stops, and gives the stack
+  to the free standby. **Do not take a second frame before this one closes.**
+  Roman's words were that the next session starts with it.
+  **One warning from today, so the pass does not repeat it.** Read each frame
+  before you place it. Two frames that both mention the register are not
+  automatically one batch, and the pair that was real, 54 and 60, looked
+  unrelated until the recorder's key was read against the report's match.
+
 ### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
 
 - Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
@@ -92,6 +165,41 @@ what Roman has not yet ordered rather than guessing an order for it). **Frame
 - Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
   frame exists so the obligation stays countable. This session holds frame 46
   and takes no new frame.
+
+### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
+
+- Meta workflow. `tests/rota/test_l1.py:34` reads
+  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
+  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
+  sets nothing (observed: both files, 2026-09-21).
+- **The suite's own STALE message tells you to re-earn a case with
+  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
+  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
+  names no model. **So following the repository's own instruction re-records
+  the register against a model the register does not hold**, for every case
+  whose file pins none.
+- **The cost is measured, not predicted** (observed: the same 20 case ids run
+  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
+  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
+  `L2-DV-name-the-block-rather-than-retry` and
+  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
+  model alone. Both scored 0 of 5 on the wrong model.
+- **This session followed the instruction and read two false regressions from
+  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
+  spent, and it found the cause. The frame exists so the next session does not
+  spend it again.
+- Ends when: the message names a model, the two test files agree on which
+  model a direct run uses, and a test asserts that a run outside the gate does
+  not silently take a different model from the register's. Priced from the
+  anchors: one door and one test, 30k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
+  the two case regressions.
+- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  **This is not a model question and it is not frame 55's.** Frame 55 says a
+  recorded green does not reproduce live on one model. This says two commands
+  that both claim to re-earn a case use two different models. This session
+  holds frame 46 and takes no new frame.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -831,41 +939,6 @@ what Roman has not yet ordered rather than guessing an order for it). **Frame
   Frame 46 named this finding and did not push it. Pushed here so the
   obligation stays countable. This session holds frame 46 and takes no new
   frame.
-
-### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
-
-- Meta workflow. `tests/rota/test_l1.py:34` reads
-  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
-  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
-  sets nothing (observed: both files, 2026-09-21).
-- **The suite's own STALE message tells you to re-earn a case with
-  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
-  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
-  names no model. **So following the repository's own instruction re-records
-  the register against a model the register does not hold**, for every case
-  whose file pins none.
-- **The cost is measured, not predicted** (observed: the same 20 case ids run
-  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
-  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
-  `L2-DV-name-the-block-rather-than-retry` and
-  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
-  model alone. Both scored 0 of 5 on the wrong model.
-- **This session followed the instruction and read two false regressions from
-  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
-  spent, and it found the cause. The frame exists so the next session does not
-  spend it again.
-- Ends when: the message names a model, the two test files agree on which
-  model a direct run uses, and a test asserts that a run outside the gate does
-  not silently take a different model from the register's. Priced from the
-  anchors: one door and one test, 30k.
-- Waits on: nothing. Roman orders it.
-- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
-  the two case regressions.
-- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
-  **This is not a model question and it is not frame 55's.** Frame 55 says a
-  recorded green does not reproduce live on one model. This says two commands
-  that both claim to re-earn a case use two different models. This session
-  holds frame 46 and takes no new frame.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
 
