@@ -206,6 +206,35 @@ a different question and the night is then opened once.
   **The one warning for whoever takes it**: frame 54 was priced at 80k from a
   code comment that named the wrong mechanism, and it cost 1251k. Read
   `build_prompt` before you price this frame again.
+- Status 2026-09-21 19:50 (rota-36): **`build_prompt` is read, and the code
+  half is smaller than the push said** (observed:
+  `rota/core/runner.py:242-312` and `rota/core/sandbox.py:298-313`,
+  2026-09-21). Roman asked whether this frame is big, so the read was done to
+  answer him and the frame is still unclaimed.
+  **The system text depends on four things and three are already in hand**:
+  the composed instructions, which `instructions_for(case)` gives; the role,
+  which the case names; the oneshot flag; and `sb.signatures()`. Everything
+  else in that string is a literal constant. **`wake`, `pushed` and `inbound`
+  do not appear in the system text at all.** They build the user prompt.
+  **`signatures()` is reflection over the implementations**, not a read of the
+  database's contents. It needs a Sandbox, which needs a seeded connection and
+  a mode key, and **`run_case` already builds exactly that before every run**.
+  So one composition is a refactor of setup that exists, and it is not a
+  research problem. **No model call is needed to compose the system text.**
+  **The cost is not the code. It is the re-record, and nobody has measured
+  it.** Widening the match restales every case whose tools have moved since
+  its green was earned. Frame 54 measured that a re-record is cheap when the
+  cassettes survive, and **that relief does not apply here**: a case restales
+  precisely because no cassette exists at its new key, so every restale is a
+  real model run.
+  **So the first read changes.** Before any code, compose the system text for
+  all 128 cases and count how many differ from the cassette their current
+  green came from. That number is the frame, and it can be measured with a
+  throwaway script because the composition costs no model call. 30k. **Price
+  the repair only after that count exists.**
+  **Revised estimate: 30k for the count, 60k for the refactor and its tests,
+  and a re-record whose size the count decides.** The 40k first read priced at
+  the push assumed the composition might be impossible. It is not.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
