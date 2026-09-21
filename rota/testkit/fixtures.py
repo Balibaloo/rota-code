@@ -828,6 +828,27 @@ def mode_of(case: dict) -> str:
     return (case.get("inbound") or {}).get("verb") or case.get("tick", "")
 
 
+def rerecord_command(pins: Pins, test_file: str) -> str:
+    """
+    The command that re-earns a case, carrying the key it would run under.
+
+    The message said `ROTA_L1=1 python -m pytest <file> -q` and named no
+    model, so a reader who followed the repository's own instruction
+    re-recorded against whatever was ambient. Two cases flipped from fail to
+    pass on the model alone, both scoring 0 of 5 on the wrong one (observed:
+    frame 60, the same 20 case ids run twice, 2026-09-21).
+
+    The window is named for the same reason, and `ROTA_PROFILE` is named when
+    it is set, because it sets the think pin and a set pin keys the recording.
+    """
+    parts = ["ROTA_L1=1", f"ROTA_MODEL={pins.model}",
+             f"ROTA_NUM_CTX={pins.num_ctx}"]
+    profile = os.environ.get("ROTA_PROFILE")
+    if profile:
+        parts.append(f"ROTA_PROFILE={profile}")
+    return " ".join(parts) + f" python -m pytest {test_file} -q"
+
+
 def instructions_for(case: dict) -> str:
     """
     The prompt text a result is evidence *about*, for stamping.

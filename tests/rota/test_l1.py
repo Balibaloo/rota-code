@@ -10,8 +10,13 @@ replays for nothing, and a prompt edit produces a miss — which is correct,
 because a recording made against a different prompt is not evidence about this
 one.
 
-    ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q        # record or replay
-    ROTA_L1=1 ROTA_REFRESH=1 python -m pytest tests/rota/test_l1.py -q   # re-record
+    ROTA_L1=1 ROTA_MODEL=qwen3:8b pytest tests/rota/test_l1.py -q    # or replay
+    ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_REFRESH=1 pytest tests/rota/test_l1.py -q
+
+Name the model. Without `ROTA_MODEL` this tier records against `llama3.1:8b`,
+which is not the model the gate replays, and two cases scored 0 of 5 on the
+wrong model alone (observed: frame 60, 2026-09-21). A STALE failure prints the
+whole command, with the window and the profile it would run under.
 
 Serialised on purpose: no `xdist` here. Parallel model calls thrash the GPU and
 the timings stop meaning anything.
@@ -161,7 +166,8 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
         pytest.fail(
             f"STALE {case['id']}: no recording for the current prompt — this "
             f"result is unknown, not bad. Re-earn it with\n"
-            f"    ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q")
+            f"    "
+            + fixtures.rerecord_command(pins, "tests/rota/test_l1.py"))
 
     # A guard that fired is not a failure and is not nothing: the role reached
     # for something it must not do and the system held. Printed on a pass too,

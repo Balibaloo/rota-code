@@ -13,7 +13,12 @@ Composed flows and full stories build on these; a segment that fails is a
 specification, not a broken test, which is the same stance `test_l3.py` takes
 on a handoff that says too little.
 
-    ROTA_L1=1 python -m pytest tests/rota/test_gauntlet.py -q
+    ROTA_L1=1 ROTA_MODEL=qwen3:8b python -m pytest tests/rota/test_gauntlet.py -q
+
+Name the model. Without `ROTA_MODEL` this tier records against `llama3.1:8b`,
+which is not the model the gate replays, and two cases scored 0 of 5 on the
+wrong model alone (observed: frame 60, 2026-09-21). A STALE failure prints the
+whole command, with the window and the profile it would run under.
 """
 from __future__ import annotations
 
@@ -25,12 +30,15 @@ import pytest
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
-from rota.llm.llm import OllamaBackend, Pins
+from rota.llm.llm import OllamaBackend, Pins, think_for
 from rota.testkit import fixtures
 
 CASES = Path(__file__).parent / "cases"
 MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
-PINS = Pins(model=MODEL, temperature=0.0)
+# The think pin comes from `ROTA_PROFILE`, through the one rule in
+# `rota.llm.llm`. This tier read no profile while `test_l1.py` did, so one run
+# under a profile recorded the same model at two keys (frame 54, 2026-09-21).
+PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL))
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),
@@ -65,15 +73,16 @@ def backend_factory(dev_db):
 
 @pytest.mark.parametrize("case", _segments(), ids=[c["id"] for c in _segments()])
 def test_seat_flow_segment(case, tmp_path, backend_factory, dev_db):
+    # The ruling (2026-08-29): we are not locked to a model --
+    # one model carrying the capability is enough. A case that
+    # declares `model:` is held by that model; the default stays
+    # the recording reference.
+    pinned = case.get("model", MODEL)
+    pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned))
     passed, threshold, results = fixtures.run_sampled(
-        case, tmp_path, backend_factory,
-        # The ruling (2026-08-29): we are not locked to a model --
-        # one model carrying the capability is enough. A case that
-        # declares `model:` is held by that model; the default stays
-        # the recording reference.
-        pins=Pins(model=case.get("model", MODEL), temperature=0.0))
+        case, tmp_path, backend_factory, pins=pins)
 
-    stamp = Pins(model=case.get("model", MODEL), temperature=0.0).with_prompt(fixtures.instructions_for(case))
+    stamp = pins.with_prompt(fixtures.instructions_for(case))
     for r in results:
         # The whole system text as well: the brief is only its prefix, and the
         # rest of it is in the cassette key (frame 54).
@@ -84,7 +93,8 @@ def test_seat_flow_segment(case, tmp_path, backend_factory, dev_db):
         pytest.fail(
             f"STALE {case['id']}: no recording for the current prompt — this "
             f"result is unknown, not bad. Re-earn it with\n"
-            f"    ROTA_L1=1 python -m pytest tests/rota/test_gauntlet.py -q")
+            f"    "
+            + fixtures.rerecord_command(pins, "tests/rota/test_gauntlet.py"))
 
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"

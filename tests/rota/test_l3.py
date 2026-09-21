@@ -12,7 +12,12 @@ travelling as refs, with the reasoning left at home, carry enough for a stranger
 to act on.** A chain that fails because A said too little is not a bug in the
 test; it is the finding.
 
-    ROTA_L1=1 python -m pytest tests/rota/test_l3.py -q
+    ROTA_L1=1 ROTA_MODEL=qwen3:8b python -m pytest tests/rota/test_l3.py -q
+
+Name the model. Without `ROTA_MODEL` this tier records against `llama3.1:8b`,
+which is not the model the gate replays, and two cases scored 0 of 5 on the
+wrong model alone (observed: frame 60, 2026-09-21). A STALE failure prints the
+whole command, with the window and the profile it would run under.
 """
 from __future__ import annotations
 
@@ -24,7 +29,7 @@ import pytest
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
-from rota.llm.llm import OllamaBackend, Pins
+from rota.llm.llm import OllamaBackend, Pins, think_for
 from rota.testkit import fixtures
 
 CASES = Path(__file__).parent / "cases"
@@ -36,7 +41,10 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # cases were still reporting `8192 tokens evaluated against a 8192 window`
 # long after that was supposed to be impossible, and a prompt is truncated
 # from the front, where the role is told who it is.
-PINS = Pins(model=MODEL, temperature=0.0)
+# The think pin comes from `ROTA_PROFILE`, through the one rule in
+# `rota.llm.llm`. This tier read no profile while `test_l1.py` did, so one run
+# under a profile recorded the same model at two keys (frame 54, 2026-09-21).
+PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL))
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),
@@ -79,13 +87,14 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     on the pair before anything has gone wrong. Holding L3 to L2's bar would
     measure the product of two rates and report it as one.
     """
+    # The ruling (2026-08-29): we are not locked to a model --
+    # one model carrying the capability is enough. A case that
+    # declares `model:` is held by that model; the default stays
+    # the recording reference.
+    pinned = case.get("model", MODEL)
+    pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned))
     passed, threshold, results = fixtures.run_sampled(
-        case, tmp_path, backend_factory,
-        # The ruling (2026-08-29): we are not locked to a model --
-        # one model carrying the capability is enough. A case that
-        # declares `model:` is held by that model; the default stays
-        # the recording reference.
-        pins=Pins(model=case.get("model", MODEL), temperature=0.0))
+        case, tmp_path, backend_factory, pins=pins)
 
     # Both legs' briefs, because either one can be why the chain stopped
     # working. This tier recorded against bare pins with no prompt hash at all,
@@ -93,7 +102,7 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
     # and nothing could tell -- the distinction `test_l1.py` calls out as the
     # difference between a green result and a green result about a prompt that
     # has since been edited, missing from the tier that most needs it.
-    stamp = Pins(model=case.get("model", MODEL), temperature=0.0).with_prompt(fixtures.instructions_for(case))
+    stamp = pins.with_prompt(fixtures.instructions_for(case))
     for r in results:
         # Both legs' system texts, joined, for the same reason the stamp holds
         # both briefs: either leg can be why the chain stopped working.
@@ -105,7 +114,8 @@ def test_l3_chain(case, tmp_path, backend_factory, dev_db):
         pytest.fail(
             f"STALE {case['id']}: no recording for the current prompt — this "
             f"result is unknown, not bad. Re-earn it with\n"
-            f"    ROTA_L1=1 python -m pytest tests/rota/test_l3.py -q")
+            f"    "
+            + fixtures.rerecord_command(pins, "tests/rota/test_l3.py"))
 
     assert passed >= threshold, (
         f"{case['id']}: {passed}/{len(results)} passed, needs {threshold}\n"
