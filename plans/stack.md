@@ -68,7 +68,72 @@ starts with frame 62, batch the open frames, before it takes any of them**
 organises the current frames"). So the placement note above is superseded for
 every frame frame 62 batches.
 
-### 62. Batch the open frames (2026-09-21) (Roman)
+## The batches
+
+Frame 62, batch the open frames, produced this table on 2026-09-21. Four
+batches hold 13 of the 21 open frames. Eight frames belong to no batch, and
+each one says why in its own first line. **A batch is one read, one repair or
+one walk, and never a subject.** Every frame carries its batch in its first
+line, so a session that opens one frame reads the batch before the work.
+
+| Batch | Frames, in order | The one thing they share |
+| --- | --- | --- |
+| A, the cassette key | 54, 60, 55, 49 | One repair: the key that names a recording. The writer and the reader must name the same fields. |
+| B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
+| C, the night's stall | 58, 38, 37 | One read: what the Developer was given and what it answered, across the three nights on disk. |
+| D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
+| none | 48, 56, 57, 45, 33, 4, 2, 1 | Nothing. Each frame's first line says what it shares and what it does not. |
+
+**Batch A is one fault in two places, and the second is a cause of a third**
+(observed: `rota/tools/casestatus.py:75-82`, 2026-09-21). The report matches a
+recording on the case id, the prompt hash and the model. Frame 60 says a
+re-record outside the gate takes `llama3.1:8b` while the gate takes
+`qwen3:8b`. So such a row is written under a model the report never asks for,
+and the case reads STALE. **That makes frame 60 a producer of frame 49's 72**,
+and not only an instrument fault. The file's own comment at `:60-61` states the
+intent the fault breaks: a qwen-held green must not render as a llama STALE.
+
+**Batch B is one query, not four** (observed: the night 88 schema and its 738
+turns, 2026-09-21). The cut writes its own size into the turn text, in the
+form `CUT the result: 2,257 of 16,257 characters are not shown`, and it names
+the call that returns the rest. 95 turns carry a cut in `user`, 39 in `system`
+and 20 in `completion`. So one pass over three columns answers all four
+frames: what was removed, from which block, and whether it was a verdict, a
+ruling, a tool call or an open obligation. The batch's order puts frames 59
+and 61 before 47 and 53, because those two have repairs priced already and
+these two need the read before they can be priced at all.
+
+**Batch C's order is set by what a retry means.** Frame 58 runs first because
+it changes what frames 38 and 37 see. A stall of ten attempts is not ten
+attempts if the retries are one session repeated, and frame 58 measured 12 of
+night 88's 191 sessions as four sessions run three times.
+
+**Two gains that are not batches, and are lost if the order ignores them.**
+First, **one walk can serve four frames**: 45, 58, 59 and 61 all repair the
+write path and all four price a full night. One night proves all four if the
+repairs land together, which saves about 60k in this context. Second, **frame
+57 should be scheduled next to batch B**, because it reads the same night for
+a different question and the night is then opened once.
+
+**Three ordering facts that the batches expose** (reasoned: the batching pass,
+2026-09-21):
+
+1. **Batch C is the only batch that unblocks frame 33.** That frame's code is
+   built, reviewed twice and gated at 457k, and it has never walked, because a
+   walk needs a merge and a merge waits on frame 37. No other frame on this
+   stack releases it.
+2. **Frame 56 gates frame 53's ruling.** No fraction of the window can be
+   ruled while 603 recorded prompts say `_fit`'s promise does not hold. Frame
+   56 also needs one finding from frame 54: `_fit_budget` is a function of
+   `num_ctx`, and every cassette was recorded at 12288 or 8192, so the 603
+   must be counted against each cassette's own window.
+3. **Batch A and frame 48 restore the acceptance's two lines.** Batch A
+   restores "zero stale" and frame 48 restores "zero new reds". Neither line
+   can gate today, and every frame that closes after them is accepted on a
+   line that can fail. That is a shared purpose and not a shared read, so the
+   frames stay apart and are ordered together.
+
+### 62. Batch the open frames (2026-09-21) (Roman) [75f21e35]
 
 - Meta workflow. **Roman's ask, 2026-09-21 13:40**: the next session starts
   with a frame that organises the current frames into batches. This frame is
@@ -143,8 +208,58 @@ every frame frame 62 batches.
   **Do not read this as messaging being broken.** The claim was posted and it
   is on disk. The watcher for 75f21e35 did not wake inside 90 seconds, and the
   reason is not known from here.
+- Status 2026-09-21 13:52 (rota-36): **taken and worked. The batches are in
+  the section above, and the frame waits on Roman for one ruling.** Meta
+  workflow. Session 75f21e35 took the claim at 13:46 on the message route, so
+  the hand-off cost one message and no session. **The watcher's own record says
+  why the take was late**: the first arm exited 3, its wait ran out before the
+  claim was posted, and the re-arm then took the waiting claim at once. So the
+  watcher did not fail. It was between waits.
+- Status 2026-09-21 13:52 (rota-36): **the pass read all 21 frames and then
+  read code for the three claims it adds beyond them.** The warning on this
+  frame was that the real pair looked unrelated until the code was read, so
+  each new link was checked and not reasoned:
+  `rota/tools/casestatus.py:75-82` for the model in the match,
+  `.rota/clickI_night88.db`'s schema and cut text for batch B's one query, and
+  `probes/walk.py:84-87` for batch D's seam. All three hold.
+  **Four batches of 13 frames, and eight frames left alone.** Three candidate
+  groupings from the frame's own list were broken by the reading. The
+  register's truth stays whole as batch A, and it gained a mechanism: frame 60
+  produces frame 49's stale count. The window's size breaks: frames 53 and 56
+  read different databases, so frame 56 gates frame 53's ruling and joins no
+  batch. What a seat is told breaks the other way and grows: frames 47, 53, 59
+  and 61 are one query over one night, which the frame's candidate did not see
+  because it had frames 53 and 56 together.
+  **What is left for Roman**: the order of the batches. This frame cannot close
+  until that is ruled, and the recommendation is below.
+- **The recommended order, 2026-09-21 (reasoned: the batching pass).** Eight
+  steps. Two rules set it: an instrument is repaired before the work it
+  accepts, and a shared walk is not split.
+  1. **Batch A**, frames 54, 60, 55, 49, with **frame 48** beside it. The two
+     lines of every acceptance come back. Nothing below this step can be
+     accepted honestly until it lands.
+  2. **Batch C**, frames 58, 38, 37. This step releases frame 33 and step 4 of
+     Roman's order in frame 4. It is second and not first because frame 58
+     ships code, and code closed before step 1 is accepted on a line that
+     cannot fail.
+  3. **Frame 56**. It sits here because it needs frame 54's window finding
+     from step 1, and it gates the ruling in step 4.
+  4. **Batch B**, the one read, then frames 59 and 61, then 47 and 53, with
+     **frame 57** beside it on the same night.
+  5. **Frame 45**. It lands here so its walk joins the next step.
+  6. **One night**, proving frames 58, 59, 61 and 45 together. About 20k in
+     this context against about 80k for four nights.
+  7. **Batch D**, frames 41 and 42.
+  8. **Frame 33's walk**, then the remaining steps of frame 4.
+  **The one place this order is weak**: frame 33 holds 457k of built, reviewed
+  and gated code that has never run on a night, and this order reaches it at
+  step 2 for the unblock and step 8 for the walk. An order that put batch C
+  first would release it sooner and would accept frame 58's code on a line
+  that cannot fail.
 
 ### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
+
+- **Batch A, the cassette key. First of four.** The batch's one shared thing is the key that names a recording. This frame is the reader's half: `casestatus` matches on three fields and the cassette key covers more. Frame 60, the re-record command the suite prints uses the wrong model, is the writer's half and runs next.
 
 - Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
   `prompt_hash` and model. The cassette key covers more than that: the prompt's
@@ -179,6 +294,8 @@ every frame frame 62 batches.
   and takes no new frame.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
+
+- **Batch A, the cassette key. Second of four.** This frame is the writer's half of the same fault. `casestatus` matches `model` as well as the case id and the prompt hash (observed: `rota/tools/casestatus.py:75-82`, 2026-09-21), so a case re-recorded outside the gate writes a row under `llama3.1:8b` that the report, asking for `qwen3:8b`, cannot see. **That makes this frame a producer of frame 49's stale count**, and not only an instrument fault.
 
 - Meta workflow. `tests/rota/test_l1.py:34` reads
   `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
@@ -215,6 +332,8 @@ every frame frame 62 batches.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
+- **Batch B, what a seat lost on night 88. First of four.** The batch's one shared thing is one read of `.rota/clickI_night88.db`, over the `turns` table's `system`, `user` and `completion` columns (observed: the table's schema and 738 rows, 2026-09-21). The cut states its own size in the text, so one query counts every cut site and what it removed: 95 turns carry a cut in `user`, 39 in `system` and 20 in `completion`. This frame owns the `completion` side.
+
 - Rota workflow. The window rose to 16384 in frame 43 and the reply cap did
   not. So a seat writes a longer reply, and the reply cut now bites where it
   did not before (reasoned: frame 43's closing read of its own night; the
@@ -250,6 +369,8 @@ every frame frame 62 batches.
   frame that caused it, on the night that proved that frame.
 
 ### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
+
+- **Batch B, what a seat lost on night 88. Second of four.** This frame owns the `system` and `user` side of the same read, which is the denied demand. Roman already ruled that this frame and frame 47 share one read, and the batch widens that read to frames 59 and 61 rather than adding one. **The ruling on the fraction still waits on frame 56**, because no fraction can be ruled while 603 recorded prompts say the promise does not hold.
 
 - Rota workflow. A capacity question, split out of frame 46 on 2026-09-20
   because frame 46 is a design frame and this is not its question.
@@ -310,6 +431,8 @@ every frame frame 62 batches.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
+- **No batch.** It shares no read, no repair and no walk with any open frame. **It is ordered beside batch A for a different reason**: batch A restores the acceptance line "zero stale" and this frame restores "zero new reds". The two lines are in every acceptance this repository writes, and neither can gate today. That is a shared purpose and not a shared read, so the frames stay apart.
+
 - Meta workflow. One test file gives a new red that the gate itself re-runs
   green. Six flakes on 2026-09-19 across five different tests of that one
   file, with and without machine load, and `test_arc_synthetic.py` flaked once
@@ -367,6 +490,8 @@ every frame frame 62 batches.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
+- **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
+
 - Meta workflow. `L1-TE-survey-an-area-for-its-terms` has 10 of 10 green on load
   `qwen3:8b@248599`. It replayed green twice on 2026-09-20, then failed 20 of 20
   on four fresh recordings at the same model, the same 12288 window and
@@ -408,6 +533,8 @@ every frame frame 62 batches.
   The cause is still unnamed, so the frame stays open on its own ends-when.
 
 ### 49. The register is 72 cases stale and no frame owns it (2026-09-20)
+
+- **Batch A, the cassette key. Fourth of four, and the batch's output.** The true stale count is what the batch exists to produce. Both frames above move the count: frame 54 by widening the match, frame 60 by stopping a write under an unpinned model. This frame re-records what is left. It already waits on frame 54, and it now waits on frame 60 for the same reason.
 
 - Meta workflow. A stale case is unmeasured, not bad. It means the composed
   prompt moved and nobody has re-earned the result since. Today 72 of 128
@@ -453,6 +580,8 @@ every frame frame 62 batches.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
+- **No batch.** Its first read is a scope report over `tick:blindspot`'s write path, which no other frame reads. **Its walk can be shared**: this frame, frame 58, frame 59 and frame 61 all repair the write path and all four price a full night. One night proves all four if the repairs land together, which saves about 60k in this context. That is a scheduling gain and not a batch.
+
 - Rota workflow. Night 86's pages m24 and m27 told the principal that five
   claims about constraints are falsified: format_filename, paramtype,
   intrange, floatrange and float. The Critic falsified none of them
@@ -489,6 +618,8 @@ every frame frame 62 batches.
 
 ### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
 
+- **Batch C, the night's stall. Second of three.** This frame's read of `.rota/clickI_n70_merged.db` against `.rota/clickI_night86.db` is the batch's read. It must be run after frame 58's finding is known, so a repeated session is not counted as a second attempt.
+
 - Rota workflow. Sentence two merged cold on night 70. On night 86 the
   same sentence cut a batch, committed, and the Developer then exhausted
   ten attempts on its tests (observed: `plans/archive/night86-2026-09-18.md`).
@@ -516,6 +647,8 @@ every frame frame 62 batches.
   cheaper and step 2 stays closed.
 
 ### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
+
+- **Batch C, the night's stall. Third of three.** Already waits on frame 38, and its first read is the same read. **Batch C is the only batch that unblocks frame 33**, whose code is built, reviewed twice and gated at 457k and has never walked, because a walk needs a merge and a merge waits here.
 
 - Rota workflow. Night 86 cut a batch, took a worktree and committed at
   `da5e7e8`. The Developer then woke on `tick:tests_failing` nine times
@@ -549,6 +682,8 @@ every frame frame 62 batches.
 
 ### 41. A sub-agent drives the walk as the principal (2026-09-18) (Roman)
 
+- **Batch D, the principal seam. First of two.** The batch's one shared thing is one repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)` method (observed: the file, 2026-09-21). This frame puts a sub-agent behind it. Frame 42 puts a designed principal behind the same method.
+
 - Rota workflow. `probes/walk.py` has the seam already: `class
   Principal` with one method, `respond(ask)`, which receives the
   rendered page and returns words or a per-item verdict. A sub-agent
@@ -574,6 +709,8 @@ every frame frame 62 batches.
 
 ### 42. The designed principal, and whether zero temperature is consistent (2026-09-18) (Roman)
 
+- **Batch D, the principal seam. Second of two.** Already waits on frame 41. **Frame 58 partly discharges this frame's first line.** That frame measured 12 sessions of night 88 as four sessions run three times, hashing the same for all ten turns, so a zero-temperature model repeats an identical prompt exactly. What this frame still needs is the spread over a *similar* problem, which that measurement does not give.
+
 - Rota workflow. A deterministic principal built by hand to represent a
   careful person, option B of the grill (ruled: Roman, 2026-09-18). It
   keeps nights comparable, which an agent principal cannot.
@@ -597,6 +734,8 @@ every frame frame 62 batches.
 - Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
 ### 33. Finding 42: the code index refreshed after a commit (Roman, 2026-09-17)
+
+- **No batch, and it is the prize.** It is validating, not building. Its walk waits on a merge, a merge waits on frame 37, and frame 37 is the tail of batch C. So batch C is the only work on this stack that releases it.
 
 - Rota workflow. Step 3 of the order. The code index is built at
   onboarding and never refreshed after a commit, so a batch's own
@@ -749,6 +888,8 @@ every frame frame 62 batches.
 
 ### 4. Roman's order from here (2026-09-14 12:58) (Roman)
 
+- **No batch. It is the order itself**, and the batches are an ordering inside its step 3 and beyond. It closes when step 7 ships.
+
 - (ruled: Roman's order, `rota/COMPLETION.md`, "The order from here") The
   road to the loop that merges cold on click. Steps: 1 the benchmark, 2
   routing a larger model, 3 finding 42, the code index refreshed after a
@@ -792,6 +933,8 @@ every frame frame 62 batches.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
+- **No batch, and it gates one.** Its read is over `tests/rota/cassettes.db` and not over a night, so it shares no read with batch B. **It gates frame 53's ruling**, because the fraction `_fit` uses cannot be ruled while 603 recorded prompts say `_fit`'s promise does not hold. **And it needs one finding from frame 54**: every cassette was recorded at `num_ctx` 12288 or 8192, and `_fit_budget` is a function of `num_ctx`, so the 603 must be counted against each cassette's own recorded window and not against 16384.
+
 - Rota workflow. `_fit` promises that a turn's transcript fits
   `_fit_budget(num_ctx, len(system))`. **603 of 18435 cassettes hold a prompt
   that does not, and the worst exceeds it by 67295 characters** (observed: frame
@@ -822,6 +965,8 @@ every frame frame 62 batches.
   this frame's reviews produced that its tests could not.
 
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
+
+- **No batch. It shares an input and not a read.** Its statistics pass reads the same night as batch B, and it asks a different question of it: what a prompt costs in bytes of GPU memory, not what it carried in characters. Sharing a file is not sharing a read. **Schedule it next to batch B** so the night is opened once.
 
 - Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
   2026-09-21**: find every path by which running rota puts data in system RAM
@@ -892,6 +1037,8 @@ every frame frame 62 batches.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
+- **Batch C, the night's stall. First of three.** The batch's one shared thing is one read of what the Developer was given and what it answered, across the three nights on disk. This frame runs first because it changes what the other two see: a stall of ten attempts is not ten attempts if the retries are one session repeated.
+
 - Rota workflow. A tick that fails is retried up to three times, and **the retry
   is the same prompt at temperature zero, so it is the same session again**
   (observed: night 88's turns, hashed per turn, 2026-09-21).
@@ -924,6 +1071,8 @@ every frame frame 62 batches.
 
 ### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
 
+- **Batch B, what a seat lost on night 88. Third of four.** The ledger row's cut is one of the cut sites the batch's read counts, and this frame owns the question of whether that site may cut at all. The read is shared. The repair, 60k, is this frame's alone.
+
 - Rota workflow. The principal's ledger row loses 36 to 225 characters of the
   Critic's reasoning on most falsifications, and the ledger row is what the
   principal rules from (observed: 13 of 191 sessions of night 88 carry a
@@ -953,6 +1102,8 @@ every frame frame 62 batches.
   frame.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
+
+- **Batch B, what a seat lost on night 88. Fourth of four.** This frame's priced read is "how many refusals go unmet in a night", and it reads the same three columns of the same 738 turns. So it joins the batch's read and pays nothing for it. The repair, 80k, is this frame's alone.
 
 - Rota workflow. A seat's unmet obligation sits in a refusal, in a block that
   the prompt's tail soon buries. Nothing restates it. The seat finds it again
@@ -984,6 +1135,8 @@ every frame frame 62 batches.
   This session holds frame 46 and takes no new frame.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
+
+- **No batch.** It waits on frame 4, whose step 5 is this frame's breadth.
 
 - (ruled: goals 3 and 10 of the plan) Three lineage repos, three sentences each, unattended. Click sentence
   one merges (nights 49, 50). Sentences two and three do not yet.
@@ -1024,6 +1177,8 @@ every frame frame 62 batches.
   Not frame 33's.
 
 ### 1. The end state (plan agreed 2026-09-10)
+
+- **No batch.** It is the bottom frame and it waits on frame 2.
 
 - (ruled: the destination, agreed 2026-09-10) A careful person runs rota alone on a small Python repository and
   gets a merged change they can read. Honest about where small models
