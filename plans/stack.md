@@ -462,6 +462,46 @@ a different question and the night is then opened once.
   **The six other chain cases are not re-recorded, and that is a decision.**
   They came back green from their own cassettes, and a cassette is the
   recording. Re-recording them would spend six greens to learn nothing.
+- Status 2026-09-21 18:45 (rota-36): **the diff review is in: safe to close,
+  with corrections. A fix pass is out.** Meta workflow. 203k on the harness
+  line against a 120k cap, 83 tool calls, 25 minutes (observed: the harness
+  usage). It ran read-only on a worktree at `5882b5f`. Eight of the ten
+  numbered points confirmed, three high findings, three low, and six probes
+  that reproduced the pass's own numbers independently.
+  **The review confirmed the migration rather than taking it on trust.** 800
+  random migrated rows checked against the cassettes: zero missing hashes,
+  zero wrong columns, zero prefix failures of 379. 3000 rows checked for
+  ambiguity: zero migrated on an ambiguous match. All five dropped categories
+  reproduce over the full 204058.
+  **The highest finding is frame 60's fault surviving in a second place, and
+  it is the place a person looks** (observed: the reviewer's probe on the
+  migrated register, 2026-09-21). `rota/cockpit/progress.py:214-250` is a
+  second reader of `case_runs`. It matches on `prompt_hash` alone and takes
+  the model from the first row it sees, so it reports `llama3.1:8b` and 98
+  pass, 19 fail, while `casestatus --model qwen3:8b` reports 103 green, 20
+  failing. **Two instruments, two answers, and the cockpit is the page a
+  person reads.** The scope report of this frame never found it, because the
+  frame was written about the report and not about every reader.
+  **The second high finding is a trap the approved re-record would have
+  sprung.** The door runs for every pytest invocation, before anything is
+  collected, so a file that calls no model is refused. It does not fire today
+  only because the register happens to hold 11 models. A re-record to a
+  qwen-only register would make every bare `pytest` command fail. The fix
+  moves the check to a hook that runs after collection, where the collected
+  items are a fact rather than a guess.
+  **The third high finding is the acceptance line, and it is the repair
+  working.** The gate now reads `stale (1)`, for
+  `L3-a-failed-verdict-turns-into-a-fix`. The register used to call that case
+  green while the suite could not replay it. **So the line that could not
+  fail now fails**, which is what this frame was opened to buy.
+  **Three low findings**: the think pin is guarded in one direction only, a
+  crashed session writes an empty `system_hash` that reads like a legacy row,
+  and the migration replaces an existing target silently because the
+  `--expect-*` guards default to off.
+  **One finding is recorded and needs no fix**: the four provisionals clear
+  themselves. `trust` groups by `load_id`, which is `model@epoch//7200`, so
+  the next gate run in another two-hour window gives the second confirming
+  load. They are not a re-record obligation.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
