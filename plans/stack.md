@@ -722,6 +722,20 @@ next session to close 46 reorders the file to this list.
   replay the same cassettes. A 0 of 5 is one live sample, not five.
   **The trade is Roman's and it is put to him now**, because it trades a true
   record against a measured case, and it changes what this frame closes on.
+- Status 2026-09-21 05:40 (rota-e7): **ruled. Both halves land, and `ACT-TS` is
+  re-earned first** (ruled: Roman, 2026-09-21, asked with three options and the
+  split recommended against). Meta workflow.
+  **The re-earning pass runs now**, priced 60k. It reads the turn 11 exchange
+  on both runs and tests candidate wordings against the case. Every candidate
+  must make no claim about where the answer sits, must name the call that
+  returned it, and must keep the half that says how the call ran.
+  **The hypothesis under test** (reasoned: this session, from the two
+  completions): "What `{name}` returned then still stands" reads to a 9B model
+  as closure. "Still stands" may say the work is settled, where "the answer is
+  above" pointed the seat back at material it had to use.
+  **A failure here is a real answer, and Roman ruled for it in advance.** If no
+  wording keeps the case, both halves land anyway and `ACT-TS` is recorded red
+  with its reason.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
