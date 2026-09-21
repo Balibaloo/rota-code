@@ -319,6 +319,47 @@ a different question and the night is then opened once.
   cent identifiable by the completion-text join, with 22.9 per cent not
   separable. The migration measures the real number and records it.
   **The ends-when changes, and the design record's revision 3 carries it.**
+- Status 2026-09-21 16:54 (rota-36): **pass 1 of three is in, judged and
+  committed at `f9c9402`.** Meta workflow. 204k on the harness line against a
+  250k cap, 119 tool calls, 49 minutes (observed: the harness usage).
+  **The register is cloned, and the clone came before the code could touch
+  it.** `tests/rota/cassettes-legacy-2026-09-21.db` is a byte copy of the
+  pre-migration register: 9 columns, 204058 rows, 18604 cassettes (observed:
+  the holding session's own read of both files, 2026-09-21). The live register
+  is still 9 columns. `.gitignore` excludes the clone, because it is 780 MB.
+  **The frame's central fault is repaired, and the holding session measured it
+  rather than reading the report** (observed: `casestatus` run twice on a copy
+  of the clone, 2026-09-21). At the window the recordings hold: 21 failing, 0
+  stale, 107 green. **The same register at 16384, which is the window the
+  nights run and `rota/HARDWARE_GUIDE.md:159` tells the reader to set: 128
+  stale, 0 green.** Before the pass it said 107 green. The acceptance line can
+  now fail.
+  **The report now prints the key it read under.** That one line is what stops
+  frame 49's 72 from happening again: a count quoted without its model is a
+  true number about nothing.
+  **`system_hash` is written and not matched, and the blocker is named in the
+  code** (observed: the comment at the match in `rota/tools/casestatus.py`).
+  The report cannot compose the system text, because `run_session` builds it
+  from a sandbox over the case's seeded database and no second definition
+  exists to call. **Matching on a value the report cannot compute would stale
+  every case.** Closing it wants one composition that serves the runner and
+  the report, and that is a frame and not a line. The obligation is recorded
+  here so it stays countable.
+  **Seven deviations, all accepted with their causes stated.** The one worth
+  keeping: `CaseResult` had to carry the system text, and three early returns
+  in `run_chain` were missing it. The agent found that by counting the rows a
+  gate run wrote, not by reading the code.
+  **The gate: 4 new reds, zero stale, 477 s.** Three of the four fail at
+  `97f05ff` with no changes, proven in a worktree at HEAD, and two of those
+  three are the subjects of open frames: `L1-TE-survey-an-area-for-its-terms`
+  is frame 55's own case and `ACT-TS-five-criteria-one-per-reply` is frame
+  61's. The fourth is flaky and the gate re-ran it green.
+  **The gate's baseline is `f3a7e41` of 2026-09-19, two days behind.** It is
+  re-baselined at this frame's closing commit and not before, so the next
+  passes are judged against the same line.
+  **Next: pass 2 is the door and frame 60's two remaining clauses. Pass 3 is
+  the migration out of the clone, then the re-record, the gate and the diff
+  review.**
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
@@ -518,6 +559,21 @@ a different question and the night is then opened once.
   timing test and a screen test have nothing in common but the suite they run
   in, so the suspect moves from what the file's tests share to what the run
   shares.
+- Status 2026-09-21 16:54 (rota-36): **a fourth file flakes, and it is not a
+  wall-clock test** (observed: frame 54's pass 1 gate run, 2026-09-21).
+  `tests/rota/test_map.py::test_a_shared_file_name_lists_the_candidates` came
+  up red under the gate and the gate re-ran it green itself. The test queries
+  `__init__.py` and rebuilds the code index, so it races other workers over
+  one index.
+  **This breaks the reading of 00:41.** That status named a deadline measured
+  against a loaded machine as the suspect, from two wall-clock tests. This
+  test holds no deadline and sleeps not at all. **The common factor across all
+  four files is the fan-out, not the clock**: shared mutable state that the
+  suite's workers contend for, which for this file is the index and for
+  `test_screens.py` is still unnamed. The first read is what each of the four
+  writes that another worker reads.
+  **The ends-when's one file is now four**, and widening it is still Roman's
+  order to give.
 - Status 2026-09-21 00:41 (rota-02): **a third file flakes, and two of the three
   are wall-clock tests** (observed: the gate at frame 46's lines 2 and 5,
   2026-09-21). `tests/rota/test_arc_synthetic.py::test_arc_delivery_loop_slices_batches_and_tests`
