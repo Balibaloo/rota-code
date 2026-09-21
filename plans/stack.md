@@ -233,14 +233,37 @@ a different question and the night is then opened once.
   schema change on `case_runs`, a backfill decision for 204058 rows, and a
   door that stops an ambient variable from joining the key in silence. The
   frame is blocked on that ruling and the question is below.
-- **Blocked on Roman, 2026-09-21 14:25.** The question: what happens to the
-  204058 existing `case_runs` rows when `case_runs` gains the key's missing
-  columns? Recommended: **write the rows off as 12288 and record why**, because
-  every cassette is at 12288 or 8192, a row's own cassette is findable by the
-  case's text, and a default of 12288 keeps every current green readable while
-  making the next run at another window read stale, which is the true answer.
-  The alternative is to re-record everything, which frame 55 shows can spend a
-  green the live model does not give back.
+- Status 2026-09-21 14:35 (rota-36): **Roman ruled twice, and the frame is
+  unblocked.** Meta workflow.
+  **The existing rows are written off, not re-recorded** (ruled: Roman,
+  2026-09-21, asked with two other answers). The backfill writes 12288, 0.0,
+  the text protocol and no extras, and it records why. Every current green
+  stays readable, the next run at another window reads stale, and no green is
+  spent. Frame 55 is the reason re-recording everything was rejected: a
+  re-record can spend a green the live model does not give back.
+  **Frame 60 folds into this frame's repair** (ruled: Roman, 2026-09-21, asked
+  with two other answers). One door covers `ROTA_MODEL` and `ROTA_NUM_CTX`
+  together, because both are ambient variables that join the cassette key in
+  silence. **So frame 60's third ends-when clause moves here**, which is the
+  test that a run outside the gate does not silently take a different key from
+  the register's. Frame 60 keeps its first two clauses, which are the message
+  that names no model and the two test files that disagree.
+- **The ends-when, as the ruling leaves it** (reasoned: the first read and
+  Roman's two rulings, 2026-09-21). It replaces the line above.
+  1. `case_runs` carries the cassette key's missing fields, and the report
+     matches on them.
+  2. The 204058 existing rows are backfilled as 12288, 0.0, text, no extras,
+     with the reason recorded. A row whose cassette is findable at 8192 by its
+     own text takes 8192.
+  3. One door refuses a suite run whose ambient variables would build a key
+     the register does not hold, and it names the variable. It covers
+     `ROTA_MODEL` and `ROTA_NUM_CTX`.
+  4. A test asserts that a prompt-text change makes a case read stale.
+  5. A test asserts that a run outside the gate does not silently take a
+     different key from the register's.
+  6. The true stale count is measured and recorded, and it replaces the 72 in
+     frame 49.
+  A diff review is required, because the frame changes the schema.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
@@ -278,6 +301,18 @@ a different question and the night is then opened once.
   recorded green does not reproduce live on one model. This says two commands
   that both claim to re-earn a case use two different models. This session
   holds frame 46 and takes no new frame.
+- Status 2026-09-21 14:35 (rota-36): **the repair folds into frame 54, the
+  register's match is narrower than the cassette key** (ruled: Roman,
+  2026-09-21, asked with two other answers). Meta workflow. Frame 54's first
+  read found a second ambient variable, `ROTA_NUM_CTX`, that joins the
+  cassette key exactly as `ROTA_MODEL` does. One door covers both, so the two
+  frames share one repair, which is what batch A said they were.
+  **This frame keeps two of its three ends-when clauses**: the STALE message
+  names a model, and the two test files agree on which model a direct run
+  uses. **The third clause moves to frame 54**, which is the test that a run
+  outside the gate does not silently take a different key from the
+  register's. So this frame is now a door and a message, and its 30k price
+  holds.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
