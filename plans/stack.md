@@ -158,7 +158,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
+### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman) [75f21e35]
 
 - **Batch A, the cassette key. First of four.** The batch's one shared thing is the key that names a recording. This frame is the reader's half: `casestatus` matches on three fields and the cassette key covers more. Frame 60, the re-record command the suite prints uses the wrong model, is the writer's half and runs next.
 
@@ -193,6 +193,54 @@ a different question and the night is then opened once.
 - Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
   frame exists so the obligation stays countable. This session holds frame 46
   and takes no new frame.
+- Status 2026-09-21 14:25 (rota-36): **claimed by 75f21e35, and the first read
+  is done. It costs the frame its price, because the repair is a schema change
+  and not a wider `WHERE` clause.** Meta workflow.
+  **The two keys, field by field** (observed: `rota/llm/cassettes.py:105-120`,
+  `rota/llm/llm.py:47-92` and `rota/tools/casestatus.py:75-82`, 2026-09-21).
+  The cassette key covers seven things: the model, the temperature, `num_ctx`,
+  the protocol, the system text, the user text, and any optional pin that is
+  set. The report matches three: the case id, `prompt_hash` and the model.
+  **`prompt_hash` is not in the cassette key at all.** It is a sha256 of
+  `fixtures.instructions_for(case)` and it is written to `case_runs` as a
+  fingerprint of the role's instructions only.
+  **Four of the seven have no column to match on.** `case_runs` holds
+  `case_id`, `model`, `prompt_hash`, `run_no`, `passed`, `problems`, `seq`,
+  `transcript` and `load_id`. It records no `num_ctx`, no temperature, no
+  protocol and no extras. So the repair cannot be a wider match. **The table
+  must carry the key before the report can read it**, and 204058 existing rows
+  then need a backfill or a write-off.
+  **A second ambient variable joins the key, and a document tells the reader
+  to set it.** Frame 60 found `ROTA_MODEL`. This read found `ROTA_NUM_CTX`.
+  The suite deliberately does not pin `num_ctx`, at
+  `tests/rota/test_l1.py:35-41`, so it takes `DEFAULT_NUM_CTX`, which reads
+  `ROTA_NUM_CTX` and defaults to 12288. The gate sets `ROTA_MODEL` and never
+  `ROTA_NUM_CTX`. **`rota/HARDWARE_GUIDE.md:159` tells the reader to set
+  `ROTA_NUM_CTX` to 16384.**
+  **Measured, not reasoned** (observed: `key_for` run over a real cassette's
+  own system and user text, 2026-09-21). One recording's key at 12288 finds
+  its row. The same text at 16384 finds nothing, and at 8192 finds nothing.
+  **No cassette in the register is at 16384**: 15091 are at 12288 and 3513 at
+  8192, of 18604. Every temperature is 0.0.
+  **So the worst case is the whole register and not 72 cases.** A suite run
+  with `ROTA_NUM_CTX=16384` misses every cassette. `record_case_run` returns
+  without writing when a run failed for want of a cassette, at
+  `rota/llm/cassettes.py:360-361`, and `casestatus` filters the same rows out
+  of what it reads. **A whole suite run in which nothing replayed leaves the
+  register reporting the previous greens, with no stale and no new red.**
+  **The reprice, for Roman.** The read was priced at 20k and cost about 25k.
+  The repair was priced at 80k for a wider match and a test. It is now a
+  schema change on `case_runs`, a backfill decision for 204058 rows, and a
+  door that stops an ambient variable from joining the key in silence. The
+  frame is blocked on that ruling and the question is below.
+- **Blocked on Roman, 2026-09-21 14:25.** The question: what happens to the
+  204058 existing `case_runs` rows when `case_runs` gains the key's missing
+  columns? Recommended: **write the rows off as 12288 and record why**, because
+  every cassette is at 12288 or 8192, a row's own cassette is findable by the
+  case's text, and a default of 12288 keeps every current green readable while
+  making the next run at another window read stale, which is the true answer.
+  The alternative is to re-record everything, which frame 55 shows can spend a
+  green the live model does not give back.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
