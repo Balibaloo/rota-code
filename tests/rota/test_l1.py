@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+import rota_serial_plugin
+
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
@@ -51,6 +53,13 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # The rule lives in `rota.llm.llm` because `casestatus` matches a recording
 # on the pin it sets, and two copies of one rule drift (frame 54).
 PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL))
+
+# The door, called from the file that reads the register (frame 54,
+# 2026-09-21). It refuses a replay whose ambient key the register does
+# not hold. It is called here and not from a pytest hook: a hook that
+# raises after collection runs on an xdist worker and ends the run in
+# INTERNALERROR, with the reason nowhere in the output.
+rota_serial_plugin.refuse_a_key_the_register_does_not_hold()
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),

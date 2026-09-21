@@ -22,7 +22,6 @@ from pathlib import Path
 
 from .. import paths
 from ..design import graph as graph_mod
-from ..llm.llm import Pins
 from ..roles import prompts
 from ..testkit import fixtures, obligations
 
@@ -190,59 +189,69 @@ def coverage() -> dict:
 # L1 health, with staleness
 # ---------------------------------------------------------------------------
 
-def _prompt_hash(case: dict, model: str) -> str:
-    """
-    The hash the case *would* record against if it ran now.
-
-    `num_ctx` is not pinned here and must not be. It used to say 8192 while runs
-    used 12288, which was harmless only by accident: `with_prompt` digests the
-    prompt text alone, so the wrong window never reached the hash. The moment it
-    did, every row on this panel would read stale for ever — and stale is the
-    safe-looking direction, so nobody would notice the panel had stopped
-    reporting.
-
-    The suites that record these hashes stopped pinning `num_ctx` for the same
-    reason: it was pinned at 8192, stayed there when the default rose to 12288
-    to stop the largest prompts being clipped, and so the fix reached everything
-    except the measurements of whether anything worked.
-    """
-    instructions = prompts.compose(case["role"], fixtures.mode_of(case))
-    return Pins(model=model, temperature=0.0).with_prompt(
-        instructions).prompt_hash
-
-
 def l1(dev_db: Path | None = None) -> dict:
-    """Latest recorded outcome per case, and whether it still means anything."""
+    """
+    Latest recorded outcome per case, and whether it still means anything.
+
+    **The match and the model are `rota.tools.casestatus`'s, called and not
+    copied** (frame 54's fix pass, 2026-09-21). This panel matched on
+    `prompt_hash` alone and took the model from the first row it happened to
+    read, so on the migrated register it reported `llama3.1:8b` with 98 pass
+    and 19 fail while `casestatus --model qwen3:8b` reported 20 failing and
+    103 green. Two instruments over one table gave two answers, and this is
+    the one a person reads.
+
+    The connection stays a raw `sqlite3.connect`, so this panel never
+    migrates the register it is reading. A register written before frame 54
+    has no columns to match the key on, and `carries_the_key` says so.
+    """
+    from ..tools import casestatus
+
     path = dev_db or paths.DEV_DB
     cases = {c["id"]: c for c in _cases() if c.get("role")}
+    model = casestatus.model_for()
     rows: list[dict] = []
 
-    recorded = _runs(path)
-    model = next((r["model"] for rows in recorded.values() for r in rows), "")
+    conn = None
+    keyed = False
+    if path.exists():
+        try:
+            conn = sqlite3.connect(path)
+            conn.row_factory = sqlite3.Row
+            keyed = casestatus.carries_the_key(conn)
+        except sqlite3.Error:                               # pragma: no cover
+            conn = None
 
     for case_id, case in cases.items():
-        runs = recorded.get(case_id, [])
         entry = {
             "id": case_id, "role": case["role"], "mode": fixtures.mode_of(case),
             "threshold": int(case.get("pass", case.get("runs", 1))),
             "runs": int(case.get("runs", 1)),
             "passed": None, "state": "never run", "problems": [],
         }
-        if runs:
-            latest_hash = runs[-1]["prompt_hash"]
-            batch = [r for r in runs if r["prompt_hash"] == latest_hash][-entry["runs"]:]
-            entry["passed"] = sum(r["passed"] for r in batch)
-            entry["problems"] = sorted({
-                p for r in batch for p in json.loads(r["problems"])})
-            fresh = latest_hash == _prompt_hash(case, model or "llama3.1:8b")
-            if not fresh:
+        if conn is not None:
+            try:
+                batch = casestatus.matching_runs(
+                    conn, case, casestatus.wanted_pins(case, model),
+                    keyed=keyed, limit=entry["runs"])
+                ever = conn.execute(
+                    "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
+                    (case_id,)).fetchone()["n"]
+            except sqlite3.Error:                           # pragma: no cover
+                batch, ever = [], 0
+            if batch:
+                entry["passed"] = sum(r["passed"] for r in batch)
+                entry["problems"] = sorted({
+                    p for r in batch for p in json.loads(r["problems"] or "[]")})
+                entry["state"] = ("pass" if entry["passed"] >= entry["threshold"]
+                                  else "fail")
+            elif ever:
+                # Measured once, and not against the key the tree sends now.
                 entry["state"] = "stale"
-            elif entry["passed"] >= entry["threshold"]:
-                entry["state"] = "pass"
-            else:
-                entry["state"] = "fail"
         rows.append(entry)
 
+    if conn is not None:
+        conn.close()
     rows.sort(key=lambda r: (r["role"], r["id"]))
     tally = {}
     for r in rows:

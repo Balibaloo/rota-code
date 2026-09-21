@@ -2941,6 +2941,15 @@ def run_session(
 
     except Exception as exc:
         outcome.errors.append(f"session failed: {exc!r}")
+        # A session that died before `build_prompt` has no system text, and
+        # the register's `system_hash` column already spends '' on "written
+        # before the column existed". Leaving '' here makes a crash read as a
+        # legacy write-off, which is a row saying the wrong thing rather than
+        # nothing (frame 54's fix pass, 2026-09-21).
+        if not outcome.system:
+            from ..llm.cassettes import UNBUILT
+
+            outcome.system = UNBUILT
         release(conn, wake.role)
         sandbox_mod.drain_calls(sb.ctx)
         # The row a failed session leaves. Night 31 (2026-09-13): 69 deaths

@@ -211,6 +211,31 @@ def copy_interviews(src: sqlite3.Connection, dst: sqlite3.Connection) -> int:
     return len(rows)
 
 
+def check_target(target: Path, force: bool = False) -> None:
+    """
+    Refuse a target that already holds results, unless the caller insists.
+
+    The tool writes with `INSERT OR REPLACE`, which is what makes a second run
+    over the same target a no-op rather than a failure. It also means a target
+    named by mistake is written into rather than refused, and the register is
+    780 MB of evidence with no copy but the clone. `--force` is the word that
+    says the caller meant this file.
+    """
+    if not target.exists():
+        return
+    conn = sqlite3.connect(str(target))
+    try:
+        held = conn.execute("SELECT COUNT(*) FROM case_runs").fetchone()[0]
+    except sqlite3.Error:
+        held = 0                       # not a register, so nothing to lose
+    finally:
+        conn.close()
+    if held and not force:
+        raise SystemExit(
+            f"{target} already holds {held} results. Name a target that does "
+            f"not exist, or pass --force to write into this one.")
+
+
 def migrate(src: sqlite3.Connection, target: Path, *, dry_run: bool = False,
             batch: int = 2000) -> dict:
     """Write the new register. Returns the numbers the closing status needs."""
@@ -333,6 +358,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--expect-columns", type=int, default=0)
     ap.add_argument("--expect-runs", type=int, default=0)
     ap.add_argument("--expect-cassettes", type=int, default=0)
+    ap.add_argument("--force", action="store_true",
+                    help="write into a target that already holds results")
     ap.add_argument("--model", default="qwen3:8b",
                     help="named in the closing advice, never read here")
     args = ap.parse_args(argv)
@@ -341,6 +368,8 @@ def main(argv: list[str] | None = None) -> int:
     target = Path(args.target)
     if source.resolve() == target.resolve():
         raise SystemExit("the source is read-only: name a different target")
+    if not args.dry_run:
+        check_target(target, args.force)
     src = open_source(source)
     check_source(src, args.expect_columns, args.expect_runs,
                  args.expect_cassettes)

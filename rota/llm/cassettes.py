@@ -393,6 +393,14 @@ def current_load(pins: Pins) -> str:
     return f"{pins.model}@{int(time.time()) // 7200}"
 
 
+#: The system text of a session that died before `build_prompt` ran. `''`
+#: already means "written before the column existed", so a crash needed a
+#: third value: a row reading `unbuilt` measured nothing, and a row reading
+#: `''` is a legacy write-off (frame 54's fix pass, 2026-09-21). Without it
+#: the two are one value and a reader cannot tell a crash from history.
+UNBUILT = "unbuilt"
+
+
 def system_hash(system: str) -> str:
     """
     The whole system text the model received, hashed.
@@ -410,7 +418,13 @@ def system_hash(system: str) -> str:
     '' means the writer had no system text to give. The migration leaves the
     same '' on every row written before the column existed, so '' reads as
     unknown and never as "the model was sent nothing".
+
+    `UNBUILT` passes through as itself rather than as a digest, so a crash
+    before the prompt was built reads as a crash. A digest of the word would
+    look like a measurement of a real system text.
     """
+    if system == UNBUILT:
+        return UNBUILT
     if not system:
         return ""
     return hashlib.sha256(system.encode("utf-8")).hexdigest()[:16]

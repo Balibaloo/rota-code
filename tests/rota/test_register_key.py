@@ -25,7 +25,7 @@ import pytest
 import rota_serial_plugin
 from rota import paths
 from rota.llm import llm
-from rota.llm.cassettes import (KEY_COLUMNS, key_for, open_dev_db,
+from rota.llm.cassettes import (KEY_COLUMNS, UNBUILT, key_for, open_dev_db,
                                 record_case_run, system_hash)
 from rota.llm.llm import DEFAULT_NUM_CTX, Pins
 from rota.roles import prompts
@@ -335,8 +335,14 @@ def test_end_to_end_the_door_stops_a_real_run(tmp_path):
 
     The same reason `test_pytest_parallelism.py` runs a child: three conftest
     attempts at that mechanism failed silently, and a door that never fires
-    looks exactly like a door that passed. This runs the cheapest real file in
-    the repository, so `pytest.ini` and the `-p` plugin both apply.
+    looks exactly like a door that passed. These run real files, so
+    `pytest.ini` and the `-p` plugin both apply.
+
+    **And the other half, which the diff review found.** The door fired
+    before collection, so it refused every pytest command in the repository:
+    99 of the 99 test files at a window the register lacks, against 4 after
+    the repair (observed: frame 54's fix pass, 2026-09-21). A file that calls
+    no model must run.
     """
     register = _small_register(
         tmp_path, [Pins(model="llama3.1:8b", temperature=0.0, num_ctx=12288)])
@@ -345,17 +351,99 @@ def test_end_to_end_the_door_stops_a_real_run(tmp_path):
     for switch in ("ROTA_L1", "ROTA_T1", "ROTA_REFRESH"):
         env.pop(switch, None)
 
-    def run(extra):
+    def run(path, extra):
         return subprocess.run(
-            [sys.executable, "-m", "pytest", "tests/rota/test_bounds.py", "-q"],
+            [sys.executable, "-m", "pytest", path, "-q"],
             capture_output=True, text=True, cwd=".", env={**env, **extra})
 
-    refused = run({"ROTA_NUM_CTX": "16384"})
-    assert "ROTA_NUM_CTX" in refused.stdout + refused.stderr, refused.stdout[:800]
-    assert "2 passed" not in refused.stdout, "the run must not proceed"
+    # A file that reads the register, at a window nothing was recorded at.
+    refused = run("tests/rota/test_t1_liaison.py", {"ROTA_NUM_CTX": "16384"})
+    said = refused.stdout + refused.stderr
+    assert "ROTA_NUM_CTX" in said, said[:800]
+    assert "16384" in said and "12288" in said, said[:800]
+    assert refused.returncode != 0, "the run must not proceed"
 
-    allowed = run({"ROTA_NUM_CTX": "12288"})
-    assert "2 passed" in allowed.stdout, allowed.stdout[:800]
+    # The same window, and a file that calls no model. This is the fix.
+    quiet = run("tests/rota/test_bounds.py", {"ROTA_NUM_CTX": "16384"})
+    assert "2 passed" in quiet.stdout, quiet.stdout[:800]
+
+    # And the tier itself runs once the window matches what was recorded.
+    allowed = run("tests/rota/test_t1_liaison.py", {"ROTA_NUM_CTX": "12288"})
+    assert "ROTA_NUM_CTX" not in allowed.stdout + allowed.stderr, \
+        allowed.stdout[:800]
+
+
+def test_every_file_that_opens_the_register_calls_the_door():
+    """
+    A file that opens `paths.DEV_DB` replays, so it asks the door first.
+
+    The door is called from the four tier files and not from a pytest hook,
+    and that is measured rather than preferred. A hook that raises after
+    collection runs on an xdist worker, because the controller does not
+    collect, and the run ends in `INTERNALERROR: assert not crashitem` with
+    the reason nowhere in the output (observed: frame 54's fix pass,
+    2026-09-21). A tier added later without the call is a door that never
+    opens for it, and nothing else would say so.
+    """
+    import pathlib
+
+    here = pathlib.Path(__file__).parent
+    readers, silent = [], []
+    for path in sorted(here.glob("test_*.py")):
+        text = path.read_text(encoding="utf-8")
+        if "open_dev_db(paths.DEV_DB)" not in text:
+            continue
+        readers.append(path.name)
+        if "refuse_a_key_the_register_does_not_hold()" not in text:
+            silent.append(path.name)
+    assert len(readers) >= 4, f"the pin found only {readers}"
+    assert not silent, f"these read the register and never ask the door: {silent}"
+
+
+def test_the_remedy_names_a_variable_to_set_when_nobody_set_one(door):
+    """
+    "unset the variable" moves nothing when nobody set the variable, and that
+    was the remedy for the commonest refusal of all: no `ROTA_MODEL`, so the
+    model defaults to one the register does not hold. A remedy that does not
+    move the run is worse than none.
+    """
+    door.setattr(llm, "DEFAULT_MODEL", "mistral:7b")
+    door.delenv("ROTA_MODEL", raising=False)
+    with pytest.raises(pytest.UsageError) as caught:
+        rota_serial_plugin.refuse_a_key_the_register_does_not_hold()
+    said = str(caught.value)
+    assert "set ROTA_MODEL to a model the register holds" in said
+    assert "unset ROTA_MODEL" not in said, "it was never set"
+
+    # And the other way, where unsetting it does move the run.
+    door.setenv("ROTA_MODEL", "mistral:7b")
+    with pytest.raises(pytest.UsageError) as caught:
+        rota_serial_plugin.refuse_a_key_the_register_does_not_hold()
+    assert "unset ROTA_MODEL, or set it to" in str(caught.value)
+
+
+def test_a_register_recorded_only_with_the_pin_refuses_a_run_without_it(
+        tmp_path, monkeypatch):
+    """
+    The think pin, guarded in both directions.
+
+    The check fired only when a profile set the pin, so a register whose
+    cassettes for the ambient model were all recorded at `think=True` passed
+    a run with the pin unset, and then every cassette missed. That is the one
+    failure the door exists to stop, and it was blind to half of it.
+    """
+    monkeypatch.setattr(paths, "DEV_DB", _small_register(tmp_path, [
+        Pins(model=THINKING_MODEL, temperature=0.0, num_ctx=12288, think=True)]))
+    for name in ("ROTA_L1", "ROTA_T1", "ROTA_REFRESH", "ROTA_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(llm, "DEFAULT_MODEL", THINKING_MODEL)
+    monkeypatch.setattr(llm, "DEFAULT_NUM_CTX", 12288)
+
+    with pytest.raises(pytest.UsageError) as caught:
+        rota_serial_plugin.refuse_a_key_the_register_does_not_hold()
+    said = str(caught.value)
+    assert "think pin is unset" in said
+    assert "set ROTA_PROFILE to a profile that sets the think pin" in said
 
 
 def test_the_stale_message_names_the_model_and_the_window():
@@ -587,3 +675,179 @@ def test_the_migration_never_writes_to_its_source(tmp_path):
     with pytest.raises(sqlite3.OperationalError):
         src.execute("DELETE FROM case_runs")
     src.close()
+
+
+def test_the_migration_refuses_a_target_that_already_holds_results(tmp_path):
+    """
+    The tool writes with `INSERT OR REPLACE`, which is what makes a second
+    run over one target a no-op. It also meant a target named by mistake was
+    written into rather than refused, and the register is 780 MB of evidence
+    with no copy but the clone.
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "the reply"}])],
+        cassettes=[(pins, "the system text", "u", "the reply", "text")])
+    target = tmp_path / "new.db"
+
+    migrate_register.check_target(target)            # absent, so nothing to lose
+    _run(source, target)
+    with pytest.raises(SystemExit) as caught:
+        migrate_register.check_target(target)
+    assert "already holds 1 results" in str(caught.value)
+    assert "--force" in str(caught.value), "the message names the way through"
+
+    migrate_register.check_target(target, force=True)
+
+
+# ---------------------------------------------------------------------------
+# The other three writers, and the reader the cockpit shares
+# ---------------------------------------------------------------------------
+
+
+def test_a_session_that_never_built_a_prompt_says_unbuilt(tmp_path, monkeypatch):
+    """
+    Three values, and a reader can tell them apart. `''` means the row was
+    written before the column existed. `unbuilt` means the session died
+    before it had a prompt. A digest means a model was sent that text.
+
+    Without the sentinel a crash writes `''`, and the register then calls it
+    a legacy write-off, which is a row saying the wrong thing rather than
+    nothing.
+    """
+    from rota.core import runner
+    from rota.core.db import init_db
+    from rota.core.scheduler import Wake
+    from rota.llm.llm import ScriptedBackend
+
+    assert system_hash(UNBUILT) == UNBUILT, "the sentinel is not digested"
+    assert system_hash("") == ""
+    assert system_hash("real text") not in (UNBUILT, "")
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("the working set could not be pushed")
+
+    monkeypatch.setattr(runner, "build_prompt", explode)
+    conn = init_db(tmp_path / "w.db")
+    out = runner.run_session(
+        conn, Wake(role="liaison", kind="tick:converse", detail="converse"),
+        backend=ScriptedBackend(["done"]),
+        pins=Pins(model="scripted", temperature=0.0, num_ctx=4096))
+
+    assert not out.committed, "the session failed, which is the point"
+    assert out.system == UNBUILT
+    assert system_hash(out.system) == UNBUILT
+
+
+def test_the_profile_writer_stamps_the_whole_key(tmp_path, monkeypatch):
+    """
+    The fourth writer, and the last one with no test.
+
+    `rota/cli.py` records a toolcheck as two rows, one per protocol, because
+    the check sends one system text twice and the two replies fail in
+    different ways. A native result must never answer for a text run, and
+    only the `protocol` column can say so.
+    """
+    import argparse
+
+    from rota import cli
+    from rota.llm import profile as profile_mod, toolcheck
+
+    class _Profile:
+        name = "stub"
+        default_model = "stub:1b"
+        roles: dict = {}
+
+        def backend(self):
+            return None
+
+        def pins_for(self, role):
+            return Pins(model=self.default_model, temperature=0.0,
+                        num_ctx=8192, think=True)
+
+    monkeypatch.setattr(paths, "DEV_DB", tmp_path / "dev.db")
+    monkeypatch.setattr(cli, "resolve", lambda name: tmp_path / "no-such-run.db")
+    monkeypatch.setattr(profile_mod, "find", lambda name, root=None: _Profile())
+    monkeypatch.setattr(toolcheck, "check", lambda backend, pins: toolcheck.Result(
+        tool_line=True, native_call=True,
+        tool_line_said="TOOL: ledger.log(...)", native_said=""))
+
+    cli.cmd_profile(argparse.Namespace(action="toolcheck", target="stub",
+                                       root=None, assignment=None))
+
+    db = sqlite3.connect(str(tmp_path / "dev.db"))
+    db.row_factory = sqlite3.Row
+    rows = {r["protocol"]: dict(r) for r in db.execute(
+        "SELECT * FROM case_runs ORDER BY seq")}
+    db.close()
+
+    assert set(rows) == {"text", "native"}, "one row per protocol"
+    for row in rows.values():
+        assert row["num_ctx"] == 8192
+        assert row["temperature"] == 0.0
+        assert row["extras"] == json.dumps({"think": True}, sort_keys=True)
+        assert row["system_hash"] == system_hash(toolcheck.SYSTEM)
+
+
+def _panel(monkeypatch):
+    """The cockpit's L1 panel over the one case this file records."""
+    from rota.cockpit import progress
+
+    monkeypatch.setattr(progress, "_cases", lambda: [dict(CASE)])
+    monkeypatch.setenv("ROTA_MODEL", MODEL)
+    return progress.l1(paths.DEV_DB)
+
+
+def test_the_cockpit_and_the_report_agree_on_a_green(register, monkeypatch):
+    """
+    Two instruments over one table gave two answers. The panel matched on
+    `prompt_hash` alone and took the model from the first row it happened to
+    read, so on the migrated register it said `llama3.1:8b` with 98 pass and
+    19 fail while the report said 20 failing and 103 green under `qwen3:8b`
+    (observed: frame 54's diff review, 2026-09-21). The panel is the one a
+    person reads.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), system="s")
+    panel = _panel(monkeypatch)
+
+    assert panel["model"] == MODEL, "the panel names the model the report does"
+    assert panel["cases"][0]["state"] == "pass"
+    assert _state() == "green"
+
+
+def test_the_cockpit_and_the_report_agree_on_a_wrong_window(register,
+                                                            monkeypatch):
+    """
+    The widened match, in the panel. A recording at another window is not
+    evidence about this run, and the panel used to call it fresh because
+    `prompt_hash` does not carry the window.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192),
+            system="s")
+    panel = _panel(monkeypatch)
+
+    assert panel["cases"][0]["state"] == "stale"
+    assert _state() == "STALE"
+
+
+def test_the_cockpit_tolerates_a_register_without_the_key(tmp_path):
+    """
+    The panel connects with a raw `sqlite3.connect` and so never migrates.
+    A checkout can hold a register written before frame 54, and a reader that
+    widens the match against it would raise rather than report.
+    """
+    path = tmp_path / "old.db"
+    raw = sqlite3.connect(str(path))
+    raw.executescript(OLD_SCHEMA)
+    raw.commit()
+    raw.close()
+
+    conn = sqlite3.connect(str(path))
+    assert not casestatus.carries_the_key(conn)
+    case = dict(CASE)
+    want = casestatus.wanted_pins(case, MODEL)
+    assert casestatus.matching_runs(conn, case, want, keyed=False) == []
+    with pytest.raises(sqlite3.OperationalError):
+        casestatus.matching_runs(conn, case, want, keyed=True)
+    conn.close()

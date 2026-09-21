@@ -25,17 +25,38 @@ Verified by the thing that caught the original failure: `bringing up nodes`
 appears in the output when xdist is live, and `test_pytest_parallelism.py`
 asserts it is absent when a model tier is.
 
-**The door lives here for the same reason** (frame 54, 2026-09-21). Three
-ambient variables join the cassette key without saying so: `ROTA_MODEL`,
-`ROTA_NUM_CTX` and `ROTA_PROFILE`. A replay under a key the register does not
-hold misses every cassette, and the register then reports the previous greens
-with no stale and no new red, while the suite goes loudly red. A warning is
-what this repository had. The door refuses instead, and it refuses here
-because a directory conftest never runs on the xdist controller.
+**The door's rule lives here, and the four tier files call it** (frame 54,
+2026-09-21). Three ambient variables join the cassette key without saying so:
+`ROTA_MODEL`, `ROTA_NUM_CTX` and `ROTA_PROFILE`. A replay under a key the
+register does not hold misses every cassette, and the register then reports
+the previous greens with no stale and no new red, while the suite goes loudly
+red. A warning is what this repository had. The door refuses instead.
+
+**Who calls the door, and why it is not a hook here** (frame 54's fix pass,
+2026-09-21). It was called from `pytest_load_initial_conftests`, before
+anything was collected, so it refused every pytest command in the repository:
+`pytest tests/rota/test_bounds.py` calls no model and was refused for the
+ambient model's sake. All 99 test files were refused, and that showed only
+because the register happens to hold 11 models, one of them the bare default.
+Roman approved a full re-record in this frame, and a register of one model
+would have failed every bare `pytest` command.
+
+Two placements were measured and one reports (observed: 2026-09-21).
+`pytest_collection_modifyitems` runs on the xdist workers, because the
+controller does not collect, and a `UsageError` there ends the run in
+`INTERNALERROR: assert not crashitem` with the reason nowhere in the output.
+A call at the tier file's module scope is a collect error, which xdist
+reports with its message, once per worker that collected the file. So the
+four files that open `paths.DEV_DB` call the door themselves, and
+`tests/rota/test_register_key.py` pins that every such file does. Guessing
+from `args` at the early hook was rejected: that is the silent-failure shape
+this whole plugin exists to avoid.
 """
 from __future__ import annotations
 
 import os
+
+import pytest
 
 #: Set by this plugin so a test can assert it ran, rather than inferring it.
 FORCED_SERIAL = "ROTA_FORCED_SERIAL"
@@ -110,18 +131,33 @@ def _set_by(name: str) -> str:
     return f"{name}={value}" if value else f"{name} is unset, so it defaults"
 
 
-def _refusal(conn, pins) -> str:
+def _remedy(name: str, held: str) -> str:
     """
-    The reason this key is not in the register, or '' when it is.
+    What to change, said differently for a set variable and an unset one.
+
+    "unset the variable" moves nothing when nobody set the variable, and that
+    is what this refusal used to say for the commonest case of all: no
+    `ROTA_MODEL`, so the model defaults to one the register does not hold. A
+    remedy that does not move the run is worse than no remedy. The reader
+    follows it, sees the same refusal, and stops believing the message.
+    """
+    if os.environ.get(name):
+        return f"unset {name}, or set it to {held}"
+    return f"set {name} to {held}"
+
+
+def _refusal(conn, pins) -> tuple[str, str]:
+    """
+    The reason this key is not in the register and the remedy, or two ''.
 
     The comparison is the field tuple and never the key (observed: the design
     review's finding 6). The system and the user text do not exist yet at any
     pin site, so no key can be built there.
 
-    Each answer names three things: the variable, the value it holds, and what
-    the register does hold. A refusal that names only the fault sends the
-    reader to a document, and `rota/HARDWARE_GUIDE.md:159` is the document
-    that told them to set the variable.
+    Each answer names four things: the variable, the value it holds, what the
+    register does hold, and what to change. A refusal that names only the
+    fault sends the reader to a document, and `rota/HARDWARE_GUIDE.md:159` is
+    the document that told them to set the variable.
     """
     import sqlite3
 
@@ -129,38 +165,55 @@ def _refusal(conn, pins) -> str:
     held = list(conn.execute(
         "SELECT DISTINCT model, num_ctx, temperature FROM cassettes"))
     if not held:
-        return ""                      # an empty register gates nothing
+        return "", ""                  # an empty register gates nothing
 
     models = sorted({row["model"] for row in held})
     if pins.model not in models:
-        return (f"the model is {pins.model} ({_set_by('ROTA_MODEL')}), and "
-                f"the register holds no cassette for it.\n"
-                f"  the register holds: {', '.join(models)}")
+        return ((f"the model is {pins.model} ({_set_by('ROTA_MODEL')}), and "
+                 f"the register holds no cassette for it.\n"
+                 f"  the register holds: {', '.join(models)}"),
+                _remedy("ROTA_MODEL", "a model the register holds"))
 
     windows = sorted({row["num_ctx"] for row in held
                       if row["model"] == pins.model})
     if pins.num_ctx not in windows:
-        return (f"the window is {pins.num_ctx} ({_set_by('ROTA_NUM_CTX')}), "
-                f"and no cassette for {pins.model} was recorded at it.\n"
-                f"  the register holds: "
-                f"{', '.join(str(w) for w in windows)}")
+        return ((f"the window is {pins.num_ctx} ({_set_by('ROTA_NUM_CTX')}), "
+                 f"and no cassette for {pins.model} was recorded at it.\n"
+                 f"  the register holds: "
+                 f"{', '.join(str(w) for w in windows)}"),
+                _remedy("ROTA_NUM_CTX", "a window the register holds"))
 
     temperatures = sorted({row["temperature"] for row in held
                            if row["model"] == pins.model
                            and row["num_ctx"] == pins.num_ctx})
     if pins.temperature not in temperatures:
-        return (f"the temperature is {pins.temperature}, and no cassette for "
-                f"{pins.model} was recorded at it.\n"
-                f"  the register holds: "
-                f"{', '.join(str(t) for t in temperatures)}")
+        return ((f"the temperature is {pins.temperature}, and no cassette for "
+                 f"{pins.model} was recorded at it.\n"
+                 f"  the register holds: "
+                 f"{', '.join(str(t) for t in temperatures)}"),
+                "record at this temperature with ROTA_L1=1")
 
-    if pins.think is not None and not _a_recording_with_the_pin(conn, pins):
-        return (f"the think pin is {pins.think} "
-                f"({_set_by('ROTA_PROFILE')}), and no cassette for "
-                f"{pins.model} was recorded with it.\n"
-                f"  the register holds: {pins.model} at the provider's own "
-                f"default, which is the pin unset")
-    return ""
+    # The pin in both directions (frame 54's fix pass, 2026-09-21). The check
+    # fired only when a profile set the pin, so a register whose cassettes for
+    # this model were all recorded at `think=True` passed a run with the pin
+    # unset, and then every cassette missed. The door exists to stop exactly
+    # that, and it was blind to one half of it.
+    if not _a_recording_with_the_pin(conn, pins):
+        if pins.think is None:
+            return ((f"the think pin is unset ({_set_by('ROTA_PROFILE')}), "
+                     f"and no cassette for {pins.model} was recorded with it "
+                     f"unset.\n"
+                     f"  the register holds: {pins.model} with the think pin "
+                     f"set, which a profile does"),
+                    _remedy("ROTA_PROFILE",
+                            "a profile that sets the think pin for this model"))
+        return ((f"the think pin is {pins.think} "
+                 f"({_set_by('ROTA_PROFILE')}), and no cassette for "
+                 f"{pins.model} was recorded with it.\n"
+                 f"  the register holds: {pins.model} at the provider's own "
+                 f"default, which is the pin unset"),
+                _remedy("ROTA_PROFILE", "a profile that leaves the pin unset"))
+    return "", ""
 
 
 def refuse_a_key_the_register_does_not_hold() -> None:
@@ -188,7 +241,7 @@ def refuse_a_key_the_register_does_not_hold() -> None:
         uri = "file:" + str(paths.DEV_DB).replace("\\", "/") + "?mode=ro"
         conn = sqlite3.connect(uri, uri=True)
         try:
-            reason = _refusal(conn, pins)
+            reason, remedy = _refusal(conn, pins)
         finally:
             conn.close()
     except Exception:                                       # pragma: no cover
@@ -198,19 +251,16 @@ def refuse_a_key_the_register_does_not_hold() -> None:
     if not reason:
         return
 
-    import pytest
-
     raise pytest.UsageError(
         f"this run would replay at a key the register does not hold.\n"
         f"  {reason}\n"
         f"  the register is {paths.DEV_DB}\n"
-        f"Record at this key with ROTA_L1=1, or unset the variable. A replay "
-        f"at a key nothing was recorded at misses every cassette, and the "
-        f"register then reports the previous greens.")
+        f"Record at this key with ROTA_L1=1, or {remedy}. A replay at a key "
+        f"nothing was recorded at misses every cassette, and the register "
+        f"then reports the previous greens.")
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
-    refuse_a_key_the_register_does_not_hold()
     if not uses_a_model():
         return
 

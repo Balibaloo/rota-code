@@ -75,6 +75,101 @@ def model_for(named: str = "") -> str:
     return os.environ.get("ROTA_MODEL") or FALLBACK_MODEL
 
 
+def wanted_pins(case: dict, model: str) -> Pins:
+    """
+    The pins a tier would run this case under, field by field.
+
+    The one-model ruling: a case that declares `model:` is held by that model,
+    and a report must read the same recordings the suite replays. A qwen-held
+    green rendering as a llama STALE would be the report contradicting the
+    register it exists to show.
+
+    `num_ctx` comes from `DEFAULT_NUM_CTX`, which is what a tier runs at: all
+    three tier files deliberately pin no window. The temperature is 0.0, and
+    every cassette in the register is at 0.0. `think` comes from
+    `ROTA_PROFILE`, through the one rule the tier stamps with.
+    """
+    pinned = case.get("model", model)
+    return Pins(model=pinned, temperature=0.0,
+                think=think_for(pinned)).with_prompt(
+        fixtures.instructions_for(case))
+
+
+def carries_the_key(conn: sqlite3.Connection) -> bool:
+    """
+    Whether this register's results carry the cassette key's own fields.
+
+    A reader that connects without `open_dev_db` never migrates, and a
+    checkout can hold a register written before frame 54. Asking the table
+    beats catching `no such column`, because that error would also hide a
+    typo in a column name.
+    """
+    from ..llm.cassettes import KEY_COLUMNS
+
+    have = {row[1] for row in conn.execute("PRAGMA table_info(case_runs)")}
+    return bool(have) and {name for name, _ in KEY_COLUMNS} <= have
+
+
+def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
+                  *, keyed: bool = True, limit: int | None = None) -> list:
+    """
+    The rows that are evidence about this case under these pins, newest first.
+
+    **One definition, because two instruments read this table.** This report
+    and the cockpit's L1 panel disagreed on the migrated register: the panel
+    said `llama3.1:8b` with 98 pass and 19 fail, while the report said 20
+    failing and 103 green under `qwen3:8b` (observed: frame 54's diff review,
+    2026-09-21). The panel matched on `prompt_hash` alone and took the model
+    from the first row it happened to read. The panel is the one a person
+    reads, so a second copy of this match is frame 60's fault in a new place.
+
+    A run that died for want of a cassette is not a result, and until
+    `record_case_run` refused to write those there were three thousand of
+    them. They are excluded rather than deleted: the rows are somebody's
+    history even when they are not evidence.
+
+    They can carry a *current* prompt hash, which is what made them
+    dangerous. `prompt_hash` covers the composed brief, the mode prompt
+    included, so a brief edit does stale a case. What it does not cover is
+    the runner's session prose and the working set's `TOOL:` lines, which are
+    the rest of the system text and are in the cassette key -- so a tools
+    edit left every hash current and the case read green while the suite
+    could not replay it.
+
+    `system_hash` is therefore written by `record_case_run` and is not
+    matched on here. The blocker is that no reader can compose the system
+    text: it is built inside `run_session`, from a sandbox over the case's
+    seeded database, and there is no second definition of it to call.
+    Matching on a value a reader cannot compute would stale every case. The
+    match is widened when one composition serves both.
+
+    `load_id` stays out for two reasons. It is `model@epoch//7200`, so
+    matching on it would stale every case two hours after its recording, and
+    `trust` reads several loads to tell `provisional` from `earned`.
+
+    `keyed` is False for a register written before frame 54, which has no
+    columns to match the key on. Such a register answers the narrow question
+    only, and a reader that widens the match against it would raise rather
+    than report.
+    """
+    sql = ["SELECT passed, problems FROM case_runs "
+           "WHERE case_id = ? AND prompt_hash = ? AND model = ?"]
+    args: list = [case["id"], want.prompt_hash, want.model]
+    if keyed:
+        sql.append(" AND num_ctx = ? AND temperature = ? AND protocol = ? "
+                   "AND extras = ?")
+        # Text, because 18570 of the register's 18604 cassettes key as text
+        # and none as native (observed: the design review's probe 5,
+        # 2026-09-21). A tier offers the model no native schemas.
+        args += [want.num_ctx, want.temperature, "text",
+                 json.dumps(want.extras(), sort_keys=True)]
+    sql.append(" AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
+               "                       OR transcript LIKE '%no cassette for%'))"
+               " ORDER BY seq DESC LIMIT ?")
+    args.append(case.get("runs", 5) if limit is None else limit)
+    return list(conn.execute("".join(sql), args))
+
+
 def status(model: str = "") -> list[dict]:
     # Through the one opener that migrates: a raw connect here read the
     # committed db from before `load_id` existed and died inside `trust`.
@@ -88,61 +183,8 @@ def status(model: str = "") -> list[dict]:
         role = case.get("role") or (case.get("then") or {}).get("role")
         if not role:
             continue
-        # The one-model ruling: a case that declares `model:` is held by
-        # that model, and this report must read the same recordings the
-        # suite replays -- a qwen-held green rendering as a llama STALE
-        # would be the report contradicting the register it exists to show.
-        #
-        # The pins are the tiers' own, field by field, because the report
-        # matches a recording on them (frame 54, 2026-09-21). `num_ctx` comes
-        # from `DEFAULT_NUM_CTX`, which is what a tier runs at: all three tier
-        # files deliberately pin no window. The temperature is 0.0, and every
-        # cassette in the register is at 0.0. `think` comes from
-        # `ROTA_PROFILE`, through the one rule the tier stamps with.
-        pinned = case.get("model", model)
-        want = Pins(model=pinned, temperature=0.0,
-                    think=think_for(pinned)).with_prompt(
-            fixtures.instructions_for(case))
-
-        # A run that died for want of a cassette is not a result, and until
-        # `record_case_run` refused to write those there were three thousand of
-        # them. They are excluded rather than deleted: the rows are somebody's
-        # history even when they are not evidence.
-        #
-        # They can carry a *current* prompt hash, which is what made them
-        # dangerous. `prompt_hash` covers the composed brief, the mode prompt
-        # included, so a brief edit does stale a case. What it does not cover
-        # is the runner's session prose and the working set's `TOOL:` lines,
-        # which are the rest of the system text and are in the cassette key --
-        # so a tools edit left every hash current and the case read green
-        # while the suite could not replay it.
-        #
-        # `system_hash` is therefore written by `record_case_run` and is not
-        # matched on here. The blocker is that this report cannot compose the
-        # system text: it is built inside `run_session`, from a sandbox over
-        # the case's seeded database, and there is no second definition of it
-        # to call. Matching on a value this report cannot compute would stale
-        # every case. The match is widened when one composition serves both.
-        #
-        # `load_id` stays out for two reasons. It is `model@epoch//7200`, so
-        # matching on it would stale every case two hours after its recording,
-        # and `trust` reads several loads to tell `provisional` from `earned`.
-        here = list(conn.execute(
-            "SELECT passed, problems FROM case_runs "
-            "WHERE case_id = ? AND prompt_hash = ? AND model = ? "
-            "  AND num_ctx = ? AND temperature = ? AND protocol = ? "
-            "  AND extras = ? "
-            "  AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
-            "                        OR transcript LIKE '%no cassette for%')) "
-            "ORDER BY seq DESC LIMIT ?",
-            (case["id"], want.prompt_hash, want.model, want.num_ctx,
-             want.temperature,
-             # Text, because 18570 of the register's 18604 cassettes key as
-             # text and none as native (observed: the design review's probe 5,
-             # 2026-09-21). A tier offers the model no native schemas.
-             "text",
-             json.dumps(want.extras(), sort_keys=True),
-             case.get("runs", 5))))
+        want = wanted_pins(case, model)
+        here = matching_runs(conn, case, want)
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
             (case["id"],)).fetchone()["n"]
