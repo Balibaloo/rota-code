@@ -260,6 +260,36 @@ a different question and the night is then opened once.
   commit `c41bfb7`. No work started. The first step is the sender's count:
   compose the system text for all 128 cases with a throwaway script, and count
   how many differ from the cassette their current green came from.
+- Status 2026-09-21 21:32 (rota-dc): **the count is zero, and the re-record
+  this frame was afraid of does not exist** (observed: the composition of all
+  128 cases against the register, 2026-09-21). Meta workflow. The frame's one
+  unmeasured cost is measured, and it is nothing.
+  **The numbers.** 121 single-session cases compose a system text whose hash
+  every one of their matching rows already carries. All 7 chains compose both
+  legs and match as well, over 195 rows. **Zero cases fall below their
+  threshold if the report matches on `system_hash` today.** The register was
+  migrated today from the cassettes that are current, so every row carries the
+  hash of the text the tree composes now.
+  **The fault is real and the widened match catches it** (observed: a probe
+  that adds one keyword to one advertised signature, 2026-09-21). The system
+  hash moves from `977a50befc0595d2` to `00e96f24768b0dfc`, and `prompt_hash`
+  does not move at all.
+  **A light composition is the wrong design, and this is measured**
+  (observed: a hand-rolled composition that skips the fixture, 2026-09-21). It
+  agreed with the real composition on 102 of 121 cases. 13 raised on a foreign
+  key and 6 gave a different hash. **So the one function must use the setup
+  `run_case` already performs, and not a second, cheaper reading of the case.**
+  **The cost is the report's, not the re-record's.** One composition costs
+  0.52 s a case, so all 128 cost 67 s (observed: two timed runs, 2026-09-21).
+  Three readers call this match: `gate._stale`, the cockpit's L1 panel at
+  `rota/cockpit/progress.py:234`, and the CLI report. **The cockpit panel is
+  the one a person watches, so 67 s there is a fault and the design must
+  answer it.** The likely answer is a memo on what the text is actually a
+  function of, which is the role, the mode key, the allow list, the order, the
+  brief and the oneshot flag, and not the case. Five Architect survey cases
+  already compose one identical hash.
+  **Next: the design record for the repair, then a design review, then one
+  implementer.** The re-record line of the estimate falls to zero.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
