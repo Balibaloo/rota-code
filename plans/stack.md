@@ -508,6 +508,57 @@ next session to close 46 reorders the file to this list.
   standby is free at 156k, under the 300k ceiling the port has already installed,
   so a hand-off at 400k has somewhere to go.
 
+### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
+
+- Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
+  2026-09-21**: find every path by which running rota puts data in system RAM
+  instead of GPU memory, say why each one spills, and say whether each is
+  avoidable. A seat's wake and a session's whole conversation are two causes of
+  one effect, and both count. Analyse all wakes and give summary statistics.
+- **Three numbers are already in hand and they set the shape** (observed:
+  `nvidia-smi` and the environment during night 88, 2026-09-21 02:54):
+  - The 3080 holds 10240 MiB and 8218 are in use with `qwen3:8b` at a 16384
+    window. **So the headroom is about 2000 MiB, which is 20 per cent.**
+  - The second card is a GTX Titan X of 12288 MiB, idle. It is the register
+    recorder's card, and a night does not use it.
+  - `OLLAMA_NUM_PARALLEL=1`, so ollama does not multiply the window by a
+    parallel count. That removes the largest single multiplier before anybody
+    looks for it.
+- **Why the question is not already answered by frames 46, 53 and 56.** Those
+  three ask what a prompt may contain and what it costs in tokens. This frame
+  asks what a prompt costs in bytes of GPU memory, and what happens when the
+  bytes do not fit. A prompt inside every token budget can still push the KV
+  cache past the card.
+- The causes to enumerate, so the next session does not re-derive the list. Each
+  needs a measured size and an avoidable-or-not verdict: the model's own weights
+  at their quantisation, the KV cache at 16384 and what it costs per token, a
+  second model loaded beside the first, ollama's keep-alive holding a model after
+  a run, the growth of a session's transcript inside one night, the wake's own
+  parts as frame 46 now budgets them, and anything the harness's own sessions
+  put on the same machine while a night runs.
+- Ends when: one record names every path, its measured size, why it spills and
+  whether it is avoidable, with summary statistics over every wake of night 88.
+  Priced from the anchors, and it is a fan-out because Roman asked for sub-agents:
+  1. Four read-only agents, one cause-family each, 40k apiece, 160k. Buys four
+     independent readings that do not see each other's answers.
+  2. One agent over night 88's wakes for the statistics: size, parts, duration
+     and throughput per wake, 60k. Buys the distribution and the cliff, if there
+     is one.
+  3. One synthesis in this context, 40k. Buys one record instead of five.
+  Total about 260k. **The read of ollama's own offload lines is the load-bearing
+  half**: a spill is a fact the server states, so the report must quote it and
+  never infer it from a slow wake.
+- Waits on: **night 88, which is running**. It is the only night with frame 46's
+  budgets in place, and its wakes are the input. The frame also shares that night
+  with frames 47 and 53, so one night answers three frames.
+- Reasoning: Roman's ask of 2026-09-21, the anchors above, and
+  `plans/operating-facts.md`, the GPU and night sections.
+- Status 2026-09-21 02:54 (rota-02): pushed by cb5428a2, unclaimed, priced.
+  **This session is at 328k and takes no new frame**, so the frame is written to
+  be runnable in one step rather than started. Roman asked for it after the walk,
+  and the walk ends after this session's hand-off point of 400k, so a fresh
+  context runs it. Roman orders it against 54, the shared read, 48, 55 and 49.
+
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
 - Rota workflow. The window rose to 16384 in frame 43 and the reply cap did
