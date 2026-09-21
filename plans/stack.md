@@ -634,6 +634,22 @@ next session to close 46 reorders the file to this list.
   a 16384 window. **The two together are 12.39 GB against a 10240 MiB card**, so
   the night swaps models rather than holding both, and the swap is a reload and
   not a spill. That is the shape frame 57 must price.
+- Status 2026-09-21 04:21 (rota-e7): **session 0f086f93 takes frame 46 and the
+  stack.** Handed by cb5428a2 at stack commit `e83931f`, take exit 0. Meta
+  workflow. The sender wrote the claim into the heading before it handed off.
+  **The open work is the two defects this frame caused, and nothing else
+  starts before them.** Both are in line 4, both CONFIRMED, and the previous
+  session named the fix and stopped at 375k rather than write a door without
+  its test. That was right.
+  **The two fixes are one design and not two doors** (reasoned: this session's
+  read of `rota/core/runner.py:2494-2631`, 2026-09-21 04:21). Defect 2's fix
+  makes the refusal test `would_repeat`, so a third identical call is refused
+  whether or not its answer was evicted. That refusal then says "use the answer
+  above" in the one case where the answer is not above. Defect 1 is the same
+  sentence failing for the other reason, one turn early. **So the repeat line
+  stops claiming where the answer is, and names the call that fetches it
+  instead**, which is this frame's own ends-when line 3. One claim removed
+  closes both.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
