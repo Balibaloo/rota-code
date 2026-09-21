@@ -683,6 +683,36 @@ next session to close 46 reorders the file to this list.
   Found by the diagnosis of frame 46's walk. It is pre-existing and it is not
   frame 46's.
 
+### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
+
+- Rota workflow. The principal's ledger row loses 36 to 225 characters of the
+  Critic's reasoning on most falsifications, and the ledger row is what the
+  principal rules from (observed: 13 of 191 sessions of night 88 carry a
+  `cut ...` error, 2026-09-21).
+- **The count exists because frame 46's line 5 made it countable**, which was
+  that line's purpose. The design record's named consequence was that the
+  ledger row is shorter than the verdict it derives from and nothing says so.
+  Line 5 added the notice and the recorded reason. **The count now says the
+  loss is routine, not rare.**
+- **This is not the cut's fault and it is not a wording fault.** The cut is
+  doing what it was built to do. The question is whether a challenge row is
+  the right block to cut, when the principal rules from it and cannot ask for
+  the rest.
+- Ends when: the cause is named in a record, and either the ledger row is
+  exempt from the cut with a test that holds it, or the principal is given the
+  call that fetches the rest and a test asserts the notice names it. Priced
+  from the anchors: one read that groups the 13 by role and mode and measures
+  what was lost, 40k. Buys the difference between a tidy notice and a ruling
+  made on half a verdict. The repair and its test, 60k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 04:20, and the design record
+  `plans/archive/context-caps-design-2026-09-18.md`, which names the ledger row
+  as line 5's reason.
+- Status 2026-09-21 05:10 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  Frame 46 named this finding and did not push it. Pushed here so the
+  obligation stays countable. This session holds frame 46 and takes no new
+  frame.
+
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
 
 - Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
