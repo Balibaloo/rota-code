@@ -153,7 +153,7 @@ _WORDS_NOT_KEPT = ("Nothing returns the words the row did not keep. Put what "
 
 
 def _cut(ctx: "Ctx", what: str, kept: int, whole: int, unit: str,
-         call: str = "") -> str:
+         call: str = "", stored: bool = True) -> str:
     """
     Record a cut for the reader, and return the seat's notice when it has one.
 
@@ -172,12 +172,17 @@ def _cut(ctx: "Ctx", what: str, kept: int, whole: int, unit: str,
     and `testkit.fixtures` reads the text before the first colon as a refused
     call whenever that text holds a dot. So "the batch's diff" is safe and
     "code.diff" would be counted as a refusal on every case that cuts.
+
+    `stored` is false at a read. Nothing was written down there, so the reason
+    says "not shown" rather than claiming a row holds less than it does (the
+    diff review of 0cc624b).
     """
     if whole <= kept:
         return ""
     cuts = getattr(ctx, "cuts", None)
     if cuts is not None:
-        cuts.append(f"cut {what}: {whole - kept} of {whole} {unit} not stored")
+        cuts.append(f"cut {what}: {whole - kept} of {whole} {unit} "
+                    f"{'not stored' if stored else 'not shown'}")
     if not call:
         return ""
     from ..core.runner import cut_note
@@ -6136,16 +6141,6 @@ def code_area(ctx: Ctx, area: str | None = None) -> dict:
     if omitted:
         # One wording for every cut, from the one place that owns it. Imported
         # here, not at the top, because the runner reaches the ops and not the
-        # other way round. No cassette carries this string, so the wording
-        # costs no re-record (measured over the register, 2026-09-20).
-        from ..core.runner import cut_note
-        # The call sentence stays an imperative. Written as "code.source reads
-        # any of ..." the same seat stopped calling it: L1-TE-survey-an-area-
-        # for-its-terms went 5/5 to 0/5 on a re-record, and the diff was this
-        # clause alone (2026-09-20, frame 46 line 3). A description of a call is
-        # not a request to make it.
-        # One wording for every cut, from the one place that owns it. Imported
-        # here, not at the top, because the runner reaches the ops and not the
         # other way round. No cassette carries this string, so the wording costs
         # no re-record (measured over the register, 2026-09-20).
         #
@@ -7530,7 +7525,7 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
     # was wider than the twenty rows a wake showed, and a sentence on every such
     # result would cost a page for something no seat can act on.
     if not words:
-        _cut(ctx, "the candidate symbols", 20, len(rows), "rows")
+        _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
         return rows[:20]
     hits = []
     for r in rows:
@@ -7540,9 +7535,9 @@ def code_callables(ctx: Ctx, hint: str = "") -> list[dict]:
         tokens |= {t.rstrip("s") for t in tokens}
         if tokens & words:
             hits.append(r)
-    _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows")
+    _cut(ctx, "the symbols matching the hint", 40, len(hits), "rows", stored=False)
     if not hits:
-        _cut(ctx, "the candidate symbols", 20, len(rows), "rows")
+        _cut(ctx, "the candidate symbols", 20, len(rows), "rows", stored=False)
     return hits[:40] or rows[:20]
 
 
@@ -7677,9 +7672,14 @@ def code_diff(ctx: Ctx, batch_id: str | None = None) -> dict:
         # its diff broke (frame 46's design record, section 2.7). A seat reading
         # 20,000 characters of a longer diff cannot tell which files it is not
         # being shown, and the cap is not moved by this line.
+        # The sentence names no call, because two modes that grant `code.diff`
+        # grant no reader of a file: `architect/escalate.tools` and
+        # `architect/exhausted.tools` (the diff review of 0cc624b, finding 5).
+        # A cut that names a call the mode lacks is the fault this line set out
+        # to remove, and `code.diff` has no narrower argument than a batch.
         cut = _cut(ctx, "this batch's diff", 20000, len(out.stdout), "characters",
-                   "code.source reads any file the diff names, as it stands "
-                   "now.")
+                   "Nothing returns the rest of a diff this size. Work from the "
+                   "part above.", stored=False)
         if cut:
             result["not_shown"] = cut
         # The diff above is HEAD~1 against the working tree, so it shows an

@@ -666,7 +666,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
     return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail, budget)
 
 
-def _prompt_overrun(system: str, user: str, budget: int) -> str:
+def _prompt_overrun(system: str, user: str, budget: int, num_ctx: int) -> str:
     """
     The assembled prompt against its budget, measured before the send.
 
@@ -676,10 +676,15 @@ def _prompt_overrun(system: str, user: str, budget: int) -> str:
     shipped that fault once already (frame 46's design review, 2026-09-20).
     This runs above every backend, so a cassette exercises it.
 
-    The budget is `_fit_budget(num_ctx, len(system))`, which charged the system
-    prompt already. So the whole prompt's room is that budget plus the system
-    prompt, and what is measured here is `_fit`'s promise about the string the
-    backend receives.
+    Two limits, and the smaller binds. The budget is
+    `_fit_budget(num_ctx, len(system))`, which charged the system prompt
+    already, so the whole prompt's room is that budget plus the system prompt,
+    and that is `_fit`'s promise about the string the backend receives. It is
+    also the only limit that `len(system)` cancels out of, which made the
+    measurement blind at the floor: `max(2000, ...)` holds the budget up when
+    the system prompt is large, and `len(system) + 2000` can be more than the
+    window's half (the diff review of 0cc624b, finding 3). Half the window at
+    3.97 characters to the token is the other limit, and it binds there.
 
     The promise is a precondition, not a theorem. A fuzz of 4,000 transcripts
     broke it 1,540 times: `_cap_exchange` returns a two-block transcript
@@ -690,7 +695,7 @@ def _prompt_overrun(system: str, user: str, budget: int) -> str:
     Measure only. Line 3 of frame 46 owns the wording of a cut, so this names
     the largest part and how far past the budget the prompt went.
     """
-    limit = len(system) + budget
+    limit = min(len(system) + budget, int(num_ctx / 2 * 3.97))
     whole = len(system) + len(user)
     if whole <= limit:
         return ""
@@ -1769,12 +1774,24 @@ def _budget_decision_hits(hits: dict[str, list[Any]],
     the other five words' matches never arrived. Every word that matched keeps
     its first row: the op returns `substr(text,1,200)`, so six first rows are
     about 2,000 characters and the guarantee is affordable.
+
+    Affordable is not free, and the guarantee is inside the budget rather than
+    beside it. Seeded with no fit test, one 9,000-character row rendered the
+    block at 6,123 against a 6,000 limit, the outer `_render` cut it again, and
+    the seat read two cuts for one block (the diff review of 0cc624b, finding
+    2). The last word seeded is the first dropped, so word one keeps its row. A
+    row wider than the whole budget takes every seed with it, and the block is
+    then its notices alone: which words matched, and what to call for each.
     """
     kept: dict[str, list[Any]] = {w: [] for w in hits}
+    seeded: list[str] = []
     for word, rows in hits.items():
         if rows:
             kept[word].append(rows[0])
-    open_words = [w for w, rows in hits.items() if len(rows) > 1]
+            seeded.append(word)
+    while seeded and len(_render(_decision_block(hits, kept), limit)) > limit:
+        kept[seeded.pop()] = []
+    open_words = [w for w, rows in hits.items() if len(rows) > 1 and kept[w]]
     while open_words:
         for word in list(open_words):
             candidate = dict(kept)
@@ -2072,6 +2089,12 @@ def run_session(
         # disjoint paging reads across nights 85 and 86 -- s17 walks click.py in
         # 400-line pages -- to close a false hold that costs three batches.
         answered: dict[str, str] = {}
+        # Which turn answered each key. The eviction test below needs it: an
+        # answer produced in this turn cannot be in this turn's prompt, so
+        # membership alone read every repeat inside one reply as evicted, and
+        # three identical calls in one reply came back as three full results
+        # (the diff review of 0cc624b, finding 1).
+        answered_at: dict[str, int] = {}
         repeated: dict[str, int] = {}
         by_path: dict[str, set[str]] = {}
 
@@ -2093,6 +2116,7 @@ def run_session(
             """
             for gone in by_path.pop(_norm_path(path), ()):
                 answered.pop(gone, None)
+                answered_at.pop(gone, None)
                 repeated.pop(gone, None)
 
         turns: list[Turn] = []
@@ -2119,7 +2143,7 @@ def run_session(
             # Above every backend, because the only whole-prompt measurement ran
             # on the reply and `truncated` is an Ollama field: replayed cases
             # never reached it.
-            over_budget = _prompt_overrun(system, user, budget)
+            over_budget = _prompt_overrun(system, user, budget, pins.num_ctx)
             if over_budget:
                 outcome.errors.append(over_budget)
             _started = time.perf_counter()
@@ -2474,7 +2498,19 @@ def run_session(
                     # notice is true as written, so the repeat line is what
                     # gives way. A repeat the eviction emptied is not
                     # suppressed.
+                    #
+                    # An earlier *turn* answered it, or this one did. A repeat
+                    # inside one reply is answered by a block this prompt never
+                    # held, so membership alone called it evicted and served it
+                    # again: three identical calls in one reply came back as
+                    # 14,189 characters and no refusal, against 242 characters
+                    # and one refusal before the eviction test existed. That is
+                    # the s71 storm the refusal stops (the diff review of
+                    # 0cc624b, finding 1). The eviction notice is sticky,
+                    # because `_fit` writes it back every turn, so the turn
+                    # number is what separates the two cases.
                     evicted = (_EVICTED_PHRASE in user
+                               and answered_at.get(key, iteration) < iteration
                                and answered.get(key, "") not in user)
                     unchanged = would_repeat and not evicted
                     # Registered after the call, never before it. Registered
@@ -2491,6 +2527,7 @@ def run_session(
                     if not withheld:
                         already_run.add(key)
                         answered[key] = shown
+                        answered_at[key] = iteration
                         # A write is never indexed by the path it writes, so no
                         # invalidation reaches it. A commit changes what a read
                         # of that path returns; it does not change what the

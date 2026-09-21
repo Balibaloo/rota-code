@@ -106,7 +106,7 @@ def test_a_recorded_cut_reaches_the_session_record(db, monkeypatch):
     from rota.roles import api
 
     def shortened(ctx, query):
-        api._cut(ctx, "the rulings' text", 200, 900, "characters")
+        api._cut(ctx, "the rulings' text", 200, 900, "characters", stored=False)
         return [{"id": "d1", "headline": "a ruling"}]
 
     monkeypatch.setitem(api.REGISTRY, ("decisions", "search"), shortened)
@@ -116,10 +116,58 @@ def test_a_recorded_cut_reaches_the_session_record(db, monkeypatch):
                           backend=backend, pins=Pins(model="scripted"))
 
     assert outcome.committed, outcome.errors
-    reason = "cut the rulings' text: 700 of 900 characters not stored"
+    reason = "cut the rulings' text: 700 of 900 characters not shown"
     assert reason in outcome.errors, outcome.errors
     said = db.execute(
         "SELECT completion FROM turns WHERE session_id = ? ORDER BY seq DESC",
         (outcome.result.session_id,)).fetchone()[0]
     assert reason in said, "the record does not carry the reason"
     assert "CUT" not in backend.calls[-1][1], "the seat was sent a notice too"
+
+
+def test_a_capped_candidate_list_records_its_reason_and_shows_no_notice(tmp_path):
+    """
+    A real op on the read side, not a monkeypatched one. `code.callables` hands
+    back twenty of however many symbols the index holds, and nothing said so.
+    The seat picks one name from the list and cannot act on the count, so the
+    reason is recorded and the result carries no notice.
+    """
+    db = init_db(tmp_path / "rota.db")
+    for i in range(30):
+        db.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, fan_in) "
+                   "VALUES (?, 'symbol', 'function', ?)",
+                   (f"src/pkg/mod_{i:02d}.py::render_{i:02d}", i))
+    db.commit()
+    sb = sandbox_mod.build("terminologist", db, session_id="s_cand", mode="criteria")
+
+    rows = sb.call("code.callables")
+    assert len(rows) == 20, len(rows)
+    assert sb.ctx.cuts == ["cut the candidate symbols: 10 of 30 rows not shown"], \
+        sb.ctx.cuts
+    assert not any("CUT" in str(r) for r in rows), "a row carried a notice"
+
+
+def test_no_recorded_reason_reads_as_a_refused_call(tmp_path):
+    """
+    `rota/testkit/fixtures.py:913` reads the text before a line's first colon as
+    a thrown-out call whenever that text holds a dot, and counts it against the
+    case's forbidden calls. A recorded reason that named `code.diff` would cost
+    every cutting case a refusal it never made.
+    """
+    _db, sb = _critic(tmp_path, "dots")
+    sb.call("challenge.break", citation="src/parser.ts",
+            quote="export function parse",
+            why=("the parser warns on an unknown key. " * 20).strip())
+    db2 = init_db(tmp_path / "callables.db")
+    for i in range(30):
+        db2.execute("INSERT INTO code_index (grain, grain_kind, sym_kind, fan_in) "
+                    "VALUES (?, 'symbol', 'function', ?)",
+                    (f"src/pkg/mod_{i:02d}.py::render_{i:02d}", i))
+    db2.commit()
+    sb2 = sandbox_mod.build("terminologist", db2, session_id="s_dots", mode="criteria")
+    sb2.call("code.callables", hint="render the pages")
+
+    every = list(sb.ctx.cuts) + list(sb2.ctx.cuts)
+    assert every, "no reason was recorded, so this proves nothing"
+    for line in every:
+        assert "." not in line.split(":", 1)[0], line

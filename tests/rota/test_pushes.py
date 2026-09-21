@@ -105,6 +105,34 @@ def test_the_decision_push_is_inside_its_own_budget(tmp_path):
     assert "CUT the result" not in shown, "the backstop cut what the budget should have"
 
 
+def test_a_row_wider_than_the_budget_does_not_ride_on_the_guarantee(tmp_path):
+    """
+    The at-least-one-row guarantee sat outside the budget check. A 9,000
+    character row rendered the block at 6,123 against a 6,000 limit, the outer
+    `_render` cut it again, and the seat read two cuts for one block (the diff
+    review of 0cc624b, finding 2). Production stays near 1,700 because the op
+    caps its headline at 200 characters, so this was one SELECT away.
+
+    The seed is dropped word by word, last first, and the notices remain: which
+    words matched, and what to call for each.
+    """
+    from rota.core import runner
+
+    wide = [{"id": "d_wide", "author": "architect",
+             "headline": "x" * 9000, "supersedes": None}]
+    block = runner._budget_decision_hits({"scope": wide, "budget": wide},
+                                         runner.DECISIONS_PUSH_CHARS)
+    shown = runner._render(block, runner.PUSH_CHARS)
+
+    assert len(shown) <= runner.DECISIONS_PUSH_CHARS, len(shown)
+    assert "CUT the result" not in shown, "the renderer cut what the budget should have"
+    assert "x" * 9000 not in shown, "the row rode on the guarantee"
+    assert [n.split(":")[0] for n in block["not shown"]] == [
+        'CUT the rulings for "scope"', 'CUT the rulings for "budget"'], block
+    assert not [w for w in ("scope", "budget") if w in block], \
+        "a word kept a row the budget could not hold"
+
+
 def test_every_word_that_matched_keeps_a_row_of_the_decision_push(tmp_path):
     """Round robin by row. First come gave word one every row it had, and the
     other five words' rulings never arrived."""

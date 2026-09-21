@@ -615,6 +615,44 @@ def test_the_repeat_line_still_points_above_while_the_answer_is_there(db):
     assert _EVICTED_PHRASE not in second, "nothing was evicted in this session"
 
 
+def test_repeats_inside_one_reply_are_suppressed_after_an_eviction(db):
+    """
+    The case the range never had: the eviction is in the prompt, and the repeats
+    are in one reply. An answer made this turn cannot be in this turn's prompt,
+    so the eviction test read every such repeat as evicted and served it again.
+    Three identical `decisions.search` calls came back as 14,189 characters with
+    three full results and no refusal, against 242 characters, one line and one
+    refusal before the test existed (the diff review of 0cc624b, finding 1).
+
+    That is the s71 storm the refusal stops, so the turn a key was answered in
+    is what decides: an earlier turn's answer can be evicted, and this turn's
+    cannot.
+    """
+    from rota.core.runner import _EVICTED_PHRASE
+
+    _seed_decisions(db, 60)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([ask,
+                               "thinking. " * 1200 + "\nTOOL: decisions.search(query='detail')",
+                               f"{ask}\n{ask}", "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=12288))
+
+    assert outcome.committed, outcome.errors
+    assert _EVICTED_PHRASE in backend.calls[2][1], \
+        "nothing was evicted, so this shape proves nothing"
+    block = backend.calls[3][1].split("\n\n")[-1]        # this turn's results
+
+    assert block.count("OK decisions.search ->") == 1, \
+        f"one result, not one per asking: {len(block):,} characters"
+    assert block.count("the earlier answer was") == 1, \
+        "the eviction is named once, for the asking that earned it"
+    assert any("asked three times" in e for e in outcome.errors), \
+        "the second asking in the same reply was not refused"
+    assert len(block) < 9_000, \
+        f"the repeats paid full freight: {len(block):,} characters"
+
+
 def test_a_pushed_read_does_not_hold_the_action_behind_it(db):
     """
     Asking for what you were already handed is not asking a question.
@@ -776,10 +814,20 @@ def _replayed(tmp_path, script, pins):
 
 
 def _overruns(turns, num_ctx):
-    """Each turn's prompt, and how far past its budget the prompt went."""
+    """
+    Each turn's prompt, and how far past its limit the prompt went.
+
+    Two limits, and the smaller binds: `_fit`'s promise, which is the budget
+    plus the system prompt it was charged for, and half the window at 3.97
+    characters to the token. `len(system)` cancels out of the first, so the
+    first alone was blind at the `max(2000, ...)` floor (the diff review of
+    0cc624b, finding 3).
+    """
     from rota.core.runner import _fit_budget
 
-    return [(t, len(t.user) - _fit_budget(num_ctx, len(t.system))) for t in turns]
+    return [(t, (len(t.system) + len(t.user))
+             - min(len(t.system) + _fit_budget(num_ctx, len(t.system)),
+                   int(num_ctx / 2 * 3.97))) for t in turns]
 
 
 def test_the_assembled_prompt_of_a_replayed_turn_is_inside_the_budget(tmp_path):
@@ -802,20 +850,26 @@ def test_the_assembled_prompt_of_a_replayed_turn_is_inside_the_budget(tmp_path):
         "kind='in_scope')", "Done."], pins)
 
     assert outcome.committed, outcome.errors
+    from rota.core.runner import _fit_budget
+
     for turn, over in _overruns(outcome.result.turns, 12288):
         assert over <= 0, f"turn {turn.seq} is {over} characters over its budget"
         assert _prompt_overrun(turn.system, turn.user,
-                               len(turn.user) - over) == ""
+                               _fit_budget(12288, len(turn.system)), 12288) == ""
     assert not [e for e in outcome.errors if "over budget" in e], outcome.errors
 
 
 def test_an_over_budget_prompt_is_named_before_it_is_sent(tmp_path):
     """
-    The line a session leaves when the prompt outgrew its budget. The shape is
+    The line a session leaves when the prompt outgrew its limit. The shape is
     the `max(2000, ...)` floor: a window this small floors the budget at 2,000
     characters, `_cap_exchange` then lends each block of the latest exchange
     its own floor of 1,000, and the wake rides on top. The runner does not
     reach this window, and the check is what says so when it does.
+
+    Half the window binds here, not the budget. A system prompt of about 6,900
+    characters is already past a 512-token window's half, so the floor cannot
+    hide the overrun (the diff review of 0cc624b, finding 3).
     """
     pins = Pins(model="scripted", temperature=0.0, num_ctx=512)
     outcome = _replayed(tmp_path, [

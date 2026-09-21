@@ -50,7 +50,11 @@ class Step:
             return f"quiescent ({self.note})" if self.note else "quiescent"
         head = str(self.wake) if self.wake else "-"
         if self.outcome:
-            state = "ok" if self.outcome.committed else f"FAILED {self.outcome.errors[:1]}"
+            # The last error, not the first. `session failed: ...` is appended
+            # last, and a turn that overran its budget is appended first, so the
+            # first error named the budget where the failure belongs (the diff
+            # review of 0cc624b, finding 4).
+            state = "ok" if self.outcome.committed else f"FAILED {self.outcome.errors[-1:]}"
             return f"{head} -> {state}"
         return f"{head} -> {self.note}"
 
