@@ -736,6 +736,32 @@ next session to close 46 reorders the file to this list.
   **A failure here is a real answer, and Roman ruled for it in advance.** If no
   wording keeps the case, both halves land anyway and `ACT-TS` is recorded red
   with its reason.
+- Status 2026-09-21 08:36 (rota-e7): **no wording keeps the case, and the
+  hypothesis was wrong.** Rota workflow. 81975 tokens against 60k priced, five
+  wordings measured.
+  **The scores, each one live sample** (observed: the re-earning pass,
+  `ROTA_L1=1 ROTA_MODEL=qwen3:8b`, 2026-09-21): the tree's wording 0 of 5.
+  `Use what {name} returned earlier.` 0 of 5. `Nothing was written. Use what
+  {name} returned earlier.` 0 of 5. `Use the answer {name} gave you. Continue
+  the work.` 0 of 5. `..., so use the answer {name} already gave you.` 0 of 5.
+  The old falsehood `; the answer is above.` 5 of 5.
+  **The closure hypothesis is dead** (observed: candidates B and C, which
+  removed the settled tone and added a direct order to continue). The deciding
+  property is not the tone. **It is the backward pointer.** The old line's last
+  word is `above`, and it sends the model back up its own prompt. Every
+  replacement points outside the prompt, so the seat reads the tail as settled
+  state.
+  **What the case actually measures is now known, and it is not this frame's
+  line.** The Tester is refused at turn 9, because two tests may not share one
+  file. At turn 11 that refusal is two blocks above the tail. With `above` the
+  seat scans back and writes the fifth test. Without it the seat writes a prose
+  summary that **lists the refused write as done**. That is frame 61.
+  **The control proves the rest of the tree is not the cause** (observed: the
+  old wording restored in the working tree, 5 of 5). The `would_repeat` half is
+  not implicated.
+  **So `ACT-TS` is recorded red with its reason, which is what Roman ruled for
+  in advance.** The case depends on a line that lies, and the lie is the fault
+  night 88's s137 died of.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
@@ -798,6 +824,37 @@ next session to close 46 reorders the file to this list.
   Frame 46 named this finding and did not push it. Pushed here so the
   obligation stays countable. This session holds frame 46 and takes no new
   frame.
+
+### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
+
+- Rota workflow. A seat's unmet obligation sits in a refusal, in a block that
+  the prompt's tail soon buries. Nothing restates it. The seat finds it again
+  only if some later line sends it back up its own prompt.
+- **Measured on one case, five wordings** (observed: frame 46's re-earning
+  pass, 2026-09-21 08:30). In `ACT-TS-five-criteria-one-per-reply` the Tester
+  is refused at turn 9: two tests may not share one file. At turn 11 the
+  refusal is two blocks above the tail. The old repeat line ended with the
+  word `above`, the seat scanned back, found the refusal and wrote the fifth
+  test. Four replacements that point outside the prompt all score 0 of 5, and
+  the seat writes a prose summary that lists the refused write as done.
+- **So the case measured the backward pointer and not the repeat notice**
+  (reasoned: the same pass, which removed the settled tone three ways and
+  still closed the session). A wording fix cannot keep it, because this
+  frame's constraint forbids any claim about where a thing sits in the prompt.
+- **The seat does not know its own obligation is open.** It reports as done a
+  write the runner refused. That is the fault, and the repeat line was
+  covering it by accident.
+- Ends when: an unmet obligation is restated where the seat will read it, and
+  a test asserts that a refused write is not reported as done. Priced from the
+  anchors: one read that counts how many refusals go unmet in a night, 40k.
+  Buys the size of the fault. The repair and its test, 80k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 08:36, and the re-earning
+  pass that produced the five scores.
+- Status 2026-09-21 08:36 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  **The lever the pass names**: the refusal could restate the unmet obligation
+  at the tail, rather than relying on a repeat line to send the seat back.
+  This session holds frame 46 and takes no new frame.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
