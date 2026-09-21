@@ -530,6 +530,66 @@ next session to close 46 reorders the file to this list.
   `.rota/clickI_night88.db`, 738 turns, before the next night could overwrite
   `.rota/clickI.db`. The agent reads the turns of the failing sessions first,
   because a cause goes on the stack only after those turns are read.
+- Status 2026-09-21 04:20 (rota-02): **the diagnosis is in. Frame 46 re-rolled
+  the night and did not cause the stall. It did make one session worse, through
+  two defects of its own, and both have a named fix.** 140348 tokens, read-only
+  over both archived nights. Rota workflow.
+  **The two nights are identical for 66 sessions and diverge at one line**
+  (observed: a session-by-session `prompt_hash` comparison, 2026-09-21).
+  Session `s67` is the first difference, and the only change in its prompt is
+  line 3's new wording: a list of 18 file paths became `CUT this area's files: 13
+  of 18 files are not shown.` Every later difference is downstream of that line.
+  **So a wording change re-rolls a whole night, and one night is not a
+  measurement of a wording change** (reasoned: the same comparison). That is the
+  reading to keep.
+  **No brief changed**: every turn-1 system prompt hash is identical across both
+  nights for all 24 role-and-wake pairs.
+  **Line 1 never fired, on 645 prompts of night 88 and 3599 of night 87**
+  (observed: `length(system) + length(user)` against the limit). The largest
+  assembled prompt is 32520 characters against a limit of 32522, so `_fit` binds
+  exactly and the measurement is silent because there is nothing to report.
+  **Two defects of this frame, both in line 4, both CONFIRMED.**
+  1. **The eviction guard is one turn early.** `evicted` is tested against the
+     prompt the seat has just read, and the feedback line goes into the prompt
+     the seat reads next, which can evict the answer in between. Night 88's
+     `s137` shows it: the span is in the prompt at turns 3, 4 and 5, absent at
+     turn 6, and turn 6 still says the answer is above. Fix: test against the
+     prompt the line will appear in, or drop "the answer is above" and always
+     serve.
+  2. **The serve branch counts a repeat twice.** It does its own
+     `repeated[key] += 1` on top of the ordinary count, so the refusal fires a
+     turn early. In `s137` that ended the session at turn 9 with nothing
+     written. Night 87's `s132` is the same wake, the same span, the same
+     eviction-plus-"answer is above" contradiction, and it survived to 20 turns
+     and committed at turn 15. Fix: remove the extra increment.
+  **The new machinery's reach, for the record** (observed: GLOB counts over
+  night 88): 78 of 645 prompts carry a `CUT` notice, in 22 of 191 sessions. 13
+  sessions carry a `cut ...` error. 21 prompts in 8 sessions carry the evicted
+  serve. 0 carry `prompt over budget by`.
+  **Three of the four stuck items are older than this frame** (observed: the
+  turns of the failing sessions, quoted in the report). The boundary refusal is
+  the standing condition and night 87 failed it the same way: the Architect
+  proposes one constraint, `model.amend` refuses it for naming nobody outside
+  the repository, and the seat repeats the call rather than reaching
+  `surveys.attest(outcome="none_found")`, which its brief names. An empty
+  `code.probe` result livelocks the Critic: `[]` came back seven times and the
+  refusal then pointed the seat at an empty list. And `rota/llm/toolproto.py:573`
+  refuses a `challenge.break` whose `why` argument is unterminated and tells the
+  seat to use triple quotes on `text`, an argument the call does not have. Each
+  has a fix in the report and each is its own wall.
+  **Why the night collapsed to 738 turns**: `batches.head_commit` is NULL for
+  `bg_1` in night 88 and a real sha in night 87. The Tester and every
+  `tests_failing` wake hang off that commit, so 3 developer sessions of 191 and
+  no test path at all follow from one uncommitted batch.
+  **The probe that would settle the rest is a night, not a query** (reasoned: the
+  diagnosis): re-run night 88 from the warm snapshot at `d192b62` with `27d0de8`
+  and `8681667` reverted, and compare `bg_1`'s commit and the quarantined set.
+  One night and one GPU separate "a different night" from "a worse night".
+  **One finding is worth its own frame and is not pushed by this session**
+  (observed: 13 sessions carrying a `cut ...` error): the principal's ledger row
+  loses 36 to 225 characters of the Critic's reasoning on most falsifications,
+  and the ledger row is what the principal rules from. Line 5 made that
+  countable, which was its purpose, and the count now says the loss is routine.
   **One finding of the walk is already in hand and it belongs to frame 57**
   (observed: `.rota/night88.log`, 2026-09-21): rota prints its own spill
   measurement, and **nothing spilled**. Every line reads `0.00 GB in RAM`, 16 for
@@ -537,6 +597,38 @@ next session to close 46 reorders the file to this list.
   a 16384 window. **The two together are 12.39 GB against a 10240 MiB card**, so
   the night swaps models rather than holding both, and the swap is a reload and
   not a spill. That is the shape frame 57 must price.
+
+### 58. A retried tick re-runs the identical session (2026-09-21)
+
+- Rota workflow. A tick that fails is retried up to three times, and **the retry
+  is the same prompt at temperature zero, so it is the same session again**
+  (observed: night 88's turns, hashed per turn, 2026-09-21).
+- **Twelve of night 88's 191 sessions are four sessions run three times.**
+  `s137`, `s138` and `s139` share `prompt_hash` `cc8400014e1b2c48` and hash the
+  same for all ten turns. `s78/s79/s80`, `s94/s95/s96` and `s162/s163/s164` are
+  the same shape.
+- **The code states the opposite of what it does.** `rota/core/scheduler.py`, in
+  `tick_batch_start`, says "the attempt count is a fact of this table and the
+  wake carries it, as tests_failing does, so the second session is not the first
+  one verbatim". `rota/core/runner.py:239` is `DETAIL_SHOWN = {"tick:tests_missing"}`,
+  so `tick:batch_start` writes a detail the prompt never shows, and
+  `tick:boundary` and `tick:challenge` write none at all.
+- **What it costs**: every retry of a failing tick spends a full session to
+  reproduce a failure byte for byte. On night 88 that is 12 sessions of 191, and
+  the three walks each ended stuck on items whose retries could never differ.
+- Ends when: a retried tick's prompt differs from the first attempt's, a test
+  asserts the difference for each of the four wake kinds, and one night shows a
+  retry reaching a different call. Priced: the door is one line plus a detail
+  sentence for boundary and challenge, 40k with its tests. The re-records are
+  frame 54's problem and not this frame's, because the prompt text moves.
+- Waits on: nothing. Roman orders it. It is cheap and it makes every other
+  stall-shaped frame cheaper to read, because a stall stops being three
+  identical sessions.
+- Reasoning: frame 46's status line of 2026-09-21 04:20, finding 2 of the night
+  88 diagnosis, and `.rota/clickI_night88.db`.
+- Status 2026-09-21 04:20 (rota-02): pushed by cb5428a2, unclaimed, priced.
+  Found by the diagnosis of frame 46's walk. It is pre-existing and it is not
+  frame 46's.
 
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
 
