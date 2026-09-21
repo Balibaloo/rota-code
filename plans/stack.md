@@ -45,956 +45,53 @@ this list. Frame 51 folds into 52 (ruled: Roman, asked with three other options
 and this one recommended: the acceptance's own instruments come before the next
 frame that is judged by them).
 This replaces the order of 2026-09-20, which named 46, 47, 48, 45, 38, 37, 41,
-42, 33, 4 and predates frames 51, 53, 54 and 55. **The file is not reordered to
-match yet**, because rule 1 says top frame first and frame 46 is still open. The
-next session to close 46 reorders the file to this list.
+42, 33, 4 and predates frames 51, 53, 54 and 55.
 
-### 46. One designed budget for a prompt (2026-09-19) (Roman) [0f086f93]
+**The file is reordered to that list on 2026-09-21 10:30, when frame 46, one
+designed budget for a prompt, closed.** Six frames are below it and the ruling
+does not name them, because all six were pushed after 00:29: 56, 603 recorded
+prompts exceed the budget `_fit` promises. 57, why anything spills into system
+RAM. 58, a retried tick re-runs the identical session. 59, the ledger row is
+shorter than the reasoning it rules from. 60, the re-record command the suite
+prints uses the wrong model. 61, an unmet obligation is visible only while
+something points back at it. They sit after the ordered list in number order,
+which is not a claim that they rank below it (reasoned: the assistant, placing
+what Roman has not yet ordered rather than guessing an order for it). **Frame
+57 is Roman's own ask and it is the one most likely misplaced here.**
 
-- Rota workflow. Today no single place answers the question "what may this
-  prompt contain". The caps are per result, per push and per page. The trim
-  is per transcript. The window is per session. Nothing sums them, and the
-  one function that could sum them, `_fit`, is forbidden to touch the two
-  blocks that are usually the problem (observed:
-  `plans/archive/context-caps-design-2026-09-18.md`, section 7).
-- Every guard in the system was added after a night failed, and each
-  comment in the code names that night: the result cap, the source cap,
-  the push cap, the wake cut, the middle eviction, the repeat line, the
-  identical-turn stop, the index cut (observed: the same record, and the
-  code's own comments). Each one is right about the night that caused it.
-  **None of them was designed against the others.** Roman judged the
-  system on 2026-09-18: "This seems quite undesigned" (ruled: Roman).
-- The shape, in five parts (reasoned: the design record's section 7,
-  written from the scope of 536k):
-  1. One budget for a turn, derived from the window, in one place.
-  2. The parts of a prompt declared in priority order: the brief, the
-     wake line, the refs, the latest results, the older results.
-  3. The budget is allocated down that order. A part that overruns takes
-     from what is below it and never from what is above it.
-  4. Every cut is announced in the same words, and the words name the
-     tool that fetches the rest.
-  5. One number a test can assert.
-- Ends when: a test asserts that an assembled prompt is inside its
-  budget, or that the runner named which part it cut and by how much.
-  **Priced 2026-09-20 from the scope.** Each line carries a price from the
-  anchors in `plans/operating-facts.md` and the behaviour it buys, walls
-  counted apart:
-  1. One place measures the assembled prompt before the send, and a test
-     asserts the whole prompt is inside the budget: 90k (cold 75k, one
-     resumed pass 15k). Buys: the system learns a prompt does not fit
-     before it pays for the answer. Today the only whole-prompt
-     measurement runs after the reply.
-  2. **`decisions.search` gets a character budget**, at
-     `rota/core/runner.py:1634-1644`: 80k plus 30k of re-records, 110k.
-     Buys: the op that is 55.5 per cent of all pushed characters stops
-     saturating `PUSH_CHARS` on nearly every push. It runs up to six
-     queries and keeps every row, and `decisions_search` has no LIMIT.
-     **`PUSH_CHARS` as a total is a separate and much smaller line**,
-     worth at most 1605 characters on night 87's largest wake, and it
-     waits on this one (repriced 2026-09-20 from the design review, which
-     measured both).
-  3. One wording for a cut, and every cut names the call that fetches the
-     rest: 60k. Buys: a seat can always recover what it lost. Six
-     wordings exist and four of eighteen strings name a recovery call.
-     About 17 assertion sites in three test files, and no cassette in the
-     register carries `TRUNCATED` or the ask-for-the-next-range line, so
-     the re-record allowance moves to line 5.
-  4. The eviction notice and the repeat line stop contradicting each
-     other, with a named test: 40k plus 20k of re-records, 60k. Buys: 8
-     of 8183 prompts stop telling a seat two opposite things.
-  5. The silent cuts get a notice to the seat, and separately a recorded
-     reason: 100k plus 20k of re-records, 120k, and it is two lines not
-     one. Buys: the principal's ledger stops being shorter than the
-     challenge row it derives from. 25 or more sites in
-     `rota/roles/api.py` alone.
-  6. A design review of the design record before any code: 80k.
-  7. One diff review on a worktree at the commit: 90k.
-  8. The gate before each commit, the stale line read: 36k.
-  9. A walk, because the frame changes what a seat is told: 20k in this
-     context, about nine hours wall.
-  Total: 666k in agents after the reprice, about 45k in this context.
-  **Already spent: the scope at 1206692 tokens in 12 agents, and the design
-  review at 106746 tokens in 56 tool calls**, 1313438 in all. The scope is
-  2.2 times frame 43's 536k on the same path, and the verify stage is where
-  the excess went. Both stages earned it: 11 of 218 scope facts came back
-  WRONG or UNVERIFIABLE, and the design review then broke three of the
-  record's own claims with probes over night 87 and the register.
-- Waits on: nothing. Frame 43 closed on 2026-09-20 and is in
-  `plans/archive/stack-2026-09-20.md`. This is the top frame.
-- Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 7,
-  and the scope it was written from,
-  `plans/archive/context-caps-scope-2026-09-18.json`.
-- Status 2026-09-19 04:14 (rota-65): pushed by 4286e076, unclaimed,
-  unpriced. The frame exists so the obligation stays countable. The four
-  repairs of frame 43 do not need it, and the design record says so. This
-  is the design that stops the next fault. The four repairs stop the
-  bleeding.
-- Status 2026-09-20 03:00 (rota-52): **the wait is discharged. Night 87 ran
-  and this frame can be priced.** The four numbers say how much of the
-  bleeding the four repairs already stopped: the middle eviction fell from
-  36.0 per cent of turns to 22.5, the wake cut from 10.4 per cent to 2.0, the
-  sessions cut by the server from 15 of 203 to 0 of 746, and the tokens
-  discarded from 179117 to 0. The largest prompt of 3599 turns was 8191
-  tokens against a 16384 window, where night 86 sent one of 27155.
-  **The number that argues for this frame is the one that got worse.** No
-  prompt came near the window, and the reply cut still fired 140 times. A
-  budget that is right per part and never summed is exactly the fault frame
-  47 now carries a case of. The pricing grill is Roman's to call.
-- Status 2026-09-20 03:35 (rota-52): **claimed by 0549dc76. Frame 43 is closed
-  and the stack now reads in Roman's order** (ruled: Roman, 2026-09-20, "46,
-  next just work your way down the table, in order"). The order is 46, 47, 48,
-  45, 38, 37, 41, 42, 33, 4, and the file is reordered to match, because rule 1
-  says top frame first. This replaces the order of 2026-09-18, which named 43,
-  38, 37 and 33 and predates frames 45 to 48.
-  **Frame 43 closed on Roman's order of the frame below it** (reasoned: the
-  assistant; Roman read the frame's summary and named the next frame, which is
-  the declaration the frame waited for). The frame moved verbatim to
-  `plans/archive/stack-2026-09-20.md`, 1109 lines. Reopen it by moving it back
-  if that reading is wrong.
-  The scope runs now, because the frame is a shape with no price. Six
-  read-only agents, one question each, and the price and the design record
-  follow. Frame 43's own scope of the same path cost 536k in five agents, so
-  that is the anchor.
-- Status 2026-09-20 03:35 (rota-52): **the scope is in, the design record is
-  written, and the frame is priced. No code is written.** The record is
-  `plans/archive/prompt-budget-design-2026-09-20.md`. The evidence is
-  `plans/archive/prompt-budget-scope-2026-09-20.json` and its digest beside
-  it, both rescued into the repository, because a record's pointer never
-  names a session scratchpad.
-  **The frame's own premise is half wrong, and the half that is wrong is load
-  bearing** (observed: the scope, verified). One budget already exists and
-  already binds: `_fit_budget` caps the system string plus the user string at
-  `max(2000, int(num_ctx / 2 * 3.97) - system_chars)`
-  (`rota/core/runner.py:566`). Three caps derive from it rather than from a
-  night, and `result_room` at `:2154` is an allocator in everything but name.
-  The frame may not say that nothing sums.
-  **What is actually wrong, in the order it costs.** Half of every window is
-  unreachable by construction, so frame 43's rise from 12288 to 16384 bought
-  the lower half only and a prompt can never pass 8192 tokens while the
-  halving stands. Nothing measures the assembled prompt before the send, and
-  the only whole-prompt measurement runs after the reply arrives. The system
-  prompt is charged to the budget and never cut. `PUSH_CHARS` is applied per
-  key and not as a total, so a wake can carry 80000 characters before `_fit`
-  runs, and the pushed working set is the largest part of a
-  90th-percentile prompt.
-  **Three tests already assert three different numbers** (observed: three
-  verifiers, each correcting its own scope), so the frame's fifth part is
-  partly built and the design must pick which number is the promise.
-  **The verify stage earned its cost.** 11 of 218 facts came back WRONG or
-  UNVERIFIABLE, including a composition share the verifier reproduced at 58.6
-  per cent against the scope's 48.3, and a claim that six caps exist and none
-  derives from the others, which its own citation refutes twice over.
-  The design review of ends-when line 6 runs now. It does not wait on the
-  ruling below.
-- Waits on: **nothing. The ruling this frame waited for was never this
-  frame's question** (ruled: Roman, 2026-09-20, by sending the assistant
-  back to what the frame says it is for).
-  **This frame is a design frame and not a capacity frame.** Its own first
-  three lines say so: nothing sums the caps, none was designed against the
-  others, and Roman judged the system undesigned. All five parts are
-  structural, and the ends-when is a test asserting an invariant, not a
-  night showing bigger prompts. Nothing in the frame is about giving a seat
-  more room.
-  **The half-window question is a capacity question and it is now frame 53.**
-  This session found it while scoping and then let it gate a frame it does
-  not belong to. The halving stands here, because this frame was never about
-  changing it. Build lines 1 to 5 as priced.
-  The question that moved to frame 53, kept here for the reasoning: does the
-  prompt budget stay at half the window? The
-  budget is half because ollama collapses a prompt over `num_ctx` to
-  `num_ctx / 2 + 2` and keeps the tail, which cuts the brief off the front
-  (observed: the docstring at `rota/core/runner.py:566`, finding 79). Keeping
-  the halving is safe and permanent: a 16384 window carries at most 8192
-  tokens of prompt for ever, and frame 43's rise is worth half of what it
-  reads as. Raising it needs the assembled prompt measured before the send,
-  which is ends-when line 1 and does not exist today, plus a margin for the
-  chat template that nobody has measured, and it re-keys the register where
-  the stale line cannot see it.
-  **Recommended answer: keep the halving, and spend the frame on line 2
-  first.** The recommendation survives the design review and the reason
-  changed. The denied demand is real and large: on night 87 the cut notices
-  account for 8784628 characters denied against 6946907 delivered, so the
-  caps removed 1.26 times what they delivered. **But the demand is denied
-  upstream by `decisions.search` saturating `PUSH_CHARS` on nearly every
-  push, and not by the half-window ceiling.** Raising the ceiling would not
-  deliver one character more while that op is unbudgeted.
-- Status 2026-09-20 04:20 (rota-52): **the design review is in and it broke
-  three of the record's claims with probes. The record and the price are
-  corrected. Still no code.** 106746 tokens against 80k priced, 56 tool
-  calls, 8 minutes. The overrun went into the three probes that produced the
-  findings, which is the same trade frame 43's design review made.
-  **The record named the wrong ops.** It said `code.area`, `code.front` and
-  `code.boundary` fill the wake. They fire in 10 pushes of 463 on night 87.
-  `decisions.search` is 55.5 per cent of all pushed characters, has no LIMIT
-  and no budget, and its median pushed size is 20105 characters, which is
-  `PUSH_CHARS` plus the notice.
-  **The record's headline number was a theoretical maximum that never
-  happens.** It said four pushed reads can put 80000 characters into a wake.
-  Night 87's largest pushed block is 21605, and capping the block once would
-  remove at most 1605 characters.
-  **A whole-prompt check placed where the existing one sits would be dead to
-  every recorded case**, because `truncated` is assigned only in
-  `OllamaBackend` and the suite replays through `ReplayOnlyBackend`. That is
-  frame 43's `graph.json` shape again, caught before any code this time. The
-  check goes in `run_session` beside `_fit`.
-  **The halving is Ollama-specific**, so the ruling is now "half the window
-  on Ollama". `LiteLLMBackend` never sends the window, so on those profiles
-  the halving discards half the budget and defends against nothing.
-  Also corrected: two caps derive from the budget and not three.
-  `TURN_RESULT_CHARS` is two night constants and does not move with
-  `num_ctx`. Lines 2, 4 and 5 re-key the register and now carry re-record
-  allowances, 326 of 18435 cassettes for line 2 alone. Line 3 is 30k cheaper
-  and line 5 is 50k dearer and is two lines.
-  **HAND-OFF at 16:50.** Session 0549dc76 releases the whole stack and
-  stops. Roman ordered the hand-off so frame 46's implementer pass runs in
-  a fresh context instead of starting near this session's limit.
-  **What the next session picks up, in order.**
-  1. Frame 46 waits on nothing. Build the five priced lines, starting with
-     line 2, the `decisions.search` budget, which is the one the design
-     review named as the real repair.
-  2. Line 1's check goes in `run_session` beside `_fit` at
-     `rota/core/runner.py:1972`, above every backend. Placed where the
-     existing one sits it would be dead to every recorded case.
-  3. Two frames are pushed and unruled, and Roman assigns them: 52, the
-     kit's release, and 53, the half-window capacity question. Frame 51
-     folds into 52 if 52 is ruled.
-  4. Frame 49, the 72 stale cases, still has no owner and no cause.
-  5. Frames 33 and 4 still carry session 9108c499's claim, and that session
-     has ended. Releasing another session's claim is Roman's word.
-  **Read before trusting**: the design record's sections 2.4 and 5 were
-  rewritten after the design review measured them wrong. Read the record as
-  it stands, not the commit that first wrote it.
-  **Session cb5428a2 holds frame 46 and the stack.** The hand exited 0 and
-  printed CONFIRMED 6 seconds after the claim, at stack commit 88f476a. The
-  seat was named rather than left to the queue, because the queue ranks on
-  arm time and the other free standby held 152k against this one's 20k. The
-  queue and the rule agreed today, and naming it cost nothing.
-  **A small finding for the kit** (observed: 2026-09-20 16:51): `--to` takes
-  a session id and refuses a peer name, while `peers` prints the name in the
-  column a reader would copy. The refusal is loud and lists the ids, so it
-  costs one retry and nothing worse.
-  **One finding is parked, not actioned**: `_fit`'s promise is not a
-  theorem. A fuzz of 4000 transcripts broke it 1540 times, on a two-block
-  transcript and at the `max(2000, ...)` floor. The runner reaches neither
-  today, because it appends a reply and a results block every turn. Line 1's
-  test states the precondition rather than closing the hole.
-- Status 2026-09-20 16:52 (rota-02): **session cb5428a2 takes frame 46 and the
-  stack.** The take exited 0 at stack commit 88f476a, 6 seconds after the
-  claim (observed: the watcher's output, 2026-09-20 16:51). Meta workflow.
-  This context is clean at 23k, so the implementer pass starts here. Roman
-  ordered the hand-off for that reason.
-  **The build starts at line 2, the `decisions.search` character budget.** The
-  design review named that op as the real repair, and line 1's check goes in
-  `run_session` beside `_fit`.
-  **Four questions wait on Roman and none of them gates this frame** (observed:
-  the stack as it stands, 2026-09-20 16:52): frames 52 and 53 are unruled,
-  frame 49 has no owner, and frames 33 and 4 carry the claim of session
-  9108c499, which has ended.
-  **One cross-project hand-off reached this session before the rota claim and
-  was retracted by its sender** (observed: two peer messages, 2026-09-20).
-  Nothing of that frame was claimed, and this stack never carried it.
-- Status 2026-09-20 17:19 (rota-02): **ends-when line 2 is built, judged and
-  committed at `6364927`.** Rota workflow. The pushed `decisions.search` block
-  now spends one budget of its own, `DECISIONS_PUSH_CHARS`, 6000 characters.
-  The rows go round robin by row, so every word that matched keeps a row. One
-  wording names the call that returns a cut word's rows.
-  **The measurement on the test's data: 13542 characters before the budget and
-  5989 after** (observed: the pass's own test, 2026-09-20). The op in
-  `rota/roles/api.py` is unchanged, so a seat that asks for it keeps today's
-  contract. `PUSH_CHARS` is unchanged.
-  **Price against the estimate: 70491 tokens in one agent pass against 110k
-  priced, and the 30k re-record allowance was not spent** (observed: the
-  harness's usage line, and `casestatus` before and after). The register reads
-  72 stale both sides of the change, so this line staled nothing. The gate
-  reads 22 failed against a baseline of 22, one red gone, and zero new stale.
-  The estimate assumed the push is in a cassette key. It is not.
-  **Three design points were open in the record and this session ruled them**
-  (ruled: the assistant, 2026-09-20, because the record priced the line and
-  named no numbers): the budget is 6000 because that is `RESULT_CHARS`, what
-  one asked-for result may cost. The allocation is round robin because word
-  order is the order the subject happened to speak. The op keeps its contract
-  because a seat's own call is the recovery the notice names.
-  **One wording defect is recorded and not fixed.** The notice promises "all
-  N" rows, and the recovery call cuts at `RESULT_CHARS` when a word matches
-  more rows than 6000 characters hold (reasoned: the caps are both 6000, and a
-  wide word overruns the asked result too). Line 3 rewrites every cut wording,
-  so the promise is corrected there and not in a pass of its own.
-  **A second test file flakes, and it is not the one frame 48 names**
-  (observed: the gate at `a6e0d5c`, and five runs of the test alone,
-  2026-09-20 17:10). `tests/rota/test_handover.py::test_a_newer_watcher_retires_the_older_one`
-  was the gate's one new red. It passes 5 of 5 alone in 3.3 seconds each, so
-  the suite's fan-out is the trigger. It touches no code of this pass.
-  Line 1 runs now, in the same agent, resumed by message.
-- Status 2026-09-20 17:41 (rota-02): **ends-when line 1 is built, judged and
-  committed at `cb0649c`.** Rota workflow. `_prompt_overrun` runs in
-  `run_session`, beside `_fit` and above every backend, so a cassette
-  exercises it. Two tests assert the invariant on the replay path.
-  **The brief's arithmetic was wrong and the agent's reading is right** (ruled:
-  the assistant, 2026-09-20, from `_fit_budget`'s own docstring).
-  `_fit_budget` charges the system prompt already, so the whole prompt's room
-  is the budget plus the system prompt. The brief's literal wording charged the
-  system prompt twice and would have fired on nearly every healthy turn.
-  **The overrun line reaches the record and fails no case** (observed: this
-  session's read of `rota/core/db.py:907` and `rota/testkit/fixtures.py:914`,
-  2026-09-20 17:30). `session_note` writes `outcome.errors` as one more turn.
-  The fixtures count an error as a refused call only when the text before the
-  first colon holds a dot, and this line's prefix holds none.
-  **One blind spot of the invariant, recorded and not fixed.** At the
-  `max(2000, ...)` floor the limit is the system prompt plus 2000, which can
-  exceed half the window. So the check cannot see a system prompt that
-  overruns the window on its own. The test's own case shows it: 9231
-  characters against a window half of about 1016, and the line reported 322.
-  The window question is frame 53.
-  **The suite holds a strict and a slack version of one promise** (observed:
-  the agent's four verified sites, 2026-09-20).
-  `tests/rota/test_runner.py:634` permits a 50 per cent overrun of `_fit`'s
-  number, where three other tests assert it exactly. Line 3's pass tightens
-  it, and a red there is a defect of `_fit` and not a test to bend.
-  **Price: 61021 tokens for the resumed pass, against 90k priced for line 1**
-  (observed: the harness usage line, 131512 cumulative for the agent minus
-  70491 at pass 1). Cold pass 1 cost 70491. **Both passes are far under the
-  300k cold anchor, so the resume rule holds** (observed: two passes,
-  2026-09-20).
-  Line 3 runs now, one wording for every cut, in the same agent.
-- Status 2026-09-20 18:59 (rota-02): **ends-when line 3 is built, judged and
-  committed at `8681667`. The gate's new red is not this frame's, and the proof
-  cost four re-records.** Rota workflow. `cut_note` owns the wording at six
-  sites, and seven strings folded into one form. Ten strings remain, each for a
-  named reason. Two sites keep their old wording on purpose: the landing page's
-  `rows_not_shown`, which sits inside a recorded prompt, and the eviction notice
-  and repeat line, which are line 4.
-  **`L1-TE-survey-an-area-for-its-terms` is a pre-existing regression that the
-  register was hiding** (observed: four re-records of five runs each,
-  2026-09-20 17:50 to 18:30). The bisect, in order: the new wording 0/5, the
-  imperative restored 0/5, `code.area`'s old wording back 0/5, the whole of
-  pass 3 reverted 0/5, and the two source files at `88f476a` 0/5. So no line of
-  this frame causes it. The seat calls `code.area` and never `code.source`,
-  identically in all 20 runs, so it is a stable behaviour and not noise.
-  **The register held a green that the live model does not reproduce** (observed:
-  the register's own rows, 2026-09-20 18:40). Load `qwen3:8b@248599` gave the
-  case 10 of 10. It replayed green twice today, then failed 20 of 20 on fresh
-  recordings at the same model, the same 12288 window and temperature zero. A
-  cassette is a record of what a model once said. A replay of it is not evidence
-  that the model still says it.
-  **The green recordings are recoverable and this session is not restoring
-  them.** `.rota/cassettes_backup_2026-09-19-frame43-closing.db` holds them.
-  Restoring them would hide a real regression behind a cassette. So the gate now
-  reads 23 known reds where it read 22, and the 23rd is named and owned by frame
-  55.
-  **One record of this session was wrong and is corrected in place** (ruled: the
-  assistant, 2026-09-20): a comment and a test docstring claimed the imperative
-  in a cut sentence was load bearing, from the first re-record alone. The bisect
-  disproved it. Both now say the imperative follows the rule in `CLAUDE.md`, and
-  that no case measures the difference.
-  **The register runs at 12288 and the nights run at 16384** (observed: every
-  cassette's `num_ctx`, 2026-09-20). No cassette in the register was ever
-  recorded at 16384. So the register does not measure the window frame 43
-  shipped. That is a finding for frame 54 and not a line of this frame.
-  Price: the agent's pass cost is unread for line 3 alone, because the harness
-  reports the agent cumulatively. Cumulative after three passes: 205227 tokens.
-  Line 4 runs next, the eviction notice against the repeat line.
-- Status 2026-09-21 00:17 (rota-02): **ends-when line 4 is built, judged and
-  committed at `27d0de8`. No wording moved, and the cassette counts are why.**
-  Rota workflow. A repeated call is suppressed only while the transcript still
-  holds its answer. After an eviction the runner serves the result again and
-  says the earlier answer was dropped.
-  **The measurement that shaped the fix** (observed: the agent's count over
-  18435 cassettes, 2026-09-20): the repeat line is in 4907 cassettes, its pushed
-  twin in 572, the eviction notice in 270, and the refusal in 20. So a wording
-  change here would have re-keyed 5779 recordings. The new sentence is in none.
-  168 cassettes carry the eviction notice and the repeat line together, and the
-  gate moved none of them.
-  **The deviation is accepted and it is the better reading** (ruled: the
-  assistant, 2026-09-21): the brief said the line tells the seat to call again,
-  and the agent serves the result instead. The runner holds it at that moment,
-  and a seat whose window has just overflowed should not spend a turn fetching
-  what is in hand.
-  **The gate carries one new red and it is frame 55's**, named and not chased:
-  22 failed against a baseline of 22, one red gone, zero new stale.
-  **One risk is open and recorded**: after an eviction two consecutive repeats of
-  one key are each served whole before the refusal fires. The storm the refusal
-  exists for is a single-turn shape, so it is unaffected.
-  Line 5 runs next, the silent cuts, and it is the last build line. The port of
-  frame 52 follows it on Roman's order.
-- Status 2026-09-21 00:41 (rota-02): **all five build lines are built, judged and
-  committed. Line 5 is at `0cc624b`.** Rota workflow. A silent cut now has two
-  outputs: a notice to the seat through `cut_note`, and a reason on the session's
-  own account through `Ctx.cuts` and `session_note`. No new table.
-  **Four sites of sixty are converted, and the choice is measured** (observed: the
-  agent's count over 18435 cassettes, 2026-09-21). Three are the challenge rows,
-  which are the design record's named consequence: the principal's ledger row was
-  shorter than the verdict it derives from and nothing said so. The fourth is the
-  batch's diff at 20000 characters. The other fifty-six are listed by family with
-  a reason, in the pass's report: headline projections, code-view snippets,
-  samples inside a view, ids, existence probes, quotes inside a refusal, and two
-  that already say "(first part only)".
-  **One latent trap is closed by a door** (observed: this session's read of
-  `rota/testkit/fixtures.py:914`, 2026-09-21). The fixtures read the text before
-  an error's first colon as a refused call whenever it holds a dot. Every
-  recorded cut's prefix is prose today, so nothing is miscounted. `_cut`'s
-  docstring now says to keep a dot out of `what`.
-  **A third test file flakes** (observed: the gate at line 5, 2026-09-21).
-  `tests/rota/test_arc_synthetic.py` the gate itself declared flaky, and
-  `tests/rota/test_handover.py::test_one_claim_wakes_exactly_one_standby` passes
-  47 of 47 three times alone. With `test_screens.py` that is three files, and the
-  finding is on frame 48.
-  **Price for the five lines: 297433 tokens cumulative in one resumed agent,
-  against 666k priced for the whole frame** (observed: the harness usage line).
-  The five build lines were priced at 440k of that. No pass reached its cap.
-  **The diff review of ends-when line 7 runs now**, read-only on a worktree at
-  `0cc624b`, priced 90k. The port of frame 52 waits on one fact: the kit
-  repository's path is in no rota record, so this session asked the peer that
-  reported the release.
-- Status 2026-09-21 00:59 (rota-02): **the diff review of line 7 is in. It
-  confirmed a high-severity regression in line 4 and four small defects, and it
-  paid for itself twice over.** 135663 tokens against 90k priced, 61 tool calls,
-  on a worktree at `0cc624b`. Rota workflow.
-  **Line 4's fix defeats the repeat guard for two identical calls in one reply**
-  (observed: the review's probe A6, 2026-09-21, CONFIRMED). An answer produced in
-  the current turn is never in the current turn's prompt, so after any eviction
-  every repeat of one key takes the serve-again branch. The eviction notice is
-  sticky, because `_fit` writes it back into the transcript. One reply with three
-  identical reads produced 14189 characters, three full results and zero
-  refusals, where the same reply before line 4 produced 242 characters, one line
-  and one refusal. **That is the s71 storm shape the refusal exists to stop, so
-  it is a regression and not a trade.** The repair is in pass 6 now: record the
-  turn a key was answered in, and call it evicted only when that turn is earlier
-  than this one.
-  **Four small defects, all CONFIRMED, all in pass 6**: the at-least-one-row
-  guarantee sits outside the budget check, so a 9000-character row renders a
-  block at 6123 against 6000 and the seat reads two cuts for one block. The
-  overrun limit is the transcript budget and not the window's half, which differs
-  at the `max(2000, ...)` floor. `loop.py:53` prints the first error, so an
-  overrun line can hide a failed session's reason. `code.diff`'s new notice names
-  `code.source`, which `architect/escalate` and `architect/exhausted` do not
-  grant, which is the fault this line set out to remove.
-  **One records fault of this session is cleared in the same pass**: a comment at
-  `rota/roles/api.py:6141-6155` existed twice, one copy carrying the retracted
-  claim about the imperative. A reader must not get two answers to one question.
-  **One finding is recorded and not fixed, because it is dormant** (observed: the
-  review's finding 7, PLAUSIBLE): `backend.complete` also sends
-  `tools=schemas`, 13350 characters for `architect/unresolved`, and no budget
-  charges it. `native_tools = true` exists in
-  `rota/llm/profiles/local-openai-native.toml` and no production caller passes
-  it. The frame's premise survives here: two numbers can still add past the
-  budget with nothing saying so, and this is the pair.
-  **The review's own measurement opened a frame: 603 of 18435 recorded prompts
-  exceed the budget `_fit` promises, the worst by 67295 characters.** That is
-  frame 56. It unparks the fuzz finding this frame shelved, which said the runner
-  reaches no breaking shape today.
-- Status 2026-09-21 01:13 (rota-02): **every review finding is repaired and
-  committed at `5849bec`, and two doors follow at `1bc8623`.** Rota workflow.
-  The repeat guard now records the turn a key was answered in. Measured on the
-  review's own shape: one result and one refusal, 6409 characters, against the
-  review's 14189 characters and no refusal.
-  **One deviation is accepted and it is stricter than the brief asked.** A row
-  wider than the whole budget drops every seed rather than keeping one, so the
-  block becomes its notices alone. Keeping one seed would let a single giant row
-  be cut twice, which was the defect.
-  **The two doors carry the knowledge whose absence caused both findings**
-  (reasoned: the implementer's where-things-are note, 2026-09-21). The repeat
-  machinery has five keys that move together, and both findings it has ever
-  produced came from changing one alone. `outcome.errors` has three readers, so
-  a line added there is three statements at once.
-  **Price so far: 348313 tokens cumulative in the implementer, 135663 in the
-  diff review, against 666k priced for the whole frame.** Six passes, none at
-  its cap, and the implementer is now past the 350k mark where a fresh agent
-  takes over. Its note is in the record above and in the two doors.
-  **What is left of this frame**: ends-when line 8, the gate, which runs once
-  after frame 52's port lands, and ends-when line 9, the walk. The walk runs from
-  a worktree at the closing commit and the frame stays open as validating while
-  the next frame starts, because a walk is about nine hours wall.
-  **The reserve is checked, at 261k** (observed: `peers`, 2026-09-21 01:13). One
-  standby is free at 156k, under the 300k ceiling the port has already installed,
-  so a hand-off at 400k has somewhere to go.
-- Status 2026-09-21 04:05 (rota-02): **the walk ran and it did not validate the
-  frame. Night 88 stalled three times and the frame stays open.** Rota workflow.
-  The night ran 02:51 to 04:03 from a worktree at `d192b62`, exit 0,
-  `GAUNTLET-DONE`.
-  **The size against the night before it** (observed: both databases, 2026-09-21
-  04:05): night 88 ran **738 turns in 191 sessions**, where night 87 ran **4062
-  turns in 746 sessions**. Night 88 had **3 developer sessions of 191**.
-  **All three walks ended on the same report** (observed: `.rota/night88.log`):
-  the team gave up on `boundary for @surface:.readthedocs.yaml`, `challenge for
-  @claim:items:defines_commands_and_options`, `batch_start for bg_1`, and
-  `challenge for @claim:items:default_on_eof`. The walks were quiet after 35, 27
-  and 26 steps.
-  **So this frame cannot close on this walk.** The walk exists to catch exactly
-  this, and it caught something. Whether it caught this frame's own fault is not
-  yet known: frame 37 records that the Developer exhausts ten attempts, and frame
-  38 records a regression between nights 70 and 86, so a stall may be the
-  standing condition. **What this frame changed is the last suspect and not the
-  first** (ruled: the brief).
-  **The diagnosis runs now, read-only, on the archived night.** The night's
-  database was not named by the driver, so this session archived it as
-  `.rota/clickI_night88.db`, 738 turns, before the next night could overwrite
-  `.rota/clickI.db`. The agent reads the turns of the failing sessions first,
-  because a cause goes on the stack only after those turns are read.
-- Status 2026-09-21 04:20 (rota-02): **the diagnosis is in. Frame 46 re-rolled
-  the night and did not cause the stall. It did make one session worse, through
-  two defects of its own, and both have a named fix.** 140348 tokens, read-only
-  over both archived nights. Rota workflow.
-  **The two nights are identical for 66 sessions and diverge at one line**
-  (observed: a session-by-session `prompt_hash` comparison, 2026-09-21).
-  Session `s67` is the first difference, and the only change in its prompt is
-  line 3's new wording: a list of 18 file paths became `CUT this area's files: 13
-  of 18 files are not shown.` Every later difference is downstream of that line.
-  **So a wording change re-rolls a whole night, and one night is not a
-  measurement of a wording change** (reasoned: the same comparison). That is the
-  reading to keep.
-  **No brief changed**: every turn-1 system prompt hash is identical across both
-  nights for all 24 role-and-wake pairs.
-  **Line 1 never fired, on 645 prompts of night 88 and 3599 of night 87**
-  (observed: `length(system) + length(user)` against the limit). The largest
-  assembled prompt is 32520 characters against a limit of 32522, so `_fit` binds
-  exactly and the measurement is silent because there is nothing to report.
-  **Two defects of this frame, both in line 4, both CONFIRMED.**
-  1. **The eviction guard is one turn early.** `evicted` is tested against the
-     prompt the seat has just read, and the feedback line goes into the prompt
-     the seat reads next, which can evict the answer in between. Night 88's
-     `s137` shows it: the span is in the prompt at turns 3, 4 and 5, absent at
-     turn 6, and turn 6 still says the answer is above. Fix: test against the
-     prompt the line will appear in, or drop "the answer is above" and always
-     serve.
-  2. **The refusal became unreachable while an eviction stands, and this is the
-     defect that cost the night** (observed: this session's read of
-     `rota/core/runner.py:2546-2625`, 2026-09-21, correcting the diagnosis).
-     The diagnosis said the serve counts a repeat twice. It does not: the three
-     increments at `:2565`, `:2583` and `:2625` are mutually exclusive per call,
-     so every repeat is counted once. The real mechanism is worse. The refusal
-     at `:2546` reads `if unchanged and repeated.get(key, 0) >= 1`, and
-     `unchanged` is false whenever the answer was evicted. The eviction notice
-     is sticky, because `_fit` writes it back every turn. **So while an eviction
-     stands, a repeating seat is served in full for ever and is never refused.**
-     In `s137` turns 7, 8 and 9 were each served and the session died on the
-     identical-turn stop with nothing written. Night 87's `s132` is the same
-     wake, the same span and the same contradiction, and it survived to 20 turns
-     and committed at turn 15, because the refusal was still reachable there.
-     **The fix is one line**: the refusal must test `would_repeat` rather than
-     `unchanged`, so the third identical call is refused whether or not its
-     answer was evicted, and the serve happens at most once per key. This
-     session did not make the change: a one-line door still needs the test that
-     asserts the refusal fires under a standing eviction, and this session is at
-     375k.
-- Status 2026-09-21 04:20 (rota-02): **HAND-OFF. Session `0f086f93` holds frame
-  46 and the stack, at commit `e83931f`.** The hand exited 0 and printed
-  CONFIRMED 5 seconds after the claim. Session cb5428a2 stops here at 375k.
-  **What the next session picks up, in order.**
-  1. **The one-line fix above**, with the test that asserts the refusal fires
-     under a standing eviction. That is this frame's last code.
-  2. **Then the frame's own question: does it re-walk?** The diagnosis says
-     frame 46 re-rolled night 88 rather than breaking it, and that one night is
-     not a measurement of a wording change. A second night at the fixed commit
-     is the only thing that separates "a different night" from "a worse night".
-     It costs about nine hours wall and 20k of context.
-  3. **The re-record decision is the holder's.** Line 3's wording re-keys
-     cassettes, and Roman ruled on 2026-09-20 that a re-record runs without
-     asking. The gate reads zero new stale, so nothing is owed yet.
-  4. Roman's order from 2026-09-21 for what follows: 54, the read that frames 47
-     and 53 share, 48, 55, 49, then 45, 38, 37, 41, 42, 33, 4. Frames 56, 57 and
-     58 are pushed and Roman has not placed them.
-  5. **Frame 57 is Roman's ask and it is ready to run**, repriced to 180k, with
-     night 88 archived as its input.
-  **Do not restore a green from a backup to quiet the gate** (ruled: Roman,
-  2026-09-20). Two reds are known: `L1-TE-survey-an-area-for-its-terms` is frame
-  55's, and any single red in `test_handover.py`, `test_screens.py` or
-  `test_arc_synthetic.py` that passes alone is frame 48's.
-  **The new machinery's reach, for the record** (observed: GLOB counts over
-  night 88): 78 of 645 prompts carry a `CUT` notice, in 22 of 191 sessions. 13
-  sessions carry a `cut ...` error. 21 prompts in 8 sessions carry the evicted
-  serve. 0 carry `prompt over budget by`.
-  **Three of the four stuck items are older than this frame** (observed: the
-  turns of the failing sessions, quoted in the report). The boundary refusal is
-  the standing condition and night 87 failed it the same way: the Architect
-  proposes one constraint, `model.amend` refuses it for naming nobody outside
-  the repository, and the seat repeats the call rather than reaching
-  `surveys.attest(outcome="none_found")`, which its brief names. An empty
-  `code.probe` result livelocks the Critic: `[]` came back seven times and the
-  refusal then pointed the seat at an empty list. And `rota/llm/toolproto.py:573`
-  refuses a `challenge.break` whose `why` argument is unterminated and tells the
-  seat to use triple quotes on `text`, an argument the call does not have. Each
-  has a fix in the report and each is its own wall.
-  **Why the night collapsed to 738 turns**: `batches.head_commit` is NULL for
-  `bg_1` in night 88 and a real sha in night 87. The Tester and every
-  `tests_failing` wake hang off that commit, so 3 developer sessions of 191 and
-  no test path at all follow from one uncommitted batch.
-  **The probe that would settle the rest is a night, not a query** (reasoned: the
-  diagnosis): re-run night 88 from the warm snapshot at `d192b62` with `27d0de8`
-  and `8681667` reverted, and compare `bg_1`'s commit and the quarantined set.
-  One night and one GPU separate "a different night" from "a worse night".
-  **One finding is worth its own frame and is not pushed by this session**
-  (observed: 13 sessions carrying a `cut ...` error): the principal's ledger row
-  loses 36 to 225 characters of the Critic's reasoning on most falsifications,
-  and the ledger row is what the principal rules from. Line 5 made that
-  countable, which was its purpose, and the count now says the loss is routine.
-  **One finding of the walk is already in hand and it belongs to frame 57**
-  (observed: `.rota/night88.log`, 2026-09-21): rota prints its own spill
-  measurement, and **nothing spilled**. Every line reads `0.00 GB in RAM`, 16 for
-  `qwen3:8b` at 6.89 GB resident and 12 for `qwen3.5:9b` at 5.50 GB resident, at
-  a 16384 window. **The two together are 12.39 GB against a 10240 MiB card**, so
-  the night swaps models rather than holding both, and the swap is a reload and
-  not a spill. That is the shape frame 57 must price.
-- Status 2026-09-21 04:21 (rota-e7): **session 0f086f93 takes frame 46 and the
-  stack.** Handed by cb5428a2 at stack commit `e83931f`, take exit 0. Meta
-  workflow. The sender wrote the claim into the heading before it handed off.
-  **The open work is the two defects this frame caused, and nothing else
-  starts before them.** Both are in line 4, both CONFIRMED, and the previous
-  session named the fix and stopped at 375k rather than write a door without
-  its test. That was right.
-  **The two fixes are one design and not two doors** (reasoned: this session's
-  read of `rota/core/runner.py:2494-2631`, 2026-09-21 04:21). Defect 2's fix
-  makes the refusal test `would_repeat`, so a third identical call is refused
-  whether or not its answer was evicted. That refusal then says "use the answer
-  above" in the one case where the answer is not above. Defect 1 is the same
-  sentence failing for the other reason, one turn early. **So the repeat line
-  stops claiming where the answer is, and names the call that fetches it
-  instead**, which is this frame's own ends-when line 3. One claim removed
-  closes both.
-- Status 2026-09-21 05:21 (rota-e7): **both defects are repaired in the tree
-  and the repair is not committed, because it took two register cases from
-  green to zero of five.** Rota workflow. 110724 tokens in one implementer
-  against a 150k cap.
-  **The repair, in one word plus three strings.** The refusal at
-  `rota/core/runner.py:2556` tests `would_repeat` and no longer `unchanged`, so
-  a result is served at most twice per key: once on the first asking, and once
-  more when an eviction emptied it. The repeat line and the refusal stop
-  claiming where the answer sits and name the call that returned it.
-  **Five tests, and the load-bearing one fails on the commit before the fix**
-  (observed: the implementer's verbatim failure, 2026-09-21). It asserts that
-  the third identical calling is refused while an eviction stands.
-  `tests/rota/test_runner.py` and `tests/rota/test_onboarding_phases.py` give
-  144 passed.
-  **The wording change made 20 of 128 register cases stale, and 16 re-earned
-  green** (observed: `ROTA_L1=1` over the 20 ids, 127 cassettes in 9m16s,
-  2026-09-21 05:16). Re-recording is this frame's work, because this frame
-  moved the text.
-  **Four failed, and a control probe says two are this frame's and two are
-  not** (observed: the same four ids re-recorded live on a worktree at
-  `c4f0e87` against a separate cassette database, 2026-09-21 05:19).
-  `L1-AR-annotate-a-batch` and `L1-VK-the-account-before-the-behaviours` fail
-  on both trees, so they are frame 55's shape and not a cost of this frame.
-  **`ACT-TS-five-criteria-one-per-reply` and
-  `L2-DV-name-the-block-rather-than-retry` pass on the control tree and score
-  zero of five here.** Zero of five against a threshold of 4 and 3 is not a
-  sample near a line. It is deterministic.
-  **The gate said `stale (0): none` in the same run where twenty cases failed
-  with a STALE message** (observed: the implementer's gate line, 2026-09-21).
-  That is frame 54's fault exactly, a prompt-text change leaving `prompt_hash`
-  alone, so it needs no new frame and it is named here as a second instance.
-  **One hypothesis is already dead** (observed: `rota/core/runner.py:2452`,
-  2026-09-21): the repeat refusal cannot shadow a call's own refusal. `sb.call`
-  raises when a guard refuses, so a refused call never reaches
-  `answered[key] = shown` and `would_repeat` stays false for it.
-  **The diagnosis runs now, read-only over both cassette databases**, priced
-  80k. It must say which half of the change causes each regression, the
-  refusal or the wording, and whether the case asserts the old text.
-- Status 2026-09-21 05:36 (rota-e7): **the repair costs exactly one case, and
-  three of the four suspects were faults in the measurement.** Rota workflow.
-  132970 tokens in the diagnosis against 80k priced.
-  **Two of the four were the wrong model, and that is frame 60** (observed:
-  the same 20 ids run twice, 2026-09-21 05:16 and 05:33). Without
-  `ROTA_MODEL`, 16 pass. With `ROTA_MODEL=qwen3:8b`, 18 pass.
-  `L2-DV-name-the-block-rather-than-retry` and
-  `L1-VK-the-account-before-the-behaviours` flip from 0 of 5 to a pass on the
-  model alone. **This session followed the instruction the suite prints, and
-  the instruction names no model.**
-  **The third is pre-existing** (observed: the control at the right model,
-  2026-09-21 05:35). `L1-AR-annotate-a-batch` scores 0 of 5 on the pre-repair
-  worktree too, so it is frame 55's shape and not a cost of this frame.
-  **The fourth is this frame's, and it is proven by a single-variable diff**
-  (observed: the diagnosis over `tests/rota/cassettes.db`, 2026-09-21).
-  `ACT-TS-five-criteria-one-per-reply` is pinned to `qwen3.5:9b`, so no model
-  confound touches it. Run `seq 204694` passed 5 of 5 and run `seq 205419`
-  failed 0 of 5. Turns 1 to 10 are byte-identical. The turn 11 prompt differs
-  by five repeat lines, **115 bytes in 10622**. With the old text the Tester
-  called `tests.encode` and reached five tests. With the new text it wrote
-  prose, called nothing, and stopped at four. The case asserts
-  `writes.tests: 5..5` and quotes no wording, so the requirement stands.
-  **The refusal half never ran in that case** (observed: the same diagnosis).
-  At turn 10 the five `ledger.log` keys were on their first repeat, so
-  `repeated[key]` was 0 and both versions took the `elif unchanged` branch.
-  **So the two halves are separable and only one of them costs anything.** The
-  refusal half fixes the stall that killed night 88's s137 and costs no
-  measured case. The wording half fixes a line that lies one turn early and
-  costs `ACT-TS`.
-  **One caution on every number above** (reasoned: the diagnosis): five runs
-  of a replayed case are one sample, because run 1 records and runs 2 to 5
-  replay the same cassettes. A 0 of 5 is one live sample, not five.
-  **The trade is Roman's and it is put to him now**, because it trades a true
-  record against a measured case, and it changes what this frame closes on.
-- Status 2026-09-21 05:40 (rota-e7): **ruled. Both halves land, and `ACT-TS` is
-  re-earned first** (ruled: Roman, 2026-09-21, asked with three options and the
-  split recommended against). Meta workflow.
-  **The re-earning pass runs now**, priced 60k. It reads the turn 11 exchange
-  on both runs and tests candidate wordings against the case. Every candidate
-  must make no claim about where the answer sits, must name the call that
-  returned it, and must keep the half that says how the call ran.
-  **The hypothesis under test** (reasoned: this session, from the two
-  completions): "What `{name}` returned then still stands" reads to a 9B model
-  as closure. "Still stands" may say the work is settled, where "the answer is
-  above" pointed the seat back at material it had to use.
-  **A failure here is a real answer, and Roman ruled for it in advance.** If no
-  wording keeps the case, both halves land anyway and `ACT-TS` is recorded red
-  with its reason.
-- Status 2026-09-21 08:36 (rota-e7): **no wording keeps the case, and the
-  hypothesis was wrong.** Rota workflow. 81975 tokens against 60k priced, five
-  wordings measured.
-  **The scores, each one live sample** (observed: the re-earning pass,
-  `ROTA_L1=1 ROTA_MODEL=qwen3:8b`, 2026-09-21): the tree's wording 0 of 5.
-  `Use what {name} returned earlier.` 0 of 5. `Nothing was written. Use what
-  {name} returned earlier.` 0 of 5. `Use the answer {name} gave you. Continue
-  the work.` 0 of 5. `..., so use the answer {name} already gave you.` 0 of 5.
-  The old falsehood `; the answer is above.` 5 of 5.
-  **The closure hypothesis is dead** (observed: candidates B and C, which
-  removed the settled tone and added a direct order to continue). The deciding
-  property is not the tone. **It is the backward pointer.** The old line's last
-  word is `above`, and it sends the model back up its own prompt. Every
-  replacement points outside the prompt, so the seat reads the tail as settled
-  state.
-  **What the case actually measures is now known, and it is not this frame's
-  line.** The Tester is refused at turn 9, because two tests may not share one
-  file. At turn 11 that refusal is two blocks above the tail. With `above` the
-  seat scans back and writes the fifth test. Without it the seat writes a prose
-  summary that **lists the refused write as done**. That is frame 61.
-  **The control proves the rest of the tree is not the cause** (observed: the
-  old wording restored in the working tree, 5 of 5). The `would_repeat` half is
-  not implicated.
-  **So `ACT-TS` is recorded red with its reason, which is what Roman ruled for
-  in advance.** The case depends on a line that lies, and the lie is the fault
-  night 88's s137 died of.
-- Status 2026-09-21 08:55 (rota-e7): **the repair is committed at `59cb2ad`
-  and night 89 runs now. The frame is validating.** Rota workflow.
-  **The gate before the commit** (observed: 2026-09-21 08:44): 24 failed, 2032
-  passed, **new reds 3, stale 0**. All three reds are named and owned.
-  `ACT-TS-five-criteria-one-per-reply` is this frame's and Roman ruled it.
-  `L1-AR-annotate-a-batch` and `L1-TE-survey-an-area-for-its-terms` score 0 of
-  5 on the pre-repair worktree at `ROTA_MODEL=qwen3:8b`, so both are frame
-  55's shape. **The stale line reads zero because the 20 cases were
-  re-earned**, 18 of them green.
-  **Night 89 runs from a worktree at `59cb2ad`**, the frame's closing commit,
-  as the brief requires, because the seats read the briefs at every wake. It
-  started 08:54 with click restored to its base `2c8cd3a`. The log is at
-  `night89.log` in this session's scratchpad.
-  **Three things the session that reads night 89 needs.**
-  1. **Archive the database before any other night runs.** The driver does not
-     name it, so `.rota/clickI.db` must be copied to `.rota/clickI_night89.db`
-     first. Night 88 needed the same hand step (observed: frame 46's status of
-     2026-09-21 04:05).
-  2. **A stall alone does not fail this frame.** Night 88's diagnosis found
-     three of its four stuck items older than the frame, and frames 37 and 38
-     carry two of them. The question night 89 answers is narrower: **does an
-     `s137`-shaped session recover now?** That is a seat that repeats one read
-     while an eviction stands. It should meet the refusal at the third asking
-     and stop paying full freight.
-  3. **Compare against `.rota/clickI_night88.db`**, 738 turns in 191 sessions,
-     and night 87's 4062 turns in 746 sessions. Night 88 had 3 developer
-     sessions of 191, and `batches.head_commit` was NULL for `bg_1`.
-  **The frame's cost so far, walls counted apart.** Agents: 110724 for the
-  repair in two passes, 132970 for the diagnosis against 80k priced, 81975 for
-  the re-earning against 60k priced. The five build lines cost 297433 before
-  this session took the frame. Wall: 9m16s and 4m04s for two re-records, 1m51s
-  and 1m41s for two controls, 8m01s for the gate, and night 89 is about nine
-  hours.
-  **Four frames were pushed from this frame's findings**: 59 the ledger row,
-  60 the re-record command's model, 61 the backward pointer. Frame 56 and the
-  others predate this session.
+### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
 
-### 58. A retried tick re-runs the identical session (2026-09-21)
-
-- Rota workflow. A tick that fails is retried up to three times, and **the retry
-  is the same prompt at temperature zero, so it is the same session again**
-  (observed: night 88's turns, hashed per turn, 2026-09-21).
-- **Twelve of night 88's 191 sessions are four sessions run three times.**
-  `s137`, `s138` and `s139` share `prompt_hash` `cc8400014e1b2c48` and hash the
-  same for all ten turns. `s78/s79/s80`, `s94/s95/s96` and `s162/s163/s164` are
-  the same shape.
-- **The code states the opposite of what it does.** `rota/core/scheduler.py`, in
-  `tick_batch_start`, says "the attempt count is a fact of this table and the
-  wake carries it, as tests_failing does, so the second session is not the first
-  one verbatim". `rota/core/runner.py:239` is `DETAIL_SHOWN = {"tick:tests_missing"}`,
-  so `tick:batch_start` writes a detail the prompt never shows, and
-  `tick:boundary` and `tick:challenge` write none at all.
-- **What it costs**: every retry of a failing tick spends a full session to
-  reproduce a failure byte for byte. On night 88 that is 12 sessions of 191, and
-  the three walks each ended stuck on items whose retries could never differ.
-- Ends when: a retried tick's prompt differs from the first attempt's, a test
-  asserts the difference for each of the four wake kinds, and one night shows a
-  retry reaching a different call. Priced: the door is one line plus a detail
-  sentence for boundary and challenge, 40k with its tests. The re-records are
-  frame 54's problem and not this frame's, because the prompt text moves.
-- Waits on: nothing. Roman orders it. It is cheap and it makes every other
-  stall-shaped frame cheaper to read, because a stall stops being three
-  identical sessions.
-- Reasoning: frame 46's status line of 2026-09-21 04:20, finding 2 of the night
-  88 diagnosis, and `.rota/clickI_night88.db`.
-- Status 2026-09-21 04:20 (rota-02): pushed by cb5428a2, unclaimed, priced.
-  Found by the diagnosis of frame 46's walk. It is pre-existing and it is not
-  frame 46's.
-
-### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
-
-- Rota workflow. The principal's ledger row loses 36 to 225 characters of the
-  Critic's reasoning on most falsifications, and the ledger row is what the
-  principal rules from (observed: 13 of 191 sessions of night 88 carry a
-  `cut ...` error, 2026-09-21).
-- **The count exists because frame 46's line 5 made it countable**, which was
-  that line's purpose. The design record's named consequence was that the
-  ledger row is shorter than the verdict it derives from and nothing says so.
-  Line 5 added the notice and the recorded reason. **The count now says the
-  loss is routine, not rare.**
-- **This is not the cut's fault and it is not a wording fault.** The cut is
-  doing what it was built to do. The question is whether a challenge row is
-  the right block to cut, when the principal rules from it and cannot ask for
-  the rest.
-- Ends when: the cause is named in a record, and either the ledger row is
-  exempt from the cut with a test that holds it, or the principal is given the
-  call that fetches the rest and a test asserts the notice names it. Priced
-  from the anchors: one read that groups the 13 by role and mode and measures
-  what was lost, 40k. Buys the difference between a tidy notice and a ruling
-  made on half a verdict. The repair and its test, 60k.
-- Waits on: nothing. Roman orders it.
-- Reasoning: frame 46's status line of 2026-09-21 04:20, and the design record
-  `plans/archive/context-caps-design-2026-09-18.md`, which names the ledger row
-  as line 5's reason.
-- Status 2026-09-21 05:10 (rota-e7): pushed by 0f086f93, unclaimed, priced.
-  Frame 46 named this finding and did not push it. Pushed here so the
-  obligation stays countable. This session holds frame 46 and takes no new
-  frame.
-
-### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
-
-- Rota workflow. A seat's unmet obligation sits in a refusal, in a block that
-  the prompt's tail soon buries. Nothing restates it. The seat finds it again
-  only if some later line sends it back up its own prompt.
-- **Measured on one case, five wordings** (observed: frame 46's re-earning
-  pass, 2026-09-21 08:30). In `ACT-TS-five-criteria-one-per-reply` the Tester
-  is refused at turn 9: two tests may not share one file. At turn 11 the
-  refusal is two blocks above the tail. The old repeat line ended with the
-  word `above`, the seat scanned back, found the refusal and wrote the fifth
-  test. Four replacements that point outside the prompt all score 0 of 5, and
-  the seat writes a prose summary that lists the refused write as done.
-- **So the case measured the backward pointer and not the repeat notice**
-  (reasoned: the same pass, which removed the settled tone three ways and
-  still closed the session). A wording fix cannot keep it, because this
-  frame's constraint forbids any claim about where a thing sits in the prompt.
-- **The seat does not know its own obligation is open.** It reports as done a
-  write the runner refused. That is the fault, and the repeat line was
-  covering it by accident.
-- Ends when: an unmet obligation is restated where the seat will read it, and
-  a test asserts that a refused write is not reported as done. Priced from the
-  anchors: one read that counts how many refusals go unmet in a night, 40k.
-  Buys the size of the fault. The repair and its test, 80k.
-- Waits on: nothing. Roman orders it.
-- Reasoning: frame 46's status line of 2026-09-21 08:36, and the re-earning
-  pass that produced the five scores.
-- Status 2026-09-21 08:36 (rota-e7): pushed by 0f086f93, unclaimed, priced.
-  **The lever the pass names**: the refusal could restate the unmet obligation
-  at the tail, rather than relying on a repeat line to send the seat back.
-  This session holds frame 46 and takes no new frame.
-
-### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
-
-- Meta workflow. `tests/rota/test_l1.py:34` reads
-  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
-  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
-  sets nothing (observed: both files, 2026-09-21).
-- **The suite's own STALE message tells you to re-earn a case with
-  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
-  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
-  names no model. **So following the repository's own instruction re-records
-  the register against a model the register does not hold**, for every case
-  whose file pins none.
-- **The cost is measured, not predicted** (observed: the same 20 case ids run
-  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
-  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
-  `L2-DV-name-the-block-rather-than-retry` and
-  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
-  model alone. Both scored 0 of 5 on the wrong model.
-- **This session followed the instruction and read two false regressions from
-  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
-  spent, and it found the cause. The frame exists so the next session does not
-  spend it again.
-- Ends when: the message names a model, the two test files agree on which
-  model a direct run uses, and a test asserts that a run outside the gate does
-  not silently take a different model from the register's. Priced from the
-  anchors: one door and one test, 30k.
-- Waits on: nothing. Roman orders it.
-- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
-  the two case regressions.
-- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
-  **This is not a model question and it is not frame 55's.** Frame 55 says a
-  recorded green does not reproduce live on one model. This says two commands
-  that both claim to re-earn a case use two different models. This session
-  holds frame 46 and takes no new frame.
-
-### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
-
-- Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
-  2026-09-21**: find every path by which running rota puts data in system RAM
-  instead of GPU memory, say why each one spills, and say whether each is
-  avoidable. A seat's wake and a session's whole conversation are two causes of
-  one effect, and both count. Analyse all wakes and give summary statistics.
-- **Three numbers are already in hand and they set the shape** (observed:
-  `nvidia-smi` and the environment during night 88, 2026-09-21 02:54):
-  - The 3080 holds 10240 MiB and 8218 are in use with `qwen3:8b` at a 16384
-    window. **So the headroom is about 2000 MiB, which is 20 per cent.**
-  - The second card is a GTX Titan X of 12288 MiB, idle. It is the register
-    recorder's card, and a night does not use it.
-  - `OLLAMA_NUM_PARALLEL=1`, so ollama does not multiply the window by a
-    parallel count. That removes the largest single multiplier before anybody
-    looks for it.
-- **Why the question is not already answered by frames 46, 53 and 56.** Those
-  three ask what a prompt may contain and what it costs in tokens. This frame
-  asks what a prompt costs in bytes of GPU memory, and what happens when the
-  bytes do not fit. A prompt inside every token budget can still push the KV
-  cache past the card.
-- The causes to enumerate, so the next session does not re-derive the list. Each
-  needs a measured size and an avoidable-or-not verdict: the model's own weights
-  at their quantisation, the KV cache at 16384 and what it costs per token, a
-  second model loaded beside the first, ollama's keep-alive holding a model after
-  a run, the growth of a session's transcript inside one night, the wake's own
-  parts as frame 46 now budgets them, and anything the harness's own sessions
-  put on the same machine while a night runs.
-- Ends when: one record names every path, its measured size, why it spills and
-  whether it is avoidable, with summary statistics over every wake of night 88.
-  Priced from the anchors, and it is a fan-out because Roman asked for sub-agents:
-  1. Four read-only agents, one cause-family each, 40k apiece, 160k. Buys four
-     independent readings that do not see each other's answers.
-  2. One agent over night 88's wakes for the statistics: size, parts, duration
-     and throughput per wake, 60k. Buys the distribution and the cliff, if there
-     is one.
-  3. One synthesis in this context, 40k. Buys one record instead of five.
-  Total about 260k. **The read of ollama's own offload lines is the load-bearing
-  half**: a spill is a fact the server states, so the report must quote it and
-  never infer it from a slow wake.
-- **Night 88 answers the headline question already, and it reprices the frame**
-  (observed: `.rota/night88.log`, 2026-09-21 04:05). rota prints its own spill
-  measurement on every model load, and **nothing spilled**: 16 lines read `CARD
-  FITS qwen3:8b at 16384: 6.89 GB resident, 0.00 GB in RAM` and 12 read `CARD
-  FITS qwen3.5:9b at 16384: 5.50 GB resident, 0.00 GB in RAM`.
-  **So the frame's question turns from "why does it spill" into "what is the
-  margin, and what would spend it".** Three facts bound the answer. The two
-  models are 12.39 GB together against a 10240 MiB card, so the night swaps them
-  rather than holding both, and a swap is a reload cost and not a spill. The
-  night uses two models by profile: `qwen3:8b` by default and `qwen3.5:9b` for
-  critic, developer, terminologist and tester. And the idle 12288 MiB Titan X
-  could hold the second model, which is the obvious lever nobody has priced.
-  **The reprice: the four cause-family agents drop to two**, 80k, because the
-  measurement that would have taken two of them is already printed. The
-  statistics pass over night 88's wakes stays at 60k, and the synthesis at 40k.
-  Total about 180k, from 260k. The first question for the statistics pass is how
-  often the night swapped models and what each swap cost in wall time.
-- Waits on: **nothing. Night 88 is in, archived as `.rota/clickI_night88.db`**,
-  738 turns and 191 sessions. It is the only night with frame 46's
-  budgets in place, and its wakes are the input. The frame also shares that night
-  with frames 47 and 53, so one night answers three frames.
-- Reasoning: Roman's ask of 2026-09-21, the anchors above, and
-  `plans/operating-facts.md`, the GPU and night sections.
-- Status 2026-09-21 02:54 (rota-02): pushed by cb5428a2, unclaimed, priced.
-  **This session is at 328k and takes no new frame**, so the frame is written to
-  be runnable in one step rather than started. Roman asked for it after the walk,
-  and the walk ends after this session's hand-off point of 400k, so a fresh
-  context runs it. Roman orders it against 54, the shared read, 48, 55 and 49.
+- Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
+  `prompt_hash` and model. The cassette key covers more than that: the prompt's
+  text, the mode prompt and `num_ctx` (observed: the file's own comment at
+  `:71-77`, and the cassette table's columns, 2026-09-20).
+- **One narrow key gives two opposite symptoms.** A `num_ctx` change leaves no
+  row at the current hash, so the case reads stale, and that is frame 49's 72. A
+  prompt-text change leaves the hash alone, so the rows still match and the case
+  reads green while the suite cannot replay it (observed: frame 46's line 3,
+  2026-09-20, where the gate said STALE and `casestatus` said 72 before and 72
+  after).
+- **So "zero stale" cannot gate.** It is a line in every acceptance this
+  repository writes, frame 46's included, and the true count is unknown.
+- **A second finding for the same frame: the register runs at 12288 and the
+  nights run at 16384** (observed: every cassette's `num_ctx`, 2026-09-20). No
+  cassette was ever recorded at 16384, so the register does not measure the
+  window frame 43 shipped.
+- Ends when: `casestatus` matches everything the cassette key covers, a test
+  asserts that a prompt-text change makes a case read stale, and the true count
+  is measured and recorded. Priced from the anchors: the first read names the
+  key's fields against the report's match, 20k. Buys the number nobody has. The
+  repair and its test, 80k. Buys an acceptance line that can fail. The true
+  count then replaces 72 in frame 49, and the re-records are frame 49's work and
+  not this frame's.
+- Waits on: nothing. **Roman ruled it a frame of its own, above 49, on
+  2026-09-20** (ruled: Roman, asked with three other options and the fold into
+  49 recommended).
+- Reasoning: frame 46's status line of 2026-09-20 18:59, and the comment at
+  `rota/tools/casestatus.py:71-77`, which names the fault and predates the frame.
+- Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
+  frame exists so the obligation stays countable. This session holds frame 46
+  and takes no new frame.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -1031,6 +128,65 @@ next session to close 46 reorders the file to this list.
 - Status 2026-09-20 03:00 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
   The frame exists so the obligation stays countable. It was found by the
   frame that caused it, on the night that proved that frame.
+
+### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
+
+- Rota workflow. A capacity question, split out of frame 46 on 2026-09-20
+  because frame 46 is a design frame and this is not its question.
+- `_fit_budget` gives a turn `max(2000, int(num_ctx / 2 * 3.97) - system)`
+  characters (observed: `rota/core/runner.py:566`). The halving exists
+  because ollama collapses a prompt over `num_ctx` to `num_ctx / 2 + 2` and
+  keeps the tail, which cuts the brief off the front. **So a 16384 window
+  carries at most 8192 tokens of prompt, and frame 43's rise bought the
+  lower half only** (observed: night 87's largest prompt was 8191 tokens,
+  two characters under exactly half).
+- **The halving is Ollama-specific** (observed: `rota/llm/llm.py:443`).
+  `LiteLLMBackend` never sends the window, so on those profiles the halving
+  discards half the declared budget and defends against nothing. The
+  fraction belongs to the backend, not to "the window".
+- The number that argues for the frame: night 87's cuts denied 8784628
+  characters against 6946907 delivered, so the caps removed 1.26 times what
+  they delivered (observed: frame 46's design review, probe 4).
+- **The number is not yet an argument for raising anything**, because
+  nothing says the denied characters were load bearing. A denied repeat
+  costs nothing. A denied verdict or tool call is a correctness fault. Frame
+  47 asks the same question about trimmed replies, so the two share a first
+  read.
+- Ends when: not priced. The first read says how much of the denied demand
+  was load bearing, and only then does the fraction become a ruling. Raising
+  it needs frame 46's line 1 first, because nothing measures the assembled
+  prompt before the send.
+- Waits on: **frame 46's walk, not its line 1** (reasoned: the assistant,
+  2026-09-21, recommending to Roman). Line 1 is built and committed at
+  `cb0649c`, so the measurement this frame needed exists. The number it needs
+  does not. The 8784628 denied characters are night 87's, and night 87 ran
+  before `decisions.search` had a budget. The design review named that op as
+  55.5 per cent of all pushed characters and the upstream cause of the denial,
+  and line 2 capped it at 6000 characters on 2026-09-20. So the denial figure
+  has moved and nobody knows by how much. Frame 46's ends-when line 9 already
+  pays for a walk, so the fresh number costs this frame nothing.
+- Reasoning: `plans/archive/prompt-budget-design-2026-09-20.md`, section 5,
+  and the design review's finding 6.
+- Status 2026-09-20 16:45 (rota-52): pushed by 0549dc76, unclaimed, unruled.
+  Split out so a capacity question stops gating a coherence frame.
+- Status 2026-09-21 00:25 (rota-02): **the halving stays, and the frame waits for
+  one shared read** (reasoned: the assistant's recommendation to Roman,
+  2026-09-21; Roman asked for it rather than picking from four). The read is one
+  question for this frame and frame 47 together: of the denied characters and the
+  140 trimmed replies, how many lost a verdict, a ruling or a tool call? About
+  60k. A cosmetic answer closes both frames. An answer on the delivery path
+  prices both.
+  **Two options are recorded as rejected, with the reason** (reasoned: the same
+  recommendation). Making the fraction the backend's is right in principle and
+  ships unmeasured: no cassette covers a `LiteLLMBackend` profile and nothing
+  runs one today, so the shape is recorded and the work waits for a profile that
+  uses it. Raising it on Ollama needs a margin for the chat template that nobody
+  has measured, and a miss cuts the brief off the front, which is the fault the
+  halving exists to prevent.
+  **A third finding of 2026-09-20 belongs to this frame's evidence, not its
+  ends-when**: every cassette in the register was recorded at `num_ctx` 12288 or
+  8192, so no recording measures the 16384 window the nights run at. Frame 54
+  owns the repair.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
@@ -1088,71 +244,6 @@ next session to close 46 reorders the file to this list.
   **The cost is now counted.** Four of frame 46's five gate runs needed a
   judgement by hand on a red the gate had already re-run green, or on a red in a
   file the pass never touched.
-
-### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
-
-- Rota workflow. `_fit` promises that a turn's transcript fits
-  `_fit_budget(num_ctx, len(system))`. **603 of 18435 cassettes hold a prompt
-  that does not, and the worst exceeds it by 67295 characters** (observed: frame
-  46's diff review, read-only SQL over `tests/rota/cassettes.db`, 2026-09-21).
-- **This unparks a finding frame 46 shelved.** That finding said `_fit`'s promise
-  is not a theorem, a fuzz of 4000 transcripts broke it 1540 times, and **the
-  runner reaches neither breaking shape today**. The register says the runner
-  reaches some shape, 603 times.
-- **What is not known**: whether the 603 are historical, recorded before a cap
-  that now holds, or whether a live path builds a prompt without `_fit`. Frame
-  46's line 1 measures only what `run_session` assembles, so a path that does not
-  go through `run_session` is still unmeasured.
-- **Why it matters beyond tidiness**: a prompt over `num_ctx` is collapsed by
-  ollama to `num_ctx / 2 + 2` with the tail kept, which cuts the brief off the
-  front. That is the fault the halving exists to prevent, and these 603 prompts
-  are the shape that reaches it.
-- Ends when: the cause is named in a record, and either the 603 are shown to be
-  historical with the reason, or the live path that overruns is named and a test
-  holds the line. Priced: one read that groups the 603 by role, mode and date,
-  and checks whether each came through `run_session`, 40k. Buys the difference
-  between an old scar and an open wound. The repair's price follows the cause.
-- Waits on: nothing. Roman orders it. It sits above 54 only in the file, and
-  Roman's order of 2026-09-21 does not name it yet.
-- Reasoning: frame 46's status line of 2026-09-21 00:59, and the parked finding
-  in frame 46's status line of 2026-09-20 16:50.
-- Status 2026-09-21 01:00 (rota-02): pushed by cb5428a2, unclaimed, priced. Found
-  by the diff review while probing a different point, which is the second finding
-  this frame's reviews produced that its tests could not.
-
-### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
-
-- Meta workflow. `rota/tools/casestatus.py:77` matches a recording on case id,
-  `prompt_hash` and model. The cassette key covers more than that: the prompt's
-  text, the mode prompt and `num_ctx` (observed: the file's own comment at
-  `:71-77`, and the cassette table's columns, 2026-09-20).
-- **One narrow key gives two opposite symptoms.** A `num_ctx` change leaves no
-  row at the current hash, so the case reads stale, and that is frame 49's 72. A
-  prompt-text change leaves the hash alone, so the rows still match and the case
-  reads green while the suite cannot replay it (observed: frame 46's line 3,
-  2026-09-20, where the gate said STALE and `casestatus` said 72 before and 72
-  after).
-- **So "zero stale" cannot gate.** It is a line in every acceptance this
-  repository writes, frame 46's included, and the true count is unknown.
-- **A second finding for the same frame: the register runs at 12288 and the
-  nights run at 16384** (observed: every cassette's `num_ctx`, 2026-09-20). No
-  cassette was ever recorded at 16384, so the register does not measure the
-  window frame 43 shipped.
-- Ends when: `casestatus` matches everything the cassette key covers, a test
-  asserts that a prompt-text change makes a case read stale, and the true count
-  is measured and recorded. Priced from the anchors: the first read names the
-  key's fields against the report's match, 20k. Buys the number nobody has. The
-  repair and its test, 80k. Buys an acceptance line that can fail. The true
-  count then replaces 72 in frame 49, and the re-records are frame 49's work and
-  not this frame's.
-- Waits on: nothing. **Roman ruled it a frame of its own, above 49, on
-  2026-09-20** (ruled: Roman, asked with three other options and the fold into
-  49 recommended).
-- Reasoning: frame 46's status line of 2026-09-20 18:59, and the comment at
-  `rota/tools/casestatus.py:71-77`, which names the fault and predates the frame.
-- Status 2026-09-20 19:00 (rota-02): pushed by cb5428a2, unclaimed, priced. The
-  frame exists so the obligation stays countable. This session holds frame 46
-  and takes no new frame.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
@@ -1239,65 +330,6 @@ next session to close 46 reorders the file to this list.
   line in every acceptance this repository writes, and a line that reads 72
   cannot gate anything. An acceptance that nobody can fail is not an
   acceptance.
-
-### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
-
-- Rota workflow. A capacity question, split out of frame 46 on 2026-09-20
-  because frame 46 is a design frame and this is not its question.
-- `_fit_budget` gives a turn `max(2000, int(num_ctx / 2 * 3.97) - system)`
-  characters (observed: `rota/core/runner.py:566`). The halving exists
-  because ollama collapses a prompt over `num_ctx` to `num_ctx / 2 + 2` and
-  keeps the tail, which cuts the brief off the front. **So a 16384 window
-  carries at most 8192 tokens of prompt, and frame 43's rise bought the
-  lower half only** (observed: night 87's largest prompt was 8191 tokens,
-  two characters under exactly half).
-- **The halving is Ollama-specific** (observed: `rota/llm/llm.py:443`).
-  `LiteLLMBackend` never sends the window, so on those profiles the halving
-  discards half the declared budget and defends against nothing. The
-  fraction belongs to the backend, not to "the window".
-- The number that argues for the frame: night 87's cuts denied 8784628
-  characters against 6946907 delivered, so the caps removed 1.26 times what
-  they delivered (observed: frame 46's design review, probe 4).
-- **The number is not yet an argument for raising anything**, because
-  nothing says the denied characters were load bearing. A denied repeat
-  costs nothing. A denied verdict or tool call is a correctness fault. Frame
-  47 asks the same question about trimmed replies, so the two share a first
-  read.
-- Ends when: not priced. The first read says how much of the denied demand
-  was load bearing, and only then does the fraction become a ruling. Raising
-  it needs frame 46's line 1 first, because nothing measures the assembled
-  prompt before the send.
-- Waits on: **frame 46's walk, not its line 1** (reasoned: the assistant,
-  2026-09-21, recommending to Roman). Line 1 is built and committed at
-  `cb0649c`, so the measurement this frame needed exists. The number it needs
-  does not. The 8784628 denied characters are night 87's, and night 87 ran
-  before `decisions.search` had a budget. The design review named that op as
-  55.5 per cent of all pushed characters and the upstream cause of the denial,
-  and line 2 capped it at 6000 characters on 2026-09-20. So the denial figure
-  has moved and nobody knows by how much. Frame 46's ends-when line 9 already
-  pays for a walk, so the fresh number costs this frame nothing.
-- Reasoning: `plans/archive/prompt-budget-design-2026-09-20.md`, section 5,
-  and the design review's finding 6.
-- Status 2026-09-20 16:45 (rota-52): pushed by 0549dc76, unclaimed, unruled.
-  Split out so a capacity question stops gating a coherence frame.
-- Status 2026-09-21 00:25 (rota-02): **the halving stays, and the frame waits for
-  one shared read** (reasoned: the assistant's recommendation to Roman,
-  2026-09-21; Roman asked for it rather than picking from four). The read is one
-  question for this frame and frame 47 together: of the denied characters and the
-  140 trimmed replies, how many lost a verdict, a ruling or a tool call? About
-  60k. A cosmetic answer closes both frames. An answer on the delivery path
-  prices both.
-  **Two options are recorded as rejected, with the reason** (reasoned: the same
-  recommendation). Making the fraction the backend's is right in principle and
-  ships unmeasured: no cassette covers a `LiteLLMBackend` profile and nothing
-  runs one today, so the shape is recorded and the work waits for a profile that
-  uses it. Raising it on Ollama needs a margin for the chat template that nobody
-  has measured, and a miss cuts the brief off the front, which is the fault the
-  halving exists to prevent.
-  **A third finding of 2026-09-20 belongs to this frame's evidence, not its
-  ends-when**: every cassette in the register was recorded at `num_ctx` 12288 or
-  8192, so no recording measures the 16384 window the nights run at. Frame 54
-  owns the repair.
 
 ### 45. An abandoned tick reached the page as a finding (2026-09-18)
 
@@ -1637,6 +669,234 @@ next session to close 46 reorders the file to this list.
   frame 46 and then the table in order, which is an order inside this frame's
   step list and not a replacement for it. Steps 4 to 7 are still unbuilt.
   The frame is unclaimed and keeps its place at the bottom of the stack.
+
+### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
+
+- Rota workflow. `_fit` promises that a turn's transcript fits
+  `_fit_budget(num_ctx, len(system))`. **603 of 18435 cassettes hold a prompt
+  that does not, and the worst exceeds it by 67295 characters** (observed: frame
+  46's diff review, read-only SQL over `tests/rota/cassettes.db`, 2026-09-21).
+- **This unparks a finding frame 46 shelved.** That finding said `_fit`'s promise
+  is not a theorem, a fuzz of 4000 transcripts broke it 1540 times, and **the
+  runner reaches neither breaking shape today**. The register says the runner
+  reaches some shape, 603 times.
+- **What is not known**: whether the 603 are historical, recorded before a cap
+  that now holds, or whether a live path builds a prompt without `_fit`. Frame
+  46's line 1 measures only what `run_session` assembles, so a path that does not
+  go through `run_session` is still unmeasured.
+- **Why it matters beyond tidiness**: a prompt over `num_ctx` is collapsed by
+  ollama to `num_ctx / 2 + 2` with the tail kept, which cuts the brief off the
+  front. That is the fault the halving exists to prevent, and these 603 prompts
+  are the shape that reaches it.
+- Ends when: the cause is named in a record, and either the 603 are shown to be
+  historical with the reason, or the live path that overruns is named and a test
+  holds the line. Priced: one read that groups the 603 by role, mode and date,
+  and checks whether each came through `run_session`, 40k. Buys the difference
+  between an old scar and an open wound. The repair's price follows the cause.
+- Waits on: nothing. Roman orders it. It sits above 54 only in the file, and
+  Roman's order of 2026-09-21 does not name it yet.
+- Reasoning: frame 46's status line of 2026-09-21 00:59, and the parked finding
+  in frame 46's status line of 2026-09-20 16:50.
+- Status 2026-09-21 01:00 (rota-02): pushed by cb5428a2, unclaimed, priced. Found
+  by the diff review while probing a different point, which is the second finding
+  this frame's reviews produced that its tests could not.
+
+### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
+
+- Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
+  2026-09-21**: find every path by which running rota puts data in system RAM
+  instead of GPU memory, say why each one spills, and say whether each is
+  avoidable. A seat's wake and a session's whole conversation are two causes of
+  one effect, and both count. Analyse all wakes and give summary statistics.
+- **Three numbers are already in hand and they set the shape** (observed:
+  `nvidia-smi` and the environment during night 88, 2026-09-21 02:54):
+  - The 3080 holds 10240 MiB and 8218 are in use with `qwen3:8b` at a 16384
+    window. **So the headroom is about 2000 MiB, which is 20 per cent.**
+  - The second card is a GTX Titan X of 12288 MiB, idle. It is the register
+    recorder's card, and a night does not use it.
+  - `OLLAMA_NUM_PARALLEL=1`, so ollama does not multiply the window by a
+    parallel count. That removes the largest single multiplier before anybody
+    looks for it.
+- **Why the question is not already answered by frames 46, 53 and 56.** Those
+  three ask what a prompt may contain and what it costs in tokens. This frame
+  asks what a prompt costs in bytes of GPU memory, and what happens when the
+  bytes do not fit. A prompt inside every token budget can still push the KV
+  cache past the card.
+- The causes to enumerate, so the next session does not re-derive the list. Each
+  needs a measured size and an avoidable-or-not verdict: the model's own weights
+  at their quantisation, the KV cache at 16384 and what it costs per token, a
+  second model loaded beside the first, ollama's keep-alive holding a model after
+  a run, the growth of a session's transcript inside one night, the wake's own
+  parts as frame 46 now budgets them, and anything the harness's own sessions
+  put on the same machine while a night runs.
+- Ends when: one record names every path, its measured size, why it spills and
+  whether it is avoidable, with summary statistics over every wake of night 88.
+  Priced from the anchors, and it is a fan-out because Roman asked for sub-agents:
+  1. Four read-only agents, one cause-family each, 40k apiece, 160k. Buys four
+     independent readings that do not see each other's answers.
+  2. One agent over night 88's wakes for the statistics: size, parts, duration
+     and throughput per wake, 60k. Buys the distribution and the cliff, if there
+     is one.
+  3. One synthesis in this context, 40k. Buys one record instead of five.
+  Total about 260k. **The read of ollama's own offload lines is the load-bearing
+  half**: a spill is a fact the server states, so the report must quote it and
+  never infer it from a slow wake.
+- **Night 88 answers the headline question already, and it reprices the frame**
+  (observed: `.rota/night88.log`, 2026-09-21 04:05). rota prints its own spill
+  measurement on every model load, and **nothing spilled**: 16 lines read `CARD
+  FITS qwen3:8b at 16384: 6.89 GB resident, 0.00 GB in RAM` and 12 read `CARD
+  FITS qwen3.5:9b at 16384: 5.50 GB resident, 0.00 GB in RAM`.
+  **So the frame's question turns from "why does it spill" into "what is the
+  margin, and what would spend it".** Three facts bound the answer. The two
+  models are 12.39 GB together against a 10240 MiB card, so the night swaps them
+  rather than holding both, and a swap is a reload cost and not a spill. The
+  night uses two models by profile: `qwen3:8b` by default and `qwen3.5:9b` for
+  critic, developer, terminologist and tester. And the idle 12288 MiB Titan X
+  could hold the second model, which is the obvious lever nobody has priced.
+  **The reprice: the four cause-family agents drop to two**, 80k, because the
+  measurement that would have taken two of them is already printed. The
+  statistics pass over night 88's wakes stays at 60k, and the synthesis at 40k.
+  Total about 180k, from 260k. The first question for the statistics pass is how
+  often the night swapped models and what each swap cost in wall time.
+- Waits on: **nothing. Night 88 is in, archived as `.rota/clickI_night88.db`**,
+  738 turns and 191 sessions. It is the only night with frame 46's
+  budgets in place, and its wakes are the input. The frame also shares that night
+  with frames 47 and 53, so one night answers three frames.
+- Reasoning: Roman's ask of 2026-09-21, the anchors above, and
+  `plans/operating-facts.md`, the GPU and night sections.
+- Status 2026-09-21 02:54 (rota-02): pushed by cb5428a2, unclaimed, priced.
+  **This session is at 328k and takes no new frame**, so the frame is written to
+  be runnable in one step rather than started. Roman asked for it after the walk,
+  and the walk ends after this session's hand-off point of 400k, so a fresh
+  context runs it. Roman orders it against 54, the shared read, 48, 55 and 49.
+
+### 58. A retried tick re-runs the identical session (2026-09-21)
+
+- Rota workflow. A tick that fails is retried up to three times, and **the retry
+  is the same prompt at temperature zero, so it is the same session again**
+  (observed: night 88's turns, hashed per turn, 2026-09-21).
+- **Twelve of night 88's 191 sessions are four sessions run three times.**
+  `s137`, `s138` and `s139` share `prompt_hash` `cc8400014e1b2c48` and hash the
+  same for all ten turns. `s78/s79/s80`, `s94/s95/s96` and `s162/s163/s164` are
+  the same shape.
+- **The code states the opposite of what it does.** `rota/core/scheduler.py`, in
+  `tick_batch_start`, says "the attempt count is a fact of this table and the
+  wake carries it, as tests_failing does, so the second session is not the first
+  one verbatim". `rota/core/runner.py:239` is `DETAIL_SHOWN = {"tick:tests_missing"}`,
+  so `tick:batch_start` writes a detail the prompt never shows, and
+  `tick:boundary` and `tick:challenge` write none at all.
+- **What it costs**: every retry of a failing tick spends a full session to
+  reproduce a failure byte for byte. On night 88 that is 12 sessions of 191, and
+  the three walks each ended stuck on items whose retries could never differ.
+- Ends when: a retried tick's prompt differs from the first attempt's, a test
+  asserts the difference for each of the four wake kinds, and one night shows a
+  retry reaching a different call. Priced: the door is one line plus a detail
+  sentence for boundary and challenge, 40k with its tests. The re-records are
+  frame 54's problem and not this frame's, because the prompt text moves.
+- Waits on: nothing. Roman orders it. It is cheap and it makes every other
+  stall-shaped frame cheaper to read, because a stall stops being three
+  identical sessions.
+- Reasoning: frame 46's status line of 2026-09-21 04:20, finding 2 of the night
+  88 diagnosis, and `.rota/clickI_night88.db`.
+- Status 2026-09-21 04:20 (rota-02): pushed by cb5428a2, unclaimed, priced.
+  Found by the diagnosis of frame 46's walk. It is pre-existing and it is not
+  frame 46's.
+
+### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
+
+- Rota workflow. The principal's ledger row loses 36 to 225 characters of the
+  Critic's reasoning on most falsifications, and the ledger row is what the
+  principal rules from (observed: 13 of 191 sessions of night 88 carry a
+  `cut ...` error, 2026-09-21).
+- **The count exists because frame 46's line 5 made it countable**, which was
+  that line's purpose. The design record's named consequence was that the
+  ledger row is shorter than the verdict it derives from and nothing says so.
+  Line 5 added the notice and the recorded reason. **The count now says the
+  loss is routine, not rare.**
+- **This is not the cut's fault and it is not a wording fault.** The cut is
+  doing what it was built to do. The question is whether a challenge row is
+  the right block to cut, when the principal rules from it and cannot ask for
+  the rest.
+- Ends when: the cause is named in a record, and either the ledger row is
+  exempt from the cut with a test that holds it, or the principal is given the
+  call that fetches the rest and a test asserts the notice names it. Priced
+  from the anchors: one read that groups the 13 by role and mode and measures
+  what was lost, 40k. Buys the difference between a tidy notice and a ruling
+  made on half a verdict. The repair and its test, 60k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 04:20, and the design record
+  `plans/archive/context-caps-design-2026-09-18.md`, which names the ledger row
+  as line 5's reason.
+- Status 2026-09-21 05:10 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  Frame 46 named this finding and did not push it. Pushed here so the
+  obligation stays countable. This session holds frame 46 and takes no new
+  frame.
+
+### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
+
+- Meta workflow. `tests/rota/test_l1.py:34` reads
+  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
+  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
+  sets nothing (observed: both files, 2026-09-21).
+- **The suite's own STALE message tells you to re-earn a case with
+  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
+  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
+  names no model. **So following the repository's own instruction re-records
+  the register against a model the register does not hold**, for every case
+  whose file pins none.
+- **The cost is measured, not predicted** (observed: the same 20 case ids run
+  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
+  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
+  `L2-DV-name-the-block-rather-than-retry` and
+  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
+  model alone. Both scored 0 of 5 on the wrong model.
+- **This session followed the instruction and read two false regressions from
+  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
+  spent, and it found the cause. The frame exists so the next session does not
+  spend it again.
+- Ends when: the message names a model, the two test files agree on which
+  model a direct run uses, and a test asserts that a run outside the gate does
+  not silently take a different model from the register's. Priced from the
+  anchors: one door and one test, 30k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
+  the two case regressions.
+- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  **This is not a model question and it is not frame 55's.** Frame 55 says a
+  recorded green does not reproduce live on one model. This says two commands
+  that both claim to re-earn a case use two different models. This session
+  holds frame 46 and takes no new frame.
+
+### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
+
+- Rota workflow. A seat's unmet obligation sits in a refusal, in a block that
+  the prompt's tail soon buries. Nothing restates it. The seat finds it again
+  only if some later line sends it back up its own prompt.
+- **Measured on one case, five wordings** (observed: frame 46's re-earning
+  pass, 2026-09-21 08:30). In `ACT-TS-five-criteria-one-per-reply` the Tester
+  is refused at turn 9: two tests may not share one file. At turn 11 the
+  refusal is two blocks above the tail. The old repeat line ended with the
+  word `above`, the seat scanned back, found the refusal and wrote the fifth
+  test. Four replacements that point outside the prompt all score 0 of 5, and
+  the seat writes a prose summary that lists the refused write as done.
+- **So the case measured the backward pointer and not the repeat notice**
+  (reasoned: the same pass, which removed the settled tone three ways and
+  still closed the session). A wording fix cannot keep it, because this
+  frame's constraint forbids any claim about where a thing sits in the prompt.
+- **The seat does not know its own obligation is open.** It reports as done a
+  write the runner refused. That is the fault, and the repeat line was
+  covering it by accident.
+- Ends when: an unmet obligation is restated where the seat will read it, and
+  a test asserts that a refused write is not reported as done. Priced from the
+  anchors: one read that counts how many refusals go unmet in a night, 40k.
+  Buys the size of the fault. The repair and its test, 80k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 08:36, and the re-earning
+  pass that produced the five scores.
+- Status 2026-09-21 08:36 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  **The lever the pass names**: the refusal could restate the unmet obligation
+  at the tail, rather than relying on a repeat line to send the seat back.
+  This session holds frame 46 and takes no new frame.
 
 ### 2. The gauntlet on the lineage (goals 3 and 10)
 
