@@ -297,14 +297,28 @@ a different question and the night is then opened once.
 - **The ends-when gains a line, 2026-09-21.**
   7. `casestatus` names its model, or refuses when none is named. The measured
      0 stale and 21 failing under `qwen3:8b` are recorded in frame 49.
-- **Blocked on Roman, 2026-09-21 15:05.** The question is in section 9 of the
-  design record. Ends-when 1 says `case_runs` carries the key's missing
-  fields, and after this design the system text still has none. Adding a
-  `system_hash` column closes the line and forces a backfill value that is
-  probably false for 204058 rows, which manufactures the false green the frame
-  repairs. Recommended: **name the gap, close ends-when 1 in part, and push
-  the system text as its own frame.** Roman's ruling of 2026-09-21 approved a
-  write-off whose default is probably true. This one would be probably false.
+- Status 2026-09-21 15:20 (rota-36): **Roman ruled, and the answer is none of
+  the three offered** (ruled: Roman, 2026-09-21: "clone this as a backup
+  legacy dB and migrate over what's useful, full re-record is approved if
+  necessary"). Meta workflow. The frame is unblocked and ends-when 1 closes in
+  full.
+  **The ruling separates two things this frame had joined**: the record of
+  what the model did, and the evidence that gates an acceptance. A clone keeps
+  the first. The new register holds only the second. So frame 55's objection
+  is answered, because a re-record no longer destroys a green. It moves the
+  green into history, where it stays readable.
+  **This supersedes the write-off ruling of 14:35 for the system text**, and
+  it keeps it for the four columns of rows that migrate. **A full re-record is
+  approved**, so the frame is no longer priced against a re-record it must
+  avoid. Frame 49's re-records fold into this frame's migration.
+  **What "useful" means, and it is measurable** (reasoned: the holding
+  session, from the review's probes 7 and 8). A cassette is already keyed by
+  the whole text, so every cassette is useful as it stands. A `case_runs` row
+  is useful when the cassette it used can be identified, because the whole-text
+  hash is then computable from that cassette. The review measured about 77 per
+  cent identifiable by the completion-text join, with 22.9 per cent not
+  separable. The migration measures the real number and records it.
+  **The ends-when changes, and the design record's revision 3 carries it.**
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 

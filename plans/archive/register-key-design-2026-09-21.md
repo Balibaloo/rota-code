@@ -4,6 +4,10 @@ Frame 54, the register's match is narrower than the cassette key, with frame
 60's repair folded in. Written 2026-09-21 by session 75f21e35, peer name
 rota-36. Meta workflow.
 
+**Revision 3, 2026-09-21**: Roman ruled the open question of section 9. The
+register is cloned, what is useful migrates, and a full re-record is
+approved. Section 9 carries it, and sections 3 and 8 follow it.
+
 **Revision 2, 2026-09-21, after the design review.** The review returned "not
 safe to build as written" with three high defects and nineteen findings. Every
 correction is in the body and section 10 lists what changed and why. The
@@ -68,7 +72,8 @@ history.
 
 ## 3. What the design adds
 
-`case_runs` gains four columns:
+`case_runs` gains five columns. Four are below and the fifth, `system_hash`,
+is section 9's.
 
 | Column | Type | Default | Why |
 | --- | --- | --- | --- |
@@ -90,17 +95,22 @@ through the same `_think_for` rule that `tests/rota/test_l1.py:46-54` uses.
 its recording. It would also break `trust`, which reads several loads to
 separate `provisional` from `earned`.
 
-**The system text gets no column in this revision, and section 9 is the open
-question about it.**
+**A fifth column, `system_hash`, is added over the whole system text the
+model receives.** Section 9 carries Roman's ruling that pays for it, and the
+migration there is what fills it. `status()` computes it from the same
+composed text the runner sends.
 
-## 4. The backfill
+## 4. The four columns' values on a migrated row
 
 (ruled: Roman, 2026-09-21, asked with two other answers: write the rows off,
-do not re-record. A re-record can spend a green the live model does not give
-back, which frame 55 observed on 2026-09-20.)
+do not re-record. **Superseded in part by the ruling in section 9**, which
+clones the register and approves a full re-record. The write-off below still
+governs the four columns of a row that migrates. It no longer governs the
+system text, and it no longer forbids a re-record.)
 
-**Every one of the 204058 rows takes 12288, 0.0, `'text'`, `'{}'`.** There is
-no second step.
+**A migrated row takes 12288, 0.0, `'text'`, `'{}'`.** There is no second
+step. A row that does not migrate keeps nothing, because it stays in the
+clone.
 
 **Revision 1's step 2 is deleted, because the evidence says it fires on
 nothing** (observed: the review's probes 4 and 8). Step 2 would have resolved
@@ -246,30 +256,75 @@ Revision 1 listed six and the review found two that cannot fail.
   reads it, and every reader names its columns. The no-walk conclusion
   survives the review.
 
-## 9. The open question: the system text
+## 9. The system text, and the clone
 
-**Frame 54's ends-when 1 says `case_runs` carries the cassette key's missing
-fields. After this design the system text still has none**, and section 2
-shows `prompt_hash` is not a proxy for it. The review calls that a high
-finding, and it is right that the design does not meet the line as written.
+**Ruled by Roman, 2026-09-21**: "clone this as a backup legacy dB and migrate
+over what's useful, full re-record is approved if necessary."
 
-The choice is Roman's, because both answers cost something real:
+This is a fourth answer and it is better than the three that were offered. It
+separates two things the frame had joined: **the record of what the model
+did**, and **the evidence that gates an acceptance**. The clone keeps the
+first for ever. The new register holds only the second.
 
-- **Add a `system_hash` column.** It closes the line. The backfill then has no
-  honest value for a historic row, because nothing records which tool list a
-  2026-08-27 run saw. Writing today's hash would claim 204058 rows were
-  recorded against today's tools, and 42 of 117 cases are already known to
-  hold more than one system text. That manufactures the exact false green the
-  frame repairs.
-- **Name the gap and leave it open.** Ends-when 1 closes in part. A tools edit
-  still leaves a case reading green until something re-records it. The frame
-  ships the four columns, the door and the report fix, and the system text
-  becomes its own frame with its own restale cost.
+**So ends-when 1 closes in full.** `case_runs` gains a fifth column,
+`system_hash`, over the whole system text that the model receives. A tools
+edit then makes a case read stale, which is correct.
 
-The recommendation is the second, and the reason is the backfill. A default
-that is probably true is a write-off. A default that is probably false is a
-fabrication, and Roman's ruling of 2026-09-21 approved the first, not the
-second.
+**And frame 55's objection is answered.** That frame observed that a
+re-record can spend a green the live model does not give back. With the clone
+the green is not spent. It moves into history, where it stays readable and
+where it stops gating anything.
+
+### 9.1 The clone
+
+`tests/rota/cassettes.db` is copied, whole and unaltered, to a legacy
+database. Nothing is deleted from it and nothing is written to it after the
+copy. Its name and its manifest tag go in the frame's closing status. **The
+copy happens before the first schema change**, so a failed migration costs
+nothing.
+
+### 9.2 What migrates, and what does not
+
+**Every cassette migrates as it stands.** A cassette is already keyed by the
+whole text, so it is evidence about exactly one input and it needs no repair.
+
+**A `case_runs` row migrates when the cassette it used can be identified**,
+because the whole-text hash is then computable from that cassette's `system`.
+The join is the review's: match the row's transcript completion against a
+cassette's completion, inside the row's own case and model.
+
+**A row whose cassette cannot be identified stays in the legacy database
+only.** It is history and it is not evidence, because nothing can say what
+text it measured.
+
+**The migration reports its own numbers**, and they go in the closing status:
+rows migrated, rows left behind, and cases left with fewer than their
+threshold of runs. The review's proxy measured about 77 per cent identifiable
+and 22.9 per cent not separable. **That is the review's number on a 5 per cent
+sample and the migration measures the real one.**
+
+### 9.3 The re-record
+
+(ruled: Roman, 2026-09-21, "full re-record is approved if necessary")
+
+A case left below its threshold after the migration is re-recorded. The price
+is wall time on a quiet machine and not tokens, which frame 49 already
+recorded. **The re-record runs under a named model and a named window**, and
+the frame's closing status names both.
+
+**Frame 49's re-records fold into this migration.** That frame's ends-when
+asked for the 72 to be re-recorded or written off case by case. Section 6
+shows the 72 was a default-model artefact, and this section covers whatever
+the migration leaves short. Frame 49 keeps only the question of what the 21
+failing cases mean.
+
+### 9.4 What this costs that revision 2 did not
+
+The frame grows by the clone, the fifth column, the migration script and the
+re-record. It shrinks by the backfill, which is now a migration and not a
+write-off, and by frame 49's separate re-record pass, which folds in. The
+holding session prices the difference in the frame's status line before the
+implementer starts.
 
 ## 10. What revision 2 changed, and why
 
@@ -291,6 +346,7 @@ second.
 | 7 | Tests 1 and 5 replaced. Four tests added. | review findings 11, 12 and 13 |
 | 8 | The four writers and four readers are named. | review finding 14 |
 | 9 | New section. The system text is Roman's call. | review finding 2 |
+| 9 | **Revision 3**: Roman ruled a clone, a migration and an approved full re-record. Ends-when 1 closes in full and `system_hash` is added. | ruled: Roman, 2026-09-21 |
 
 **Two findings are recorded and left outside the frame.** The review's finding
 18, that `tests/rota/conftest.py` defines `pytest_configure` twice so the
