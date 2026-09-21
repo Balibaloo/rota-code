@@ -762,6 +762,42 @@ next session to close 46 reorders the file to this list.
   **So `ACT-TS` is recorded red with its reason, which is what Roman ruled for
   in advance.** The case depends on a line that lies, and the lie is the fault
   night 88's s137 died of.
+- Status 2026-09-21 08:55 (rota-e7): **the repair is committed at `59cb2ad`
+  and night 89 runs now. The frame is validating.** Rota workflow.
+  **The gate before the commit** (observed: 2026-09-21 08:44): 24 failed, 2032
+  passed, **new reds 3, stale 0**. All three reds are named and owned.
+  `ACT-TS-five-criteria-one-per-reply` is this frame's and Roman ruled it.
+  `L1-AR-annotate-a-batch` and `L1-TE-survey-an-area-for-its-terms` score 0 of
+  5 on the pre-repair worktree at `ROTA_MODEL=qwen3:8b`, so both are frame
+  55's shape. **The stale line reads zero because the 20 cases were
+  re-earned**, 18 of them green.
+  **Night 89 runs from a worktree at `59cb2ad`**, the frame's closing commit,
+  as the brief requires, because the seats read the briefs at every wake. It
+  started 08:54 with click restored to its base `2c8cd3a`. The log is at
+  `night89.log` in this session's scratchpad.
+  **Three things the session that reads night 89 needs.**
+  1. **Archive the database before any other night runs.** The driver does not
+     name it, so `.rota/clickI.db` must be copied to `.rota/clickI_night89.db`
+     first. Night 88 needed the same hand step (observed: frame 46's status of
+     2026-09-21 04:05).
+  2. **A stall alone does not fail this frame.** Night 88's diagnosis found
+     three of its four stuck items older than the frame, and frames 37 and 38
+     carry two of them. The question night 89 answers is narrower: **does an
+     `s137`-shaped session recover now?** That is a seat that repeats one read
+     while an eviction stands. It should meet the refusal at the third asking
+     and stop paying full freight.
+  3. **Compare against `.rota/clickI_night88.db`**, 738 turns in 191 sessions,
+     and night 87's 4062 turns in 746 sessions. Night 88 had 3 developer
+     sessions of 191, and `batches.head_commit` was NULL for `bg_1`.
+  **The frame's cost so far, walls counted apart.** Agents: 110724 for the
+  repair in two passes, 132970 for the diagnosis against 80k priced, 81975 for
+  the re-earning against 60k priced. The five build lines cost 297433 before
+  this session took the frame. Wall: 9m16s and 4m04s for two re-records, 1m51s
+  and 1m41s for two controls, 8m01s for the gate, and night 89 is about nine
+  hours.
+  **Four frames were pushed from this frame's findings**: 59 the ledger row,
+  60 the re-record command's model, 61 the backward pointer. Frame 56 and the
+  others predate this session.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
