@@ -502,6 +502,47 @@ a different question and the night is then opened once.
   themselves. `trust` groups by `load_id`, which is `model@epoch//7200`, so
   the next gate run in another two-hour window gives the second confirming
   load. They are not a re-record obligation.
+- Status 2026-09-21 19:10 (rota-36): **the fix pass is in, judged and
+  committed at `42b8950`. All six findings are closed.** Meta workflow. 292k
+  on the harness line against a 150k cap, 69 tool calls (observed: the
+  harness usage). **The overrun is one item**: fix 1's named mechanism does
+  not work and the agent measured why before choosing another.
+  **The prediction that the four provisionals clear themselves is now
+  observed** (observed: `casestatus --model qwen3:8b`, run by the holding
+  session after the fix pass, 2026-09-21). The report reads 107 green, 20
+  failing, 1 never measured, 0 provisional. **That is the same 107 green the
+  register held before the migration.** So the migration's whole cost is one
+  chain case, and that case was stale before this frame touched anything.
+  **Fix 1 is measured in both numbers, as the brief asked** (observed: every
+  test file run at 16384 with no model named, 2026-09-21). Before: 99 of 99
+  files refused. After: 4 of 99, and the four are the files that open the
+  register. The holding session checked both ends: `test_bounds.py` collects
+  2 tests at 16384, and `test_l1.py` is refused there.
+  **The deviation on fix 1 is accepted and it is the useful kind.** The brief
+  said to move the check to a hook that runs after collection. The agent
+  built that, ran it, and got `INTERNALERROR> assert not crashitem` with the
+  reason nowhere in the output, because under xdist that hook runs on the
+  workers. **A door that refuses without saying why is the shape the plugin
+  exists to prevent**, so the four register-reading files call the door
+  themselves at module scope, where xdist prints the collect error with its
+  message. Both measurements are in the plugin's docstring.
+  **Fix 2 is verified by the holding session**: the cockpit's L1 panel now
+  reports `qwen3:8b` where it reported `llama3.1:8b`, and the agent measured
+  zero disagreements across the 117 case ids the two instruments share. One
+  `wanted_pins`, one `carries_the_key`, one `matching_runs`, called by both.
+  The panel keeps its raw connection so it still never migrates, and it falls
+  back to the narrow question on a register written before this frame.
+  **One new fact for frame 48, and it is a fifth file.**
+  `tests/rota/test_screens.py::test_sorting_holds_the_view_you_had_scrolled_to`
+  was the flaky fourth red in this gate run, and `test_handover.py` was the
+  flaky fourth in the run before it, on the same tree (observed: the agent's
+  two gate runs, 2026-09-21). **The same tree gives a different flaky file
+  each run**, which is the strongest evidence yet that the fault is the
+  fan-out and not any one file.
+  **One red is named for the re-record and is not this frame's.**
+  `L3-a-challenge-reaches-the-role-that-can-answer-it` fails at 0 of 5 when
+  its file runs alone, and it fails identically at HEAD with every change
+  stashed. The gate's baseline already holds it.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
