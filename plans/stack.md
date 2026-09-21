@@ -255,6 +255,11 @@ a different question and the night is then opened once.
   session was armed, from a `peers` read taken minutes earlier. A session
   armed in the interval and took the frame at once. **A reserve reading ages
   like any other observation.**
+- Status 2026-09-21 21:21 (rota-dc): **the frame is claimed by session
+  `590c7382`, peer name rota-dc.** Meta workflow. The take confirmed at stack
+  commit `c41bfb7`. No work started. The first step is the sender's count:
+  compose the system text for all 128 cases with a throwaway script, and count
+  how many differ from the cassette their current green came from.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
