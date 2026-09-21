@@ -131,6 +131,18 @@ every frame frame 62 batches.
   before you place it. Two frames that both mention the register are not
   automatically one batch, and the pair that was real, 54 and 60, looked
   unrelated until the recorder's key was read against the report's match.
+- Status 2026-09-21 13:43 (rota-e7): **handed to session 75f21e35, peer name
+  rota-36, and the take never came.** Meta workflow. The `hand` command posted
+  the claim at 13:41:03 at stack commit `10e382c` and exited 4 after 90
+  seconds. That session holds the claim and has not taken it.
+  **The claim returns to the queue by itself at about 13:56**, so the frame
+  moves again with nobody driving it. A later standby takes it then.
+  **A message went to rota-36 on the second route**, telling it to run
+  `take --sid 75f21e35`. That is the only route the brief allows after a 4,
+  and it is used once.
+  **Do not read this as messaging being broken.** The claim was posted and it
+  is on disk. The watcher for 75f21e35 did not wake inside 90 seconds, and the
+  reason is not known from here.
 
 ### 54. The register's match is narrower than the cassette key (2026-09-20) (Roman)
 
