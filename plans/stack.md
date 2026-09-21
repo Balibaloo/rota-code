@@ -264,6 +264,47 @@ a different question and the night is then opened once.
   6. The true stale count is measured and recorded, and it replaces the 72 in
      frame 49.
   A diff review is required, because the frame changes the schema.
+- Status 2026-09-21 15:05 (rota-36): **the design review is in and the design
+  was not safe to build. Revision 2 is written and the frame is blocked on one
+  ruling.** Meta workflow. 133k on the harness line against 100k priced, 70
+  tool calls, 16 minutes (observed: the harness usage). Verdict: three high
+  defects and nineteen findings. The record is
+  `plans/archive/register-key-design-2026-09-21.md`, whose section 10 lists
+  every change and its source.
+  **The review paid for itself on one finding, and it is not in the design.**
+  `rota/tools/casestatus.py:142` defaults `--model` to `llama3.1:8b` and
+  `status()` never reads `ROTA_MODEL`. The bare command prints 67 stale. With
+  `--model qwen3:8b` it prints **0 stale, 107 green, 21 failing** (observed:
+  the holding session's own run of both commands at 41746ca, 2026-09-21).
+  **So frame 49's 72 is a default-model artefact.** The fix moves into this
+  frame's ends-when as line 7.
+  **This frame's own cited reasoning is a wrong comment.**
+  `rota/tools/casestatus.py:71-73` says `prompt_hash` misses the mode prompt.
+  It does not: `instructions_for` calls `compose`, which appends the mode
+  piece (observed: `rota/roles/prompts.py:94-100` and
+  `rota/testkit/fixtures.py:836-842`, 2026-09-21). **The text truly outside
+  the hash is the runner's session prose and the tool list.**
+  `instructions_for` is a strict prefix of a cassette's system for **117 of
+  117** cases and exact for none, and **42 of the 117 already hold recordings
+  under more than one system text**, one of them seven (observed: the holding
+  session's measurement, 2026-09-21). So the false green comes from a tools
+  edit, and it is history and not a latent risk.
+  **Three more corrections that change the build.** `ROTA_PROFILE` is a third
+  ambient variable and only one of the three suite files reads it. The
+  backfill's 8192 step fires on zero cases, so it is deleted. The backfill's
+  one `UPDATE` takes 4.72 s against a 5.0 s busy timeout under `-n auto`, so
+  it is a one-shot script and not part of `open_dev_db`.
+- **The ends-when gains a line, 2026-09-21.**
+  7. `casestatus` names its model, or refuses when none is named. The measured
+     0 stale and 21 failing under `qwen3:8b` are recorded in frame 49.
+- **Blocked on Roman, 2026-09-21 15:05.** The question is in section 9 of the
+  design record. Ends-when 1 says `case_runs` carries the key's missing
+  fields, and after this design the system text still has none. Adding a
+  `system_hash` column closes the line and forces a backfill value that is
+  probably false for 204058 rows, which manufactures the false green the frame
+  repairs. Recommended: **name the gap, close ends-when 1 in part, and push
+  the system text as its own frame.** Roman's ruling of 2026-09-21 approved a
+  write-off whose default is probably true. This one would be probably false.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
@@ -397,6 +438,23 @@ a different question and the night is then opened once.
   re-record can spend a green the live model does not give back.
 - Reasoning: `plans/archive/context-caps-design-2026-09-18.md`, section 9.6,
   and the gate baseline at `.rota-gate.json`.
+- Status 2026-09-21 15:05 (rota-36): **the 72 is a default-model artefact,
+  and this frame's central contradiction is resolved** (observed: the holding
+  session's run of both commands at 41746ca, 2026-09-21, found by frame 54's
+  design review). `rota/tools/casestatus.py:142` defaults `--model` to
+  `llama3.1:8b`, and `status()` never reads `ROTA_MODEL`. The bare command,
+  which is what this frame ran on 2026-09-20, prints 67 stale. The same
+  command with `--model qwen3:8b` prints **0 stale, 107 green, 21 failing**.
+  **So the gate's baseline of zero stale and this frame's 72 were both
+  right.** They named different models. `rota/tools/gate.py:38-39` already
+  carried the cause in a comment: "under llama `casestatus.status` calls 62
+  qwen-green cases stale". The comment predates this frame.
+  **The frame shrinks and it does not close.** There is no 72-case re-record.
+  What remains is the 21 failing under the suite's model, and the question of
+  what a green means, which is batch A's question and frame 54's repair. The
+  ends-when's "casestatus reads zero stale" is already true under a named
+  model, and false under the tool's default. Frame 54 owns the default's fix.
+
 - Status 2026-09-20 03:10 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
   Roman orders it. It sits here because it was found here, and not because it
   outranks frame 45. **The reason it is a frame at all**: "zero stale" is a
