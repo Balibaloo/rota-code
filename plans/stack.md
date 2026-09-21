@@ -360,6 +360,43 @@ a different question and the night is then opened once.
   **Next: pass 2 is the door and frame 60's two remaining clauses. Pass 3 is
   the migration out of the clone, then the re-record, the gate and the diff
   review.**
+- Status 2026-09-21 17:26 (rota-36): **pass 2 of three is in, judged and
+  committed at `b7c5af0`. Frame 60's repair is built.** Meta workflow. 67k on
+  the harness line for the pass against a 150k cap, 276k cumulative for that
+  agent, 51 tool calls, 30 minutes (observed: the harness usage).
+  **The door is verified in both directions by the holding session, not read
+  from the report** (observed: two runs against a copy of the clone,
+  2026-09-21). A replay at `ROTA_NUM_CTX=16384` is refused, and the message
+  names the variable, its value, where the value came from, and the two
+  windows the register holds. The same run with `ROTA_L1=1` collects 120
+  tests, so a first recording is not refused, which was the design review's
+  finding 7.
+  **One deviation is a correction to the design and it is accepted.** Section
+  5 said the door compares the ambient tuple against `SELECT DISTINCT model,
+  num_ctx, temperature FROM cassettes`. That triple cannot answer for the
+  think pin, because an optional pin lives inside the key's hash and the
+  cassette table has no column for it. The door recomputes the key for that
+  one field. The design was wrong and the implementer said so with the
+  reason.
+  **`ROTA_MODEL_FORCE` is deliberately not a recording switch**, although
+  `rota/tools/gate.py:44` lists it beside the three that are. It moves the key
+  and records nothing, so a run that sets it is a replay and still needs the
+  door (observed: the constant's own comment at
+  `rota_serial_plugin.py:50-53`).
+  **The gate: 4 new reds, zero stale, 468 s, and failed held at 25**, the same
+  as pass 1's closing run, while passed rose by the twelve tests the pass
+  adds. Three of the four are the same pre-existing L1 ids. The fourth is
+  `test_arc_synthetic.py`, which the gate re-ran green and which frame 48
+  owns.
+  **The live register is still 9 columns and 204058 rows** (observed: the
+  holding session's read after the pass, 2026-09-21). The door reads it
+  read-only, so no suite run can migrate it. Pass 3 chooses that moment.
+- Status 2026-09-21 17:26 (rota-36): **the reserve is empty and Roman is
+  told** (observed: `python rota/tools/handover.py peers`, 2026-09-21 17:26).
+  Meta workflow. Both other sessions are spent, at 373k and 341k, and this
+  session is the only live one. **So this frame has nowhere to hand to.** The
+  warning is given at 234k rather than at the 300k mark, because opening a
+  window is Roman's action and it needs his time, not this session's.
 
 ### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
 
@@ -409,6 +446,18 @@ a different question and the night is then opened once.
   outside the gate does not silently take a different key from the
   register's. So this frame is now a door and a message, and its 30k price
   holds.
+- Status 2026-09-21 17:26 (rota-36): **both remaining clauses are built, in
+  frame 54's pass 2 at `b7c5af0`.** Meta workflow. The frame stays open until
+  frame 54's closing gate, because its repair rides in that frame's commits
+  and an acceptance reads one gate.
+  **What was built.** One `rerecord_command` in `rota/testkit/fixtures.py`
+  names the model and the window, and the three tiers print it. A test forbids
+  the old model-less form anywhere in those files, so it cannot come back.
+  The three tier files now agree on the think rule, through the one
+  `think_for` that pass 1 moved into `rota/llm/llm.py`.
+  **The third clause was already moved to frame 54** and it is the door,
+  which pass 2 also built. So this frame's work is done and only its
+  acceptance waits.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
