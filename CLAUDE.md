@@ -28,23 +28,26 @@ three warnings only:
   for that session to take the frame. Read the exit code, and write the
   status line from it.
 
-  **Read the `ctx` column before you let the order choose** (observed:
-  2026-09-20, a re-armed session sat in the reserve at 152k beside a
-  clean one at 20k). The queue ranks on arm time and nothing ranks on
-  context, so the oldest free standby can be the worst seat. A standby is
-  worth handing to because its context is clean, so a hand-off that picks
-  a loaded session gives away the whole reason for the reserve. Run
-  `peers` first. If the oldest free row is not the cleanest, name the one
-  you want with `--to <name>`.
+  **The order is the oldest free standby under a 300k ceiling** (ruled:
+  Roman, 2026-09-20). Oldest first spends one session before it spends a
+  fresh one, so the day ends with fewer part-used windows. The ceiling
+  stops a frame from landing on a session that must stop halfway through
+  it. The tool applies both, so you no longer read the `ctx` column to
+  choose. This replaces rota's rule of 2026-09-20, which told you to pick
+  the cleanest row by hand after a re-armed session sat in the reserve at
+  152k beside a clean one at 20k (observed: 2026-09-20). Name a session
+  with `--to <name>` only when Roman names one.
 
   - 0: a named session holds the frame. Write that session id in the
     status line. Stop.
   - 4: the claim waits unread. Name that session in the status line, and
     say the take never came. The claim returns to the queue by itself, so
     the frame moves again without a person. Stop.
-  - 5: the reserve is empty. The hand-off now waits on disk for the next
+  - 5: no standby can take it. The hand-off now waits on disk for the next
     standby. Say in the status line that the frame is handed to nobody
-    yet. Tell Roman the reserve is empty. Stop.
+    yet. Read the command's own output before you tell Roman why. An empty
+    reserve and a reserve that is all past the ceiling are different facts,
+    and they need different windows. Stop.
 
   A message is never the first route and never the only route. A message
   does arrive, and fast. It still cannot carry a session id, cannot prove
@@ -65,12 +68,19 @@ three warnings only:
   **A hand-off means you stop and the stack goes to one session** (ruled:
   Roman, 2026-09-20). It is never a way to give side work to a second
   worker while you keep running. Run `hand` only when this session is
-  stopping. One session holds the stack at a time.
+  stopping. One session holds the stack at a time. Two sessions on one
+  stack write over each other's records, and the stack then stops
+  answering "where are we", which is the one question it exists for.
 
   A task that looks like it belongs to a fresh session is a frame on the
   stack for whoever holds it next. It is not a claim posted to a standby.
   A standby's clean context is reserved for taking over, and spending it
   on parallel work buys a worse seat for the hand-off that follows.
+
+  So when a frame needs a session and you are not full, push the frame and
+  tell Roman. Roman assigns work to a session. You do not, and neither
+  does a peer. The reserve exists to continue this seat, and not to widen
+  it.
 
   This session broke that rule on 2026-09-20. It handed a frame it had
   never held, kept working, and put two live sessions in one checkout.
@@ -117,6 +127,11 @@ when the process exits, because a background task that exits re-invokes
 its session. That wake was measured at 6 seconds after the claim
 appeared.
 
+The command refuses to arm you if you read at or past 300k, and it takes
+your seat back. A session there takes no new frame, so it would be handed
+none, and a seat it holds is a seat nothing can use. Tell Roman that a
+window is needed, and do not arm again.
+
 Answer no permission prompt while you arm. A prompt parks the session
 mid-turn, and a parked session drains nothing, so it can never be woken.
 `.claude/settings.json` carries the rule that keeps the arm silent. If a
@@ -147,6 +162,14 @@ Arm one watcher only. Two watchers for one session write two heartbeats
 and race for one claim. The tool enforces this from 2026-09-20. The older
 watcher reads the newer one's arm time, prints that it stands down, and
 exits 1.
+
+Never spend a standby's context. A standby is not a correspondent, and
+every message you send one takes from the frame it is holding the seat
+for. Do not ask it how it is, do not tell it what changed, and do not
+thank it. One standby went from 20k to 152k in an afternoon, and part of
+that was a peer writing to it about work it was not doing. Report to
+Roman instead. If a standby must know something before it is woken, it is
+not a standby and it is doing work.
 
 On wake:
 
@@ -257,10 +280,17 @@ observation carries its date, because an observation ages. A check you
 ran an hour ago and quote now without its date is a prediction that wears
 the word observed. A prediction never gates. An assertion about what a
 mechanism does is (reasoned) until you run it, however sound it feels.
-Say which workflow a statement is about: the meta
-workflow, this build session, or the rota workflow, the seats. Five lines
-per frame: what, ends when, waits on, a pointer to the reasoning, a dated
-status. The status line's time comes from the clock, never from memory.
+Copying a claim never observes it: a claim you take from another record
+keeps that record's mark and date, and never gains a fresh one. One unrun
+claim copied into three records reads as three records agreeing, and it is
+still one claim nobody ran. Say which workflow a statement is about: the
+meta workflow, this build session, or the rota workflow, the seats. Five
+lines per frame: what, ends when, waits on, a pointer to the reasoning, a
+dated status. Every frame carries a name of a few words in its heading,
+and every mention of that frame carries the name with the number. "Frame
+50" is an index into a file. "Frame 50, port the hand-off kit" is a thing
+Roman can answer about without opening anything. The status line's time
+comes from the clock, never from memory.
 Closed frames leave the file. Commit the stack alone after every
 change. Never edit another session's frame, except to add a waits-on
 line. In the smart zone you decide judgement and completion. You write

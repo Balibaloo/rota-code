@@ -338,7 +338,10 @@ The context hook enrols every session that sends a prompt, in
 session Roman only pasted into is still reachable, and `peers` shows which
 standby is the cleanest. An unread claim returns to the queue as a vacancy
 after fifteen minutes, so a session that wakes and cannot act does not hold a
-frame still.
+frame still. The mechanism is proved and the fifteen minute value is not. Every
+proof so far shortened the clock, so nothing has yet waited out the default on
+live state (observed: the ported tests and this repository's acceptance run,
+2026-09-20).
 
 Two facts about the harness decide the whole mechanism. Both were read from
 one machine's own transcripts. Re-read them on this machine before anyone
@@ -352,10 +355,10 @@ writes another rule about them.
   messages for six hours while it waited on a tool decision. A permission
   prompt parks a session the same way (observed: the same corpus).
 
-Four assertions that felt sound and were never run, all on 2026-09-20, in the
+Five assertions that felt sound and were never run, all on 2026-09-20, in the
 same week the rule against them was written down. Keep the list. The shape
-repeats and the cost is always a rule that gates. Three are the kit's, adopted
-in frame 50. The fourth happened in this repository.
+repeats and the cost is always a rule that gates. Four are the kit's, adopted
+in frame 50 and frame 52. The fifth happened in this repository.
 
 - "Session messaging did not carry it." Written into a record and a commit
   message from one hand-off that arrived four minutes late. The message had
@@ -369,10 +372,28 @@ in frame 50. The fourth happened in this repository.
   reading the code, then disproved by the first test written for it. A
   re-armed watcher reads the waiting claim on its first poll (observed: the
   test `test_a_re_armed_watcher_takes_an_unread_claim_at_once`, 2026-09-20).
-- "The two glob implementations disagree on 30 cases, then on 171." Both
-  numbers were faults in the comparison, not in either implementation. The
-  third run, with the harness fixed, found 5 real ones (observed: a
-  destination's own report, 2026-09-20).
+- "The two glob implementations disagree on 30 cases, then on 171, then on 80."
+  Three faults in the comparison and none in either implementation. On the
+  third, every trivial case passed and the result was still wrong, because a
+  trivial case tests the matchers and never tests the reading of the table. The
+  comparison count caught it. The kit's frozen table is 34 patterns against 33
+  paths, so any total but 1122 means the table was misread. Check the count of a
+  comparison before you read its disagreements. The fourth run found 5 real ones
+  (observed: a destination's own report, 2026-09-20).
+- "That destination's hook carries local edits, so merge by hand." The kit wrote
+  that into its own update procedure, about a file in a project nobody upstream
+  had read. **rota is that destination.** Frame 50 followed the instruction and
+  merged `repo_root`, `enrol`, `peer_name` and `waiting` by hand at 56f2ab3.
+  Frame 52 diffed the two files: rota's hook holds no local logic at all, only
+  the slot fills `Roman` and `rota/tools/handover.py`, so replacing the file
+  whole was both correct and safer. The instruction sent this repository down
+  the riskier path, by hand, through four functions (observed: frame 52's own
+  diff of the hook against the kit at 80bd49e, 2026-09-21).
+  The kit reports that the same unrun claim spread to a destination's
+  `CLAUDE.md` and to a frame, neither of which diffed the file either, and that
+  it read as three records agreeing for two days. Repeating an upstream
+  assertion in your own words does not check it (observed: the kit's own report,
+  2026-09-20). rota did not copy it, so rota carried it in one place only.
 
 **A session's brief and slash commands are fixed when the session starts**
 (observed: session 0f086f93, 2026-09-20 15:12). That session started at 02:37.
@@ -407,15 +428,41 @@ one cost a real hand-off.
 Numbers to measure once on this machine. The values below are borrowed from
 the machine the tool was built on.
 
+- The context count is a count, not an estimate. The hook reads the last
+  assistant turn's own usage from the transcript: fresh tokens, plus tokens
+  written to cache, plus tokens read from cache. Where a transcript carries no
+  usage the hook scales its bytes by 0.65, measured by the kit on 2026-09-20
+  against a 4.7 MB transcript whose last turn reported 771,959 tokens. The kit
+  shipped 0.6 until then, and rota's own first calibration on 2026-09-16 also
+  gave 0.6 from a 1.6 MB transcript against about 250k in the UI. Low is the
+  dangerous direction, because the ceiling decides whether a session can finish
+  a frame (observed: the kit's transcript, 2026-09-20).
+- **The correction is not one number and it is not always upward.** Frame 52 ran
+  both hooks over three of this repository's own transcripts. Session cb5428a2
+  read 246k and now reads 269k, up 9 percent. Session 0f086f93 read 160k and now
+  reads 183k, up 14 percent. Session 9a9a20bf read 429k and now reads 424k, down
+  1 percent. So expect a rise of about 10 percent on most windows, and treat the
+  jump as a correction and never as growth (observed: frame 52's own run of the
+  staged hook against the installed one, 2026-09-21).
+- One word carries two meanings and stays that way (ruled: Roman in the kit,
+  2026-09-20). A `claim` is the file a sender writes, and to claim a frame is to
+  write your session id in its heading. A rename would touch about sixty places
+  across the kit and two destinations' records, for an ambiguity that context
+  resolves every time. Recorded so the next reviewer finds the ruling instead of
+  the defect.
 - The wake: the time from the claim file appearing to the standby's first
-  turn. 6 seconds (borrowed).
+  turn. 6 seconds, and no longer borrowed. The kit measured it once, then twice
+  more in a second project. rota measured 7 seconds on frame 43 and 4 seconds on
+  frame 50 (observed: three projects, 2026-09-20).
 - The cost of waiting: nothing. A process blocks, and the model spends no
   tokens until it wakes (borrowed).
 - The cost of arming a standby: one command and one line of reply. Not yet
   measured here.
-- The cost of a re-arm when the wait runs out: one turn per hour of standby
-  duty by default. Not yet measured here, so the `--wait` value is not yet
-  chosen.
+- The cost of a re-arm when the wait runs out: one turn per standby per
+  `--wait`. At the 28800 default that is one turn per session per eight hours.
+  Two standbys ran out at 10:37 and re-armed four and seven seconds later with
+  no person present, and both still read about 20k after twelve and a half hours
+  in the reserve (observed: a destination's hand-off log, 2026-09-20).
 - How long the harness lets a background process live. A heartbeat beat 150
   times over 49.7 minutes on the kit's machine and then ended on its own
   clock. The longest gap between two beats was 22 seconds against a 20 second
@@ -484,6 +531,41 @@ borrowed 6.
 - **Both corrections are proved on the live table** (observed: `peers` at
   2026-09-20 15:33, with sessions 0549dc76 and 0f086f93 both in state
   `holding`). Each row read `held` and named the frame the mailbox delivered.
+- **A cleared frame reads `spent` from 2026-09-21, frame 52.** A session that
+  closes its frame and runs `holding --frame none` used to have "standby"
+  written into its row, and its watcher had already exited when it took the
+  frame. The table then printed a working session as a standby with a dead
+  heartbeat, which its own legend reads as a session that died. That is the same
+  fault as a holder printed STALE, in a second place. A cleared row now reads
+  `spent`, and a session rejoins the reserve by arming and never by saying it
+  holds nothing. A standby whose watcher really died still reads STALE.
+- **A row at or past the ceiling reads `full`.** It is armed and no frame goes
+  to it.
+
+**The hand-off order is the oldest free standby under a 300k ceiling** (ruled:
+Roman in the kit, 2026-09-20, installed here on 2026-09-21 in frame 52). Oldest
+first spends one session before it spends a fresh one, so a workspace ends the
+day with fewer part-used windows. The ceiling stops a frame from landing on a
+session that must stop halfway through it, and the brief already named 300k as
+the take-no-new-frame line. Three consequences, each ruled and not guessed.
+
+- A reserve whose every standby is past the ceiling is a drought, and it is not
+  an empty reserve. `hand` still exits 5 and still posts the vacancy. It also
+  names each session that was too full, so the frame waits for a fresh window
+  instead of landing on one that fills up mid-frame.
+- A session past the ceiling leaves the reserve instead of arming, and `standby`
+  exits 2 and takes its seat back. A seat no hand-off can use makes the reserve
+  read larger than it is, which is the same class of lie as a row that says a
+  working session died.
+- An unknown estimate is eligible, and that is not a compromise. A window armed
+  on its first prompt has no transcript to measure yet, and it stays unmeasured
+  while it sits quiet. So unknown is the normal state of the cleanest seat there
+  is (observed: a live session in a destination's reserve carried est null and
+  turns zero, 2026-09-20).
+
+This replaces rota's rule of 2026-09-20, which told the sender to read the `ctx`
+column and name the cleanest row with `--to`. The tool now enforces the order,
+so the hand read is gone from the brief.
 
 **A peer message is not a record** (observed: 2026-09-20). A session from
 another project reported that a hand-off from 7b95045e had gone to rota-02.

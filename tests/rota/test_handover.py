@@ -411,12 +411,20 @@ def test_a_session_that_holds_a_frame_cannot_rejoin_the_reserve(box, capsys):
     assert peer(box, "aaaa1111")["state"] == "holding", "the frame stayed held"
 
 
-def enrol(box_path, sid, name):
-    """Write what the context hook writes, so a test can arm against it."""
+def enrol(box_path, sid, name=None, est=None):
+    """Write what the context hook writes, so a test can arm against it.
+
+    The hook's row carries a peer name and a context count. One test needs
+    the name and another needs the count, so both are optional. The kit's
+    own helper took the count alone and rota's took the name alone, so this
+    one takes each by keyword and serves both.
+    """
     sessions = box_path / handover.BOX / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     (sessions / (sid + ".json")).write_text(
-        json.dumps({"sid": sid, "name": name}), encoding="utf-8")
+        json.dumps({"sid": sid, "name": name or "peer-" + sid[:4],
+                    "est": est, "turns": 1, "t": time.time()}),
+        encoding="utf-8")
 
 
 def test_the_enrolled_name_beats_a_typed_one(box):
@@ -744,6 +752,109 @@ def test_a_newer_watcher_retires_the_older_one(box):
     second.join(timeout=5)
 
 
+def test_a_cleared_frame_does_not_make_a_session_a_standby(box, capsys):
+    """Its watcher exited when it took the frame. Nothing watches for it now.
+
+    Reported from a live frame: a session closed its frame, cleared the
+    column, and the table printed it as a standby with a dead heartbeat.
+    The legend reads that as a session that died, and it was working. The
+    same fault class as a holder printed STALE.
+    """
+    thread, _ = arm(box, "aaaa1111", wait=10)
+    run(box, "hand", "--frame", "50", "--commit", "abc1234", "--confirm", "0.1")
+    thread.join(timeout=5)                      # the watcher exits on the claim
+    run(box, "take", "--sid", "aaaa1111")
+    capsys.readouterr()
+
+    assert run(box, "holding", "--sid", "aaaa1111", "--frame", "none") == 0
+    out = capsys.readouterr().out
+    assert "no watcher runs for you" in out
+    assert "Arm again" in out
+
+    state = peer(box, "aaaa1111")
+    assert state["frame"] is None
+    assert state["state"] != "standby", "a session does not become a standby by saying so"
+
+    run(box, "peers")
+    table = capsys.readouterr().out
+    row = [line for line in table.splitlines() if line.startswith("aaaa1111")][0]
+    assert "spent" in row and "STALE" not in row
+    assert "0 free standby" in table, "a spent row is never offered a frame"
+
+
+def test_a_standby_that_really_died_still_reads_stale(box):
+    """The fix must not hide the case the STALE column exists for."""
+    api = handover.Box(box)
+    api.write_state("dddd4444", {
+        "sid": "dddd4444", "name": "gone", "since": time.time() - 9000,
+        "since_iso": "then", "armed_at": time.time() - 9000,
+        "beat": time.time() - handover.STALE - 30,
+        "state": "standby", "frame": None,
+    })
+    row = api.queue(handover.STALE)[0]
+    assert row["live"] is False and row["free"] is False
+    assert run(box, "peers") == 1
+
+
+def test_a_frame_goes_to_the_oldest_standby_under_the_ceiling(box):
+    """Use a session up before spending a fresh one, but never past 300k."""
+    arm(box, "aaaa1111")          # oldest, and too full to finish a frame
+    time.sleep(0.05)
+    arm(box, "bbbb2222")          # next oldest, and able to
+    time.sleep(0.05)
+    arm(box, "cccc3333")          # freshest, and should stay unspent
+    enrol(box, "aaaa1111", est=340)
+    enrol(box, "bbbb2222", est=210)
+    enrol(box, "cccc3333", est=20)
+
+    assert run(box, "hand", "--frame", "7", "--commit", "abc1234",
+               "--confirm", "0.1") == 4
+    claims = sorted(p.stem for p in (box / handover.BOX / "claims").glob("*.json"))
+    assert claims == ["bbbb2222"], \
+        "the oldest one under the ceiling took it, not the oldest and not the cleanest"
+
+
+def test_an_unknown_estimate_is_the_cleanest_standby_there_is(box):
+    """A window armed on its first prompt has no transcript to measure yet.
+
+    It stays unmeasured for as long as it sits quiet, so unknown is the
+    normal state of the best seat in the reserve. Observed in the wild:
+    a live session enrolled with est null and turns zero.
+    """
+    arm(box, "aaaa1111")
+    enrol(box, "aaaa1111", est=None)
+    row = [r for r in handover.Box(box).queue(handover.STALE)
+           if r["sid"] == "aaaa1111"][0]
+    assert row["over"] is False and row["free"] is True
+    assert run(box, "hand", "--frame", "7", "--commit", "abc1234",
+               "--confirm", "0.1") == 4
+
+
+def test_a_reserve_that_is_all_too_full_is_a_drought(box, capsys):
+    """And it must not read as an empty reserve, which is a different fact."""
+    arm(box, "aaaa1111")
+    enrol(box, "aaaa1111", est=340)
+    capsys.readouterr()
+
+    assert run(box, "hand", "--frame", "7", "--commit", "abc1234") == 5
+    out = capsys.readouterr().out
+    assert "over the 300k ceiling" in out
+    assert "aaaa1111 at 340k" in out
+    assert "not an empty reserve" in out
+    assert len(vacancies(box)) == 1, "the frame waits for a fresh window"
+
+
+def test_a_session_past_the_ceiling_leaves_instead_of_arming(box, capsys):
+    """A seat it holds is a seat no hand-off can use."""
+    enrol(box, "dddd4444", est=355)
+    capsys.readouterr()
+    assert run(box, "standby", "--sid", "dddd4444", "--wait", "1") == 2
+    out = capsys.readouterr().out
+    assert "past the 300k ceiling" in out
+    assert "left the reserve" in out
+    assert not (box / handover.BOX / "peers" / "dddd4444.json").exists()
+
+
 def test_a_holder_is_not_printed_as_stale(box, capsys):
     """Its watcher exits when it delivers the claim, so the beat stops by design.
 
@@ -780,7 +891,8 @@ def test_holding_corrects_the_handed_column(box, capsys):
 
     assert run(box, "holding", "--sid", "aaaa1111", "--frame", "none") == 0
     assert peer(box, "aaaa1111")["frame"] is None
-    assert peer(box, "aaaa1111")["state"] == "standby"
+    assert peer(box, "aaaa1111")["state"] != "standby", \
+        "clearing a frame does not arm a watcher, so it does not make a standby"
     assert run(box, "holding", "--sid", "bbbb2222", "--frame", "1") == 1
 
 
