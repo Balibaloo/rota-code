@@ -68,10 +68,40 @@ CREATE TABLE IF NOT EXISTS case_runs (
     -- whether the case was unfair, the role under-briefed, or the model out of
     -- its depth -- which is the whole of the remaining work.
     transcript   TEXT NOT NULL DEFAULT '[]',
+    -- The rest of the cassette key, so a reader can ask whether a result is
+    -- still evidence about what the tree sends today (frame 54, 2026-09-21).
+    -- A recording is keyed by seven things and a result was keyed by three, so
+    -- the report could not match what the key covers. One narrow key gives two
+    -- opposite symptoms: a green case reads stale, and a case the suite cannot
+    -- replay reads green.
+    num_ctx      INTEGER NOT NULL DEFAULT 12288,
+    temperature  REAL NOT NULL DEFAULT 0.0,
+    -- Text or native. Native tool calling and the `TOOL:` text protocol get
+    -- different replies to one prompt, so a native recording is not evidence
+    -- about a text run.
+    protocol     TEXT NOT NULL DEFAULT 'text',
+    -- The optional pins that are set, as `Pins.extras()` builds them. `think`
+    -- is the live one.
+    extras       TEXT NOT NULL DEFAULT '{}',
+    -- The whole system text the model received, hashed. `prompt_hash` covers
+    -- the composed brief only: the runner's session prose and the working
+    -- set's `TOOL:` lines sit outside it, and both move the cassette key.
+    system_hash  TEXT NOT NULL DEFAULT '',
     seq          INTEGER NOT NULL,
     PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
 );
 """
+
+#: The five columns frame 54 adds, and the value an old row takes. A default
+#: is a write-off and not a measurement: every row written before 2026-09-21
+#: reads as 12288, 0.0, text and no extras, and its system text is unknown.
+KEY_COLUMNS = (
+    ("num_ctx", "INTEGER NOT NULL DEFAULT 12288"),
+    ("temperature", "REAL NOT NULL DEFAULT 0.0"),
+    ("protocol", "TEXT NOT NULL DEFAULT 'text'"),
+    ("extras", "TEXT NOT NULL DEFAULT '{}'"),
+    ("system_hash", "TEXT NOT NULL DEFAULT ''"),
+)
 
 
 def open_dev_db(path: str | Path) -> sqlite3.Connection:
@@ -99,6 +129,15 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
         # run recorded before the column existed: one indistinct old load.
         conn.execute("ALTER TABLE case_runs ADD COLUMN load_id TEXT "
                      "NOT NULL DEFAULT ''")
+    # The cassette key's own fields. SQLite adds a column without rewriting
+    # the table, so the five cost 0.004 seconds in total (observed: the design
+    # review's probe 11, 2026-09-21). Nothing is backfilled here: one UPDATE
+    # over 178901 rows takes 4.72 seconds against sqlite3's 5.0 second busy
+    # timeout, and `pytest.ini` runs the suite with `-n auto`, so a second
+    # worker opening this database would raise `database is locked`.
+    for column, spec in KEY_COLUMNS:
+        if column not in have:
+            conn.execute(f"ALTER TABLE case_runs ADD COLUMN {column} {spec}")
     return conn
 
 
@@ -354,19 +393,55 @@ def current_load(pins: Pins) -> str:
     return f"{pins.model}@{int(time.time()) // 7200}"
 
 
+def system_hash(system: str) -> str:
+    """
+    The whole system text the model received, hashed.
+
+    `prompt_hash` is not this, and the difference is the fault frame 54
+    repairs. `prompt_hash` covers the composed brief, which
+    `fixtures.instructions_for` rebuilds from the tree. The brief is a strict
+    prefix of the system text for 117 of the suite's 117 single-session cases,
+    and exact for none (observed: frame 54's measurement over the register,
+    2026-09-21). The tail is the runner's session prose and the working set's
+    `TOOL:` lines. Both move the cassette key, and both leave `prompt_hash`
+    alone, so a tools edit made a case read green that the suite could no
+    longer replay.
+
+    '' means the writer had no system text to give. The migration leaves the
+    same '' on every row written before the column existed, so '' reads as
+    unknown and never as "the model was sent nothing".
+    """
+    if not system:
+        return ""
+    return hashlib.sha256(system.encode("utf-8")).hexdigest()[:16]
+
+
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
                     run_no: int, passed: bool, problems: list[str],
-                    transcript: list | None = None) -> None:
+                    transcript: list | None = None, *,
+                    system: str = "", protocol: str = "text") -> None:
+    """
+    One run of one case, with the whole key it was earned under.
+
+    `system` is the system text the model received, not the composed brief.
+    `protocol` is `'text'` or `'native'`, and it is the caller's because the
+    pins do not carry it: the runner offers native schemas per session.
+
+    Both are keyword-only. A caller that has no system text gets '' and says
+    so, rather than passing a brief that is only a prefix of what was sent.
+    """
     if not passed and _is_unmeasured(problems, transcript):
         return
     seq = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) + 1 n FROM case_runs").fetchone()["n"]
     conn.execute(
         "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, passed, "
-        "problems, transcript, seq, load_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        "problems, transcript, seq, load_id, num_ctx, temperature, protocol, "
+        "extras, system_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (case_id, pins.model, pins.prompt_hash, run_no, int(passed),
          json.dumps(problems), json.dumps(transcript or []), seq,
-         current_load(pins)),
+         current_load(pins), pins.num_ctx, pins.temperature, protocol,
+         json.dumps(pins.extras(), sort_keys=True), system_hash(system)),
     )
 
 

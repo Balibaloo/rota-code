@@ -613,12 +613,18 @@ def cmd_profile(args: argparse.Namespace) -> int:
             pins = pins.__class__(**{**pins.__dict__, "model": model})
             res = toolcheck.check(backend, pins)
             line_id, native_id = toolcheck.case_ids(prof.name)
+            # Two protocols, two rows. The check sends one system text twice,
+            # once as text and once with a native schema, and the two replies
+            # fail in different ways -- so a native result must never answer
+            # for a text run (frame 54).
             cassettes.record_case_run(dev, line_id, pins, 1, res.tool_line,
                                       [] if res.tool_line else [res.problems[0]],
-                                      [{"say": res.tool_line_said}])
+                                      [{"say": res.tool_line_said}],
+                                      system=toolcheck.SYSTEM, protocol="text")
             cassettes.record_case_run(dev, native_id, pins, 1, res.native_call,
                                       [] if res.native_call else [res.problems[-1]],
-                                      [{"say": res.native_said}])
+                                      [{"say": res.native_said}],
+                                      system=toolcheck.SYSTEM, protocol="native")
             dev.commit()
             print(f"{model:24} TOOL: line {'ok' if res.tool_line else 'FAIL'}   "
                   f"native call {'ok' if res.native_call else 'FAIL'}")

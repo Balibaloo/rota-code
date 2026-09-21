@@ -141,7 +141,10 @@ def test_i1_segmentation_at_principal_granularity(db, backend, dev_db):
     if not confirms:
         problems.append("no confirm sent to the principal")
 
-    record_case_run(dev_db, "I1", PINS, 1, not problems, problems)
+    # With the system text the session was given: the register matches a
+    # recording on the whole key, and the brief is only part of it (frame 54).
+    record_case_run(dev_db, "I1", PINS, 1, not problems, problems,
+                    system=outcome.system)
     assert not problems, "\n".join(problems)
 
 
@@ -186,7 +189,8 @@ def test_i3_harvest_dedupes_and_traces(db, backend, dev_db):
         if table in written:
             problems.append(f"forbidden write to {table}")
 
-    record_case_run(dev_db, "I3", PINS, 1, not problems, problems)
+    record_case_run(dev_db, "I3", PINS, 1, not problems, problems,
+                    system=outcome.system)
     assert not problems, "\n".join(problems)
 
 
@@ -222,7 +226,8 @@ def test_i6_no_reports_means_no_questions(db, backend, dev_db):
     if any(m["verb"] == "clarify" for m in sent):
         problems.append("invented a question with no report to justify it")
 
-    record_case_run(dev_db, "I6", PINS, 1, not problems, problems)
+    record_case_run(dev_db, "I6", PINS, 1, not problems, problems,
+                    system=outcome.system)
     assert not problems, "\n".join(problems)
 
 
@@ -260,5 +265,6 @@ def test_i4_readonly_writes_nothing_and_bumps_nothing(db, backend, dev_db):
     if not valid:
         problems.append("readonly disturbed a developer checkpoint")
 
-    record_case_run(dev_db, "I4", PINS, 1, not problems, problems)
+    record_case_run(dev_db, "I4", PINS, 1, not problems, problems,
+                    system=outcome.system)
     assert not problems, "\n".join(problems)

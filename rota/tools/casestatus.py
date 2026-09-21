@@ -4,6 +4,11 @@ Where every model-facing case actually stands, without running anything.
     python -m rota.tools.casestatus            # everything, worst first
     python -m rota.tools.casestatus --red      # only what is not green
 
+The report reads one model's recordings and says which on its second line.
+`--model` names it, `ROTA_MODEL` sets it, and the last resort is the model the
+gate replays. A count read under a model the suite does not run is a true
+number about nothing, and one was quoted for two days as prompt drift.
+
 The distinction this exists for is **stale versus failing**, and it is not
 cosmetic. A case with no recording against the current prompt is *unmeasured*:
 the role may be doing the job perfectly and nobody has looked since the brief
@@ -25,12 +30,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 from pathlib import Path
 
 from .. import paths
 from ..llm.cassettes import trust
-from ..llm.llm import Pins
+from ..llm.llm import DEFAULT_NUM_CTX, Pins, think_for
 
 from ..testkit import fixtures
 
@@ -43,11 +49,38 @@ def _cases() -> list[dict]:
     return out
 
 
-def status(model: str = "llama3.1:8b") -> list[dict]:
+def model_for(named: str = "") -> str:
+    """
+    Which model's recordings this report reads. Named, then ambient, then the
+    gate's.
+
+    The default was `llama3.1:8b` and `status` read no environment at all, so
+    the same register answered two ways: the bare command printed 67 stale and
+    50 green, and `--model qwen3:8b` printed 0 stale and 107 green (observed:
+    frame 54's run of both commands, 2026-09-21). Both numbers were right.
+    Frame 49 then carried a 72-case obligation that was an artefact of this
+    default, and no reader could see it, because the report never said which
+    model it had read.
+
+    The last resort is the gate's model and never `DEFAULT_MODEL`, whose own
+    fallback is the `llama3.1:8b` that caused this.
+    """
+    if named:
+        return named
+    # Lazily, and from the gate, because the gate declares the model the suite
+    # replays. One declaration: a second copy here would be the same fault in
+    # a new place.
+    from .gate import FALLBACK_MODEL
+
+    return os.environ.get("ROTA_MODEL") or FALLBACK_MODEL
+
+
+def status(model: str = "") -> list[dict]:
     # Through the one opener that migrates: a raw connect here read the
     # committed db from before `load_id` existed and died inside `trust`.
     from ..llm.cassettes import open_dev_db
 
+    model = model_for(model)
     conn = open_dev_db(paths.DEV_DB)
 
     rows = []
@@ -59,7 +92,16 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         # that model, and this report must read the same recordings the
         # suite replays -- a qwen-held green rendering as a llama STALE
         # would be the report contradicting the register it exists to show.
-        want = Pins(model=case.get("model", model), temperature=0.0).with_prompt(
+        #
+        # The pins are the tiers' own, field by field, because the report
+        # matches a recording on them (frame 54, 2026-09-21). `num_ctx` comes
+        # from `DEFAULT_NUM_CTX`, which is what a tier runs at: all three tier
+        # files deliberately pin no window. The temperature is 0.0, and every
+        # cassette in the register is at 0.0. `think` comes from
+        # `ROTA_PROFILE`, through the one rule the tier stamps with.
+        pinned = case.get("model", model)
+        want = Pins(model=pinned, temperature=0.0,
+                    think=think_for(pinned)).with_prompt(
             fixtures.instructions_for(case))
 
         # A run that died for want of a cassette is not a result, and until
@@ -68,17 +110,38 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
         # history even when they are not evidence.
         #
         # They can carry a *current* prompt hash, which is what made them
-        # dangerous. `pins.prompt_hash` covers the role's instructions and not
-        # the mode prompt, so editing `answer.md` leaves the hash untouched
-        # while changing the cassette key -- a stale case recorded under a hash
-        # that still looks current, and it reads as a hard red.
+        # dangerous. `prompt_hash` covers the composed brief, the mode prompt
+        # included, so a brief edit does stale a case. What it does not cover
+        # is the runner's session prose and the working set's `TOOL:` lines,
+        # which are the rest of the system text and are in the cassette key --
+        # so a tools edit left every hash current and the case read green
+        # while the suite could not replay it.
+        #
+        # `system_hash` is therefore written by `record_case_run` and is not
+        # matched on here. The blocker is that this report cannot compose the
+        # system text: it is built inside `run_session`, from a sandbox over
+        # the case's seeded database, and there is no second definition of it
+        # to call. Matching on a value this report cannot compute would stale
+        # every case. The match is widened when one composition serves both.
+        #
+        # `load_id` stays out for two reasons. It is `model@epoch//7200`, so
+        # matching on it would stale every case two hours after its recording,
+        # and `trust` reads several loads to tell `provisional` from `earned`.
         here = list(conn.execute(
             "SELECT passed, problems FROM case_runs "
             "WHERE case_id = ? AND prompt_hash = ? AND model = ? "
+            "  AND num_ctx = ? AND temperature = ? AND protocol = ? "
+            "  AND extras = ? "
             "  AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
             "                        OR transcript LIKE '%no cassette for%')) "
             "ORDER BY seq DESC LIMIT ?",
-            (case["id"], want.prompt_hash, want.model,
+            (case["id"], want.prompt_hash, want.model, want.num_ctx,
+             want.temperature,
+             # Text, because 18570 of the register's 18604 cassettes key as
+             # text and none as native (observed: the design review's probe 5,
+             # 2026-09-21). A tier offers the model no native schemas.
+             "text",
+             json.dumps(want.extras(), sort_keys=True),
              case.get("runs", 5))))
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
@@ -109,7 +172,7 @@ def status(model: str = "llama3.1:8b") -> list[dict]:
     return rows
 
 
-def render(rows: list[dict], red_only: bool = False) -> str:
+def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
     order = {"FAIL": 0, "PROV": 1, "STALE": 2, "NEW": 3, "green": 4}
     rows = sorted(rows, key=lambda r: (order[r["state"]], r["id"]))
     counts = {k: sum(1 for r in rows if r["state"] == k) for k in order}
@@ -117,6 +180,14 @@ def render(rows: list[dict], red_only: bool = False) -> str:
     out = [f"{counts['FAIL']} failing, {counts['PROV']} provisional, "
            f"{counts['STALE']} stale, {counts['NEW']} never measured, "
            f"{counts['green']} green"]
+    if model:
+        # The key these counts were read under, printed with them. A count
+        # quoted without its model is the 72 of frame 49: a true number about
+        # a model the suite does not run.
+        extras = json.dumps(Pins(model=model, think=think_for(model)).extras(),
+                            sort_keys=True)
+        out.append(f"  read under {model}, window {DEFAULT_NUM_CTX}, "
+                   f"protocol text" + (f", pins {extras}" if extras != "{}" else ""))
     if counts["PROV"]:
         out.append("  provisional greened on one load after being red: "
                    "re-earn on a second load before quoting it as fixed")
@@ -139,6 +210,9 @@ def render(rows: list[dict], red_only: bool = False) -> str:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--red", action="store_true", help="hide green cases")
-    ap.add_argument("--model", default="llama3.1:8b")
+    ap.add_argument("--model", default="",
+                    help="the model the recordings are held by; the default "
+                         "is ROTA_MODEL, then the model the gate replays")
     args = ap.parse_args()
-    print(render(status(args.model), red_only=args.red))
+    model = model_for(args.model)
+    print(render(status(model), red_only=args.red, model=model))

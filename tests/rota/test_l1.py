@@ -26,7 +26,7 @@ import pytest
 from rota import paths
 from rota.llm.cassettes import (RecordingBackend, ReplayOnlyBackend,
                                open_dev_db, record_case_run)
-from rota.llm.llm import OllamaBackend, Pins
+from rota.llm.llm import OllamaBackend, Pins, think_for
 from rota.roles import prompts
 from rota.testkit import fixtures, interview, obligations
 
@@ -43,15 +43,9 @@ MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 # model (finding 81, 2026-09-15): the nights run qwen3.5:9b thinking, and
 # a column recorded with ROTA_PROFILE=local-gemma-critic measures that.
 # Without it the pin stays None and every earlier recording keeps its key.
-def _think_for(model: str):
-    name = os.environ.get("ROTA_PROFILE")
-    if not name:
-        return None
-    from rota.llm import profile as _profile
-    return (_profile.find(name).think or {}).get(model)
-
-
-PINS = Pins(model=MODEL, temperature=0.0, think=_think_for(MODEL))
+# The rule lives in `rota.llm.llm` because `casestatus` matches a recording
+# on the pin it sets, and two copies of one rule drift (frame 54).
+PINS = Pins(model=MODEL, temperature=0.0, think=think_for(MODEL))
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ROTA_L1") or paths.DEV_DB.exists()),
@@ -127,7 +121,7 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # ROTA_MODEL_FORCE=1 puts every case on ROTA_MODEL, pins included: a
     # benchmark column measures one model across the register.
     pinned = MODEL if os.environ.get("ROTA_MODEL_FORCE") else case.get("model", MODEL)
-    pins = Pins(model=pinned, temperature=0.0, think=_think_for(pinned))
+    pins = Pins(model=pinned, temperature=0.0, think=think_for(pinned))
     passed, threshold, results = fixtures.run_sampled(
         case, tmp_path, backend_factory, pins=pins, instructions=instructions)
 
@@ -138,8 +132,11 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
     # meaningless.
     stamp = pins.with_prompt(instructions)
     for r in results:
+        # The whole system text as well, because the brief is only its prefix:
+        # the runner's session prose and the working set's `TOOL:` lines are in
+        # the cassette key and not in the hash (frame 54).
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
-                        r.problems, r.transcript())
+                        r.problems, r.transcript(), system=r.system_text())
 
     # Opt-in, and only on a failure. It costs a model call per failed run and
     # answers a question no assertion does: what did the session think it had?

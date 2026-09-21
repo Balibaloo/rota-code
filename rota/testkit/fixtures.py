@@ -651,6 +651,20 @@ class CaseResult:
     # Things worth knowing that are not failures -- a forbidden call the guard
     # threw out, which says the brief steered into a wall while the system held.
     notes: list[str] = field(default_factory=list)
+    # Every system text the model received, one per session. A chain has two,
+    # and `outcome` keeps only the leg the chain is scored against. The
+    # register records a run against this, so kept here rather than derived.
+    systems: list[str] = field(default_factory=list)
+
+    def system_text(self) -> str:
+        """
+        What the model was told, whole, and both legs of a chain.
+
+        Joined the way `instructions_for` joins a chain's two briefs, because
+        the two must agree: either leg can be why a chain stopped working, so
+        either leg's text must be able to stale it.
+        """
+        return "\n\n".join(self.systems)
 
     def transcript(self) -> list[dict]:
         """What the model said and what came back, turn by turn.
@@ -929,7 +943,8 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
 
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
-                      delta=delta, outcome=outcome, notes=notes)
+                      delta=delta, outcome=outcome, notes=notes,
+                      systems=[outcome.system])
 
 
 def run_chain(case: dict, db_path: str | Path, backend_factory, *,
@@ -1027,7 +1042,10 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
                 _gf.cleanup(repo)
             return CaseResult(case_id=case.get("id", "?"), run=run_no,
                               passed=not problems, problems=problems,
-                              delta=a_delta, outcome=a_out)
+                              delta=a_delta, outcome=a_out,
+                              # Leg one is the whole chain here, so it is the
+                              # whole of what the model was told.
+                              systems=[a_out.system])
         if not woken:
             others = sorted({w.kind for w in predicate_wakes(conn)})
             problems.append(
@@ -1038,7 +1056,8 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
                 _gf.cleanup(repo)
             return CaseResult(case_id=case.get("id", "?"), run=run_no,
                               passed=False, problems=problems,
-                              delta=a_delta, outcome=a_out)
+                              delta=a_delta, outcome=a_out,
+                              systems=[a_out.system])
         b_spec = dict(then)
         b_spec["refs"] = list(woken[0].refs)
         b_out, b_delta = _one(b_spec, None)
@@ -1050,7 +1069,8 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             from . import gitfixture as _gf
             _gf.cleanup(repo)
         return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
-                          problems=problems, delta=a_delta, outcome=a_out)
+                          problems=problems, delta=a_delta, outcome=a_out,
+                          systems=[a_out.system])
     else:
         b_spec = dict(then)
         b_spec.setdefault("verb", handoff["verb"])
@@ -1084,7 +1104,8 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
 
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
-                      delta=b_delta, outcome=b_out, notes=notes)
+                      delta=b_delta, outcome=b_out, notes=notes,
+                      systems=[a_out.system, b_out.system])
 
 
 def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None = None,

@@ -75,8 +75,10 @@ def test_seat_flow_segment(case, tmp_path, backend_factory, dev_db):
 
     stamp = Pins(model=case.get("model", MODEL), temperature=0.0).with_prompt(fixtures.instructions_for(case))
     for r in results:
+        # The whole system text as well: the brief is only its prefix, and the
+        # rest of it is in the cassette key (frame 54).
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
-                        r.problems, r.transcript())
+                        r.problems, r.transcript(), system=r.system_text())
 
     if any("no cassette" in p for r in results for p in r.problems):
         pytest.fail(

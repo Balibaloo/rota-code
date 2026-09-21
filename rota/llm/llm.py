@@ -44,6 +44,33 @@ DEFAULT_NUM_CTX = int(os.environ.get("ROTA_NUM_CTX", "12288"))
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 
+def think_for(model: str) -> bool | None:
+    """
+    The think pin `ROTA_PROFILE` sets for this model, or None for the
+    provider's own default.
+
+    `ROTA_MODEL` and `ROTA_NUM_CTX` above are read once at import. This third
+    ambient variable is read per call, because a profile is a file the caller
+    can name at any time.
+
+    One definition, and it is the reason this lives here rather than in the
+    tier that first wrote it. The tier stamps a recording with this pin and
+    `rota.tools.casestatus` matches a recording on it. Two copies of the rule
+    drift, and a drifted pin reads every case as stale.
+
+    Finding 81 (2026-09-15): qwen3.5:9b answers a Tester wake with prose and no
+    call when thinking is off, so the nights run that model with thinking on. A
+    recording made under the profile measures that model, and a recording made
+    without one keeps its old key.
+    """
+    name = os.environ.get("ROTA_PROFILE")
+    if not name:
+        return None
+    from . import profile as profile_mod
+
+    return (profile_mod.find(name).think or {}).get(model)
+
+
 @dataclass(frozen=True)
 class Pins:
     """
