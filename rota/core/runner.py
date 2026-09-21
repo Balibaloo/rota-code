@@ -2097,6 +2097,12 @@ def run_session(
         answered_at: dict[str, int] = {}
         repeated: dict[str, int] = {}
         by_path: dict[str, set[str]] = {}
+        # These five move together. `already_run` says a call ran, `answered`
+        # says what it gave, `answered_at` says when, `repeated` counts the
+        # askings, and `by_path` invalidates. Both findings this machinery has
+        # produced came from changing one of them alone: frame 43's stale hold
+        # from `already_run` without `answered`, and the diff review's triple
+        # serve from `answered` without `answered_at`.
 
         def forget(path: str) -> None:
             """
@@ -2890,6 +2896,14 @@ def run_session(
         # result, and the two are independent on purpose: the principal's ledger
         # row is cut where the Critic has no call to change it (frame 46's
         # design record, section 2.7).
+        #
+        # `outcome.errors` is read by three readers, so a line added here is
+        # three statements at once: the session's account through
+        # `session_note`, the failure line `rota/core/loop.py` prints for an
+        # uncommitted session, and the refused-call count in
+        # `rota/testkit/fixtures.py`, which reads the text before a line's first
+        # colon as a call name whenever it holds a dot. Never head a line here
+        # with a dotted op name.
         outcome.errors.extend(getattr(sb.ctx, "cuts", None) or ())
         session_note(conn, session_id, outcome.errors)
         outcome.committed = True
