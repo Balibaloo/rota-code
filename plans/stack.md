@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 63. One composition of the system text (2026-09-21)
+### 63. One composition of the system text (2026-09-21) [590c7382]
 
 - **Batch A's successor. It is the half of frame 54 that could not close.**
 - Meta workflow. A cassette is keyed by the whole system text the model
@@ -235,6 +235,26 @@ a different question and the night is then opened once.
   **Revised estimate: 30k for the count, 60k for the refactor and its tests,
   and a re-record whose size the count decides.** The 40k first read priced at
   the push assumed the composition might be impossible. It is not.
+- Status 2026-09-21 21:20 (rota-36): **handed to session `590c7382`, which
+  confirmed the take 5 seconds after the claim** (observed: the `hand`
+  command's exit 0 at 2026-09-21 21:20:48). Meta workflow. Stack commit
+  `c41bfb7`. Roman ruled the hand-off. Session 75f21e35 stops here at 325k.
+  **The frame is unclaimed in this heading on purpose**: the holder writes
+  its own session id when it takes the frame.
+  **What the holder should know before it starts.** The first read is the
+  count, not the code: compose the system text for all 128 cases and count
+  how many differ from the cassette their current green came from. It costs
+  no GPU, because composing the system text needs no model call. **Price the
+  repair only after that count exists.**
+  **And the count decides what can run beside it.** If the count is large it
+  becomes a re-record, which is GPU. Batch C, the night's stall, is database
+  reading. The two do not contend, so a large count is a reason to start
+  batch C rather than to wait (reasoned: the sending session, 2026-09-21,
+  recommended to Roman and not yet ruled).
+  **One correction the sender owes the record**: the sender told Roman no
+  session was armed, from a `peers` read taken minutes earlier. A session
+  armed in the interval and took the frame at once. **A reserve reading ages
+  like any other observation.**
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
