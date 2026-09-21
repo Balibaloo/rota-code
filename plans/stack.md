@@ -751,6 +751,41 @@ next session to close 46 reorders the file to this list.
   obligation stays countable. This session holds frame 46 and takes no new
   frame.
 
+### 60. The re-record command the suite prints uses the wrong model (2026-09-21)
+
+- Meta workflow. `tests/rota/test_l1.py:34` reads
+  `MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")`. The gate sets
+  `ROTA_MODEL` to `qwen3:8b` at `rota/tools/gate.py:76`. A direct `pytest` run
+  sets nothing (observed: both files, 2026-09-21).
+- **The suite's own STALE message tells you to re-earn a case with
+  `ROTA_L1=1 python -m pytest tests/rota/test_l1.py -q`**, at
+  `tests/rota/test_l1.py:167` and `tests/rota/test_l3.py:106`. That command
+  names no model. **So following the repository's own instruction re-records
+  the register against a model the register does not hold**, for every case
+  whose file pins none.
+- **The cost is measured, not predicted** (observed: the same 20 case ids run
+  twice, 2026-09-21 05:16 and 05:33). Without `ROTA_MODEL`: 16 pass, 4 fail.
+  With `ROTA_MODEL=qwen3:8b`: 18 pass, 2 fail.
+  `L2-DV-name-the-block-rather-than-retry` and
+  `L1-VK-the-account-before-the-behaviours` flip from fail to pass on the
+  model alone. Both scored 0 of 5 on the wrong model.
+- **This session followed the instruction and read two false regressions from
+  it** (observed: this session, 2026-09-21). A diagnosis at 132970 tokens was
+  spent, and it found the cause. The frame exists so the next session does not
+  spend it again.
+- Ends when: the message names a model, the two test files agree on which
+  model a direct run uses, and a test asserts that a run outside the gate does
+  not silently take a different model from the register's. Priced from the
+  anchors: one door and one test, 30k.
+- Waits on: nothing. Roman orders it.
+- Reasoning: frame 46's status line of 2026-09-21 05:21, and the diagnosis of
+  the two case regressions.
+- Status 2026-09-21 05:34 (rota-e7): pushed by 0f086f93, unclaimed, priced.
+  **This is not a model question and it is not frame 55's.** Frame 55 says a
+  recorded green does not reproduce live on one model. This says two commands
+  that both claim to re-earn a case use two different models. This session
+  holds frame 46 and takes no new frame.
+
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
 
 - Rota workflow, and the meta workflow's own sessions are in scope. **Roman's ask,
