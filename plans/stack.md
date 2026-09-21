@@ -507,6 +507,36 @@ next session to close 46 reorders the file to this list.
   **The reserve is checked, at 261k** (observed: `peers`, 2026-09-21 01:13). One
   standby is free at 156k, under the 300k ceiling the port has already installed,
   so a hand-off at 400k has somewhere to go.
+- Status 2026-09-21 04:05 (rota-02): **the walk ran and it did not validate the
+  frame. Night 88 stalled three times and the frame stays open.** Rota workflow.
+  The night ran 02:51 to 04:03 from a worktree at `d192b62`, exit 0,
+  `GAUNTLET-DONE`.
+  **The size against the night before it** (observed: both databases, 2026-09-21
+  04:05): night 88 ran **738 turns in 191 sessions**, where night 87 ran **4062
+  turns in 746 sessions**. Night 88 had **3 developer sessions of 191**.
+  **All three walks ended on the same report** (observed: `.rota/night88.log`):
+  the team gave up on `boundary for @surface:.readthedocs.yaml`, `challenge for
+  @claim:items:defines_commands_and_options`, `batch_start for bg_1`, and
+  `challenge for @claim:items:default_on_eof`. The walks were quiet after 35, 27
+  and 26 steps.
+  **So this frame cannot close on this walk.** The walk exists to catch exactly
+  this, and it caught something. Whether it caught this frame's own fault is not
+  yet known: frame 37 records that the Developer exhausts ten attempts, and frame
+  38 records a regression between nights 70 and 86, so a stall may be the
+  standing condition. **What this frame changed is the last suspect and not the
+  first** (ruled: the brief).
+  **The diagnosis runs now, read-only, on the archived night.** The night's
+  database was not named by the driver, so this session archived it as
+  `.rota/clickI_night88.db`, 738 turns, before the next night could overwrite
+  `.rota/clickI.db`. The agent reads the turns of the failing sessions first,
+  because a cause goes on the stack only after those turns are read.
+  **One finding of the walk is already in hand and it belongs to frame 57**
+  (observed: `.rota/night88.log`, 2026-09-21): rota prints its own spill
+  measurement, and **nothing spilled**. Every line reads `0.00 GB in RAM`, 16 for
+  `qwen3:8b` at 6.89 GB resident and 12 for `qwen3.5:9b` at 5.50 GB resident, at
+  a 16384 window. **The two together are 12.39 GB against a 10240 MiB card**, so
+  the night swaps models rather than holding both, and the swap is a reload and
+  not a spill. That is the shape frame 57 must price.
 
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
 
@@ -548,7 +578,25 @@ next session to close 46 reorders the file to this list.
   Total about 260k. **The read of ollama's own offload lines is the load-bearing
   half**: a spill is a fact the server states, so the report must quote it and
   never infer it from a slow wake.
-- Waits on: **night 88, which is running**. It is the only night with frame 46's
+- **Night 88 answers the headline question already, and it reprices the frame**
+  (observed: `.rota/night88.log`, 2026-09-21 04:05). rota prints its own spill
+  measurement on every model load, and **nothing spilled**: 16 lines read `CARD
+  FITS qwen3:8b at 16384: 6.89 GB resident, 0.00 GB in RAM` and 12 read `CARD
+  FITS qwen3.5:9b at 16384: 5.50 GB resident, 0.00 GB in RAM`.
+  **So the frame's question turns from "why does it spill" into "what is the
+  margin, and what would spend it".** Three facts bound the answer. The two
+  models are 12.39 GB together against a 10240 MiB card, so the night swaps them
+  rather than holding both, and a swap is a reload cost and not a spill. The
+  night uses two models by profile: `qwen3:8b` by default and `qwen3.5:9b` for
+  critic, developer, terminologist and tester. And the idle 12288 MiB Titan X
+  could hold the second model, which is the obvious lever nobody has priced.
+  **The reprice: the four cause-family agents drop to two**, 80k, because the
+  measurement that would have taken two of them is already printed. The
+  statistics pass over night 88's wakes stays at 60k, and the synthesis at 40k.
+  Total about 180k, from 260k. The first question for the statistics pass is how
+  often the night swapped models and what each swap cost in wall time.
+- Waits on: **nothing. Night 88 is in, archived as `.rota/clickI_night88.db`**,
+  738 turns and 191 sessions. It is the only night with frame 46's
   budgets in place, and its wakes are the input. The frame also shares that night
   with frames 47 and 53, so one night answers three frames.
 - Reasoning: Roman's ask of 2026-09-21, the anchors above, and
