@@ -650,6 +650,44 @@ next session to close 46 reorders the file to this list.
   stops claiming where the answer is, and names the call that fetches it
   instead**, which is this frame's own ends-when line 3. One claim removed
   closes both.
+- Status 2026-09-21 05:21 (rota-e7): **both defects are repaired in the tree
+  and the repair is not committed, because it took two register cases from
+  green to zero of five.** Rota workflow. 110724 tokens in one implementer
+  against a 150k cap.
+  **The repair, in one word plus three strings.** The refusal at
+  `rota/core/runner.py:2556` tests `would_repeat` and no longer `unchanged`, so
+  a result is served at most twice per key: once on the first asking, and once
+  more when an eviction emptied it. The repeat line and the refusal stop
+  claiming where the answer sits and name the call that returned it.
+  **Five tests, and the load-bearing one fails on the commit before the fix**
+  (observed: the implementer's verbatim failure, 2026-09-21). It asserts that
+  the third identical calling is refused while an eviction stands.
+  `tests/rota/test_runner.py` and `tests/rota/test_onboarding_phases.py` give
+  144 passed.
+  **The wording change made 20 of 128 register cases stale, and 16 re-earned
+  green** (observed: `ROTA_L1=1` over the 20 ids, 127 cassettes in 9m16s,
+  2026-09-21 05:16). Re-recording is this frame's work, because this frame
+  moved the text.
+  **Four failed, and a control probe says two are this frame's and two are
+  not** (observed: the same four ids re-recorded live on a worktree at
+  `c4f0e87` against a separate cassette database, 2026-09-21 05:19).
+  `L1-AR-annotate-a-batch` and `L1-VK-the-account-before-the-behaviours` fail
+  on both trees, so they are frame 55's shape and not a cost of this frame.
+  **`ACT-TS-five-criteria-one-per-reply` and
+  `L2-DV-name-the-block-rather-than-retry` pass on the control tree and score
+  zero of five here.** Zero of five against a threshold of 4 and 3 is not a
+  sample near a line. It is deterministic.
+  **The gate said `stale (0): none` in the same run where twenty cases failed
+  with a STALE message** (observed: the implementer's gate line, 2026-09-21).
+  That is frame 54's fault exactly, a prompt-text change leaving `prompt_hash`
+  alone, so it needs no new frame and it is named here as a second instance.
+  **One hypothesis is already dead** (observed: `rota/core/runner.py:2452`,
+  2026-09-21): the repeat refusal cannot shadow a call's own refusal. `sb.call`
+  raises when a guard refuses, so a refused call never reaches
+  `answered[key] = shown` and `would_repeat` stays false for it.
+  **The diagnosis runs now, read-only over both cassette databases**, priced
+  80k. It must say which half of the change causes each regression, the
+  refusal or the wording, and whether the case asserts the old text.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
