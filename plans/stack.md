@@ -49,7 +49,7 @@ This replaces the order of 2026-09-20, which named 46, 47, 48, 45, 38, 37, 41,
 match yet**, because rule 1 says top frame first and frame 46 is still open. The
 next session to close 46 reorders the file to this list.
 
-### 46. One designed budget for a prompt (2026-09-19) (Roman) [cb5428a2]
+### 46. One designed budget for a prompt (2026-09-19) (Roman) [0f086f93]
 
 - Rota workflow. Today no single place answers the question "what may this
   prompt contain". The caps are per result, per push and per page. The trim
@@ -576,6 +576,29 @@ next session to close 46 reorders the file to this list.
      session did not make the change: a one-line door still needs the test that
      asserts the refusal fires under a standing eviction, and this session is at
      375k.
+- Status 2026-09-21 04:20 (rota-02): **HAND-OFF. Session `0f086f93` holds frame
+  46 and the stack, at commit `e83931f`.** The hand exited 0 and printed
+  CONFIRMED 5 seconds after the claim. Session cb5428a2 stops here at 375k.
+  **What the next session picks up, in order.**
+  1. **The one-line fix above**, with the test that asserts the refusal fires
+     under a standing eviction. That is this frame's last code.
+  2. **Then the frame's own question: does it re-walk?** The diagnosis says
+     frame 46 re-rolled night 88 rather than breaking it, and that one night is
+     not a measurement of a wording change. A second night at the fixed commit
+     is the only thing that separates "a different night" from "a worse night".
+     It costs about nine hours wall and 20k of context.
+  3. **The re-record decision is the holder's.** Line 3's wording re-keys
+     cassettes, and Roman ruled on 2026-09-20 that a re-record runs without
+     asking. The gate reads zero new stale, so nothing is owed yet.
+  4. Roman's order from 2026-09-21 for what follows: 54, the read that frames 47
+     and 53 share, 48, 55, 49, then 45, 38, 37, 41, 42, 33, 4. Frames 56, 57 and
+     58 are pushed and Roman has not placed them.
+  5. **Frame 57 is Roman's ask and it is ready to run**, repriced to 180k, with
+     night 88 archived as its input.
+  **Do not restore a green from a backup to quiet the gate** (ruled: Roman,
+  2026-09-20). Two reds are known: `L1-TE-survey-an-area-for-its-terms` is frame
+  55's, and any single red in `test_handover.py`, `test_screens.py` or
+  `test_arc_synthetic.py` that passes alone is frame 48's.
   **The new machinery's reach, for the record** (observed: GLOB counts over
   night 88): 78 of 645 prompts carry a `CUT` notice, in 22 of 191 sessions. 13
   sessions carry a `cut ...` error. 21 prompts in 8 sessions carry the evicted
