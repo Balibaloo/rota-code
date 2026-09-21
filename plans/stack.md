@@ -482,6 +482,31 @@ next session to close 46 reorders the file to this list.
   exceed the budget `_fit` promises, the worst by 67295 characters.** That is
   frame 56. It unparks the fuzz finding this frame shelved, which said the runner
   reaches no breaking shape today.
+- Status 2026-09-21 01:13 (rota-02): **every review finding is repaired and
+  committed at `5849bec`, and two doors follow at `1bc8623`.** Rota workflow.
+  The repeat guard now records the turn a key was answered in. Measured on the
+  review's own shape: one result and one refusal, 6409 characters, against the
+  review's 14189 characters and no refusal.
+  **One deviation is accepted and it is stricter than the brief asked.** A row
+  wider than the whole budget drops every seed rather than keeping one, so the
+  block becomes its notices alone. Keeping one seed would let a single giant row
+  be cut twice, which was the defect.
+  **The two doors carry the knowledge whose absence caused both findings**
+  (reasoned: the implementer's where-things-are note, 2026-09-21). The repeat
+  machinery has five keys that move together, and both findings it has ever
+  produced came from changing one alone. `outcome.errors` has three readers, so
+  a line added there is three statements at once.
+  **Price so far: 348313 tokens cumulative in the implementer, 135663 in the
+  diff review, against 666k priced for the whole frame.** Six passes, none at
+  its cap, and the implementer is now past the 350k mark where a fresh agent
+  takes over. Its note is in the record above and in the two doors.
+  **What is left of this frame**: ends-when line 8, the gate, which runs once
+  after frame 52's port lands, and ends-when line 9, the walk. The walk runs from
+  a worktree at the closing commit and the frame stays open as validating while
+  the next frame starts, because a walk is about nine hours wall.
+  **The reserve is checked, at 261k** (observed: `peers`, 2026-09-21 01:13). One
+  standby is free at 156k, under the 300k ceiling the port has already installed,
+  so a hand-off at 400k has somewhere to go.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
