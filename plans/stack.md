@@ -443,6 +443,45 @@ a different question and the night is then opened once.
   design review passed this code. A read-only reviewer on a worktree found
   three high faults in it. **A green gate is not a judgement** (observed: this
   frame and frame 54's diff review, 2026-09-21 and 2026-09-22).
+- Status 2026-09-22 18:37 (rota-19, was rota-dc): **the fix pass closes all
+  three high findings, and it found a leak older than this frame.** Meta
+  workflow. 315k for the pass. Committed at `e005d2c`.
+  **The gate, run by this session**: **24 failed against a baseline of 25**,
+  2202 passed, **zero new reds**, **zero stale**, 529.8 s.
+  **The implementer refused one item of the brief, and it was right.** This
+  session briefed it to delete `mode = mode or session_mode(wake)` as dead,
+  on the diff review's word. **The line is not dead.** `SessionResult(mode=...)`
+  reads it and `loop.step` passes no mode, so the deletion would have written
+  `mode=None` into every real session's record (observed: the implementer's
+  read of `rota/core/runner.py:2955`, confirmed by this session, 2026-09-22).
+  It removed the second derivation instead and took the value from
+  `sb.ctx.mode`, so the record now says what the sandbox applied. **A reviewer
+  can be wrong about a line, and an implementer that reads before it obeys is
+  the check on that.**
+  **The leak is older than this frame and it is on this machine** (observed:
+  this session's own count of the system temp directory, 2026-09-22).
+  `gitfixture` registers `shutil.rmtree(base, ignore_errors=True)` at exit,
+  and that can never delete a git repository on Windows, because git marks its
+  object files read-only. **1435 leaked template directories, 86150 files,
+  16.7 MB, dated 2026-09-08 to 2026-09-22.** One per process that builds a
+  sample repository, so one per xdist worker per run. The byte cost is small
+  and the file count is the drag. The code's own comment predicted it. The
+  1435 directories are Roman's to delete and this session left them alone.
+  **What is left: the walk, and nothing else.** All six acceptance lines hold
+  except the walk. The report costs 6.39 s against a 10 s ceiling.
+  **The frame is open as validating.**
+  **One reading for the walk's size.** The only seat-facing change is a
+  refactor proven byte-identical over 270 comparisons at both `oneshot`
+  settings, plus a session-record field whose value does not change. That is
+  unusually strong evidence for a refactor. **`session_sandbox` is still on
+  every wake**, so this session does not recommend skipping the walk. The
+  question for Roman is when to spend the machine, and not whether.
+- Status 2026-09-22 18:40 (rota-19): **the reserve is empty and this session
+  reads 262k.** Meta workflow. `peers` shows 0 free standby. Two rows, 2062c482
+  and 41cb5184, armed yesterday at 21:07 and 21:09 and both read **STALE**, so
+  their watchers are gone and a claim cannot wake them. Three rows are spent.
+  **This is early warning and not the 300k warning.** Roman gets it now because
+  opening a window takes his time, and the walk may outlive this session.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
