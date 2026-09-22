@@ -313,6 +313,67 @@ a different question and the night is then opened once.
   register.
   **The design review is running.** It reads the record and the code, and
   answers seven numbered points.
+- Status 2026-09-22 01:30 (rota-dc): **the design review is in, it confirms
+  the design, and it found two high faults this session had missed.** Meta
+  workflow. 119k. The record is revision 2 and the frame is not yet coded.
+  **Fault one: `carries_the_key` is the wrong guard, and using it would report
+  every case stale** (observed: the review's probe 5, confirmed by this
+  session's own read of `rota/llm/cassettes.py:138-140` and
+  `rota/tools/casestatus.py`, 2026-09-22). That predicate asks whether the
+  columns exist. `open_dev_db` adds them with `DEFAULT ''` and backfills
+  nothing, and `casestatus.status` never calls the predicate at all. **And
+  `tests/rota/cassettes.db` is gitignored and pulled from a snapshot with no
+  schema version**, so a pulled register is a live case. The repair adds a
+  second predicate: does any row carry a non-empty hash.
+  **Fault two: the second composition is already in the tree** (observed: the
+  review's probe 4, confirmed by this session's read of
+  `rota/cockpit/progress.py:470-485`, 2026-09-22). The cockpit's prompt
+  preview builds its own sandbox with no `mode`, no `onboarding` and no
+  `_order`, and a different area rule. **Its tool list differs from the
+  runner's for 18 of 121 cases.** So the frame has a fourth reader, and
+  acceptance 1 was already false as written.
+  **And the review corrected the design's premise about chains.** A chain's
+  recorded hash is not always over both legs. `run_chain` returns one leg when
+  leg two never wakes, and `L3-a-challenge-reaches-the-role-that-can-answer-it`
+  is such a chain. This session's own composition saw `legs=1` for it and did
+  not draw the conclusion. **So the report replays, in the CLI and the gate
+  only, and the cockpit panel keeps the narrow match for chains.**
+  **One thing the frame does not close, pushed as frame 64, the user prompt is
+  the other half of the cassette key.** `key_for` hashes the system text and
+  the user text. Frame 63 matches the system half. A change to
+  `push_working_set` leaves the same false green.
+  **Next: the implementer brief.** Estimate unchanged at 60k for the repair,
+  plus the review's 119k already spent.
+
+### 64. The user prompt is the other half of the cassette key (2026-09-22)
+
+- **Batch A, the cassette key. Pushed by frame 63, which found it and did not
+  do it.**
+- Meta workflow. A cassette is keyed by `key_for(system, user, pins)`, and the
+  session stamps `pins.with_prompt(system + user)` (observed:
+  `rota/llm/cassettes.py:144-162` and `rota/core/runner.py:2016`, 2026-09-22).
+  Frame 63 makes the report match on the **system** half. **The user half is
+  still unmatched.**
+- **So the same false green survives frame 63, by a different door.** A change
+  to `push_working_set` or to `resolve_inbound` moves the cassette key, leaves
+  `prompt_hash` alone, leaves `system_hash` alone, and the case reads green
+  while the suite cannot replay it.
+- **It is composable, and it costs more than the system half.** The user
+  prompt's inputs are `push_working_set` and `resolve_inbound` over the case's
+  own seeded database. Frame 63's reader stubs both, which is exactly why its
+  read costs 1.01 s for 121 cases and needs no git worktree. This frame's
+  reader cannot stub them, so it pays for the ten `repo:` cases that frame 63
+  avoids.
+- **The size is unknown and one script measures it.** Frame 63's own first
+  read is the pattern: compose the user prompt for all 128 cases, hash it, and
+  count how many differ from the recording. No model call is needed. 30k.
+- Ends when: the count exists, and either the match widens to the user half
+  with the restale cases re-recorded, or the record says why it does not.
+- Waits on: frame 63. The extracted setup is the same setup this frame needs.
+- Reasoning: `plans/system-text-composition-design-2026-09-22.md`, section 4a.
+- Status 2026-09-22 01:30 (rota-dc): pushed, unclaimed. **Do not read frame
+  63's closing status as saying the key is whole. It is not, and this frame is
+  the reason that sentence is not written.**
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
