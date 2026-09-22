@@ -583,6 +583,27 @@ a different question and the night is then opened once.
   first, as in frame 63**: how many of the register's rows were keyed at an
   absent `think`, and how many cases those rows hold up. That number decides
   whether this is a repair or a re-record.
+- Status 2026-09-22 19:16 (rota-1e): **the count exists, and it is the whole
+  register.** Meta workflow. The frame stays unclaimed. Session 2062c482 ran
+  the count while it held frame 55, because frame 55's re-record needed the
+  same column.
+  **162891 of 162921 `case_runs` rows carry `extras={}`, over 151 cases and 10
+  models** (observed: the register grouped by `extras`, 2026-09-22). The other
+  30 rows carry `think=true`, over 6 cases and 2 models, and 5 of those 30 are
+  frame 55's re-record of today.
+  **So this frame is a repair plus a full re-record, and not a repair.** The
+  report matches on `extras` when it matches keyed. An explicit `think` moves
+  `want.extras()` for every model, no existing row matches, and every case
+  reads STALE at once.
+  **Frame 66 changes what that costs.** A re-record makes one live call per
+  case and replays it, so a full re-record of the 128 cases is about 128 live
+  calls. One case cost 15.7 s today, so the wall time is tens of minutes and
+  not days.
+  **The cost that matters is not wall time.** Frame 55 measured that the
+  model's answer at a fixed key drifts across days, so a full re-record
+  re-earns every green under today's server and some greens will not come
+  back. That is a ruling for Roman and it is the same ruling he already made
+  on 2026-09-20, that a spent green is the price of the truth.
 
 ### 66. A sample of five is one measurement (2026-09-22)
 
