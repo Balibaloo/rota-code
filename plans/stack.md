@@ -527,7 +527,7 @@ a different question and the night is then opened once.
   **So this session takes work that needs no GPU.** Frame 64, the user prompt
   is the other half of the cassette key, is next in batch A and its count
   needs no model call.
-- Status 2026-09-22 19:28 (rota-1e): **handed off at Roman's word. Session
+- Status 2026-09-22 19:25 (rota-1e): **handed off at Roman's word. Session
   2062c482 stops at about 130k.** Meta workflow.
   **What the holder inherits, and frame 64 is the one with work in flight.**
   Frame 63 is unchanged and still validating, and **the night still waits for
@@ -540,6 +540,10 @@ a different question and the night is then opened once.
   **The register grew by about 600 rows** from this session's replay runs, all
   of them replays. Nothing else in the tree changed. No code was touched by
   this session at all.
+- Status 2026-09-22 19:25 (rota-1e): **handed to session `41cb5184`, which
+  confirmed the take 8 seconds after the claim** (observed: the `hand`
+  command's exit 0 at 2026-09-22 19:25:39). Meta workflow. Stack commit
+  `77cca9b`. Session 2062c482 stops here.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
@@ -603,7 +607,7 @@ a different question and the night is then opened once.
   frame's ends-when.**
   **Next: the count this frame asked for, from the replay that is running
   now**, then the repair and its test.
-- Status 2026-09-22 19:26 (rota-1e): **the status above names the wrong
+- Status 2026-09-22 19:23 (rota-1e): **the status above names the wrong
   mechanism and its repair cannot work. This one replaces it.** Meta workflow.
   The fault it reports is real. The reason it gives is not.
   **A run that found no cassette writes no row at all** (observed:
@@ -630,7 +634,7 @@ a different question and the night is then opened once.
   no-cassette rows by hand and asked the report about them. The rows were
   faithful to the SQL and false to the system, because no writer makes them.
   **A probe of a state the code never reaches measures the probe.**
-- Status 2026-09-22 19:27 (rota-1e): **handing off. This is the one frame that
+- Status 2026-09-22 19:24 (rota-1e): **handing off. This is the one frame that
   carries this session's work in flight, and the heading is unclaimed on
   purpose.** Meta workflow. Roman asked for the hand-over.
   **Where the design stands.** The repair is to record the unmeasured run
@@ -986,7 +990,7 @@ a different question and the night is then opened once.
   pins the model, the window, the temperature, the protocol and the extras,
   and it pins nothing about the server that answers. A recording is evidence
   about a server this repository never names.
-- Status 2026-09-22 19:26 (rota-1e): **the drift is not a new finding, and
+- Status 2026-09-22 19:23 (rota-1e): **the drift is not a new finding, and
   this frame spent three sessions rediscovering it.** Meta workflow.
   `plans/operating-facts.md` already carries it, from 2026-09-09: "Ollama at
   temperature 0 is deterministic within a model load, and not across two
