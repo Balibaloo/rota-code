@@ -344,6 +344,45 @@ a different question and the night is then opened once.
   `push_working_set` leaves the same false green.
   **Next: the implementer brief.** Estimate unchanged at 60k for the repair,
   plus the review's 119k already spent.
+- Status 2026-09-22 17:22 (rota-dc): **pass 1 is in, judged and committed at
+  `a47b69e`.** Meta workflow. 219k for the pass, from the harness line.
+  **The gate, run by this session at the pass's tree**: 25 failed against a
+  baseline of 25, 2196 passed, **zero stale**, 573.7 s, baseline `b82565d`.
+  One new red, `test_map.py::test_a_shared_file_name_lists_the_candidates`,
+  which the gate classified flaky and re-ran green. **The implementer's own
+  run saw two different flaky reds in `test_screens.py`, so the set does not
+  repeat and it is flakiness and not a regression** (observed: two gate runs
+  at one tree, 2026-09-22).
+  **What landed.** `compose_system` splits out of `build_prompt`.
+  `session_sandbox` splits out of `run_session`. `system_text_for` composes a
+  case's text in 7 ms with no worktree and no model call. The cockpit's
+  preview now builds the run's sandbox. The match widens under
+  `holds_a_system_hash` and never under `carries_the_key`. Chains replay in
+  the report and the gate, and never in the panel. **The whole report costs
+  6.0 s against a 10 s acceptance**, of which 0.9 s is 121 compositions and
+  4.0 s is 7 chain replays.
+  **The implementer went past its brief in one good way.** It made `run_case`
+  and the reader share `seed_inbound`, `wake_for`, `area_for` and `leg_wake`,
+  so the seed and the wake have one definition each and not two. The design
+  asked only for the sandbox to be shared.
+  **Two findings this session made from the pass, and both go to pass 2.**
+  First, **the preview raises for 10 `repo:` cases where it raised for 8**
+  (observed: the implementer's own report, 2026-09-22). The corrected wake
+  pushes a read that needs a worktree the preview never builds. The frame
+  caused the two, so the frame closes them, by catching the worktree failure
+  and rendering the system text with the gap named. Second, **the mixed
+  register is an emergent behaviour that nothing states**. `holds_a_system_hash`
+  is global, so one row with a real hash widens the match for every case, and
+  a case holding only legacy rows then reads stale (observed: this session's
+  probe on a throwaway register, 2026-09-22). **That answer is correct and it
+  is unstated**, so pass 2 pins it with a test and says it in the docstring.
+  **One thing for Roman, and it needs no action.** The implementer reports
+  that the harness modified `.claude/settings.json` during the crashed turn,
+  and that it restored the committed file with `git checkout --`. This session
+  confirmed the file now matches the commit (observed: `git diff HEAD`,
+  2026-09-22). **If an allow rule was added on purpose, it is gone.**
+  **Pass 1 crashed once on a 529 and lost nothing.** The tree held the work,
+  and the resume carried the delta and a required re-read.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
