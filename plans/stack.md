@@ -290,6 +290,29 @@ a different question and the night is then opened once.
   already compose one identical hash.
   **Next: the design record for the repair, then a design review, then one
   implementer.** The re-record line of the estimate falls to zero.
+- Status 2026-09-22 01:20 (rota-dc): **the 67 seconds was the session's setup
+  and not the text's, and the repair is now cheap everywhere** (observed: the
+  composition of 121 single-session cases with `push_working_set` and
+  `resolve_inbound` stubbed, over an in-memory database with no worktree,
+  2026-09-22). Meta workflow. **All 121 hashes are byte-identical to the full
+  setup's, and all 121 cost 1.01 seconds together, 8.3 ms a case.** The
+  earlier 67 seconds came from `init_db` on disk, 131 ms a call, and from the
+  git worktrees that 10 cases need to finish a session they never finish here.
+  **So the system text needs the sandbox and not the session.** That is the
+  design, and it removes the cockpit problem named in the status above. The
+  L1 panel is served at its own endpoint and not at the fast `/state.json`
+  poll, so one second there is not a fault.
+  **The design record is written and committed**:
+  `plans/system-text-composition-design-2026-09-22.md` at `a7d9f4b`. Three
+  changes. `compose_system` splits out of `build_prompt`. The sandbox setup
+  splits out of `run_session`, so no reader re-derives the case. A new
+  `system_text_for(case)` seeds an in-memory database and stops at the text.
+  **Two questions go to the design review.** How a chain is matched, because
+  leg two's wake comes from what leg one did, and a replay of the 7 chains
+  costs 5.4 s. And whether the tools may import the testkit to read a
+  register.
+  **The design review is running.** It reads the record and the code, and
+  answers seven numbered points.
 
 ### 55. A recorded green does not reproduce live (2026-09-20)
 
