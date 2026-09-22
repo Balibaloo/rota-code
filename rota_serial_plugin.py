@@ -221,10 +221,11 @@ def refuse_a_key_the_register_does_not_hold() -> None:
     Stop a replay that would miss every cassette, before it collects anything.
 
     It refuses and it does not warn. A warning leaves the run going: every
-    cassette misses, `record_case_run` writes no row because the run measured
-    nothing, and `casestatus` filters the same rows out of what it reads. So
-    the register keeps reporting yesterday's greens while the suite is red,
-    and the register is what an acceptance reads.
+    cassette misses, and `record_case_run` writes no result because the run
+    measured nothing. It writes one `key_misses` row instead, so the register
+    now says that somebody looked and the key missed (frame 64, 2026-09-22).
+    The report reads that row and stales the case. A warning would still cost
+    a whole replay pass to say what this door says before anything collects.
     """
     if not is_a_replay():
         return

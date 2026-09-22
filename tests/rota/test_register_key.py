@@ -672,6 +672,36 @@ def test_the_migration_is_idempotent(tmp_path):
     db.close()
 
 
+def test_a_miss_survives_the_migration(tmp_path):
+    """
+    A miss has no cassette to rebuild from, so the migration carries it whole.
+
+    A target that lost the misses would read "nobody has looked" for a case
+    whose last look missed the key, which is the fault frame 64 repairs
+    (observed: frame 64's diff review, 2026-09-22).
+    """
+    pins = Pins(model=MODEL, temperature=0.0)
+    source = _legacy(
+        tmp_path,
+        rows=[("L1-LI-the-register-key", MODEL, [{"say": "the reply"}])],
+        cassettes=[(pins, "the system text", "u", "the reply", "text")])
+    db = open_dev_db(source)
+    record_case_run(db, CASE["id"], pins.with_prompt("h"), 1, False,
+                    ["session did not commit: [no cassette for qwen3:8b]"],
+                    [{"say": ""}], system="the system text")
+    db.close()
+
+    _run(source, tmp_path / "new.db")
+
+    target = sqlite3.connect(str(tmp_path / "new.db"))
+    target.row_factory = sqlite3.Row
+    landed = [dict(r) for r in target.execute("SELECT * FROM key_misses")]
+    target.close()
+    assert len(landed) == 1, "the look is carried, and not rebuilt"
+    assert landed[0]["case_id"] == CASE["id"]
+    assert landed[0]["kind"] == "no cassette"
+
+
 def test_the_migration_refuses_a_source_that_has_moved(tmp_path):
     """
     The clone is the only copy of the pre-migration evidence. A source whose
@@ -1347,7 +1377,6 @@ def test_a_register_from_before_the_miss_table_reads_as_today(tmp_path,
 
     conn = sqlite3.connect(str(path))
     assert not casestatus.records_misses(conn), "the table arrives with frame 64"
-    assert casestatus.latest_miss is not None, "and the reader is guarded by it"
     conn.close()
 
     assert [c["state"] for c in _panel(monkeypatch)["cases"]] == ["pass"], \
@@ -1460,6 +1489,34 @@ def test_the_guard_reads_one_constant_for_both_markers(register):
              json.dumps([f"session did not commit: [{marker} x]"]), seq))
     assert casestatus.matching_runs(register, CASE, want, limit=9) == [], \
         "neither marker enters the window"
+
+
+def test_a_red_that_talks_about_a_failure_is_still_a_red(register):
+    """
+    A marker is read from `problems` and from the session's error lines, and
+    never from the model's prose.
+
+    A role that writes `LLMUnavailable` in an answer is talking about a
+    failure, and that run measured the role. The first version scanned the
+    whole transcript, so such a red wrote a miss and the case read STALE
+    (observed: frame 64's diff review, 2026-09-22).
+    """
+    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+        fixtures.instructions_for(CASE))
+    record_case_run(
+        register, CASE["id"], stamp, 1, False, ["the answer names no cause"],
+        [{"say": "the log says LLMUnavailable, so the server was down"}],
+        system=fixtures.system_text_for(CASE))
+
+    assert register.execute(
+        "SELECT COUNT(*) n FROM case_runs").fetchone()["n"] == 1, "a result"
+    assert register.execute(
+        "SELECT COUNT(*) n FROM key_misses").fetchone()["n"] == 0, "not a look"
+
+    row = _row()
+    assert row["state"] == "FAIL" and row["passed"] == 0
+    assert row["of"] == 1, "and the reader keeps the row in its window"
+    assert row["why"] == "the answer names no cause"
 
 
 def test_the_cockpit_shows_the_look_that_measured_nothing(register, tmp_path,

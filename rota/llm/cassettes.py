@@ -421,25 +421,37 @@ def _is_unmeasured(problems: list[str], transcript: list | None) -> bool:
     return _miss_of(problems, transcript) is not None
 
 
+#: The transcript's key for the session's own error lines. A marker is read
+#: from these lines and from `problems`, and never from the model's prose: a
+#: role that writes the word `LLMUnavailable` in an answer is talking about a
+#: failure, and that run measured the role (observed: frame 64's diff review,
+#: 2026-09-22).
+ERRORS_KEY = "errors"
+
+
+def _looked_at(problems: list[str], transcript: list | None) -> list[str]:
+    """The lines a marker may be read from, in the order they are asked."""
+    lines = list(problems)
+    for item in transcript or []:
+        if isinstance(item, dict):
+            lines += [str(error) for error in item.get(ERRORS_KEY) or []]
+    return lines
+
+
 def _miss_of(problems: list[str], transcript: list | None) -> tuple[str, str] | None:
     """
     The kind and the reason of a look that measured nothing, or None.
 
-    The reason is the problem string that carries the marker, and not
-    `problems[0]`. `check` writes its complaints first and `session did not
-    commit: [...]` last, so the first problem is `expected a call to X` and
-    never the miss.
+    The reason is the line that carries the marker, and not `problems[0]`.
+    `check` writes its complaints first and `session did not commit: [...]`
+    last, so the first problem is `expected a call to X` and never the miss.
+    A case that expects no commit carries the marker in its error lines alone.
     """
-    blob = json.dumps(transcript or [])
+    lines = _looked_at(problems, transcript)
     for kind, marker in MISS_MARKERS.items():
-        for problem in problems:
-            if marker in problem:
-                return kind, problem
-        if marker in blob:
-            # The marker reached the transcript and no problem string. The
-            # transcript is a JSON blob and not a sentence, so the reason names
-            # where the marker was found.
-            return kind, f"the transcript carries {marker}"
+        for line in lines:
+            if marker in line:
+                return kind, line
     return None
 
 

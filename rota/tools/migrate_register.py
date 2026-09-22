@@ -188,26 +188,40 @@ def check_source(src: sqlite3.Connection, columns: int = 0, runs: int = 0,
     return len(have), n_runs, n_cass
 
 
-def copy_interviews(src: sqlite3.Connection, dst: sqlite3.Connection) -> int:
-    """
-    `case_interviews`, whole and unchanged, when the source holds one.
+#: The tables the migration copies rather than rebuilds, with the reason.
+#: `case_interviews` is what a failed run said about itself. `key_misses` is
+#: a look that measured nothing, and it has no cassette to rebuild from, so a
+#: target without it reads "nobody has looked" for a case whose last look
+#: missed the key (frame 64's diff review, 2026-09-22).
+CARRIED = ("case_interviews", "key_misses")
 
-    It is what a failed run said about itself, it has no reader today, and it
-    carries no cassette key to repair. Dropping it would lose evidence for
-    nothing, so the new register stays a superset of the old one.
+
+def copy_table(src: sqlite3.Connection, dst: sqlite3.Connection,
+               name: str) -> int:
+    """
+    One table, whole and unchanged, when the source holds it.
+
+    Neither carried table has a cassette key to repair, and dropping one would
+    lose evidence for nothing, so the new register stays a superset of the old
+    one. The columns are named from the source rather than left to their
+    order, so a source written under an older shape still lands.
+
+    `name` comes from `CARRIED` and never from a caller's input.
     """
     ddl = src.execute("SELECT sql FROM sqlite_master WHERE type = 'table' "
-                      "AND name = 'case_interviews'").fetchone()
+                      "AND name = ?", (name,)).fetchone()
     if not ddl:
         return 0
     dst.executescript(ddl["sql"].replace("CREATE TABLE",
                                          "CREATE TABLE IF NOT EXISTS", 1))
-    rows = [tuple(r) for r in src.execute("SELECT * FROM case_interviews")]
+    columns = [r["name"] for r in src.execute(f"PRAGMA table_info({name})")]
+    listed = ", ".join(columns)
+    rows = [tuple(r) for r in src.execute(f"SELECT {listed} FROM {name}")]
     if rows:
-        marks = ",".join("?" * len(rows[0]))
-        dst.executemany(f"INSERT OR REPLACE INTO case_interviews "
+        marks = ",".join("?" * len(columns))
+        dst.executemany(f"INSERT OR REPLACE INTO {name} ({listed}) "
                         f"VALUES ({marks})", rows)
-    print(f"case_interviews copied: {len(rows)} rows")
+    print(f"{name} copied: {len(rows)} rows")
     return len(rows)
 
 
@@ -266,7 +280,8 @@ def migrate(src: sqlite3.Connection, target: Path, *, dry_run: bool = False,
             dst.executemany("INSERT OR REPLACE INTO cassettes VALUES "
                             "(?,?,?,?,?,?,?,?,?,?,?)", rows)
         dst.execute("COMMIT")
-        copy_interviews(src, dst)
+        for carried in CARRIED:
+            copy_table(src, dst, carried)
 
     tally: Counter = Counter()
     per_case: dict = defaultdict(Counter)

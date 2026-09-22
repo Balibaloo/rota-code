@@ -45,7 +45,8 @@ import tempfile
 from pathlib import Path
 
 from .. import paths
-from ..llm.cassettes import MISS_MARKERS, UNBUILT, system_hash, trust
+from ..llm.cassettes import (ERRORS_KEY, MISS_MARKERS, UNBUILT, system_hash,
+                             trust)
 from ..llm.llm import DEFAULT_NUM_CTX, Pins, think_for
 
 from ..testkit import fixtures
@@ -212,11 +213,22 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     # writer owns. One copy of the rule: the second copy named one of the two
     # markers, so a run that could not reach the model entered the window and
     # read as a red (observed: frame 64's scope report, R9, 2026-09-22).
-    dead = " OR ".join("problems LIKE ? OR transcript LIKE ?"
-                       for _ in MISS_MARKERS)
+    #
+    # The writer reads a marker from `problems` and from the session's error
+    # lines, never from the model's prose, and this clause reads the same two
+    # places. `CaseResult.transcript` appends the error lines last, so a marker
+    # after the `errors` key is one of them. A first occurrence before that key
+    # leaves the row in the window, which shows a red rather than hiding one.
+    # No row of the register matches the transcript half today (observed: 0 of
+    # 163226 rows, 2026-09-22), so the clause guards an unmigrated register.
+    errors = json.dumps(ERRORS_KEY) + ":"
+    dead = " OR ".join(
+        "problems LIKE ? OR (instr(transcript, ?) > 0 "
+        "AND instr(transcript, ?) > instr(transcript, ?))"
+        for _ in MISS_MARKERS)
     sql.append(f" AND NOT (passed = 0 AND ({dead})) ORDER BY seq DESC LIMIT ?")
     for marker in MISS_MARKERS.values():
-        args += [f"%{marker}%", f"%{marker}%"]
+        args += [f"%{marker}%", errors, marker, errors]
     args.append(case.get("runs", 5) if limit is None else limit)
     return list(conn.execute("".join(sql), args))
 
