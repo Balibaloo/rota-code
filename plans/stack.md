@@ -596,6 +596,51 @@ a different question and the night is then opened once.
   tag's digest in the same breath**, because `load_id` says which residency
   produced a row and the digest says whether the weights moved.
   **This also gates the night**, which needs the same server.
+- Status 2026-09-22 18:53 (rota-19): **the cause is named, and it is the card
+  and not the model.** Meta workflow. The frame's 40k probe ran for about 25k.
+  **What the live model does at the recorded key** (observed: three calls at
+  `qwen3:8b`, 12288, temperature 0, 2026-09-22). The recorded completion is
+  9535 characters, 49 `TOOL:` markers and 8 `code.source` calls. The live
+  completion is 1636 characters, **zero `TOOL:` markers** and zero
+  `code.source`. It answers in prose and then writes `glossary.amend(...)`
+  with no marker, which is the dropped-marker failure `build_prompt`'s own
+  comment names as the costliest with small models.
+  **The cassette key matches exactly** (observed: `key_for` recomputed against
+  the stored key, 2026-09-22). Prompt, model, temperature, window, protocol
+  and extras all agree. `think` is `None` on both sides, and setting it either
+  way moves the key, so it is not the difference.
+  **And it is deterministic on both sides.** Two live calls agree with each
+  other byte for byte. So this is not sampling noise, and it is not
+  "temp-0 is stable within a load and not across" either, because both sides
+  are stable.
+  **Four candidates are dead** (observed: 2026-09-22). The weights did not
+  move: tag `qwen3:8b`, digest `500a1f067a9f7826`, modified 2026-08-25, which
+  is before the green recording. Ollama did not move: `ollama.exe` is dated
+  2026-09-03 and the server reports 0.33.3. The server's own settings are
+  plain: flash attention false, no KV cache type, one parallel slot. And the
+  prompt is byte-identical on both halves.
+  **What is left is the card** (reasoned: the one input outside the cassette
+  key that differs, 2026-09-22). The live server runs with
+  `CUDA_VISIBLE_DEVICES:GPU-d9585e8b`, which `nvidia-smi` names **GPU 0, the
+  RTX 3080**. `plans/operating-facts.md` line 111 says the register recorder
+  goes to the Titan on `http://127.0.0.1:11435`, and a click night runs on the
+  3080 through the default port. **So the greens were earned on the Titan X
+  and the re-records were run on the 3080.** Greedy decoding turns one
+  divergent token into a different plan, so a small numeric difference between
+  two cards is enough.
+  **This is bigger than one case.** The cassette key names the model, the
+  window, the temperature, the protocol and the extras. **It does not name the
+  card.** So a recording made on one card is not reproducible on the other,
+  and a re-record run on the wrong card spends a green and calls it a red.
+  That is a rule about how every re-record must be run, and it is not in any
+  record today.
+  **The confirming test is one command and it needs the Titan.** Start a
+  server on `11435` pinned to `GPU-dc5a579d`, send the same recorded prompt,
+  and compare. **If it reproduces the 9535-character completion, the cause is
+  observed and not reasoned**, and frame 55 closes with a rule rather than a
+  repair.
+  **Ends-when status**: the cause is named in this record. The case is not yet
+  re-earned or written off, because that decision follows the confirming test.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
