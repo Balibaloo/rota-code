@@ -520,7 +520,7 @@ a different question and the night is then opened once.
   This session does not start the night unasked.
   **This session also takes frame 55**, which the sending session held and
   left open. One session holds the stack.
-- Status 2026-09-22 19:22 (rota-1e): **Roman ruled again that the walk waits
+- Status 2026-09-22 19:19 (rota-1e): **Roman ruled again that the walk waits
   for his word** (ruled: Roman, asked with three options and "start the night
   now" recommended, 2026-09-22). Meta workflow. The frame stays open as
   validating and no night runs in this session until he names the hour.
@@ -528,7 +528,7 @@ a different question and the night is then opened once.
   is the other half of the cassette key, is next in batch A and its count
   needs no model call.
 
-### 64. The user prompt is the other half of the cassette key (2026-09-22)
+### 64. The user prompt is the other half of the cassette key (2026-09-22) [2062c482]
 
 - **Batch A, the cassette key. Pushed by frame 63, which found it and did not
   do it.**
@@ -557,6 +557,39 @@ a different question and the night is then opened once.
 - Status 2026-09-22 01:30 (rota-dc): pushed, unclaimed. **Do not read frame
   63's closing status as saying the key is whole. It is not, and this frame is
   the reason that sentence is not written.**
+- Status 2026-09-22 19:20 (rota-1e): **claimed by session `2062c482`, and the
+  fault is now observed rather than reasoned.** Meta workflow. Roman ruled
+  that frame 63's night waits for his word, so this session takes the next
+  frame in batch A that needs no GPU.
+  **The probe** (observed: a synthetic register of ten rows, 2026-09-22). One
+  green case gets five passing rows at the key the tree composes now. The
+  report reads **green 5/5**. Five newer rows are then added that carry the
+  failure `ReplayOnlyBackend` writes when a key misses. The report still reads
+  **green 5/5**, and its `why` column is empty.
+  **So the fault is wider than this frame's title.** The report's window
+  excludes a no-cassette row and falls back to older rows (observed:
+  `rota/tools/casestatus.py:213-215`, 2026-09-22). **Any key miss the report
+  does not itself match on is invisible to it**, and the user half is one such
+  miss among several.
+  **And the gate's own line is quiet too.** The gate's stale set is exactly
+  `casestatus.status`'s STALE and NEW states (observed: `rota/tools/gate.py:115-132`,
+  2026-09-22). The report calls the case green, so the case never enters that
+  set. The failing test says `STALE ...: no recording for the current prompt`,
+  and the gate counts it as a red. **The acceptance line "zero stale" holds
+  while a case is unmeasured**, which is the failure batch A exists to stop.
+  **The repair is cheaper than this frame's price, and it composes nothing.**
+  The evidence is already in the register, written by the gate's own replay. A
+  no-cassette row is a measurement of the key, and the SQL throws it away. The
+  rule: **when the newest rows at the key say no cassette, the case is STALE
+  and the reason travels with it.**
+  **What that rule does not do, and the record must say it.** It answers only
+  as far as the last replay. A person who edits `push_working_set` and then
+  reads the report, with no suite run in between, still sees green. The system
+  half does not have that gap, because frame 63's reader composes the text on
+  every read. **So the rule is a strict gain and not the whole of this
+  frame's ends-when.**
+  **Next: the count this frame asked for, from the replay that is running
+  now**, then the repair and its test.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
@@ -875,7 +908,7 @@ a different question and the night is then opened once.
   re-earned nor written off. A write-off now would say the model lost a
   capability, and the measurement says something weaker and worse: the answer
   at a fixed key moves on its own.
-- Status 2026-09-22 19:22 (rota-1e): **Roman knows of no change to the machine
+- Status 2026-09-22 19:19 (rota-1e): **Roman knows of no change to the machine
   in the window** (ruled: Roman, asked with three options, 2026-09-22). Meta
   workflow. He was asked whether Ollama was updated or restarted, whether the
   GPU setup changed, or neither, and he answered neither.
