@@ -701,6 +701,15 @@ a different question and the night is then opened once.
   stack.** Meta workflow. No code is touched. The two jobs the status above
   names are treated as not run. Next: the scope report on every reader of
   `case_runs`, then the count, then the design record for the sentinel row.
+- Status 2026-09-22 19:33 (rota-69): **the scope report is running.** Meta
+  workflow. One general-purpose agent on Opus, capped at 120k, read-only on
+  the code. It reports every reader of `case_runs` with its filter, and what
+  a sentinel row does to each reader under three shapes: a `passed = 0` row
+  with the `no cassette for` text, a `measured` column, or a sentinel value
+  in a key column as `unbuilt` is. It writes
+  `plans/scope-case-runs-readers-2026-09-22.md` and nothing else. **The count
+  waits for the night to end**, because a six-minute suite run beside a walk
+  is a risk to the walk's evidence and buys nothing today.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
