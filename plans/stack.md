@@ -728,6 +728,17 @@ a different question and the night is then opened once.
   the cockpit panel calls. The miss record catches a user-half drift at the
   next replay, and not before. That is the difference, and it is his to
   price.
+- Status 2026-09-22 19:50 (rota-69): **Roman ruled the user-half composition
+  written off, and the design review is running** (ruled: Roman, 2026-09-22,
+  asked with three options and the write-off recommended). Meta workflow.
+  **So this frame's ends-when changes**: it ends when a replay that misses
+  the key writes a `key_misses` row, the report reads `STALE` with the reason
+  at the next run, the gate's stale set holds such a case, and the tests that
+  pin the guard exist. The user half is composed by nobody, and the record
+  says why. The design record is
+  `plans/key-miss-record-design-2026-09-22.md` at `d53a9c6`, revision 1
+  with the ruling written in. One `reviewer` agent reads it against nine
+  numbered points, capped at 100k.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
