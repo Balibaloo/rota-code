@@ -480,6 +480,33 @@ a different question and the night is then opened once.
   test sandbox renders a stable identity and the repair is a rendering
   change. If a seat reads it back, the fixture pins the commit date. The
   door is one grep and one read, and it is the next step.
+- Status 2026-09-22 20:38 (rota-69): **the door is read, and the codebase
+  fixed this same fault once before, for `code.read`.** Meta workflow.
+  **No seat reads the sha from the prompt.** Every reader of `head_commit`
+  in `rota/` reads `batches.head_commit` from the database: the predicates,
+  the scheduler, boot's reconcile, the Tester's guard (observed: grep over
+  `rota/`, 63 hits, none of them a parse of a tool reply, 2026-09-22).
+  `code.commit` writes the sha to the row at `rota/roles/api.py:8852` and
+  then returns it in its reply at `:8860`, and the runner renders the reply
+  into the next turn.
+  **The precedent** (observed: the docstring of `code_read` at
+  `rota/roles/api.py:7884-7896`, 2026-09-22). `code.read` used to return
+  `worktree` and `head_commit`. "`head_commit` put a fresh SHA beside it. The
+  prompt hash is a sha256 of the whole prompt, and both of those change per
+  run, so no such session could ever replay a recording. Eight L1 cases
+  reported STALE on every suite run." The row was removed from the reply.
+  `code.commit` kept the same field and nobody counted its cost until today.
+  **So the repair is the precedent's**: `code.commit` stops returning
+  `head_commit`. The sha stays on the batch row, where every reader is.
+  `touched` and `committed` stay in the reply, because a Developer reads
+  those. A brief that names the sha in prose is checked by grep before the
+  edit. Then the 9 cases are re-recorded once, live, and replay after.
+  Estimate: the edit and a test that asserts the reply carries no sha, 30k
+  on one implementer with the gate; the re-record, 9 cases at about 16 s a
+  live call, minutes on the GPU.
+  **What the gate gains.** Up to 9 permanent reds leave the red count, if the
+  Developer still does the work live. The recording says it did, five times
+  each.
   **One warning that this frame owes the next two.** Frame 54 was priced at
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
