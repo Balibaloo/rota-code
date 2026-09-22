@@ -551,6 +551,33 @@ a different question and the night is then opened once.
   no model (observed: `/api/ps` on 11434 and 11435, 2026-09-22 19:27). This
   session also takes frames 55 and 64, which the sending session held. One
   session holds the stack.
+- Status 2026-09-22 19:31 (rota-69): **Roman ruled the sign-off, and night 89
+  runs** (ruled: Roman, 2026-09-22 19:28, "You have signoff to run the
+  nights", and "Continue however is best"). Meta workflow. The ruling is
+  standing: the assistant runs the nights the stack needs and does not ask per
+  night. It is written into `plans/operating-facts.md`, Running rota.
+  **Launched 19:30, detached, from the worktree `C:/Users/roman/rota_night89`
+  at `369a34f`** (observed: `.rota/night89.log` holds the launch line, the
+  click restore to `2c8cd3a` and `== onboard 19:30`, and the onboard process
+  runs `D:\repos\rota\.venv\Scripts\python.exe`, 2026-09-22 19:31). The
+  worktree's code equals `e005d2c`, the frame's last code commit: only
+  `plans/` differs (observed: `git diff e005d2c HEAD --stat`, 2026-09-22).
+  The launcher is `.rota/launch_night89.sh`, night 88's with the number and
+  the reason changed. `ROTA_RUNS` points at the main checkout's `.rota`.
+  **One correction to the status of 18:46.** The night runs with `oneshot`
+  off, not on. `probes/gauntlet_click.sh` exports `ROTA_ONESHOT=` empty
+  before it calls `walk.py`, and `setdefault` keeps an existing empty value
+  (observed: `export ROTA_ONESHOT=` at the script's line 12 and a one-line
+  Python check, 2026-09-22). The split is proven byte-identical at both
+  settings, so the night is still the right check. It is the non-oneshot
+  path it exercises.
+  **A stray worktree named `wt-night89` exists** at `59cb2ad` in session
+  0f086f93's scratchpad. It is not this night. No `night89.log` predates this
+  one, so 89 is the next number.
+  **Ends when, for the night**: `GAUNTLET-DONE` in `.rota/night89.log`, then
+  the database copied to `.rota/clickI_night89.db` and read. About two hours.
+  **While the night holds the GPU, this session takes frame 64's scope
+  report**, which is code reading and no model call.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
