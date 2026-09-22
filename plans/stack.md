@@ -791,6 +791,87 @@ a different question and the night is then opened once.
   directory and not the click checkout (observed: `_with_repo` at
   `rota/testkit/fixtures.py:706`, 2026-09-22). The count reads the register
   and writes nothing the night reads.
+- Status 2026-09-22 20:20 (rota-69): **the count is in, and it changes the
+  design again. The cassette key is per turn, a cold read composes turn 1
+  only, and 7 cases read green today while their replay misses on a later
+  turn.** Meta workflow. Two scripts in this session's scratchpad,
+  `count64.py` and `count64b.py`, about 25k. Night 89 is at sentence 2 since
+  20:20.
+  **The count** (observed: every case run against a capturing replay
+  backend, no model call, 2026-09-22). 128 cases, 121 single and 7 chains,
+  **45 with `repo:`** and not 10. The 10 was the count of cases whose
+  preview needs the worktree, and it stands for the reader. **Turn 1 hits
+  for 128 of 128.** Cases run 1 to 11 turns, 3.1 on average, 400 turns in
+  all. **10 cases miss on one later turn each**, 9 Developer cases and
+  `L1-VK-an-outside-fact-is-the-researchers`. The report reads 3 of the 10
+  as `FAIL` and **7 as green 5/5** (observed: `casestatus` at 20:17,
+  2026-09-22). Those 7 are frame 64's fault, live: the suite fails them with
+  `STALE` on every run, the run is dropped as unmeasured, and the report keeps
+  the old greens.
+  **Why they miss, for one of them** (observed: `probe64_miss.py` on
+  `L1-DV-read-the-map-not-the-whole-file`, 2026-09-22). Turn 4's user text
+  differs from the nearest recording in one line of 6624 characters:
+  `OK code.commit -> {... "head_commit": "5af0df66..."}` against
+  `"ba241d9a..."`. **The sandbox's `code.commit` renders the new commit's
+  sha into the prompt, and the sha carries the commit's time, so it is new
+  on every run.** A Developer case that commits can never replay past that
+  turn. Its green was earned live, five runs at recording time, and no gate
+  run since has measured it. **This is not a key fault and no key design
+  fixes it.** The fix is determinism in the sandbox, a fixed commit date or
+  a stable rendering, and it is pushed as frame 70 below. The other 8
+  Developer cases are presumed the same cause and the VK case is not
+  (reasoned: the diff names the mechanism for one, and the VK case commits
+  nothing, 2026-09-22).
+  **What this does to the ruling of 20:09.** The whole-key match composes
+  turn 1 cold. It would read all 128 cases as matched today, including the 7,
+  because turn 1 hits for every one. **So a cold turn-1 key does not close
+  the hole the ruling was made for, and the miss record does**: a later-turn
+  miss is seen by the suite's replay and by nothing else, and the miss record
+  is how the suite tells the report. The two are complementary and not
+  alternatives, and the miss record is the necessary one. The count also
+  says there is no turn-1 drift to catch today.
+  **The backfill** (observed: `count64b.py` over 163226 rows, 2026-09-22).
+  71.6 per cent of rows name one turn-1 cassette by their first reply and
+  their `system_hash`. 27.2 per cent name several. 1.1 per cent name none.
+  Of the 640 rows the report reads today, 610 map to the composed turn-1
+  key, and 122 of 128 cases map on every row. The 6 that do not are the
+  survey case frame 55 holds and 5 chains.
+  **The reader's cost, corrected.** The count ran every case through
+  `run_case`, 77.9 s in all, 63.6 s of it the 45 fixture repositories. A
+  reader that composes turn 1 without a repository pays for the 10 cases
+  whose wake reads one, and the count did not measure that reader.
+  **Recommendation to Roman, asked now.** Frame 64 returns to the miss
+  record, revision 2, reviewed and ready for an implementer. Frames 68 and
+  69 fold into one parked frame, the turn-1 key composed cold, because the
+  count shows nothing for it to catch today. Frame 70 takes the sandbox's
+  commit sha, and it may remove up to 10 permanent reds from the gate.
+
+### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22)
+
+- **No batch. It shares batch A's instrument, the replay, and not its
+  repair.** Batch A is about the key that names a recording. This frame is
+  about a prompt that is new on every run, which no key can name twice.
+- Meta workflow. The sandbox's `code.commit` returns the new commit's sha
+  and the runner renders it into the next turn's user text (observed:
+  `probe64_miss.py`, one line differs in 6624 characters, 2026-09-22). A sha
+  carries the commit's time, so a Developer case that commits composes a new
+  cassette key at that turn on every run. The replay misses, the run is
+  dropped as unmeasured, the suite fails the test with `STALE`, and the
+  report keeps the greens the recording earned live. **7 such cases read
+  green today and fail every gate run** (observed: the count and
+  `casestatus`, 2026-09-22). 9 Developer cases miss on one later turn each.
+- Ends when: the mechanism is confirmed for all 9 Developer cases and named
+  for the VK case; the sandbox renders a stable commit identity in a test
+  run, by a fixed commit date or a stable rendering, ruled after a one-line
+  door reads what the seats do with the sha; the 10 cases replay to the end;
+  and the gate's red count falls by the cases this frame frees. Priced: the
+  confirmation over 10 cases, 15k with the probe script. The repair and its
+  tests, 60k. A re-record of the 10 cases, GPU.
+- Waits on: nothing. Frame 64's count found it.
+- Reasoning: frame 64's status of 2026-09-22 20:20, and the probe script in
+  session 41cb5184's scratchpad.
+- Status 2026-09-22 20:20 (rota-69): pushed by 41cb5184, unclaimed. **The
+  night holds the GPU, and the confirmation needs none.**
   **One warning that this frame owes the next two.** Frame 54 was priced at
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
