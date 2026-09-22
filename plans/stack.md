@@ -498,6 +498,22 @@ a different question and the night is then opened once.
   `system_text_for` reads it. The test now reads the environment, and the
   split is proven byte-identical at both settings. So the walk exercises the
   `oneshot` path, which is the right path to exercise.
+- Status 2026-09-22 19:04 (rota-19): **handed to session `2062c482`, which
+  confirmed the take 6 seconds after the claim** (observed: the `hand`
+  command's exit 0 at 2026-09-22 19:03:55). Meta workflow. Stack commit
+  `28299f6`. Session 590c7382 stops here at 312k.
+  **What the holder inherits.** Frame 63 is open as validating and every
+  acceptance line holds except the walk. Roman ruled the night waits for his
+  word, so **do not start it unasked**. Frame 55 is open with its cause named
+  and a re-record outstanding. Frames 64 and 65 are pushed and unclaimed, and
+  the three of them are the cassette key's whole surface.
+  **Ollama is up on 11434, pinned to the 3080.** This session also started a
+  server on 11435 pinned to the Titan and unloaded its model. The night needs
+  the machine, so check both ports before you run anything.
+  **One warning that cost this session a wrong record.** A hypothesis marked
+  (reasoned) was committed as frame 55's cause, and its own confirming test
+  refuted it an hour later. The mark did its job. **Run the test before you
+  write the conclusion, not after.**
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
