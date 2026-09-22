@@ -108,7 +108,7 @@ they are the gauntlet and the end state and no step names them.
 
 | Batch | Frames, in order | The one thing they share |
 | --- | --- | --- |
-| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21; **63, then 55** remain | One repair: the key that names a recording. The writer and the reader must name the same fields. |
+| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21; **63, then 55** remain; **64, 68, 69, 65** pushed after the ruling, in that order | One repair: the key that names a recording. The writer and the reader must name the same fields. |
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
 | C, the night's stall | 58, 38, 37 | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
@@ -763,6 +763,81 @@ a different question and the night is then opened once.
   2026-09-22).
   **Estimate: 80k for the implementer pass, up from 60k.** Next: the
   implementer brief.
+- Status 2026-09-22 20:09 (rota-69): **Roman reversed the write-off, and the
+  frame's repair is now the whole cassette key** (ruled: Roman, 2026-09-22,
+  "Sounds good", after he asked for the risks of the miss record and the
+  clean solutions). Meta workflow. **The risk that decided it**: under the
+  miss record the report is history. It answers as of the last replay, so a
+  person who edits `push_working_set` and reads the panel before a run sees
+  green. The system half does not have that property, because frame 63
+  composes it on every read. Two halves of one key checked by two mechanisms
+  is not clean, and Roman ruled for clean.
+  **The repair, in three frames of frame 63's pattern.** The reader composes
+  the user prompt the way the replay does, with `push_working_set` and
+  `resolve_inbound` unstubbed over the case's seeded database. Each
+  `case_runs` row carries `cassette_key`, the same `key_for(system, user,
+  pins)` the replay looks up. The report composes the key and asks whether
+  rows exist at it. One question, asked by the writer and the reader alike.
+  **This frame keeps the count and the design.** Frame 68, the cassette key
+  on the row, and frame 69, the report matches on the whole key, are pushed
+  below. The miss-record design, its scope report and its review move to
+  `plans/archive/`, marked superseded. The miss record is the fallback if
+  the count says the backfill is not possible.
+  **Ends when, revised**: the full key is composed for all 128 cases and the
+  rows at it are counted, 30k; the design record for frames 68 and 69 is
+  written and reviewed, 110k. **The count runs after the night**, because it
+  needs the 10 `repo:` cases' worktrees and the click checkout is the
+  night's.
+  **One warning that this frame owes the next two.** Frame 54 was priced at
+  80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
+  across three passes and two reviews. Frame 68 is a column and a backfill.
+  Price it from those actuals and not from the code comment.
+
+### 68. The cassette key on the row (2026-09-22)
+
+- **Batch A, the cassette key. Pushed by frame 64 at Roman's ruling.**
+- Meta workflow. Each `case_runs` row carries `cassette_key`, the
+  `key_for(system, user, pins)` value the replay looked up, so a reader can
+  match a result to a recording with one equality. Today a row carries
+  `prompt_hash`, `system_hash` and four pin columns, which together are not
+  the key (observed: `rota/llm/cassettes.py:157-162`, the design review's
+  point 7, 2026-09-22). The existing rows are backfilled from the cassettes
+  they were earned against, the mapping frame 54's migration made once.
+- Ends when: the writer stamps `cassette_key` on every new row; the
+  migration backfills it, or writes `''` with the reason for the rows it
+  cannot map and the count of them; a test asserts a new row's key equals
+  the cassette's; and the gate is green with zero stale. Priced from frame
+  63's actuals: design review 100k, one implementer pass 250k, diff review
+  150k, and the migration's unknown, which frame 54 put at 1251k.
+- Waits on: frame 64, the count and the design record.
+- Reasoning: frame 64's status of 2026-09-22 20:09, and
+  `plans/archive/register-key-design-2026-09-21.md` for frame 54's
+  migration path.
+- Status 2026-09-22 20:09 (rota-69): pushed by 41cb5184, unclaimed.
+
+### 69. The report matches on the whole key (2026-09-22)
+
+- **Batch A, the cassette key. Pushed by frame 64 at Roman's ruling. The
+  last of the three, and the one that closes the hole.**
+- Meta workflow. The report composes the user prompt for a case the way the
+  replay does, computes the cassette key with the system text frame 63
+  already composes, and matches rows on `cassette_key`. No rows at the key
+  reads `STALE`, whatever half moved. The ten `repo:` cases need a worktree
+  to compose. The CLI and the gate build it. The cockpit panel keeps the
+  narrow match for those ten and marks them, which is the precedent frame
+  63 set for chains, unless frame 64's design finds a memo the panel can
+  afford.
+- Ends when: `user_text_for(case)` exists beside `system_text_for`; the
+  report and the gate match on `cassette_key`; the panel matches on it for
+  every case it can compose and marks the rest; a test asserts that an edit
+  to `push_working_set` makes a case read stale on a cold read; the report
+  costs under 10 s outside the ten `repo:` cases; and the cases that restale
+  are re-recorded or written off with a reason. Priced from frame 63's
+  actuals: one implementer pass 250k, diff review 150k, and a re-record
+  whose size frame 64's count decides.
+- Waits on: frame 68.
+- Reasoning: frame 64's status of 2026-09-22 20:09.
+- Status 2026-09-22 20:09 (rota-69): pushed by 41cb5184, unclaimed.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
