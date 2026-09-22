@@ -482,6 +482,22 @@ a different question and the night is then opened once.
   their watchers are gone and a claim cannot wake them. Three rows are spent.
   **This is early warning and not the 300k warning.** Roman gets it now because
   opening a window takes his time, and the walk may outlive this session.
+- Status 2026-09-22 18:46 (rota-19): **Roman ruled the walk waits for his
+  word, and the frame is blocked on him** (ruled: Roman, asked with four
+  options and the full night recommended, 2026-09-22). Meta workflow. The
+  frame stays open as validating. **Every other acceptance line holds.** The
+  night takes the machine for hours and its setup deletes `.rota` and restores
+  the click checkout, so the hour is Roman's to pick and not this session's.
+  **The leak is cleared.** 1435 directories deleted, 0 left behind, 62.1 s
+  (observed: this session, 2026-09-22). The read-only bit came off first,
+  which is the fix now committed in `gitfixture`. No new ones accumulate.
+  **Roman is opening a standby window**, so the hand-off has somewhere to
+  land.
+  **Whoever runs the night: `probes/walk.py` sets `ROTA_ONESHOT=1`.** That is
+  the flag the diff review found breaking the parity test, and
+  `system_text_for` reads it. The test now reads the environment, and the
+  split is proven byte-identical at both settings. So the walk exercises the
+  `oneshot` path, which is the right path to exercise.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
