@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 63. One composition of the system text (2026-09-21) [590c7382]
+### 63. One composition of the system text (2026-09-21) [2062c482]
 
 - **Batch A's successor. It is the half of frame 54 that could not close.**
 - Meta workflow. A cassette is keyed by the whole system text the model
@@ -514,6 +514,12 @@ a different question and the night is then opened once.
   (reasoned) was committed as frame 55's cause, and its own confirming test
   refuted it an hour later. The mark did its job. **Run the test before you
   write the conclusion, not after.**
+- Status 2026-09-22 19:06 (rota-1e): **taken by session `2062c482` at stack
+  commit `28299f6`.** Meta workflow. The frame stays open as validating.
+  **The walk is the only open acceptance line, and it waits on Roman's word.**
+  This session does not start the night unasked.
+  **This session also takes frame 55**, which the sending session held and
+  left open. One session holds the stack.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
@@ -578,7 +584,7 @@ a different question and the night is then opened once.
   absent `think`, and how many cases those rows hold up. That number decides
   whether this is a repair or a re-record.
 
-### 55. A recorded green does not reproduce live (2026-09-20) [590c7382]
+### 55. A recorded green does not reproduce live (2026-09-20) [2062c482]
 
 - **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
 
@@ -742,6 +748,13 @@ a different question and the night is then opened once.
   necessary condition and not a sufficient one, and this frame keeps looking.
   **Do not restore the backup's cassettes.** This frame's first status says
   why: it would hide a regression behind a cassette.
+- Status 2026-09-22 19:06 (rota-1e): **claimed by session `2062c482`.** Meta
+  workflow. The sending session stopped at 312k and left this frame open, so
+  it comes with frame 63.
+  **The next step is the named re-record and it needs no ruling.** Five runs
+  of `L1-TE-survey-an-area-for-its-terms` at `think=True` against the recorded
+  pins. A re-record runs without asking (ruled: Roman, 2026-09-20). No
+  write-off is written before the re-record answers.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
