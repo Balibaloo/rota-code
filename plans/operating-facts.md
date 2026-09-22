@@ -168,6 +168,8 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 
 ## The register and measurement
 
+- **`record_case_run` allocates `seq` in two statements, and four writers race it during a gate run** (observed: a design review's probe on 2026-09-22, four processes and 400 inserts each, 2 duplicate `seq` values). The gate drops `ROTA_L1` from the child's environment, the plugin forces `-n0` only under it, so the gate's suite runs `-n auto` and the four tier files write the live register from four workers. The composite primary key on `case_runs` tolerates the duplicate, so nothing fails today. A new table keyed on `seq` alone would refuse the second insert inside a tier test. A writer that needs a unique `seq` allocates it in one statement.
+
 - The live failure list comes from the `case_runs` table in `tests/rota/cassettes.db`. The query is `SELECT case_id, COUNT(*) runs, SUM(passed) p, MAX(seq) s FROM case_runs GROUP BY case_id, model, prompt_hash ORDER BY s DESC`.
 - Group by `(model, prompt_hash)` and keep the newest group per case. `pass_rate_history()` in `rota/llm/cassettes.py` does the same.
 - `problems` and `transcript` on each row hold the failure reason and the role's actual tool calls. Those columns separate a bad brief from a broken fixture without a re-run.
