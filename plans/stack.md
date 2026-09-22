@@ -869,6 +869,71 @@ a different question and the night is then opened once.
   capability, and the measurement says something weaker and worse: the answer
   at a fixed key moves on its own.
 
+### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
+
+- **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
+  2026-09-22, "add it as a frame after the night runs"). It shares no read
+  and no repair with an open frame. It shares the 3080 with the night, and
+  that is why it waits.
+- Meta workflow. Xiaomi released the MiMo-V2.6 series on 2026-09-22
+  (observed: `huggingface.co/XiaomiMiMo` and `mimo.mi.com`, read
+  2026-09-22). **Two of the three cannot run on this box.** Pro is 1.02T
+  total, 42B active, 524 GB of weights. Flash is 309B total, 15B active,
+  about 120 GB, and 32 GB of RAM cannot hold the experts (reasoned: the fit
+  table in `plans/operating-facts.md` and the MoE prefill result in
+  `probes/bench/RESULTS.md`). Both are MIT and API only. Flash costs $0.14/M
+  in and $0.28/M out through an OpenAI-shaped endpoint, which the litellm
+  profile path already reaches. Nothing on the stack asks for a remote desk,
+  so that is a note and not a step.
+- **The third is a candidate for the judgement tier.**
+  `MiMo-V2.6-Distill-Qwen-9B` is a supervised fine-tune of Qwen3.5-9B, the
+  base already pulled as `qwen3.5:9b`, on 77B tokens of code, terminal and
+  agent traces. Xiaomi's table (observed: the model card, 2026-09-22):
+  Terminal Bench 2.1 from 27.0 to 37.1, Toolathlon-Verified from 25.9 to
+  35.2, SWE Pro from 32.0 to 44.6, SWE Verified from 60.0 to 61.1. It is a
+  dense 9B, so the prefill fits. Q4_K_M is 5.84 GB at
+  `bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF`, so it fits the 3080 fully at
+  12288 like `qwen3:8b`. Ollama already runs the `qwen3_5` architecture. The
+  mmproj file stays out, because no seat reads images.
+- **Three cautions.** First, the base scored 0/38 on frame in the 2026-08-25
+  bakeoff from thinking contamination, and finding 81 shows `qwen3.5:9b` on
+  the 3080 with `think: false` answering a Tester wake with 34k characters
+  and no call. The distill keeps the Qwen3.5 template, so the bakeoff decides
+  and the benchmark does not. Second, whether Ollama's `think` flag reaches an
+  `hf.co` pull is unmeasured. The library `qwen3.5:9b` honours it. Third,
+  most of Xiaomi's rows are its own "mini" benchmarks. Weigh SWE Verified and
+  Terminal Bench, the two public ones.
+- The command, one pull of 5.84 GB and one bench of about twenty minutes on
+  the 3080:
+
+  ```
+  ollama pull hf.co/bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF:Q4_K_M
+  python probes/bench/run.py --models hf.co/bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF:Q4_K_M
+  ```
+
+  The backend sends `think: false` when no profile pins the model (observed:
+  `rota/llm/llm.py:380`, 2026-09-22), so the bench runs with thinking off by
+  default. The bench also prefixes `/no_think` for names that start with
+  `qwen3`, which this name does not, and the prefix does nothing anyway
+  (observed: the bakeoff of 2026-08-25).
+- Ends when: a row for the distill sits in `probes/bench/RESULTS.md` beside
+  `qwen3:8b`'s, measured on one load, and the status says whether the model
+  enters the register. The bar is `qwen3:8b`'s own: frame at or above 34/38,
+  define 12/12, and a turn under 20 s. A pass pushes one frame for the
+  register re-record under `ROTA_MODEL`, about two hours of model time. A
+  miss closes this frame with the row as the record. Priced from the
+  anchors: the run is wall time on the 3080. The assistant's read of the
+  table and the two status lines, 10k.
+- Waits on: frame 63's night, which waits on Roman's word. The bench takes
+  the 3080 and the night takes the machine, so the bench runs after it.
+- Reasoning: this frame's own body. The assessment was answered in the
+  terminal on 2026-09-22, and this frame is its record.
+- Status 2026-09-22 19:17 (f253c856, no peer name, unarmed): pushed at
+  Roman's word, unclaimed. Meta workflow. This session holds no frame and is
+  not in the reserve. Session 2062c482 holds the stack, and this frame is the
+  only text this session wrote in it. The commit carries this frame alone,
+  built from HEAD, so the holder's uncommitted lines stay in its working copy.
+
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
 - **No batch.** It shares no read, no repair and no walk with any open frame. **It is ordered beside batch A for a different reason**: batch A restores the acceptance line "zero stale" and this frame restores "zero new reds". The two lines are in every acceptance this repository writes, and neither can gate today. That is a shared purpose and not a shared read, so the frames stay apart.
