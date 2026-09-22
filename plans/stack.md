@@ -590,6 +590,33 @@ a different question and the night is then opened once.
   frame's ends-when.**
   **Next: the count this frame asked for, from the replay that is running
   now**, then the repair and its test.
+- Status 2026-09-22 19:26 (rota-1e): **the status above names the wrong
+  mechanism and its repair cannot work. This one replaces it.** Meta workflow.
+  The fault it reports is real. The reason it gives is not.
+  **A run that found no cassette writes no row at all** (observed:
+  `rota/llm/cassettes.py:447`, and 0 of the register's 163001 rows carry
+  `no cassette for` or `LLMUnavailable` in any column, 2026-09-22).
+  `record_case_run` returns early for an unmeasured run, by design and with a
+  comment that says why: a `passed = 0` row would turn an unmeasured case into
+  a hard red.
+  **So the report does not drop the row. There is no row.** The window keeps
+  the older green rows, and the case reads green because nothing newer exists.
+  The outcome is the same and the repair is not: **a rule that reads the
+  newest no-cassette rows would read nothing, forever.**
+  **And the read-time exclusion in `matching_runs` is dead code** (observed:
+  the same count of zero, 2026-09-22). The SQL excludes what the writer never
+  writes. It also names only `no cassette for`, while the writer's own
+  predicate `_is_unmeasured` also catches `LLMUnavailable`, so the two are not
+  the same rule.
+  **The design this points to, and it still composes nothing.** Record the
+  unmeasured run with a sentinel, as frame 63 did with `unbuilt` for a session
+  that died before it had a prompt. The report then reads "somebody looked and
+  the key missed", which is exactly STALE. The write-time guard stays right
+  about one thing: an unmeasured run is not a red.
+  **The lesson, and it is this session's own.** The probe built five
+  no-cassette rows by hand and asked the report about them. The rows were
+  faithful to the SQL and false to the system, because no writer makes them.
+  **A probe of a state the code never reaches measures the probe.**
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
