@@ -223,12 +223,18 @@ def l1(dev_db: Path | None = None) -> dict:
     conn = None
     keyed = False
     widen = False
+    misses = False
     if path.exists():
         try:
             conn = sqlite3.connect(path)
             conn.row_factory = sqlite3.Row
             keyed = casestatus.carries_the_key(conn)
             widen = casestatus.holds_a_system_hash(conn)
+            # Asked once, by name. This connection never migrates, so a
+            # register from before frame 64 holds no `key_misses`, and the
+            # `except sqlite3.Error` below would turn that into `never run`
+            # for every case in silence.
+            misses = casestatus.records_misses(conn)
         except sqlite3.Error:                               # pragma: no cover
             conn = None
 
@@ -241,16 +247,22 @@ def l1(dev_db: Path | None = None) -> dict:
         }
         if conn is not None:
             try:
+                # Inside the guard, as before: the composition opens a
+                # database of its own to build the working set.
+                want = casestatus.wanted_pins(case, model)
+                system = (fixtures.system_text_for(case) if widen
+                          and not case.get("first") else "")
                 batch = casestatus.matching_runs(
-                    conn, case, casestatus.wanted_pins(case, model),
-                    keyed=keyed, limit=entry["runs"],
-                    system=(fixtures.system_text_for(case) if widen
-                            and not case.get("first") else ""))
+                    conn, case, want, keyed=keyed, limit=entry["runs"],
+                    system=system)
                 ever = conn.execute(
                     "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
                     (case_id,)).fetchone()["n"]
+                miss = (casestatus.latest_miss(conn, case, want, keyed=keyed,
+                                               system=system)
+                        if misses else None)
             except sqlite3.Error:                           # pragma: no cover
-                batch, ever = [], 0
+                batch, ever, miss = [], 0, None
             if batch:
                 entry["passed"] = sum(r["passed"] for r in batch)
                 entry["problems"] = sorted({
@@ -260,6 +272,16 @@ def l1(dev_db: Path | None = None) -> dict:
             elif ever:
                 # Measured once, and not against the key the tree sends now.
                 entry["state"] = "stale"
+            # The report's rule, applied here as well (frame 64, 2026-09-22).
+            # This panel never calls `status`, so a rule written once there
+            # would let the two instruments disagree about one case, which is
+            # the fault frame 54 repaired.
+            newest = max((r["seq"] for r in batch), default=None)
+            if miss is not None and (newest is None or miss["seq"] > newest):
+                if batch:
+                    entry["state"], entry["passed"] = "stale", None
+                entry["problems"] = [casestatus.miss_line(miss),
+                                     *entry["problems"]]
         rows.append(entry)
 
     if conn is not None:

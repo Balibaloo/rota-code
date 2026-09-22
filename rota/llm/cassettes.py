@@ -90,6 +90,37 @@ CREATE TABLE IF NOT EXISTS case_runs (
     seq          INTEGER NOT NULL,
     PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
 );
+
+-- A look that measured nothing (frame 64, 2026-09-22). A replay that finds no
+-- cassette at the current key wrote nothing at all, so the report read the
+-- older rows and the case read green while the suite could not replay it. The
+-- miss is not a run and it does not go in `case_runs`: every reader of that
+-- table reads it as "what has been measured". The row carries the whole key
+-- the run tried, so a reader can ask whether the last look tried the key the
+-- tree composes now.
+CREATE TABLE IF NOT EXISTS key_misses (
+    case_id      TEXT NOT NULL,
+    model        TEXT NOT NULL,
+    prompt_hash  TEXT NOT NULL,
+    run_no       INTEGER NOT NULL,
+    system_hash  TEXT NOT NULL,
+    num_ctx      INTEGER NOT NULL,
+    temperature  REAL NOT NULL,
+    protocol     TEXT NOT NULL,
+    extras       TEXT NOT NULL,
+    load_id      TEXT NOT NULL,
+    -- `no cassette` or `unreachable`, and the problem string that carries the
+    -- marker. `at` is the clock, because a miss is an observation and an
+    -- observation ages.
+    kind         TEXT NOT NULL,
+    reason       TEXT NOT NULL,
+    at           TEXT NOT NULL,
+    seq          INTEGER NOT NULL,
+    -- The shape of `case_runs`'s own key, and the index the reader walks.
+    -- `seq` alone would refuse the second insert when two xdist workers
+    -- allocate one number, and the gate would count a new red.
+    PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
+);
 """
 
 #: The five columns frame 54 adds, and the value an old row takes. A default
@@ -356,6 +387,18 @@ class ReplayOnlyBackend:
                           tool_calls=_calls_from(row["tool_calls"]))
 
 
+#: The two markers of a look that measured nothing, and the kind each one
+#: names. One constant, because the rule had a second copy: the writer matched
+#: both markers and `casestatus.matching_runs` matched one of them by hand.
+#: Frame 60 and frame 54 both record what a second copy of a match costs.
+#:
+#: The order decides the kind. `ReplayOnlyBackend` raises `LLMUnavailable("no
+#: cassette for ...")`, so a replay miss carries both markers, and a replay
+#: never reaches a server. So `no cassette` is asked first and `unreachable`
+#: names a stopped server only.
+MISS_MARKERS = {"no cassette": "no cassette for", "unreachable": "LLMUnavailable"}
+
+
 def _is_unmeasured(problems: list[str], transcript: list | None) -> bool:
     """
     A run that died for want of a cassette is not a result.
@@ -372,11 +415,32 @@ def _is_unmeasured(problems: list[str], transcript: list | None) -> bool:
     reaches here as text, having already been caught and recorded by the
     session that hit it.
     """
-    haystack = " ".join(problems) + json.dumps(transcript or [])
     # A model that could not be reached measured nothing either. Found when a
     # recording pass ran against a stopped ollama and wrote ten hard-looking
     # reds -- every one a connection refused, not a role getting it wrong.
-    return "no cassette for" in haystack or "LLMUnavailable" in haystack
+    return _miss_of(problems, transcript) is not None
+
+
+def _miss_of(problems: list[str], transcript: list | None) -> tuple[str, str] | None:
+    """
+    The kind and the reason of a look that measured nothing, or None.
+
+    The reason is the problem string that carries the marker, and not
+    `problems[0]`. `check` writes its complaints first and `session did not
+    commit: [...]` last, so the first problem is `expected a call to X` and
+    never the miss.
+    """
+    blob = json.dumps(transcript or [])
+    for kind, marker in MISS_MARKERS.items():
+        for problem in problems:
+            if marker in problem:
+                return kind, problem
+        if marker in blob:
+            # The marker reached the transcript and no problem string. The
+            # transcript is a JSON blob and not a sentence, so the reason names
+            # where the marker was found.
+            return kind, f"the transcript carries {marker}"
+    return None
 
 
 def current_load(pins: Pins) -> str:
@@ -430,6 +494,17 @@ def system_hash(system: str) -> str:
     return hashlib.sha256(system.encode("utf-8")).hexdigest()[:16]
 
 
+#: One counter across both tables, read inside the insert that uses it.
+#: `key_misses` and `case_runs` share it, so "newer" is a comparison on `seq`
+#: and never on the clock. The allocation is one statement, so SQLite holds
+#: the write lock while the maximum is read: two statements race, and four
+#: xdist workers writing the live register allocated one number twice
+#: (observed: the design review's probe, 2026-09-22).
+_NEXT_SEQ = ("(SELECT COALESCE(MAX(s), 0) + 1 FROM "
+             "(SELECT MAX(seq) AS s FROM case_runs "
+             "UNION ALL SELECT MAX(seq) FROM key_misses))")
+
+
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
                     run_no: int, passed: bool, problems: list[str],
                     transcript: list | None = None, *,
@@ -443,19 +518,32 @@ def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
 
     Both are keyword-only. A caller that has no system text gets '' and says
     so, rather than passing a brief that is only a prefix of what was sent.
+
+    A run that measured nothing writes one `key_misses` row and no `case_runs`
+    row. The look is evidence about the key and never about the role, so the
+    two live in two tables (frame 64, 2026-09-22).
     """
-    if not passed and _is_unmeasured(problems, transcript):
+    key = (case_id, pins.model, pins.prompt_hash, run_no,
+           current_load(pins), pins.num_ctx, pins.temperature, protocol,
+           json.dumps(pins.extras(), sort_keys=True), system_hash(system))
+    miss = _miss_of(problems, transcript) if not passed else None
+    if miss is not None:
+        # The look is written down and the run is not. A `passed = 0` row
+        # would turn an unmeasured case into a hard red that looks exactly
+        # like a regression, and that is what the guard exists to stop.
+        kind, reason = miss
+        conn.execute(
+            "INSERT INTO key_misses (case_id, model, prompt_hash, run_no, "
+            "load_id, num_ctx, temperature, protocol, extras, system_hash, "
+            f"kind, reason, at, seq) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,{_NEXT_SEQ}",
+            (*key, kind, reason, time.strftime("%Y-%m-%dT%H:%M:%S")),
+        )
         return
-    seq = conn.execute(
-        "SELECT COALESCE(MAX(seq), 0) + 1 n FROM case_runs").fetchone()["n"]
     conn.execute(
-        "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, passed, "
-        "problems, transcript, seq, load_id, num_ctx, temperature, protocol, "
-        "extras, system_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (case_id, pins.model, pins.prompt_hash, run_no, int(passed),
-         json.dumps(problems), json.dumps(transcript or []), seq,
-         current_load(pins), pins.num_ctx, pins.temperature, protocol,
-         json.dumps(pins.extras(), sort_keys=True), system_hash(system)),
+        "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
+        "load_id, num_ctx, temperature, protocol, extras, system_hash, "
+        f"passed, problems, transcript, seq) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,{_NEXT_SEQ}",
+        (*key, int(passed), json.dumps(problems), json.dumps(transcript or [])),
     )
 
 

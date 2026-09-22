@@ -45,7 +45,7 @@ import tempfile
 from pathlib import Path
 
 from .. import paths
-from ..llm.cassettes import UNBUILT, system_hash, trust
+from ..llm.cassettes import MISS_MARKERS, UNBUILT, system_hash, trust
 from ..llm.llm import DEFAULT_NUM_CTX, Pins, think_for
 
 from ..testkit import fixtures
@@ -120,6 +120,21 @@ def carries_the_key(conn: sqlite3.Connection) -> bool:
     return bool(have) and {name for name, _ in KEY_COLUMNS} <= have
 
 
+def records_misses(conn: sqlite3.Connection) -> bool:
+    """
+    Whether this register can say that a look measured nothing.
+
+    `key_misses` arrives with frame 64, and `open_dev_db` is its only creator.
+    A reader that connects raw never creates it, and the cockpit's panel is
+    such a reader. Its `except sqlite3.Error` would turn a missing table into
+    `never run` for every case, in silence, so the table is asked for by name
+    rather than caught.
+    """
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("key_misses",)).fetchone() is not None
+
+
 def holds_a_system_hash(conn: sqlite3.Connection) -> bool:
     """
     Whether this register can answer about the system text at all.
@@ -190,8 +205,34 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     only, and a reader that widens the match against it would raise rather
     than report.
     """
-    sql = ["SELECT passed, problems FROM case_runs "
-           "WHERE case_id = ? AND prompt_hash = ? AND model = ?"]
+    sql = ["SELECT passed, problems, seq FROM case_runs"]
+    clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
+    sql += clauses
+    # A row from before the write-time guard, matched on the markers the
+    # writer owns. One copy of the rule: the second copy named one of the two
+    # markers, so a run that could not reach the model entered the window and
+    # read as a red (observed: frame 64's scope report, R9, 2026-09-22).
+    dead = " OR ".join("problems LIKE ? OR transcript LIKE ?"
+                       for _ in MISS_MARKERS)
+    sql.append(f" AND NOT (passed = 0 AND ({dead})) ORDER BY seq DESC LIMIT ?")
+    for marker in MISS_MARKERS.values():
+        args += [f"%{marker}%", f"%{marker}%"]
+    args.append(case.get("runs", 5) if limit is None else limit)
+    return list(conn.execute("".join(sql), args))
+
+
+def _key_clauses(case: dict, want: Pins, *, keyed: bool,
+                 system: str) -> tuple[list[str], list]:
+    """
+    The clauses that say a row is about this case under these pins.
+
+    One definition, because two tables carry the same key columns. A miss must
+    match the key the runs match, or the report reads a false STALE twice:
+    after a person reverts a system-half edit the old runs match again while a
+    miss at the other `system_hash` is newer, and a local run under another
+    profile writes misses that would stale the suite's read.
+    """
+    sql = [" WHERE case_id = ? AND prompt_hash = ? AND model = ?"]
     args: list = [case["id"], want.prompt_hash, want.model]
     if system:
         # The whole text the model was sent, which is what the cassette key
@@ -210,11 +251,40 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
         # 2026-09-21). A tier offers the model no native schemas.
         args += [want.num_ctx, want.temperature, "text",
                  json.dumps(want.extras(), sort_keys=True)]
-    sql.append(" AND NOT (passed = 0 AND (problems LIKE '%no cassette for%' "
-               "                       OR transcript LIKE '%no cassette for%'))"
-               " ORDER BY seq DESC LIMIT ?")
-    args.append(case.get("runs", 5) if limit is None else limit)
-    return list(conn.execute("".join(sql), args))
+    return sql, args
+
+
+def latest_miss(conn: sqlite3.Connection, case: dict, want: Pins,
+                *, keyed: bool = True, system: str = "") -> sqlite3.Row | None:
+    """
+    The newest look at this key that measured nothing, or None.
+
+    A replay that finds no cassette at the current key writes one of these and
+    no run. Until frame 64 it wrote nothing at all, so the report read the
+    older rows at the same hashes and the case read green while the suite
+    could not replay it. The two instruments then contradicted each other: the
+    gate's stale line stayed at zero and its red count carried a case nobody
+    had measured.
+
+    `records_misses` guards the call, because a register pulled from a
+    published snapshot carries no schema version and may predate the table.
+    """
+    sql = ["SELECT * FROM key_misses"]
+    clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
+    sql += clauses
+    sql.append(" ORDER BY seq DESC LIMIT 1")
+    return conn.execute("".join(sql), args).fetchone()
+
+
+def miss_line(miss: sqlite3.Row) -> str:
+    """
+    The one sentence that says somebody looked and the key missed.
+
+    The time leads, because `render` cuts the line at 96 characters and the
+    reason is what may be cut. The kind comes second: `no cassette` is a
+    prompt that moved, and `unreachable` is a stopped server.
+    """
+    return f"looked {miss['at']}, {miss['kind']}: {miss['reason']}"
 
 
 #: What a chain's text is when the replay could not produce one. It is not a
@@ -285,6 +355,10 @@ def status(model: str = "") -> list[dict]:
     conn = open_dev_db(paths.DEV_DB)
     # Only a register that carries a hash can answer about the system text.
     widen = holds_a_system_hash(conn)
+    # `open_dev_db` creates the table, so this is true here for every register
+    # the report opens. It is asked anyway, once, because the panel below
+    # shares the reader and connects raw.
+    misses = records_misses(conn)
 
     rows = []
     for case in _cases():
@@ -331,11 +405,29 @@ def status(model: str = "") -> list[dict]:
             if state == "green" and trust(conn, case["id"]) == "provisional":
                 state = "PROV"
 
+        # A look that measured nothing, and newer than the evidence. Whatever
+        # state the rows reached, nobody has measured this case at the key the
+        # tree composes now, so the case is unmeasured and says which look
+        # missed. With no matching row the state stays NEW or STALE: `NEW`
+        # keeps its meaning, nobody has measured this case at all.
+        miss = (latest_miss(conn, case, want, system=system) if misses
+                else None)
+        newest = max((r["seq"] for r in here), default=None)
+        if miss is not None and (newest is None or miss["seq"] > newest):
+            if here:
+                # No score on a stale line. A score names a measurement, and
+                # this case has none at the current key.
+                state, passed = "STALE", None
+        else:
+            miss = None
+
         why = ""
         if replay_problem:
             # A chain that could not replay says so on its own line, whatever
             # state it reached. The report prints `why` for every state.
             why = replay_problem
+        elif miss is not None:
+            why = miss_line(miss)
         elif state == "FAIL":
             problems = [p for r in here for p in json.loads(r["problems"] or "[]")]
             why = problems[0] if problems else ""

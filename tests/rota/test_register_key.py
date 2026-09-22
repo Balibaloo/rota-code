@@ -19,14 +19,15 @@ import os
 import subprocess
 import sqlite3
 import sys
+import time
 
 import pytest
 
 import rota_serial_plugin
 from rota import paths
 from rota.llm import llm
-from rota.llm.cassettes import (KEY_COLUMNS, UNBUILT, key_for, open_dev_db,
-                                record_case_run, system_hash)
+from rota.llm.cassettes import (KEY_COLUMNS, MISS_MARKERS, UNBUILT, key_for,
+                                open_dev_db, record_case_run, system_hash)
 from rota.llm.llm import DEFAULT_NUM_CTX, Pins
 from rota.roles import prompts
 from rota.testkit import fixtures
@@ -85,10 +86,15 @@ def _record(db, pins: Pins, **kw) -> None:
                     [{"say": "ok"}], **kw)
 
 
-def _state(model: str = MODEL) -> str:
+def _row(model: str = MODEL) -> dict:
+    """The report's one line about the case this file records."""
     rows = casestatus.status(model)
     assert len(rows) == 1
-    return rows[0]["state"]
+    return rows[0]
+
+
+def _state(model: str = MODEL) -> str:
+    return _row(model)["state"]
 
 
 def test_the_writer_stamps_the_whole_key(register):
@@ -1177,6 +1183,302 @@ def test_a_chain_that_cannot_replay_reads_stale_and_says_why(tmp_path,
     assert row["state"] == "STALE", "a chain nothing can replay is unmeasured"
     assert "could not be replayed" in row["why"], "and the report says so"
     assert "no cassette for the first leg" in row["why"], "and names the reason"
+
+
+# ---------------------------------------------------------------------------
+# A look that measured nothing (frame 64)
+# ---------------------------------------------------------------------------
+
+#: A problem string as the runner writes one when the replay finds no
+#: cassette. `check` writes its complaints first, so the marker is never in
+#: `problems[0]`, and the reason must be the string that carries it.
+MISS_PROBLEM = ('session did not commit: ["session failed: LLMUnavailable('
+                "'no cassette for qwen3:8b key=a23c90151fcc… — record one "
+                'with RecordingBackend\')"]')
+
+
+def _a_real_miss(db, tmp_path, pins: Pins | None = None):
+    """
+    One replay against an empty cassettes table, recorded as the tier records
+    it.
+
+    The miss is driven and never typed: `ReplayOnlyBackend` raises, the runner
+    catches it, and the writer sees the text a real run produces.
+    """
+    from rota.llm.cassettes import ReplayOnlyBackend
+
+    pins = pins or Pins(model=MODEL, temperature=0.0)
+    result = fixtures.run_case(dict(CASE), tmp_path / "miss.db",
+                               ReplayOnlyBackend(db), pins=pins,
+                               instructions=fixtures.instructions_for(CASE))
+    record_case_run(db, CASE["id"],
+                    pins.with_prompt(fixtures.instructions_for(CASE)), 1,
+                    result.passed, result.problems, result.transcript(),
+                    system=result.system_text())
+    return result
+
+
+def _miss(db, pins: Pins, **kw) -> None:
+    """One look that measured nothing, through the writer the tier uses."""
+    stamp = pins.with_prompt(fixtures.instructions_for(CASE))
+    kw.setdefault("system", fixtures.system_text_for(CASE))
+    record_case_run(db, CASE["id"], stamp, 1, False,
+                    ["expected a call to ledger.log", MISS_PROBLEM],
+                    [{"say": ""}], **kw)
+
+
+def test_a_replay_that_misses_the_key_writes_a_look_and_no_run(register,
+                                                                tmp_path):
+    """
+    The fault frame 64 repairs. A replay that found no cassette wrote nothing
+    at all, so the report read the older rows at the same hashes and the case
+    read green while the suite could not replay it.
+
+    The miss is not a run. A `passed = 0` row would turn an unmeasured case
+    into a hard red, and 15 of the 25 readers of `case_runs` would misread it
+    (observed: frame 64's scope report, 2026-09-22).
+    """
+    result = _a_real_miss(register, tmp_path)
+
+    assert not result.passed and any("no cassette for" in p
+                                     for p in result.problems)
+    assert register.execute(
+        "SELECT COUNT(*) n FROM case_runs").fetchone()["n"] == 0, \
+        "the run measured nothing and is not a result"
+
+    rows = register.execute("SELECT * FROM key_misses").fetchall()
+    assert len(rows) == 1, "one row per unmeasured run"
+    assert rows[0]["kind"] == "no cassette", "a replay never reaches a server"
+    assert "no cassette for" in rows[0]["reason"]
+    assert rows[0]["reason"] != result.problems[0], \
+        "the string that carries the marker, and not the first complaint"
+    assert rows[0]["system_hash"] == system_hash(fixtures.system_text_for(CASE)), \
+        "the miss carries the whole key the run tried"
+
+
+def test_a_look_newer_than_the_evidence_stales_a_green(register, tmp_path):
+    """
+    The rule. Whatever state the rows reached, nobody has measured this case
+    at the key the tree composes now.
+
+    The two instruments contradicted each other before this: the gate's stale
+    line read zero while its red count carried a case nobody had measured.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0))
+    assert _state() == "green", "the control, before anybody looks again"
+
+    _a_real_miss(register, tmp_path)
+    row = _row()
+    assert row["state"] == "STALE"
+    assert row["passed"] is None, "a stale line carries no score to quote"
+
+    miss = register.execute("SELECT * FROM key_misses").fetchone()
+    assert row["why"].startswith(f"looked {miss['at']}, no cassette: "), \
+        "the time and the kind lead, because render cuts the line at 96"
+    assert "no cassette for" in row["why"], "and the reason follows"
+
+
+def test_a_look_older_than_the_evidence_is_history(register, tmp_path):
+    """Somebody looked, missed, and then re-recorded. The green is the newer
+    fact and the miss says nothing about it."""
+    _a_real_miss(register, tmp_path)
+    _record(register, Pins(model=MODEL, temperature=0.0))
+
+    row = _row()
+    assert row["state"] == "green"
+    assert row["why"] == "", "an old miss is not a reason"
+
+
+def test_a_case_with_only_a_look_stays_never_measured(register, tmp_path):
+    """
+    `NEW` keeps its meaning: nobody has measured this case. `ever` counts
+    `case_runs` only, so the gate's set does not move for such a case, and it
+    already holds `NEW`.
+    """
+    _a_real_miss(register, tmp_path)
+
+    row = _row()
+    assert row["state"] == "NEW" and row["ever"] == 0
+    assert "no cassette" in row["why"], "and the report says who looked"
+
+
+def test_a_look_under_another_key_stales_nothing(register):
+    """
+    A miss must match the key the runs match.
+
+    A narrower filter reads a false `STALE` twice. After a person reverts a
+    system-half edit the old runs match again while a miss at the other
+    `system_hash` is newer. And a local run under another window writes misses
+    that would stale the suite's own read.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0))
+
+    _miss(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192))
+    assert _state() == "green", "another window is another key"
+
+    _miss(register, Pins(model=MODEL, temperature=0.0), system="another text")
+    assert _state() == "green", "and another system text is another key"
+
+    assert register.execute(
+        "SELECT COUNT(*) n FROM key_misses").fetchone()["n"] == 2, \
+        "both looks are recorded, and neither one answers for this key"
+
+
+def test_a_register_from_before_the_miss_table_reads_as_today(tmp_path,
+                                                               monkeypatch):
+    """
+    The panel connects raw and never migrates, and its `except sqlite3.Error`
+    would turn a missing table into `never run` for every case, in silence.
+    So the table is asked for by name.
+    """
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    path = tmp_path / "old.db"
+    monkeypatch.setattr(paths, "DEV_DB", path)
+    monkeypatch.setattr(casestatus, "_cases", lambda: [dict(CASE)])
+
+    raw = sqlite3.connect(str(path))
+    raw.executescript(OLD_SCHEMA)
+    raw.execute("INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
+                "passed, seq) VALUES (?,?,?,1,1,1)",
+                (CASE["id"], MODEL, casestatus.wanted_pins(
+                    CASE, MODEL).prompt_hash))
+    raw.commit()
+    raw.close()
+
+    conn = sqlite3.connect(str(path))
+    assert not casestatus.records_misses(conn), "the table arrives with frame 64"
+    assert casestatus.latest_miss is not None, "and the reader is guarded by it"
+    conn.close()
+
+    assert [c["state"] for c in _panel(monkeypatch)["cases"]] == ["pass"], \
+        "the missing table silences no case"
+    # The report opens through `open_dev_db`, which is the table's only
+    # creator, so it reads its own register and raises nothing.
+    assert _state() == "green"
+    conn = sqlite3.connect(str(path))
+    assert casestatus.records_misses(conn), "and the opener created the table"
+    conn.close()
+
+
+def test_the_gates_stale_set_holds_a_case_whose_last_look_missed(register,
+                                                                  tmp_path):
+    """
+    The acceptance line "zero stale" held while a case was unmeasured, and the
+    red count carried that same case. The stale set is where such a case
+    belongs.
+    """
+    from rota.tools import gate
+
+    _record(register, Pins(model=MODEL, temperature=0.0))
+    assert gate._stale(MODEL) == set(), "the control"
+
+    _a_real_miss(register, tmp_path)
+    assert gate._stale(MODEL) == {CASE["id"]}
+
+
+#: The child of the race test. One register, four processes, and the writer
+#: the tier uses. Half the runs measure nothing, so both tables are written.
+_RACE_CHILD = """
+import sys
+
+from rota.llm.cassettes import open_dev_db, record_case_run
+from rota.llm.llm import Pins
+
+path, worker, rounds = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+conn = open_dev_db(path)
+# The tier runs under `-n auto`, so a writer waits for the write lock rather
+# than raising. The default timeout is 5 seconds and four writers share one
+# file here.
+conn.execute("PRAGMA busy_timeout = 30000")
+pins = Pins(model="m", temperature=0.0).with_prompt("p")
+for run in range(1, rounds + 1):
+    ok = run % 2 == 0
+    record_case_run(conn, "case-%d" % worker, pins, run, ok,
+                    [] if ok else ["no cassette for m key=abc"])
+conn.close()
+"""
+
+
+@pytest.mark.timeout(120)
+def test_four_writers_never_allocate_one_sequence_twice(tmp_path):
+    """
+    `seq` is one counter across two tables, and it is read inside the insert
+    that uses it.
+
+    Two statements race: four processes and 400 inserts each gave 2 duplicate
+    `seq` values (observed: frame 64's design review, 2026-09-22). A duplicate
+    would make a miss and a run tie, and the rule above compares them.
+
+    The size below has teeth. The same four processes over the two-statement
+    allocation gave 1 to 2 duplicates in each of three runs, and the one
+    statement gave none in three (observed: this machine, 2026-09-22). One run
+    costs 0.2 seconds. The timeout marker is here so a flaky run fails
+    visibly rather than hangs.
+    """
+    path = tmp_path / "race.db"
+    open_dev_db(path).close()             # the parent creates it, once
+
+    started = time.perf_counter()
+    children = [subprocess.Popen(
+        [sys.executable, "-c", _RACE_CHILD, str(path), str(worker), "25"],
+        cwd=str(paths.REPO)) for worker in range(4)]
+    for child in children:
+        assert child.wait(timeout=90) == 0, "a writer died"
+    elapsed = time.perf_counter() - started
+
+    conn = open_dev_db(path)
+    seqs = [r["seq"] for r in conn.execute(
+        "SELECT seq FROM case_runs UNION ALL SELECT seq FROM key_misses")]
+    conn.close()
+    assert len(seqs) == 100, f"every write landed, in {elapsed:.1f}s"
+    assert len(set(seqs)) == 100, "two writers took one number"
+
+
+def test_the_guard_reads_one_constant_for_both_markers(register):
+    """
+    The rule had a second copy: the writer matched both markers and the
+    report's exclusion clause named one of them by hand. A run that could not
+    reach the model then entered the report's window and read as a red.
+
+    The rows below are written raw on purpose. No writer can make one now, and
+    the register holds thousands from before the guard existed.
+    """
+    from rota.llm.cassettes import _is_unmeasured
+
+    assert set(MISS_MARKERS) == {"no cassette", "unreachable"}
+    for marker in MISS_MARKERS.values():
+        assert _is_unmeasured([f"session did not commit: [{marker} x]"], [])
+        assert _is_unmeasured([], [{"errors": [f"{marker} x"]}]), "or in the text"
+    assert not _is_unmeasured(["expected a call to ledger.log"], [{"say": "ok"}])
+
+    want = casestatus.wanted_pins(CASE, MODEL)
+    for seq, marker in enumerate(MISS_MARKERS.values(), 1):
+        register.execute(
+            "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
+            "passed, problems, transcript, seq) VALUES (?,?,?,?,0,?,'[]',?)",
+            (CASE["id"], MODEL, want.prompt_hash, seq,
+             json.dumps([f"session did not commit: [{marker} x]"]), seq))
+    assert casestatus.matching_runs(register, CASE, want, limit=9) == [], \
+        "neither marker enters the window"
+
+
+def test_the_cockpit_shows_the_look_that_measured_nothing(register, tmp_path,
+                                                           monkeypatch):
+    """
+    The panel never calls `status`, so the rule is applied here as well. Two
+    instruments over one table that disagree about one case is the fault frame
+    54 repaired, and the panel is the one a person reads.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0))
+    assert _panel(monkeypatch)["cases"][0]["state"] == "pass", "the control"
+
+    _a_real_miss(register, tmp_path)
+    entry = _panel(monkeypatch)["cases"][0]
+    assert entry["state"] == "stale" and entry["passed"] is None
+    assert entry["problems"], "the panel shows the miss"
+    assert entry["problems"][0].startswith("looked ")
+    assert "no cassette" in entry["problems"][0]
+    assert _state() == "STALE", "and the report reads the case the same way"
 
 
 def _cases_with_a_row() -> list[dict]:
