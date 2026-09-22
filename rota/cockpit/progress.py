@@ -204,6 +204,14 @@ def l1(dev_db: Path | None = None) -> dict:
     The connection stays a raw `sqlite3.connect`, so this panel never
     migrates the register it is reading. A register written before frame 54
     has no columns to match the key on, and `carries_the_key` says so.
+
+    **This panel composes and never replays** (frame 63, 2026-09-22). A
+    single-session case composes its system text in about 8 ms, and the
+    widened match then covers the whole cassette key. A chain's text needs a
+    replay, and a chain that declares `repo:` shells out to git, which an
+    HTTP request must not do. No chain reaches this panel: a chain declares
+    its roles in `first` and `then`, so the filter below drops it. A chain
+    that did reach it would keep the narrow match.
     """
     from ..tools import casestatus
 
@@ -214,11 +222,13 @@ def l1(dev_db: Path | None = None) -> dict:
 
     conn = None
     keyed = False
+    widen = False
     if path.exists():
         try:
             conn = sqlite3.connect(path)
             conn.row_factory = sqlite3.Row
             keyed = casestatus.carries_the_key(conn)
+            widen = casestatus.holds_a_system_hash(conn)
         except sqlite3.Error:                               # pragma: no cover
             conn = None
 
@@ -233,7 +243,9 @@ def l1(dev_db: Path | None = None) -> dict:
             try:
                 batch = casestatus.matching_runs(
                     conn, case, casestatus.wanted_pins(case, model),
-                    keyed=keyed, limit=entry["runs"])
+                    keyed=keyed, limit=entry["runs"],
+                    system=(fixtures.system_text_for(case) if widen
+                            and not case.get("first") else ""))
                 ever = conn.execute(
                     "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
                     (case_id,)).fetchone()["n"]
@@ -431,6 +443,42 @@ def _edges_for(role: str, mode: str, case: dict, g) -> dict[str, list]:
             "impossible": impossible}
 
 
+def preview_sandbox(case: dict):
+    """
+    The database, the wake and the sandbox one case's session would get.
+
+    Split out of `message_text` so that a test can hold this sandbox beside
+    the runner's. The preview built its own, and its tool list differed from
+    the runner's for 18 of 121 cases (observed: frame 63's design review,
+    2026-09-22). It passed no mode, no wake and no tool order, and its area
+    rule named `survey` where the runner's names every onboarding tick.
+
+    The caller closes the connection.
+    """
+    from ..core.db import init_db
+    from ..core.loop import _batch_of
+    from ..core.runner import session_sandbox
+
+    spec = case.get("first") or case
+    # In memory, because this database holds one case's fixture for one
+    # composition and is then dropped. A file under `tempfile.mkdtemp()` cost
+    # 154 ms a case and left a directory behind on every request, against 8 ms
+    # here (observed: frame 63, 117 cases both ways, 2026-09-22).
+    conn = init_db(":memory:")
+    fixtures.seed(conn, case.get("fixture") or {})
+    if case.get("first"):
+        # A chain previews leg one, which wakes on a message its own fixture
+        # seeded and names its verb directly. The single-session rule seeds
+        # the message and reads the verb off it, so the two rules are two.
+        wake = fixtures.leg_wake(spec, spec.get("inbound"))
+    else:
+        wake = fixtures.wake_for(case, fixtures.seed_inbound(conn, case))
+    sb = session_sandbox(conn, wake, mode=case.get("mode"),
+                         batch_id=_batch_of(conn, wake),
+                         area=fixtures.area_for(spec, wake))
+    return conn, wake, sb
+
+
 def message_text(case_id: str) -> dict:
     """
     The prompt the session actually builds, for one case.
@@ -444,13 +492,7 @@ def message_text(case_id: str) -> dict:
     temporary database and a sandbox per case and almost nobody wants all
     fifty-nine at once.
     """
-    import tempfile
-
-    from ..core.db import init_db
-    from ..core.loop import _batch_of
     from ..core.runner import build_prompt, push_working_set, resolve_inbound
-    from ..core.sandbox import build as build_sandbox
-    from ..core.scheduler import Wake
 
     case = next((c for c in _cases() if c["id"] == case_id), None)
     if case is None:
@@ -460,24 +502,7 @@ def message_text(case_id: str) -> dict:
     role = spec["role"]
     mode = fixtures.mode_of(spec if case.get("first") else case)
 
-    conn = init_db(Path(tempfile.mkdtemp()) / "rota.db")
-    fixtures.seed(conn, case.get("fixture") or {})
-
-    inbound = case.get("inbound") or {}
-    msg_id = inbound.get("id", "m_in") if inbound else None
-    if inbound:
-        conn.execute(
-            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-            "body_refs, seq) VALUES (?,?,?,?,?,?,99)",
-            (msg_id, "t1", inbound["from"], inbound["to"], inbound["verb"],
-             json.dumps(inbound.get("body_refs", []))))
-
-    wake = Wake(role=role, kind="message", message_id=msg_id,
-                refs=tuple(case.get("refs") or ()),
-                detail=inbound.get("verb") or case.get("tick", ""))
-    sb = build_sandbox(role, conn, batch_id=_batch_of(conn, wake),
-                       area=wake.refs[0] if case.get("tick") == "survey" else None,
-                       allow=prompts.mode_tools(role, mode))
+    conn, wake, sb = preview_sandbox(case)
     pushed = push_working_set(role, sb, wake)
     system, user = build_prompt(role, sb, wake, pushed,
                                 prompts.compose(role, mode),

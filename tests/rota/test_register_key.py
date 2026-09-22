@@ -34,8 +34,14 @@ from rota.tools import casestatus, migrate_register
 
 #: One real role and one real mode, so `instructions_for` composes the same
 #: brief the tier would and the hash is earned rather than invented.
+#:
+#: The inbound message is what makes the case composable. The brief is keyed
+#: by `mode_of`, which reads `prompt:`, and the working set is keyed by
+#: `_mode_key`, which reads the verb off the wake. A case with no message
+#: wakes with an empty verb, and the two rules then pick two modes.
 CASE = {"id": "L1-LI-the-register-key", "role": "liaison", "prompt": "converse",
-        "runs": 1, "pass": 1}
+        "runs": 1, "pass": 1,
+        "inbound": {"from": "principal", "to": "liaison", "verb": "converse"}}
 MODEL = "qwen3:8b"
 
 #: `case_runs` before frame 54. The migration has to reach a register that was
@@ -66,8 +72,15 @@ def register(tmp_path, monkeypatch):
 
 
 def _record(db, pins: Pins, **kw) -> None:
-    """One run of the case, stamped the way the tier stamps it."""
+    """
+    One run of the case, stamped the way the tier stamps it.
+
+    The system text is the case's own, composed, because the report now
+    matches on its digest. A stand-in string here would read stale for the
+    reason the test is not about.
+    """
     stamp = pins.with_prompt(fixtures.instructions_for(CASE))
+    kw.setdefault("system", fixtures.system_text_for(CASE))
     record_case_run(db, CASE["id"], stamp, 1, True, [],
                     [{"say": "ok"}], **kw)
 
@@ -95,7 +108,7 @@ def test_the_writer_stamps_the_whole_key(register):
 def test_a_recording_at_the_ambient_window_reads_green(register):
     """The control. Without it every test below could pass for the wrong
     reason, because a case id that never matches also reads stale."""
-    _record(register, Pins(model=MODEL, temperature=0.0), system="s")
+    _record(register, Pins(model=MODEL, temperature=0.0))
     assert _state() == "green"
 
 
@@ -104,8 +117,7 @@ def test_a_window_change_makes_a_case_read_stale(register):
     not evidence about this run. It was the largest cause of a false state:
     `ROTA_NUM_CTX=16384` misses every cassette in the register and the report
     still read the old greens."""
-    _record(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192),
-            system="s")
+    _record(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192))
     assert DEFAULT_NUM_CTX != 8192, "the ambient window is what the report wants"
     assert _state() == "STALE"
 
@@ -115,7 +127,7 @@ def test_a_think_pin_change_makes_a_case_read_stale(register, monkeypatch):
     recording. One run under a profile and one without it measure two
     different things, so the report must not read one as the other."""
     thinking_model = "qwen3.5:9b"
-    _record(register, Pins(model=thinking_model, temperature=0.0), system="s")
+    _record(register, Pins(model=thinking_model, temperature=0.0))
     assert _state(thinking_model) == "green", "recorded and read with no profile"
 
     # The profile ships with the repository and sets `think` for this model.
@@ -127,8 +139,7 @@ def test_a_native_recording_does_not_answer_for_a_text_run(register):
     """Native tool calling and the `TOOL:` text protocol get different replies
     to one prompt and fail in different ways. 18570 of the register's 18604
     cassettes key as text and none as native."""
-    _record(register, Pins(model=MODEL, temperature=0.0), system="s",
-            protocol="native")
+    _record(register, Pins(model=MODEL, temperature=0.0), protocol="native")
     assert _state() == "STALE"
 
 
@@ -136,7 +147,7 @@ def test_the_match_keeps_reading_across_a_second_load(register):
     """`load_id` stays out of the match. It is `model@epoch//7200`, so matching
     on it would stale every case two hours after its recording."""
     pins = Pins(model=MODEL, temperature=0.0)
-    _record(register, pins, system="s")
+    _record(register, pins)
     register.execute("UPDATE case_runs SET load_id = 'qwen3:8b@1'")
     assert _state() == "green"
 
@@ -808,7 +819,7 @@ def test_the_cockpit_and_the_report_agree_on_a_green(register, monkeypatch):
     (observed: frame 54's diff review, 2026-09-21). The panel is the one a
     person reads.
     """
-    _record(register, Pins(model=MODEL, temperature=0.0), system="s")
+    _record(register, Pins(model=MODEL, temperature=0.0))
     panel = _panel(monkeypatch)
 
     assert panel["model"] == MODEL, "the panel names the model the report does"
@@ -823,8 +834,7 @@ def test_the_cockpit_and_the_report_agree_on_a_wrong_window(register,
     evidence about this run, and the panel used to call it fresh because
     `prompt_hash` does not carry the window.
     """
-    _record(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192),
-            system="s")
+    _record(register, Pins(model=MODEL, temperature=0.0, num_ctx=8192))
     panel = _panel(monkeypatch)
 
     assert panel["cases"][0]["state"] == "stale"
@@ -851,3 +861,214 @@ def test_the_cockpit_tolerates_a_register_without_the_key(tmp_path):
     with pytest.raises(sqlite3.OperationalError):
         casestatus.matching_runs(conn, case, want, keyed=True)
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# One composition of the system text (frame 63)
+# ---------------------------------------------------------------------------
+
+
+def test_one_function_builds_the_sandbox_a_prompt_advertises():
+    """
+    Four call sites reach a prompt's sandbox: `run_session`, `run_chain`
+    through it, `system_text_for` and the cockpit's prompt preview. All four
+    go through `runner.session_sandbox`.
+
+    A second `sandbox.build` beside it is a second working set and therefore a
+    second system text, which is the fault this frame removes. The preview
+    held one, and its tool list differed from the runner's for 18 of 121 cases
+    (observed: frame 63's design review, 2026-09-22).
+    """
+    import ast
+    import pathlib
+
+    from rota.cockpit import progress
+    from rota.core import runner
+
+    def builds_a_sandbox(node) -> bool:
+        # The two spellings the tree uses: `sandbox_mod.build` in the runner,
+        # and `build_sandbox` where the name is imported. `indexer.build` and
+        # `lexicon_mod.build` are other functions with the same verb.
+        func = node.func
+        if isinstance(func, ast.Attribute):
+            return (func.attr == "build"
+                    and "sandbox" in getattr(func.value, "id", ""))
+        return getattr(func, "id", "") == "build_sandbox"
+
+    def builders(module) -> list[str]:
+        tree = ast.parse(pathlib.Path(module.__file__).read_text(encoding="utf-8"))
+        return [node.name for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef)
+                and any(isinstance(call, ast.Call) and builds_a_sandbox(call)
+                        for call in ast.walk(node))]
+
+    assert builders(runner) == ["session_sandbox"]
+    assert builders(progress) == [], "the preview composes through the runner"
+    assert builders(fixtures) == [], "the testkit composes through the runner"
+
+
+def test_the_preview_and_the_runner_advertise_one_working_set():
+    """
+    The cockpit's prompt preview is the text a person reads to answer "what is
+    this session told", so a preview of another working set is worse than no
+    preview. It passed no mode, no wake and no tool order, and its area rule
+    named `survey` alone.
+
+    The brief is held constant here, so the sandbox is the only variable.
+    """
+    from rota.cockpit import progress
+    from rota.core.runner import compose_system
+
+    cases = [c for c in progress._cases() if not c.get("first")]
+    assert len(cases) > 100, "the panel reads every L1 case"
+
+    differ = []
+    for case in cases:
+        conn, _wake, sb = progress.preview_sandbox(case)
+        try:
+            preview = compose_system(case["role"], sb,
+                                     instructions=fixtures.instructions_for(case))
+        finally:
+            conn.close()
+        if preview != fixtures.system_text_for(case):
+            differ.append(case["id"])
+    assert not differ, f"the preview advertises another working set for {differ}"
+
+
+def test_a_tools_edit_makes_a_case_read_stale(register, monkeypatch):
+    """
+    The fault, in one test. A `.tools` file names the functions a mode
+    narrows to, and those functions are the `TOOL:` lines of the system text.
+    The cassette key covers that text, so an edit to the file moves the key
+    and the suite can no longer replay the case.
+
+    `prompt_hash` covers the composed brief and does not move, which is why
+    the case read green through the whole of it.
+    """
+    from rota.roles import prompts as prompts_mod
+
+    real = prompts_mod.mode_tools
+    assert real("liaison", "converse"), "the mode narrows to a named list"
+
+    _record(register, Pins(model=MODEL, temperature=0.0))
+    assert _state() == "green"
+    before = casestatus.wanted_pins(CASE, MODEL).prompt_hash
+
+    # One function dropped, which is the commonest edit such a file takes.
+    monkeypatch.setattr(prompts_mod, "mode_tools",
+                        lambda role, mode: (real(role, mode) or [])[:-1])
+    assert _state() == "STALE"
+    assert casestatus.wanted_pins(CASE, MODEL).prompt_hash == before, \
+        "the brief did not move, and that is the point"
+
+
+def test_a_register_that_carries_no_system_hash_keeps_the_narrow_match(register):
+    """
+    `carries_the_key` is not the guard for the widened match, and using it
+    would report every case stale.
+
+    It asks whether the columns exist. `open_dev_db` adds them with
+    `DEFAULT ''` and backfills nothing, and `tests/rota/cassettes.db` is
+    gitignored and pulled from a published snapshot that carries no schema
+    version. So this register is the one a fresh checkout reads.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), system="")
+
+    assert casestatus.carries_the_key(register), "the columns are there"
+    assert not casestatus.holds_a_system_hash(register), "and no row carries one"
+    assert _state() == "green"
+
+
+def test_an_unbuilt_row_never_turns_the_widened_match_on(register):
+    """
+    A crashed session stamps `unbuilt`, which says the session died before it
+    had a prompt. It is not a digest and it is not evidence, so a register
+    holding nothing else stays on the narrow match.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), system=UNBUILT)
+
+    assert register.execute(
+        "SELECT system_hash FROM case_runs").fetchone()["system_hash"] == UNBUILT
+    assert not casestatus.holds_a_system_hash(register)
+    assert _state() == "green"
+
+
+def _cases_with_a_row() -> list[dict]:
+    """
+    Every single-session case the register holds evidence about, under the
+    model the report reads.
+
+    Collected at import, because the parameter list is the acceptance. The
+    design review sent this line back once for passing on one easy case. A
+    machine with no register collects nothing, and the tests below skip.
+    """
+    if not paths.DEV_DB.exists():
+        return []
+    conn = open_dev_db(paths.DEV_DB)
+    model = casestatus.model_for()
+    out = [case for case in casestatus._cases()
+           if not case.get("first")
+           and casestatus.matching_runs(
+               conn, case, casestatus.wanted_pins(case, model), limit=1)]
+    conn.close()
+    return out
+
+
+WITH_A_ROW = _cases_with_a_row()
+NO_REGISTER = "the register is not on this machine"
+
+
+@pytest.fixture(scope="module")
+def registered():
+    """The real register, opened the way the report opens it."""
+    conn = open_dev_db(paths.DEV_DB)
+    yield conn
+    conn.close()
+
+
+@pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
+@pytest.mark.parametrize("case", WITH_A_ROW or [{}],
+                         ids=[c["id"] for c in WITH_A_ROW] or ["none"])
+def test_the_composed_system_text_is_the_one_the_run_recorded(case, registered):
+    """
+    The widened match drops no row it should keep, case by case.
+
+    The composition is a second definition of something the runner already
+    builds, and a second definition that agrees on the easy cases is the
+    danger. A hand-rolled composition that skipped the fixture agreed on 102
+    of 121 cases: 13 raised on a foreign key and 6 gave a different hash
+    (observed: frame 63's first read, 2026-09-22).
+    """
+    want = casestatus.wanted_pins(case, casestatus.model_for())
+    text = fixtures.system_text_for(case)
+    narrow = casestatus.matching_runs(registered, case, want, limit=99)
+    wide = casestatus.matching_runs(registered, case, want, limit=99,
+                                    system=text)
+
+    assert narrow, "the parameter set holds only cases that have a row"
+    assert len(wide) == len(narrow), (
+        f"the tree composes {system_hash(text)}, and "
+        f"{len(narrow) - len(wide)} of {len(narrow)} rows carry another hash")
+
+
+@pytest.mark.skipif(not WITH_A_ROW, reason=NO_REGISTER)
+def test_the_parameter_set_holds_the_shapes_that_would_break_it():
+    """
+    Four shapes reach the composition by a different route, and a set without
+    them would pass while the report was wrong about the hard cases.
+
+    `mode: readonly` builds no write functions at all. A `repo:` case runs in
+    a worktree the reader never makes. An area case names its subject in the
+    sandbox. A mode with a `.tools` order lists its functions in the order of
+    the job rather than alphabetically.
+    """
+    assert len(WITH_A_ROW) > 100, "the register holds the whole tier"
+    ids = {c["id"] for c in WITH_A_ROW}
+
+    assert "L1-TE-challenge-an-unusable-item" in ids, "the readonly case"
+    assert any(c.get("mode") == "readonly" for c in WITH_A_ROW)
+    assert any(c.get("repo") for c in WITH_A_ROW), "a case with a worktree"
+    assert any(c.get("tick") in ("survey", "orient", "define")
+               for c in WITH_A_ROW), "an area case"
+    assert any(prompts.mode_order(c["role"], fixtures.mode_of(c))
+               for c in WITH_A_ROW), "a mode that declares a tool order"

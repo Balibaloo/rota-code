@@ -25,17 +25,27 @@ So the count is the thing that has to carry the distinction:
 this a query rather than a test run. Recomposing the brief here costs
 milliseconds and is the same composition the tier uses, so a case is stale here
 exactly when it is stale there.
+
+**The report also composes the whole system text** (frame 63, 2026-09-22). The
+brief is only a prefix of what the model receives, and the cassette key covers
+all of it, so a tools edit left a case green that the suite could not replay.
+A single session composes its text in about 8 ms. A chain's text is whatever
+its legs reached, so a chain is replayed against the recordings. The whole
+report costs 6.0 seconds: 0.9 for 121 compositions and 4.0 for 7 chains
+(observed: this machine, 2026-09-22).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import shutil
 import sqlite3
+import tempfile
 from pathlib import Path
 
 from .. import paths
-from ..llm.cassettes import trust
+from ..llm.cassettes import UNBUILT, system_hash, trust
 from ..llm.llm import DEFAULT_NUM_CTX, Pins, think_for
 
 from ..testkit import fixtures
@@ -110,8 +120,33 @@ def carries_the_key(conn: sqlite3.Connection) -> bool:
     return bool(have) and {name for name, _ in KEY_COLUMNS} <= have
 
 
+def holds_a_system_hash(conn: sqlite3.Connection) -> bool:
+    """
+    Whether this register can answer about the system text at all.
+
+    **`carries_the_key` is not the guard for this**, and using it would report
+    every case stale (observed: frame 63's design review, probe 5,
+    2026-09-22). It asks whether the columns exist. `open_dev_db` adds them
+    with `DEFAULT ''` and backfills nothing, so a register written before
+    frame 54 answers True with an empty hash on every row. And
+    `tests/rota/cassettes.db` is gitignored and pulled from a published
+    snapshot that carries no schema version, so this is a live case and not a
+    theory.
+
+    `''` is a row written before the column existed. `unbuilt` is a session
+    that died before it composed a prompt. Neither row says what the model was
+    told, so neither turns the widened match on.
+    """
+    if not carries_the_key(conn):
+        return False
+    return conn.execute(
+        "SELECT 1 FROM case_runs WHERE system_hash NOT IN ('', ?) LIMIT 1",
+        (UNBUILT,)).fetchone() is not None
+
+
 def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
-                  *, keyed: bool = True, limit: int | None = None) -> list:
+                  *, keyed: bool = True, system: str = "",
+                  limit: int | None = None) -> list:
     """
     The rows that are evidence about this case under these pins, newest first.
 
@@ -136,12 +171,11 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     edit left every hash current and the case read green while the suite
     could not replay it.
 
-    `system_hash` is therefore written by `record_case_run` and is not
-    matched on here. The blocker is that no reader can compose the system
-    text: it is built inside `run_session`, from a sandbox over the case's
-    seeded database, and there is no second definition of it to call.
-    Matching on a value a reader cannot compute would stale every case. The
-    match is widened when one composition serves both.
+    `system` closes that hole. It is the system text the tree composes for
+    this case now, and the caller passes it: `compose_system` builds it for a
+    single session, and only a replay builds it for a chain. It is empty when
+    the register carries no hash to match, which `holds_a_system_hash`
+    decides.
 
     `load_id` stays out for two reasons. It is `model@epoch//7200`, so
     matching on it would stale every case two hours after its recording, and
@@ -155,6 +189,15 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     sql = ["SELECT passed, problems FROM case_runs "
            "WHERE case_id = ? AND prompt_hash = ? AND model = ?"]
     args: list = [case["id"], want.prompt_hash, want.model]
+    if system:
+        # The whole text the model was sent, which is what the cassette key
+        # covers. The two sentinels are named rather than left to the
+        # equality: `''` is a row written before frame 54 added the column,
+        # and `unbuilt` is a session that died before it had a prompt. A row
+        # that cannot say what the model was told is not evidence about this
+        # text.
+        sql.append(" AND system_hash = ? AND system_hash NOT IN ('', ?)")
+        args += [system_hash(system), UNBUILT]
     if keyed:
         sql.append(" AND num_ctx = ? AND temperature = ? AND protocol = ? "
                    "AND extras = ?")
@@ -170,6 +213,45 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     return list(conn.execute("".join(sql), args))
 
 
+def replayed_chain_text(conn: sqlite3.Connection, case: dict, want: Pins) -> str:
+    """
+    The system texts a chain actually reaches, by replaying it.
+
+    A chain's recorded hash is not always over both legs. `run_chain` returns
+    leg one's text alone when leg two never wakes, and
+    `L3-a-challenge-reaches-the-role-that-can-answer-it` carries such a
+    one-leg digest (observed: frame 63's read of the register, 2026-09-22).
+    So the column means the system texts the run reached, and only a replay
+    reproduces how far a chain got. Composing leg one and calling it the chain
+    would compare a one-leg digest against a two-leg digest for six of the
+    seven chains and force all seven to re-record.
+
+    **One known weakness, stated so nobody is surprised.** A replay that dies
+    for a reason that is not about the text still carries a real system text,
+    so this report can read a matching hash out of a broken run and print
+    green. A composing report cannot do that. The chains are 7 of 128, and
+    this is the price of matching what the column means.
+
+    The replay runs here and in the gate, and never in the cockpit's panel. A
+    chain that declares `repo:` shells out to git, and an HTTP request must
+    not make a worktree.
+    """
+    from ..llm.cassettes import ReplayOnlyBackend
+
+    work = tempfile.mkdtemp()
+    try:
+        result = fixtures.run_chain(case, Path(work) / "chain.db",
+                                    lambda: ReplayOnlyBackend(conn), pins=want)
+        return result.system_text()
+    except Exception:
+        # A replay that cannot run says nothing about the text, so this case
+        # keeps the narrow match. The gate reads this line for its stale
+        # count, and a report that dies here would take the gate with it.
+        return ""
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def status(model: str = "") -> list[dict]:
     # Through the one opener that migrates: a raw connect here read the
     # committed db from before `load_id` existed and died inside `trust`.
@@ -177,6 +259,8 @@ def status(model: str = "") -> list[dict]:
 
     model = model_for(model)
     conn = open_dev_db(paths.DEV_DB)
+    # Only a register that carries a hash can answer about the system text.
+    widen = holds_a_system_hash(conn)
 
     rows = []
     for case in _cases():
@@ -184,7 +268,11 @@ def status(model: str = "") -> list[dict]:
         if not role:
             continue
         want = wanted_pins(case, model)
-        here = matching_runs(conn, case, want)
+        system = ""
+        if widen:
+            system = (replayed_chain_text(conn, case, want) if case.get("first")
+                      else fixtures.system_text_for(case))
+        here = matching_runs(conn, case, want, system=system)
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
             (case["id"],)).fetchone()["n"]

@@ -879,6 +879,131 @@ def instructions_for(case: dict) -> str:
     return prompts_mod.compose(case["role"], mode_of(case))
 
 
+def seed_inbound(conn: sqlite3.Connection, case: dict) -> str | None:
+    """
+    The one message a case wakes on, or None for a tick case.
+
+    One definition, because a reader that composes the prompt must seed the
+    same row the run seeded. A message this reader did not write is a message
+    `resolve_inbound` and `_mode_key` cannot read, and the mode keyed by a
+    cause then picks another brief.
+    """
+    inbound = case.get("inbound") or {}
+    if not inbound:
+        return None
+    msg_id = inbound.get("id", "m_in")
+    # `body_text` too, or a case cannot seed the one message that carries
+    # words. Law 2 keeps prose off messages because sender and recipient
+    # share a database and an id means something at both ends -- except for
+    # the Researcher, which has never seen an artefact, so refs are
+    # meaningless to it and the schema says outright that a question with no
+    # words is no question.
+    #
+    # The loader dropped the field silently, so
+    # `L1-RS-answer-from-the-clause-not-from-memory` woke its Researcher with
+    # an empty question and the session said so: "the architect's question
+    # was empty and there were no references to load". It then answered from
+    # memory, which is the exact failure the case exists to catch, and it had
+    # no way to do anything else.
+    conn.execute(
+        "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+        "body_refs, body_text, cause_id, seq) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99)",
+        (msg_id, inbound.get("thread", "t1"), inbound["from"], inbound["to"],
+         inbound["verb"], json.dumps(inbound.get("body_refs", [])),
+         inbound.get("body_text"), inbound.get("cause")),
+    )
+    return msg_id
+
+
+def wake_for(case: dict, msg_id: str | None) -> Wake:
+    """
+    The wake a case declares, built once for the run and for the reader.
+
+    A tick case must wake as a tick. `kind` was hardcoded to "message" and the
+    declared tick reached `detail` only, which picks the right brief and then
+    takes a different path through everything keyed on the kind itself:
+    `round_close` resolves the whole round in `resolve_inbound` and got `{}`,
+    so Liaison was told to compose what came back while being shown none of
+    it -- 0/220, and correctly so, because `t1` was the only id it held.
+    `tick:survey` writes with `observed` provenance and was writing `decided`.
+    """
+    inbound = case.get("inbound") or {}
+    tick = case.get("tick")
+    return Wake(role=case["role"], kind=f"tick:{tick}" if tick else "message",
+                message_id=msg_id,
+                refs=tuple(case.get("refs") or ()),
+                detail=inbound.get("verb", case.get("detail") or tick or ""))
+
+
+def leg_wake(spec: dict, message_id: str | None) -> Wake:
+    """
+    The wake one leg of a chain gets, which is not the wake a case gets.
+
+    A leg names its verb directly, and the second leg wakes on the message the
+    first leg sent, so a declared tick yields to a message id. The cockpit's
+    prompt preview reads this rule too, or it previews leg one under a wake
+    the chain never runs.
+    """
+    tick = spec.get("tick")
+    return Wake(role=spec["role"],
+                kind=f"tick:{tick}" if tick and not message_id else "message",
+                message_id=message_id,
+                refs=tuple(spec.get("refs") or ()),
+                detail=spec.get("verb") or spec.get("detail") or tick or "")
+
+
+def area_for(case: dict, wake: Wake) -> str | None:
+    """
+    The subject an onboarding tick reads, which the sandbox advertises.
+
+    The area reaches the system text through the tools the sandbox builds, so
+    the reader of a prompt applies the same rule the run applied.
+    """
+    return (wake.refs[0]
+            if case.get("tick") in ("survey", "orient", "define") else None)
+
+
+def system_text_for(case: dict) -> str:
+    """
+    What the model is told for this case, composed without running it.
+
+    The cassette key covers this text, so the register's report matches on its
+    digest. The composition needs the sandbox and not the session: with
+    `push_working_set` and `resolve_inbound` left out, the text is
+    byte-identical to the run's for 121 of 121 single-session cases, and all
+    121 cost 1.01 seconds over an in-memory database (observed: frame 63's
+    first read, 2026-09-22).
+
+    **Two mode rules meet here, and they are still two.** The brief comes from
+    `instructions_for`, which keys on `mode_of(case)`. The allow list comes
+    from `_mode_key(wake, conn)` inside `session_sandbox`. The two agree on
+    every single-session case today (observed: frame 63's design review,
+    2026-09-22).
+
+    No worktree and no model. A case that declares `repo:` composes the same
+    text without one, and building one for a report would shell out to git
+    once per case.
+    """
+    from ..core.loop import _batch_of
+    from ..core.runner import compose_system, session_sandbox
+
+    conn = init_db(":memory:")
+    try:
+        seed(conn, case.get("fixture") or {})
+        wake = wake_for(case, seed_inbound(conn, case))
+        sb = session_sandbox(conn, wake, mode=case.get("mode"),
+                             batch_id=_batch_of(conn, wake),
+                             area=area_for(case, wake))
+        # The same variable `run_session` reads, because the flag changes the
+        # last paragraph of the system text.
+        return compose_system(case["role"], sb,
+                              instructions=instructions_for(case),
+                              oneshot=bool(os.environ.get("ROTA_ONESHOT")))
+    finally:
+        conn.close()
+
+
 def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = None,
              instructions: str = "", run_no: int = 1) -> CaseResult:
     conn = init_db(db_path)
@@ -886,45 +1011,11 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     repo = (_with_repo(conn, case, Path(db_path), run_no)
             if case.get("repo") else None)
 
-    inbound = case.get("inbound") or {}
-    msg_id = inbound.get("id", "m_in")
-    if inbound:
-        # `body_text` too, or a case cannot seed the one message that carries
-        # words. Law 2 keeps prose off messages because sender and recipient
-        # share a database and an id means something at both ends -- except for
-        # the Researcher, which has never seen an artefact, so refs are
-        # meaningless to it and the schema says outright that a question with no
-        # words is no question.
-        #
-        # The loader dropped the field silently, so
-        # `L1-RS-answer-from-the-clause-not-from-memory` woke its Researcher with
-        # an empty question and the session said so: "the architect's question
-        # was empty and there were no references to load". It then answered from
-        # memory, which is the exact failure the case exists to catch, and it had
-        # no way to do anything else.
-        conn.execute(
-            "INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-            "body_refs, body_text, cause_id, seq) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99)",
-            (msg_id, inbound.get("thread", "t1"), inbound["from"], inbound["to"],
-             inbound["verb"], json.dumps(inbound.get("body_refs", [])),
-             inbound.get("body_text"), inbound.get("cause")),
-        )
+    msg_id = seed_inbound(conn, case)
 
     before = snapshot_versions(conn)
     seeded = {r["id"] for r in conn.execute("SELECT id FROM messages")}
-    # A tick case must wake as a tick. `kind` was hardcoded to "message" and the
-    # declared tick reached `detail` only, which picks the right brief and then
-    # takes a different path through everything keyed on the kind itself:
-    # `round_close` resolves the whole round in `resolve_inbound` and got `{}`,
-    # so Liaison was told to compose what came back while being shown none of
-    # it -- 0/220, and correctly so, because `t1` was the only id it held.
-    # `tick:survey` writes with `observed` provenance and was writing `decided`.
-    tick = case.get("tick")
-    wake = Wake(role=case["role"], kind=f"tick:{tick}" if tick else "message",
-                message_id=msg_id if inbound else None,
-                refs=tuple(case.get("refs") or ()),
-                detail=inbound.get("verb", case.get("detail") or tick or ""))
+    wake = wake_for(case, msg_id)
 
     # The same resolution the loop does, for the same reason: a role that works
     # in a worktree needs to be told which one, and it is never the role's to
@@ -935,7 +1026,7 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     outcome = run_session(conn, wake, backend=backend, pins=pins,
                           instructions=instructions,
                           batch_id=_batch_of(conn, wake),
-                          area=wake.refs[0] if case.get("tick") in ("survey", "orient", "define") else None,
+                          area=area_for(case, wake),
                           # None, not "normal": a case that does not declare a
                           # mode gets the one the wake derives, which is what
                           # production would give it.
@@ -1001,12 +1092,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         mode = spec.get("prompt") or spec.get("verb") or spec.get("tick", "")
         # Same as the L1 path: a leg declaring a tick has to wake as one, or the
         # handoff under test starts from a wake shape production never produces.
-        tick = spec.get("tick")
-        wake = Wake(role=spec["role"],
-                    kind=f"tick:{tick}" if tick and not message_id else "message",
-                    message_id=message_id,
-                    refs=tuple(spec.get("refs") or ()),
-                    detail=spec.get("verb") or spec.get("detail") or tick or "")
+        wake = leg_wake(spec, message_id)
         seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
         versions = snapshot_versions(conn)
         out = run_session(

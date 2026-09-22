@@ -239,17 +239,19 @@ def _briefs_hash(instructions: str) -> str:
 DETAIL_SHOWN = {"tick:tests_missing"}
 
 
-def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
-                 pushed: dict[str, Any], instructions: str,
-                 inbound: dict[str, Any] | None = None,
-                 oneshot: bool = False) -> tuple[str, str]:
+def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,
+                   oneshot: bool = False) -> str:
     """
-    System prompt = who you are and what you may do; user prompt = why you woke.
+    The system prompt, whole: who you are and what you may do.
 
-    The working set is *pushed* rather than fetched. Having `model.consult()`
-    available does not mean a cold session will call it, and a role that
-    re-derives what it was already given wastes a turn. Tools are for going
-    deeper than the push.
+    Split out of `build_prompt` so that a reader of the register can compose
+    it. The cassette key covers this text, and `prompt_hash` covers the brief
+    alone, which is a strict prefix of it. So a tools edit moved the key and
+    left every result reading green against recordings the suite could no
+    longer replay (observed: frame 54, 117 of 117 cases, 2026-09-21).
+
+    The sandbox must already carry `_order`, because `signatures()` reads it.
+    `session_sandbox` sets it before it returns.
     """
     fns = "\n".join(f"  TOOL: {sig}" for sig in sb.signatures())
     system = (
@@ -310,6 +312,23 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             f"Emit no tool calls when you are done."
         )
     )
+    return system
+
+
+def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
+                 pushed: dict[str, Any], instructions: str,
+                 inbound: dict[str, Any] | None = None,
+                 oneshot: bool = False) -> tuple[str, str]:
+    """
+    System prompt = who you are and what you may do; user prompt = why you woke.
+
+    The working set is *pushed* rather than fetched. Having `model.consult()`
+    available does not mean a cold session will call it, and a role that
+    re-derives what it was already given wastes a turn. Tools are for going
+    deeper than the push.
+    """
+    system = compose_system(role, sb, instructions=instructions,
+                            oneshot=oneshot)
 
     body = [f"You were woken by: {wake.kind}"]
     if wake.message_id:
@@ -1896,6 +1915,65 @@ def _path_arg(sb: sandbox_mod.Sandbox, call: Any) -> str:
     return _norm_path(path) if isinstance(path, str) and path else ""
 
 
+def session_sandbox(conn: sqlite3.Connection, wake: Wake, *,
+                    mode: str | None = None,
+                    batch_id: str | None = None,
+                    area: str | None = None,
+                    session_id: str = "",
+                    entry_id: str | None = None,
+                    g: graph_mod.Graph | None = None) -> sandbox_mod.Sandbox:
+    """
+    One wake's sandbox, for the session and for every reader of its prompt.
+
+    The system text advertises `sb.signatures()`, and the cassette key covers
+    that text. So a second way to build this sandbox is a second system text.
+    The cockpit's prompt preview built its own, and its tool list differed
+    from the runner's for 18 of 121 cases (observed: frame 63's design
+    review, 2026-09-22).
+
+    `_order` is set here, before the function returns, because
+    `signatures()` reads it and a caller that set it afterwards would
+    advertise the tools in the wrong order.
+
+    `mode` is the sandbox's mode and not the prompt's piece. `readonly`
+    builds no write functions at all, so a caller that declares it changes
+    the advertised list. `session_id` and `entry_id` reach no line of the
+    system text, so a reader that only composes the text leaves them out.
+    """
+    # Law 11, decided by the wake rather than by the role: a survey is reading
+    # a codebase, so what it writes was found. Everything else was chosen.
+    from .scheduler import ONBOARDING_TICKS
+
+    # Passed only by a caller that is testing the mode itself, or by a case
+    # that declares one. Every other caller leaves it to the wake.
+    mode = mode or session_mode(wake)
+    sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
+                           session_id=session_id, entry_id=entry_id,
+                           onboarding=wake.kind in ONBOARDING_TICKS, g=g,
+                           # The subject the scheduler decided: an area for a
+                           # survey, `@program` for the orientation, `@term:x`
+                           # for a word. Never the role's to choose.
+                           area=area or (wake.refs[0]
+                                 if wake.kind in ONBOARDING_TICKS and wake.refs else None),
+                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
+                           wake=wake)
+    sb._order = prompts.mode_order(wake.role, _mode_key(wake, conn)) or []
+    # What this session is replying to, which is not always a message wake.
+    #
+    # A rung on the `unresolved` ladder is woken by a *tick* carrying the
+    # question in its refs, so `message_id` is None and everything the session
+    # sent came out with no cause. The chain then breaks exactly where it is
+    # needed: `schedule.reask` finds the answer by its cause and refuses --
+    # "the message that woke you is not a reply to a question you asked" -- so
+    # the asker cannot say the second answer missed either, and the ladder
+    # loops on one rung until quarantine. Measured on the click run, twice.
+    #
+    # Narrow on purpose: only a ref that actually resolves to a message counts.
+    # Every other tick carries artefact ids in `refs` and is unaffected.
+    sb.ctx.trigger = trigger_message(conn, wake)
+    return sb
+
+
 def run_session(
     conn: sqlite3.Connection,
     wake: Wake,
@@ -1957,36 +2035,10 @@ def run_session(
                 (f"e_{wake.message_id}",)).fetchone()
             entry_id = row["id"] if row else None
 
-    # Law 11, decided by the wake rather than by the role: a survey is reading
-    # a codebase, so what it writes was found. Everything else was chosen.
-    from .scheduler import ONBOARDING_TICKS
-
-    onboarding = wake.kind in ONBOARDING_TICKS
-
-    sb = sandbox_mod.build(wake.role, conn, mode=mode, batch_id=batch_id,
-                           session_id=session_id, entry_id=entry_id,
-                           onboarding=onboarding, g=g,
-                           # The subject the scheduler decided: an area for a
-                           # survey, `@program` for the orientation, `@term:x`
-                           # for a word. Never the role's to choose.
-                           area=area or (wake.refs[0]
-                                 if wake.kind in ONBOARDING_TICKS and wake.refs else None),
-                           allow=prompts.mode_tools(wake.role, _mode_key(wake, conn)),
-                           wake=wake)
-    sb._order = prompts.mode_order(wake.role, _mode_key(wake, conn)) or []
-    # What this session is replying to, which is not always a message wake.
-    #
-    # A rung on the `unresolved` ladder is woken by a *tick* carrying the
-    # question in its refs, so `message_id` is None and everything the session
-    # sent came out with no cause. The chain then breaks exactly where it is
-    # needed: `schedule.reask` finds the answer by its cause and refuses --
-    # "the message that woke you is not a reply to a question you asked" -- so
-    # the asker cannot say the second answer missed either, and the ladder
-    # loops on one rung until quarantine. Measured on the click run, twice.
-    #
-    # Narrow on purpose: only a ref that actually resolves to a message counts.
-    # Every other tick carries artefact ids in `refs` and is unaffected.
-    sb.ctx.trigger = trigger_message(conn, wake)
+    # The one composition, so that a reader of the register reaches the same
+    # working set and therefore the same system text.
+    sb = session_sandbox(conn, wake, mode=mode, batch_id=batch_id, area=area,
+                         session_id=session_id, entry_id=entry_id, g=g)
 
     claim(conn, wake.role, session_id, wake.message_id)
     if wake.message_id:
