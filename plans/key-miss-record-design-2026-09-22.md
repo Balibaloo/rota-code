@@ -160,8 +160,11 @@ misses the key, the miss is written, and the case reads `STALE` in the same
 run. **What it does not give**: a person who edits `push_working_set` and
 reads the report or the panel with no suite run in between still sees
 green. The system half does not have that gap, because frame 63's reader
-composes it on every read. This record says so, and the frame's status says
-which of the two Roman ruled (ruled: pending, asked 2026-09-22).
+composes it on every read. **Roman ruled the write-off** (ruled: Roman,
+2026-09-22, asked with three options and this one recommended: the gate
+replays first, so the miss record catches the drift on every gate run, and
+the cold read is the one gap that remains). The user-half composition is
+written off in this frame with that reason, and no frame carries it.
 
 **It does not touch `toolcheck`.** The scope report's fact 13 says
 `toolcheck` formats its error with `str()` and loses the `LLMUnavailable`
