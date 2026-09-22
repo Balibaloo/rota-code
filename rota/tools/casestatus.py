@@ -136,6 +136,10 @@ def holds_a_system_hash(conn: sqlite3.Connection) -> bool:
     `''` is a row written before the column existed. `unbuilt` is a session
     that died before it composed a prompt. Neither row says what the model was
     told, so neither turns the widened match on.
+
+    **The predicate is global, and not per case.** So a mixed register stales
+    every case that carries only legacy rows, because a legacy row cannot say
+    what text it measured.
     """
     if not carries_the_key(conn):
         return False

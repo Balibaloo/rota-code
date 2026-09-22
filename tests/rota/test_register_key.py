@@ -935,6 +935,37 @@ def test_the_preview_and_the_runner_advertise_one_working_set():
     assert not differ, f"the preview advertises another working set for {differ}"
 
 
+def test_a_case_that_runs_in_a_worktree_still_previews(monkeypatch):
+    """
+    The preview makes no worktree, because an HTTP request must not shell out
+    to git. So the push raises for a `repo:` case, and it raised for 10 of
+    121. This frame's corrected wake took two of them from previewing to
+    raising (observed: frame 63's pass 1, 2026-09-22).
+
+    A panel that raises shows a person nothing at all. The system text needs
+    no worktree, and it is the half that answers "what is this session told".
+    """
+    from rota.cockpit import progress
+
+    # The run history is the rest of the endpoint, and it reads every row of
+    # the register. This test is about the prompt.
+    monkeypatch.setattr(progress, "_runs", lambda *a, **k: {})
+
+    for case_id in ("L1-CR-challenge-a-claim",
+                    "L1-AR-a-boundary-file-read-outside-in"):
+        preview = progress.message_text(case_id)
+        assert "  TOOL: " in preview["system"], f"{case_id} advertises its tools"
+        assert "could not push the working set" in preview["push_error"]
+        assert "worktree" in preview["push_error"], "and says why"
+        assert preview["push_error"] in preview["user"], \
+            "the sentence reaches the panel a person reads"
+
+    # And the other way, or the catch would hide a push that never ran.
+    whole = progress.message_text("L1-LI-a-reply-reaches-the-desk-that-asked")
+    assert whole["push_error"] == "", "a case with no worktree pushes"
+    assert "could not push" not in whole["user"], "and the panel says nothing"
+
+
 def test_a_tools_edit_makes_a_case_read_stale(register, monkeypatch):
     """
     The fault, in one test. A `.tools` file names the functions a mode
@@ -991,6 +1022,38 @@ def test_an_unbuilt_row_never_turns_the_widened_match_on(register):
         "SELECT system_hash FROM case_runs").fetchone()["system_hash"] == UNBUILT
     assert not casestatus.holds_a_system_hash(register)
     assert _state() == "green"
+
+
+def test_a_mixed_register_stales_the_cases_that_carry_only_legacy_rows(
+        tmp_path, monkeypatch):
+    """
+    The guard is global, so one real hash anywhere turns the match on for
+    every case. A case whose rows are all legacy then matches nothing and
+    reads stale.
+
+    That is the honest answer and it is emergent, which is why it is pinned
+    here. A legacy row cannot say what text it measured, so it is not evidence
+    about the text the tree composes now. Reading it as evidence is the fault
+    this frame repairs, in a new place.
+    """
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    monkeypatch.setattr(paths, "DEV_DB", tmp_path / "mixed.db")
+    legacy = dict(CASE, id="L1-LI-a-row-from-before-the-column")
+    current = dict(CASE, id="L1-LI-a-row-that-says-what-it-measured")
+    monkeypatch.setattr(casestatus, "_cases", lambda: [legacy, current])
+
+    db = open_dev_db(tmp_path / "mixed.db")
+    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+        fixtures.instructions_for(CASE))
+    record_case_run(db, legacy["id"], stamp, 1, True, [], [{"say": "ok"}],
+                    system="")
+    record_case_run(db, current["id"], stamp, 1, True, [], [{"say": "ok"}],
+                    system=fixtures.system_text_for(current))
+
+    assert casestatus.holds_a_system_hash(db), "one real hash turns it on"
+    state = {r["id"]: r["state"] for r in casestatus.status(MODEL)}
+    assert state[current["id"]] == "green"
+    assert state[legacy["id"]] == "STALE", "unmeasured, and not bad"
 
 
 def _cases_with_a_row() -> list[dict]:

@@ -491,8 +491,16 @@ def message_text(case_id: str) -> dict:
     Built on request rather than served with every case, because it costs a
     temporary database and a sandbox per case and almost nobody wants all
     fifty-nine at once.
+
+    **A case that runs in a worktree still previews.** The push is the only
+    part that needs the repository, and this preview makes no worktree,
+    because an HTTP request must not shell out to git. So the push is caught
+    and the preview says what is missing. It raised for 10 of 121 cases, and
+    a panel that raises shows a person nothing at all (frame 63,
+    2026-09-22).
     """
     from ..core.runner import build_prompt, push_working_set, resolve_inbound
+    from ..core.worktrees import WorktreeError
 
     case = next((c for c in _cases() if c["id"] == case_id), None)
     if case is None:
@@ -503,15 +511,31 @@ def message_text(case_id: str) -> dict:
     mode = fixtures.mode_of(spec if case.get("first") else case)
 
     conn, wake, sb = preview_sandbox(case)
-    pushed = push_working_set(role, sb, wake)
+    pushed: dict = {}
+    gap = ""
+    try:
+        pushed = push_working_set(role, sb, wake)
+    except WorktreeError as exc:
+        # Narrow on purpose. A worktree this preview never builds is the one
+        # failure a preview can answer for. Every other failure here is a
+        # fault in the push, and it must still reach the reader as one.
+        gap = (f"[the cockpit could not push the working set: {exc}. "
+               f"This case runs in a git worktree, and a preview makes none. "
+               f"The results the session is handed are missing from the "
+               f"prompt above. Everything else is what the session is told.]")
     system, user = build_prompt(role, sb, wake, pushed,
                                 prompts.compose(role, mode),
                                 resolve_inbound(conn, wake))
     conn.close()
+    # The size of the prompt, and not the size of the note below it. The
+    # number answers "how much of the window does this session spend".
+    size = len(system) + len(user)
+    if gap:
+        user = f"{user}\n\n{gap}"
     return {
-        "system": system, "user": user,
-        "chars": len(system) + len(user),
-        "tokens": (len(system) + len(user)) // 4,
+        "system": system, "user": user, "push_error": gap,
+        "chars": size,
+        "tokens": size // 4,
         # The prose travels with the case you opened rather than with the list.
         # Carried for all fifty-nine, the source and both prompts made
         # `/cases.json` 1.2 MB -- fetched every time the tab is opened, to
