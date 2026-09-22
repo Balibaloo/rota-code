@@ -739,6 +739,30 @@ a different question and the night is then opened once.
   `plans/key-miss-record-design-2026-09-22.md` at `d53a9c6`, revision 1
   with the ruling written in. One `reviewer` agent reads it against nine
   numbered points, capped at 100k.
+- Status 2026-09-22 19:51 (rota-69): **the design review is in, and it found
+  a race this session had called "no worse".** Meta workflow. 134k from the
+  harness line, against a 100k cap. The record is revision 2 and every one
+  of the review's eight changes is in it.
+  **The race is real and it is today's** (observed: the review's probe, four
+  processes and 400 inserts each against the design's schema, 2 duplicate
+  `seq` values and 3 `IntegrityError`, 2026-09-22). The gate drops `ROTA_L1`
+  from the child's environment, the plugin forces `-n0` only under it, so the
+  gate's suite runs `-n auto` and four tier files write the live register from
+  four workers (observed: this session's read of `pytest.ini`,
+  `rota/tools/gate.py:44-50` and `rota_serial_plugin.py:263`, 2026-09-22).
+  `case_runs` tolerates a duplicate `seq` through its composite key. Revision
+  1's `seq INTEGER PRIMARY KEY` would have refused it inside a tier test and
+  made a new red. **Revision 2 allocates `seq` in one statement for both
+  tables and gives the miss the same composite key.**
+  **Three more findings, each a hole in the rule.** The miss filter was
+  narrower than the match key, so a revert or a run under other pins would
+  read a false `STALE`. The panel never calls `status`, so a rule in `status`
+  alone would split the instruments again. `problems[0]` is not the miss:
+  `check` writes first and `session did not commit` last (observed:
+  `rota/testkit/fixtures.py:1046-1050`, confirmed by this session,
+  2026-09-22).
+  **Estimate: 80k for the implementer pass, up from 60k.** Next: the
+  implementer brief.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
