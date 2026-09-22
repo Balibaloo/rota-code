@@ -408,6 +408,41 @@ a different question and the night is then opened once.
   **Next: the diff review on a worktree at `01ca9fc`, then the walk.** The
   walk is a full night, because `session_sandbox` is on every seat's wake and
   not on one phase.
+- Status 2026-09-22 18:03 (rota-dc): **the diff review is in, and it found
+  three high faults that the gate could not see.** Meta workflow. 145k. A fix
+  pass is running. **The frame does not close on a green gate, and this is the
+  case that shows why.**
+  **It confirmed the two things the frame rests on.** The split preserves the
+  system text byte for byte, over 270 comparisons at both `oneshot` settings
+  (observed: the review's probe 1, 2026-09-22). And no caller reaches
+  `session_sandbox` with a mode the old code would not have used.
+  **High 1: a partly migrated register reads FAIL where it must read STALE**
+  (observed: the review's probe 4, a register of 3 legacy rows and 2 current
+  rows, 2026-09-22). The widened match shrinks the denominator below the
+  threshold, and an unmeasured case then renders as a red. **That is the exact
+  distinction frame 54 existed for.** The design anticipated the shrinking for
+  an `unbuilt` row and answered it with a clause that does not reach a legacy
+  row.
+  **High 2: the chain replay's blanket catch hides the fault it was built to
+  catch** (observed: the review's probe 5, 2026-09-22). With the replay
+  raising, the chain reads green and the gate's stale set is empty. **So the
+  gate can pass while a chain cannot be replayed, and nothing says the
+  fallback happened.** This session wrote that catch into the design and
+  judged the weakness small. The probe shows it is not small.
+  **High 3: every report leaks a temp directory per chain, and one holds a git
+  checkout** (observed: the review's probe 6, two leaked directories found in
+  `%TEMP%`, 2026-09-22). `run_chain` never closes its connection, Windows then
+  refuses the delete, and `ignore_errors=True` hides the refusal. About 3 MiB
+  and a stray git checkout on every gate run.
+  **And one test is weaker than it reads.** The parity test compares two calls
+  that pass textually identical arguments, so it is a change detector. It also
+  fails for all 117 cases under `ROTA_ONESHOT=1`, because it holds
+  `oneshot=False` while the reader reads the environment. Acceptance 4's own
+  test **skips** on a fresh checkout, because the register is gitignored.
+  **The lesson for the meta workflow, and it is not new.** Two gate runs and a
+  design review passed this code. A read-only reviewer on a worktree found
+  three high faults in it. **A green gate is not a judgement** (observed: this
+  frame and frame 54's diff review, 2026-09-21 and 2026-09-22).
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
