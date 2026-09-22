@@ -785,9 +785,12 @@ a different question and the night is then opened once.
   the count says the backfill is not possible.
   **Ends when, revised**: the full key is composed for all 128 cases and the
   rows at it are counted, 30k; the design record for frames 68 and 69 is
-  written and reviewed, 110k. **The count runs after the night**, because it
-  needs the 10 `repo:` cases' worktrees and the click checkout is the
-  night's.
+  written and reviewed, 110k. **The count runs beside the night.** The
+  status first said it waits, because the 10 `repo:` cases need a worktree.
+  That worktree is a `gitfixture` template in the case's own temporary
+  directory and not the click checkout (observed: `_with_repo` at
+  `rota/testkit/fixtures.py:706`, 2026-09-22). The count reads the register
+  and writes nothing the night reads.
   **One warning that this frame owes the next two.** Frame 54 was priced at
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
