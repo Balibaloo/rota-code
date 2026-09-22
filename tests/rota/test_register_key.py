@@ -922,17 +922,67 @@ def test_the_preview_and_the_runner_advertise_one_working_set():
     cases = [c for c in progress._cases() if not c.get("first")]
     assert len(cases) > 100, "the panel reads every L1 case"
 
+    # The flag changes the last paragraph of the system text, and the reader
+    # takes it from the environment. Holding it False here compared one text
+    # under the flag with one without it, and every case differed under
+    # `ROTA_ONESHOT=1` (observed: frame 63's diff review, 2026-09-22).
+    oneshot = bool(os.environ.get("ROTA_ONESHOT"))
+
     differ = []
     for case in cases:
         conn, _wake, sb = progress.preview_sandbox(case)
         try:
-            preview = compose_system(case["role"], sb,
+            preview = compose_system(case["role"], sb, oneshot=oneshot,
                                      instructions=fixtures.instructions_for(case))
         finally:
             conn.close()
         if preview != fixtures.system_text_for(case):
             differ.append(case["id"])
     assert not differ, f"the preview advertises another working set for {differ}"
+
+
+def test_the_runner_and_the_reader_build_one_sandbox(tmp_path, monkeypatch):
+    """
+    Acceptance 1 names the runner's sandbox, and no other test holds one. The
+    reader's is `system_text_for`'s and the preview's is the panel's, so both
+    of those could agree with each other and disagree with the session.
+
+    The sandbox is taken from `run_session`'s own path, by a scripted session
+    that reaches the model with a word. The four cases are the shapes that
+    reach the sandbox by another route: a declared `mode: readonly`, an
+    onboarding tick that names an area, a mode whose `.tools` file declares an
+    order, and a plain message wake.
+    """
+    from rota.core import runner
+    from rota.llm.llm import ScriptedBackend
+
+    seen: list[list[str]] = []
+    real = runner.session_sandbox
+
+    def remember(*args, **kw):
+        sb = real(*args, **kw)
+        seen.append(sb.signatures())
+        return sb
+
+    monkeypatch.setattr(runner, "session_sandbox", remember)
+    by_id = {c["id"]: c for c in casestatus._cases()}
+
+    for case_id in ("L1-TE-challenge-an-unusable-item",
+                    "L1-VK-survey-an-area-for-what-it-does",
+                    "L1-LI-plain-agreement-approves-every-line",
+                    "L1-LI-a-reply-reaches-the-desk-that-asked"):
+        case = by_id[case_id]
+        seen.clear()
+        fixtures.system_text_for(case)
+        reader = seen[-1]
+
+        seen.clear()
+        fixtures.run_case(case, tmp_path / f"{case_id}.db",
+                          ScriptedBackend(["done"]),
+                          pins=Pins(model="scripted", temperature=0.0,
+                                    num_ctx=4096))
+        assert seen, f"{case_id} never reached the one setup"
+        assert seen[0] == reader, f"{case_id}: the session and the reader differ"
 
 
 def test_a_case_that_runs_in_a_worktree_still_previews(monkeypatch):
@@ -957,12 +1007,14 @@ def test_a_case_that_runs_in_a_worktree_still_previews(monkeypatch):
         assert "  TOOL: " in preview["system"], f"{case_id} advertises its tools"
         assert "could not push the working set" in preview["push_error"]
         assert "worktree" in preview["push_error"], "and says why"
+        assert preview["partial"] is True, "the size is a floor and says so"
         assert preview["push_error"] in preview["user"], \
             "the sentence reaches the panel a person reads"
 
     # And the other way, or the catch would hide a push that never ran.
     whole = progress.message_text("L1-LI-a-reply-reaches-the-desk-that-asked")
     assert whole["push_error"] == "", "a case with no worktree pushes"
+    assert whole["partial"] is False, "and the size is the whole prompt"
     assert "could not push" not in whole["user"], "and the panel says nothing"
 
 
@@ -1054,6 +1106,77 @@ def test_a_mixed_register_stales_the_cases_that_carry_only_legacy_rows(
     state = {r["id"]: r["state"] for r in casestatus.status(MODEL)}
     assert state[current["id"]] == "green"
     assert state[legacy["id"]] == "STALE", "unmeasured, and not bad"
+
+
+def test_a_partly_migrated_case_reads_stale_and_never_fails(tmp_path,
+                                                            monkeypatch):
+    """
+    A shrunk denominator is unmeasured, and never a failure.
+
+    One case can hold both kinds of row. The widened match then keeps fewer
+    rows than the threshold, and the count renders as a red: 3 legacy rows and
+    2 current ones read FAIL on 2 of 2 against a threshold of 3 (observed:
+    frame 63's diff review, 2026-09-22). That is the distinction frame 54
+    exists for. Stale means nobody has looked since the text moved. Failing
+    means somebody looked and the role got it wrong.
+    """
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    monkeypatch.setattr(paths, "DEV_DB", tmp_path / "half.db")
+    case = dict(CASE, runs=5, **{"pass": 3})
+    monkeypatch.setattr(casestatus, "_cases", lambda: [case])
+
+    db = open_dev_db(tmp_path / "half.db")
+    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+        fixtures.instructions_for(case))
+    text = fixtures.system_text_for(case)
+    for run in (1, 2, 3):
+        record_case_run(db, case["id"], stamp, run, True, [], [{"say": "ok"}],
+                        system="")
+    for run in (4, 5):
+        record_case_run(db, case["id"], stamp, run, True, [], [{"say": "ok"}],
+                        system=text)
+
+    row = casestatus.status(MODEL)[0]
+    assert row["state"] == "STALE", "two of five rows is not a measurement"
+    assert row["passed"] is None, "and it carries no score to quote"
+
+
+def test_a_chain_that_cannot_replay_reads_stale_and_says_why(tmp_path,
+                                                             monkeypatch):
+    """
+    The first version fell back to the narrow match when the replay died, so a
+    chain that nothing could replay read green and the gate's stale set stayed
+    empty (observed: frame 63's diff review, 2026-09-22). The silence was the
+    fault, and the fallback was what made it silent.
+    """
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
+    monkeypatch.setattr(paths, "DEV_DB", tmp_path / "chain.db")
+    # One row is the whole measurement here, so the threshold is one. The
+    # chain's own threshold is five runs of a model this test never calls.
+    chain = dict(next(c for c in casestatus._cases() if c.get("first")),
+                 runs=1, **{"pass": 1})
+    monkeypatch.setattr(casestatus, "_cases", lambda: [chain])
+    recorded = "the text the run recorded"
+
+    db = open_dev_db(tmp_path / "chain.db")
+    record_case_run(db, chain["id"], casestatus.wanted_pins(chain, MODEL), 1,
+                    True, [], [{"say": "ok"}], system=recorded)
+
+    # The control first, or a stale reading below could come from the stub.
+    monkeypatch.setattr(fixtures, "run_chain",
+                        lambda *a, **k: fixtures.CaseResult(
+                            case_id=chain["id"], run=1, passed=True,
+                            systems=[recorded]))
+    assert casestatus.status(MODEL)[0]["state"] == "green"
+
+    def refuses(*args, **kwargs):
+        raise RuntimeError("no cassette for the first leg")
+
+    monkeypatch.setattr(fixtures, "run_chain", refuses)
+    row = casestatus.status(MODEL)[0]
+    assert row["state"] == "STALE", "a chain nothing can replay is unmeasured"
+    assert "could not be replayed" in row["why"], "and the report says so"
+    assert "no cassette for the first leg" in row["why"], "and names the reason"
 
 
 def _cases_with_a_row() -> list[dict]:

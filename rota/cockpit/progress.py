@@ -529,6 +529,10 @@ def message_text(case_id: str) -> dict:
     conn.close()
     # The size of the prompt, and not the size of the note below it. The
     # number answers "how much of the window does this session spend".
+    #
+    # `partial` says the number is a floor. A push that did not run is the
+    # biggest part of a real prompt, so a reader who compares this count
+    # against a window needs to know one is missing.
     size = len(system) + len(user)
     if gap:
         user = f"{user}\n\n{gap}"
@@ -536,6 +540,7 @@ def message_text(case_id: str) -> dict:
         "system": system, "user": user, "push_error": gap,
         "chars": size,
         "tokens": size // 4,
+        "partial": bool(gap),
         # The prose travels with the case you opened rather than with the list.
         # Carried for all fifty-nine, the source and both prompts made
         # `/cases.json` 1.2 MB -- fetched every time the tab is opened, to

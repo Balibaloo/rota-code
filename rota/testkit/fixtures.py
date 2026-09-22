@@ -1147,6 +1147,12 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             if repo is not None:
                 from . import gitfixture as _gf
                 _gf.cleanup(repo)
+            # Closed before every return, because the caller deletes the
+            # directory this database sits in. Windows refuses to delete an
+            # open file, and `casestatus` leaked a directory per chain on
+            # every report and every gate (observed: frame 63's diff review,
+            # 2026-09-22). The result below holds no row of it.
+            conn.close()
             return CaseResult(case_id=case.get("id", "?"), run=run_no,
                               passed=not problems, problems=problems,
                               delta=a_delta, outcome=a_out,
@@ -1161,6 +1167,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             if repo is not None:
                 from . import gitfixture as _gf
                 _gf.cleanup(repo)
+            conn.close()
             return CaseResult(case_id=case.get("id", "?"), run=run_no,
                               passed=False, problems=problems,
                               delta=a_delta, outcome=a_out,
@@ -1175,6 +1182,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         if repo is not None:
             from . import gitfixture as _gf
             _gf.cleanup(repo)
+        conn.close()
         return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
                           problems=problems, delta=a_delta, outcome=a_out,
                           systems=[a_out.system])
@@ -1209,6 +1217,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         from . import gitfixture
         gitfixture.cleanup(repo)
 
+    conn.close()
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
                       delta=b_delta, outcome=b_out, notes=notes,

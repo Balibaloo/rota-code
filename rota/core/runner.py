@@ -1999,9 +1999,6 @@ def run_session(
     g = g or graph_mod.load()
     backend = backend or llm.default_backend()
     pins = pins or llm.Pins()
-    # Passed only by tests that are testing the mode itself; every real caller
-    # leaves it to the wake.
-    mode = mode or session_mode(wake)
     pins = routed_pins(conn, pins, wake)
 
     # Instructions = base + the piece for whatever woke this session. A role's
@@ -2036,7 +2033,9 @@ def run_session(
             entry_id = row["id"] if row else None
 
     # The one composition, so that a reader of the register reaches the same
-    # working set and therefore the same system text.
+    # working set and therefore the same system text. The mode is derived
+    # there and read back off the sandbox below, because a second derivation
+    # here could disagree with the tools the session was actually given.
     sb = session_sandbox(conn, wake, mode=mode, batch_id=batch_id, area=area,
                          session_id=session_id, entry_id=entry_id, g=g)
 
@@ -2950,7 +2949,10 @@ def run_session(
             # The brief as it was on disk when this ran, so two runs can be
             # told apart by the only other thing that shapes an artefact.
             briefs_hash=_briefs_hash(instructions),
-            mode=mode,
+            # The mode the sandbox applied, and not the argument. A caller
+            # that names none leaves it to the wake, and the record then says
+            # what the session could actually do.
+            mode=sb.ctx.mode,
             writes=[_as_write(w) for w in sb.ctx.writes],
             messages=_messages_from(sb, wake, session_id),
             tool_calls=sandbox_mod.drain_calls(sb.ctx),

@@ -207,8 +207,16 @@ def role(conn: sqlite3.Connection, role_id: str) -> dict[str, Any]:
     """
     What this role is, can do, is told, and has done.
 
-    The working set is built the same way a session builds it, so what is shown
-    here is what the model is actually handed — not a description of it.
+    **The working set here is the graph's ceiling, and not a session's.** It is
+    built from the functions the graph grants the role, with no mode, no wake
+    and no tool order. A session sees less and sees it in another order: its
+    mode narrows the list and its wake drops what does not apply, so this list
+    and a session's disagree for 18 of 121 cases, 11 by membership and 7 by
+    order (observed: frame 63's diff review, 2026-09-22).
+
+    So this answers "what can this role ever do". `runner.session_sandbox`
+    answers "what is this session handed", and it is the one the prompt
+    advertises.
     """
     g = graph_mod.load()
     node = g.nodes.get(role_id)

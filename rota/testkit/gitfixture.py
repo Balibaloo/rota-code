@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import atexit
 import shutil
+import stat
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -167,7 +168,12 @@ def _template() -> Path:
         # One per process, and under xdist that is one per worker. Left behind
         # they accumulate in the temp directory a run at a time, which is how a
         # test suite quietly becomes something that fills a disk.
-        atexit.register(shutil.rmtree, base, ignore_errors=True)
+        #
+        # It did. `shutil.rmtree(..., ignore_errors=True)` cannot delete a
+        # read-only file, git marks every object read-only, and 1435 of these
+        # templates were on this machine holding 86150 files (observed: frame
+        # 63's pass 3, 2026-09-22). The bit is cleared first now.
+        atexit.register(_drop_template, base)
     return _TEMPLATE
 
 
@@ -192,8 +198,35 @@ def make(tmp_path: Path, *, name: str = "sample") -> SampleRepo:
     return repo
 
 
+def _drop_template(base: Path) -> None:
+    """The process's sample template, deleted at exit. It is a git repository,
+    so the read-only bits come off first."""
+    _unlock(base)
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def _unlock(root: Path) -> None:
+    """
+    Clear the read-only bit git puts on the files in `.git/objects`.
+
+    Windows refuses to delete a read-only file, so the whole `.git` survived
+    every cleanup and `ignore_errors=True` hid the refusal. One chain left a
+    git checkout in the temp directory on every report and every gate
+    (observed: frame 63's pass 3, 2026-09-22).
+    """
+    for path in root.rglob("*"):
+        try:
+            path.chmod(stat.S_IWRITE | stat.S_IREAD)
+        except OSError:                                     # pragma: no cover
+            # A file something else holds. The delete below reports it.
+            pass
+
+
 def cleanup(repo: SampleRepo) -> list[str]:
     removed = repo.remove_worktrees()
     if is_temp_rooted(repo.root):
+        _unlock(repo.root)
+        # Teardown never fails a run. A residue that survives this is
+        # reported by whoever deletes the directory above it.
         shutil.rmtree(repo.root, ignore_errors=True)
     return removed

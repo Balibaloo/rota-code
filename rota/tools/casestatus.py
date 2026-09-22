@@ -217,9 +217,18 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     return list(conn.execute("".join(sql), args))
 
 
-def replayed_chain_text(conn: sqlite3.Connection, case: dict, want: Pins) -> str:
+#: What a chain's text is when the replay could not produce one. It is not a
+#: system text and no row can carry its digest, so the case reads STALE. A
+#: sentinel and not `''`, because `''` means "do not match on the text" and
+#: would hand the case back to the narrow match.
+REPLAY_FAILED = "<the chain did not replay>"
+
+
+def replayed_chain_text(conn: sqlite3.Connection, case: dict,
+                        want: Pins) -> tuple[str, str]:
     """
-    The system texts a chain actually reaches, by replaying it.
+    The system texts a chain actually reaches, by replaying it, and the reason
+    when it reaches none.
 
     A chain's recorded hash is not always over both legs. `run_chain` returns
     leg one's text alone when leg two never wakes, and
@@ -230,11 +239,14 @@ def replayed_chain_text(conn: sqlite3.Connection, case: dict, want: Pins) -> str
     would compare a one-leg digest against a two-leg digest for six of the
     seven chains and force all seven to re-record.
 
-    **One known weakness, stated so nobody is surprised.** A replay that dies
-    for a reason that is not about the text still carries a real system text,
-    so this report can read a matching hash out of a broken run and print
-    green. A composing report cannot do that. The chains are 7 of 128, and
-    this is the price of matching what the column means.
+    **A failed replay is loud.** The first version fell back to the narrow
+    match, so a chain that nothing could replay read green and the gate's
+    stale set stayed empty (observed: frame 63's diff review, 2026-09-22).
+    Silence is what made that dangerous. The sentinel matches no row, the case
+    reads STALE, and the reason travels with it to the report's own line.
+
+    The report stays alive either way, because the gate reads this line and a
+    report that dies takes the gate with it.
 
     The replay runs here and in the gate, and never in the cockpit's panel. A
     chain that declares `repo:` shells out to git, and an HTTP request must
@@ -243,17 +255,25 @@ def replayed_chain_text(conn: sqlite3.Connection, case: dict, want: Pins) -> str
     from ..llm.cassettes import ReplayOnlyBackend
 
     work = tempfile.mkdtemp()
+    text, problem = "", ""
     try:
         result = fixtures.run_chain(case, Path(work) / "chain.db",
                                     lambda: ReplayOnlyBackend(conn), pins=want)
-        return result.system_text()
-    except Exception:
-        # A replay that cannot run says nothing about the text, so this case
-        # keeps the narrow match. The gate reads this line for its stale
-        # count, and a report that dies here would take the gate with it.
-        return ""
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+        text = result.system_text()
+        if not text:
+            problem = "the replay reached no system text"
+    except Exception as exc:
+        problem = f"the chain could not be replayed: {exc}"
+
+    try:
+        # No `ignore_errors`: a directory that will not delete means something
+        # still holds the database inside it. That leak ran on every report
+        # and every gate, and the flag is what hid it.
+        shutil.rmtree(work)
+    except OSError as exc:
+        leaked = f"the replay's working directory did not delete: {exc}"
+        problem = f"{problem}. {leaked}" if problem else leaked
+    return (text or REPLAY_FAILED), problem
 
 
 def status(model: str = "") -> list[dict]:
@@ -272,18 +292,34 @@ def status(model: str = "") -> list[dict]:
         if not role:
             continue
         want = wanted_pins(case, model)
-        system = ""
+        system, replay_problem = "", ""
         if widen:
-            system = (replayed_chain_text(conn, case, want) if case.get("first")
-                      else fixtures.system_text_for(case))
+            if case.get("first"):
+                system, replay_problem = replayed_chain_text(conn, case, want)
+            else:
+                system = fixtures.system_text_for(case)
         here = matching_runs(conn, case, want, system=system)
         ever = conn.execute(
             "SELECT COUNT(*) n FROM case_runs WHERE case_id = ?",
             (case["id"],)).fetchone()["n"]
 
         threshold = case.get("pass", 3)
+        # What the narrow match would have counted, for the one question the
+        # widened match cannot answer by itself: did the register shrink?
+        narrow = matching_runs(conn, case, want) if system else here
+
         if not here:
             state = "STALE" if ever else "NEW"
+            passed = None
+        elif len(here) < threshold <= len(narrow):
+            # A shrunk denominator is unmeasured, and never a failure. This is
+            # the distinction frame 54 exists for: stale means nobody has
+            # looked since the text moved, and failing means somebody looked
+            # and the role got it wrong. A partly migrated register holds
+            # legacy rows the widened match drops, and a case with 3 legacy
+            # rows and 2 current ones rendered as a red on 2 of 2 (observed:
+            # frame 63's diff review, 2026-09-22).
+            state = "STALE"
             passed = None
         else:
             passed = sum(r["passed"] for r in here)
@@ -296,7 +332,11 @@ def status(model: str = "") -> list[dict]:
                 state = "PROV"
 
         why = ""
-        if state == "FAIL":
+        if replay_problem:
+            # A chain that could not replay says so on its own line, whatever
+            # state it reached. The report prints `why` for every state.
+            why = replay_problem
+        elif state == "FAIL":
             problems = [p for r in here for p in json.loads(r["problems"] or "[]")]
             why = problems[0] if problems else ""
 
