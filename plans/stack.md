@@ -450,6 +450,52 @@ a different question and the night is then opened once.
   over, so the gate can run. **This session reads 272k.** The pass and its
   judgement fit before the 300k line. At 300k this session finishes this
   frame and takes no other, so frame 70's repair goes to the next holder.
+- Status 2026-09-22 21:11 (rota-69): **pass 1 is in, and all twelve
+  acceptance lines hold by the implementer's report. This session's gate is
+  running before the commit.** Meta workflow. 174k for the pass, from the
+  harness line. 533 insertions and 29 deletions over four files.
+  **The implementer's gate**: 24 failed against a baseline of 25, 2212
+  passed, zero new reds, one red gone in `test_screens.py`, **stale 1**, the
+  probe's own case, 530.4 s. **The stale line names
+  `L1-VK-an-outside-fact-is-the-researchers`, written by the gate's own
+  replay and not by hand**, so the claim that every gate run refreshes the
+  stale line is observed end to end. The report reads 20 failing, 1 stale,
+  105 green, where it read 21 failing and 0 stale.
+  **Spot reads by this session** (observed: `rota/llm/cassettes.py:498-547`
+  and `rota/tools/casestatus.py:349-420`, 2026-09-22). `_NEXT_SEQ` is one
+  subquery over both tables inside each `INSERT ... SELECT`, and the rule in
+  `status` runs after the state and before `why`, exactly as revision 3
+  says. The miss filter and the run filter share `_key_clauses`, so they
+  cannot drift apart.
+  **Two facts the implementer found that the record did not know.** A replay
+  miss carries both markers in one string, so `MISS_MARKERS` is ordered and
+  the order decides the kind. And the race test at 4 processes and 25 writes
+  gave 1 to 2 duplicate `seq` values on the old allocation in each of three
+  runs, and none on the new one.
+  **One deviation refused nothing and improved the record.** The race test
+  uses `subprocess` and not `multiprocessing`, because a spawned child would
+  import the test module, which opens the real register at import.
+  **Next: this session's gate, then the commit, then a diff review on a
+  worktree.** The frame touches the write pipeline and a predicate, so the
+  diff review is required.
+- Status 2026-09-22 21:21 (rota-69, the table now prints `Rota 63`): **the
+  gate agrees, the code is committed at `49b5629`, and the diff review is
+  running.** Meta workflow.
+  **The gate, run by this session at the implementer's tree**: 24 failed
+  against a baseline of 25, 2212 passed, **zero new reds**, one red gone in
+  `test_screens.py`, **stale 1**, `L1-VK-an-outside-fact-is-the-researchers`,
+  567.3 s, baseline `b82565d`. The same five lines the implementer read.
+  The one stale is the repair working on a live case.
+  **This session crossed 300k with this status.** `peers` read once: **2
+  free standby**, `rota-76` and `rota-7f`, armed at 18:45 (observed:
+  2026-09-22 21:21). So the hand-off has a seat when this session reaches
+  400k. **This session finishes frame 64 and takes no other frame.** Frame
+  70's repair, 30k and a re-record of 9 cases, goes to the next holder, and
+  frames 55, 65 and 66 with it.
+  **The diff review** reads `49b5629` on a worktree against nine points,
+  capped at 150k. The frame closes on its findings, a fix pass if any are
+  high, and no walk: the change is in the register's writer and readers,
+  which no seat wakes through.
 
 ### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22)
 
