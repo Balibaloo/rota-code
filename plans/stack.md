@@ -641,6 +641,46 @@ a different question and the night is then opened once.
   repair.
   **Ends-when status**: the cause is named in this record. The case is not yet
   re-earned or written off, because that decision follows the confirming test.
+- Status 2026-09-22 19:05 (rota-19): **the status above is wrong and this one
+  replaces it. The card is not the cause.** Meta workflow. Roman said the
+  Titan probably runs a different engine, this session started a server on it,
+  and the test refuted the hypothesis instead of confirming it.
+  **The Titan fails the same way as the 3080** (observed: one call at the
+  recorded key on `GPU-dc5a579d`, 2026-09-22). It returns 1826 characters,
+  **zero `TOOL:` markers** and zero `code.source`, against the 3080's 1636 and
+  the recording's 9535 with 49 markers. Both cards give the same prose-first
+  shape. **So the earlier status's conclusion is withdrawn.** It was marked
+  (reasoned) and it did not survive its own confirming test, which is what
+  that mark is for.
+  **The real axis is the thinking mode** (observed: three calls at
+  temperature 0 on the 3080, 2026-09-22). `think=True` returns 2638 characters
+  with **12 `TOOL:` markers**. `think=False` returns 1636 with **zero**.
+  `think=None`, which is what the recording was keyed at, returns zero today.
+  **And the recording has 49 markers and no `<think>` block**, so it was
+  earned with thinking on and the block stripped.
+  **So the key records `think` as unset, and unset is not a value.** It
+  resolves at the server, and the server's resolution has changed (reasoned:
+  the measurements above, with the version change not yet observed directly,
+  2026-09-22). `think_for('qwen3:8b')` returns `None`, `pins.extras()` is then
+  empty, and the backend sends no `think` parameter at all. **A key that omits
+  a field cannot pin it.**
+  **Why the binary dates did not catch this.** `ollama.exe` is dated
+  2026-09-03 and the recording is later, so the file looks innocent. A server
+  process started before that date keeps running the old code until something
+  restarts it, and Roman restarted Ollama today (reasoned: the file date and
+  the restart, 2026-09-22). So the recording's server and today's server can
+  be two different Ollama versions with one binary date between them.
+  **The repair this points to, for whoever takes it.** Pin `think` explicitly
+  in `think_for` rather than returning `None`, so the value the model ran
+  under is in the key and in the record. Every recording made at `think=None`
+  is then keyed to a resolution nobody wrote down, which is the same class of
+  fault as frame 63's, one level down.
+  **What is measured and what is not.** Measured: the two cards agree, the
+  thinking mode changes the marker count, the recorded completion carries no
+  `<think>` block, and the key matches on every field it names. Not measured:
+  which Ollama version made the recording, and whether `think=True` restores
+  the case to green. **The second one is the next step and it is a re-record,
+  not a probe.**
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
