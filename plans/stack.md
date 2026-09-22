@@ -383,6 +383,31 @@ a different question and the night is then opened once.
   2026-09-22). **If an allow rule was added on purpose, it is gone.**
   **Pass 1 crashed once on a 529 and lost nothing.** The tree held the work,
   and the resume carried the delta and a required re-read.
+- Status 2026-09-22 17:48 (rota-dc): **pass 2 is in, judged and committed at
+  `01ca9fc`, and the diff review is running.** Meta workflow. 245k for the
+  pass, from the harness line.
+  **The gate, run by this session at the pass's tree**: **24 failed against a
+  baseline of 25**, 2199 passed, **zero new reds**, **zero stale**, 550.3 s.
+  The suite is one red better than the baseline it was measured against.
+  **Both of this session's findings are closed.** The preview catches
+  `WorktreeError` only and renders the prompt with the gap named. **All 123
+  previews now render and 10 name the gap, so the panel is more available
+  than this frame found it** (observed: the implementer's direct measurement
+  over the panel, 2026-09-22). The mixed register has a test and a docstring
+  that state it.
+  **One fact this session checked rather than took** (observed:
+  `rota/cockpit/static/panels.js:1308-1312`, 2026-09-22). The panel renders
+  `m.user`, `m.base` and `m.mode_brief`, and it never renders `m.system`. So
+  the note about the missing working set had to go into the user prompt, and
+  a new key alone would have been invisible to the person the fix is for. The
+  implementer reasoned this out and this session confirmed it.
+  **The same fact narrows an earlier claim.** The design review's "18 of 121
+  cases advertise a different tool list" was true of the endpoint and of its
+  `chars` and `tokens`, and not of anything the panel draws. The repair is
+  still right, because the endpoint is the one composition now.
+  **Next: the diff review on a worktree at `01ca9fc`, then the walk.** The
+  walk is a full night, because `session_sandbox` is on every seat's wake and
+  not on one phase.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
