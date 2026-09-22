@@ -520,6 +520,13 @@ a different question and the night is then opened once.
   This session does not start the night unasked.
   **This session also takes frame 55**, which the sending session held and
   left open. One session holds the stack.
+- Status 2026-09-22 19:22 (rota-1e): **Roman ruled again that the walk waits
+  for his word** (ruled: Roman, asked with three options and "start the night
+  now" recommended, 2026-09-22). Meta workflow. The frame stays open as
+  validating and no night runs in this session until he names the hour.
+  **So this session takes work that needs no GPU.** Frame 64, the user prompt
+  is the other half of the cassette key, is next in batch A and its count
+  needs no model call.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
@@ -868,6 +875,15 @@ a different question and the night is then opened once.
   re-earned nor written off. A write-off now would say the model lost a
   capability, and the measurement says something weaker and worse: the answer
   at a fixed key moves on its own.
+- Status 2026-09-22 19:22 (rota-1e): **Roman knows of no change to the machine
+  in the window** (ruled: Roman, asked with three options, 2026-09-22). Meta
+  workflow. He was asked whether Ollama was updated or restarted, whether the
+  GPU setup changed, or neither, and he answered neither.
+  **So the drift has no named cause on the machine, and this record says so.**
+  The finding stands on its own and it does not need one: the cassette key
+  pins the model, the window, the temperature, the protocol and the extras,
+  and it pins nothing about the server that answers. A recording is evidence
+  about a server this repository never names.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
