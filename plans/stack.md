@@ -473,8 +473,8 @@ a different question and the night is then opened once.
   confirmation over 10 cases, 15k with the probe script. The repair and its
   tests, 60k. A re-record of the 10 cases, GPU.
 - Waits on: nothing. Frame 64's count found it.
-- Reasoning: frame 64's status of 2026-09-22 20:20, and the probe script in
-  session 41cb5184's scratchpad.
+- Reasoning: frame 64's status of 2026-09-22 20:20, and the probe script at
+  `probes/frame64/probe64_miss.py`, beside the two count scripts.
 - Status 2026-09-22 20:20 (rota-69): pushed by 41cb5184, unclaimed. **The
   night holds the GPU, and the confirmation needs none.**
 - Status 2026-09-22 20:33 (rota-69): **taken by 41cb5184 at Roman's word, and
