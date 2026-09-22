@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 63. One composition of the system text (2026-09-21) [2062c482]
+### 63. One composition of the system text (2026-09-21)
 
 - **Batch A's successor. It is the half of frame 54 that could not close.**
 - Meta workflow. A cassette is keyed by the whole system text the model
@@ -527,8 +527,21 @@ a different question and the night is then opened once.
   **So this session takes work that needs no GPU.** Frame 64, the user prompt
   is the other half of the cassette key, is next in batch A and its count
   needs no model call.
+- Status 2026-09-22 19:28 (rota-1e): **handed off at Roman's word. Session
+  2062c482 stops at about 130k.** Meta workflow.
+  **What the holder inherits, and frame 64 is the one with work in flight.**
+  Frame 63 is unchanged and still validating, and **the night still waits for
+  Roman's word.** Frame 55's cause is named and its write-off is open. Frame
+  64 is claimed, designed in prose and not coded. Frames 65 and 66 carry
+  counts and no code.
+  **One probe profile is left on disk**, at
+  `C:\Users\roman\.rota\profiles\think-on.toml`. Frame 55's re-record needs
+  it. Delete it when frame 55 closes.
+  **The register grew by about 600 rows** from this session's replay runs, all
+  of them replays. Nothing else in the tree changed. No code was touched by
+  this session at all.
 
-### 64. The user prompt is the other half of the cassette key (2026-09-22) [2062c482]
+### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
 - **Batch A, the cassette key. Pushed by frame 63, which found it and did not
   do it.**
@@ -617,6 +630,35 @@ a different question and the night is then opened once.
   no-cassette rows by hand and asked the report about them. The rows were
   faithful to the SQL and false to the system, because no writer makes them.
   **A probe of a state the code never reaches measures the probe.**
+- Status 2026-09-22 19:27 (rota-1e): **handing off. This is the one frame that
+  carries this session's work in flight, and the heading is unclaimed on
+  purpose.** Meta workflow. Roman asked for the hand-over.
+  **Where the design stands.** The repair is to record the unmeasured run
+  instead of dropping it, with a sentinel that marks it unmeasured, so the
+  report can tell "somebody looked and the key missed" from "nobody has
+  looked". Frame 63's `unbuilt` sentinel in `system_hash` is the pattern to
+  copy. **The design record is not written and no code is touched.**
+  **The one danger the design must answer.** The write-time guard exists
+  because a `passed = 0` row turns an unmeasured case into a hard red. Every
+  reader that counts `passed` must exclude the new row or change. Twelve files
+  hold the string `case_runs`, nine in `rota/` and three in `tests/`.
+  **Two jobs were running when this session stopped, and both are cheap to
+  repeat.** Neither result reached a record, so treat both as not run.
+  1. A scope report on every reader of `case_runs`, by a general-purpose agent
+     on Opus, capped at 120k. It asks each reader what it filters on and
+     whether the new row corrupts it.
+  2. The count this frame asked for, which is how many cases cannot replay
+     today: `ROTA_MODEL=qwen3:8b python -m pytest tests/rota/test_l1.py
+     --tb=line -rfE -q`, about 6 minutes, then count the failures whose
+     message starts with `STALE`. **Set `ROTA_MODEL`.** Without it the file
+     runs at `llama3.1:8b` and 95 of 120 cases fail for want of a cassette
+     (observed: this session's first attempt, 2026-09-22).
+  **One correction to this frame's own push.** The push says the case "reads
+  green while the suite cannot replay it". The report reads green. The suite
+  does not: the test fails with `STALE <case>: no recording for the current
+  prompt`, and the gate counts that as a red. **So the acceptance catches it
+  and mislabels it, and the two instruments contradict each other.** That is
+  the cost, and it is smaller than a false green.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
@@ -715,7 +757,7 @@ a different question and the night is then opened once.
   while running frame 55's re-record, and it is the reason that re-record
   answered in 24 seconds rather than in five sessions.**
 
-### 55. A recorded green does not reproduce live (2026-09-20) [2062c482]
+### 55. A recorded green does not reproduce live (2026-09-20)
 
 - **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
 
@@ -944,6 +986,23 @@ a different question and the night is then opened once.
   pins the model, the window, the temperature, the protocol and the extras,
   and it pins nothing about the server that answers. A recording is evidence
   about a server this repository never names.
+- Status 2026-09-22 19:26 (rota-1e): **the drift is not a new finding, and
+  this frame spent three sessions rediscovering it.** Meta workflow.
+  `plans/operating-facts.md` already carries it, from 2026-09-09: "Ollama at
+  temperature 0 is deterministic within a model load, and not across two
+  loads", "Boundary cases flip per load", and a register case that passed
+  20/20 on load `@248394` and 0/45 on `@248459` with the same briefs and the
+  same prompts.
+  **So the card probe and the thinking probe both chased a mechanism the
+  records already named.** The `load_id` column exists for this question and
+  neither probe read it first.
+  **What is new is smaller and sharper.** The counts that made the flip look
+  overwhelming are replay counts, so "10 of 10 green" and "20 of 20 red" are
+  each one live call. And the cassette key names nothing that changes per
+  load, which is why a recording survives a flip and a fresh run does not.
+  **The lesson for the meta workflow.** Read `plans/operating-facts.md` for
+  the subject before you buy a probe. The section is called "The register and
+  measurement" and it is 40 lines.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
