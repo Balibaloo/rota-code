@@ -1,8 +1,9 @@
 # A key miss is recorded, in its own table
 
 Frame 64, the user prompt is the other half of the cassette key. Design
-record, revision 1, written 2026-09-22 by session 41cb5184. Meta workflow.
-The design review reads this record and
+record, revision 2, written 2026-09-22 by session 41cb5184. Meta workflow.
+Revision 1 was reviewed the same day and section 9 lists what changed. The
+implementer reads this record and
 `plans/scope-case-runs-readers-2026-09-22.md` before any code.
 
 ## 1. The fault, in one paragraph
@@ -41,107 +42,163 @@ The first design was a sentinel row in `case_runs`. The scope report tables
 
 **Conclusion: the miss is not a run, and it does not go in the runs table**
 (reasoned: every reader of `case_runs` reads it as "what has been measured",
-and a miss measured nothing). A separate table leaves all 25 readers
-unchanged.
+and a miss measured nothing). A separate table leaves 22 of the 25 readers
+unchanged. The three that change are `matching_runs`, `status` and the
+cockpit's `l1` panel, and section 3.4 says how.
 
 ## 3. The repair
 
-Three changes and one predicate.
+One table, one constant, one writer branch, one shared reader function, one
+predicate.
 
 ### 3.1 A table
 
 ```sql
 CREATE TABLE IF NOT EXISTS key_misses (
-    seq          INTEGER PRIMARY KEY,
     case_id      TEXT NOT NULL,
     model        TEXT NOT NULL,
     prompt_hash  TEXT NOT NULL,
+    run_no       INTEGER NOT NULL,
     system_hash  TEXT NOT NULL,
     num_ctx      INTEGER NOT NULL,
     temperature  REAL NOT NULL,
     protocol     TEXT NOT NULL,
     extras       TEXT NOT NULL,
     load_id      TEXT NOT NULL,
+    kind         TEXT NOT NULL,
     reason       TEXT NOT NULL,
-    at           TEXT NOT NULL
+    at           TEXT NOT NULL,
+    seq          INTEGER NOT NULL,
+    PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
 );
 ```
 
 One row per unmeasured run. The row carries the whole key the run tried,
 the same columns `case_runs` carries, so a reader can ask "did the last look
-try the key the tree composes now". `reason` is the first problem string,
-which today is `no cassette for <model> key=<12 chars>…` or an
-`LLMUnavailable` connection message. `at` is the clock, ISO, because a miss
-is an observation and an observation ages.
+try the key the tree composes now". The primary key is the shape of
+`case_runs`'s own (observed: `rota/llm/cassettes.py:91`, 2026-09-22), and
+it is the index the reader's query uses. **`seq` is not a primary key on its
+own.** Four tier files write the live register from four xdist workers
+during a gate run, so two writers can allocate one `seq` (observed: the
+design review's probe, four processes and 400 inserts each, 2 duplicate
+`seq` values, 2026-09-22). A single-column primary key would refuse the
+second insert inside a tier test and the gate would count a new red.
 
-`open_dev_db` creates the table beside `case_runs` (observed: the `CREATE
-TABLE IF NOT EXISTS` block at `rota/llm/cassettes.py:54`, and the column
-migration at `:121-140`, 2026-09-22). A pulled register from the snapshot
+`kind` is `no cassette` or `unreachable`. `reason` is the problem string
+that carries the marker, not the first problem string: `check` writes its
+complaints first and `session did not commit: [...]` last (observed:
+`rota/testkit/fixtures.py:1046-1050`, 2026-09-22), so `problems[0]` is
+`expected a call to X` and not the miss. `at` is the clock, ISO, because a
+miss is an observation and an observation ages.
+
+`open_dev_db` creates the table beside `case_runs`, in `DEV_SCHEMA`
+(observed: `executescript(DEV_SCHEMA)` at `rota/llm/cassettes.py:117`,
+2026-09-22). It is the only creator. `migrate_register` builds its target
+through it, and the tier fixtures open through it, so a pulled register
+without the table gains it before the first miss is written. The snapshot
 store has no schema version, so a reader never assumes the table exists.
 
-### 3.2 The writer
+### 3.2 One constant for the two markers
+
+```python
+MISS_MARKERS = {"no cassette": "no cassette for", "unreachable": "LLMUnavailable"}
+```
+
+`_is_unmeasured` reads it. The `kind` of a miss derives from it. The `LIKE`
+clause in `matching_runs` at `rota/tools/casestatus.py:213-214` reads it,
+so the second copy of the rule that names only `no cassette for` goes. Frame
+60 and frame 54 both record what a second copy of a match costs.
+
+### 3.3 The writer
 
 `record_case_run` writes a `key_misses` row where it returns early today
-(observed: `rota/llm/cassettes.py:447`, 2026-09-22). The guard
-`_is_unmeasured` stays as the one definition of "unmeasured". The row is
-written with the same `pins`, `system` and `protocol` the run row would have
-carried. The early return stays: no `case_runs` row is written. **The
-write-time guard's reason still holds**: a `passed = 0` row would turn an
-unmeasured case into a hard red, and this design writes none.
+(observed: `rota/llm/cassettes.py:447`, 2026-09-22), then returns. No
+`case_runs` row is written. **The write-time guard's reason still holds**: a
+`passed = 0` row would turn an unmeasured case into a hard red, and this
+design writes none.
 
-### 3.3 The predicate
+**One sequence across two tables, allocated in one statement.**
+`key_misses.seq` and `case_runs.seq` share one counter, so "newer" is a
+comparison on `seq` and never on the clock. The allocation is an
+`INSERT ... SELECT COALESCE(MAX(s), 0) + 1 FROM (SELECT MAX(seq) s FROM
+case_runs UNION ALL SELECT MAX(seq) FROM key_misses)`, one statement, so
+the write lock is held while the maximum is read. The run row's allocation
+at `rota/llm/cassettes.py:449-452` moves to the same one-statement form.
+Today it is two statements and it races (observed: the review's probe,
+2026-09-22), and a run and a miss that tie on `seq` would make the rule
+below read green for a case that missed. The tie is removed at the source.
+
+### 3.4 The reader
+
+One function beside `matching_runs`, called by `status` and by the
+cockpit's `l1` panel:
+
+```python
+def latest_miss(conn, case, want, *, keyed, system) -> sqlite3.Row | None
+```
+
+It filters on the columns `matching_runs` filters on: `case_id`, `model`
+and `prompt_hash` always, `system_hash` when `system` is given, and the four
+pin columns `num_ctx`, `temperature`, `protocol`, `extras` when `keyed`. It
+returns the newest such miss, `ORDER BY seq DESC LIMIT 1`, or `None`. **The
+miss must match the key the runs match** (reasoned: the review's point 3,
+2026-09-22). A narrower filter reads a false `STALE` twice: after a person
+reverts a system-half edit, the old runs match again but a miss at the
+other `system_hash` is newer; and a local run under another profile or
+window writes misses that stale the suite's read under the gate's pins.
+Frame 65's `think` pin makes the second case live.
+
+`matching_runs` returns `seq` beside `passed` and `problems`. Both callers
+read rows by name, so the added column is safe.
+
+The rule, applied after the state is decided and before `why`:
+
+> **When `latest_miss` returns a row whose `seq` is greater than the newest
+> matching run's `seq`, the case is `STALE`, whatever state it reached, and
+> `why` carries the miss.** With no matching run, the state stays what it
+> was, `NEW` or `STALE`, and `why` carries the miss.
+
+The `why` sentence is `looked <at>, <kind>: <reason>`. The precedence for
+`why` is: `replay_problem` first, then the miss, then the `FAIL` problem.
+`render` cuts `why` at 96 characters (observed: `rota/tools/casestatus.py:389`,
+2026-09-22), so the sentence leads with the time and the kind and the reason
+is what gets cut.
+
+| Rows | Miss at the key | State | `why` |
+| --- | --- | --- | --- |
+| none | none | `NEW` | empty, as today |
+| none | any | `NEW` | the miss |
+| some, none matching | any | `STALE`, as today | the miss |
+| some matching | newer than the newest | `STALE` | the miss |
+| some matching | older than the newest | as today | as today |
+
+`NEW` keeps its meaning, nobody has measured this case. `ever` counts
+`case_runs` only, so a miss-only case stays `NEW` and the gate's set does not
+move for it: it already holds `NEW` (observed: `rota/tools/gate.py:131-132`,
+2026-09-22). `STALE` keeps its meaning, the text moved since the case was
+measured. The miss says the same thing from the other side.
+
+**After a revert, one run of `STALE`.** A person edits `push_working_set`,
+the replay misses, then reverts. The old runs match again and the miss at
+the same key is still newer, so the case reads `STALE` until the next replay
+writes runs. That is the safe direction, and it is one run wide.
+
+**The panel.** `l1` never calls `status`. It calls `matching_runs` directly
+(observed: `rota/cockpit/progress.py:244`, 2026-09-22). So it calls
+`latest_miss` too, and applies the same rule, or the two instruments
+disagree again, which is the fault frame 54 repaired. The panel connects
+raw, and its `except sqlite3.Error` turns a missing table into `never run`
+for every case in silence (observed: `rota/cockpit/progress.py:252`,
+2026-09-22). So the predicate below runs once, beside `keyed` and `widen`,
+and the panel names the table only when it is true.
+
+### 3.5 The predicate
 
 `records_misses(conn) -> bool`: the table exists, read from
 `sqlite_master`. It sits beside `carries_the_key` and `holds_a_system_hash`
 in `rota/tools/casestatus.py`. A reader that finds no table reads as today.
-The cockpit's L1 panel connects raw (observed: `rota/cockpit/progress.py:261`,
-2026-09-22), so the panel calls the predicate before it names the table.
-
-### 3.4 The reader
-
-One rule in `casestatus.status`, after `here` and `ever` are read:
-
-> **When a miss at the case's current `prompt_hash` and `model` is newer than
-> the newest matching run, the case is `STALE`, and `why` carries the miss's
-> reason and time.**
-
-`matching_runs` returns `passed, problems` today (observed:
-`rota/tools/casestatus.py:193`, 2026-09-22). It returns `seq` as well, so the
-newest matching run has a sequence to compare. The misses are read once per
-case:
-
-```sql
-SELECT seq, reason, at FROM key_misses
-WHERE case_id = ? AND model = ? AND prompt_hash = ?
-ORDER BY seq DESC LIMIT 1
-```
-
-The comparison is on `seq` across the two tables. **The two tables share
-one sequence**: `key_misses.seq` is allocated from
-`MAX(case_runs.seq, key_misses.seq) + 1`, the way `record_case_run`
-allocates today from `MAX(seq) + 1` (observed: `rota/llm/cassettes.py:449`,
-2026-09-22). Two sequences would need the clock to order them, and the clock
-is not a sequence.
-
-Three cases, and the report's state for each:
-
-| Rows | Miss | State | `why` |
-| --- | --- | --- | --- |
-| none | none | `NEW` | empty, as today |
-| none | any | `NEW` | `looked <at>, key missed: <reason>` |
-| some, matching | newer than the newest | `STALE` | `looked <at>, key missed: <reason>` |
-| some, matching | older than the newest | as today | as today |
-
-`NEW` keeps its meaning, nobody has measured this case. The miss adds a
-sentence to it and does not change the state, so the gate's set does not
-move for a never-measured case: it already holds `NEW`. `STALE` keeps its
-meaning, the text moved since the case was measured. The miss says the same
-thing from the other side: somebody tried the current text and no recording
-answered.
-
-The `LLMUnavailable` connection case reads the same way. A stopped server
-is a look that measured nothing, and the reason says so. The report's
-count line gains nothing: the miss is a `why`, not a state.
+`status` opens through `open_dev_db`, which creates the table, so the
+predicate matters to the panel and to a raw reader.
 
 ## 4. What this design does not do, and why
 
@@ -183,42 +240,77 @@ that is true.
 `rota/testkit/cassette_store.py:326-332`, 2026-09-22). Misses are not
 evidence and do not invite a publish.
 
+**It does not prune misses.** A gate run on a stale key writes one miss per
+case per run, so cases × runs rows, about 640 for 128 cases at 5 runs. A
+tree left stale for many gate runs grows the table by that much each run.
+The reader's query walks the primary key and reads one row, so the cost
+stays flat. The growth is bytes, and the record says so rather than
+designing a pruner nobody has asked for.
+
 ## 5. What this costs each reader
 
-- `casestatus.status`: one `SELECT ... LIMIT 1` per case over an indexed
-  small table, 128 queries. Under 20 ms (reasoned: the table holds one row
-  per miss and a miss is rare). The report's 10 s ceiling is untouched.
-- The cockpit's L1 panel: the same query behind the predicate.
+- `casestatus.status`: one `SELECT ... ORDER BY seq DESC LIMIT 1` per case
+  over the primary key, 128 queries. Under 50 ms at any table size the
+  register can reach (reasoned: the query walks one key prefix and reads
+  one row). The report's 10 s ceiling is untouched.
+- The cockpit's `l1` panel: the same query behind the predicate, once per
+  case.
+- `matching_runs`: one more column in its `SELECT`.
 - Every other reader of `case_runs`: nothing. The table is not read.
 
-## 6. The acceptance
+## 6. Where a miss comes from, and where it does not
+
+A replay run never reaches a server. `ReplayOnlyBackend` reads cassettes
+only (observed: `rota/llm/cassettes.py:338-353`, 2026-09-22), so a replay
+miss is always `no cassette`. The `unreachable` kind arises under `ROTA_L1`
+only, where `RecordingBackend` calls the model, and a stopped server then
+writes cases × runs `unreachable` rows. Under `ROTA_REFRESH` the backend
+skips the lookup and records, so a connection failure there is not a key
+miss and the guard's reason still names it unmeasured. Both kinds are looks
+that measured nothing, and the sentence names which.
+
+## 7. The acceptance
 
 1. A replay that misses the key writes one `key_misses` row and no
-   `case_runs` row. A test asserts both counts.
+   `case_runs` row, with `kind = 'no cassette'`. A test asserts both counts
+   and the kind.
 2. A case with matching green rows and a newer miss reads `STALE`, and its
-   `why` names the reason and the time. A test builds the register by hand
-   through `record_case_run`, and never by raw insert, so the row is one the
-   writer makes (frame 64's status of 19:23: a probe of a state the code never
-   reaches measures the probe).
+   `why` names the time, the kind and the reason. The test builds the
+   register through `record_case_run` and never by raw insert, so the row
+   is one the writer makes. The `register` fixture and `_record` in
+   `tests/rota/test_register_key.py:65-85` already drive the writer with a
+   real `Pins` (observed: the review's point 8, 2026-09-22).
 3. A case with a miss and a newer matching green reads green. The miss is
    history.
 4. A never-measured case with a miss reads `NEW`, with the miss in `why`.
-5. A register without the table reads as today. A test opens a register that
-   lacks it and asserts the predicate is false and `status` raises nothing.
-6. The gate's stale set holds a case whose last replay missed the key
-   (observed through `gate._stale` on a register built by the writer).
-7. The probe from frame 64's push: edit `push_working_set`, run one `L1`
-   case's replay, and the case reads `STALE` with `key missed` in `why`.
-   Revert the edit.
-8. The whole report costs under 10 s, measured as frame 63 measured it.
-9. The tests that pin the guard exist: `_is_unmeasured` is named by a test,
-   and the early return from `record_case_run` is asserted.
+5. A miss at another `system_hash`, or under other pins, does not stale the
+   case when the read is widened or keyed. A test writes such a miss and
+   asserts the state is unchanged.
+6. A register without the table reads as today. A test opens a register that
+   lacks it and asserts `records_misses` is false and `status` raises
+   nothing. The panel's `l1` reads `never run` for no case because of the
+   missing table.
+7. The gate's stale set holds a case whose last replay missed the key,
+   observed through `gate._stale` on a register built by the writer.
+8. The probe from frame 64's push, **run after the night and never beside
+   it**: change `pushed: dict[str, Any] = {}` at `rota/core/runner.py:1544`
+   to carry one probe key, run one `L1` case's replay, and the case reads
+   `STALE` with `no cassette` in `why`. Revert the edit. The probe leaves
+   `runs` miss rows in the live register, and they are true.
+9. `record_case_run` allocates `seq` in one statement for both tables. A
+   test runs four processes against one register and asserts no duplicate
+   `seq` across the two tables.
+10. The whole report costs under 10 s, measured as frame 63 measured it.
+11. The tests that pin the guard exist: `_is_unmeasured` is named by a test,
+    and the early return of a `case_runs` row is asserted.
+12. The cockpit's `l1` panel shows the miss in the case's `problems` list,
+    so the two instruments read the same case the same way.
 
-## 7. What is not in this frame
+## 8. What is not in this frame
 
-- The user-half composition. Section 4 says why, and Roman rules where it
-  goes.
+- The user-half composition. Section 4 says why, and Roman ruled it.
 - `toolcheck`'s lost marker. Section 4.
+- A pruner for `key_misses`. Section 4.
 - Frame 65's pin: `think` absent from the key. A miss records the key the
   run tried, including `extras`, so frame 65's repair will make every case
   miss once and the misses will say so. That is the wanted behaviour and it
@@ -226,19 +318,33 @@ evidence and do not invite a publish.
 - Frame 66's replay counts. The miss table adds no rows to `case_runs`, so
   it neither helps nor worsens that frame.
 
-## 8. Two questions for the design review
+## 9. What revision 2 changed
 
-1. Is one sequence across two tables sound, or does a concurrent writer
-   race on `MAX(seq) + 1`? `record_case_run` races the same way today, so
-   the answer is "no worse", unless the review finds a path where two
-   processes write the register at once.
-2. Should the miss carry the first problem string or the whole list? The
-   first is what `casestatus` prints for `FAIL` today
-   (observed: `rota/tools/casestatus.py:345-347`, 2026-09-22).
+The design review of 2026-09-22 read revision 1 against nine points and
+returned eight changes. All eight are in this revision.
 
-## 9. Estimate
+1. `seq` is no longer a primary key on its own. The primary key is
+   composite, and the allocation is one statement for both tables. The
+   review's probe showed the race (section 3.1 and 3.3).
+2. The miss filter matches the key `matching_runs` matches, so a revert or a
+   run under other pins reads no false `STALE` (section 3.4).
+3. One function, `latest_miss`, serves `status` and the panel (section 3.4).
+4. A `kind` column and one constant for the two markers. `reason` is the
+   string that holds the marker (section 3.1 and 3.2).
+5. The primary key is the index. The cost section says the table grows by
+   cases × runs per gate run on a stale key, and nothing prunes it
+   (section 4 and 5).
+6. The table row "rows some, none matching" and the `why` precedence
+   (section 3.4).
+7. A stopped server arises under `ROTA_L1` only and writes cases × runs
+   rows. Under `ROTA_REFRESH` it is not a key miss (section 6).
+8. Acceptance 8 names the edit at `runner.py:1544` and schedules the probe
+   after the night.
 
-The repair and its tests, one implementer pass, 60k (reasoned: one table,
-one writer branch, one predicate, one reader rule, nine tests, and no
-reader of `case_runs` changes). The design review, 100k. No re-record: the
-design writes nothing that a re-record would move.
+## 10. Estimate
+
+The repair and its tests, one implementer pass, 80k (reasoned: one table,
+one constant, one writer branch with the one-statement allocation, one
+shared reader function, one predicate, one panel call, and twelve
+acceptance lines). The design review cost 134k against a 100k cap. No
+re-record: the design writes nothing that a re-record would move.
