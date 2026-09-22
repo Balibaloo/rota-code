@@ -529,6 +529,39 @@ a different question and the night is then opened once.
   63's closing status as saying the key is whole. It is not, and this frame is
   the reason that sentence is not written.**
 
+### 65. The cassette key cannot pin a field it omits (2026-09-22)
+
+- **Batch A, the cassette key. Pushed by frame 55, which found it.**
+- Meta workflow. `think_for` returns `None` for `qwen3:8b`, so `pins.extras()`
+  is empty and the backend sends no `think` parameter (observed:
+  `rota/llm/llm.py` and this session's probe, 2026-09-22). **The key then
+  records the field as absent, and absent is not a value.** The server
+  resolves it, and the server's resolution can change under a fixed key.
+- **This is measured, not feared** (observed: three calls at temperature 0,
+  2026-09-22). At one byte-identical prompt, `think=True` returns 12 `TOOL:`
+  markers and `think=None` returns zero. The recording that case
+  `L1-TE-survey-an-area-for-its-terms` was green on holds 49 markers and no
+  `<think>` block, and it is keyed at `think=None`. So the recording and
+  today's run share a key and ran under two different thinking modes.
+- **It is frame 63's fault one level down.** Frame 63 widened the match to the
+  whole system text. This frame is about a field the key names and does not
+  pin. Frame 64 is about a half the key hashes and the report does not match.
+  The three together are the key's whole surface.
+- **The blast radius is every recording made under a default.** A green earned
+  under one server default is replayed against another, and nothing says so.
+  The register cannot distinguish the two.
+- Ends when: `think` carries an explicit value into the key for every model
+  the suite runs, and a test asserts that a change of that value stales a
+  case. The recordings keyed at the old absent value are re-recorded or
+  written off with a reason.
+- Waits on: nothing. Frame 55 named the cause and did not repair it.
+- Reasoning: frame 55's status of 2026-09-22 19:05, which carries the three
+  measurements.
+- Status 2026-09-22 19:03 (rota-19): pushed, unclaimed. **The count comes
+  first, as in frame 63**: how many of the register's rows were keyed at an
+  absent `think`, and how many cases those rows hold up. That number decides
+  whether this is a repair or a re-record.
+
 ### 55. A recorded green does not reproduce live (2026-09-20) [590c7382]
 
 - **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
@@ -681,6 +714,18 @@ a different question and the night is then opened once.
   which Ollama version made the recording, and whether `think=True` restores
   the case to green. **The second one is the next step and it is a re-record,
   not a probe.**
+- Status 2026-09-22 19:03 (rota-19): **handing off. The cause half of this
+  frame's ends-when is closed, and the repair half is pushed as frame 65, the
+  cassette key cannot pin a field it omits.** Meta workflow. The frame stays
+  open, because the case is neither re-earned nor written off, and that
+  decision needs a re-record under an explicit `think`.
+  **For whoever takes it: run the re-record before writing anything off.** One
+  case, `L1-TE-survey-an-area-for-its-terms`, five runs at `think=True`. If it
+  returns to green, then frame 65 is the whole repair and no write-off is due.
+  If it stays red at 12 markers and no `code.source`, then thinking is a
+  necessary condition and not a sufficient one, and this frame keeps looking.
+  **Do not restore the backup's cassettes.** This frame's first status says
+  why: it would hide a regression behind a cassette.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
