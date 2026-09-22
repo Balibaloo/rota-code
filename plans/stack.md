@@ -108,7 +108,7 @@ they are the gauntlet and the end state and no step names them.
 
 | Batch | Frames, in order | The one thing they share |
 | --- | --- | --- |
-| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21; **63, then 55** remain; **64, 68, 69, 65** pushed after the ruling, in that order | One repair: the key that names a recording. The writer and the reader must name the same fields. |
+| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21, ~~63~~ closed 2026-09-22; **64, 55, 65** remain; 68 and 69 popped unstarted and parked as one item | One repair: the key that names a recording. The writer and the reader must name the same fields. |
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
 | C, the night's stall | 58, 38, 37 | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
@@ -429,6 +429,27 @@ a different question and the night is then opened once.
   69 fold into one parked frame, the turn-1 key composed cold, because the
   count shows nothing for it to catch today. Frame 70 takes the sandbox's
   commit sha, and it may remove up to 10 permanent reds from the gate.
+- Status 2026-09-22 20:40 (rota-69): **Roman ruled the miss record, with the
+  cold key parked and tracked** (ruled: Roman, 2026-09-22, "Ok, as long as
+  it's tracked properly", asked with three options and this one
+  recommended). Meta workflow.
+  **Ends when, final**: a replay that misses the key writes a `key_misses`
+  row and no `case_runs` row; the report and the panel read `STALE` with the
+  kind, the time and the reason when a miss at the case's key is newer than
+  its newest matching run; the gate's stale set holds such a case; `seq` is
+  allocated in one statement for both tables; the tests that pin the guard
+  exist; and the report stays under 10 s. The twelve lines are in
+  `plans/key-miss-record-design-2026-09-22.md`, revision 3, restored from
+  the archive with the count and the observed instance written in.
+  **Frames 68 and 69 are popped unstarted** and moved verbatim to
+  `plans/archive/stack-2026-09-22.md`. Their work is one parked item below,
+  the turn-1 key composed cold, with the trigger that wakes it. **Tracked
+  means**: the parked item names what it covers, what it does not, its
+  price from frame 54's actual, and the count that reopens it.
+  **Next: one implementer on Opus, briefed from revision 3.** The night is
+  over, so the gate can run. **This session reads 272k.** The pass and its
+  judgement fit before the 300k line. At 300k this session finishes this
+  frame and takes no other, so frame 70's repair goes to the next holder.
 
 ### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22)
 
@@ -511,52 +532,6 @@ a different question and the night is then opened once.
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
   Price it from those actuals and not from the code comment.
-
-### 68. The cassette key on the row (2026-09-22)
-
-- **Batch A, the cassette key. Pushed by frame 64 at Roman's ruling.**
-- Meta workflow. Each `case_runs` row carries `cassette_key`, the
-  `key_for(system, user, pins)` value the replay looked up, so a reader can
-  match a result to a recording with one equality. Today a row carries
-  `prompt_hash`, `system_hash` and four pin columns, which together are not
-  the key (observed: `rota/llm/cassettes.py:157-162`, the design review's
-  point 7, 2026-09-22). The existing rows are backfilled from the cassettes
-  they were earned against, the mapping frame 54's migration made once.
-- Ends when: the writer stamps `cassette_key` on every new row; the
-  migration backfills it, or writes `''` with the reason for the rows it
-  cannot map and the count of them; a test asserts a new row's key equals
-  the cassette's; and the gate is green with zero stale. Priced from frame
-  63's actuals: design review 100k, one implementer pass 250k, diff review
-  150k, and the migration's unknown, which frame 54 put at 1251k.
-- Waits on: frame 64, the count and the design record.
-- Reasoning: frame 64's status of 2026-09-22 20:09, and
-  `plans/archive/register-key-design-2026-09-21.md` for frame 54's
-  migration path.
-- Status 2026-09-22 20:09 (rota-69): pushed by 41cb5184, unclaimed.
-
-### 69. The report matches on the whole key (2026-09-22)
-
-- **Batch A, the cassette key. Pushed by frame 64 at Roman's ruling. The
-  last of the three, and the one that closes the hole.**
-- Meta workflow. The report composes the user prompt for a case the way the
-  replay does, computes the cassette key with the system text frame 63
-  already composes, and matches rows on `cassette_key`. No rows at the key
-  reads `STALE`, whatever half moved. The ten `repo:` cases need a worktree
-  to compose. The CLI and the gate build it. The cockpit panel keeps the
-  narrow match for those ten and marks them, which is the precedent frame
-  63 set for chains, unless frame 64's design finds a memo the panel can
-  afford.
-- Ends when: `user_text_for(case)` exists beside `system_text_for`; the
-  report and the gate match on `cassette_key`; the panel matches on it for
-  every case it can compose and marks the rest; a test asserts that an edit
-  to `push_working_set` makes a case read stale on a cold read; the report
-  costs under 10 s outside the ten `repo:` cases; and the cases that restale
-  are re-recorded or written off with a reason. Priced from frame 63's
-  actuals: one implementer pass 250k, diff review 150k, and a re-record
-  whose size frame 64's count decides.
-- Waits on: frame 68.
-- Reasoning: frame 64's status of 2026-09-22 20:09.
-- Status 2026-09-22 20:09 (rota-69): pushed by 41cb5184, unclaimed.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
@@ -1763,6 +1738,25 @@ a different question and the night is then opened once.
   built, F1 parked.
 
 ## Parked
+
+- **The turn-1 cassette key composed cold** (parked: Roman, 2026-09-22
+  20:40, "as long as it's tracked properly"). Was frames 68 and 69, popped
+  unstarted; their text is in `plans/archive/stack-2026-09-22.md`. Meta
+  workflow. **What it covers**: a drift in the user half of turn 1, from
+  `push_working_set` or `resolve_inbound`, read cold before any run. The
+  report composes turn 1's key and matches rows on a `cassette_key` column
+  backfilled from the cassettes. **What it does not cover**: any turn after
+  the first, because turn N's key depends on the reply at turn N-1, so only a
+  replay sees it (observed: frame 64's count, 10 of 128 cases miss on a later
+  turn and none on turn 1, 2026-09-22). Frame 64's miss record covers those
+  after the fact. **Price**: a column and a backfill, which frame 54 did once
+  for 1251k against an 80k estimate; the backfill names one turn-1 cassette
+  for 71.6 per cent of rows by first reply and `system_hash`, several for
+  27.2, none for 1.1 (observed: `count64b.py`, 2026-09-22); a reader that
+  needs a worktree for the 10 cases whose wake reads one. **Wakes when**: a
+  run of frame 64's count script shows any case whose turn 1 misses, or a
+  person is misled by the panel between runs. Until then the count says
+  there is nothing for it to catch.
 
 - (observed: `git worktree list`, 2026-09-19) Four worktrees of two ended
   sessions are still registered and still on disk, 583 files each:
