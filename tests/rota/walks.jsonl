@@ -149,3 +149,6 @@
 {"run": "clickI", "profile": "local-gemma-critic", "repository": "C:\\Users\\roman\\rota_night\\clickI", "merged": 0, "steps": 59, "asks": 9, "note": "quiet", "oneshot": false, "date": "2026-09-15"}
 {"run": "clickI", "profile": "local-gemma-critic", "repository": "C:\\Users\\roman\\rota_night\\clickI", "merged": 0, "steps": 39, "asks": 5, "note": "quiet", "oneshot": false, "date": "2026-09-16"}
 {"run": "clickI", "profile": "local-gemma-critic", "repository": "C:\\Users\\roman\\rota_night\\clickI", "merged": 0, "steps": 80, "asks": 6, "note": "quiet", "oneshot": false, "date": "2026-09-16"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 34, "asks": 6, "note": "quiet", "oneshot": false, "date": "2026-09-22"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 26, "asks": 3, "note": "quiet", "oneshot": false, "date": "2026-09-22"}
+{"run": "clickI", "profile": "local", "repository": "D:\\repos\\_AI\\sample_repos\\clickI", "merged": 0, "steps": 25, "asks": 4, "note": "quiet", "oneshot": false, "date": "2026-09-22"}
