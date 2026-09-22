@@ -529,7 +529,7 @@ a different question and the night is then opened once.
   63's closing status as saying the key is whole. It is not, and this frame is
   the reason that sentence is not written.**
 
-### 55. A recorded green does not reproduce live (2026-09-20)
+### 55. A recorded green does not reproduce live (2026-09-20) [590c7382]
 
 - **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
 
@@ -572,6 +572,30 @@ a different question and the night is then opened once.
   loss**, and the sentence above is the assistant's reading, now overruled on
   what to do about it. The register holds what the model still does.
   The cause is still unnamed, so the frame stays open on its own ends-when.
+- Status 2026-09-22 18:49 (rota-19): **claimed by 590c7382. One of the two
+  unknowns is dead, and it cost no GPU** (observed: this session's
+  composition against `.rota/cassettes_backup_2026-09-19-frame43-closing.db`,
+  2026-09-22). Meta workflow.
+  **The prompt has not drifted. Both halves are byte-identical.** Frame 63
+  built the instrument this frame was missing. `system_text_for(case)`
+  composes 2910 characters that match 26 cassettes in the backup exactly. And
+  the turn-1 user prompt, composed through `run_case` with the model stubbed
+  out, is **4351 characters and byte-identical to the recording**, including
+  the worktree content this `repo:` case pushes.
+  **So "a fresh run builds a prompt the cassette key does not capture" is
+  answered, and the answer is no.** The key is the same, so the replay hits
+  the same cassette, which is why the case replays green.
+  **That leaves one unknown, and it is the one that matters**: the same model
+  tag returns a different completion for an identical prompt. The recorded
+  turn-1 completion calls `code.source` seven times. The 20 fresh runs never
+  call it once.
+  **The last step needs the model and Ollama is not running** (observed:
+  ports 11434 and 11435 both refuse a connection, 2026-09-22). The probe is
+  one call: send the backup's recorded turn-1 prompt at the recorded pins,
+  `qwen3:8b`, 12288, temperature 0, and compare the completion. **Read the
+  tag's digest in the same breath**, because `load_id` says which residency
+  produced a row and the digest says whether the weights moved.
+  **This also gates the night**, which needs the same server.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
