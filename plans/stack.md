@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 63. One composition of the system text (2026-09-21)
+### 63. One composition of the system text (2026-09-21) [41cb5184]
 
 - **Batch A's successor. It is the half of frame 54 that could not close.**
 - Meta workflow. A cassette is keyed by the whole system text the model
@@ -544,6 +544,13 @@ a different question and the night is then opened once.
   confirmed the take 8 seconds after the claim** (observed: the `hand`
   command's exit 0 at 2026-09-22 19:25:39). Meta workflow. Stack commit
   `77cca9b`. Session 2062c482 stops here.
+- Status 2026-09-22 19:27 (rota-69): **taken by session `41cb5184` at stack
+  commit `77cca9b`.** Meta workflow. The frame stays open as validating. **The
+  walk is the only open acceptance line, and it waits on Roman's word.** This
+  session does not start the night unasked. Both Ollama ports answer and hold
+  no model (observed: `/api/ps` on 11434 and 11435, 2026-09-22 19:27). This
+  session also takes frames 55 and 64, which the sending session held. One
+  session holds the stack.
 
 ### 64. The user prompt is the other half of the cassette key (2026-09-22)
 
@@ -663,6 +670,10 @@ a different question and the night is then opened once.
   prompt`, and the gate counts that as a red. **So the acceptance catches it
   and mislabels it, and the two instruments contradict each other.** That is
   the cost, and it is smaller than a false green.
+- Status 2026-09-22 19:27 (rota-69): **taken by session `41cb5184` with the
+  stack.** Meta workflow. No code is touched. The two jobs the status above
+  names are treated as not run. Next: the scope report on every reader of
+  `case_runs`, then the count, then the design record for the sentinel row.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
@@ -1007,6 +1018,9 @@ a different question and the night is then opened once.
   **The lesson for the meta workflow.** Read `plans/operating-facts.md` for
   the subject before you buy a probe. The section is called "The register and
   measurement" and it is 40 lines.
+- Status 2026-09-22 19:27 (rota-69): **taken by session `41cb5184` with the
+  stack.** Meta workflow. The cause is named. The case is neither re-earned
+  nor written off, and that decision is the one open step.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
