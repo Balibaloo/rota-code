@@ -1,5 +1,17 @@
 # A key miss is recorded, in its own table
 
+**Superseded on 2026-09-22 20:09** (ruled: Roman, "Sounds good", after the
+assistant named the miss record's one risk and two clean solutions). The
+report is history under this design: it answers as of the last replay, and
+a person who edits the runner and reads the panel before a run sees green.
+Roman ruled the clean solution instead: the report matches on the whole
+cassette key, composed from the tree, in three frames of frame 63's pattern.
+Frame 64 carries the count and the design, frame 68 the column and the
+backfill, frame 69 the reader and the report. This record stays as the
+fallback if frame 64's count says the backfill is not possible. The design
+review's finding about the `seq` race is true of `case_runs` today and is
+recorded in `plans/operating-facts.md`.
+
 Frame 64, the user prompt is the other half of the cassette key. Design
 record, revision 2, written 2026-09-22 by session 41cb5184. Meta workflow.
 Revision 1 was reviewed the same day and section 9 lists what changed. The
