@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22)
+### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22) [001e49dd]
 
 - **No batch. It shares batch A's instrument, the replay, and not its
   repair.** Batch A is about the key that names a recording. This frame is
@@ -276,6 +276,39 @@ a different question and the night is then opened once.
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
   Price it from those actuals and not from the code comment.
+- Status 2026-09-22 22:26 (rota-76): **claimed by 001e49dd at `9ca278f`, from
+  the hand-off.** Meta workflow. Three reads before the repair, about 35k in
+  this context for the wake, the reads and one count.
+  **The door holds.** No brief in `rota/roles/prompts/` names `head_commit`
+  or a sha (observed: grep over the prompts directory, 2026-09-22).
+  **The fixture already pins the commit date, and the sha still moves.**
+  `tests/rota/conftest.py`, `pytest_configure`, puts `samplerepo.GIT_ENV`
+  into the process environment for this same fault. Its docstring names
+  five Developer cases and one L3 chain that stayed STALE (observed: the
+  docstring at `:46-66`, 2026-09-22). Frame 64's probe shows the sha differs
+  today with that pin in place (observed: `probe64_miss.py`, 2026-09-22).
+  A pinned date leaves the parent commit and the tree in the sha, and a
+  fixture that changes moves both (reasoned: a sha hashes the parent, the
+  tree, the dates and the message). So a pinned date is not a repair. **The
+  repair stays the precedent's**: `code.commit` stops returning
+  `head_commit`, and the sha stays on the batch row.
+  **Three tests read the sha from the reply** and move to the batch row:
+  `tests/rota/test_developer.py:194` and `:247`, and
+  `tests/rota/test_index_refresh.py:287` (observed: grep over `tests/`,
+  2026-09-22). `test_what_critic_sees_is_the_same_twice` at `:272` is the
+  precedent's pinned test, and the new test sits beside it.
+  **The ten cases, by id** (observed: frame 64's count with the miss
+  condition widened, `scratchpad/count64_misses.py`, 75 s, 2026-09-22).
+  `ACT-DV-edit-inside-the-function`, `L1-DV-apply-the-answer-and-carry-on`,
+  `L1-DV-build-a-clear-criterion`,
+  `L1-DV-log-the-choice-the-criteria-did-not-make`,
+  `L1-DV-fix-the-code-not-the-test`, `L1-DV-read-the-map-not-the-whole-file`,
+  `L1-DV-restore-what-the-finding-names`,
+  `L1-DV-give-the-new-parameters-defaults`, `L1-DV-take-a-mistake-out`, and
+  `L1-VK-an-outside-fact-is-the-researchers`, which is frame 64's. The count
+  reads the same as at 20:17: 128 hit on turn 1, 10 miss once each.
+  Next: one implementer with the gate, then the re-record of the 9 on the
+  3080.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
