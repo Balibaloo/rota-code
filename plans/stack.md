@@ -710,6 +710,24 @@ a different question and the night is then opened once.
   `plans/scope-case-runs-readers-2026-09-22.md` and nothing else. **The count
   waits for the night to end**, because a six-minute suite run beside a walk
   is a risk to the walk's evidence and buys nothing today.
+- Status 2026-09-22 19:42 (rota-69): **the scope report is in, and it rules
+  out a sentinel row in `case_runs`.** Meta workflow. 142k from the harness
+  line, against a 120k cap. `plans/scope-case-runs-readers-2026-09-22.md`.
+  **No shape of a row stays clean** (observed: the report's table over 25
+  readers, 2026-09-22). A `passed = 0` row with the miss text corrupts 15
+  readers, a `measured` column 18, a sentinel in a key column 17. Twelve
+  readers filter on nothing but `case_id`, so every shape edits twelve
+  readers. `passed` is `NOT NULL`, and NULL would raise in four readers and
+  skew `flip_history`. **Nothing in the suite pins the guard**: no test names
+  `_is_unmeasured` or asserts that an unmeasured run writes no row.
+  **So the miss goes in its own table, and no reader of `case_runs` changes**
+  (reasoned: the twelve unfiltered readers, and the `LIMIT` window that a
+  sentinel would enter). The design record follows, then a design review.
+  **Frame 64's title is not this repair, and Roman is asked.** The user half
+  can be composed, and it costs a worktree for 10 `repo:` cases in a reader
+  the cockpit panel calls. The miss record catches a user-half drift at the
+  next replay, and not before. That is the difference, and it is his to
+  price.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
