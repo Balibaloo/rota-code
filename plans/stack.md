@@ -268,6 +268,10 @@ a different question and the night is then opened once.
   output cut its five summary lines. Pipe the gate to a file and read the
   lines from it. And a count that costs 25k can reverse a ruling twice in an
   hour, so run the count before the design and not after.
+- Status 2026-09-22 22:17 (rota-69): **handed to session `001e49dd`, which
+  confirmed the take 9 seconds after the claim** (observed: the `hand`
+  command's exit 0 at 2026-09-22 22:16:54). Meta workflow. Stack commit
+  `c7f9648`. Session 41cb5184 stops here at about 330k.
   **One warning that this frame owes the next two.** Frame 54 was priced at
   80k for a column and a backfill and cost 1251k. Frame 63 cost about 1.1M
   across three passes and two reviews. Frame 68 is a column and a backfill.
