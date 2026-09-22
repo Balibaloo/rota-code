@@ -496,6 +496,29 @@ a different question and the night is then opened once.
   capped at 150k. The frame closes on its findings, a fix pass if any are
   high, and no walk: the change is in the register's writer and readers,
   which no seat wakes through.
+- Status 2026-09-22 21:36 (rota-69): **the diff review is in: no high, no
+  medium, four low. A fix pass runs on the same implementer.** Meta
+  workflow. 136k from the harness line.
+  **What the review confirmed by probe** (observed: the review's probes on
+  a worktree at `49b5629`, 2026-09-22). Four processes and 800 writes gave
+  800 distinct `seq` values and never neared the busy timeout, because
+  `open_dev_db` runs autocommit and one `INSERT ... SELECT` holds the write
+  lock over the `MAX`. `_key_clauses` prints identical clauses for all four
+  combinations of `keyed` and `system`. The report and the panel agree in
+  seven scenarios, and `replay_problem` wins over the miss for a chain.
+  Old and new `_is_unmeasured` agree on all 23813 red rows of the live
+  register. `status` costs 6.68 s against 10 s. A register without the
+  table reads as before the frame.
+  **The four low findings, all going to the fix pass.** `_miss_of` scans the
+  whole transcript for `LLMUnavailable`, so a red whose reply names the class
+  in prose would write an `unreachable` miss and read `STALE`; live count 0.
+  `migrate_register` carries no `key_misses`. The door's docstring at
+  `rota_serial_plugin.py:224` still says a miss writes no row. One assertion
+  at `tests/rota/test_register_key.py:1345` pins nothing. **One optional
+  note**: `MAX(seq)` scans a covering index of 164501 rows under the write
+  lock, 26 ms a write, not a regression.
+  **The frame closes on the fix pass's gate and commit.** No walk. This
+  session reads 303k and finishes this frame only.
 
 ### 70. A fresh commit sha in a tool result makes a case unreplayable (2026-09-22)
 
