@@ -1,16 +1,29 @@
 # A key miss is recorded, in its own table
 
-**Superseded on 2026-09-22 20:09** (ruled: Roman, "Sounds good", after the
-assistant named the miss record's one risk and two clean solutions). The
-report is history under this design: it answers as of the last replay, and
-a person who edits the runner and reads the panel before a run sees green.
-Roman ruled the clean solution instead: the report matches on the whole
-cassette key, composed from the tree, in three frames of frame 63's pattern.
-Frame 64 carries the count and the design, frame 68 the column and the
-backfill, frame 69 the reader and the report. This record stays as the
-fallback if frame 64's count says the backfill is not possible. The design
-review's finding about the `seq` race is true of `case_runs` today and is
-recorded in `plans/operating-facts.md`.
+**Revision 3, 2026-09-22 20:40: this design is the repair again** (ruled:
+Roman, "Ok, as long as it's tracked properly", after frame 64's count).
+Between 20:09 and 20:40 Roman had ruled the whole cassette key composed
+cold instead, because under this design the report is history and answers
+as of the last replay. **The count reversed that** (observed: every case run
+against a capturing replay, 2026-09-22). The cassette key is per turn, and
+turn N depends on the reply at turn N-1, so a cold read composes turn 1
+only. Turn 1 hits for 128 of 128 cases, 10 cases miss on a later turn, and
+7 of those read green. A cold turn-1 key would read all 128 as matched. The
+suite's replay is the only instrument that sees the whole key, and this
+design is how the replay tells the report. The cold turn-1 key is parked on
+the stack with its trigger, a count that shows turn-1 drift.
+
+**The observed instance** (observed: `probe64_miss.py` on
+`L1-VK-an-outside-fact-is-the-researchers`, 2026-09-22). The recorded turn
+4 carries `OK problem.assert -> unchanged since you asked earlier this
+session; the answer is above.` The tree composes `... this session. What
+problem.assert returned then still stands.` A tool's reply was reworded, the
+user half of the key moved, and the report reads `FAIL 0/5` for a case
+nobody has measured at the current key. Acceptance 8's probe can use this
+case as it stands, with no edit to `runner.py`.
+
+The other 9 later-turn misses are a fresh commit sha in `code.commit`'s
+reply, frame 70, and no key design touches them.
 
 Frame 64, the user prompt is the other half of the cassette key. Design
 record, revision 2, written 2026-09-22 by session 41cb5184. Meta workflow.
