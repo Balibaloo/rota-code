@@ -584,6 +584,49 @@ a different question and the night is then opened once.
   absent `think`, and how many cases those rows hold up. That number decides
   whether this is a repair or a re-record.
 
+### 66. A sample of five is one measurement (2026-09-22)
+
+- **No batch. It shares batch A's read, the register's `case_runs` rows, and
+  it is a different repair.** Batch A is about the key that names a recording.
+  This frame is about what a recorded count is evidence of.
+- Meta workflow. `run_sampled` runs a case `runs` times and compares the count
+  against a threshold. Its docstring says a case that fell from 5 of 5 to 3 of
+  5 is a regression signal. **No case in the register has ever scored anything
+  but 5 of 5 or 0 of 5** (observed: the report over all 128 cases, 107 green
+  at 5/5 and 21 failing at 0/5, 2026-09-22).
+- **The reason is replay** (observed: one re-record invocation's own summary,
+  `1 recorded in 15.7s, 4 replayed in 0.0s`, 2026-09-22). Run 1 records a
+  cassette. Runs 2 to 5 compose the identical prompt, hit that cassette and
+  replay it. The five rows are one live call and four copies of it.
+- **The report then reads exactly those five rows.** `matching_runs` ends with
+  `ORDER BY seq DESC LIMIT runs`, so the window is the last invocation
+  (observed: `rota/tools/casestatus.py:214-217`, 2026-09-22). **So the
+  threshold cannot bind.** `need 4` on a window that is always unanimous is a
+  line of arithmetic that never decides anything.
+- **The register's counts are replay counts, not sample counts** (observed:
+  743 `qwen3:8b` rows at one prompt hash hold five distinct transcripts, and
+  one green transcript covers 385 rows over 27 loads and eleven days,
+  2026-09-22). Every gate run replays and writes five more rows per case, so a
+  denominator grows without any new evidence.
+- **What this costs.** A green reads as five agreeing measurements and it is
+  one. `2007/2267` in the report reads as strong evidence and it is a count of
+  copies. Frame 55's own "10 of 10 green" and "20 of 20 red" are the same
+  overstatement, in a record this session has now corrected.
+- Ends when: the report says how many live calls stand behind a case's state,
+  and a count of copies is never printed as a count of measurements. Either
+  the sample becomes real, which means `runs` live calls, or the threshold
+  goes and the case carries one verdict with the date of the call that made
+  it. Priced: one read of `run_sampled`, `RecordingBackend` and the report's
+  window, 30k. The repair follows the read, and the choice between a real
+  sample and an honest single is Roman's, because a real sample spends the GPU
+  five times per case.
+- Waits on: nothing.
+- Reasoning: frame 55's status of 2026-09-22 19:13, which carries the five
+  transcripts and their dates.
+- Status 2026-09-22 19:14 (rota-1e): pushed by 2062c482, unclaimed. **Found
+  while running frame 55's re-record, and it is the reason that re-record
+  answered in 24 seconds rather than in five sessions.**
+
 ### 55. A recorded green does not reproduce live (2026-09-20) [2062c482]
 
 - **Batch A, the cassette key. Third of four.** This frame's two unknowns are the batch's two halves. "The model behind the tag changed" is frame 60's question. "A fresh run builds a prompt the cassette key does not capture" is frame 54's. So frames 54 and 60 answer this frame's diagnosis first, and the 40k probe runs only if they do not.
@@ -755,6 +798,55 @@ a different question and the night is then opened once.
   of `L1-TE-survey-an-area-for-its-terms` at `think=True` against the recorded
   pins. A re-record runs without asking (ruled: Roman, 2026-09-20). No
   write-off is written before the re-record answers.
+- Status 2026-09-22 19:13 (rota-1e): **thinking is not the cause. The
+  completion at a fixed key drifts across days, and on 2026-09-20 the drift
+  crossed the criterion.** Meta workflow. The re-record ran and the case
+  stayed red.
+  **The re-record needed no code change.** `ROTA_PROFILE` already carries a
+  per-model think map, and `think_for` reads it per call. A probe profile at
+  `C:\Users\roman\.rota\profiles\think-on.toml` sets `qwen3:8b` to true, and
+  the pin then enters the cassette key. Delete that file when this frame
+  closes.
+  **The result** (observed: `ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=12288
+  ROTA_PROFILE=think-on`, five runs, 2026-09-22). **0 of 5, and the same
+  missing call.** The session calls `code.area`, `glossary.amend`,
+  `glossary.consult`, `problem.baseline`, `surveys.attest` and
+  `surveys.consult`, and never `code.source`. The rows carry
+  `extras={"think": true}`, so the pin reached the key.
+  **Thinking changes the shape and not the verdict** (observed: the two
+  transcripts, 2026-09-22). At `think=true` the session opens with
+  `TOOL: glossary.amend(...)` and holds 5 markers in 1318 characters. At
+  `think=None` it opens with prose and holds 0 markers in 1637 characters. The
+  recording that was green holds **49 markers and 8 `code.source` calls**. So
+  thinking is necessary for a marker and it is nowhere near sufficient for
+  this case.
+  **The real cause, and it is observed** (observed: 743 `qwen3:8b` rows at the
+  current prompt hash, grouped by the digest of their transcript, 2026-09-22).
+  **Those 743 rows hold five distinct transcripts, and each one dates.**
+
+  | Transcript | First seen | Verdict | Rows | Loads |
+  | --- | --- | --- | --- | --- |
+  | `8e061876` | 2026-09-09 15:00 | green | 385 | 27 |
+  | `557b0ca6` | 2026-09-18 05:00 | green | 100 | 6 |
+  | `75067064` | 2026-09-19 09:00 | green | 100 | 7 |
+  | `741c72c1` | 2026-09-20 17:00 | **red** | 153 | 10 |
+  | `b42f2753` | 2026-09-22 19:00 | red, `think=true` | 5 | 1 |
+
+  **So the model gave three different green completions in eleven days at one
+  unchanged key, and then a red one.** The green was never one stable answer.
+  It was three answers that each satisfied the criterion. **A recording is
+  therefore not reproducible across days on this machine, even at temperature
+  zero with every pin held.** That is the same fault as frame 65's, one level
+  further out: the key pins the model, the window, the temperature, the
+  protocol and the extras, and it pins nothing about the server that answers.
+  **The change window is narrow and it is Roman's to explain.** The last green
+  live call is in the 2026-09-19 09:00 bucket and the first red live call is
+  in the 2026-09-20 17:00 bucket. `load_id` is `model@int(time.time())//7200`,
+  a two-hour bucket, so the window is about 32 hours wide.
+  **Ends-when status**: the cause is named in this record. The case is neither
+  re-earned nor written off. A write-off now would say the model lost a
+  capability, and the measurement says something weaker and worse: the answer
+  at a fixed key moves on its own.
 
 ### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
 
