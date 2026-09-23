@@ -411,6 +411,14 @@ a different question and the night is then opened once.
   `claude-opus-5-5[1m]`, 14.9k tokens). The switch is proven. The reviewer
   pass this frame prices runs on `claude-opus-5-5` by the Agent tool's
   model field, because `reviewer.md` stays on `inherit`.
+- Status 2026-09-23 22:25 (rota-d0): **The session that takes frame 37 at
+  the hand-off runs this frame while night 91 runs** (ruled: Roman,
+  2026-09-23 22:25, "Ok" to the recommendation that the next holder runs
+  it inside the night's two hours, so one session stays on the stack).
+  Meta workflow. It needs no GPU and no code change. The reviewer goes out
+  on `claude-opus-5-5` by the Agent tool's model field, blind to frame 65's
+  findings, on a worktree at frame 65's reviewed commit, and the count is
+  written here.
 - Reasoning: this frame's second line, and the reviewer anchors in the closing
   statuses of frames 58 and 65.
 - Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
