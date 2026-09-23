@@ -254,6 +254,22 @@ a different question and the night is then opened once.
   has landed 11 commits out of flagged turns. Roman asked the macro
   question at 15:00 in place of an answer to question 2, and the reply is
   in the terminal. Question 2 stands.
+- Status 2026-09-23 15:20 (rota-41): **A larger model does not close the
+  hole, so the fault is the structure's by Roman's own criterion** (observed:
+  `probes/frame37/replay_runner.py model=<tag>`, the same prompt through the
+  runner's own call, 2026-09-23 15:05 to 15:18; Roman asked at 15:00 whether
+  Gemma is capable, and said that if not the fault is the structure's).
+  Rota workflow. `gemma3:12b` skipped the read and wrote a `confirm()` with
+  a signature that does not exist, then committed, 50 s. `qwen2.5:14b`
+  invented the `code.source` result byte for byte with the 9B's for 799
+  characters, wrote and committed, 464 s. `mistral-nemo:12b` wrote from
+  memory after a paragraph of prose and committed, 50 s. `qwen3.5:9b` with
+  think on stopped at the read, 3 s, which the runner would answer with the
+  same false line. Every model on the box writes a function it was never
+  shown when the structure says the answer is above. The register's models
+  section now carries this, and its earlier line that the 9B stops at the
+  tool call is marked as the raw call's artefact. Register lines written by
+  this frame: two.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
