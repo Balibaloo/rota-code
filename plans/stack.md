@@ -243,6 +243,17 @@ a different question and the night is then opened once.
   pass over a 120k frame that touches no write path buys less than it
   costs; a stated deviation from the two-reviews rule). Implementer out on
   the `opus` override, cap 100k, with the calibration numbers in its brief.
+- Status 2026-09-23 16:10 (rota-d0): **The harness restarted while the
+  implementer ran, and Roman paused GPU work at 15:40** (observed: the
+  task notification after the restart, and Roman's word). Meta workflow.
+  The peer name of this session is now rota-d0, from rota-41. The tree
+  holds the implementer's three edits, `rota/tools/nightcount.py`,
+  `tests/rota/test_nightcount.py` and one line in
+  `probes/gauntlet_click.sh`, uncommitted. The implementer is resumed from
+  its transcript with a required re-read of the three files. The gate is
+  skipped at Roman's word, so line 4 waits on the pause lifting, and the
+  frame's acceptance runs the gate then. No model is loaded on either card
+  (observed: `ollama ps` and `nvidia-smi`, 16:10).
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
