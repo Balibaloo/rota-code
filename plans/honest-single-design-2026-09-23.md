@@ -133,9 +133,32 @@ say why run 1 is deterministic and the others are salted, and the test in
 `tests/rota/test_fixtures.py` that pins the same ids every run, if one
 does, pins run 1.
 
-`runs: 5` and `pass:` stay in every case file, and `run_sampled` keeps
-its signature. The threshold reads real: four of five problems, not four
-of five copies.
+`run_case` and `run_chain` keep `run_no=1` as their default, and only
+`run_sampled` calls `for_run`. So `replayed_chain_text` in the report,
+which calls `run_chain(case, ...)` with the loaded case, replays run 1's
+keys, and a refresh overwrites run 1's cassette at its key, so the replay
+follows the newest run-1 reply (observed: the second look, point 3,
+2026-09-23).
+
+**Twelve cases carry no hole at all**, so `for_run` returns the same
+bytes for every run and runs 2 to 5 would replay run 1 as today
+(observed: the second look's scan of `tests/rota/cases/*.yaml`, point 1):
+`L1-TE-survey-an-area-for-its-terms`,
+`L1-AR-survey-a-signature-callers-rely-on`,
+`L1-AR-survey-an-exception-contract`, `L1-AR-survey-a-patch-seam`,
+`L1-AR-survey-a-shared-helper`, `L1-AR-survey-an-exported-name`,
+`L1-TE-resurvey-an-area-that-moved`,
+`L1-AR-a-boundary-file-read-outside-in`, `L1-AR-judge-the-frame`,
+`L1-LI-say-what-the-run-could-not-see`, `L1-VK-orient-the-program`,
+`L1-VK-reconcile-the-readme`. Each of the twelve gets `runs: 1` and
+`pass: 1` in its file, because one problem is one run, and the line is
+then true for every case. Twelve edits across a few files is a script.
+Twenty-one further cases mix holes with a bare `t1`, `s1` or `a1`; those
+ids stay the same on every run and nothing breaks, and they are left.
+
+`runs: 5` and `pass:` stay in every other case file, and `run_sampled`
+keeps its signature. The threshold reads real: four of five problems, not
+four of five copies.
 
 ### 3.3 The report prints the score, the live date, and the replays
 
@@ -153,8 +176,12 @@ because the threshold stays. It adds:
   re-record finishing, every case reads that way, and the acceptance reads
   the register after the re-record.
 - Re-judged copies (2.3): for each row in `here` with `live = 0`, the
-  report finds the newest live row under the key with the same transcript.
-  When the verdicts differ, the `why` line says `re-judged: N of M replays
+  report finds its original: the newest live row under the same key and
+  the same `run_no` with a lower `seq`. A replay reads the cassette
+  current at its time, and that cassette is the newest live row at that
+  key and run before it, so the join is a prefix of the primary key and
+  compares no blob (observed: the second look, point 4, 2026-09-23). When
+  the verdicts differ, the `why` line says `re-judged: N of M replays
   differ from their live originals`, and the state is what the newest rows
   say. The checker of the day is the checker, and the line says the model
   did not move.
@@ -172,8 +199,10 @@ The footer's five counts stay. The advice line for stale cases stays.
 ### 3.4 `trust` reads live rows
 
 `flip_history` and `pass_rate_history` add `WHERE live = 1`. A group is
-then the live runs of one load, five problems under the salt, and the bar
-`ok / n >= 0.8` is the register's own bar over real runs. `trust` changes
+then the live runs of one load, five problems under the salt and one for
+each of the twelve hole-less cases that run once, and the bar
+`ok / n >= 0.8` is the register's own bar over real runs. A group of one
+row reads that row's verdict. `trust` changes
 nothing. A provisional green is confirmed when a second load's live runs
 pass, which is what the 2026-08-27 ruling said.
 
@@ -301,6 +330,18 @@ GPU and no context. This context, claim to close, about 140k.
    the threshold stays. 7. `test_discover.py`'s hand-built table: 3.1. 8.
    `triage.last_runs` per `run_no`: moot, runs stay five. 9. The date's
    three branches: 3.3. 10. R16's reason: section 5.
+
+## 11. The second look, on the salt
+
+Resumed on the same reviewer, four points, 14 tool calls, 3 minutes
+(observed: 2026-09-23). The salt reaches every expected value, because
+`fill` runs on the whole block before the parse and every derived id such
+as `e_<m_in>` has a matching hole in the same block, 0 mismatches over 128
+blocks. No caller mutates a loaded case, so the registry is safe. The
+chain replay in the report follows run 1. The changes it made to this
+record: the twelve hole-less cases run once (3.2), the re-judged join is
+on the key prefix and not on the transcript (3.3), and 3.4's line on the
+bar names the twelve.
 
 ## 10. What revision 2 changed
 
