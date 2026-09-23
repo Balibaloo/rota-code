@@ -11,8 +11,9 @@ four counters follow.
 
 - made up: turns whose completion carries a tool result the model wrote
   for itself, the distinct sessions of those turns, and the split by role.
-- ran anyway: made-up turns whose next prompt carries a real write result,
-  and made-up turns whose next prompt carries a landed commit, and the
+- ran anyway: made-up turns whose write call sits after the invention and
+  whose next prompt carries a real write result, the same count by turn
+  alone, made-up turns whose next prompt carries a landed commit, and the
   commits, first eight characters, in the order they appear.
 - dangling pointers: prompts that evict an earlier result and then refuse
   to run the call again. The session is told to re-read what it cannot
@@ -35,6 +36,17 @@ report finding 2, 2026-09-23). A prompt holds the results of the earlier
 turns as well, so two made-up turns of one session can count one write
 twice. The count is of turns that went on after a fabrication, and not of
 distinct files.
+
+Counter b counts two things, because the turn is the wrong unit alone. A
+write can precede the invention in the same turn, built on real reads, and
+rule 1 of frame 77 leaves that write running by design: in three of night
+90's eight turns the write came first (the design review of frame 77,
+finding 4, 2026-09-23). So the first number counts the turns whose
+`TOOL: code.write` call sits after the first invented result, and the turn
+total stays beside it. The first number is what a night after frame 77 must
+read as zero. The call test takes the marked form, so a bare `code.write(`
+with no marker is not counted: every recorded write of the nights measured
+carries the marker.
 
 The wordings. `feb11d3`, 2026-08-11, added the fabrication feedback and the
 `FABRICATED_RESULT` pattern that counter a matches. `5c76af2`, 2026-08-11,
@@ -59,6 +71,8 @@ REPEAT_TAILS = ("unchanged since you asked", "was run for you before you")
 WRITE_RESULT = "OK code.write ->"
 LANDED = re.compile(r'"committed":\s*true')
 HEAD_COMMIT = re.compile(r'"head_commit":\s*"([0-9a-f]+)"')
+# The write call as the seat sends it, marked and at the start of its line.
+WRITE_CALL = re.compile(r"^[ \t]*TOOL:[ \t]*code\.write\b", re.MULTILINE)
 
 
 def _rows(conn, sql, args=()):
@@ -81,6 +95,19 @@ def _real_write(prompt: str) -> bool:
     return False
 
 
+def _write_after(completion: str) -> bool:
+    """True when a write call sits after the first invented result.
+
+    Rule 1 of frame 77 holds exactly these calls. A write before the
+    invention was built on real reads and still runs, so it belongs to the
+    turn total and not to this count.
+    """
+    made = FABRICATED_RESULT.search(completion)
+    if not made:
+        return False
+    return any(m.start() > made.start() for m in WRITE_CALL.finditer(completion))
+
+
 def count(conn: sqlite3.Connection) -> dict:
     """Every counter of one run, as numbers. `lines` prints them."""
     turns = _rows(conn,
@@ -96,6 +123,7 @@ def count(conn: sqlite3.Connection) -> dict:
         roles.setdefault(r["role"] or "?", set()).add(r["sid"])
 
     writes = 0
+    after_invention = 0
     commits = 0
     shas: list[str] = []
     for r in made:
@@ -104,6 +132,8 @@ def count(conn: sqlite3.Connection) -> dict:
             continue           # the fabrication was the session's last turn
         if _real_write(after):
             writes += 1
+            if _write_after(r["completion"] or ""):
+                after_invention += 1
         if LANDED.search(after):
             commits += 1
             for sha in HEAD_COMMIT.findall(after):
@@ -127,6 +157,7 @@ def count(conn: sqlite3.Connection) -> dict:
         "made_sessions": len({r["sid"] for r in made}),
         "made_roles": {role: len(ids) for role, ids in sorted(roles.items())},
         "ran_writes": writes,
+        "ran_after_invention": after_invention,
         "ran_commits": commits,
         "shas": shas,
         "dangling_turns": len(dangling),
@@ -150,7 +181,8 @@ def lines(name: str, c: dict) -> list[str]:
         f"NIGHTCOUNT {name}: {c['sessions']} sessions, {c['turns']} turns",
         f"made up: {c['made_turns']} turns, {c['made_sessions']} sessions "
         f"({roles})",
-        f"ran anyway: {c['ran_writes']} turns with a write result, "
+        f"ran anyway: {c['ran_after_invention']} writes after an invention "
+        f"({c['ran_writes']} turns with a write result), "
         f"{c['ran_commits']} with a landed commit, shas {shas}",
         f"dangling pointers: {c['dangling_turns']} turns, "
         f"{c['dangling_sessions']} sessions",

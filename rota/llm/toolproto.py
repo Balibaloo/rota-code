@@ -422,21 +422,57 @@ def _namespace_labels(text: str, signatures: dict | None) -> str:
     return pat.sub(fix, text)
 
 
-def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolError]:
+def _source_starts(source: str, scanned: str, results: list, where: list[int]) -> list[int]:
+    """Each result's start in the text `extract` was given.
+
+    The scan runs over the rewritten text, so a rewrite moves every later
+    call. The rewrites are rare and the common case is one string, where the
+    scan's own offsets are exact. When a rewrite did happen, the raw locates
+    the call and the cursor keeps the order, so a duplicate never resolves to
+    an earlier copy.
+    """
+    if scanned == source:
+        return list(where)
+    out: list[int] = []
+    cursor = 0
+    for item, at in zip(results, where):
+        raw = getattr(item, "raw", "") or ""
+        found = source.find(raw, cursor) if raw else -1
+        if found < 0:
+            found = max(cursor, min(at, len(source)))
+        out.append(found)
+        cursor = max(cursor, found)
+    return out
+
+
+def extract(text: str, signatures: dict | None = None, *,
+            starts: list[int] | None = None) -> list[ToolCall | ToolError]:
     """
     Find every `TOOL:` call in a completion, in order.
 
     Quote- and paren-aware, so an argument containing `)` or a nested call does
     not truncate the scan. Anything that cannot be parsed becomes a ToolError
     carrying the raw text — the model sees its own mistake.
+
+    `starts`, when given, is filled with each result's start offset in `text`.
+    The runner reads the offsets to hold the calls a seat wrote after a tool
+    result it made up (frame 77).
     """
     results: list[ToolCall | ToolError] = []
+    where: list[int] = []
+    source = text
     text = _bracket_bare_lists(_inline_blocks(_namespace_labels(text, signatures)))
     cursor = 0
+
+    def add(item, at: int) -> None:
+        results.append(item)
+        where.append(at)
 
     while True:
         marker = text.find(MARKER, cursor)
         if marker == -1:
+            if starts is not None:
+                starts.extend(_source_starts(source, text, results, where))
             return results
 
         i = marker + len(MARKER)
@@ -445,7 +481,7 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
 
         name, i = _scan_name(text, i)
         if not name:
-            results.append(ToolError(text[marker:marker + 60], "no function name after TOOL:"))
+            add(ToolError(text[marker:marker + 60], "no function name after TOOL:"), marker)
             cursor = marker + len(MARKER)
             continue
 
@@ -497,13 +533,13 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                 try:
                     args, pos = parse_args(raw_args)
                 except Exception as exc:
-                    results.append(ToolError(
+                    add(ToolError(
                         f"{MARKER} {name}[{raw_args[:80]}]",
                         f"could not parse arguments: {exc}. Arguments go in "
-                        f"round brackets: {name}({raw_args[:60]})"))
+                        f"round brackets: {name}({raw_args[:60]})"), marker)
                 else:
-                    results.append(ToolCall(name=name, args=args, pos=pos,
-                                            raw=f"{name}({raw_args})"))
+                    add(ToolCall(name=name, args=args, pos=pos,
+                                 raw=f"{name}({raw_args})"), marker)
                 cursor = j
                 continue
         if i >= len(text) or text[i] != "(":
@@ -522,9 +558,9 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
             # `artefact.verb`, and without the check `TOOL: TOOL: TOOL:` parsed
             # its own marker as a zero-argument call to `TOOL`.
             if "." in name:
-                results.append(ToolCall(name=name, args={}, raw=f"{MARKER} {name}"))
+                add(ToolCall(name=name, args={}, raw=f"{MARKER} {name}"), marker)
             else:
-                results.append(ToolError(f"{MARKER} {name}", "missing argument list"))
+                add(ToolError(f"{MARKER} {name}", "missing argument list"), marker)
             cursor = i if i > cursor else cursor + len(MARKER)
             continue
 
@@ -570,12 +606,12 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
             # ten writes of main.py refused as "unterminated argument list",
             # the model's own guess was "a multi-line string", and the cause
             # was a quote inside the text closing the string early.
-            results.append(ToolError(
+            add(ToolError(
                 f"{MARKER} {name}(...",
                 "unterminated argument list: a quote inside a quoted argument "
                 "ended the string early, or a bracket is unbalanced. Source "
                 "has quotes of its own: put it between triple quotes, "
-                "text='''...''', with the lines as they are, no escaping"))
+                "text='''...''', with the lines as they are, no escaping"), marker)
             cursor = marker + len(MARKER)
             continue
 
@@ -583,8 +619,8 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
         try:
             args, pos = parse_args(raw_args)
         except Exception as exc:
-            results.append(ToolError(f"{MARKER} {name}({raw_args[:80]})",
-                                     f"could not parse arguments: {exc}"))
+            add(ToolError(f"{MARKER} {name}({raw_args[:80]})",
+                          f"could not parse arguments: {exc}"), marker)
         else:
             sig = (signatures or {}).get(name)
             # `_param_sets` hands (required, all); a bare set is accepted too.
@@ -604,17 +640,17 @@ def extract(text: str, signatures: dict | None = None) -> list[ToolCall | ToolEr
                 # test whose body broke the list.
                 longest = max((k for k, v in args.items() if isinstance(v, str)),
                               key=lambda k: len(args[k]), default=key)
-                results.append(ToolError(
+                add(ToolError(
                     f"{MARKER} {name}({raw_args[:80]})",
                     f"a quote inside {key} ended it early and the arguments "
                     f"after it ({other}=...) were read as part of {key}. Source "
                     f"has quotes of its own; open {longest} with three single "
                     f"quotes, write every line of the value as it is, and close "
                     f"with three single quotes. No escaping, and no placeholder: "
-                    f"the value is the whole text, sent again in full"))
+                    f"the value is the whole text, sent again in full"), marker)
             else:
-                results.append(ToolCall(name=name, args=args, pos=pos,
-                                        raw=f"{name}({raw_args})"))
+                add(ToolCall(name=name, args=args, pos=pos,
+                             raw=f"{name}({raw_args})"), marker)
         cursor = args_end + 1
 
 
@@ -881,7 +917,8 @@ def _unlabelled(text: str, signatures: dict,
 
 
 def extract_lenient(text: str, allowed: set[str],
-                    signatures: dict | None = None) -> list[ToolCall | ToolError]:
+                    signatures: dict | None = None, *,
+                    with_offsets: bool = False):
     """
     `extract`, plus fallbacks for completions that mishandle the marker.
 
@@ -896,6 +933,12 @@ def extract_lenient(text: str, allowed: set[str],
     match `criteria.load(...)`, and a hallucinated function still fails
     validation rather than sneaking through. Marker-prefixed calls always win;
     the fallbacks only run when the completion has no markers at all.
+
+    The default return is the list of calls. With `with_offsets`, the return is
+    `(calls, starts, scanned)`: a parallel list of each call's start offset, and
+    the text those offsets index into. The backtick pass below rewrites the
+    completion, so the caller searches `scanned` and not its own copy. The
+    calls themselves are the same either way (frame 77).
     """
     # `` `surveys.attest`, outcome="found" `` -- the name in backticks, a comma
     # where the colon goes, the keys in backticks too: one 14B session wrote
@@ -916,7 +959,8 @@ def extract_lenient(text: str, allowed: set[str],
         text = re.sub(rf"(?im)^([ \t]*)({names})(?=[ \t]*[\(:\[,])",
                       lambda m: m.group(1) + m.group(2).lower(), text)
 
-    marked = extract(text, signatures)
+    marked_starts: list[int] = []
+    marked = extract(text, signatures, starts=marked_starts)
 
     # Marked calls used to win outright: if the completion had any `TOOL:`
     # line, a bare `name(...)` elsewhere in it was prose. Measured otherwise on
@@ -993,22 +1037,25 @@ def extract_lenient(text: str, allowed: set[str],
         positioned += [(i, c) for i, c, _ in labelled_here]
         taken = spans + bare_spans + [(i, e) for i, _, e in labelled_here]
         positioned += _unlabelled(text, signatures or {}, taken)
-        cursor = 0
-        for m in marked:
-            raw = getattr(m, "raw", "") or ""
-            i = text.find(raw, cursor) if raw else -1
-            if i < 0:
-                i = cursor
-            positioned.append((i, m))
-            cursor = max(cursor, i + 1)
-        return [c for _, c in sorted(positioned, key=lambda pair: pair[0])]
+        # The scan's own offsets, and not `find(raw)`. The raw is rebuilt from
+        # the parse, so 16 of 1,263 recorded `code.write` calls were not found
+        # in the text at all, and 744 duplicate raws resolved to the first copy
+        # (the design review of frame 77, finding 5).
+        positioned += list(zip(marked_starts, marked))
+        ordered = sorted(positioned, key=lambda pair: pair[0])
+        if with_offsets:
+            return [c for _, c in ordered], [i for i, _ in ordered], text
+        return [c for _, c in ordered]
 
     # No marker: labelled blocks, bare calls outside them, and bare argument
     # lines beside both -- the amends as labels and the attest as a bare call
     # was one session's whole output, and the attest was being dropped.
     found += [(i, c) for i, c, _ in labelled_all]
     found += _unlabelled(text, signatures or {}, bare_spans + labelled_spans)
-    return [call for _, call in sorted(found, key=lambda pair: pair[0])]
+    ordered = sorted(found, key=lambda pair: pair[0])
+    if with_offsets:
+        return [c for _, c in ordered], [i for i, _ in ordered], text
+    return [call for _, call in ordered]
 
 
 def validate(call: ToolCall, allowed: set[str]) -> ToolError | None:

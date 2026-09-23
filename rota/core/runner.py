@@ -553,6 +553,14 @@ def _render_cut(text: str, limit: int) -> str:
 # cassettes carry it (measured 2026-09-20).
 _EVICTED_PHRASE = "dropped to fit the window"
 
+# How often one key's result is rendered in a session. Rule 2 of frame 77
+# serves an answer the window took, so that no line ever points at a block the
+# seat cannot see. A result larger than the room the exchange leaves is evicted
+# on every turn, and serving it on every turn is night 88's s137 again, so the
+# fourth asking is refused and the refusal says the room is the limit (the
+# design review of frame 77, finding 3, 2026-09-23).
+SERVE_CAP = 3
+
 
 def _dropped_note(dropped: int) -> str:
     """What the middle eviction leaves in place of the blocks it took."""
@@ -2161,10 +2169,17 @@ def run_session(
         # (the diff review of 0cc624b, finding 1).
         answered_at: dict[str, int] = {}
         repeated: dict[str, int] = {}
+        # How often each key's result was rendered into the feedback. Rule 2
+        # serves an evicted answer again rather than pointing at a block the
+        # window took, and this counter is what bounds the serving: a result
+        # larger than the room is evicted every turn, so an unbounded re-serve
+        # repeats night 88's s137 (the design review of frame 77, finding 3).
+        served: dict[str, int] = {}
         by_path: dict[str, set[str]] = {}
-        # These five move together. `already_run` says a call ran, `answered`
+        # These six move together. `already_run` says a call ran, `answered`
         # says what it gave, `answered_at` says when, `repeated` counts the
-        # askings, and `by_path` invalidates. Both findings this machinery has
+        # askings answered by a line, `served` counts the renders, and
+        # `by_path` invalidates. Both findings this machinery has
         # produced came from changing one of them alone: frame 43's stale hold
         # from `already_run` without `answered`, and the diff review's triple
         # serve from `answered` without `answered_at`.
@@ -2189,6 +2204,7 @@ def run_session(
                 answered.pop(gone, None)
                 answered_at.pop(gone, None)
                 repeated.pop(gone, None)
+                served.pop(gone, None)
 
         turns: list[Turn] = []
         cut_retried = False
@@ -2247,8 +2263,12 @@ def run_session(
                     f"window — the server cut the prompt from the front, "
                     f"which is where the brief is")
 
-            calls = toolproto.extract_lenient(completion.text, allowed,
-                                              signatures=_param_sets(sb))
+            # `call_at` carries each call's start offset in `scanned`, and
+            # `scanned` is the text those offsets index into. Rule 1 below
+            # compares them with the first invented result (frame 77).
+            calls, call_at, scanned = toolproto.extract_lenient(
+                completion.text, allowed, signatures=_param_sets(sb),
+                with_offsets=True)
             if (completion.raw or {}).get("done_reason") == "length":
                 # clickI night 16 (2026-09-12): a 688-line whole-file write
                 # stopped at the output cap mid-string, the parser called it
@@ -2407,6 +2427,10 @@ def run_session(
             # One repeat refusal per key per turn. The copies are the fault it
             # exists to stop, and each one is longer than the line it replaces.
             refused_keys: set[str] = set()
+            # Which keys this reply has already been served. A second copy in
+            # one reply is the s71 storm, and the eviction test cannot see it:
+            # an answer made this turn is not in this turn's prompt.
+            served_keys: set[str] = set()
             if cut_note:
                 feedback.append(f"ERROR reply cut: {cut_note}")
             held = []
@@ -2415,8 +2439,15 @@ def run_session(
             # before this turn's calls run.
             held_calls = []
             seen_read = False
+            # Rule 1's list: the calls this turn wrote after a result it made
+            # up. Names only, and never a call object, because no path may run
+            # them. The stood-by path above runs `held_calls`, so an invented
+            # tail put there would land on "Done." (the design review of frame
+            # 77, finding 1).
+            invented_tail: list[str] = []
 
-            if FABRICATED_RESULT.search(completion.text):
+            fabricated = FABRICATED_RESULT.search(scanned)
+            if fabricated:
                 outcome.errors.append("wrote its own tool results")
                 feedback.append(
                     "You wrote tool results into your own reply -- the lines "
@@ -2424,6 +2455,18 @@ def run_session(
                     "me and nothing behind them ran. Only results I send back "
                     "are real. Send the calls alone and stop; I will answer.")
             for i, call in enumerate(calls):
+                # Rule 1: a turn's calls run up to the first invented result,
+                # and every call after it is dropped. The calls behind the
+                # invention were built on it, so the seat must decide them
+                # again with the real results in view. Night 86's s145 read a
+                # file, invented the write's own result, and the runner wrote
+                # and committed from memory (frame 75, 2026-09-23). The calls
+                # arrive in text order, so the first one past the match ends
+                # the turn.
+                if fabricated and call_at[i] > fabricated.start():
+                    invented_tail = [c.raw or getattr(c, "name", "?")
+                                     for c in calls[i:]]
+                    break
                 if isinstance(call, toolproto.ToolError):
                     if cut_note and i == len(calls) - 1:
                         # The cut is the cause and the cut note says so. clickI
@@ -2608,20 +2651,45 @@ def run_session(
                         # (frame 43, pass 2, 2026-09-19).
                         if call_path and call.name != "code.write":
                             by_path.setdefault(call_path, set()).add(key)
-                    # `would_repeat`, not `unchanged`: the refusal counts the
-                    # askings, and an eviction does not make an asking new.
-                    # Tested against `unchanged`, this branch was unreachable
-                    # for as long as the eviction notice stood, and the notice
-                    # is sticky because `_fit` writes it back every turn. A
-                    # repeating seat was then served in full for ever. Night
-                    # 88's s137 served turns 7, 8 and 9 and died on the
-                    # identical-turn stop with nothing written. Night 87's s132
-                    # is the same wake and the same span, and it committed at
-                    # turn 15, because the refusal was still reachable there.
+                    # Rule 2 of frame 77: the answer the window took is served
+                    # again, and no refusal points at a block the seat cannot
+                    # see. The bound moved from the askings to the renders. A
+                    # key is served three times in a session, and the asking
+                    # after that is refused by the room and not by the count,
+                    # because a result the exchange has no room for is evicted
+                    # on every turn however often it is sent (the design review
+                    # of frame 77, finding 3).
                     #
-                    # So a result is served at most twice per key: once on the
-                    # first asking, and once more when an eviction emptied it.
-                    if would_repeat and repeated.get(key, 0) >= 1:
+                    # The storm is a second copy in one reply, and the eviction
+                    # test cannot see it: an answer made this turn is not in
+                    # this turn's prompt. `served_keys` is that test, and it
+                    # keeps the s71 shape closed.
+                    stormed = key in served_keys and served.get(key, 0) >= 2
+                    if would_repeat and evicted and served.get(key, 0) >= SERVE_CAP:
+                        # The room is the limit, so the seat is asked for a
+                        # span that fits. Night 88's s137 was served in full at
+                        # turns 7, 8 and 9 and died with nothing written: a
+                        # result bigger than the exchange comes back for ever
+                        # and buys nothing. Frames 53 and 56 own the fitting
+                        # itself; this line only stops the loop.
+                        why = ("served three times this session and the result "
+                               "does not fit the room this seat has; not "
+                               "served again")
+                        repeated[key] = repeated.get(key, 0) + 1
+                        if key not in refused_keys:
+                            refused_keys.add(key)
+                            outcome.errors.append(
+                                f"repeat refused: {call.name} {why}")
+                            turn_refusals.add((call.name, why[:160]))
+                            seat_refusals = getattr(sb.ctx, "refusals", None)
+                            if seat_refusals is not None:
+                                seat_refusals.append((call.name, why, "Repeat"))
+                            feedback.append(
+                                f"ERROR {_call_tag(call, len(calls))}: {why}. "
+                                f"Ask {call.name} for a narrower span, or "
+                                f"finish without it.")
+                    elif would_repeat and not evicted and (
+                            stormed or repeated.get(key, 0) >= 1):
                         # The third identical call, refused. Session s71 sent
                         # 331 calls in one reply on both nights, 327 of them
                         # answered by the line below, and those 90,000
@@ -2654,15 +2722,17 @@ def run_session(
                             seat_refusals = getattr(sb.ctx, "refusals", None)
                             if seat_refusals is not None:
                                 seat_refusals.append((call.name, why, "Repeat"))
-                            # The refusal names the call that returned the
-                            # answer, and says nothing about where the answer
-                            # sits. "Use the answer above" was false whenever
-                            # an eviction had taken it, and this branch is now
-                            # reached in exactly that case.
+                            # This branch is the answered-and-present case, and
+                            # the sentence says so. "Use what it returned
+                            # earlier" was said in exactly the evicted case,
+                            # about a result the seat could not see, and rule 2
+                            # sends that case to the serve below. The eviction
+                            # can still take the block between this line and
+                            # the reading of it, and then the key is evicted
+                            # and the next asking is served again.
                             feedback.append(
-                                f"ERROR {_call_tag(call, len(calls))}: {why}. Use "
-                                f"what {call.name} returned earlier, or finish "
-                                f"without it.")
+                                f"ERROR {_call_tag(call, len(calls))}: {why}. "
+                                f"The answer is in this prompt.")
                     elif unchanged:
                         repeated[key] = repeated.get(key, 0) + 1
                         # The stalled sessions asked `surveys.consult` three
@@ -2710,13 +2780,17 @@ def run_session(
                         result_room = max(
                             0, result_room - len(shown) - len(call.name) - 7)
                         source_served = source_served or call.name == 'code.source'
-                        if would_repeat:
+                        if not withheld:
                             # The eviction emptied this key, so the result is
-                            # served a second time and says why. The seat is
-                            # told what happened and never told to read a turn
-                            # the window took. Counted as a repeat, so the third
-                            # asking still meets the refusal above.
-                            repeated[key] = repeated.get(key, 0) + 1
+                            # served again and says why. The seat is told what
+                            # happened and never told to read a turn the window
+                            # took. Counted as a serve and not as an asking:
+                            # the askings answered by a line bound the storm,
+                            # and the renders bound the room (rule 2, frame
+                            # 77). A withheld result was never shown, so it
+                            # counts as nothing.
+                            served[key] = served.get(key, 0) + 1
+                            served_keys.add(key)
                         feedback.append(
                             f"OK {call.name} -> the earlier answer was "
                             f"{_EVICTED_PHRASE}, so this prompt does not hold "
@@ -2759,6 +2833,13 @@ def run_session(
                     f"came back: {', '.join(held)}. You have the answers now. "
                     "Send them again if they are still what you want.")
 
+            if invented_tail:
+                feedback.append(
+                    "NOT RUN, because you wrote a tool result of your own "
+                    f"ahead of them: {', '.join(invented_tail)}. The real "
+                    "results of the calls that did run follow. Send the rest "
+                    "again with those results in view.")
+
             transcript.append(completion.text)
 
             # One wake, one completion: once the reply has committed to
@@ -2788,7 +2869,11 @@ def run_session(
             # does, and `code.write`/a no-op `code.commit` don't either --
             # by the same design that keeps `verdicts.claim_encodes` (a
             # staged judgement, not yet a verdict) off it too.
-            if oneshot and (sb.ctx.writes or sb.ctx.outbound):
+            #
+            # Rule 1 stands above the break: a turn that invented a result has
+            # calls it never ran, and ending here would leave them unrun for
+            # ever. The seat gets the turn that sends them again (frame 77).
+            if oneshot and (sb.ctx.writes or sb.ctx.outbound) and not invented_tail:
                 break
 
             # A role that has sent its outbound message has, in almost every

@@ -72,6 +72,35 @@ def test_the_ran_anyway_count_reads_the_next_turn(tmp_path):
     assert c["shas"] == ["4473c354"]
 
 
+def test_a_write_before_the_invention_counts_only_in_the_turn_total(tmp_path):
+    """
+    Rule 1 of frame 77 holds the calls after the invention and leaves the
+    ones before it running. A write that precedes the invention was built on
+    real reads, so a night after the frame still counts it by turn. The
+    after-invention count is the one that must read zero (the design review
+    of frame 77, finding 4).
+    """
+    before = ("TOOL: code.write(path='src/click/utils.py', text='x')\n"
+              "OK code.write -> {\"path\": \"src/click/utils.py\"}\n"
+              "I will commit it now.")
+    after = ("OK code.source -> def main(): pass\n"
+             "TOOL: code.write(path='src/click/core.py', text='y')")
+
+    def build(conn):
+        session(conn, "s1")
+        session(conn, "s2")
+        turn(conn, "s1", 1, user="the brief", completion=before)
+        turn(conn, "s1", 2, user="the brief\n" + REAL_WRITE, completion="done")
+        turn(conn, "s2", 1, user="the brief", completion=after)
+        turn(conn, "s2", 2, user="the brief\n" + REAL_WRITE, completion="done")
+
+    c = counted(tmp_path, build)
+    assert c["made_turns"] == 2
+    assert c["ran_writes"] == 2, "both turns went on to a real write result"
+    assert c["ran_after_invention"] == 1, \
+        "the write before the invention was counted as run after it"
+
+
 def test_a_fabrication_in_the_last_turn_runs_nothing(tmp_path):
     """No next turn, so nothing ran anyway. The fabrication still counts."""
     def build(conn):
@@ -125,8 +154,8 @@ def test_main_prints_five_lines_of_facts(tmp_path, capsys):
     out = capsys.readouterr().out.splitlines()
     assert out[0] == "NIGHTCOUNT clickI: 2 sessions, 4 turns"
     assert out[1] == "made up: 2 turns, 2 sessions (developer 2)"
-    assert out[2] == ("ran anyway: 1 turns with a write result, 1 with a "
-                      "landed commit, shas 4473c354")
+    assert out[2] == ("ran anyway: 0 writes after an invention (1 turns with "
+                      "a write result), 1 with a landed commit, shas 4473c354")
     assert out[3] == "dangling pointers: 1 turns, 1 sessions"
     assert out[4] == "repeats: 1 wakes repeated, 2 sessions, 1 of them repeats"
 
@@ -142,8 +171,8 @@ def test_a_clean_run_prints_zeros(tmp_path, capsys):
     assert out == [
         "NIGHTCOUNT clickI: 1 sessions, 1 turns",
         "made up: 0 turns, 0 sessions (none)",
-        "ran anyway: 0 turns with a write result, 0 with a landed commit, "
-        "shas none",
+        "ran anyway: 0 writes after an invention (0 turns with a write "
+        "result), 0 with a landed commit, shas none",
         "dangling pointers: 0 turns, 0 sessions",
         "repeats: 0 wakes repeated, 0 sessions, 0 of them repeats",
     ]

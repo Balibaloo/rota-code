@@ -387,6 +387,90 @@ def test_a_real_result_in_the_transcript_is_not_mistaken_for_a_fabrication(db):
     assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 1
 
 
+def test_the_calls_after_an_invented_result_never_run(db, worktree):
+    """
+    Night 86's s145, turn 6: a source call, a result the seat wrote for
+    itself, and then the write and the commit it built on that result. The
+    runner flagged the reply and ran all three (frame 75, 2026-09-23).
+
+    Rule 1 of frame 77: the turn's calls run up to the first invented result,
+    and every call after it is dropped. The calls behind the invention were
+    built on it, so the seat decides them again with the real result in view.
+    The write it sends next turn runs.
+    """
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    backend = ScriptedBackend([
+        "TOOL: code.source(path='src/acct.py')\n"
+        "OK code.source -> def delete(x): return x\n"
+        "TOOL: code.write(path='src/acct.py', text='def delete(x):"
+        "\n    return \"from memory\"\n')\n"
+        "TOOL: code.commit(message='tombstone the account')",
+        "TOOL: code.write(path='src/acct.py', text='VALUE = 1\n')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert "wrote its own tool results" in outcome.errors
+    after = backend.calls[1][1]                  # the prompt of the next turn
+    assert "OK code.source -> path: src/acct.py" in after, \
+        "the call before the invention did not run"
+    named = after.split("NOT RUN")[-1]           # the line that names the tail
+    assert "code.write(path='src/acct.py'" in named, "the write is not named"
+    assert "code.commit(message=" in named, "the commit is not named"
+    assert (worktree / "src" / "acct.py").read_text() == "VALUE = 1\n", \
+        "the write behind the invention landed, or the next turn's did not"
+
+
+def test_an_invented_result_before_any_call_holds_every_call(db):
+    """
+    The edge of rule 1: the invention comes first, so no call of the turn is
+    dispatched. Every one of them was built on a result the runner never
+    sent.
+    """
+    backend = ScriptedBackend([
+        "OK problem.consult -> [{'id': 'i_invented', 'text': 'made up'}]\n"
+        "TOOL: problem.assert(id='i1', text='ok', kind='in_scope')",
+        "Done.",
+    ])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted"))
+
+    assert "wrote its own tool results" in outcome.errors
+    assert db.execute("SELECT COUNT(*) n FROM items").fetchone()["n"] == 0, \
+        "a call after the invention ran"
+    block = backend.calls[1][1].split("\n\n")[-1]
+    assert "NOT RUN" in block and "problem.assert(id='i1'" in block, \
+        f"the call was not named as unrun: {block}"
+
+
+def test_a_prose_turn_after_an_invention_lands_nothing(db, worktree):
+    """
+    The stood-by path runs a held call when the seat replies with prose,
+    because a hold the seat never revised is the seat standing by it. An
+    invented tail is not a hold of that kind: the seat stood by a plan it
+    built on a result nothing returned (the design review of frame 77,
+    finding 1).
+
+    So "Done." after an invention lands nothing, and the session is barren.
+    """
+    (worktree / "src" / "acct.py").write_text("def delete(x):\n    return x\n")
+    backend = ScriptedBackend([
+        "OK code.source -> def delete(x): return x\n"
+        "TOOL: code.write(path='src/acct.py', text='from memory\n')",
+        "Done.",
+        "Nothing is owed.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert "wrote its own tool results" in outcome.errors
+    assert (worktree / "src" / "acct.py").read_text() == \
+        "def delete(x):\n    return x\n", "the from-memory write landed"
+    assert "ended a tick with nothing done" in outcome.errors, \
+        "the session wrote something after all"
+
+
 def test_a_read_already_answered_does_not_hold_the_action_again(db):
     """
     The livelock the read boundary caused, which cost a case 3/5 -> 0/5.
@@ -692,72 +776,93 @@ def test_repeats_inside_one_reply_are_suppressed_after_an_eviction(db):
         f"the repeats paid full freight: {len(block):,} characters"
 
 
-def _evicting_repeats(ask: str) -> list[str]:
+def _evicting_repeats(ask: str, askings: int = 3) -> list[str]:
     """
-    A script whose eviction still stands when the third asking arrives.
+    A script whose eviction still stands when the next asking arrives.
 
     Turn 2 is long enough to push turn 1 out of a 2,000 character budget, and
     every later result is cut to the floor, so the answer never comes back
     into the prompt whole. The prose varies because three identical turns end
     a session, and the count here is of callings, not of turns.
     """
-    return [ask,
-            "thinking. " * 300 + "\nTOOL: decisions.search(query='detail')",
-            f"Again.\n{ask}", f"Once more.\n{ask}", "Done."]
+    prose = ["Again.", "Once more.", "Last time.", "And again."]
+    return ([ask, "thinking. " * 300 + "\nTOOL: decisions.search(query='detail')"]
+            + [f"{prose[i]}\n{ask}" for i in range(askings - 1)]
+            + ["Done."])
 
 
-def test_the_refusal_fires_while_an_eviction_stands(db):
+def test_an_evicted_answer_is_served_again_and_a_present_one_is_a_line(db):
     """
-    The eviction notice is sticky, because `_fit` writes it back every turn,
-    and the answer it took never comes back. Tested against `unchanged`, the
-    refusal was unreachable for as long as the notice stood, so a repeating
-    seat was served in full for ever. Night 88's s137 served turns 7, 8 and 9
-    and then died on the identical-turn stop with nothing written. Night 87's
-    s132 is the same wake and the same span, and it committed at turn 15,
-    because the refusal was still reachable there.
+    Rule 2 of frame 77. A refusal that points at a deleted answer is what the
+    seat answers by writing the result itself: every local model on the box
+    invents under that pointer (frame 75, 2026-09-23). So the bound is on the
+    renders and not on the askings, and the eviction decides which the seat
+    gets.
 
-    So the refusal tests `would_repeat`: the third identical calling is
-    refused whether or not the eviction emptied its answer.
+    The asking after the eviction is served in full, with no refusal. The
+    asking after that reads its own answer in the prompt, so it gets the line.
     """
     from rota.core.runner import _EVICTED_PHRASE
 
+    _seed_decisions(db, 60)
+    ask = "TOOL: decisions.search(query='scope')"
+    backend = ScriptedBackend([
+        ask,
+        "thinking. " * 1200 + "\nTOOL: decisions.search(query='detail')",
+        f"Again.\n{ask}", f"Once more.\n{ask}", "Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend,
+                          pins=Pins(model="scripted", temperature=0.0, num_ctx=12288))
+
+    assert outcome.committed, outcome.errors
+    evicted = backend.calls[3][1].split("\n\n")[-1]   # the asking after the eviction
+    assert _EVICTED_PHRASE in backend.calls[2][1], \
+        "nothing was evicted, so this shape proves nothing"
+    assert evicted.count("the earlier answer was") == 1, \
+        "the evicted answer was not served again"
+    assert "not answered again" not in evicted, \
+        f"an evicted answer met a refusal: {evicted[:200]}"
+    present = backend.calls[4][1].split("\n\n")[-1]   # the asking with the block
+    assert "unchanged since you asked" in present, \
+        f"the answer is in this prompt, so the line is owed: {present[:200]}"
+    assert not any("repeat refused" in e for e in outcome.errors), \
+        outcome.errors
+
+
+def test_a_key_is_served_three_times_and_then_the_room_refuses(db):
+    """
+    The bound on the re-serve. A result larger than the room the exchange
+    leaves is evicted on every turn, so serving it on every asking is night
+    88's s137 again: served in full at turns 7, 8 and 9, dead on the
+    identical-turn stop with nothing written (the design review of frame 77,
+    finding 3).
+
+    Three serves a key a session. The fourth asking is refused by the room,
+    and the refusal asks for a span that fits. It never says to use what the
+    call returned earlier, because the window took that answer.
+    """
     _seed_decisions(db)
     ask = "TOOL: decisions.search(query='scope')"
-    backend = ScriptedBackend(_evicting_repeats(ask))
+    backend = ScriptedBackend(_evicting_repeats(ask, askings=4))
     outcome = run_session(db, wake_vision_keeper(), backend=backend,
                           pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
 
     assert outcome.committed, outcome.errors
-    third = backend.calls[3][1]              # the prompt the third calling read
-    assert _EVICTED_PHRASE in third, "nothing is evicted, so this shape proves nothing"
-    assert "the earlier answer was" in third, \
-        "the second calling was not served under the eviction"
-    assert any("asked three times" in e for e in outcome.errors), \
-        "the third calling was never refused while the eviction stood"
-    assert "asked three times" in backend.calls[4][1], \
-        "the seat was not told why its third calling went unanswered"
-
-
-def test_a_result_is_served_at_most_twice_for_one_key(db):
-    """
-    Once on the first asking, and once more when an eviction emptied it. The
-    third asking meets the refusal, so the same answer can never be rendered a
-    third time. The second serve says the earlier answer was taken, which is
-    what `_EVICTED_PHRASE` is for.
-    """
-    _seed_decisions(db)
-    ask = "TOOL: decisions.search(query='scope')"
-    backend = ScriptedBackend(_evicting_repeats(ask))
-    outcome = run_session(db, wake_vision_keeper(), backend=backend,
-                          pins=Pins(model="scripted", temperature=0.0, num_ctx=512))
-
-    assert outcome.committed, outcome.errors
-    served = [backend.calls[i][1].split("\n\n")[-1] for i in (1, 3, 4)]
-    assert served[0].count("OK decisions.search ->") == 1, "the first asking was not served"
+    served = [backend.calls[i][1].split("\n\n")[-1] for i in (1, 3, 4, 5)]
+    assert served[0].count("OK decisions.search ->") == 1, \
+        "the first asking was not served"
     assert served[1].count("the earlier answer was") == 1, \
         "the second serve did not say the earlier answer was taken"
-    assert served[2].count("OK decisions.search ->") == 0, \
-        f"the result was served a third time: {served[2][:200]}"
+    assert served[2].count("the earlier answer was") == 1, \
+        "the third serve did not happen"
+    assert served[3].count("OK decisions.search ->") == 0, \
+        f"the result was served a fourth time: {served[3][:200]}"
+    assert "does not fit the room" in served[3], \
+        f"the refusal does not name the room: {served[3][:200]}"
+    assert "narrower span" in served[3], "the refusal asks for nothing"
+    assert "returned earlier" not in served[3], \
+        "the refusal points at an answer the window took"
+    assert any("repeat refused" in e for e in outcome.errors), \
+        "the fourth asking was never refused"
 
 
 def test_three_identical_calls_in_one_reply_meet_the_refusal(db):
