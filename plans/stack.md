@@ -258,6 +258,29 @@ a different question and the night is then opened once.
   Roman, 2026-09-23 16:11, "we have more gpu time, continue"). Meta
   workflow. The implementer is told to run the gate at the end of its pass
   as first briefed. Line 4 is back in the pass.
+- Status 2026-09-23 16:15 (rota-d0): **Lines 2 and 3 are in, and the
+  calibration matches the scope read on every number it predicted**
+  (observed: the implementer's report, 2026-09-23 16:11, 74k on the harness
+  line over the cold pass and the resume against 80k priced, 38 calls, on
+  `claude-opus-5[1m]`; seven tests green in 4 s). Meta workflow for the
+  instrument. `rota/tools/nightcount.py`, 181 lines, `tests/rota/test_nightcount.py`,
+  149 lines, one line in `probes/gauntlet_click.sh`. Two deviations accepted
+  (reasoned: each stated with its cause): the shas print once each in first
+  appearance order, because a prompt carries earlier results and one commit
+  reappears in every later turn; and the shas sit on the ran-anyway line so
+  the block stays five lines. The calibration over five nights, rota
+  workflow (observed: the command's output, pasted in the report):
+  | night | made up, sessions | ran anyway, writes | commits | shas | dangling | repeats |
+  | 70 | 18 of 184 | 8 | 5 | `3c17d358` `4d9bcbf7` | 81 | 2 |
+  | 86 | 17 of 203 | 1 | 1 | `da5e7e85` | 77 | 19 |
+  | 87 | 87 of 746 | 6 | 5 | `324ed1e6` `47566b78` | 273 | 243 |
+  | 88 | 36 of 191 | 0 | 0 | none | 50 | 11 |
+  | 90 | 37 of 243 | 8 | 7 | five | 83 | 1 |
+  **Night 70's merge, `3c17d35`, is the first sha on its ran-anyway line**,
+  so the one merge the project has was committed in the turn after a
+  fabrication, at the corrected count of 5 commit-bearing turns and not the
+  11 of 15:05. Night 87's 243 repeats are one vision_keeper wake repeated
+  on end. The gate runs now in this session, on the card, for line 4.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
