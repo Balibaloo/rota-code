@@ -297,6 +297,18 @@ a different question and the night is then opened once.
   from live calls. `trust` confirms on two live loads. Next: the design
   record, the design review, one implementer pass, the diff review.
 
+- Status 2026-09-23 04:33 (rota-7f): **the design record is written and the
+  design review runs.** Meta workflow. The record is
+  `plans/honest-single-design-2026-09-23.md`: two columns on `case_runs`,
+  `live` and `at`, written by `record_case_run` from the backend's own
+  miss counter; the threshold and `runs: 5` go and a case runs once; the
+  report reads the newest row and names the newest live call with its
+  date and the replays since; `trust` reads live rows; a one-shot tool
+  backfills the committed register by first-seen transcript. Frame 71
+  closed at `1ecb282` and this session holds this frame alone. The
+  reviewer type reads the record and frame 64's scope report against eight
+  points, cap 100k, no worktree, no code yet.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
