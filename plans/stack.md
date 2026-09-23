@@ -372,6 +372,18 @@ a different question and the night is then opened once.
   Next: the reviewer takes a resumed second look at the salt sections,
   cap 30k, then the implementer.
 
+- Status 2026-09-23 04:55 (rota-7f): **the second look is in, the record is
+  final, and the implementer is out.** Meta workflow. The resumed reviewer,
+  four points, 14 tool calls, 3 minutes, harness line 137.9k for the
+  resumed context, its own estimate 26k for the pass (observed: the harness
+  usage and the report, 2026-09-23). One hole: twelve cases carry no
+  `<hole>`, so the salt leaves them one problem, and they get `runs: 1`
+  and `pass: 1` by a script. The re-judged join moves from the transcript
+  blob to the key prefix `(key, run_no, seq <)`. The chain replay in the
+  report follows run 1 and needs no change. The record is committed above
+  this line. One implementing agent on Opus, cap 120k, foreground tests,
+  the gate once at the end, no re-record, no commit.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
