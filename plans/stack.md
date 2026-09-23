@@ -333,7 +333,7 @@ a different question and the night is then opened once.
   far against 315k in agents, walls apart: design review 120k, implementer
   227k over three passes and three resumes, the assistant's gate and reads
   about 30k here. Walls: three harness restarts, none the frame's.
-- Status 2026-09-23 22:05 (rota-d0): **Diff review in: ship with three
+- Status 2026-09-23 21:50 (rota-d0): **Diff review in: ship with three
   fixes** (observed: the reviewer's probes on the worktree at `5f27b85`,
   2026-09-23 22:00, 99k on the harness line against 65k priced and an 80k
   cap, 28 calls). Meta workflow. Eight points answered, four findings.
@@ -357,7 +357,7 @@ a different question and the night is then opened once.
   sessions, because the gauntlet keeps one previous database and that
   slot holds night 89. Fix pass out, cap 40k: the three fixes and two
   tests.
-- Status 2026-09-23 22:15 (rota-d0): **Fix pass in, 92 tests green, the new
+- Status 2026-09-23 21:55 (rota-d0): **Fix pass in, 92 tests green, the new
   test fails on the old parser** (observed: the implementer's report,
   2026-09-23 22:12, 23k for the pass on the harness line, 250k cumulative
   for the agent over four passes; the test run against HEAD's `toolproto.py`
@@ -374,6 +374,31 @@ a different question and the night is then opened once.
   outside the brief: test (a) splits on `NOT RUN` and reads the whole
   prompt when the line is absent, while its file assertion still proves
   the hold. The assistant's gate runs now on the fixed tree.
+- Status 2026-09-23 22:00 (rota-d0): **validating. Closing commit `b79882e`,
+  night 91 launched at 21:59 from `C:/Users/roman/rota_night91` at that
+  commit** (observed: the assistant's gate on the fixed tree, 2026-09-23
+  21:58, 32 failed, 2237 passed, 0 stale, 11 new reds of which ten are
+  the known set and one, `test_handover.py::test_a_newer_watcher_retires_the_older_one`,
+  the gate flags flaky and this frame never touched; `.rota/night91.log`
+  reads `night 91 launched 21:59 ... at b79882e` and `== onboard 21:59`,
+  `night91.err` empty). Meta workflow. Lines 1 to 4 are met. Line 5 runs:
+  the night's counters print before `GAUNTLET-DONE` in `.rota/night91.log`,
+  and the run database is `.rota/clickI.db` while it runs. **Acceptance
+  for the reader of the night**: `ran anyway` reads 0 writes after an
+  invention with `made up` above 0; one session that invented and got the
+  NOT RUN line is named from `turns`; the outcome is read against night
+  86's, two batches and one commit with no merge; and finding 4 of the
+  diff review, that only the twelve-turn cap ends a session that invents
+  every turn, is checked against the night's longest inventing session.
+  The old review worktree is removed. Actual against 315k in agents, walls
+  apart: design review 120k, implementer 250k over four passes and three
+  resumes, diff review 99k, the assistant's two gates and reads about 45k
+  here: 469k in agents. Walls: three harness restarts and one missing
+  Ollama server, none the frame's. Register lines this frame: two, the
+  Ollama sign and the Opus 5.5 harness line. Three status times of this
+  frame were first written from memory and corrected to the clock's bound
+  at 21:58 (observed: the clock read 21:58 after lines said 22:05, 22:15
+  and 22:25); the habit is in memory with one strike.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -411,9 +436,9 @@ a different question and the night is then opened once.
   `claude-opus-5-5[1m]`, 14.9k tokens). The switch is proven. The reviewer
   pass this frame prices runs on `claude-opus-5-5` by the Agent tool's
   model field, because `reviewer.md` stays on `inherit`.
-- Status 2026-09-23 22:25 (rota-d0): **The session that takes frame 37 at
+- Status 2026-09-23 21:57 (rota-d0): **The session that takes frame 37 at
   the hand-off runs this frame while night 91 runs** (ruled: Roman,
-  2026-09-23 22:25, "Ok" to the recommendation that the next holder runs
+  2026-09-23 21:57, "Ok" to the recommendation that the next holder runs
   it inside the night's two hours, so one session stays on the stack).
   Meta workflow. It needs no GPU and no code change. The reviewer goes out
   on `claude-opus-5-5` by the Agent tool's model field, blind to frame 65's
@@ -499,6 +524,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:56 (rota-41): **Frame 75 names the wall that built the diff: an eviction, a false pointer, an invented result, and a write dispatched from a flagged turn** (observed: frame 75's status of 14:55). Meta workflow. The three walls of frame 38's read judged that diff and did not build it. Grill question 2 is the first repair frame's scope, asked with the recommended answer that the dispatch and the pointer are one frame, because they are one site in `run_session` and one walk.
 - Status 2026-09-23 15:27 (rota-41): **Grill question 2 is answered: count first, then fix the runner** (ruled: Roman, 2026-09-23 15:23, asked with the runner fix recommended and a composition rule as the third option, in plain words at Roman's ask). Meta workflow. Before the answer Roman asked two questions and got two facts: the hole is routine and night 70's merge went through it, and every larger local model writes from memory under the same false pointer, so the fault is the structure's. Frame 76 is the count. The runner fix is question 3's frame, pushed when 76 closes, with frame 75's chain as its scope. The 9B question waits behind both.
 - Status 2026-09-23 16:27 (rota-d0): **Frame 76 closed at 16:27, and grill question 3 is asked** (observed: frame 76's closing status). Meta workflow. Roman answered question 3 with "what's right here and why", and the reasoning is in the terminal: both holes are one fault at one site. Frame 77, the runner runs nothing from a made-up turn and never points at a deleted answer, is pushed and blocked on the ruling. When it lands, this frame's question 4 is whether the three record walls follow as frames or wait for frame 77's night.
+- Status 2026-09-23 22:00 (rota-d0): **Handed to the oldest free standby with this session at its ceiling** (ruled: CLAUDE.md, the 400k hand-off, taken at the 300k warning because the frame's remaining work is a two-hour night this window cannot hold). Meta workflow. What the holder inherits, in order: (1) frame 74, Opus 5.5 as a judge, runs now in an agent while night 91 runs, at Roman's word of 21:57; its brief is frame 74's ends-when line and frame 65's ten findings in `plans/archive/stack-2026-09-23.md`. (2) Night 91 ends around 00:00 with `GAUNTLET-DONE` in `.rota/night91.log`; read frame 77's acceptance in its status of 22:00, write frame 77's closing status, and archive `.rota/clickI.db` as `clickI_night91.db` by SQLite backup. (3) Grill question 4 for this frame, from the night's reading: whether the criterion wall, the test wall and the write door of frame 38's record become frames now, recommended yes as three frames in chain order if the night reaches a test wall, and otherwise a re-read of what the night stopped on. (4) Frame 73's nine salted cases are still the gate's known reds; frame 48 and 67 are closed. Roman's untracked `rota.code-workspace` is his. The worktrees `wt-night89`, `wt-33`, `wt-34`, `wt-36` and `wt-86` of ended sessions are still registered, a parked item.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
