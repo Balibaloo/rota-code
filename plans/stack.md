@@ -163,113 +163,63 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 75. Did the runner dispatch the write from a turn that invented its own results (2026-09-23) (dba7e375)
+### 76. Every night counts what the model made up and what the runner ran anyway (2026-09-23) (Roman) (dba7e375)
 
-- **Batch C, the night's stall. Frame 37's first quantum.** Its read is
-  night 86's `s145` turns 6 and 7 and the runner at `8b15af8`, which is
-  batch C's one read. It shares nothing else.
-- Meta workflow for the method, rota workflow for the fact. Frame 37's
-  grill, question 1, asked which wall the first repair takes. **Roman chose
-  to settle the fourth suspect before any wall** (ruled: Roman, 2026-09-23
-  14:45, asked with the criterion wall, the write door and the test wall as
-  the other options). The suspect: the recorded turn 6 of `s145` ran 3762
-  characters past a `code.source` call into an invented result and the
-  82-line rewrite, and the runner flagged the turn as "wrote its own tool
-  results" (`rota/core/runner.py:2419` today). The prior holder's probe
-  reproduced 65 characters with a raw `/api/chat` call, which is not the
-  runner's call: the runner streams, sets `num_predict`, resolves `think`,
-  and may pass tools (observed: `rota/llm/llm.py:395-411`, 2026-09-23). So
-  the 65 is observed for the probe and reasoned for the runner. If the write
-  in the flagged turn dispatched, the three walls judged a diff built on a
-  source read the model invented, and that is the wall to repair first.
+- **Batch C, the night's stall. Frame 37's second quantum, and the first
+  repair Roman ordered.** It reads the same `turns` text as frame 75 and
+  shares nothing else with an open frame.
+- Meta workflow for the instrument, rota workflow for the numbers. **Roman
+  ruled at frame 37's grill, question 2: count first, then fix the runner**
+  (ruled: Roman, 2026-09-23 15:23, asked with the runner fix and a
+  composition rule as the other options). Frame 75 counted once from a
+  scratchpad script and found the hole routine: a fabrication in 8 to 15 per
+  cent of a night's sessions, writes run from flagged turns on four nights,
+  and night 70's merge landed 11 commits through it. A number in a
+  scratchpad ages the way the runner's comment did, from 8 of 8183 to a
+  hundred a night with nobody reading it. So the count moves into the
+  night's own report.
+- The four counters, each read from a run database's `turns` text and
+  `tool_calls`, because `sessions` holds no error column and the runner's
+  account lives in the turn text (observed: the schema of
+  `.rota/clickI_night86.db`, 2026-09-23):
+  1. Made up: user blocks that carry the runner's "You wrote tool results
+     into your own reply" line, as turns and as distinct sessions, by role.
+  2. Run anyway: those blocks that also carry a write result, `OK code.write
+     ->`, and those that carry `"committed": true`, as turns, with the shas.
+  3. Dangling pointers: prompts that carry the eviction notice, "re-read
+     anything you still need", beside a repeat line, "the answer is above",
+     "was run for you before you" or "unchanged since you asked", by the
+     wording at `rota/core/runner.py:561`, `:2698` and `:2702`. Frame 75's
+     count read 0 on nights 89 and 90 because it knew one wording only.
+  4. Repeats: sessions that share a `prompt_hash` and a `wake_kind` with an
+     earlier session of the same run, frame 58's measure.
 - Ends when, priced from the anchors, walls apart:
-  1. A read-only agent says, from turns 6 and 7 as recorded and the runner's
-     branch at `8b15af8`, whether the `code.write` in the flagged turn
-     dispatched, and whether `da5e7e8`'s rewrite is that write: 40k. Buys:
-     the wall that built the diff is named, observed and not reasoned.
-  2. Turn 6 replayed through the runner's own `complete()` with the recorded
-     pins, the first differing character named against the recorded 3762:
-     40k in an implementer that writes `probes/frame37/replay_runner.py`.
-     Buys: the 65-character result becomes the runner's fact or the probe's
-     artefact.
-  3. The judgement here, and frame 37's grill question 2 written from it:
-     10k.
-  Total about 90k.
-- Waits on: nothing. Ollama is up with `qwen3.5:9b` and no night runs
-  (observed: night 90 ended 12:20; the prior probe ran to 14:40).
-- Reasoning: frame 37's status of 2026-09-23 14:35, and
-  `plans/archive/night70-vs-night86-2026-09-23.md`, item 3 and the last
-  bullet of "What was the same".
-- Status 2026-09-23 14:45 (rota-41): pushed by dba7e375 at Roman's ruling.
-  Two agents out in parallel, a reviewer for line 1 and an implementer for
-  line 2, cap 60k each.
-- Status 2026-09-23 14:55 (rota-41): **Both lines are in, and the fourth
-  suspect is the wall that built the diff** (observed: the reviewer's read of
-  `s145` turns 6 and 7, `tool_calls` seq 17 to 19, the worktree at `da5e7e8`
-  and the runner at `8b15af8`, 2026-09-23 14:50, 77k on the harness line
-  against 40k priced and a 60k cap, 17 calls; and the implementer's replay
-  through the runner's own `complete()`, `probes/frame37/replay_runner.py`,
-  2026-09-23 14:51, 59k against 40k, 20 calls, on `claude-opus-5[1m]` under
-  the `opus` override). Rota workflow. The chain, each link confirmed:
-  1. `_fit` evicted the real `confirm()` from the prompt at turn 3, and the
-     repeat line "the answer is above" stood twice in turn 6's prompt,
-     pointing at nothing. The runner's own comment at `8b15af8:2093-2106`
-     names this a known hole left open: the line is false after an eviction,
-     certain whenever it can happen, 8 of 8183 recorded prompts.
-  2. The model, asked for the source again, invented the result from memory.
-     The invented body is byte-equal to the `code.write` text after it, and
-     no line of it matches the real function. The runner's own call
-     reproduces it: with the recorded pins, think off, the reply matches the
-     recording for 799 characters and then differs in layout only, 2381
-     characters, `done_reason` stop, no cap hit. Think on stops at the call
-     in 65 characters, and `num_predict` changes nothing. So the prior
-     probe's 65 was the probe's artefact and not the runner's fact.
-  3. The runner flagged "wrote its own tool results", told the model
-     "nothing behind them ran", then ran all three calls. The flag at
-     `8b15af8:1984` appends a note, the loop at `1991` dispatches every
-     parsed call, and the hold at `2074` fires on a fresh read only, which a
-     repeat is not. Today's runner at `2419`, `2426` and `2510` reads the
-     same. `da5e7e8` is turn 6's write byte for byte.
-  So the diff the three walls judged for nine attempts was a from-memory
-  rewrite that the runner let through from a turn it had just called
-  invented. The criterion wall stands and did not build the diff: the
-  invented body raises `EOFError` as the criterion asked, and its renames
-  and drops come from memory, not from the criterion. Register lines
-  written: one, the harness version. Actual against 90k: 136k in agents,
-  about 25k here. Walls: none. The frame closes when grill question 2 is
-  asked from it.
-- Status 2026-09-23 15:05 (rota-41): **The hole is routine, and night 70's
-  merge went through it** (observed: one count over `.rota/clickI*.db`,
-  user blocks that carry the runner's fabrication feedback, and the same
-  blocks that carry a `code.write` result or `"committed": true`,
-  2026-09-23 15:05; the script is in this session's scratchpad and its
-  numbers are in the reply to Roman). Rota workflow. Sessions with a
-  fabrication per night: 16 of 184 on night 70, 15 of 203 on 86, 80 of 746
-  on 87, 31 of 191 on 88, 32 of 243 on 90. Writes run in a flagged turn and
-  commits landed in one: 16 and 11 on night 70, 2 and 2 on 86, 23 and 11 on
-  87, 0 and 0 on 88, 23 and 16 on 90. Prompts with an eviction notice
-  beside "the answer is above": 81, 76, 111, 50 and 0, the last because the
-  line's wording moved after frame 46, not because the case stopped. So the
-  comment's 8 of 8183 is stale by two orders, and the one merge the project
-  has landed 11 commits out of flagged turns. Roman asked the macro
-  question at 15:00 in place of an answer to question 2, and the reply is
-  in the terminal. Question 2 stands.
-- Status 2026-09-23 15:20 (rota-41): **A larger model does not close the
-  hole, so the fault is the structure's by Roman's own criterion** (observed:
-  `probes/frame37/replay_runner.py model=<tag>`, the same prompt through the
-  runner's own call, 2026-09-23 15:05 to 15:18; Roman asked at 15:00 whether
-  Gemma is capable, and said that if not the fault is the structure's).
-  Rota workflow. `gemma3:12b` skipped the read and wrote a `confirm()` with
-  a signature that does not exist, then committed, 50 s. `qwen2.5:14b`
-  invented the `code.source` result byte for byte with the 9B's for 799
-  characters, wrote and committed, 464 s. `mistral-nemo:12b` wrote from
-  memory after a paragraph of prose and committed, 50 s. `qwen3.5:9b` with
-  think on stopped at the read, 3 s, which the runner would answer with the
-  same false line. Every model on the box writes a function it was never
-  shown when the structure says the answer is above. The register's models
-  section now carries this, and its earlier line that the 9B stops at the
-  tool call is marked as the raw call's artefact. Register lines written by
-  this frame: two.
+  1. A scope read names where the walk's end report is rendered
+     (`probes/walk.py:268`, `render_state` from `rota/roles/principal.py`,
+     also printed by `rota/tools/onboard_run.py:122`), what it reads, and
+     where a per-night count belongs so that the walk log and a later reader
+     of any archived run database both get it: 30k. Buys: the counters land
+     in the line the night already prints, and in a command over any
+     `.rota/*.db`.
+  2. The counters are built as one module with a command,
+     `python -m rota.tools.nightcount <db>`, called from the walk's end
+     report, with pinned tests on a fixture database that holds one of each
+     case: 80k, cold 60k and one resumed pass 20k. Buys: every night says
+     the four numbers, and a stall is read from them.
+  3. The command run over nights 70, 86, 87, 88 and 90, and its numbers for
+     night 86 agree with frame 75's count, 15 sessions, 2 writes, 2 commits,
+     76 dangling pointers: 10k here. Buys: the instrument is calibrated
+     against the read that motivated it.
+  4. The gate green before the commit, the stale line read: 12k.
+  Total about 120k in agents, 20k here. No diff review, because the frame
+  touches no write path, schema or predicate (reasoned: it reads a run
+  database and writes nothing to it). No walk, because the next night runs
+  it by being a night.
+- Waits on: nothing. It starts now.
+- Reasoning: frame 75's statuses of 15:05 and 15:20, and Roman's ruling at
+  15:23.
+- Status 2026-09-23 15:27 (rota-41): pushed by dba7e375 at Roman's ruling.
+  The scope read goes to a reviewer, cap 40k.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -380,6 +330,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:40 (rota-41): **taken by dba7e375** (observed: the take command's exit 0 at 14:40, claim posted 14:35:53 from 07e01dfc). Meta workflow. The frame stays blocked on the grill at question 1, which wall the first repair takes. The holder's first act is the state reply and that question, with a recommended answer.
 - Status 2026-09-23 14:45 (rota-41): **Grill question 1 is answered: the fourth suspect is settled before any wall is chosen** (ruled: Roman, 2026-09-23 14:45, asked with the three walls as the other options). Meta workflow. The read is frame 75, did the runner dispatch the write from a turn that invented its own results. Question 2 waits on frame 75's result.
 - Status 2026-09-23 14:56 (rota-41): **Frame 75 names the wall that built the diff: an eviction, a false pointer, an invented result, and a write dispatched from a flagged turn** (observed: frame 75's status of 14:55). Meta workflow. The three walls of frame 38's read judged that diff and did not build it. Grill question 2 is the first repair frame's scope, asked with the recommended answer that the dispatch and the pointer are one frame, because they are one site in `run_session` and one walk.
+- Status 2026-09-23 15:27 (rota-41): **Grill question 2 is answered: count first, then fix the runner** (ruled: Roman, 2026-09-23 15:23, asked with the runner fix recommended and a composition rule as the third option, in plain words at Roman's ask). Meta workflow. Before the answer Roman asked two questions and got two facts: the hole is routine and night 70's merge went through it, and every larger local model writes from memory under the same false pointer, so the fault is the structure's. Frame 76 is the count. The runner fix is question 3's frame, pushed when 76 closes, with frame 75's chain as its scope. The 9B question waits behind both.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
