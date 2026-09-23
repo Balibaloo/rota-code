@@ -108,7 +108,7 @@ they are the gauntlet and the end state and no step names them.
 
 | Batch | Frames, in order | The one thing they share |
 | --- | --- | --- |
-| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21, ~~63, 64~~ closed 2026-09-22; **55, 65** remain; 68 and 69 popped unstarted and parked as one item | One repair: the key that names a recording. The writer and the reader must name the same fields. |
+| A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21, ~~63, 64, 55~~ closed 2026-09-22, ~~65~~ closed 2026-09-23 (observed: the archive files, 2026-09-23); 68 and 69 popped unstarted and parked as one item. **The batch is closed.** | One repair: the key that names a recording. The writer and the reader must name the same fields. |
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
 | C, the night's stall | ~~58, 38~~ closed 2026-09-23; **37** remains | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
@@ -162,6 +162,47 @@ a different question and the night is then opened once.
    can gate today, and every frame that closes after them is accepted on a
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
+
+### 75. Did the runner dispatch the write from a turn that invented its own results (2026-09-23) (dba7e375)
+
+- **Batch C, the night's stall. Frame 37's first quantum.** Its read is
+  night 86's `s145` turns 6 and 7 and the runner at `8b15af8`, which is
+  batch C's one read. It shares nothing else.
+- Meta workflow for the method, rota workflow for the fact. Frame 37's
+  grill, question 1, asked which wall the first repair takes. **Roman chose
+  to settle the fourth suspect before any wall** (ruled: Roman, 2026-09-23
+  14:45, asked with the criterion wall, the write door and the test wall as
+  the other options). The suspect: the recorded turn 6 of `s145` ran 3762
+  characters past a `code.source` call into an invented result and the
+  82-line rewrite, and the runner flagged the turn as "wrote its own tool
+  results" (`rota/core/runner.py:2419` today). The prior holder's probe
+  reproduced 65 characters with a raw `/api/chat` call, which is not the
+  runner's call: the runner streams, sets `num_predict`, resolves `think`,
+  and may pass tools (observed: `rota/llm/llm.py:395-411`, 2026-09-23). So
+  the 65 is observed for the probe and reasoned for the runner. If the write
+  in the flagged turn dispatched, the three walls judged a diff built on a
+  source read the model invented, and that is the wall to repair first.
+- Ends when, priced from the anchors, walls apart:
+  1. A read-only agent says, from turns 6 and 7 as recorded and the runner's
+     branch at `8b15af8`, whether the `code.write` in the flagged turn
+     dispatched, and whether `da5e7e8`'s rewrite is that write: 40k. Buys:
+     the wall that built the diff is named, observed and not reasoned.
+  2. Turn 6 replayed through the runner's own `complete()` with the recorded
+     pins, the first differing character named against the recorded 3762:
+     40k in an implementer that writes `probes/frame37/replay_runner.py`.
+     Buys: the 65-character result becomes the runner's fact or the probe's
+     artefact.
+  3. The judgement here, and frame 37's grill question 2 written from it:
+     10k.
+  Total about 90k.
+- Waits on: nothing. Ollama is up with `qwen3.5:9b` and no night runs
+  (observed: night 90 ended 12:20; the prior probe ran to 14:40).
+- Reasoning: frame 37's status of 2026-09-23 14:35, and
+  `plans/archive/night70-vs-night86-2026-09-23.md`, item 3 and the last
+  bullet of "What was the same".
+- Status 2026-09-23 14:45 (rota-41): pushed by dba7e375 at Roman's ruling.
+  Two agents out in parallel, a reviewer for line 1 and an implementer for
+  line 2, cap 60k each.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -262,6 +303,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:35 (rota-60): **Handed to the oldest free standby at Roman's word, with this session at 300k** (ruled: Roman, 2026-09-23 14:36, asked with continuing the grill here as the other option). Meta workflow. What the holder inherits: the grill is at question 1, which wall the first repair takes, and Roman answered 'this is a hard question, let's think about it'. The assistant's reading, given in the terminal: the three walls are one fault, each seat's output reached the next seat unchecked; a probe that replays `s145` turn 6 with night 70's criteria substituted would turn the category from reasoned to observed; and three frames in chain order, criterion, test, write, proven by one night. The probe script is `probes/frame37/replay_turn.py`, one-shot on `turns.system` and `turns.user`. Its fourth suspect: the recorded turn 6 ran 3762 characters past the tool call into a fabricated result and the rewrite, and a single call reproduces 65 characters with thinking on or off, so the runner's turn handling at `8b15af8` on 2026-09-18 is the next read, and the runner's own account of `s145` says 'wrote its own tool results'. Frame 74 is unclaimed, with frame 65's review chosen. The build agents name `claude-opus-5-5` since `82a9d09`, effective in a fresh session. The register rule in CLAUDE.md at `8550f6c` and seven lines in `plans/operating-facts.md` wait for Roman's check. Night 90 ended at 12:20, 243 sessions, stuck on the boundary for `.readthedocs.yaml` and the grouping for `tk_1_confirm_default_on_eof`, and its database is still `.rota/clickI.db`, unread.
 - Status 2026-09-23 14:37 (rota-60): **The claim for this frame is posted to session `dba7e375`, rota-41, and the take has not come** (observed: the `hand` command's exit 4 at 14:37, after 90 s unconfirmed). Meta workflow. Stack commit `2bb529f`. One message goes to rota-41 with the take command, by the rule for exit 4. The claim returns to the queue by itself in 15 minutes, so the frame moves without a person. Session 07e01dfc stops here at 300k, holding nothing.
 - Status 2026-09-23 14:40 (rota-41): **taken by dba7e375** (observed: the take command's exit 0 at 14:40, claim posted 14:35:53 from 07e01dfc). Meta workflow. The frame stays blocked on the grill at question 1, which wall the first repair takes. The holder's first act is the state reply and that question, with a recommended answer.
+- Status 2026-09-23 14:45 (rota-41): **Grill question 1 is answered: the fourth suspect is settled before any wall is chosen** (ruled: Roman, 2026-09-23 14:45, asked with the three walls as the other options). Meta workflow. The read is frame 75, did the runner dispatch the write from a turn that invented its own results. Question 2 waits on frame 75's result.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
