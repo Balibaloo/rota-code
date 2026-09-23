@@ -163,35 +163,6 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 72. Runs that vary the fixture, or one run per case (2026-09-23) (Roman)
-
-- **No batch. It is frame 66's held sweep.** Frame 66 stops reading the
-  threshold. This frame decides what `runs: 5` means from here.
-- Meta workflow. Roman holds that the five runs of a case swap values in
-  per run, so a case is exercised dynamically (ruled: Roman, 2026-09-23
-  04:39, "I thought that the point of multiple runs was that we
-  dynamically swap values in"). They do not today. A fixture id is
-  `sha1(case_id:name)[:6]` (observed: `rota/testkit/fixtures.py:805`,
-  2026-09-23), the fixture text is the case's own, and the prompt is the
-  same in every run, which is why runs 2 to 5 replay run 1 (observed: frame
-  65's re-record, 414 recorded and 1661 replayed, 2026-09-23 02:38). Two
-  readings: (a) runs should vary the fixture, ids and names and text, so
-  five runs are five similar problems and a pass rate measures the brief
-  against variation, which is frame 42's open question, the spread over a
-  similar problem; (b) a case runs once, and `runs: 5` and `pass:` leave
-  the 128 files by a sweep. Reading (a) is a design of its own: what
-  varies, what stays, and what a cassette key is when the prompt is meant
-  to differ. Reading (b) is frame 66's held sweep, about 10k.
-- Ends when: Roman rules (a) or (b). Under (b) the sweep runs and closes
-  this frame. Under (a) a design record is written and reviewed before any
-  code, and this frame becomes that frame.
-- Waits on: Roman. Recommended: (b) now, and (a) as a frame after frame 42,
-  because (a) changes what a recording is evidence of and that is the
-  question frame 42 already holds.
-- Reasoning: frame 66's status of 2026-09-23 04:39.
-- Status 2026-09-23 04:39 (rota-7f): pushed by 9fe32e55, blocked on Roman.
-  Not taken until he rules.
-
 ### 66. A sample of five is one measurement (2026-09-22) (9fe32e55)
 
 - **No batch. It shares batch A's read, the register's `case_runs` rows, and
@@ -356,6 +327,18 @@ a different question and the night is then opened once.
   **3. Continue to batch C overnight** without asking: frame 48, frame
   67's pull and bench, then frames 58, 38, 37. The design review is still
   out, and revision 2 of the record folds its findings and rulings 1 and 2.
+
+- Status 2026-09-23 04:46 (rota-7f): **ruled again: salt the ids per run,
+  tonight, in this frame** (ruled: Roman, 2026-09-23 04:46, asked with two
+  other options; the 04:27 ruling that the threshold goes is replaced).
+  Meta workflow. The threshold stays and means something: the fill of
+  `<name>` holes takes the run number, run 1 keeps today's ids so the
+  recorded register stays evidence about run 1, and runs 2 to 5 are four
+  more problems that differ in every id. The live flag, the date, the
+  live-versus-replay line and trust on live loads stay from revision 1.
+  The sweep and the backfill are out. Frame 72 is popped into this one.
+  Revision 2 of the design record is written when the design review of
+  revision 1 returns, and the reviewer takes a second look at the salt.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
