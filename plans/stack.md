@@ -281,6 +281,42 @@ a different question and the night is then opened once.
   `run_sampled`, `RecordingBackend.complete`, `matching_runs`. The choice
   after it goes to Roman with a recommended answer.
 
+- Status 2026-09-23 04:08 (rota-7f): **the read is done, and the choice goes
+  to Roman.** Meta workflow. Priced 30k, actual about 35k by the tool output.
+  Four findings, all observed 2026-09-23 04:02 to 04:06 in this checkout.
+  **1. The mechanism is confirmed in code.** Every tier builds pins at
+  `temperature=0.0` (`test_l1.py:138`, `test_l3.py`, `test_gauntlet.py`).
+  `run_sampled` composes one prompt per run, `key_for` hashes model,
+  temperature, window, protocol, system, user and extras, and
+  `RecordingBackend.complete` replays a hit before it calls out. So run 1
+  records and runs 2 to 5 replay it in the same process.
+  **2. The register cannot tell a live row from a copy.** A `case_runs`
+  transcript is `{"say": text}` per turn from `RunOutcome.completions`, and
+  the backend name `cassette:<inner>` that `Completion` carries on a replay is
+  dropped before the write. Counted by transcript identity, the register
+  holds 170,435 rows, 2,591 first-seen transcripts and 167,844 copies. That
+  proxy cannot separate a live identical answer from a replay, so an honest
+  count needs a `live` flag written at record time.
+  **3. `trust` promotes on copies.** `flip_history` groups by prompt hash and
+  `load_id`, `current_load` is `model@epoch//7200`, and a gate run two hours
+  later replays the same cassette under a new load. 100,448 of the copies sit
+  in a later load than their original, so a provisional green is earned by a
+  replay and never by a second live call. Second place where a copy wears the
+  word measurement.
+  **4. The docstring's signal exists at the load and not at the run.** Frame
+  55 measured drift across days at one key, and 743 rows at one hash hold
+  five transcripts. Within one load at temperature 0 a repeat is unmeasured,
+  and the frame 65 re-record cost 414 live calls in 11m28s, so a real sample
+  of five costs about an hour of GPU per full re-record and buys copies until
+  the temperature moves.
+  **Recommended: the honest single.** The threshold goes. A case carries the
+  verdict of its newest live row under the current key, with that call's
+  date, and the report prints replays apart from live calls. `trust` confirms
+  on two live loads. Priced from the anchors: one implementer pass about 75k,
+  one diff review about 70k, this context about 120k, no GPU. The real sample
+  is the other option, and it needs a ruling on temperature before it is a
+  sample at all.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
