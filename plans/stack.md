@@ -281,7 +281,7 @@ a different question and the night is then opened once.
   `run_sampled`, `RecordingBackend.complete`, `matching_runs`. The choice
   after it goes to Roman with a recommended answer.
 
-- Status 2026-09-23 04:08 (rota-7f): **the read is done, and the choice goes
+- Status 2026-09-23 04:04 (rota-7f): **the read is done, and the choice goes
   to Roman.** Meta workflow. Priced 30k, actual about 35k by the tool output.
   Four findings, all observed 2026-09-23 04:02 to 04:06 in this checkout.
   **1. The mechanism is confirmed in code.** Every tier builds pins at
