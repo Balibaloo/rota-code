@@ -362,6 +362,17 @@ a different question and the night is then opened once.
   is the other option, and it needs a ruling on temperature before it is a
   sample at all.
 
+- Status 2026-09-23 04:27 (rota-7f): **ruled: the honest single** (ruled:
+  Roman, 2026-09-23, "ok so 1 it is then", asked with the real sample and
+  the print-only change, and after "is there value in 2?" was answered: no,
+  because every seat runs at temperature 0.0 and frame 58 measured that a
+  zero-temperature model repeats an identical prompt exactly, so five live
+  calls on one load are five identical answers). Meta workflow. The
+  threshold goes. A case carries the verdict of its newest live row under
+  the current key, with that call's date. The report prints replays apart
+  from live calls. `trust` confirms on two live loads. Next: the design
+  record, the design review, one implementer pass, the diff review.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
