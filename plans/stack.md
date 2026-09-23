@@ -246,6 +246,16 @@ a different question and the night is then opened once.
   Counter b of frame 76's tool is refined to count writes after the
   invention's offset. Implementer out on the `opus` override, cap 150k,
   one pass.
+- Status 2026-09-23 17:40 (rota-d0): **the harness restarted again while
+  the implementer ran, and Roman updated Claude Code in the gap** (observed:
+  the task notification, and a one-line implementer spawn that reported
+  `claude-opus-5-5[1m]`). Meta workflow. The tree holds the implementer's
+  five edits, 403 insertions over `rota/core/runner.py`,
+  `rota/llm/toolproto.py`, `rota/tools/nightcount.py` and the two test
+  files, uncommitted: both rules are in the runner and the parser carries
+  offsets. The implementer is resumed from its transcript with a required
+  re-read of its diff. It stays on Opus 5, because a resume keeps the
+  spawn's model. Frame 74's wait on the harness is met.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -278,6 +288,11 @@ a different question and the night is then opened once.
   and refused by the harness, and no agent builds on Opus 5.5 until Roman
   updates Claude Code. Frame 75's implementer reran on the `opus` alias.
   Added by dba7e375, holder of frame 37.
+  **Met** (observed: a one-line implementer spawn in session dba7e375 after
+  Roman updated the harness, 2026-09-23 17:40, reported
+  `claude-opus-5-5[1m]`, 14.9k tokens). The switch is proven. The reviewer
+  pass this frame prices runs on `claude-opus-5-5` by the Agent tool's
+  model field, because `reviewer.md` stays on `inherit`.
 - Reasoning: this frame's second line, and the reviewer anchors in the closing
   statuses of frames 58 and 65.
 - Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
