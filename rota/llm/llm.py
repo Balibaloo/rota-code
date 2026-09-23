@@ -43,11 +43,25 @@ DEFAULT_MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
 DEFAULT_NUM_CTX = int(os.environ.get("ROTA_NUM_CTX", "12288"))
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
+# Reasoning-by-default models (the qwen3 family) burn invisible tokens at the
+# acting register's expense -- measured at 0.1 visible tok/s on the bench. The
+# system speaks in acts, so thinking is off unless a profile turns it on. A
+# template that ignores the flag is unharmed. This is the value the wire
+# carries when nobody pins one, so it is also the value the key must carry.
+THINK_DEFAULT = False
 
-def think_for(model: str) -> bool | None:
+
+def think_for(model: str) -> bool:
     """
-    The think pin `ROTA_PROFILE` sets for this model, or None for the
-    provider's own default.
+    The think pin this run sends for this model: the profile's, or
+    `THINK_DEFAULT`.
+
+    The key must carry the value the wire carries. Until frame 65 this
+    returned None when no profile named the model, `extras()` dropped the None,
+    and the key then recorded the field as absent while the backend still sent
+    a value. Absent is not a value, so a recording made under one server
+    default replayed against another and the register could not tell the two
+    apart.
 
     `ROTA_MODEL` and `ROTA_NUM_CTX` above are read once at import. This third
     ambient variable is read per call, because a profile is a file the caller
@@ -65,10 +79,11 @@ def think_for(model: str) -> bool | None:
     """
     name = os.environ.get("ROTA_PROFILE")
     if not name:
-        return None
+        return THINK_DEFAULT
     from . import profile as profile_mod
 
-    return (profile_mod.find(name).think or {}).get(model)
+    pinned = (profile_mod.find(name).think or {}).get(model)
+    return THINK_DEFAULT if pinned is None else pinned
 
 
 @dataclass(frozen=True)
@@ -90,8 +105,9 @@ class Pins:
     top_p: float | None = None
     seed: int | None = None
     repeat_penalty: float | None = None
-    # Thinking on or off. None is the provider's default and the runner's
-    # off; a set value keys the recording, like every other pin that is set.
+    # Thinking on or off. The tiers never pass None here, because `think_for`
+    # resolves the pin to a value. Any other caller may still pass None, and
+    # the backend then sends `THINK_DEFAULT`.
     # Finding 81 (2026-09-15): qwen3.5:9b on the 3080 with thinking off
     # answered a Tester wake with 34k characters of prose and no call, and
     # with thinking on in ten calls; on the Titan it works either way.
@@ -373,11 +389,10 @@ class OllamaBackend:
             # generated. The return value is unchanged: the chunks are joined
             # into the same `Completion` the non-streaming form produced.
             "stream": True,
-            # Reasoning-by-default models (the qwen3 family) burn invisible
-            # tokens at the acting register's expense -- measured at 0.1
-            # visible tok/s on the bench. The system speaks in acts, so
-            # thinking is off; a template that ignores the flag is unharmed.
-            "think": pins.think if pins.think is not None else False,
+            # `THINK_DEFAULT` carries the reason thinking is off by default.
+            # A caller outside the tiers may pass None, so the value is
+            # resolved here as well as in `think_for`.
+            "think": pins.think if pins.think is not None else THINK_DEFAULT,
             "options": self.options(pins),
             "messages": [
                 {"role": "system", "content": system},

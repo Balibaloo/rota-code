@@ -72,6 +72,22 @@ def register(tmp_path, monkeypatch):
     return open_dev_db(tmp_path / "dev.db")
 
 
+def _as_a_tier_stamps(pins: Pins) -> Pins:
+    """
+    The think pin resolved the way a tier resolves it, through `think_for`.
+
+    Frame 65 (2026-09-23): the pin now carries the value the wire carries, so
+    every tier stamps a value and none stamps None. A fixture that left the
+    field unset would key its rows where no tier keys one, and every test
+    below would then read STALE for the reason it is not about.
+    """
+    import dataclasses
+
+    if pins.think is not None:
+        return pins
+    return dataclasses.replace(pins, think=llm.think_for(pins.model))
+
+
 def _record(db, pins: Pins, **kw) -> None:
     """
     One run of the case, stamped the way the tier stamps it.
@@ -80,7 +96,7 @@ def _record(db, pins: Pins, **kw) -> None:
     matches on its digest. A stand-in string here would read stale for the
     reason the test is not about.
     """
-    stamp = pins.with_prompt(fixtures.instructions_for(CASE))
+    stamp = _as_a_tier_stamps(pins).with_prompt(fixtures.instructions_for(CASE))
     kw.setdefault("system", fixtures.system_text_for(CASE))
     record_case_run(db, CASE["id"], stamp, 1, True, [],
                     [{"say": "ok"}], **kw)
@@ -139,6 +155,40 @@ def test_a_think_pin_change_makes_a_case_read_stale(register, monkeypatch):
     # The profile ships with the repository and sets `think` for this model.
     monkeypatch.setenv("ROTA_PROFILE", "local-gemma-critic")
     assert _state(thinking_model) == "STALE"
+
+
+def test_the_key_carries_the_think_value_the_wire_carries(register):
+    """
+    A pin the key omits is a pin the register cannot read back.
+
+    Frame 65 (2026-09-23). `think_for` returned None when no profile named the
+    model, `extras()` dropped the None, and the key then said the field was
+    absent. The backend still sent a value, so a recording made under one
+    server default replayed against another and nothing could tell them apart.
+
+    Frame 55 measured what the two values are worth: at one byte-identical
+    prompt, `think=True` returns 12 `TOOL:` markers and the unpinned call
+    returns zero. The `register` fixture unsets `ROTA_PROFILE`, so this is the
+    ambient case, which is the one that was blind.
+    """
+    assert llm.think_for(MODEL) is False, "no profile is a value, not an absence"
+    assert Pins(model=MODEL, think=llm.think_for(MODEL)).extras() == {
+        "think": False}, "and the value reaches the key"
+
+    off = Pins(model=MODEL, temperature=0.0, think=False)
+    on = Pins(model=MODEL, temperature=0.0, think=True)
+    assert key_for("s", "u", off) != key_for("s", "u", on), (
+        "one prompt, two servers, two keys")
+
+    # A row from before this frame: the writer stamped `extras` as `{}`.
+    legacy = Pins(model=MODEL, temperature=0.0, think=None)
+    record_case_run(register, CASE["id"],
+                    legacy.with_prompt(fixtures.instructions_for(CASE)),
+                    1, True, [], [{"say": "ok"}],
+                    system=fixtures.system_text_for(CASE))
+    assert register.execute("SELECT extras FROM case_runs").fetchone()[
+        "extras"] == "{}", "the shape this frame leaves behind"
+    assert _state() == "STALE", "unmeasured at the pin the run now sends"
 
 
 def test_a_native_recording_does_not_answer_for_a_text_run(register):
@@ -241,7 +291,8 @@ def _small_register(tmp_path, recorded) -> "paths.Path":
     """
     path = tmp_path / "small.db"
     db = open_dev_db(path)
-    for number, pins in enumerate(recorded):
+    for number, unresolved in enumerate(recorded):
+        pins = _as_a_tier_stamps(unresolved)
         system, user = f"system {number}", f"user {number}"
         db.execute(
             "INSERT INTO cassettes (key, model, temperature, num_ctx, "
@@ -459,8 +510,10 @@ def test_a_register_recorded_only_with_the_pin_refuses_a_run_without_it(
     with pytest.raises(pytest.UsageError) as caught:
         rota_serial_plugin.refuse_a_key_the_register_does_not_hold()
     said = str(caught.value)
-    assert "think pin is unset" in said
-    assert "set ROTA_PROFILE to a profile that sets the think pin" in said
+    # Frame 65 (2026-09-23): a run with no profile now sends `think=False` and
+    # keys on it, so the refusal names the value and no longer says "unset".
+    assert "think pin is False" in said
+    assert "ROTA_PROFILE is unset" in said
 
 
 def test_the_stale_message_names_the_model_and_the_window():
@@ -1131,7 +1184,7 @@ def test_a_mixed_register_stales_the_cases_that_carry_only_legacy_rows(
     monkeypatch.setattr(casestatus, "_cases", lambda: [legacy, current])
 
     db = open_dev_db(tmp_path / "mixed.db")
-    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+    stamp = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0)).with_prompt(
         fixtures.instructions_for(CASE))
     record_case_run(db, legacy["id"], stamp, 1, True, [], [{"say": "ok"}],
                     system="")
@@ -1162,7 +1215,7 @@ def test_a_partly_migrated_case_reads_stale_and_never_fails(tmp_path,
     monkeypatch.setattr(casestatus, "_cases", lambda: [case])
 
     db = open_dev_db(tmp_path / "half.db")
-    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+    stamp = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0)).with_prompt(
         fixtures.instructions_for(case))
     text = fixtures.system_text_for(case)
     for run in (1, 2, 3):
@@ -1237,7 +1290,7 @@ def _a_real_miss(db, tmp_path, pins: Pins | None = None):
     """
     from rota.llm.cassettes import ReplayOnlyBackend
 
-    pins = pins or Pins(model=MODEL, temperature=0.0)
+    pins = _as_a_tier_stamps(pins or Pins(model=MODEL, temperature=0.0))
     result = fixtures.run_case(dict(CASE), tmp_path / "miss.db",
                                ReplayOnlyBackend(db), pins=pins,
                                instructions=fixtures.instructions_for(CASE))
@@ -1250,7 +1303,7 @@ def _a_real_miss(db, tmp_path, pins: Pins | None = None):
 
 def _miss(db, pins: Pins, **kw) -> None:
     """One look that measured nothing, through the writer the tier uses."""
-    stamp = pins.with_prompt(fixtures.instructions_for(CASE))
+    stamp = _as_a_tier_stamps(pins).with_prompt(fixtures.instructions_for(CASE))
     kw.setdefault("system", fixtures.system_text_for(CASE))
     record_case_run(db, CASE["id"], stamp, 1, False,
                     ["expected a call to ledger.log", MISS_PROBLEM],
@@ -1382,8 +1435,11 @@ def test_a_register_from_before_the_miss_table_reads_as_today(tmp_path,
     assert [c["state"] for c in _panel(monkeypatch)["cases"]] == ["pass"], \
         "the missing table silences no case"
     # The report opens through `open_dev_db`, which is the table's only
-    # creator, so it reads its own register and raises nothing.
-    assert _state() == "green"
+    # creator, so it reads its own register and raises nothing. The row is
+    # older than the `extras` column and lands at that column's default, so it
+    # cannot say which think pin it ran at. Frame 65 (2026-09-23) makes that
+    # row unmeasured rather than green, which is the whole point of the pin.
+    assert _state() == "STALE"
     conn = sqlite3.connect(str(path))
     assert casestatus.records_misses(conn), "and the opener created the table"
     conn.close()
@@ -1501,7 +1557,7 @@ def test_a_red_that_talks_about_a_failure_is_still_a_red(register):
     whole transcript, so such a red wrote a miss and the case read STALE
     (observed: frame 64's diff review, 2026-09-22).
     """
-    stamp = Pins(model=MODEL, temperature=0.0).with_prompt(
+    stamp = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0)).with_prompt(
         fixtures.instructions_for(CASE))
     record_case_run(
         register, CASE["id"], stamp, 1, False, ["the answer names no cause"],
