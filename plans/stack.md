@@ -333,6 +333,30 @@ a different question and the night is then opened once.
   far against 315k in agents, walls apart: design review 120k, implementer
   227k over three passes and three resumes, the assistant's gate and reads
   about 30k here. Walls: three harness restarts, none the frame's.
+- Status 2026-09-23 22:05 (rota-d0): **Diff review in: ship with three
+  fixes** (observed: the reviewer's probes on the worktree at `5f27b85`,
+  2026-09-23 22:00, 99k on the harness line against 65k priced and an 80k
+  cap, 28 calls). Meta workflow. Eight points answered, four findings.
+  High: when extract's rewrite shortens the text and `find(raw)` fails,
+  the parser keeps the rewritten offset, so a call after the invention can
+  read as before it and run; a built completion showed a commit at 123
+  against an invention at 127. Low: a duplicate raw resolves to the first
+  copy's position; counter b's turn total counts a carried-forward write
+  line, so night 90 reads 8 turns where 6 have a write call; no count of
+  invention turns ends a session, only the twelve-turn cap, and that one
+  waits for a night that shows it. Confirmed sound: the invention is found
+  on the parser's text and the offsets agree on night 90's eight turns;
+  the evicted serve renders in full and counts once; the storm never
+  reaches the cap; a `TOOL:` line quoted inside an invented body is held.
+  **The two re-records the pass-2 diagnosis named as rule 1 passed with no
+  invention in their new replies, so no recorded case exercises the hold,
+  and the walk carries the whole proof of rule 1.** The walk's acceptance
+  therefore reads counter b's after-invention number as 0 with made-up
+  turns above 0, and names one session that invented and got the NOT RUN
+  line. Night 90's database is archived as `.rota/clickI_night90.db`, 243
+  sessions, because the gauntlet keeps one previous database and that
+  slot holds night 89. Fix pass out, cap 40k: the three fixes and two
+  tests.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
