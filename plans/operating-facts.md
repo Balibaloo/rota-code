@@ -126,7 +126,7 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - Before a night or a re-record, curl both /api/tags. Start the 3080's server with `Start-Process ollama -ArgumentList serve -WindowStyle Hidden`. Start the Titan's server with `powershell -File probes/titan_ollama.ps1`.
 - `MiMo-V2.6-Distill-Qwen-9B` Q4_K_M benched on 2026-09-23 at frame 24/38, define 9/14, turn 18.8 s, against `qwen3:8b`'s 34/38, 12/12, 12.5 s. It stays out of the register (observed: `probes/bench/RESULTS.md`, frame 67). Ollama's `think` flag reaches an `hf.co` pull, and only `think: false` answers (observed: two `/api/chat` calls, 2026-09-23 10:05).
 - A `/api/chat` call keeps running on the server after the client's timeout closes the socket. The answer is computed and lost, and the next call queues behind it. Sign: the client raises `TimeoutError: timed out`, and `server.log` later prints `stop processing: n_tokens = ...` for the same task (observed: 2026-09-23, `qwen2.5:14b` and `qwen3:30b-a3b` on a 6.6k-token prompt, where 420 s was too short). Give a cold, spilled model 1200 s or more, or stream.
-
+- Neither large local model can take the Developer's seat (observed: a replay of night 86's write turn, 2026-09-23). `qwen2.5:14b` rewrites the function with an invented signature at 471 s a turn. `qwen3:30b-a3b` thinks for 32k to 39k characters, 510 s a turn, and answers in prose with no tool call. `qwen3.5:9b` stops at the tool call in 5 to 22 s.
 
 ## Running rota
 
