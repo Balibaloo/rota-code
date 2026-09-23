@@ -256,6 +256,31 @@ a different question and the night is then opened once.
   offsets. The implementer is resumed from its transcript with a required
   re-read of its diff. It stays on Opus 5, because a resume keeps the
   spawn's model. Frame 74's wait on the harness is met.
+- Status 2026-09-23 18:05 (rota-d0): **Pass 1 is in, both rules built, and
+  the gate says the runner's wording moved 14 recordings** (observed: the
+  implementer's report, 2026-09-23 18:00, 177k on the harness line against
+  110k priced and a 150k cap, about 95 calls, over the cold pass and the
+  resume; it reported `claude-opus-5-5[1m]` on the resume, so the resumed
+  agent took the new harness's model after all). Meta workflow. 90 tests
+  green across the three touched files. `extract_lenient` returns call
+  offsets on the parser's own text. Rule 1 holds every call after the first
+  invented result in a names-only list the stood-by path cannot run, and
+  stands above the oneshot break. Rule 2 serves an evicted key up to three
+  times and then refuses on the room, and no refusal says to use what the
+  call returned earlier. The two old eviction tests are rewritten to the
+  new bound, before and after stated in the report. Counter b on night 90
+  reads 4 writes after an invention of 8 turns, against the review's 5: the
+  review counted `s171` turn 8 by its seven copies after the invention, and
+  the counter counts the turn by its first write, which sits before
+  (reasoned: the implementer's turn-by-turn table; accepted). The gate on
+  the tree: 47 failed, 2220 passed, 26 new reds and 15 stale against the
+  baseline of 2026-09-21. Eleven reds and one stale are frame 73's and
+  frame 65's, red at 16:20 before this diff. So the diff adds 15 reds and
+  14 stale, and 8 of the 15 reds are among the stale. Stale is the wording
+  change in the runner's feedback and refusals. Pass 2 out, cap 80k:
+  re-record the 15 stale by id with the command the gate prints, and name
+  the cause of each of the 7 reds that are not stale, without touching a
+  case or the runner.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
