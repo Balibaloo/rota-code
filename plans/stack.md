@@ -195,7 +195,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
   frame 66, unclaimed.
 
-### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
+### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman) (0fc7b935)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
   2026-09-22, "add it as a frame after the night runs"). It shares no read
@@ -259,6 +259,11 @@ a different question and the night is then opened once.
   not in the reserve. Session 2062c482 holds the stack, and this frame is the
   only text this session wrote in it. The commit carries this frame alone,
   built from HEAD, so the holder's uncommitted lines stay in its working copy.
+- Status 2026-09-23 08:16 (rota-d1): **claimed by 0fc7b935 after frame 48
+  closed at `0871ca1`** (ruled: Roman, 05:30, continue through the batches
+  without asking, this frame after 48). Meta workflow. The wait on frame
+  63's night is lifted by that ruling, and no night runs on the machine.
+  Step one, the pull of 5.84 GB, starts now.
 
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
