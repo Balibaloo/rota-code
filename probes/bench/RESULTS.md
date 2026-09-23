@@ -7,6 +7,7 @@ telemetry; relative order holds). Full logs: the bakeoff logs of this date.
 | model | fit | turn | frame | define | read | challenge | recover | verdict |
 |---|---|---|---|---|---|---|---|---|
 | **qwen3:8b** (think off) | **full** | 12.5s | **34/38** | **12/12** | 4/5 | 2/3 | 4/4 | **the new understanding engine, pending live-discipline gate** |
+| MiMo-V2.6-Distill-Qwen-9B Q4_K_M (think off, 2026-09-23) | full | 18.8s | 24/38 | 9/14 | 5/5 | 0/4 | 4/4 | out: ten frame points under qwen3:8b on the same 38, see the note below |
 | llama3.1:8b | full | 8.1s | 23/38 | 11/12 | 2/5 | **3/3** | 4/4 | stays: suites + delivery |
 | gemma3:12b | 76% | 62s | **36/38** | 11/12 | 4/5 | 1/3 | 3/4 | frame-specialist reserve |
 | qwen2.5:14b q3 | 75% | 153s | 35/38 | 12/12 | 3/5 | 2/3 | 4/4 | incumbent's judgement, kept for cross-family reads |
@@ -15,6 +16,18 @@ telemetry; relative order holds). Full logs: the bakeoff logs of this date.
 | ministral-3:8b | 83% | 34s | 11/38 | 11/12 | 5/5 | 1/3 | 4/4 | reader, not judge |
 | mistral-nemo:12b | 82% | 106s | 13/38 | 8/12 | 1/5 | 1/3 | 4/4 | out |
 | qwen3.5:9b | 73% | — | 0/38 | 9/12 | 3/5 | 2/3 | 3/4 | thinking-contaminated; retest someday |
+
+The distill's row is from 2026-09-23 (frame 67), on the battery of that
+day. Define carries 14 points, challenge 4 and read 5, where the rows of
+2026-08-25 carry 12, 3 and 5. The frame column is the same 38 points. Three
+kinds the table has no column for: decline 2/2, orient 1/2, stress 2/2.
+Prefill 686 tok/s, decode 23.2 tok/s, one load, 6.1 GB on the 3080 at
+12288. Thinking was off on the wire: a raw call with `think: false`
+answered in two tokens with no thinking field, and the same call with
+`think: true` answered nothing, one token (observed 2026-09-23 10:05). So
+the flag reaches an `hf.co` pull, and only off is usable. The bar was
+`qwen3:8b`'s own row. The miss is on frame, 24 against 34, and on define.
+The model does not enter the register.
 
 ## The mixture-of-experts question, answered
 
