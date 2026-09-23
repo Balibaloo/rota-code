@@ -286,6 +286,68 @@ a different question and the night is then opened once.
   the re-record is what repairs the rows.
   Next: the gate after the re-record, the commit, one read-only diff review
   on a worktree at the commit, the door's prose fix, the gate, the close.
+- Status 2026-09-23 03:10 (rota-76): **the register is re-earned, the code
+  is committed, and one case will not replay across processes.** Meta
+  workflow.
+  **The re-record**: 414 cassettes in 11m28s, 1661 replayed, 22 failed and
+  110 passed in 19 minutes (observed: the run's summary, 2026-09-23 02:38).
+  Against the register of 22:40: **three greens did not return**,
+  `L1-CR-a-test-that-encodes-nothing-is-a-challenge`,
+  `L1-DV-give-the-new-parameters-defaults` and
+  `L1-VK-reopen-after-an-election`; **two reds turned green**,
+  `ACT-TS-five-criteria-one-per-reply` and
+  `L1-TE-survey-an-area-for-its-terms`, which is frame 55's case; and the
+  VK outside-fact case was re-earned red at 01:20. Net 22 red, 110 green.
+  **The gate**: 27 failed against 25, stale 1, 723.8 s (observed: the five
+  lines, 2026-09-23 02:52). The five new reds are the three lost greens,
+  frame 48's flaky screens pair, and one STALE,
+  `ACT-DV-edit-inside-the-function`. Three reds gone, the two re-earned and
+  the other half of the flaky pair. The stale line reads 1 and not 0.
+  **The stale case is systematic and it is not this frame's key.** The case
+  pins `qwen3.5:9b`. Re-recorded alone at 03:02, it passes 5 of 5 in the
+  process that records it, 1 recorded and 39 replayed. In a fresh process it
+  replays 35 turns and misses once per run, twice out of two (observed:
+  three single-case runs, 2026-09-23 02:59 to 03:10). The pinned probe
+  outside pytest hits 9 of 9. The fresh session's miss row says the session
+  did not commit: `ledger.log: 'c_4d193f' is a row of criteria, not of
+  src/ui.py::confirm`, then repeat-refused calls three times each. So a
+  tool result differs between the recording process and a fresh one, and
+  the prompt moves with it (reasoned: the cassettes are the same and the
+  session diverges). Pushed as frame 71.
+  **Committed at the code commit below**, on the gate above, with the stale
+  case named and pushed. Next: the diff review on a worktree at that
+  commit, then one fix pass for its findings and the door's prose.
+
+### 71. One case replays in the process that recorded it and misses in a fresh one (2026-09-23)
+
+- **No batch. It shares batch A's instrument, the replay, and not its
+  repair.** Frame 70 was a false miss from a probe without the pin. This is
+  a true miss the suite makes on its own.
+- Meta workflow. `ACT-DV-edit-inside-the-function`, which pins
+  `qwen3.5:9b`, passes 5 of 5 in the process that records it and reads
+  STALE in every fresh process: 35 turns replayed, one miss per run, twice
+  out of two (observed: 2026-09-23 02:59 to 03:10, frame 65's status). The
+  pinned probe `probes/frame64/probe64_miss.py` hits 9 of 9 outside pytest.
+  The miss row's reason: the session did not commit, `ledger.log:
+  'c_4d193f' is a row of criteria, not of src/ui.py::confirm`, then
+  `batches.expect`, `ledger.log`, `code.write` and `code.commit` each
+  refused as asked three times, and `wrote its own tool results`. Before
+  tonight the case was green in every gate under the old key, so the path
+  the re-earned recording takes is new, and it touches something a fresh
+  process composes differently (reasoned: same register, different
+  session). Two suspects, in order: a fixture row id such as `c_4d193f`
+  that is not stable across processes, and the case's own model at
+  `think=False`, which finding 81 says answers with prose and no call on
+  the 3080.
+- Ends when: the turn that misses is named with the first differing line
+  between the recording process and a fresh one, the cause is on the
+  stack as a fixture fault or a model fault, and the case replays in a
+  fresh process or is written off with the reason. Priced: the diff of
+  the two turn texts, 15k with the probe run inside pytest. The repair,
+  unpriced until the cause is named.
+- Waits on: nothing. The GPU is free between nights.
+- Reasoning: frame 65's status of 2026-09-23 03:10.
+- Status 2026-09-23 03:10 (rota-76): pushed by 001e49dd, unclaimed.
 
 ### 66. A sample of five is one measurement (2026-09-22)
 
