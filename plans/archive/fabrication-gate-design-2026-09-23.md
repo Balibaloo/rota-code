@@ -126,3 +126,52 @@ read against night 86's.
    scripted completion, so the four pinned tests copy it.
 8. Anything here that contradicts the composition's Records or Flows lines,
    `plans/composition.md`.
+
+## The design review, 2026-09-23 16:45 (observed: a reviewer agent, read-only, 120k on the harness line against 100k, 62 calls)
+
+Both rules sound with named changes. What the review settled, and what
+the build takes from it:
+
+- `evicted` is per key today (`runner.py:2583-2585`: the notice stands,
+  the key was answered on an earlier turn, and its rendered result is not
+  in the prompt). Rule 2 needs no new test for it.
+- **Night 90's eight writes run after a fabrication had the real result
+  in the prompt every time.** No seat invented after a pointer to an
+  evicted answer. So rule 2 buys nothing on night 90's eight, and rule 1
+  carries the walk. In five of the eight the invention precedes the write.
+  In three the write precedes the invention, built on real reads, and the
+  seat invented only the write's own result.
+- **Finding 1, high.** The stood-by path at `runner.py:2334-2349` runs
+  every held call when the seat replies with prose. Rule 1 must hold the
+  invented tail in a list that path never runs, or "Done." after an
+  invention lands the from-memory write. Pinned: invention, then "Done.",
+  nothing written.
+- **Finding 2, high.** `tests/rota/test_runner.py:709-738` and `:741-760`
+  pin the refusal of the third asking while the eviction stands. Rule 2
+  serves it. The frame rewrites both tests to the new bound.
+- **Finding 3, high.** A result over the exchange room reads evicted every
+  turn, and an unbounded re-serve repeats night 88's `s137`. The build
+  bounds the evicted re-serve: a key is served at most three times in a
+  session, and the refusal after that says the result does not fit the
+  room and asks for a narrower span. It never says to use what the call
+  returned earlier.
+- **Finding 4, high.** Counter b of `rota.tools.nightcount` counts by
+  turn, so it cannot read zero when a write precedes the invention by
+  design. The build refines it: writes whose call sits after the first
+  invented result, with the by-turn total kept on the same line.
+- **Finding 5, low.** `extract_lenient` at `rota/llm/toolproto.py:931-937`
+  computes call spans and drops them. `find(raw)` misses 16 of 1263
+  `code.write` calls and resolves 744 duplicate raws to the first copy.
+  The build takes positions from the parser.
+- **Finding 6, low.** Under `ROTA_ONESHOT` the hold path does not exist
+  and a write ends the session at `runner.py:2791`. The flag is off on
+  every night and in the suite, on for a bare `walk.py`. The build gates
+  rule 1's hold apart from `oneshot` and skips that break while an
+  invention hold stands.
+- Attempt accounting: a held write that is never re-sent leaves the
+  session barren, one attempt on the tick key (`loop.py:325`, `:515-519`).
+  That is the right count for a from-memory write.
+- Fixtures: `test_runner.py:340-371` for the scripted backend and the
+  fabrication line, `:1292-1316` for the Developer write and commit with
+  the `worktree` fixture, `_evicting_repeats` at `:695-706` for the
+  eviction shape.

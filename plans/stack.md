@@ -232,6 +232,20 @@ a different question and the night is then opened once.
   because the sticky notice made a per-prompt test serve a repeating seat
   for ever on night 88. Design reviewer out, read-only on the main
   checkout, cap 100k.
+- Status 2026-09-23 16:50 (rota-d0): **Design review in, both rules sound
+  with named changes, and rule 1 carries the walk** (observed: the
+  reviewer's report, 120k on the harness line against 100k, 62 calls,
+  recorded in the design record's last section). Rota workflow for the
+  fact: night 90's eight writes run after a fabrication had the real
+  result in the prompt every time, so no seat there invented after a
+  dangling pointer, and rule 2 buys nothing on them. Meta workflow for the
+  build: six findings, four high, each with its change named in the
+  record. The two that change code beyond the rules: the invented tail
+  must sit outside the stood-by path that runs held calls on a prose
+  reply, and the evicted re-serve is bounded at three serves per key.
+  Counter b of frame 76's tool is refined to count writes after the
+  invention's offset. Implementer out on the `opus` override, cap 150k,
+  one pass.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
