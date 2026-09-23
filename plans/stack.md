@@ -357,6 +357,23 @@ a different question and the night is then opened once.
   sessions, because the gauntlet keeps one previous database and that
   slot holds night 89. Fix pass out, cap 40k: the three fixes and two
   tests.
+- Status 2026-09-23 22:15 (rota-d0): **Fix pass in, 92 tests green, the new
+  test fails on the old parser** (observed: the implementer's report,
+  2026-09-23 22:12, 23k for the pass on the harness line, 250k cumulative
+  for the agent over four passes; the test run against HEAD's `toolproto.py`
+  with the fix stashed raised `no call was held for the invention`). Meta
+  workflow. The parser's fallback now searches `TOOL: <name>` from the
+  cursor and places an unfound call at the end of the text, so it is held
+  whenever the turn invented; the rewritten offset is gone; a duplicate raw
+  moves the cursor past the found copy. Counter b's turn total needs a
+  write call in the made-up completion, so night 90 reads 4 of 6. Two
+  deviations accepted (reasoned: each stated with its cause): the fallback
+  matches the marker and the name, because a bare name matches prose
+  before the invention; the fixture gained a write call so the two
+  turn-total tests keep their numbers. One weak assertion is noted and left,
+  outside the brief: test (a) splits on `NOT RUN` and reads the whole
+  prompt when the line is absent, while its file assertion still proves
+  the hold. The assistant's gate runs now on the fixed tree.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
