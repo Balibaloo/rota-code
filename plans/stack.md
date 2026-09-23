@@ -270,6 +270,10 @@ a different question and the night is then opened once.
   needs `ROTA_MODEL=qwen3:8b`, or the ambient default `llama3.1:8b` reads
   every recording as STALE. A probe that composes keys outside pytest must
   set `samplerepo.GIT_ENV` first; the two probes in `probes/frame64/` do.
+- Status 2026-09-23 04:00 (rota-76): **handed to session `9fe32e55`, which
+  confirmed the take 5 seconds after the claim** (observed: the `hand`
+  command's exit 0 at 2026-09-23 04:00:19). Meta workflow. Stack commit
+  `6f7e49d`. Session 001e49dd stops here at about 290k.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
