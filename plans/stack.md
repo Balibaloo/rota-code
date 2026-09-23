@@ -317,6 +317,35 @@ a different question and the night is then opened once.
   **Committed at the code commit below**, on the gate above, with the stale
   case named and pushed. Next: the diff review on a worktree at that
   commit, then one fix pass for its findings and the door's prose.
+- Status 2026-09-23 03:23 (rota-76): **the diff review is in, and the fix
+  pass runs.** Meta workflow. The code is `088bba9`. Read-only review on a
+  worktree at that commit, nine points, 112k on the harness line against a
+  100k cap, 62 tool calls, ten minutes (observed: the harness usage). All
+  nine points confirmed, ten findings, three high (observed: the reviewer's
+  probes, 2026-09-23):
+  1. `LiteLLMBackend.kwargs` never reads `pins.think`. Three values, one
+     byte-identical body. The key says `think: true` and that wire carries
+     the server's default. **The frame's fault, inverted, on the other
+     backend.**
+  2. The door's think refusal prints "the register holds: <model> at the
+     provider's own default, which is the pin unset", which is false, and a
+     remedy no profile can perform. Pass 1 dropped the assertion that
+     covered the text.
+  4. `tests/rota/test_t1_liaison.py:33` builds its pins with no `think`, and
+     T1 records into the real register: 18 cassettes at window 8192 keyed at
+     the absent value. **The commit message's claim that every absent-keyed
+     recording was re-earned does not hold for T1.**
+  Seven low: the dead branch, the door fixture reading `ROTA_PROFILE`
+  before it clears it (3 failed under `local-gemma-critic`), a test that
+  pins a transient panel-report disagreement, an inert argument at
+  `casestatus.py:482`, `think_for` blind to a project profile with the
+  door's `except Exception` then opening silently, a stale census comment,
+  and the `Pins` docstring. The reviewer's census: `case_runs` hold 167806
+  rows at `{}`, 1295 at `think: false`, 30 at `think: true`.
+  **The fix pass is out to the same implementer**, by message, cap 80k,
+  all ten items, the T1 pins included and its re-record left to this
+  session after the gate. Then a second look, the gate, the commit, the
+  close.
 
 ### 71. One case replays in the process that recorded it and misses in a fresh one (2026-09-23)
 
