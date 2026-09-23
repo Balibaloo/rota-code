@@ -195,7 +195,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
   frame 66, unclaimed.
 
-### 58. A retried tick re-runs the identical session (2026-09-21)
+### 58. A retried tick re-runs the identical session (2026-09-21) (0fc7b935)
 
 - **Batch C, the night's stall. First of three.** The batch's one shared thing is one read of what the Developer was given and what it answered, across the three nights on disk. This frame runs first because it changes what the other two see: a stall of ten attempts is not ten attempts if the retries are one session repeated.
 
@@ -228,6 +228,11 @@ a different question and the night is then opened once.
 - Status 2026-09-21 04:20 (rota-02): pushed by cb5428a2, unclaimed, priced.
   Found by the diagnosis of frame 46's walk. It is pre-existing and it is not
   frame 46's.
+- Status 2026-09-23 10:08 (rota-d1): **claimed by 0fc7b935 after frame 67
+  closed at `e13ebb1`** (ruled: Roman, 05:30, continue through the batches
+  without asking, batch C after 67). Meta workflow. The first read is the
+  code the frame names: the door in `rota/core/runner.py`, the four wake
+  kinds, and the attempt count each wake carries.
 
 ### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
 
