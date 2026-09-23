@@ -410,6 +410,26 @@ a different question and the night is then opened once.
   an unquoted heredoc, and the shell ran its backticks as commands; this
   is the repaired line (observed: commit `a8c90ff`, 2026-09-23).
 
+- Status 2026-09-23 06:01 (rota-7f): **the diff review is in: ten points
+  confirmed, no high finding, three low.** Meta workflow. The reviewer
+  type on the worktree at `6129194`, 36 tool calls, 8 minutes, 107.8k on
+  the harness line against a 100k cap (observed: the harness usage,
+  2026-09-23). Run 1's digest is byte for byte the old one, 116 of 128
+  cases differ on run 2, which is 128 minus the twelve, every chain return
+  sums its legs, the raw cockpit connection is guarded at every new read,
+  the re-judged join carries the whole widened key, and none of the ten
+  new tests passes on the code before the commit. The three low: the
+  record named `test_progress.py` for a pin that lives in
+  `test_register_key.py`, corrected in the record above this line;
+  `cases()` takes the newest live row over any model while `l1` takes it
+  under the key, so a second model's benchmark column would give the two
+  panels two dates, fix: filter on the model; `replays_since` counts
+  pre-guard miss-marker rows on an unmigrated register, fix: the same dead
+  clause `matching_runs` applies. The fix pass goes to the implementer
+  after the re-record ends, because its tests open the register the
+  re-record is writing. This session reads about 300k: it finishes this
+  frame, takes no new one, and hands the stack to a standby.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,

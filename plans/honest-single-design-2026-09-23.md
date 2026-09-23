@@ -241,8 +241,10 @@ their keys by `INSERT OR REPLACE`; runs 2 to 5 write new keys.
 `progress.cases()` at `663-684` and `progress.l1` at `244-275` add
 `live_at` and `replays` to each entry, keep `threshold` and `runs`, and
 `panels.js:1143-1146` and `1262-1263` print the live date beside the score.
-`caseState` at `1170-1174` is unchanged, because the threshold stays. A
-test in `test_progress.py` pins `live_at` and `replays` on one entry.
+`caseState` at `1170-1174` is unchanged, because the threshold stays. The pin on `live_at` and `replays` lives beside the `_panel` helper in
+`tests/rota/test_register_key.py`, because `test_progress.py` tests
+`probes/progress.py` (observed: the diff review, 2026-09-23). Ten tests
+were added, not eleven.
 `benchmarks.from_register` adds `live = 1` to its `SELECT`, so a share of
 cases is a share of live runs. `progress._runs` at `719-736` reads the last
 five rows for the detail panel and prints `live` beside each.
