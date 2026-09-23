@@ -227,6 +227,14 @@ a different question and the night is then opened once.
   context. Buys: a count that says whether the judge line in CLAUDE.md moves.
 - Waits on: Roman orders it against frame 37's grill, and names the review to
   replay if not frame 65's.
+- Waits on: **Claude Code 2.1.280 or newer on this machine** (observed: an
+  implementer spawn in a fresh session, dba7e375, 2026-09-23 14:47, failed
+  before its first turn with `API Error: 400 Claude Code 2.1.258 does not
+  support this model; version 2.1.280 or newer is required`, model sent
+  `claude-opus-5-5`). So the switch at `82a9d09` is proven to reach the API
+  and refused by the harness, and no agent builds on Opus 5.5 until Roman
+  updates Claude Code. Frame 75's implementer reran on the `opus` alias.
+  Added by dba7e375, holder of frame 37.
 - Reasoning: this frame's second line, and the reviewer anchors in the closing
   statuses of frames 58 and 65.
 - Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
