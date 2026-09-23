@@ -203,6 +203,41 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:45 (rota-41): pushed by dba7e375 at Roman's ruling.
   Two agents out in parallel, a reviewer for line 1 and an implementer for
   line 2, cap 60k each.
+- Status 2026-09-23 14:55 (rota-41): **Both lines are in, and the fourth
+  suspect is the wall that built the diff** (observed: the reviewer's read of
+  `s145` turns 6 and 7, `tool_calls` seq 17 to 19, the worktree at `da5e7e8`
+  and the runner at `8b15af8`, 2026-09-23 14:50, 77k on the harness line
+  against 40k priced and a 60k cap, 17 calls; and the implementer's replay
+  through the runner's own `complete()`, `probes/frame37/replay_runner.py`,
+  2026-09-23 14:51, 59k against 40k, 20 calls, on `claude-opus-5[1m]` under
+  the `opus` override). Rota workflow. The chain, each link confirmed:
+  1. `_fit` evicted the real `confirm()` from the prompt at turn 3, and the
+     repeat line "the answer is above" stood twice in turn 6's prompt,
+     pointing at nothing. The runner's own comment at `8b15af8:2093-2106`
+     names this a known hole left open: the line is false after an eviction,
+     certain whenever it can happen, 8 of 8183 recorded prompts.
+  2. The model, asked for the source again, invented the result from memory.
+     The invented body is byte-equal to the `code.write` text after it, and
+     no line of it matches the real function. The runner's own call
+     reproduces it: with the recorded pins, think off, the reply matches the
+     recording for 799 characters and then differs in layout only, 2381
+     characters, `done_reason` stop, no cap hit. Think on stops at the call
+     in 65 characters, and `num_predict` changes nothing. So the prior
+     probe's 65 was the probe's artefact and not the runner's fact.
+  3. The runner flagged "wrote its own tool results", told the model
+     "nothing behind them ran", then ran all three calls. The flag at
+     `8b15af8:1984` appends a note, the loop at `1991` dispatches every
+     parsed call, and the hold at `2074` fires on a fresh read only, which a
+     repeat is not. Today's runner at `2419`, `2426` and `2510` reads the
+     same. `da5e7e8` is turn 6's write byte for byte.
+  So the diff the three walls judged for nine attempts was a from-memory
+  rewrite that the runner let through from a turn it had just called
+  invented. The criterion wall stands and did not build the diff: the
+  invented body raises `EOFError` as the criterion asked, and its renames
+  and drops come from memory, not from the criterion. Register lines
+  written: one, the harness version. Actual against 90k: 136k in agents,
+  about 25k here. Walls: none. The frame closes when grill question 2 is
+  asked from it.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -312,6 +347,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:37 (rota-60): **The claim for this frame is posted to session `dba7e375`, rota-41, and the take has not come** (observed: the `hand` command's exit 4 at 14:37, after 90 s unconfirmed). Meta workflow. Stack commit `2bb529f`. One message goes to rota-41 with the take command, by the rule for exit 4. The claim returns to the queue by itself in 15 minutes, so the frame moves without a person. Session 07e01dfc stops here at 300k, holding nothing.
 - Status 2026-09-23 14:40 (rota-41): **taken by dba7e375** (observed: the take command's exit 0 at 14:40, claim posted 14:35:53 from 07e01dfc). Meta workflow. The frame stays blocked on the grill at question 1, which wall the first repair takes. The holder's first act is the state reply and that question, with a recommended answer.
 - Status 2026-09-23 14:45 (rota-41): **Grill question 1 is answered: the fourth suspect is settled before any wall is chosen** (ruled: Roman, 2026-09-23 14:45, asked with the three walls as the other options). Meta workflow. The read is frame 75, did the runner dispatch the write from a turn that invented its own results. Question 2 waits on frame 75's result.
+- Status 2026-09-23 14:56 (rota-41): **Frame 75 names the wall that built the diff: an eviction, a false pointer, an invented result, and a write dispatched from a flagged turn** (observed: frame 75's status of 14:55). Meta workflow. The three walls of frame 38's read judged that diff and did not build it. Grill question 2 is the first repair frame's scope, asked with the recommended answer that the dispatch and the pointer are one frame, because they are one site in `run_session` and one walk.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
