@@ -1805,6 +1805,15 @@ def test_the_report_says_when_a_model_last_answered_and_how_often_since(
             if CASE["id"] in ln][0]
     assert f"live {row['live_at']}, replayed 2x since" in line
 
+    # A row from before the write-time guard measured nothing, so it is not a
+    # replay. The window refuses it and the count must refuse it too
+    # (observed: frame 66's diff review, finding 2, 2026-09-23).
+    register.execute(
+        "UPDATE case_runs SET passed = 0, problems = ? "
+        "WHERE seq = (SELECT MAX(seq) FROM case_runs)",
+        (json.dumps([f"session failed: {MISS_MARKERS['no cassette']} m"]),))
+    assert _row()["replays"] == 1, "a look that measured nothing is not one"
+
 
 def test_a_case_with_rows_and_no_live_call_is_unmeasured(register):
     """
@@ -1863,6 +1872,16 @@ def test_the_cockpit_shows_when_a_model_last_answered_each_case(register,
     listed = progress.cases(paths.DEV_DB)[0]
     assert listed["live_at"] == entry["live_at"], "one date, two panels"
     assert listed["replays"] == 1
+
+    # A second model's live row, newer and dated its own day. A date is a fact
+    # about one model, and the two panels would otherwise name two days for
+    # one case (observed: frame 66's diff review, finding 1, 2026-09-23).
+    _record(register, Pins(model="llama3.1:8b", temperature=0.0), live=True)
+    register.execute("UPDATE case_runs SET at = '2030-01-02T03:04:05' "
+                     "WHERE model <> ?", (MODEL,))
+    again = progress.cases(paths.DEV_DB)[0]
+    assert again["live_at"] == entry["live_at"], "still this model's date"
+    assert again["replays"] == 1, "and this model's replays"
 
 
 def test_the_live_date_falls_back_to_the_window_and_then_says_unknown(

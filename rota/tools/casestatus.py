@@ -247,28 +247,42 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     if live is not None and has_live:
         sql.append(" AND live = ?")
         args.append(int(live))
-    # A row from before the write-time guard, matched on the markers the
-    # writer owns. One copy of the rule: the second copy named one of the two
-    # markers, so a run that could not reach the model entered the window and
-    # read as a red (observed: frame 64's scope report, R9, 2026-09-22).
-    #
-    # The writer reads a marker from `problems` and from the session's error
-    # lines, never from the model's prose, and this clause reads the same two
-    # places. `CaseResult.transcript` appends the error lines last, so a marker
-    # after the `errors` key is one of them. A first occurrence before that key
-    # leaves the row in the window, which shows a red rather than hiding one.
-    # No row of the register matches the transcript half today (observed: 0 of
-    # 163226 rows, 2026-09-22), so the clause guards an unmigrated register.
+    clause, dead_args = _measured_clause()
+    sql.append(clause + " ORDER BY seq DESC LIMIT ?")
+    args += dead_args
+    args.append(case.get("runs", 5) if limit is None else limit)
+    return list(conn.execute("".join(sql), args))
+
+
+def _measured_clause() -> tuple[str, list]:
+    """
+    The clause that drops a row from before the write-time guard.
+
+    **One definition, because two readers apply it**: the window and the
+    replay count. The second copy of this rule named one of the two markers,
+    so a run that could not reach the model entered the window and read as a
+    red (observed: frame 64's scope report, R9, 2026-09-22). The replay count
+    was a third reader that applied no copy at all, so it counted a row that
+    measured nothing (observed: frame 66's diff review, finding 2,
+    2026-09-23).
+
+    The writer reads a marker from `problems` and from the session's error
+    lines, never from the model's prose, and this clause reads the same two
+    places. `CaseResult.transcript` appends the error lines last, so a marker
+    after the `errors` key is one of them. A first occurrence before that key
+    leaves the row in the window, which shows a red rather than hiding one.
+    No row of the register matches the transcript half today (observed: 0 of
+    163226 rows, 2026-09-22), so the clause guards an unmigrated register.
+    """
     errors = json.dumps(ERRORS_KEY) + ":"
     dead = " OR ".join(
         "problems LIKE ? OR (instr(transcript, ?) > 0 "
         "AND instr(transcript, ?) > instr(transcript, ?))"
         for _ in MISS_MARKERS)
-    sql.append(f" AND NOT (passed = 0 AND ({dead})) ORDER BY seq DESC LIMIT ?")
+    args: list = []
     for marker in MISS_MARKERS.values():
         args += [f"%{marker}%", errors, marker, errors]
-    args.append(case.get("runs", 5) if limit is None else limit)
-    return list(conn.execute("".join(sql), args))
+    return f" AND NOT (passed = 0 AND ({dead}))", args
 
 
 def _key_clauses(case: dict, want: Pins, *, keyed: bool,
@@ -335,12 +349,19 @@ def replays_since(conn: sqlite3.Connection, case: dict, want: Pins, seq: int,
     Every one of them is a copy, because the row at `seq` is the newest live
     row at the key. The count is the answer to "how many times has this been
     replayed since a model last answered it" (frame 66, 2026-09-23).
+
+    A row that measured nothing is not a replay, so the same clause the window
+    applies drops it here. Without it the count named rows the window had
+    already refused (observed: frame 66's diff review, finding 2).
     """
     sql = ["SELECT COUNT(*) AS n FROM case_runs"]
     clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
     sql += clauses
     sql.append(" AND seq > ?")
     args.append(seq)
+    clause, dead_args = _measured_clause()
+    sql.append(clause)
+    args += dead_args
     return conn.execute("".join(sql), args).fetchone()["n"]
 
 

@@ -619,9 +619,15 @@ def cases(dev_db: Path | None = None) -> list[dict]:
     ask. They are the most discussable artefact here and the least discoverable.
     """
     from ..core.db import ARTEFACT_OF_TABLE
+    from ..tools import casestatus
 
     g = graph_mod.load()
     runs = _runs(dev_db)
+    # The model the L1 panel reads, through the one definition. Both panels
+    # name the live date of one case, and a register holding a second model's
+    # live rows would otherwise make them name two dates (frame 66's diff
+    # review, finding 1, 2026-09-23).
+    model = casestatus.model_for()
 
     out = []
     for case in _cases():
@@ -680,16 +686,16 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             for key, val in _edges_for(second, second_mode, case, g).items():
                 edges[key] = edges[key] + val
 
-        from ..tools import casestatus
-
         history = runs.get(case["id"]) or []
         latest = history[-5:]
         # When a model last answered this case, and how many replays came
-        # after it (frame 66, 2026-09-23). Over the case's whole history, and
-        # not under one key: this panel shows the rows themselves, and the L1
-        # panel answers the question about the key the tree sends now.
+        # after it (frame 66, 2026-09-23). Over the case's whole history under
+        # this model, and not under one key: this panel shows the rows
+        # themselves, and the L1 panel answers about the key the tree sends
+        # now. The model is matched because a date is a fact about one model.
+        mine = [r for r in history if r["model"] == model]
         live_at, replays = "", 0
-        for back, row in enumerate(reversed(history)):
+        for back, row in enumerate(reversed(mine)):
             if row.get("live"):
                 live_at, replays = casestatus.live_date(row), back
                 break
