@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 65. The cassette key cannot pin a field it omits (2026-09-22)
+### 65. The cassette key cannot pin a field it omits (2026-09-22) [001e49dd]
 
 - **Batch A, the cassette key. Pushed by frame 55, which found it.**
 - Meta workflow. `think_for` returns `None` for `qwen3:8b`, so `pins.extras()`
@@ -216,6 +216,36 @@ a different question and the night is then opened once.
   re-earns every green under today's server and some greens will not come
   back. That is a ruling for Roman and it is the same ruling he already made
   on 2026-09-20, that a spent green is the price of the truth.
+- Status 2026-09-23 02:02 (rota-76): **claimed by 001e49dd at `7a22e16`**
+  (ruled: Roman, 2026-09-23, frame 65 next after frame 70 closed). Meta
+  workflow. About 10k in this context for the read.
+  **The design, from one read of the three sites.** Every tier builds its
+  pins through `think_for` (observed: `test_l1.py:55,138`, `test_l3.py:49,104`,
+  `test_gauntlet.py:35`, `casestatus.wanted_pins`, 2026-09-23). `think_for`
+  returns `None` without a profile, and the Ollama backend then sends
+  `think: false` on the wire (observed: `rota/llm/llm.py:380`, 2026-09-23).
+  The litellm backend sends `enable_thinking: false` through the extra body
+  (observed: `:518`). **So the key omits a value the wire always carries.**
+  The repair: one module constant for the wire default, `think_for` returns
+  the profile's pin or that constant, and the backend sends the same
+  constant. Every tier's key then carries `think`. `Pins.think = None` stays
+  for callers outside the tiers and stays out of the key, as today. One
+  pinned test: a flipped `think` composes a different key and reads a case
+  STALE in the report. The report's "read under" line then prints the pin.
+  **The price** (ruled: Roman, 2026-09-23, "Repair", asked with the count).
+  162891 of 162921 rows are keyed at the absent value, so every case reads
+  STALE after the repair until a full re-record, about 128 live calls on
+  the 3080. Rows under the other nine models are history and are written
+  off: the suite never ran them. **Roman asked what else stales, to bundle
+  it.** Nothing on the stack is ready: the window, the protocol and the
+  nights' profile are key fields that could move, and each needs its own
+  read first. A second re-record on the same server returns the same
+  answers at temperature 0 (observed: frame 58, 2026-09-21), so a later key
+  change costs GPU minutes and no greens. Bundling was declined for that
+  reason (reasoned: the greens leave once, on the first re-record after a
+  drift, and not once per key change).
+  Next: one implementer, cap 60k, the gate, then the full re-record under
+  `ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=12288`, then the gate again.
 
 ### 66. A sample of five is one measurement (2026-09-22)
 
