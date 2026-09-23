@@ -423,67 +423,6 @@ a different question and the night is then opened once.
   to `.rota/night91.log`; the worktree `C:/Users/roman/rota_night91` at
   `b79882e` stands; the gauntlet wipes and re-onboards by itself.
 
-### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman) (2087bc13)
-
-- **No batch. It is the build session's own instrument.** It shares nothing
-  with an open frame.
-- Meta workflow. Roman asked on 2026-09-23 at about 13:10: switch the agents
-  from Opus 5 to Opus 5.5, and re-evaluate its judging capability. Opus 5.5
-  exists as `claude-opus-5-5`, $4 in and $20 out per million tokens, default
-  effort `medium` (observed: the models overview page, 2026-09-23). An agent
-  file accepts a full model id (observed: the sub-agents documentation,
-  2026-09-23). The build switch is one line each in `implementer.md` and
-  `sweeper.md`, made at `82a9d09`. One implementer spawn after the edit, in this session, reported itself as `claude-opus-5[1m]` (observed: the agent's one-line reply, 14.4k tokens, 2026-09-23), so this session's harness still holds the old definition. The switch is proven only when a fresh session's agent reports `claude-opus-5-5`. The reviewer stays on
-  `inherit`, Fable, until this frame's count says otherwise (ruled: CLAUDE.md,
-  Opus builds, Fable judges).
-- Ends when: one reviewer pass on `claude-opus-5-5` re-runs a review with
-  known findings, blind to them, on a worktree at the reviewed commit, and its
-  findings are counted against the record: found, missed, and new, with each
-  new one verified by this session. Frame 65's diff review is the candidate,
-  ten findings with three high (recorded in `plans/archive/stack-2026-09-23.md`,
-  frame 65). Priced: one reviewer pass about 100k on the harness line (anchors
-  87k, 91k and 112k, frames 58 and 65); the comparison about 15k in this
-  context. Buys: a count that says whether the judge line in CLAUDE.md moves.
-- Waits on: Roman orders it against frame 37's grill, and names the review to
-  replay if not frame 65's.
-- Waits on: **Claude Code 2.1.280 or newer on this machine** (observed: an
-  implementer spawn in a fresh session, dba7e375, 2026-09-23 14:47, failed
-  before its first turn with `API Error: 400 Claude Code 2.1.258 does not
-  support this model; version 2.1.280 or newer is required`, model sent
-  `claude-opus-5-5`). So the switch at `82a9d09` is proven to reach the API
-  and refused by the harness, and no agent builds on Opus 5.5 until Roman
-  updates Claude Code. Frame 75's implementer reran on the `opus` alias.
-  Added by dba7e375, holder of frame 37.
-  **Met** (observed: a one-line implementer spawn in session dba7e375 after
-  Roman updated the harness, 2026-09-23 17:40, reported
-  `claude-opus-5-5[1m]`, 14.9k tokens). The switch is proven. The reviewer
-  pass this frame prices runs on `claude-opus-5-5` by the Agent tool's
-  model field, because `reviewer.md` stays on `inherit`.
-- Status 2026-09-23 21:57 (rota-d0): **The session that takes frame 37 at
-  the hand-off runs this frame while night 91 runs** (ruled: Roman,
-  2026-09-23 21:57, "Ok" to the recommendation that the next holder runs
-  it inside the night's two hours, so one session stays on the stack).
-  Meta workflow. It needs no GPU and no code change. The reviewer goes out
-  on `claude-opus-5-5` by the Agent tool's model field, blind to frame 65's
-  findings, on a worktree at frame 65's reviewed commit, and the count is
-  written here.
-- Reasoning: this frame's second line, and the reviewer anchors in the closing
-  statuses of frames 58 and 65.
-- Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
-- Status 2026-09-23 13:00 (rota-60): **Roman chose frame 65's diff review as the replay** (ruled: Roman, 2026-09-23, asked with frame 58's review and both reviews as the other options). Frame 37's grill runs first (ruled: Roman, the same ask). Unclaimed.
-- Status 2026-09-23 23:14 (rota-b8): **claimed by 2087bc13, the taker of
-  frame 37, and the reviewer is out** (ruled: Roman, 2026-09-23 21:57, the
-  taker runs it). Meta workflow. Worktree `wt-65` at `088bba9` in this
-  session's scratchpad. The reviewer runs on the Agent tool's `opus` field,
-  because `reviewer.md` stays on `inherit`, and the brief asks it to print
-  the model id its system prompt names, so the count is written under the
-  model it reports. The original review's nine points are not on record, so
-  the replay runs on nine points reconstructed from the commit and frame
-  65's ends-when line, written generic so they name no finding's site
-  (reasoned: the archive holds the ten findings and not the brief; frame
-  65's close says the three high findings were sites no point named). Cap
-  100k, no live model call, because the GPU is paused.
-
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
 - **No batch. It is frame 66's first measurement.** Frame 66 made runs 2
@@ -1211,6 +1150,17 @@ a different question and the night is then opened once.
   run of frame 64's count script shows any case whose turn 1 misses, or a
   person is misled by the panel between runs. Until then the count says
   there is nothing for it to catch.
+
+- **Three low findings of frame 74's blind replay, all at HEAD `73ece25`**
+  (observed: the reviewer's probes and this session's reads, 2026-09-23
+  23:25): the shrunk denominator guard at `casestatus.py:526-531` reads a
+  case with fewer new-key runs than its threshold over legacy rows as FAIL,
+  where the guard's own comment says STALE; the test
+  `test_the_key_carries_the_think_value_the_wire_carries` asserts the `{}`
+  shape for a `think=None` stamp instead of refusing it; and two docstrings,
+  `rota/llm/llm.py:83` and `rota/llm/cassettes.py:209`, still say a
+  recording without a profile keeps its old key. One fix pass with three
+  tests, about 40k, when a frame next opens `casestatus` or the key.
 
 - (observed: `git worktree list`, 2026-09-19) Four worktrees of two ended
   sessions are still registered and still on disk, 583 files each:
