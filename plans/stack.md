@@ -224,6 +224,18 @@ a different question and the night is then opened once.
   is the model itself, step 2 of the order returns and a larger
   Developer is back on the table. If it is the model context, the fix is
   cheaper and step 2 stays closed.
+- Status 2026-09-23 12:46 (rota-d1): **handed to session `07e01dfc`,
+  rota-60, which confirmed the take 5 seconds after the claim** (observed:
+  the `hand` command's exit 0 at 12:46:52). Meta workflow. Stack commit
+  `dcc0ecb`. Session 0fc7b935 stops here at about 306k, holding nothing,
+  on Roman's ruling of 05:30 to continue through the batches. What the
+  holder inherits: frame 58 closed at `f251a51` and a retried tick now
+  says its attempt, so a repeated session in a night before night 90 is
+  one attempt and not three; night 90 runs detached from
+  `C:/Users/roman/rota_night90` at `f251a51`, log `.rota/night90.log`,
+  database `.rota/clickI.db` until the script renames it
+  `clickI_night90.db`; the gate's baseline is still `b82565d`; frame 37
+  waits on this frame. Roman is afk.
 
 ### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
 
