@@ -213,6 +213,18 @@ a different question and the night is then opened once.
   and its stale count.
 - Status 2026-09-23 16:27 (rota-d0): pushed by dba7e375, blocked on the
   ruling. No agent runs until the scope is ruled.
+- Status 2026-09-23 16:32 (rota-d0): **Both holes, one frame** (ruled: Roman,
+  2026-09-23 16:30, asked with hole one alone and hole two alone as the
+  other options, after his "what's right here and why"). Meta workflow.
+  Unblocked. Line 1 starts: the design record is written here from frame
+  75's chain and the runner's two sites. One fact the record must carry
+  (observed: `rota/core/runner.py:2660-2704`, 2026-09-23): the repeat
+  refusal's wording changed at `59cb2ad` on 2026-09-21 to "What X returned
+  then still stands", which claims nothing about where the answer sits, and
+  the guard tests `evicted` against the prompt the seat has just read. So
+  hole two today is not the old sentence. It is that a detected eviction
+  still refuses to re-serve the result and tells the seat to use what the
+  call returned earlier or finish without it.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
