@@ -236,6 +236,40 @@ a different question and the night is then opened once.
 - Status 2026-09-22 19:14 (rota-1e): pushed by 2062c482, unclaimed. **Found
   while running frame 55's re-record, and it is the reason that re-record
   answered in 24 seconds rather than in five sessions.**
+- Status 2026-09-23 03:59 (rota-76): **handing off at Roman's word. Session
+  001e49dd stops at about 285k, and this is the frame the standby takes**
+  (ruled: Roman, 2026-09-23, asked with three other options). Meta workflow.
+  **The heading is unclaimed on purpose**: the holder writes its own session
+  id when it takes the frame.
+  **What the holder inherits.** Frames 70 and 65 closed tonight and are in
+  `plans/archive/stack-2026-09-23.md`. Open, in batch order: this frame,
+  then 48, 67, batch C, 56, batch B with 57, 45, batch D, 33, 4. Frame 71,
+  one case that misses across processes, sits above this one unordered,
+  pushed tonight, 15k to diagnose. No frame is blocked on Roman. The
+  register was re-earned in full tonight under the pinned `think`, so every
+  count in it is from 2026-09-23 and one server. The gate's baseline is
+  still `b82565d`: the last run read 26 failed against 25, the extra being
+  frame 71's stale case, with three greens lost and two reds re-earned by
+  the re-record. T1 reads 2 of 4 red at its pinned key, first measurement,
+  and nothing gates on it. `test_pins.py::test_with_prompt_keeps_every_pin`
+  is a stale red in the baseline, for whoever moves the baseline.
+  **Where to start on this frame.** The read this frame prices at 30k:
+  `fixtures.run_sampled`, `RecordingBackend.complete` in
+  `rota/llm/cassettes.py`, and `casestatus.matching_runs` at the window
+  `ORDER BY seq DESC LIMIT runs`. The re-record tonight measured the claim
+  again: 414 cassettes recorded and 1661 replayed over 128 cases, so a
+  case's five rows are one live tail and four copies (observed: the
+  re-record's summary, 2026-09-23 02:38). The choice after the read, a real
+  sample of `runs` live calls or one honest verdict with its date, is
+  Roman's, and the frame says so. Ask it with a recommended answer. Frame
+  71's diagnosis is the cheaper thing on the stack and it needs no ruling,
+  so it is a fair first hour if Roman orders it first.
+  **The machine.** Ollama on 11434 is the 3080 and on 11435 the Titan, both
+  idle at 03:55. No night is due. Re-records and nights run without asking
+  (ruled: Roman, 2026-09-20 and 2026-09-22). Every run outside the gate
+  needs `ROTA_MODEL=qwen3:8b`, or the ambient default `llama3.1:8b` reads
+  every recording as STALE. A probe that composes keys outside pytest must
+  set `samplerepo.GIT_ENV` first; the two probes in `probes/frame64/` do.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
