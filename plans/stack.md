@@ -232,7 +232,7 @@ a different question and the night is then opened once.
   because the sticky notice made a per-prompt test serve a repeating seat
   for ever on night 88. Design reviewer out, read-only on the main
   checkout, cap 100k.
-- Status 2026-09-23 16:50 (rota-d0): **Design review in, both rules sound
+- Status 2026-09-23 16:44 (rota-d0): **Design review in, both rules sound
   with named changes, and rule 1 carries the walk** (observed: the
   reviewer's report, 120k on the harness line against 100k, 62 calls,
   recorded in the design record's last section). Rota workflow for the
