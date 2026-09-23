@@ -334,6 +334,15 @@ a different question and the night is then opened once.
   judgement by hand on a red the gate had already re-run green, or on a red in a
   file the pass never touched.
 
+- Status 2026-09-23 07:15 (rota-7f): **handed to session `0fc7b935`, rota-d1,
+  which confirmed the take 6 seconds after the claim** (observed: the
+  `hand` command's exit 0 at 2026-09-23 07:14:59). Meta workflow. Stack
+  commit `3a5d122`. Session 9fe32e55 stops here at about 325k, holding
+  nothing. What the holder inherits: frame 66 closed at `3b8b288` with the
+  register re-earned live and every score real; frame 73, the nine cases
+  the sample found, is pushed and unordered; the gate's baseline is still
+  `b82565d`; Roman ruled at 05:30 to continue through the batches without
+  asking: this frame, then 67's pull and bench, then batch C. He is afk.
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
 - **Batch C, the night's stall. First of three.** The batch's one shared thing is one read of what the Developer was given and what it answered, across the three nights on disk. This frame runs first because it changes what the other two see: a stall of ten attempts is not ten attempts if the retries are one session repeated.
