@@ -354,6 +354,24 @@ a different question and the night is then opened once.
   the 115 are in the legacy `''` load, where every old invocation is one
   group.
 
+- Status 2026-09-23 04:51 (rota-7f): **the design review is in, and revision 2
+  of the record folds it with the salt.** Meta workflow. The reviewer type,
+  read-only, eight points, 38 tool calls, 15 minutes, **146.7k on the
+  harness line against a 100k cap** (observed: the harness usage,
+  2026-09-23). Ten findings, six high. Three are moot under the rulings
+  since: the backfill's 63 cases with no live row at the key, the bar over
+  mixed live groups, and triage's dedupe per run. Seven land: the tool
+  check runs on a bare backend and must say `live=True`; 4,400 copies in
+  18 cases carry a verdict different from their original's, so the report
+  prints a re-judged line; the two columns go in a sibling tuple, never in
+  `KEY_COLUMNS`, with a `carries_live` predicate, or the cockpit's raw
+  connection reads unkeyed in silence; the cockpit's case builder at
+  `progress.py:663-684`; `test_discover.py`'s hand-built table;
+  the date's three branches; R16's wrong reason. Revision 2 is
+  `plans/honest-single-design-2026-09-23.md`, committed above this line.
+  Next: the reviewer takes a resumed second look at the salt sections,
+  cap 30k, then the implementer.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
