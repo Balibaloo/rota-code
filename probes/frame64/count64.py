@@ -27,7 +27,15 @@ os.environ.setdefault("ROTA_MODEL", "qwen3:8b")
 from rota import paths                                        # noqa: E402
 from rota.llm.cassettes import ReplayOnlyBackend, key_for     # noqa: E402
 from rota.testkit import fixtures                             # noqa: E402
+from rota.testkit.samplerepo import GIT_ENV                   # noqa: E402
 from rota.tools import casestatus                             # noqa: E402
+
+# pytest pins the git clock for the suite in `tests/rota/conftest.py`. A probe
+# that runs outside pytest must pin it too. Without the pin the sha that
+# `code.commit` renders into the next turn moves, and every Developer case
+# that commits reads as a miss the suite never has (observed: frame 70,
+# 2026-09-23, nine false misses).
+os.environ.update(GIT_ENV)
 
 OUT = Path(__file__).with_name("count64.jsonl")
 MODEL = os.environ["ROTA_MODEL"]
