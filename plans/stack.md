@@ -246,6 +246,46 @@ a different question and the night is then opened once.
   drift, and not once per key change).
   Next: one implementer, cap 60k, the gate, then the full re-record under
   `ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=12288`, then the gate again.
+- Status 2026-09-23 02:19 (rota-76): **the pass is in, and the full
+  re-record runs.** Meta workflow. One implementer on Opus, 96k on the
+  harness line against a 60k cap, 57 tool calls, 15 minutes (observed: the
+  harness usage). Two files, uncommitted: `rota/llm/llm.py` gains
+  `THINK_DEFAULT = False`, `think_for` returns the profile's pin or that
+  constant, the backend sends the same constant; `tests/rota/test_register_key.py`
+  gains one pinned test and a helper `_as_a_tier_stamps` that seven fixtures
+  call, because every fixture stamped `think=None` and 18 tests then keyed
+  rows where no tier keys one. Two assertions moved with the rule: the
+  door's message says "the think pin is False" and not "unset", and a row
+  older than the `extras` column reads STALE and not green. The file passes
+  61 of 61, and `test_profile.py` with `test_runner.py` 79 of 79 (observed:
+  the implementer's runs, 2026-09-23).
+  **The gate reads what the design said**: stale 128 of 128, 0 green
+  (observed: the gate's five lines and `casestatus`, 2026-09-23 02:15). Its
+  four "new reds" are one thing: the door
+  `rota_serial_plugin.refuse_a_key_the_register_does_not_hold` at `:255`
+  refuses the three tiers and `test_t1_liaison.py` at import, because no
+  cassette in the register matches the ambient pins. That is the guard
+  working, and it gates the re-record. The 22 "reds gone" are cases that
+  did not run, which is not a fix.
+  **The re-record started at 02:19** over `test_l1.py`, `test_l3.py` and
+  `test_gauntlet.py`, under `ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=12288`,
+  about 128 live calls on the 3080. `test_t1_liaison.py` is skipped without
+  `ROTA_T1` and only its import-time door refused, so the L1 recordings clear
+  it.
+  **Three findings for after the re-record.** The door's remedy text at
+  `rota_serial_plugin.py:215` says "set `ROTA_PROFILE` to a profile that
+  leaves the pin unset", which no tier can do now, and its branch at `:202`
+  is unreachable from a tier: one small fix pass. `profile.pins_for` at
+  `rota/llm/profile.py:161-164` still returns `think=None` for a model the
+  profile does not name, and four builders pass no `think` (`cockpit/tui.py:1270`,
+  `core/runner.py:2001`, `tools/onboard_run.py:55`, `tools/talk.py:128`):
+  the wire sends `THINK_DEFAULT` for all of them, so nothing changes on the
+  wire, and none of them keys a cassette the suite reads (reasoned: the
+  tiers key through `think_for`). Noted, not repaired. `migrate_register.shape_of`
+  lands old cassettes at `extras='{}'`, which is their historical truth, and
+  the re-record is what repairs the rows.
+  Next: the gate after the re-record, the commit, one read-only diff review
+  on a worktree at the commit, the door's prose fix, the gate, the close.
 
 ### 66. A sample of five is one measurement (2026-09-22)
 
