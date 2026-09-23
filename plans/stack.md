@@ -233,6 +233,22 @@ a different question and the night is then opened once.
   without asking, batch C after 67). Meta workflow. The first read is the
   code the frame names: the door in `rota/core/runner.py`, the four wake
   kinds, and the attempt count each wake carries.
+- Status 2026-09-23 11:05 (rota-d1): **designed, reviewed, and in its first
+  implementer pass.** Meta workflow. The design record is
+  `plans/retry-differs-design-2026-09-23.md`, revision 2 at `c7f1527`: one
+  field `attempt` on the wake, one door in `loop.step` where the dispatch
+  is counted, one sentence in `build_prompt` for any tick kind at attempt
+  two or later, and first attempts unchanged so no cassette key moves. The
+  design review (one reviewer pass, 87k on the harness line) confirmed
+  the door's coverage, the keys, and the four triples of night 88 by
+  probe, and found one design fault, the sentence's "nothing recorded"
+  clause, which a productive retry on night 87 falsifies (observed: the
+  review's probes, 2026-09-23). Revision 2 carries the fix and six record
+  corrections. Two facts outside the frame are in the record's section 4:
+  `tick:quarantined` and `tick:agenda` repeats never reach the counter,
+  and `DETAIL_SHOWN`'s stated cause is incomplete. The implementer runs
+  on the record's sections 3 and 5, capped at 250k, and reports the diff,
+  the touched tests and the gate's five lines.
 
 ### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
 
