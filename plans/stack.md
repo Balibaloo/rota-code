@@ -321,6 +321,18 @@ a different question and the night is then opened once.
   baseline. No case, fixture or runner line changed in passes 2 and 3. The
   assistant's own gate runs now on the same tree, by the brief's rule,
   before the commit.
+- Status 2026-09-23 21:40 (rota-d0): **committed at `5f27b85`, diff review
+  out** (observed: the assistant's gate on the tree, 2026-09-23 21:35,
+  688 s: 31 failed, 2236 passed, 0 stale, 10 new reds against the baseline,
+  0 flaky, the ten being frame 73's nine less `L1-VK-reorient-the-account`
+  and frame 65's two; two hunks spot-read, the cut at the first call past
+  the invention's offset and the room refusal). Meta workflow. Line 2 is
+  met at the commit. Line 4's first gate is read. A worktree at `5f27b85`
+  is cut in this session's scratchpad, and the diff reviewer runs there on
+  eight points, read-only, cap 80k, on Fable by the judge rule. Actual so
+  far against 315k in agents, walls apart: design review 120k, implementer
+  227k over three passes and three resumes, the assistant's gate and reads
+  about 30k here. Walls: three harness restarts, none the frame's.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
