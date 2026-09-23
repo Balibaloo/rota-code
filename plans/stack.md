@@ -340,6 +340,20 @@ a different question and the night is then opened once.
   Revision 2 of the design record is written when the design review of
   revision 1 returns, and the reviewer takes a second look at the salt.
 
+- Status 2026-09-23 04:47 (rota-7f): **no invocation of five runs ever
+  split** (observed: `case_runs` grouped by case, model, prompt hash and
+  load, 8,841 groups, 2026-09-23 04:47). Meta workflow. Roman asked whether
+  the runs were the same values, since he remembered scores of 2 of 5. 115
+  groups are mixed, and none of them is a group of exactly five rows: they
+  are 10, 25, 30 or 33 rows, several invocations in one two-hour window,
+  each unanimous, with two or three distinct transcripts between them. So a
+  mixed score is two re-records in one window that answered differently,
+  or the report's window mixing rows of two invocations, and never a live
+  sample of five. 14 mixed groups hold one transcript with two verdicts,
+  which is the check changing between invocations, not the model. 74 of
+  the 115 are in the legacy `''` load, where every old invocation is one
+  group.
+
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
 - **No batch. Roman ordered it after frame 63's night** (ruled: Roman,
