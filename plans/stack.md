@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 71. One case replays in the process that recorded it and misses in a fresh one (2026-09-23)
+### 71. One case replays in the process that recorded it and misses in a fresh one (2026-09-23) (9fe32e55)
 
 - **No batch. It shares batch A's instrument, the replay, and not its
   repair.** Frame 70 was a false miss from a probe without the pin. This is
@@ -193,6 +193,13 @@ a different question and the night is then opened once.
 - Waits on: nothing. The GPU is free between nights.
 - Reasoning: frame 65's status of 2026-09-23 03:10.
 - Status 2026-09-23 03:10 (rota-76): pushed by 001e49dd, unclaimed.
+
+- Status 2026-09-23 04:12 (rota-7f): **claimed by 9fe32e55, ordered before
+  frame 66's repair** (ruled: Roman, 2026-09-23 04:11, asked with the other
+  order). Meta workflow. Frame 66, a sample of five is one measurement, waits
+  on Roman's choice of repair and its read is done. Starting the 15k diff:
+  the turn that misses in a fresh pytest process against the recording
+  process's cassette for the same turn.
 
 ### 66. A sample of five is one measurement (2026-09-22) (9fe32e55)
 
