@@ -399,6 +399,29 @@ a different question and the night is then opened once.
   frame were first written from memory and corrected to the clock's bound
   at 21:58 (observed: the clock read 21:58 after lines said 22:05, 22:15
   and 22:25); the habit is in memory with one strike.
+- Status 2026-09-23 23:15 (rota-d0): **Night 91 stopped at 23:11 at Roman's
+  word, 72 minutes in, and its partial database says rule 1 held**
+  (ruled: Roman, 2026-09-23 23:10, "can we pause gpu work?"; observed:
+  `.rota/clickI_night91_partial.db`, a SQLite backup taken at 23:13, and
+  `rota.tools.nightcount` over it). Rota workflow for the numbers. The
+  night onboarded 21:59 to 22:49, walk 1 cut `bg_1` and committed, and the
+  harness read 34 inherited tests passing, then 37 with 3 not passing, at
+  attempt 2 when it stopped. Counters: made up 39 turns in 20 sessions;
+  **ran anyway 0 writes after an invention, 0 turns with a write result,
+  0 commits**; the NOT RUN line stands in 47 turns of 17 sessions;
+  dangling pointers 45 turns in 16 sessions; 1 wake repeated. So the
+  acceptance's first two lines are met on 72 minutes: no from-memory write
+  landed while 20 sessions invented, and the hold fired 47 times. The
+  third line, the outcome against night 86's, and the check of the
+  twelve-turn cap wait for a full night. The assistant stopped the night on
+  a belief that it was six minutes in, from memory and not the clock; the
+  habit is in memory with two strikes. The process tree was killed by
+  command line match and both models unloaded with `ollama stop`; the
+  card reads 2.6 GB after. **Relaunch when Roman lifts the pause**: with
+  Ollama up, `Start-Process 'C:\Program Files\Git\bin\bash.exe'
+  -ArgumentList '-lc','/d/repos/rota/.rota/launch_night91.sh'` with stdout
+  to `.rota/night91.log`; the worktree `C:/Users/roman/rota_night91` at
+  `b79882e` stands; the gauntlet wipes and re-onboards by itself.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -526,6 +549,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 16:27 (rota-d0): **Frame 76 closed at 16:27, and grill question 3 is asked** (observed: frame 76's closing status). Meta workflow. Roman answered question 3 with "what's right here and why", and the reasoning is in the terminal: both holes are one fault at one site. Frame 77, the runner runs nothing from a made-up turn and never points at a deleted answer, is pushed and blocked on the ruling. When it lands, this frame's question 4 is whether the three record walls follow as frames or wait for frame 77's night.
 - Status 2026-09-23 22:00 (rota-d0): **Handed to the oldest free standby with this session at its ceiling** (ruled: CLAUDE.md, the 400k hand-off, taken at the 300k warning because the frame's remaining work is a two-hour night this window cannot hold). Meta workflow. What the holder inherits, in order: (1) frame 74, Opus 5.5 as a judge, runs now in an agent while night 91 runs, at Roman's word of 21:57; its brief is frame 74's ends-when line and frame 65's ten findings in `plans/archive/stack-2026-09-23.md`. (2) Night 91 ends around 00:00 with `GAUNTLET-DONE` in `.rota/night91.log`; read frame 77's acceptance in its status of 22:00, write frame 77's closing status, and archive `.rota/clickI.db` as `clickI_night91.db` by SQLite backup. (3) Grill question 4 for this frame, from the night's reading: whether the criterion wall, the test wall and the write door of frame 38's record become frames now, recommended yes as three frames in chain order if the night reaches a test wall, and otherwise a re-read of what the night stopped on. (4) Frame 73's nine salted cases are still the gate's known reds; frame 48 and 67 are closed. Roman's untracked `rota.code-workspace` is his. The worktrees `wt-night89`, `wt-33`, `wt-34`, `wt-36` and `wt-86` of ended sessions are still registered, a parked item.
 - Status 2026-09-23 22:02 (rota-d0): **The claim for this frame is posted to session `38c5f3a8`, rota-45, and the take has not come** (observed: the `hand` command's exit 4 at 22:02, after 90 s unconfirmed). Meta workflow. Stack commit `a954706`. The message to rota-45 with the take command, the rule's second route, was not delivered: the harness reports no agent of that name, so the name was recycled after the watcher armed (observed: the SendMessage failure at 22:03). The claim returns to the queue by itself in 15 minutes, so the frame moves to the next free standby without a person; three other standbys are free. Session dba7e375 stops here at its ceiling, holding nothing. Night 91 runs on regardless.
+- Status 2026-09-23 23:15 (rota-d0): **Night 91 is stopped at Roman's word and its partial reading is in frame 77's status of 23:15.** Meta workflow. What the taker inherits changes in one place: item (2) is now to relaunch night 91 when Roman lifts the GPU pause, by the command in that status, and to read the full night when it ends. Frame 74 still runs first, in an agent, and needs no GPU.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
