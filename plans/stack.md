@@ -254,6 +254,10 @@ a different question and the night is then opened once.
   skipped at Roman's word, so line 4 waits on the pause lifting, and the
   frame's acceptance runs the gate then. No model is loaded on either card
   (observed: `ollama ps` and `nvidia-smi`, 16:10).
+- Status 2026-09-23 16:11 (rota-d0): **Roman lifted the GPU pause** (ruled:
+  Roman, 2026-09-23 16:11, "we have more gpu time, continue"). Meta
+  workflow. The implementer is told to run the gate at the end of its pass
+  as first briefed. Line 4 is back in the pass.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
