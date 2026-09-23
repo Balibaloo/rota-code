@@ -201,6 +201,44 @@ a different question and the night is then opened once.
   the turn that misses in a fresh pytest process against the recording
   process's cassette for the same turn.
 
+- Status 2026-09-23 04:16 (rota-7f): **the cause is named, it is a runner
+  fault, and the fix is in the tree with the gate running.** Meta workflow.
+  Priced 15k, actual about 25k by the tool output, the false turn included.
+  **The turn.** Turn 8 of 8 misses in every run of a fresh pytest process,
+  and turns 1 to 7 hit: the pattern is `1,1,1,1,1,1,1,0` five times
+  (observed: a capture plugin on `ReplayOnlyBackend.complete`, one fresh
+  process, 2026-09-23 04:15). The prompts at turn 8 are the same length and
+  differ in one place: `NOTE code.write has been refused the same way in
+  three turns` and `NOTE code.commit ...` are in one order in the recording
+  process's cassette, rowid 37629, and the other order in the fresh one.
+  Turns 2 and 3 hit older cassettes with the same completion, so no earlier
+  line differs.
+  **The cause.** `turn_refusals` is `set[tuple[str, str]]` at
+  `rota/core/runner.py:2189`, and the NOTE lines are appended in its
+  iteration order at `:2724`. A set of string tuples iterates in the
+  process's hash-seed order (observed: `list(Ellipsis)` under
+  `PYTHONHASHSEED` 0 to 3 gives four orders, 2026-09-23). So the rota
+  workflow renders a turn with two notes in one of two orders per process,
+  and the cassette key hashes that turn. Not the fixture id and not the
+  model: `c_4d193f` is the same in both prompts. Frame 65's reading that a
+  tool result differs was the right direction and the wrong line.
+  **The fix.** `for same in sorted(turn_refusals):`, one line, with a
+  comment that carries this frame. The case then replays 40 of 40 in a
+  fresh process and passes 5 of 5, with no re-record, because the
+  recording process had rendered the sorted order by chance (observed: the
+  same capture, 2026-09-23 04:19).
+  **The pin.** `test_two_refusals_in_one_turn_are_noted_in_a_stable_order`
+  in `tests/rota/test_runner.py` sends two refused calls a turn and asserts
+  the notes come in name order. With the fix stashed it fails under
+  `PYTHONHASHSEED` 1 and 2 and passes under 0 and 3. With the fix it passes
+  under all four (observed: eight runs, 2026-09-23 04:24). The file passes
+  69 of 69.
+  **Two other places read the same set.** `stop_reason` at `:2731` names
+  `same[0]`, so the session's stated reason for ending was also the first
+  name in hash order. The fix covers it. `refused_keys`, `pushed_keys` and
+  `already_run` are membership sets and render nothing.
+  Next: the gate's five lines, the commit, the close.
+
 ### 66. A sample of five is one measurement (2026-09-22) (9fe32e55)
 
 - **No batch. It shares batch A's read, the register's `case_runs` rows, and
