@@ -207,7 +207,7 @@ a different question and the night is then opened once.
   **The turn.** Turn 8 of 8 misses in every run of a fresh pytest process,
   and turns 1 to 7 hit: the pattern is `1,1,1,1,1,1,1,0` five times
   (observed: a capture plugin on `ReplayOnlyBackend.complete`, one fresh
-  process, 2026-09-23 04:15). The prompts at turn 8 are the same length and
+  process, 2026-09-23, between 04:08 and 04:16). The prompts at turn 8 are the same length and
   differ in one place: `NOTE code.write has been refused the same way in
   three turns` and `NOTE code.commit ...` are in one order in the recording
   process's cassette, rowid 37629, and the other order in the fresh one.
@@ -226,12 +226,12 @@ a different question and the night is then opened once.
   comment that carries this frame. The case then replays 40 of 40 in a
   fresh process and passes 5 of 5, with no re-record, because the
   recording process had rendered the sorted order by chance (observed: the
-  same capture, 2026-09-23 04:19).
+  same capture, 2026-09-23, before 04:16).
   **The pin.** `test_two_refusals_in_one_turn_are_noted_in_a_stable_order`
   in `tests/rota/test_runner.py` sends two refused calls a turn and asserts
   the notes come in name order. With the fix stashed it fails under
   `PYTHONHASHSEED` 1 and 2 and passes under 0 and 3. With the fix it passes
-  under all four (observed: eight runs, 2026-09-23 04:24). The file passes
+  under all four (observed: eight runs, 2026-09-23, before 04:16). The file passes
   69 of 69.
   **Two other places read the same set.** `stop_reason` at `:2731` names
   `same[0]`, so the session's stated reason for ending was also the first
