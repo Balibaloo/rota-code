@@ -307,6 +307,20 @@ a different question and the night is then opened once.
   workflow. The implementer is resumed with an order to read the register
   for the 22 ids before it records anything, and to re-record only what is
   still stale.
+- Status 2026-09-23 21:25 (rota-d0): **Pass 3 had finished before the
+  restart: all 22 re-recorded, the gate at 19:06 reads zero stale and ten
+  new reds, all known** (observed: the implementer's report at 21:22 from
+  its scratchpad files stamped 18:32 to 19:06; 19k for the resume on the
+  harness line, 227k cumulative for the agent over three passes and three
+  resumes). Meta workflow. Five batches by id, 16 green and 6 red, none
+  stale: `3 failed, 2 passed` in 778 s, `2 failed, 3 passed` in 185 s,
+  `5 passed` in 404 s, `5 passed` in 101 s, `1 failed, 1 passed` in 344 s.
+  The gate: 31 failed, 2236 passed, 0 stale, new reds 10, which are frame
+  73's nine less `L1-VK-reorient-the-account`, green after its re-record,
+  plus frame 65's two. The four other reds among the 22 were red at the
+  baseline. No case, fixture or runner line changed in passes 2 and 3. The
+  assistant's own gate runs now on the same tree, by the brief's rule,
+  before the commit.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
