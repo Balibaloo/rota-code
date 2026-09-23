@@ -42,6 +42,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 
 from .. import paths
@@ -121,6 +122,25 @@ def carries_the_key(conn: sqlite3.Connection) -> bool:
     return bool(have) and {name for name, _ in KEY_COLUMNS} <= have
 
 
+def carries_live(conn: sqlite3.Connection) -> bool:
+    """
+    Whether this register's results say that a call reached the model.
+
+    A sibling of `carries_the_key`, and never a member of `KEY_COLUMNS`. A
+    register that carries frame 54's five columns and not frame 66's two is
+    keyed, and folding the two into that tuple would make such a register read
+    as unkeyed, in silence (frame 66's design review, finding 5).
+
+    The cockpit's panel connects with a raw `sqlite3.connect` and never
+    migrates, so a query naming `live` can meet `no such column` on a real
+    machine. Asking the table beats catching the error.
+    """
+    from ..llm.cassettes import LIVE_COLUMNS
+
+    have = {row[1] for row in conn.execute("PRAGMA table_info(case_runs)")}
+    return bool(have) and {name for name, _ in LIVE_COLUMNS} <= have
+
+
 def records_misses(conn: sqlite3.Connection) -> bool:
     """
     Whether this register can say that a look measured nothing.
@@ -166,7 +186,7 @@ def holds_a_system_hash(conn: sqlite3.Connection) -> bool:
 
 def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
                   *, keyed: bool = True, system: str = "",
-                  limit: int | None = None) -> list:
+                  limit: int | None = None, live: bool | None = None) -> list:
     """
     The rows that are evidence about this case under these pins, newest first.
 
@@ -205,10 +225,28 @@ def matching_runs(conn: sqlite3.Connection, case: dict, want: Pins,
     columns to match the key on. Such a register answers the narrow question
     only, and a reader that widens the match against it would raise rather
     than report.
+
+    `live` is None for every row, True for the rows a call reached, and False
+    for the copies. The clause is skipped on a register that carries no `live`
+    column, so a raw connection reads the narrow answer rather than raising
+    `no such column` (frame 66, 2026-09-23).
     """
-    sql = ["SELECT passed, problems, seq FROM case_runs"]
+    # `run_no`, `live` and `at` as well, because the caller asks which rows are
+    # copies and when the live one happened. The two new columns are named only
+    # when the register carries them.
+    columns = "passed, problems, seq, run_no"
+    has_live = carries_live(conn)
+    if has_live:
+        # `load_id` joins them, because it is the date's second branch. It is
+        # older than these two columns, so a register that carries them
+        # carries it.
+        columns += ", live, at, load_id"
+    sql = [f"SELECT {columns} FROM case_runs"]
     clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
     sql += clauses
+    if live is not None and has_live:
+        sql.append(" AND live = ?")
+        args.append(int(live))
     # A row from before the write-time guard, matched on the markers the
     # writer owns. One copy of the rule: the second copy named one of the two
     # markers, so a run that could not reach the model entered the window and
@@ -264,6 +302,76 @@ def _key_clauses(case: dict, want: Pins, *, keyed: bool,
         args += [want.num_ctx, want.temperature, "text",
                  json.dumps(want.extras(), sort_keys=True)]
     return sql, args
+
+
+def live_date(row: sqlite3.Row) -> str:
+    """
+    When the call that produced this row reached the model.
+
+    Three branches, because a row can carry two kinds of time or none (frame
+    66, 2026-09-23). `at` is the clock the writer stamped. A row with no `at`
+    still names a load, `model@epoch//7200`, and that name gives the two-hour
+    window and never a minute. A row with neither says the date is unknown,
+    because a date nobody wrote down is not a date.
+    """
+    have = row.keys()
+    at = row["at"] if "at" in have else ""
+    if at:
+        return at[:16].replace("T", " ")
+    load = (row["load_id"] if "load_id" in have else "") or ""
+    window = load.rpartition("@")[2]
+    if window.isdigit():
+        stamp = time.strftime("%Y-%m-%d %H:00",
+                              time.localtime(int(window) * 7200))
+        return f"~{stamp} window"
+    return "date unknown"
+
+
+def replays_since(conn: sqlite3.Connection, case: dict, want: Pins, seq: int,
+                  *, keyed: bool = True, system: str = "") -> int:
+    """
+    How many rows under this key are newer than the newest live row.
+
+    Every one of them is a copy, because the row at `seq` is the newest live
+    row at the key. The count is the answer to "how many times has this been
+    replayed since a model last answered it" (frame 66, 2026-09-23).
+    """
+    sql = ["SELECT COUNT(*) AS n FROM case_runs"]
+    clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
+    sql += clauses
+    sql.append(" AND seq > ?")
+    args.append(seq)
+    return conn.execute("".join(sql), args).fetchone()["n"]
+
+
+def rejudged(conn: sqlite3.Connection, case: dict, want: Pins, here: list,
+             *, keyed: bool = True, system: str = "") -> tuple[int, int]:
+    """
+    How many copies in the window disagree with the live row each one copied.
+
+    A replay reads the cassette current at its time, and that cassette is the
+    newest live row at the same key and the same run number below it. So the
+    join is a prefix of the primary key and it compares no blob (frame 66's
+    second look, 2026-09-23).
+
+    A disagreement names a checker edit and never a model that moved: the
+    model said one thing once, and two checkers read it two ways. 4,400 copies
+    in 18 cases carry a verdict different from their original's (observed:
+    frame 66's design review, probe B, 2026-09-23).
+    """
+    copies = [r for r in here if not r["live"]]
+    differ = 0
+    for copy in copies:
+        sql = ["SELECT passed FROM case_runs"]
+        clauses, args = _key_clauses(case, want, keyed=keyed, system=system)
+        sql += clauses
+        sql.append(" AND run_no = ? AND seq < ? AND live = 1 "
+                   "ORDER BY seq DESC LIMIT 1")
+        args += [copy["run_no"], copy["seq"]]
+        original = conn.execute("".join(sql), args).fetchone()
+        if original is not None and original["passed"] != copy["passed"]:
+            differ += 1
+    return differ, len(copies)
 
 
 def latest_miss(conn: sqlite3.Connection, case: dict, want: Pins,
@@ -371,6 +479,8 @@ def status(model: str = "") -> list[dict]:
     # the report opens. It is asked anyway, once, because the panel below
     # shares the reader and connects raw.
     misses = records_misses(conn)
+    # The same reasoning for the two columns frame 66 adds.
+    has_live = carries_live(conn)
 
     rows = []
     for case in _cases():
@@ -433,6 +543,26 @@ def status(model: str = "") -> list[dict]:
         else:
             miss = None
 
+        # When a call last reached the model at this key, and how many replays
+        # came after it (frame 66, 2026-09-23). A copy and a first-seen
+        # transcript were the same fourteen columns, so a gate run two hours
+        # later looked like a second experiment and `trust` banked it.
+        live_at, replays, no_live, differ, copies = "", 0, False, 0, 0
+        if has_live:
+            newest_live = matching_runs(conn, case, want, system=system,
+                                        live=True, limit=1)
+            if newest_live:
+                live_at = live_date(newest_live[0])
+                replays = replays_since(conn, case, want,
+                                        newest_live[0]["seq"], system=system)
+            elif here:
+                # Rows, and no call behind any of them at this key. Nobody has
+                # asked the model this question here, so the case is
+                # unmeasured and never a verdict.
+                no_live = True
+                state, passed = "STALE", None
+            differ, copies = rejudged(conn, case, want, here, system=system)
+
         why = ""
         if replay_problem:
             # A chain that could not replay says so on its own line, whatever
@@ -440,14 +570,28 @@ def status(model: str = "") -> list[dict]:
             why = replay_problem
         elif miss is not None:
             why = miss_line(miss)
+        elif no_live:
+            why = "no live call at this key"
         elif state == "FAIL":
             problems = [p for r in here for p in json.loads(r["problems"] or "[]")]
             why = problems[0] if problems else ""
+        if differ:
+            # The state stays what the newest rows say. The checker of the day
+            # is the checker, and this line says the model did not move.
+            said = (f"re-judged: {differ} of {copies} replays differ from "
+                    f"their live originals")
+            why = f"{why}. {said}" if why else said
 
         rows.append({"id": case["id"], "state": state, "passed": passed,
                      "of": len(here), "need": threshold, "why": why,
-                     "role": role, "ever": ever})
+                     "role": role, "ever": ever,
+                     "live_at": live_at, "replays": replays})
     return rows
+
+
+#: The width of the live column, so the case ids line up. It holds the longest
+#: sentence the column prints: `live 2026-09-23 06:12, replayed 5x since`.
+_LIVE_WIDTH = 40
 
 
 def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
@@ -487,8 +631,19 @@ def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
     for r in rows:
         if red_only and r["state"] in ("green", "PROV"):
             continue
-        score = f"{r['passed']}/{r['of']}" if r["passed"] is not None else "  -"
-        line = f"  {r['state']:<5} {score:>5} (need {r['need']})  {r['id']}"
+        scored = r["passed"] is not None
+        score = f"{r['passed']}/{r['of']}" if scored else "  -"
+        need = f" (need {r['need']})" if scored else ""
+        # When a model last answered this case at this key, and how many
+        # replays came after (frame 66, 2026-09-23). A score without a date is
+        # a number about a reply of unknown age.
+        live = ""
+        if r.get("live_at"):
+            live = f"live {r['live_at']}"
+            if r.get("replays"):
+                live += f", replayed {r['replays']}x since"
+        line = (f"  {r['state']:<5} {score:>5}{need:<9}  "
+                f"{live:<{_LIVE_WIDTH}}   {r['id']}")
         out.append(line)
         if r["why"]:
             out.append(f"              {r['why'][:96]}")

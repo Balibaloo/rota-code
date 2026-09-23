@@ -87,6 +87,12 @@ CREATE TABLE IF NOT EXISTS case_runs (
     -- the composed brief only: the runner's session prose and the working
     -- set's `TOOL:` lines sit outside it, and both move the cassette key.
     system_hash  TEXT NOT NULL DEFAULT '',
+    -- Whether a call reached the model, and the clock at the write (frame 66,
+    -- 2026-09-23). The register held 167,844 copies and 2,591 first-seen
+    -- transcripts, and no reader could tell the two apart: a replay under a
+    -- new load looked like a second experiment and `trust` banked it.
+    live         INTEGER NOT NULL DEFAULT 0,
+    at           TEXT NOT NULL DEFAULT '',
     seq          INTEGER NOT NULL,
     PRIMARY KEY (case_id, model, prompt_hash, run_no, seq)
 );
@@ -134,6 +140,17 @@ KEY_COLUMNS = (
     ("system_hash", "TEXT NOT NULL DEFAULT ''"),
 )
 
+#: The two columns frame 66 adds, a sibling of `KEY_COLUMNS` and never inside
+#: it. `casestatus.carries_the_key` tests the whole of `KEY_COLUMNS` against
+#: the schema, so a register that carries the five and not these two would
+#: read as unkeyed, in silence (frame 66's design review, finding 5).
+#: An old row keeps `live = 0`: it is a run of unknown provenance, and 0 says
+#: so rather than claiming a call that nobody can prove.
+LIVE_COLUMNS = (
+    ("live", "INTEGER NOT NULL DEFAULT 0"),
+    ("at", "TEXT NOT NULL DEFAULT ''"),
+)
+
 
 def open_dev_db(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path), isolation_level=None)
@@ -167,6 +184,12 @@ def open_dev_db(path: str | Path) -> sqlite3.Connection:
     # timeout, and `pytest.ini` runs the suite with `-n auto`, so a second
     # worker opening this database would raise `database is locked`.
     for column, spec in KEY_COLUMNS:
+        if column not in have:
+            conn.execute(f"ALTER TABLE case_runs ADD COLUMN {column} {spec}")
+    # Whether the run reached the model, and when. The same loop and the same
+    # reasoning as the five above: no backfill, and the default is the true
+    # statement about a row nobody measured (frame 66, 2026-09-23).
+    for column, spec in LIVE_COLUMNS:
         if column not in have:
             conn.execute(f"ALTER TABLE case_runs ADD COLUMN {column} {spec}")
     return conn
@@ -519,7 +542,7 @@ _NEXT_SEQ = ("(SELECT COALESCE(MAX(s), 0) + 1 FROM "
 
 def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
                     run_no: int, passed: bool, problems: list[str],
-                    transcript: list | None = None, *,
+                    transcript: list | None = None, *, live: bool,
                     system: str = "", protocol: str = "text") -> None:
     """
     One run of one case, with the whole key it was earned under.
@@ -530,6 +553,12 @@ def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
 
     Both are keyword-only. A caller that has no system text gets '' and says
     so, rather than passing a brief that is only a prefix of what was sent.
+
+    `live` says whether a call reached the model, and it has no default. Every
+    caller must answer, because a copy and a first-seen transcript are the
+    same fourteen columns and the register could not tell them apart (frame
+    66, 2026-09-23). `at` is the clock here, as `key_misses` writes it: a run
+    is an observation and an observation ages.
 
     A run that measured nothing writes one `key_misses` row and no `case_runs`
     row. The look is evidence about the key and never about the role, so the
@@ -554,8 +583,10 @@ def record_case_run(conn: sqlite3.Connection, case_id: str, pins: Pins,
     conn.execute(
         "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
         "load_id, num_ctx, temperature, protocol, extras, system_hash, "
-        f"passed, problems, transcript, seq) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,{_NEXT_SEQ}",
-        (*key, int(passed), json.dumps(problems), json.dumps(transcript or [])),
+        "passed, problems, transcript, live, at, seq) "
+        f"SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,{_NEXT_SEQ}",
+        (*key, int(passed), json.dumps(problems), json.dumps(transcript or []),
+         int(live), time.strftime("%Y-%m-%dT%H:%M:%S")),
     )
 
 
@@ -569,11 +600,15 @@ def flip_history(conn: sqlite3.Connection, case_id: str,
     verdict differing from the previous group's, whatever changed in between:
     a prompt edit, a fresh load, or nothing visible at all -- the last kind
     is the chronically marginal case this exists to make visible.
+
+    Live rows only (frame 66, 2026-09-23). A replay under a new `load_id` is
+    not a second experiment, and the 2026-08-27 ruling asks for two loads. A
+    group is now the live runs of one load, so the bar reads real runs.
     """
     rows = conn.execute(
         "SELECT prompt_hash, load_id, MIN(seq) AS first_seq, COUNT(*) AS n, "
         "       SUM(passed) AS ok "
-        "FROM case_runs WHERE case_id = ? "
+        "FROM case_runs WHERE case_id = ? AND live = 1 "
         "GROUP BY prompt_hash, load_id ORDER BY first_seq", (case_id,)).fetchall()
     out, prev = [], None
     for r in rows:
@@ -618,9 +653,13 @@ def provisional_cases(conn: sqlite3.Connection) -> list[str]:
 
 
 def pass_rate_history(conn: sqlite3.Connection, case_id: str) -> list[dict]:
-    """Pass rate per (model, prompt_hash), newest first. The regression signal."""
+    """Pass rate per (model, prompt_hash), newest first. The regression signal.
+
+    Live rows only, as `flip_history` reads them (frame 66, 2026-09-23). A
+    rate over copies counts one reply many times.
+    """
     return [dict(r) for r in conn.execute(
         "SELECT model, prompt_hash, COUNT(*) AS runs, SUM(passed) AS passed, "
         "       MAX(seq) AS last_seq "
-        "FROM case_runs WHERE case_id = ? "
+        "FROM case_runs WHERE case_id = ? AND live = 1 "
         "GROUP BY model, prompt_hash ORDER BY last_seq DESC", (case_id,))]

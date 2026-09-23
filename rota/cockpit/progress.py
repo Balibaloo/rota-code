@@ -224,6 +224,7 @@ def l1(dev_db: Path | None = None) -> dict:
     keyed = False
     widen = False
     misses = False
+    has_live = False
     if path.exists():
         try:
             conn = sqlite3.connect(path)
@@ -235,6 +236,10 @@ def l1(dev_db: Path | None = None) -> dict:
             # `except sqlite3.Error` below would turn that into `never run`
             # for every case in silence.
             misses = casestatus.records_misses(conn)
+            # The same question for frame 66's two columns. This connection
+            # never migrates, so a register pulled from an older snapshot
+            # carries neither, and the panel reads the narrow answer.
+            has_live = casestatus.carries_live(conn)
         except sqlite3.Error:                               # pragma: no cover
             conn = None
 
@@ -244,6 +249,10 @@ def l1(dev_db: Path | None = None) -> dict:
             "threshold": int(case.get("pass", case.get("runs", 1))),
             "runs": int(case.get("runs", 1)),
             "passed": None, "state": "never run", "problems": [],
+            # When a call last reached the model at this key, and how many
+            # replays came after it (frame 66, 2026-09-23). A score without a
+            # date is a number about a reply of unknown age.
+            "live_at": "", "replays": 0,
         }
         if conn is not None:
             try:
@@ -261,6 +270,14 @@ def l1(dev_db: Path | None = None) -> dict:
                 miss = (casestatus.latest_miss(conn, case, want, keyed=keyed,
                                                system=system)
                         if misses else None)
+                newest_live = (casestatus.matching_runs(
+                    conn, case, want, keyed=keyed, limit=1, system=system,
+                    live=True) if has_live else [])
+                if newest_live:
+                    entry["live_at"] = casestatus.live_date(newest_live[0])
+                    entry["replays"] = casestatus.replays_since(
+                        conn, case, want, newest_live[0]["seq"], keyed=keyed,
+                        system=system)
             except sqlite3.Error:                           # pragma: no cover
                 batch, ever, miss = [], 0, None
             if batch:
@@ -570,7 +587,10 @@ def message_text(case_id: str) -> dict:
         "source": _source_for(case_id),
         "base": prompts.base(role),
         "mode_brief": prompts.piece(role, mode),
+        # `live` per row: a person reading five transcripts must see which of
+        # them a model answered and which repeat one reply (frame 66).
         "runs": [{"run": r["run_no"], "passed": bool(r["passed"]),
+                  "live": bool(r.get("live")), "at": r.get("at") or "",
                   "problems": json.loads(r["problems"] or "[]"),
                   "transcript": json.loads(r["transcript"] or "[]")}
                  for r in (_runs().get(case_id) or [])[-5:]],
@@ -660,12 +680,25 @@ def cases(dev_db: Path | None = None) -> list[dict]:
             for key, val in _edges_for(second, second_mode, case, g).items():
                 edges[key] = edges[key] + val
 
-        latest = (runs.get(case["id"]) or [])[-5:]
+        from ..tools import casestatus
+
+        history = runs.get(case["id"]) or []
+        latest = history[-5:]
+        # When a model last answered this case, and how many replays came
+        # after it (frame 66, 2026-09-23). Over the case's whole history, and
+        # not under one key: this panel shows the rows themselves, and the L1
+        # panel answers the question about the key the tree sends now.
+        live_at, replays = "", 0
+        for back, row in enumerate(reversed(history)):
+            if row.get("live"):
+                live_at, replays = casestatus.live_date(row), back
+                break
         out.append({
             "id": case["id"], "tier": case.get("tier", ""), "role": role,
             "second": second, "mode": mode,
             "runs": int(case.get("runs", 1)),
             "threshold": int(case.get("pass", case.get("runs", 1))),
+            "live_at": live_at, "replays": replays,
             "repo": bool(case.get("repo")),
             "onboarded": bool((case.get("repo") or {}).get("onboard")),
             "refs": case.get("refs") or [],
@@ -724,9 +757,16 @@ def _runs(dev_db: Path | None = None) -> dict[str, list]:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
+        from ..tools import casestatus
+
+        # `live` and `at` say whether a row is a call or a copy of one (frame
+        # 66, 2026-09-23). Named only when the register carries them, because
+        # this connection never migrates and the guard below would turn
+        # `no such column` into an empty panel, in silence.
+        extra = ", live, at, load_id" if casestatus.carries_live(conn) else ""
         for r in conn.execute(
             "SELECT case_id, model, prompt_hash, run_no, passed, problems, "
-            "transcript, seq FROM case_runs ORDER BY seq"
+            f"transcript, seq{extra} FROM case_runs ORDER BY seq"
         ):
             out.setdefault(r["case_id"], []).append(dict(r))
     except sqlite3.Error:                                   # pragma: no cover

@@ -30,10 +30,15 @@ SHIPPED = paths.PACKAGE / "llm" / "benchmarks.json"
 
 def from_register(conn: sqlite3.Connection) -> list[dict]:
     """Per (model, role): passed cases over cases recorded, on each case's
-    latest prompt for that model."""
+    latest prompt for that model.
+
+    Live rows only (frame 66, 2026-09-23). A share of cases must be a share of
+    real runs: a copy raises `n` and the threshold with it, so counting copies
+    scored a green case as a failure and moved which model `recommend` names.
+    """
     rows = conn.execute(
         "SELECT case_id, model, prompt_hash, seq, passed FROM case_runs "
-        "WHERE case_id NOT LIKE 'T0-PROVIDER-%'").fetchall()
+        "WHERE case_id NOT LIKE 'T0-PROVIDER-%' AND live = 1").fetchall()
     latest: dict[tuple[str, str], tuple[int, str]] = {}
     for cid, model, ph, seq, _p in rows:
         key = (cid, model)

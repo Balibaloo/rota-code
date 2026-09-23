@@ -149,8 +149,12 @@ def test_l1_case(case, tmp_path, backend_factory, dev_db):
         # The whole system text as well, because the brief is only its prefix:
         # the runner's session prose and the working set's `TOOL:` lines are in
         # the cassette key and not in the hash (frame 54).
+        # `live` says whether a call reached the model. A replay and a
+        # first-seen transcript are the same fourteen columns otherwise, so
+        # the register counted one reply many times (frame 66, 2026-09-23).
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
-                        r.problems, r.transcript(), system=r.system_text())
+                        r.problems, r.transcript(), live=r.live_calls > 0,
+                        system=r.system_text())
 
     # Opt-in, and only on a failure. It costs a model call per failed run and
     # answers a question no assertion does: what did the session think it had?

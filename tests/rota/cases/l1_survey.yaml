@@ -14,8 +14,9 @@
 - id: L1-TE-survey-an-area-for-its-terms
   tier: T1
   role: terminologist
-  runs: 5
-  pass: 4
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   tick: survey
   # Areas come from onboarding a real checkout, not from the fixture tables,
   # so the lint's DB-only seeding cannot produce the state this fires on.
@@ -76,8 +77,9 @@
 - id: L1-AR-a-boundary-file-read-outside-in
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   tick: boundary
   # Boundary subjects are enumerated from a real index, like areas.
   tick_unseedable: boundary subjects are enumerated from repo onboarding
@@ -136,8 +138,9 @@
 - id: L1-AR-judge-the-frame
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   tick: frame
   # The frame wake exists the moment an index does; the tree it judges
   # comes from onboarding a real checkout.
@@ -186,8 +189,9 @@
 - id: L1-LI-say-what-the-run-could-not-see
   tier: T1
   role: liaison
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   tick: blindspot
   tick_unseedable: the gaps come from an onboarded, run state
   refs: ["@blindspots"]
@@ -240,8 +244,9 @@
 - id: L1-VK-orient-the-program
   tier: T1
   role: vision_keeper
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   tick: orient
   tick_unseedable: the program and its front come from repo onboarding, not fixture rows
   refs: ["@program"]
@@ -287,8 +292,9 @@
 - id: L1-VK-reconcile-the-readme
   tier: T1
   role: vision_keeper
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Attributed 2026-09-13 on qwen3:8b, 0/5: nine ledger rows against a
   # ceiling of six, on a fixture whose account is empty so every README
   # claim differs from "the code shows []". Overproduction on an empty
@@ -312,8 +318,9 @@
 - id: L1-TE-resurvey-an-area-that-moved
   tier: T1
   role: terminologist
-  runs: 5
-  pass: 4
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Attributed 2026-09-13 on qwen3:8b, 0/5: four terms where the ceiling is
   # three, and no code.source of the moved area. The 2026-09-12 criteria
   # brief says six is many; the resurvey ceiling is not that brief's, and

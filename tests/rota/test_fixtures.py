@@ -76,8 +76,69 @@ def test_ids_the_model_could_have_guessed_are_gone():
 
 def test_filling_is_the_same_every_time():
     """Deterministic, or every cassette becomes single-use — the bug that left
-    1140 of 1419 recordings never replayed once."""
+    1140 of 1419 recordings never replayed once. Run 1, which is the run every
+    recording in the register was made under."""
     assert fixtures.fill("<i1>", "L1-X") == fixtures.fill("<i1>", "L1-X")
+
+
+def test_run_one_keeps_the_ids_every_recording_was_made_under():
+    """
+    The salt starts at run 2 (frame 66, 2026-09-23).
+
+    Run 1's digest is the unsalted one, byte for byte, so every cassette and
+    every register row recorded before the salt stays evidence about run 1.
+    The report replays a chain on run 1's keys for the same reason.
+    """
+    import hashlib
+
+    plain = hashlib.sha1(b"L1-X:i1").hexdigest()[:6]
+    assert fixtures.fill("<i1>", "L1-X") == f"i_{plain}"
+    assert fixtures.fill("<i1>", "L1-X", 1) == f"i_{plain}"
+    assert fixtures.fill("<i1>", "L1-X", 2) == (
+        "i_" + hashlib.sha1(b"L1-X:i1:2").hexdigest()[:6])
+
+
+def test_two_runs_of_one_case_are_two_problems():
+    """
+    Five runs were five copies of one reply, and now they are five problems.
+
+    Every tier pins `temperature=0.0` and the ids were the same every run, so
+    run 1 recorded and runs 2 to 5 replayed it inside one process. No
+    invocation of five runs ever split (observed: the register, 2026-09-23).
+
+    The system text does not move, because no fixture id reaches it: 0 of 121
+    single-session cases compose one that holds a filled id. So the salt moves
+    the user half of the cassette key alone, and the report keeps matching a
+    case on its system digest.
+    """
+    from rota.llm.llm import ScriptedBackend
+
+    case = _case("L1-LI-segment")
+    seen = []
+    for run_no in (1, 2):
+        backend = ScriptedBackend([""])
+        work = pathlib.Path(tempfile.mkdtemp())
+        fixtures.run_case(fixtures.for_run(case, run_no), work / "rota.db",
+                          backend, instructions=fixtures.instructions_for(case),
+                          run_no=run_no)
+        assert backend.calls, f"run {run_no} reached no prompt"
+        seen.append(backend.calls[0])
+    assert seen[0][1] != seen[1][1], "the user half carries the filled ids"
+    assert seen[0][0] == seen[1][0], "and the system half carries none"
+
+
+def test_a_case_nobody_loaded_runs_as_it_is():
+    """
+    `for_run` fills a registered block and returns anything else unchanged.
+
+    A test that builds a case by hand never went through `load_case`, so no
+    block is kept for it. Returning it as it is keeps every such test running
+    exactly as it ran before the salt.
+    """
+    built = {"id": "not-a-loaded-case", "role": "liaison"}
+    assert fixtures.for_run(built, 3) is built
+    loaded = _case("L1-LI-segment")
+    assert fixtures.for_run(loaded, 1) == loaded, "run 1 is today's case"
 
 
 def test_two_cases_do_not_share_a_filling():

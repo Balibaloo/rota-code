@@ -1142,8 +1142,12 @@ async function loadProgress(){
           role:r.role, mode:r.mode, case:r.id,
           result:r.passed===null?'—':`${r.passed}/${r.runs}`,
           needs:r.threshold,
+          // When a call last reached the model at this key, beside the score
+          // (frame 66). A score without a date is a number about a reply of
+          // unknown age, and a replay counted as a second experiment.
+          live:r.live_at?(r.replays?`${r.live_at} +${r.replays}`:r.live_at):'—',
           why:(r.problems||[]).slice(0,2).join(' · ')
-        })),['role','mode','case','result','needs','why']);
+        })),['role','mode','case','result','needs','live','why']);
     }).join('');
 }
 
@@ -1261,6 +1265,9 @@ function showCase(id){
     `<h2>${esc(c.id)}</h2><span class="sig">${esc(c.tier)} · ${esc(c.role)}` +
     `${c.second?' → '+esc(c.second):''} · ${esc(c.mode)} · needs ` +
     `${c.threshold}/${c.runs}${c.repo?' · real checkout':''}` +
+    // The live date beside the score, so a person reading the runs knows
+    // which of them a model answered (frame 66).
+    `${c.live_at?' · live '+esc(c.live_at)+(c.replays?' +'+c.replays:''):''}` +
     `${c.onboarded?' · onboarded':''}</span>`;
   const seededBlocks = (c.situation.seeded||[]).map(sd=>
     fold(`${sd.artefact} — ${sd.rows} row(s)`,

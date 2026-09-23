@@ -95,9 +95,14 @@ def _record(db, pins: Pins, **kw) -> None:
     The system text is the case's own, composed, because the report now
     matches on its digest. A stand-in string here would read stale for the
     reason the test is not about.
+
+    The row is live unless a caller says otherwise. A key test is about the
+    key, and a copy would read `STALE` for the reason it is not about (frame
+    66, 2026-09-23).
     """
     stamp = _as_a_tier_stamps(pins).with_prompt(fixtures.instructions_for(CASE))
     kw.setdefault("system", fixtures.system_text_for(CASE))
+    kw.setdefault("live", True)
     record_case_run(db, CASE["id"], stamp, 1, True, [],
                     [{"say": "ok"}], **kw)
 
@@ -184,7 +189,7 @@ def test_the_key_carries_the_think_value_the_wire_carries(register):
     legacy = Pins(model=MODEL, temperature=0.0, think=None)
     record_case_run(register, CASE["id"],
                     legacy.with_prompt(fixtures.instructions_for(CASE)),
-                    1, True, [], [{"say": "ok"}],
+                    1, True, [], [{"say": "ok"}], live=True,
                     system=fixtures.system_text_for(CASE))
     assert register.execute("SELECT extras FROM case_runs").fetchone()[
         "extras"] == "{}", "the shape this frame leaves behind"
@@ -757,7 +762,7 @@ def test_a_miss_survives_the_migration(tmp_path):
     db = open_dev_db(source)
     record_case_run(db, CASE["id"], pins.with_prompt("h"), 1, False,
                     ["session did not commit: [no cassette for qwen3:8b]"],
-                    [{"say": ""}], system="the system text")
+                    [{"say": ""}], live=False, system="the system text")
     db.close()
 
     _run(source, tmp_path / "new.db")
@@ -1203,9 +1208,9 @@ def test_a_mixed_register_stales_the_cases_that_carry_only_legacy_rows(
     stamp = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0)).with_prompt(
         fixtures.instructions_for(CASE))
     record_case_run(db, legacy["id"], stamp, 1, True, [], [{"say": "ok"}],
-                    system="")
+                    live=True, system="")
     record_case_run(db, current["id"], stamp, 1, True, [], [{"say": "ok"}],
-                    system=fixtures.system_text_for(current))
+                    live=True, system=fixtures.system_text_for(current))
 
     assert casestatus.holds_a_system_hash(db), "one real hash turns it on"
     state = {r["id"]: r["state"] for r in casestatus.status(MODEL)}
@@ -1236,10 +1241,10 @@ def test_a_partly_migrated_case_reads_stale_and_never_fails(tmp_path,
     text = fixtures.system_text_for(case)
     for run in (1, 2, 3):
         record_case_run(db, case["id"], stamp, run, True, [], [{"say": "ok"}],
-                        system="")
+                        live=True, system="")
     for run in (4, 5):
         record_case_run(db, case["id"], stamp, run, True, [], [{"say": "ok"}],
-                        system=text)
+                        live=True, system=text)
 
     row = casestatus.status(MODEL)[0]
     assert row["state"] == "STALE", "two of five rows is not a measurement"
@@ -1265,7 +1270,7 @@ def test_a_chain_that_cannot_replay_reads_stale_and_says_why(tmp_path,
 
     db = open_dev_db(tmp_path / "chain.db")
     record_case_run(db, chain["id"], casestatus.wanted_pins(chain, MODEL), 1,
-                    True, [], [{"say": "ok"}], system=recorded)
+                    True, [], [{"say": "ok"}], live=True, system=recorded)
 
     # The control first, or a stale reading below could come from the stub.
     monkeypatch.setattr(fixtures, "run_chain",
@@ -1313,7 +1318,7 @@ def _a_real_miss(db, tmp_path, pins: Pins | None = None):
     record_case_run(db, CASE["id"],
                     pins.with_prompt(fixtures.instructions_for(CASE)), 1,
                     result.passed, result.problems, result.transcript(),
-                    system=result.system_text())
+                    live=result.live_calls > 0, system=result.system_text())
     return result
 
 
@@ -1321,6 +1326,8 @@ def _miss(db, pins: Pins, **kw) -> None:
     """One look that measured nothing, through the writer the tier uses."""
     stamp = _as_a_tier_stamps(pins).with_prompt(fixtures.instructions_for(CASE))
     kw.setdefault("system", fixtures.system_text_for(CASE))
+    # A look that measured nothing reached no model, so the row is never live.
+    kw.setdefault("live", False)
     record_case_run(db, CASE["id"], stamp, 1, False,
                     ["expected a call to ledger.log", MISS_PROBLEM],
                     [{"say": ""}], **kw)
@@ -1501,7 +1508,7 @@ pins = Pins(model="m", temperature=0.0).with_prompt("p")
 for run in range(1, rounds + 1):
     ok = run % 2 == 0
     record_case_run(conn, "case-%d" % worker, pins, run, ok,
-                    [] if ok else ["no cassette for m key=abc"])
+                    [] if ok else ["no cassette for m key=abc"], live=True)
 conn.close()
 """
 
@@ -1584,7 +1591,7 @@ def test_a_red_that_talks_about_a_failure_is_still_a_red(register):
     record_case_run(
         register, CASE["id"], stamp, 1, False, ["the answer names no cause"],
         [{"say": "the log says LLMUnavailable, so the server was down"}],
-        system=fixtures.system_text_for(CASE))
+        live=True, system=fixtures.system_text_for(CASE))
 
     assert register.execute(
         "SELECT COUNT(*) n FROM case_runs").fetchone()["n"] == 1, "a result"
@@ -1695,3 +1702,186 @@ def test_the_parameter_set_holds_the_shapes_that_would_break_it():
                for c in WITH_A_ROW), "an area case"
     assert any(prompts.mode_order(c["role"], fixtures.mode_of(c))
                for c in WITH_A_ROW), "a mode that declares a tool order"
+
+
+# ---------------------------------------------------------------------------
+# Frame 66, 2026-09-23: the row says whether a call reached the model
+# ---------------------------------------------------------------------------
+
+def _scripted_recorder(register):
+    """A recording backend over a scripted one, so a miss costs no model."""
+    from rota.llm.cassettes import RecordingBackend
+    from rota.llm.llm import ScriptedBackend
+
+    return RecordingBackend(ScriptedBackend([]), register)
+
+
+def test_a_row_says_whether_a_call_reached_the_model(register, tmp_path):
+    """
+    A copy and a first-seen transcript were the same fourteen columns.
+
+    The register held 167,844 copies and 2,591 first-seen transcripts, and no
+    reader could tell the two apart: a gate run two hours later replayed one
+    cassette under a new `load_id` and `trust` banked it as a second load
+    (observed: the register, 2026-09-23).
+
+    The distinction is driven and never typed. The first pass records, the
+    second replays what the first one wrote, and the third runs on a backend
+    that cannot call out at all.
+    """
+    from rota.llm.cassettes import ReplayOnlyBackend
+
+    pins = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0))
+    stamp = pins.with_prompt(fixtures.instructions_for(CASE))
+
+    def one(backend, run_no):
+        result = fixtures.run_case(
+            dict(CASE), tmp_path / f"live{run_no}.db", backend, pins=pins,
+            instructions=fixtures.instructions_for(CASE))
+        record_case_run(register, CASE["id"], stamp, run_no, result.passed,
+                        result.problems, result.transcript(),
+                        live=result.live_calls > 0,
+                        system=result.system_text())
+        return result
+
+    assert one(_scripted_recorder(register), 1).live_calls > 0, "it called out"
+    assert one(_scripted_recorder(register), 2).live_calls == 0, "it replayed"
+    assert one(ReplayOnlyBackend(register), 3).live_calls == 0, "replay only"
+
+    rows = {r["run_no"]: r for r in register.execute(
+        "SELECT run_no, live, at FROM case_runs")}
+    assert rows[1]["live"] == 1, "the call is written down"
+    assert rows[1]["at"], "and so is when it happened"
+    assert (rows[2]["live"], rows[3]["live"]) == (0, 0), "the copies say so"
+    assert rows[2]["at"], "a copy still carries the clock of its write"
+
+
+def test_a_chain_counts_the_live_calls_of_every_leg(register, tmp_path):
+    """
+    `run_chain` made one backend per leg and dropped every one of them.
+
+    So a chain could not say whether a call reached the model, and the sum
+    over the legs is the answer: one live leg makes the row live.
+    """
+    # Read from the files, because the `register` fixture makes `_cases`
+    # answer with one single-session case.
+    chain = next(c for path in sorted(paths.CASES.glob("l3*.yaml"))
+                 for c in fixtures.load_case(path) or []
+                 if c.get("first") and not c.get("repo"))
+    made: list = []
+
+    def factory():
+        made.append(_scripted_recorder(register))
+        return made[-1]
+
+    pins = _as_a_tier_stamps(Pins(model=MODEL, temperature=0.0))
+    first = fixtures.run_chain(dict(chain), tmp_path / "chain1.db", factory,
+                               pins=pins)
+    assert made, "the chain ran a leg"
+    assert first.live_calls == sum(b.misses for b in made) > 0
+
+    made.clear()
+    again = fixtures.run_chain(dict(chain), tmp_path / "chain2.db", factory,
+                               pins=pins)
+    assert again.live_calls == 0, "the second pass replayed every leg"
+
+
+def test_the_report_says_when_a_model_last_answered_and_how_often_since(
+        register):
+    """
+    A score without a date is a number about a reply of unknown age.
+
+    The report prints the live date beside the score and counts the replays
+    after it, so a reader can see that five rows are one reply repeated.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), live=True)
+    _record(register, Pins(model=MODEL, temperature=0.0), live=False)
+    _record(register, Pins(model=MODEL, temperature=0.0), live=False)
+
+    row = _row()
+    assert row["live_at"], "the case names the day a model answered it"
+    assert row["replays"] == 2, "and the replays that came after"
+    line = [ln for ln in casestatus.render([row]).splitlines()
+            if CASE["id"] in ln][0]
+    assert f"live {row['live_at']}, replayed 2x since" in line
+
+
+def test_a_case_with_rows_and_no_live_call_is_unmeasured(register):
+    """
+    Stale means nobody has looked. A register of copies is such a case.
+
+    Between frame 66 landing and the re-record finishing every case reads this
+    way, because no row in the committed register can say a call was made.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), live=False)
+
+    row = _row()
+    assert row["state"] == "STALE", "a copy is not a measurement"
+    assert row["passed"] is None, "and it carries no score to quote"
+    assert row["why"] == "no live call at this key"
+
+
+def test_a_replay_that_a_new_checker_judged_differently_says_so(register):
+    """
+    A copy is re-judged by the checker of the day, and the model did not move.
+
+    4,400 copies in 18 cases carry a verdict different from their original's
+    (observed: frame 66's design review, probe B, 2026-09-23). The join is the
+    key prefix and the run number, because a replay reads the cassette current
+    at its time, and it compares no blob.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), live=True)
+    _record(register, Pins(model=MODEL, temperature=0.0), live=False)
+    # The copy's verdict, turned over the way an edited checker turns it.
+    register.execute("UPDATE case_runs SET passed = 0 WHERE live = 0")
+
+    row = _row()
+    assert "re-judged: 1 of 1 replays differ from their live originals" in (
+        row["why"])
+
+
+def test_the_cockpit_shows_when_a_model_last_answered_each_case(register,
+                                                                monkeypatch):
+    """
+    The panel is the one a person reads, so it carries the live date too.
+
+    Two entries carry it: the L1 panel, which asks about the key the tree
+    sends now, and the case list, which shows the case's whole history. The
+    threshold and the run count stay, because the threshold stays (frame 66,
+    2026-09-23).
+    """
+    from rota.cockpit import progress
+
+    _record(register, Pins(model=MODEL, temperature=0.0), live=True)
+    _record(register, Pins(model=MODEL, temperature=0.0), live=False)
+
+    entry = _panel(monkeypatch)["cases"][0]
+    assert entry["live_at"] and entry["replays"] == 1
+    assert entry["threshold"] == 1 and entry["runs"] == 1, "both stay"
+
+    monkeypatch.setattr(progress, "_cases", lambda: [dict(CASE)])
+    listed = progress.cases(paths.DEV_DB)[0]
+    assert listed["live_at"] == entry["live_at"], "one date, two panels"
+    assert listed["replays"] == 1
+
+
+def test_the_live_date_falls_back_to_the_window_and_then_says_unknown(
+        register):
+    """
+    Three branches, because a row can carry two kinds of time or none.
+
+    `at` is the clock the writer stamped. A row with no `at` still names a
+    load, `model@epoch//7200`, and that name gives the two-hour window and
+    never a minute. A row with neither says the date is unknown.
+    """
+    _record(register, Pins(model=MODEL, temperature=0.0), live=True)
+
+    stamped = _row()["live_at"]
+    assert stamped and stamped[:2] == "20" and "T" not in stamped
+
+    register.execute("UPDATE case_runs SET at = ''")
+    windowed = _row()["live_at"]
+    assert windowed.startswith("~") and windowed.endswith(" window")
+
+    register.execute("UPDATE case_runs SET at = '', load_id = ''")
+    assert _row()["live_at"] == "date unknown"

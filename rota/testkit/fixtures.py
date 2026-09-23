@@ -276,6 +276,29 @@ def seed_ref(conn: sqlite3.Connection, src_table: str, src_id: str,
         "VALUES (?, ?, ?, ?)", (src_table, src_id, kind, target))
 
 
+#: Each case's unfilled block, by case id, with the parser its file needed.
+#: `for_run` fills the block again under a run number, so the five runs of a
+#: case are five problems (frame 66, 2026-09-23). The block is gone once the
+#: case is parsed, so `load_case` keeps it here. No caller mutates a loaded
+#: case, so one registry serves every reader (observed: frame 66's second
+#: look, 2026-09-23).
+_RAW: dict[str, tuple[str, object]] = {}
+
+
+def for_run(case: dict, run_no: int) -> dict:
+    """
+    The case as run `run_no` composes it, with every hole salted by the number.
+
+    A case a test builds by hand carries no registered block, and it comes
+    back unchanged. So the hand-built case runs exactly as it runs today.
+    """
+    entry = _RAW.get(case.get("id", ""))
+    if entry is None:
+        return case
+    text, parse = entry
+    return parse(fill(text, case["id"], run_no))[0]
+
+
 def load_case(path: str | Path, *, raw: bool = False) -> dict:
     """
     Parse a case file, filling its `{{holes}}` unless `raw`.
@@ -302,7 +325,9 @@ def load_case(path: str | Path, *, raw: bool = False) -> dict:
     out, buffer, current = [], [], None
     def flush():
         if current is not None:
-            out.append(parse(fill(chr(10).join(buffer), current))[0])
+            block = chr(10).join(buffer)
+            _RAW[current] = (block, parse)
+            out.append(parse(fill(block, current))[0])
     for line in text.splitlines():
         if line.startswith("- id: "):
             flush()
@@ -655,6 +680,12 @@ class CaseResult:
     # and `outcome` keeps only the leg the chain is scored against. The
     # register records a run against this, so kept here rather than derived.
     systems: list[str] = field(default_factory=list)
+    # How many calls reached the model. `RecordingBackend.misses` counts
+    # exactly the calls that reach its inner backend, and a chain sums its
+    # legs. The register writes `live = 1` when this is above zero, because a
+    # replay and a first-seen transcript looked the same in the table (frame
+    # 66, 2026-09-23).
+    live_calls: int = 0
 
     def system_text(self) -> str:
         """
@@ -763,7 +794,7 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
 _HOLE = re.compile(r"<([A-Za-z0-9_]+)>")
 
 
-def fill(text: str, case_id: str) -> str:
+def fill(text: str, case_id: str, run_no: int = 1) -> str:
     """
     Replace every `<name>` with an id the model cannot guess.
 
@@ -794,15 +825,21 @@ def fill(text: str, case_id: str) -> str:
     that reads a case without going through this function. `<i1>` is an ordinary
     plain scalar and the file stays a YAML file.
 
-    Deterministic on purpose — the same case yields the same ids every run, so
-    the prompt is byte-identical and a cassette recorded against it stays valid.
+    Deterministic per run, and salted across runs (frame 66, 2026-09-23). Run 1
+    keeps the unsalted digest, byte for byte, so every cassette and every
+    register row recorded before the salt stays evidence about run 1. Every
+    other run mixes the run number into the digest, so the five runs of a case
+    are five different problems. Without the salt run 1 recorded and runs 2 to
+    5 replayed it inside one process, and the threshold counted one reply five
+    times.
     """
     import hashlib
 
     def one(match: re.Match) -> str:
         name = match.group(1)
         prefix = name.rstrip("0123456789") or "x"
-        digest = hashlib.sha1(f"{case_id}:{name}".encode()).hexdigest()[:6]
+        seed = f"{case_id}:{name}" if run_no == 1 else f"{case_id}:{name}:{run_no}"
+        digest = hashlib.sha1(seed.encode()).hexdigest()[:6]
         return f"{prefix}_{digest}"
 
     return _HOLE.sub(one, text)
@@ -1059,7 +1096,10 @@ def run_case(case: dict, db_path: str | Path, backend, *, pins: Pins | None = No
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
                       delta=delta, outcome=outcome, notes=notes,
-                      systems=[outcome.system])
+                      systems=[outcome.system],
+                      # A backend without the counter made no live call: a
+                      # replay-only backend never reaches a model.
+                      live_calls=getattr(backend, "misses", 0))
 
 
 def run_chain(case: dict, db_path: str | Path, backend_factory, *,
@@ -1090,6 +1130,12 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
 
     first, then = case["first"], case["then"]
     problems: list[str] = []
+    # Every backend a leg used, because the factory makes one per leg and the
+    # chain's live count is the sum over its legs (frame 66, 2026-09-23).
+    backends: list = []
+
+    def _live() -> int:
+        return sum(getattr(b, "misses", 0) for b in backends)
 
     def _one(spec: dict, message_id: str | None) -> tuple[RunOutcome, Delta]:
         mode = spec.get("prompt") or spec.get("verb") or spec.get("tick", "")
@@ -1098,8 +1144,9 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         wake = leg_wake(spec, message_id)
         seen = {r["id"] for r in conn.execute("SELECT id FROM messages")}
         versions = snapshot_versions(conn)
+        backends.append(backend_factory())
         out = run_session(
-            conn, wake, backend=backend_factory(), pins=pins,
+            conn, wake, backend=backends[-1], pins=pins,
             instructions=prompts_mod.compose(spec["role"], mode),
             batch_id=_batch_of(conn, wake),
             area=wake.refs[0] if spec.get("tick") in ("survey", "orient", "define") else None)
@@ -1161,7 +1208,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
                               delta=a_delta, outcome=a_out,
                               # Leg one is the whole chain here, so it is the
                               # whole of what the model was told.
-                              systems=[a_out.system])
+                              systems=[a_out.system], live_calls=_live())
         if not woken:
             others = sorted({w.kind for w in predicate_wakes(conn)})
             problems.append(
@@ -1174,7 +1221,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
             return CaseResult(case_id=case.get("id", "?"), run=run_no,
                               passed=False, problems=problems,
                               delta=a_delta, outcome=a_out,
-                              systems=[a_out.system])
+                              systems=[a_out.system], live_calls=_live())
         b_spec = dict(then)
         b_spec["refs"] = list(woken[0].refs)
         b_out, b_delta = _one(b_spec, None)
@@ -1188,7 +1235,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
         conn.close()
         return CaseResult(case_id=case.get("id", "?"), run=run_no, passed=False,
                           problems=problems, delta=a_delta, outcome=a_out,
-                          systems=[a_out.system])
+                          systems=[a_out.system], live_calls=_live())
     else:
         b_spec = dict(then)
         b_spec.setdefault("verb", handoff["verb"])
@@ -1224,7 +1271,7 @@ def run_chain(case: dict, db_path: str | Path, backend_factory, *,
     return CaseResult(case_id=case.get("id", "?"), run=run_no,
                       passed=not problems, problems=problems,
                       delta=b_delta, outcome=b_out, notes=notes,
-                      systems=[a_out.system, b_out.system])
+                      systems=[a_out.system, b_out.system], live_calls=_live())
 
 
 def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None = None,
@@ -1236,6 +1283,10 @@ def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None 
     rather than an excuse. A case that passed 5/5 for weeks and now passes 3/5 is
     a prompt regression signal, which is why the count is returned rather than a
     bare boolean.
+
+    Each run gets its own problem, through `for_run` (frame 66, 2026-09-23).
+    The ids are salted with the run number, so run 2 composes a prompt run 1
+    never sent and the model answers it again. Run 1 keeps today's ids.
     """
     # ROTA_RUNS overrides the case for a smoke run of a new column; the
     # threshold is the case's, so a smoke reads its rows, not its verdict.
@@ -1244,11 +1295,12 @@ def run_sampled(case: dict, tmpdir: Path, backend_factory, *, pins: Pins | None 
     results = []
     for i in range(1, runs + 1):
         path = tmpdir / f"{case.get('id','case')}_{i}.db"
-        if case.get("first"):
-            results.append(run_chain(case, path, backend_factory,
+        problem = for_run(case, i)
+        if problem.get("first"):
+            results.append(run_chain(problem, path, backend_factory,
                                      pins=pins, run_no=i))
         else:
-            results.append(run_case(case, path, backend_factory(), pins=pins,
+            results.append(run_case(problem, path, backend_factory(), pins=pins,
                                     instructions=instructions, run_no=i))
     passed = sum(1 for r in results if r.passed)
     return passed, threshold, results

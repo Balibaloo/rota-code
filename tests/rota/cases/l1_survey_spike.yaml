@@ -9,8 +9,9 @@
 - id: L1-AR-survey-a-signature-callers-rely-on
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Survey spike (Roman, 2026-09-15). Kind: a signature callers rely on. billing/subscriptions.py calls catalog.pricing.price_for(sku); a renamed parameter or return breaks it.
   # Scored on a called symbol of the area named in the constraint and the
   # constraint bound to a grain (is_global 0: the tool sets it from bindings
@@ -32,8 +33,9 @@
 - id: L1-AR-survey-an-exception-contract
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Survey spike (Roman, 2026-09-15). Kind: an exception contract. templates.render raises on a missing value and delivery.build and the tests rely on which error and its message.
   # Scored on a called symbol of the area named in the constraint and the
   # constraint bound to a grain (is_global 0: the tool sets it from bindings
@@ -55,8 +57,9 @@
 - id: L1-AR-survey-a-patch-seam
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Survey spike (Roman, 2026-09-15). Kind: a patch seam. store.connection.connect is the module-level name every record read goes through and what a test patches.
   # Scored on a called symbol of the area named in the constraint and the
   # constraint bound to a grain (is_global 0: the tool sets it from bindings
@@ -78,8 +81,9 @@
 - id: L1-AR-survey-a-shared-helper
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Survey spike (Roman, 2026-09-15). Kind: a shared helper. charges.total_of is summed by invoices.issue_invoice and the tests; its rounding is what they rely on.
   # Scored on a called symbol of the area named in the constraint and the
   # constraint bound to a grain (is_global 0: the tool sets it from bindings
@@ -101,8 +105,9 @@
 - id: L1-AR-survey-an-exported-name
   tier: T1
   role: architect
-  runs: 5
-  pass: 3
+  # No hole to salt, so five runs replay one reply (frame 66).
+  runs: 1
+  pass: 1
   # Survey spike (Roman, 2026-09-15). Kind: an exported name. auth/__init__.py re-exports register, find_by_email, issue, verify, revoke; a rename breaks every importer of the package.
   # Scored on a called symbol of the area named in the constraint and the
   # constraint bound to a grain (is_global 0: the tool sets it from bindings

@@ -291,6 +291,8 @@ def migrate(src: sqlite3.Connection, target: Path, *, dry_run: bool = False,
     tally: Counter = Counter()
     per_case: dict = defaultdict(Counter)
     pending: list = []
+    # `live` and `at` are left at their defaults, 0 and '' (frame 66,
+    # 2026-09-23). An old row is a run of unknown provenance, and 0 says so.
     insert = ("INSERT OR REPLACE INTO case_runs (case_id, model, prompt_hash, "
               "run_no, load_id, passed, problems, transcript, seq, num_ctx, "
               "temperature, protocol, extras, system_hash) "

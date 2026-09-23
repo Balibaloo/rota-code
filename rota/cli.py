@@ -617,13 +617,16 @@ def cmd_profile(args: argparse.Namespace) -> int:
             # once as text and once with a native schema, and the two replies
             # fail in different ways -- so a native result must never answer
             # for a text run (frame 54).
+            # `live=True`: the check runs on `prof.backend()`, a bare provider
+            # backend that never replays, so every row here is a real call
+            # (frame 66, 2026-09-23).
             cassettes.record_case_run(dev, line_id, pins, 1, res.tool_line,
                                       [] if res.tool_line else [res.problems[0]],
-                                      [{"say": res.tool_line_said}],
+                                      [{"say": res.tool_line_said}], live=True,
                                       system=toolcheck.SYSTEM, protocol="text")
             cassettes.record_case_run(dev, native_id, pins, 1, res.native_call,
                                       [] if res.native_call else [res.problems[-1]],
-                                      [{"say": res.native_said}],
+                                      [{"say": res.native_said}], live=True,
                                       system=toolcheck.SYSTEM, protocol="native")
             dev.commit()
             print(f"{model:24} TOOL: line {'ok' if res.tool_line else 'FAIL'}   "

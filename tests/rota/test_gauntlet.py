@@ -95,8 +95,10 @@ def test_seat_flow_segment(case, tmp_path, backend_factory, dev_db):
     for r in results:
         # The whole system text as well: the brief is only its prefix, and the
         # rest of it is in the cassette key (frame 54).
+        # `live` says whether a call reached the model (frame 66).
         record_case_run(dev_db, case["id"], stamp, r.run, r.passed,
-                        r.problems, r.transcript(), system=r.system_text())
+                        r.problems, r.transcript(), live=r.live_calls > 0,
+                        system=r.system_text())
 
     if any("no cassette" in p for r in results for p in r.problems):
         pytest.fail(

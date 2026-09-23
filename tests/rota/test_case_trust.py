@@ -28,11 +28,16 @@ def db(tmp_path):
 
 
 def _runs(db, case_id, prompt, load, results, seq0):
+    """Live rows, because `flip_history` reads live rows only (frame 66).
+
+    A copy is not a second experiment, and the 2026-08-27 ruling asks for two
+    loads. Every row here stands for a call that reached the model.
+    """
     for i, ok in enumerate(results, 1):
         db.execute(
             "INSERT INTO case_runs (case_id, model, prompt_hash, run_no, "
-            "passed, problems, transcript, seq, load_id) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "passed, problems, transcript, seq, load_id, live) "
+            "VALUES (?,?,?,?,?,?,?,?,?,1)",
             (case_id, "m", prompt, i, int(ok), "[]", "[]", seq0 + i, load))
     db.commit()
 
@@ -92,7 +97,7 @@ def test_recording_stamps_the_current_load(db, monkeypatch):
     from rota.llm.llm import Pins
 
     pins = Pins(model="m", temperature=0.0).with_prompt("x")
-    C.record_case_run(db, "c", pins, 1, True, [])
+    C.record_case_run(db, "c", pins, 1, True, [], live=True)
     row = db.execute("SELECT load_id FROM case_runs").fetchone()
     assert row["load_id"].startswith("m@")
     assert row["load_id"] == C.current_load(pins)

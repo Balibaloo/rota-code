@@ -59,16 +59,20 @@ def test_the_benchmarks_table_is_built_from_the_record(tmp_path):
     from rota.llm import benchmarks as B
 
     conn = sqlite3.connect(":memory:")
+    # `live` and `at` as well: `from_register` reads live rows only, so a
+    # hand-built table without the two columns would score nothing (frame 66,
+    # 2026-09-23).
     conn.execute("CREATE TABLE case_runs (case_id TEXT, model TEXT, prompt_hash TEXT, run_no INT, "
-                 "passed INT, problems TEXT, seq INT, transcript TEXT, load_id TEXT)")
+                 "passed INT, problems TEXT, seq INT, transcript TEXT, load_id TEXT, "
+                 "live INT, at TEXT)")
     rows = []
     seq = 0
     for cid, model, passes in (("L1-DV-a", "m1", [1, 1, 1, 1, 1]), ("L1-DV-b", "m1", [0, 0, 0, 0, 0]),
                                ("L1-DV-a", "m2", [1, 1, 1, 0, 0]), ("T0-PROVIDER-x-native-call", "m1", [1])):
         for i, p in enumerate(passes):
             seq += 1
-            rows.append((cid, model, "h", i + 1, p, "[]", seq, "[]", ""))
-    conn.executemany("INSERT INTO case_runs VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            rows.append((cid, model, "h", i + 1, p, "[]", seq, "[]", "", 1, ""))
+    conn.executemany("INSERT INTO case_runs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     reg = {(r["model"], r["capability"]): r for r in B.from_register(conn)}
     assert reg[("m1", "DV")]["score"] == 0.5 and reg[("m1", "DV")]["cases"] == 2
     assert reg[("m2", "DV")]["score"] == 1.0
