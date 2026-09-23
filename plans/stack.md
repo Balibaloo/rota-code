@@ -260,7 +260,7 @@ a different question and the night is then opened once.
   only text this session wrote in it. The commit carries this frame alone,
   built from HEAD, so the holder's uncommitted lines stay in its working copy.
 
-### 48. `tests/rota/test_screens.py` is flaky (2026-09-20)
+### 48. `tests/rota/test_screens.py` is flaky (2026-09-20) (0fc7b935)
 
 - **No batch.** It shares no read, no repair and no walk with any open frame. **It is ordered beside batch A for a different reason**: batch A restores the acceptance line "zero stale" and this frame restores "zero new reds". The two lines are in every acceptance this repository writes, and neither can gate today. That is a shared purpose and not a shared read, so the frames stay apart.
 
@@ -343,6 +343,10 @@ a different question and the night is then opened once.
   the sample found, is pushed and unordered; the gate's baseline is still
   `b82565d`; Roman ruled at 05:30 to continue through the batches without
   asking: this frame, then 67's pull and bench, then batch C. He is afk.
+- Status 2026-09-23 07:15 (rota-d1): **claimed by 0fc7b935 on the take**
+  (observed: the `take` command's exit 0 at 07:15). Meta workflow. The
+  first read starts now: what the file's tests share, and what each of the
+  four flaking files writes that another worker reads.
 ### 58. A retried tick re-runs the identical session (2026-09-21)
 
 - **Batch C, the night's stall. First of three.** The batch's one shared thing is one read of what the Developer was given and what it answered, across the three nights on disk. This frame runs first because it changes what the other two see: a stall of ten attempts is not ten attempts if the retries are one session repeated.
