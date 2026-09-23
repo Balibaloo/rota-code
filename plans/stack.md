@@ -384,29 +384,31 @@ a different question and the night is then opened once.
   this line. One implementing agent on Opus, cap 120k, foreground tests,
   the gate once at the end, no re-record, no commit.
 
-- Status 2026-09-23 05:51 (rota-7f): **the implementer pass is in and
-  committed at 6129194, the re-record runs, and the diff review runs on a
+- Status 2026-09-23 05:52 (rota-7f): **the implementer pass is in and
+  committed at `6129194`, the re-record runs, and the diff review runs on a
   worktree.** Meta workflow. One implementer on Opus, 163 tool calls, 54
   minutes, **216.9k on the harness line against a 120k cap** (observed: the
   harness usage, 2026-09-23). The design review's 146.7k against 100k was
   the same shape. A cap in a brief does not bind, and the anchors in
-   need this row: a cold pass of 18 files and
+  `plans/operating-facts.md` need this row: a cold pass of 18 files and
   666 insertions with one gate run, 217k. 18 files, 666 insertions, 80
   deletions, 11 tests added. Non-tier files green: fixtures 11, register
   key 190, trust 7, discover 9, runner 69, gate 30. The gate at the
   commit: 118 failed against 25, stale 128, 416 s. 94 of the 95 new reds
   are the three tier files reading STALE, because runs 2 to 5 are new
   problems with no cassette, as section 3.5 says. The 95th is
-  , which the
+  `test_map.py::test_a_shared_file_name_lists_the_candidates`, which the
   gate marked flaky and which passes alone. Ten deviations, each with a
   reason, all accepted; the two the implementer asked about, the need
-  column dropped on an unscored row and  reading the whole
-  history while  reads the key, are confirmed as written.
-  **The re-record** runs in the background under  on the
+  column dropped on an unscored row and `cases()` reading the whole
+  history while `l1` reads the key, are confirmed as written.
+  **The re-record** runs in the background under `ROTA_REFRESH=1` on the
   four tier files, about an hour on the 3080. **The diff review** runs on
-  a worktree at 6129194, , ten points, in
+  a worktree at `6129194`, `D:/repos/rota-wt-frame66`, ten points, in
   parallel with it. Then the fix pass, the gate on the re-earned register,
-  the close, and the hand-off.
+  the close, and the hand-off. The first write of this line went through
+  an unquoted heredoc, and the shell ran its backticks as commands; this
+  is the repaired line (observed: commit `a8c90ff`, 2026-09-23).
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
