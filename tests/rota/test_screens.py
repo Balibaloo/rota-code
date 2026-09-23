@@ -56,6 +56,31 @@ def _app(tmp_path, name="seat"):
     return tui.RotaApp(tmp_path / f"{name}.db", "llama3.1:8b")
 
 
+async def _settle(pilot):
+    """
+    Wait until the screen has nothing left to do, its workers included.
+
+    `pilot.pause()` reads the process CPU time in slices of 20 ms and
+    returns at the first slice under 1 ms. The list's rows arrive from a
+    thread, and that thread waits on git and on the disk. A waiting thread
+    spends no CPU, so the pause read the process as idle and returned
+    before the rows landed. That happened whenever the fetch took more
+    than about 150 ms (observed: frame 48, 2026-09-23, a wait of 200 ms
+    in `cli.runs` failed two of three, and 400 ms failed all three).
+
+    The fetch takes 146 to 161 ms alone when a seed carries a commit and
+    a root, because `_mark_moved` spawns git twice for the checkout. So
+    the two tests with the slowest fetch were the two that flaked most.
+
+    The first pause lets the key land and the screen mount, so the worker
+    exists. The wait covers the worker, and `call_from_thread` inside it
+    blocks until `_fetch_done` ran. The last pause covers the draw.
+    """
+    await pilot.pause()
+    await pilot.app.workers.wait_for_complete()
+    await pilot.pause()
+
+
 # ---------------------------------------------------------------------------
 # Choosing
 # ---------------------------------------------------------------------------
@@ -78,7 +103,7 @@ async def test_the_list_shows_every_run_and_which_source_it_is_about(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         sources = {r[0]: r[2] for r in map(app.screen._cells, app.screen.rows)}
 
     assert sources["ctn_main"] == "main@a41f2ee"
@@ -101,7 +126,7 @@ async def test_a_run_whose_tree_moved_says_so(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         cells = {r[0]: r[2] for r in map(app.screen._cells, app.screen.rows)}
 
     assert "moved" in cells["moved"]
@@ -122,10 +147,10 @@ async def test_opening_a_stale_run_is_refused_with_the_reason(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.rows[0]["state"] == "stale"
         app.screen.action_open()
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.__class__.__name__ == "RunList", "it opened anyway"
         assert "behind the schema" in str(app.screen.query_one("#runlist_note").content)
 
@@ -141,9 +166,9 @@ async def test_choosing_a_run_rebinds_the_seat_to_it(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.say("something said in the first run", "you", "green")
-        await pilot.pause()
+        await _settle(pilot)
         app.open_run(other)
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.db_path == other
         assert app.run_name == "other"
@@ -176,7 +201,7 @@ def _seed_items(path: Path, count: int) -> None:
 
 async def _open_list(pilot):
     await pilot.press("ctrl+l")
-    await pilot.pause()
+    await _settle(pilot)
     return pilot.app.screen
 
 
@@ -218,7 +243,7 @@ async def test_the_seat_stamps_the_run_it_opens(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.open_run(other)
-        await pilot.pause()
+        await _settle(pilot)
 
     stamp, = sqlite3.connect(other).execute(
         "SELECT value FROM config WHERE key = 'opened_at'").fetchone()
@@ -242,14 +267,14 @@ async def test_sorting_holds_the_view_you_had_scrolled_to(tmp_path, home, projec
         table = _table(screen)
         assert table.max_scroll_x > 20, "the table fits, so nothing is proven"
         table.scroll_to(x=20, animate=False)
-        await pilot.pause()
+        await _settle(pilot)
 
         screen.sort_on("items")
-        await pilot.pause()
+        await _settle(pilot)
         assert table.scroll_x == 20
 
         screen.action_reload()
-        await pilot.pause()
+        await _settle(pilot)
         assert table.scroll_x == 20, "a reload threw the view away instead"
 
 
@@ -280,10 +305,10 @@ async def test_a_count_column_sorts_as_a_number(tmp_path, home, project):
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
         screen.sort_on("items")
-        await pilot.pause()
+        await _settle(pilot)
         assert [row["name"] for row in screen.rows] == ["few", "many"]
         screen.sort_on("items")                      # asked twice, so reversed
-        await pilot.pause()
+        await _settle(pilot)
         assert [row["name"] for row in screen.rows] == ["many", "few"]
 
 
@@ -301,12 +326,12 @@ async def test_the_cursor_holds_its_run_across_a_sort(tmp_path, home, project):
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
         screen.sort_on("run")                   # a named order to point into
-        await pilot.pause()
+        await _settle(pilot)
         _table(screen).move_cursor(row=2)
-        await pilot.pause()
+        await _settle(pilot)
         assert screen.selected["name"] == "ccc"
         screen.sort_on("items")
-        await pilot.pause()
+        await _settle(pilot)
         assert screen.selected["name"] == "ccc", "the cursor stayed on a row"
         assert screen.rows[0]["name"] == "ccc"
 
@@ -324,9 +349,9 @@ async def test_a_sort_survives_a_reload(tmp_path, home, project):
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
         screen.sort_on("items")
-        await pilot.pause()
+        await _settle(pilot)
         screen.action_reload()
-        await pilot.pause()
+        await _settle(pilot)
 
         assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
         assert "↑" in str(_table(screen).columns["items"].label)
@@ -344,10 +369,10 @@ async def test_runs_that_tie_fall_back_to_their_names(tmp_path, home, project):
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
         screen.sort_on("state")                     # every run is `ready`
-        await pilot.pause()
+        await _settle(pilot)
         assert [row["name"] for row in screen.rows] == ["aaa", "bbb", "ccc"]
         screen.sort_on("state")                     # reversed, and still named
-        await pilot.pause()
+        await _settle(pilot)
         assert [row["name"] for row in screen.rows] == ["aaa", "bbb", "ccc"]
 
 
@@ -377,11 +402,11 @@ async def test_shift_s_reverses_without_moving_the_column(tmp_path, home, projec
     async with app.run_test() as pilot:
         screen = await _open_list(pilot)
         screen.sort_on("run")
-        await pilot.pause()
+        await _settle(pilot)
         assert [row["name"] for row in screen.rows] == ["aaa", "bbb"]
 
         await pilot.press("S")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert screen.sort_by == "run", "reversing moved the column"
         assert [row["name"] for row in screen.rows] == ["bbb", "aaa"]
@@ -408,9 +433,9 @@ async def test_the_form_refuses_to_land_on_an_existing_run(tmp_path, home, proje
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.push_screen(NewRun(name="taken", root=str(project)))
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.go()
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.screen.__class__.__name__ == "NewRun", "it dismissed anyway"
         assert "already exists" in str(app.screen.query_one("#newrun_detected").content)
@@ -429,7 +454,7 @@ async def test_the_form_says_what_the_repo_box_points_at(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.push_screen(NewRun(root=str(repo.root)))
-        await pilot.pause()
+        await _settle(pilot)
         shown = str(app.screen.query_one("#newrun_detected").content)
 
     branch, commit = cli.checkout_of(repo.root)
@@ -448,11 +473,11 @@ async def test_a_directory_that_is_not_a_checkout_is_a_warning_not_a_refusal(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.push_screen(NewRun(name="plain", root=str(project)))
-        await pilot.pause()
+        await _settle(pilot)
         assert "not a git checkout" in str(
             app.screen.query_one("#newrun_detected").content)
         app.screen.go()
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.__class__.__name__ != "NewRun", "a warning blocked it"
 
 
@@ -469,10 +494,10 @@ async def test_fork_offers_a_new_name_against_the_same_source(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         assert isinstance(app.screen, RunList)
         app.screen.action_fork()
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.screen.__class__.__name__ == "NewRun"
         assert app.screen.query_one("#newrun_name").value == "ctn_v3-2"
@@ -496,11 +521,11 @@ async def test_quitting_asks_first_and_can_be_told_no(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+c")
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.__class__.__name__ == "ConfirmationModal"
 
         app.screen.query_one("#modal_cancel").press()
-        await pilot.pause()
+        await _settle(pilot)
         assert app.is_running, "cancel quit anyway"
 
 
@@ -514,7 +539,7 @@ async def test_the_confirmation_is_visible(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+c")
-        await pilot.pause()
+        await _settle(pilot)
         box = app.screen.query_one("#confirmation_container")
         assert box.styles.background.a > 0, "no background: invisible over the app"
         assert box.styles.border_top[0], "no border"
@@ -568,15 +593,15 @@ async def test_creating_a_run_from_the_list_actually_onboards_it(
 
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         assert isinstance(app.screen, RunList)
 
         app.screen.action_new()
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.query_one("#newrun_name").value = "fresh"
         app.screen.query_one("#newrun_root").value = str(project)
         app.screen.go()
-        await pilot.pause()
+        await _settle(pilot)
 
     assert started == ["_do_new_run"], "the form's answer never reached the app"
     assert app._pending_new == (cli.resolve("fresh"), project)
@@ -596,13 +621,13 @@ async def test_a_barren_session_is_visible_as_one(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.note_step("· wrote a term", productive=True)
-        await pilot.pause()
+        await _settle(pilot)
         assert app.last_productive is not None and app.barren_since == 0
 
         for _ in range(3):
             app.note_step("· committed without changing anything",
                           productive=False)
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.barren_since == 3
         assert "3 barren since" in str(app.query_one("#pulse").content)
@@ -635,7 +660,7 @@ async def test_a_repeating_chain_is_shown_while_it_climbs(tmp_path, home):
         assert edge == "vision_keeper->architect:reopen"
 
         app.refresh_pulse()
-        await pilot.pause()
+        await _settle(pilot)
         shown = str(app.query_one("#pulse").content)
         assert "vision_keeper->architect:reopen" in shown and "×7" in shown
 
@@ -664,8 +689,8 @@ async def test_a_seat_with_no_run_opens_the_list(tmp_path, home, monkeypatch):
     app = tui.RotaApp(None, "llama3.1:8b")
     assert app.conn is None
     async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.pause()
+        await _settle(pilot)
+        await _settle(pilot)
         assert isinstance(app.screen, RunList)
         assert "no run open" in app.sub_title
 
@@ -680,9 +705,9 @@ async def test_a_seat_with_no_run_says_so_rather_than_failing(tmp_path, home):
 
     app = tui.RotaApp(None, "llama3.1:8b")
     async with app.run_test() as pilot:
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.action_dismiss_list()
-        await pilot.pause()
+        await _settle(pilot)
 
         assert "no run open" in str(app.query_one("#run_state").content)
 
@@ -691,7 +716,7 @@ async def test_a_seat_with_no_run_says_so_rather_than_failing(tmp_path, home):
         app.on_input_submitted(type("E", (), {
             "value": "build me a thing",
             "input": type("I", (), {"value": ""})()})())
-        await pilot.pause()
+        await _settle(pilot)
         assert said and "no run open" in said[0]
 
 
@@ -730,7 +755,7 @@ async def test_the_spawned_cockpit_never_writes_to_this_terminal(tmp_path, home)
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(tui.subprocess, "Popen", fake_popen)
             app.open_cockpit(app.db_path)
-            await pilot.pause()
+            await _settle(pilot)
 
             assert "--no-reload" in calls["argv"]
             assert calls["kw"]["stdout"] is not None, "inherits this terminal"
@@ -771,7 +796,7 @@ async def test_the_seat_stops_the_cockpits_it_started(tmp_path, home):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.cockpits.append((FakeChild(), FakeLog()))
-        await pilot.pause()
+        await _settle(pilot)
 
     assert stopped == [99], "the cockpit outlived the seat"
     assert FakeLog.closed
@@ -795,7 +820,7 @@ async def test_a_run_switch_does_not_orphan_or_close_a_cockpit(
     async with app.run_test() as pilot:
         app.cockpits.append((FakeChild(), object()))
         app.open_run(other)
-        await pilot.pause()
+        await _settle(pilot)
         assert len(app.cockpits) == 1, "the handle was dropped on switch"
         app.cockpits.clear()          # do not signal a fake on teardown
 
@@ -815,14 +840,14 @@ async def test_enter_and_a_click_both_open_the_run(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         assert isinstance(app.screen, RunList)
         assert not any(k == "enter" for k, _, _ in RunList.BINDINGS), (
             "a binding the table eats is one the footer advertises and "
             "nothing performs")
 
         await pilot.press("enter")
-        await pilot.pause()
+        await _settle(pilot)
 
     assert app.run_name == "pickme"
 
@@ -840,7 +865,7 @@ async def test_wiping_the_open_run_goes_through_the_seat(tmp_path, home, project
     name = app.run_name
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         screen = app.screen
         screen.rows = [{"name": name, "path": str(path), "state": "ready",
                         "root": str(project), "counts": {}, "branch": "",
@@ -849,9 +874,9 @@ async def test_wiping_the_open_run_goes_through_the_seat(tmp_path, home, project
         screen.query_one("#runs").add_row(*screen._cells(screen.rows[0]))
         screen.query_one("#runs").move_cursor(row=0)
         screen.action_wipe()
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.handle_submit(name)
-        await pilot.pause()
+        await _settle(pilot)
 
         assert not path.exists(), "nothing was removed"
         assert app.db_path is None and app.conn is None, (
@@ -871,7 +896,7 @@ async def test_a_modal_submission_is_not_also_a_sentence(tmp_path, home):
         app.on_input_submitted(type("E", (), {
             "value": "ctn_v3",
             "input": type("I", (), {"id": "modal_input", "value": ""})()})())
-        await pilot.pause()
+        await _settle(pilot)
     assert said == [], "a confirmation was taken as a sentence"
 
 
@@ -903,7 +928,7 @@ async def test_every_screen_binding_survives_its_own_focused_widget(
     async with app.run_test() as pilot:
         for screen_class in (RunList, NewRun):
             app.push_screen(screen_class())
-            await pilot.pause()
+            await _settle(pilot)
             screen = app.screen
             assert isinstance(screen, screen_class)
 
@@ -922,7 +947,7 @@ async def test_every_screen_binding_survives_its_own_focused_widget(
                     f"and pressing it did nothing — the focused widget ate it")
 
             screen.dismiss(None)
-            await pilot.pause()
+            await _settle(pilot)
 
 
 # ---------------------------------------------------------------------------
@@ -949,7 +974,7 @@ async def test_wiping_the_open_run_leaves_no_run_behind(tmp_path, home, project)
     async with app.run_test() as pilot:
         await pilot.press("alt+w")
         app.confirm("seat")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert not path.exists(), "the file came back"
         assert app.db_path is None and app.conn is None
@@ -972,7 +997,7 @@ async def test_rerun_keeps_the_run_because_it_is_about_to_refill_it(
                          "VALUES ('e1','principal','x',1)")
         await pilot.press("ctrl+alt+r")
         app.confirm("ctn_v3")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.db_path is not None and app.conn is not None
         assert app.conn.execute(
@@ -1002,7 +1027,7 @@ async def test_onboarding_with_no_project_offers_one_instead_of_saying_none(
     async with app.run_test() as pilot:
         app.say = lambda text, *a, **k: said.append(text)
         app.action_onboard()
-        await pilot.pause()
+        await _settle(pilot)
 
         assert not any("None" in s for s in said), said
         assert isinstance(app.screen, NewRun)
@@ -1030,15 +1055,15 @@ async def test_the_form_adopts_an_empty_run_but_still_refuses_a_full_one(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         app.push_screen(NewRun(name="husk", root=str(project)))
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.go()
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.__class__.__name__ != "NewRun", "refused a husk"
 
         app.push_screen(NewRun(name="full", root=str(project)))
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.go()
-        await pilot.pause()
+        await _settle(pilot)
         assert app.screen.__class__.__name__ == "NewRun", "landed on a real run"
         assert "already" in str(app.screen.query_one("#newrun_detected").content)
 
@@ -1064,14 +1089,14 @@ async def test_no_key_breaks_on_a_seat_with_no_run(tmp_path, home):
         app = tui.RotaApp(None, "llama3.1:8b")
         said: list[str] = []
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await _settle(pilot)
+            await _settle(pilot)
             app.screen.action_dismiss_list()
-            await pilot.pause()
+            await _settle(pilot)
             app.say = lambda t, *a, **k: said.append(t)
 
             await pilot.press(key)          # must not raise
-            await pilot.pause()
+            await _settle(pilot)
 
             assert app.armed is None, (
                 f"{key} armed a confirmation nothing can satisfy: "
@@ -1096,7 +1121,7 @@ async def test_marking_two_runs_compares_them(tmp_path, home, project):
     said: list[str] = []
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         screen = app.screen
         assert isinstance(screen, RunList)
         app.say = lambda t, *a, **k: said.append(t)
@@ -1104,13 +1129,13 @@ async def test_marking_two_runs_compares_them(tmp_path, home, project):
         order = [r["name"] for r in screen.rows]
         screen.query_one("#runs").move_cursor(row=order.index("ctn_v3"))
         screen.action_diff()
-        await pilot.pause()
+        await _settle(pilot)
         assert screen.marked == str(left)
         assert "marked" in str(screen.query_one("#runlist_note").content)
 
         screen.query_one("#runs").move_cursor(row=order.index("ctn_v3-2"))
         screen.action_diff()
-        await pilot.pause()
+        await _settle(pilot)
 
     assert said, "the comparison was computed and never shown"
     assert "ctn_v3" in said[0] and "same source" in said[0]
@@ -1124,16 +1149,16 @@ async def test_marking_the_same_run_twice_unmarks_it(tmp_path, home, project):
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         screen = app.screen
         screen.query_one("#runs").move_cursor(
             row=[r["name"] for r in screen.rows].index("one"))
 
         screen.action_diff()
-        await pilot.pause()
+        await _settle(pilot)
         assert screen.marked is not None
         screen.action_diff()
-        await pilot.pause()
+        await _settle(pilot)
         assert screen.marked is None
 
 
@@ -1171,7 +1196,7 @@ async def test_onboarding_an_indexed_run_arms_rather_than_fires(
     app = tui.RotaApp(path, "llama3.1:8b", root=project)
     async with app.run_test() as pilot:
         await pilot.press("alt+o")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.armed == "onboard"
         assert app.conn.execute(
@@ -1192,7 +1217,7 @@ async def test_onboarding_a_run_with_no_index_needs_no_confirmation(
     app.run_worker = lambda fn, thread=True: started.append(fn.__name__)
     async with app.run_test() as pilot:
         await pilot.press("alt+o")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.armed is None
         assert started == ["_do_onboard"]
@@ -1217,7 +1242,7 @@ async def test_onboarding_is_refused_while_the_loop_is_driving(
     async with app.run_test() as pilot:
         app.driving = True
         await pilot.press("alt+o")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.armed is None
         assert started == [], "it re-indexed under a running loop"
@@ -1239,7 +1264,7 @@ async def test_a_finished_onboarding_does_not_start_a_second_loop(
         app._turn_the_crank = lambda: ran.append(1)      # would be the second
         app._pending_root = project
         app._do_onboard()
-        await pilot.pause()
+        await _settle(pilot)
 
     assert ran == [], "a second loop was started on top of a running one"
 
@@ -1289,16 +1314,16 @@ async def test_wiping_a_held_run_says_so_instead_of_killing_the_seat(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         screen = app.screen
         assert isinstance(screen, RunList)
         row = next(r for r in screen.rows if r["name"] == "held")
         screen.query_one("#runs").move_cursor(
             row=screen.rows.index(row))
         screen.action_wipe()
-        await pilot.pause()
+        await _settle(pilot)
         app.screen.handle_submit("held")
-        await pilot.pause()
+        await _settle(pilot)
 
         assert app.is_running, "the refusal killed the seat"
         assert "another process" in str(
@@ -1318,7 +1343,7 @@ async def test_the_seats_own_run_is_recognised_however_it_was_spelled(
     app = _app(tmp_path)
     async with app.run_test() as pilot:
         await pilot.press("ctrl+l")
-        await pilot.pause()
+        await _settle(pilot)
         screen = app.screen
         # The same run, spelled the other way.
         spelled = {"name": app.run_name, "state": "ready",
