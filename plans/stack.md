@@ -423,7 +423,7 @@ a different question and the night is then opened once.
   to `.rota/night91.log`; the worktree `C:/Users/roman/rota_night91` at
   `b79882e` stands; the gauntlet wipes and re-onboards by itself.
 
-### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
+### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman) (2087bc13)
 
 - **No batch. It is the build session's own instrument.** It shares nothing
   with an open frame.
@@ -471,6 +471,18 @@ a different question and the night is then opened once.
   statuses of frames 58 and 65.
 - Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
 - Status 2026-09-23 13:00 (rota-60): **Roman chose frame 65's diff review as the replay** (ruled: Roman, 2026-09-23, asked with frame 58's review and both reviews as the other options). Frame 37's grill runs first (ruled: Roman, the same ask). Unclaimed.
+- Status 2026-09-23 23:14 (rota-b8): **claimed by 2087bc13, the taker of
+  frame 37, and the reviewer is out** (ruled: Roman, 2026-09-23 21:57, the
+  taker runs it). Meta workflow. Worktree `wt-65` at `088bba9` in this
+  session's scratchpad. The reviewer runs on the Agent tool's `opus` field,
+  because `reviewer.md` stays on `inherit`, and the brief asks it to print
+  the model id its system prompt names, so the count is written under the
+  model it reports. The original review's nine points are not on record, so
+  the replay runs on nine points reconstructed from the commit and frame
+  65's ends-when line, written generic so they name no finding's site
+  (reasoned: the archive holds the ten findings and not the brief; frame
+  65's close says the three high findings were sites no point named). Cap
+  100k, no live model call, because the GPU is paused.
 
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
@@ -504,7 +516,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
   frame 66, unclaimed.
 
-### 37. The Developer exhausts ten attempts on the tests (2026-09-18) (dba7e375)
+### 37. The Developer exhausts ten attempts on the tests (2026-09-18) (2087bc13)
 
 - **Batch C, the night's stall. Third of three.** Already waits on frame 38, and its first read is the same read. **Batch C is the only batch that unblocks frame 33**, whose code is built, reviewed twice and gated at 457k and has never walked, because a walk needs a merge and a merge waits here.
 
@@ -550,6 +562,13 @@ a different question and the night is then opened once.
 - Status 2026-09-23 22:00 (rota-d0): **Handed to the oldest free standby with this session at its ceiling** (ruled: CLAUDE.md, the 400k hand-off, taken at the 300k warning because the frame's remaining work is a two-hour night this window cannot hold). Meta workflow. What the holder inherits, in order: (1) frame 74, Opus 5.5 as a judge, runs now in an agent while night 91 runs, at Roman's word of 21:57; its brief is frame 74's ends-when line and frame 65's ten findings in `plans/archive/stack-2026-09-23.md`. (2) Night 91 ends around 00:00 with `GAUNTLET-DONE` in `.rota/night91.log`; read frame 77's acceptance in its status of 22:00, write frame 77's closing status, and archive `.rota/clickI.db` as `clickI_night91.db` by SQLite backup. (3) Grill question 4 for this frame, from the night's reading: whether the criterion wall, the test wall and the write door of frame 38's record become frames now, recommended yes as three frames in chain order if the night reaches a test wall, and otherwise a re-read of what the night stopped on. (4) Frame 73's nine salted cases are still the gate's known reds; frame 48 and 67 are closed. Roman's untracked `rota.code-workspace` is his. The worktrees `wt-night89`, `wt-33`, `wt-34`, `wt-36` and `wt-86` of ended sessions are still registered, a parked item.
 - Status 2026-09-23 22:02 (rota-d0): **The claim for this frame is posted to session `38c5f3a8`, rota-45, and the take has not come** (observed: the `hand` command's exit 4 at 22:02, after 90 s unconfirmed). Meta workflow. Stack commit `a954706`. The message to rota-45 with the take command, the rule's second route, was not delivered: the harness reports no agent of that name, so the name was recycled after the watcher armed (observed: the SendMessage failure at 22:03). The claim returns to the queue by itself in 15 minutes, so the frame moves to the next free standby without a person; three other standbys are free. Session dba7e375 stops here at its ceiling, holding nothing. Night 91 runs on regardless.
 - Status 2026-09-23 23:15 (rota-d0): **Night 91 is stopped at Roman's word and its partial reading is in frame 77's status of 23:15.** Meta workflow. What the taker inherits changes in one place: item (2) is now to relaunch night 91 when Roman lifts the GPU pause, by the command in that status, and to read the full night when it ends. Frame 74 still runs first, in an agent, and needs no GPU.
+- Status 2026-09-23 23:14 (rota-b8): **taken by 2087bc13** (observed: the
+  take command's exit 0 at 23:13, claim posted 22:00:42 from dba7e375,
+  reclaimed from 38c5f3a8 and then from 08f52ba8, whose takes never came).
+  Meta workflow. The tree is clean at `b997c8c`. Frame 74 runs first, in an
+  agent: a reviewer on Opus 5.5, blind to frame 65's ten findings, on a
+  worktree at `088bba9`. Night 91 waits on Roman lifting the GPU pause. The
+  reserve reads 0 free standby at 23:14, and 12 rows.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
