@@ -249,6 +249,31 @@ a different question and the night is then opened once.
   and `DETAIL_SHOWN`'s stated cause is incomplete. The implementer runs
   on the record's sections 3 and 5, capped at 250k, and reports the diff,
   the touched tests and the gate's five lines.
+- Status 2026-09-23 10:52 (rota-d1): **built, gated, diff-reviewed, and
+  validating on night 90 from `f251a51`.** Meta workflow. The code landed at
+  `d68c38a`, one pass, 76.7k on the harness line, no deviation from the
+  record: `attempt` on `Wake`, the door in `loop.step`, the sentence in
+  `build_prompt`, the config cap in `tick_batch_start`, and
+  `tests/rota/test_retry_differs.py` with the four kinds and the door
+  through two real steps. The gate at that tree (observed: 10:42): the
+  eleven new reds are frame 66's, the twelfth is `test_map.py`'s index
+  race, flaky and green on the re-run, unowned since frame 48's status of
+  2026-09-21; stale 1, `ACT-DV-edit-inside-the-function`, unchanged, so
+  no first-attempt prompt moved. The diff review (one reviewer pass,
+  91.4k on the harness line) confirmed the door, the keys, the frontier
+  of the door test by probe, and found two text faults, closed at
+  `f251a51`: a comment that credited the hidden detail, and an idiom. It
+  noted the co-author footer on the commits, which the harness's own
+  attribution rule sets above CLAUDE.md's this session. **Night 90**
+  launched at 10:50 from `C:/Users/roman/rota_night90` at `f251a51`, log
+  in `.rota/night90.log`, database `.rota/clickI_night90.db`. The frame
+  closes when that night shows a retried tick whose turns differ from
+  the first attempt's, with the first differing line named, and reads an
+  `observed_entries` retry's refs shape if one runs. This session holds
+  the frame as validating and takes no new frame. Cost so far, walls
+  apart: design record and two revisions about 20k in this context;
+  design review 87.3k, implementer 76.7k, diff review 91.4k, all on the
+  harness line; GPU none yet; the night is wall time on the 3080.
 
 ### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
 
