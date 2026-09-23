@@ -225,6 +225,13 @@ a different question and the night is then opened once.
   hole two today is not the old sentence. It is that a detected eviction
   still refuses to re-serve the result and tells the seat to use what the
   call returned earlier or finish without it.
+- Status 2026-09-23 16:34 (rota-d0): the design record is written,
+  `plans/archive/fabrication-gate-design-2026-09-23.md`, at `060cebe`:
+  two rules, four pinned tests, and eight review points. The one the
+  record cannot settle alone is whether `evicted` is per key or per prompt,
+  because the sticky notice made a per-prompt test serve a repeating seat
+  for ever on night 88. Design reviewer out, read-only on the main
+  checkout, cap 100k.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
