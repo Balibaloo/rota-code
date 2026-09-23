@@ -110,7 +110,7 @@ they are the gauntlet and the end state and no step names them.
 | --- | --- | --- |
 | A, the cassette key | ~~54, 60, 49~~ closed 2026-09-21, ~~63, 64~~ closed 2026-09-22; **55, 65** remain; 68 and 69 popped unstarted and parked as one item | One repair: the key that names a recording. The writer and the reader must name the same fields. |
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
-| C, the night's stall | 58, 38, 37 | One read: what the Developer was given and what it answered, across the three nights on disk. |
+| C, the night's stall | ~~58, 38~~ closed 2026-09-23; **37** remains | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
 | none | 48, 56, 57, 45, 33, 4, 2, 1 | Nothing. Each frame's first line says what it shares and what it does not. |
 
@@ -163,6 +163,33 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
+
+- **No batch. It is the build session's own instrument.** It shares nothing
+  with an open frame.
+- Meta workflow. Roman asked on 2026-09-23 at about 13:10: switch the agents
+  from Opus 5 to Opus 5.5, and re-evaluate its judging capability. Opus 5.5
+  exists as `claude-opus-5-5`, $4 in and $20 out per million tokens, default
+  effort `medium` (observed: the models overview page, 2026-09-23). An agent
+  file accepts a full model id (observed: the sub-agents documentation,
+  2026-09-23). The build switch is one line each in `implementer.md` and
+  `sweeper.md`, made at `82a9d09`. One implementer spawn after the edit, in this session, reported itself as `claude-opus-5[1m]` (observed: the agent's one-line reply, 14.4k tokens, 2026-09-23), so this session's harness still holds the old definition. The switch is proven only when a fresh session's agent reports `claude-opus-5-5`. The reviewer stays on
+  `inherit`, Fable, until this frame's count says otherwise (ruled: CLAUDE.md,
+  Opus builds, Fable judges).
+- Ends when: one reviewer pass on `claude-opus-5-5` re-runs a review with
+  known findings, blind to them, on a worktree at the reviewed commit, and its
+  findings are counted against the record: found, missed, and new, with each
+  new one verified by this session. Frame 65's diff review is the candidate,
+  ten findings with three high (recorded in `plans/archive/stack-2026-09-23.md`,
+  frame 65). Priced: one reviewer pass about 100k on the harness line (anchors
+  87k, 91k and 112k, frames 58 and 65); the comparison about 15k in this
+  context. Buys: a count that says whether the judge line in CLAUDE.md moves.
+- Waits on: Roman orders it against frame 37's grill, and names the review to
+  replay if not frame 65's.
+- Reasoning: this frame's second line, and the reviewer anchors in the closing
+  statuses of frames 58 and 65.
+- Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
+
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
 - **No batch. It is frame 66's first measurement.** Frame 66 made runs 2
@@ -195,51 +222,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
   frame 66, unclaimed.
 
-### 38. The regression between night 70 and night 86 (2026-09-18) (Roman) (07e01dfc)
-
-- **Batch C, the night's stall. Second of three.** This frame's read of `.rota/clickI_n70_merged.db` against `.rota/clickI_night86.db` is the batch's read. It must be run after frame 58's finding is known, so a repeated session is not counted as a second attempt.
-
-- Rota workflow. Sentence two merged cold on night 70. On night 86 the
-  same sentence cut a batch, committed, and the Developer then exhausted
-  ten attempts on its tests (observed: `plans/archive/night86-2026-09-18.md`).
-  Either something regressed, or the night 70 merge was luck read as
-  capability. Roman ruled the investigation at the grill, 2026-09-18.
-- Ends when: the cause is categorised and on the stack as one of two
-  (ruled: Roman, 2026-09-18, "what went wrong is either in the model
-  context, meaning data, tooling or environment, or in the model
-  itself, so we need to categorize that"):
-  1. **Model context**: what the Developer was given differs between the
-     two nights. The data, the tooling, the environment, the prompt.
-  2. **The model itself**: the Developer was given the same thing and
-     answered worse.
-  The read is direct, because both run databases are on disk:
-  `.rota/clickI_n70_merged.db` and `.rota/clickI_night86.db`. Compare
-  what the Developer was shown, what it called, what came back, and what
-  the test failures were. 90k in agents. Buys: a category, which decides
-  whether step 2 of the order returns.
-- Waits on: nothing.
-- Reasoning: `plans/archive/night86-2026-09-18.md`, and frame 4, step 2
-  of the order, ruled not needed on 2026-09-15.
-- Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed. If the category
-  is the model itself, step 2 of the order returns and a larger
-  Developer is back on the table. If it is the model context, the fix is
-  cheaper and step 2 stays closed.
-- Status 2026-09-23 12:46 (rota-d1): **handed to session `07e01dfc`,
-  rota-60, which confirmed the take 5 seconds after the claim** (observed:
-  the `hand` command's exit 0 at 12:46:52). Meta workflow. Stack commit
-  `dcc0ecb`. Session 0fc7b935 stops here at about 306k, holding nothing,
-  on Roman's ruling of 05:30 to continue through the batches. What the
-  holder inherits: frame 58 closed at `f251a51` and a retried tick now
-  says its attempt, so a repeated session in a night before night 90 is
-  one attempt and not three; night 90 runs detached from
-  `C:/Users/roman/rota_night90` at `f251a51`, log `.rota/night90.log`,
-  database `.rota/clickI.db` until the script renames it
-  `clickI_night90.db`; the gate's baseline is still `b82565d`; frame 37
-  waits on this frame. Roman is afk.
-
-- Status 2026-09-23 12:49 (rota-60): **claimed by 07e01dfc on the take** (observed: the `take` command's exit 0 at 12:47). Meta workflow. Stack commit `dcc0ecb`. Roman's ruling of 05:30 holds, so the work continues through batch C without a grill. The first read is the two run databases the frame names, with frame 58's finding applied: a repeated session at one attempt count is one attempt and not three.
-
-### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
+### 37. The Developer exhausts ten attempts on the tests (2026-09-18) (07e01dfc)
 
 - **Batch C, the night's stall. Third of three.** Already waits on frame 38, and its first read is the same read. **Batch C is the only batch that unblocks frame 33**, whose code is built, reviewed twice and gated at 457k and has never walked, because a walk needs a merge and a merge waits here.
 
@@ -272,6 +255,7 @@ a different question and the night is then opened once.
   `exhausted` at 80 steps. The records path now carries both sentences
   to a batch, and both stop at this frame's wall. `bg_2` is `pending`
   with no commit, because the night ended first.
+- Status 2026-09-23 12:58 (rota-60): **claimed by 07e01dfc after frame 38 closed, and blocked on the grill its own ends-when line names** (ruled: Roman, 2026-09-23 05:30, continue through the batches). Meta workflow. Frame 38's read reframes this frame: night 86 did not measure where a 9B model stops. One diff was judged ten times behind three walls, in order: (1) a criterion that contradicts the ticket, written by the Terminologist and checked by nobody before the Developer built to it; (2) the Tester's test broken in four versions, each raising before its first assertion, so the Tester never ran its own test; (3) the write door closed after three whole-file writes at attempt 1, and the Developer never wrote again. Recommended answer: re-scope this frame into three repair frames in that order, the criterion check first, and price each at the grill. The 9B question waits for a night with the three walls down. The record is `plans/archive/night70-vs-night86-2026-09-23.md`.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
