@@ -36,6 +36,10 @@ class Wake:
     message_id: str | None = None
     refs: tuple[str, ...] = ()
     detail: str = ""
+    # Which dispatch of this wake this is. The dispatcher sets it from
+    # `tick_attempts`, so the number the role reads is the number the
+    # quarantine counts. Out of `__str__`, so no log line moves.
+    attempt: int = 1
 
     def __str__(self) -> str:
         src = self.message_id or self.detail or ""
@@ -327,11 +331,16 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         # sessions at batch_start, no write, quarantined. The attempt count
         # is a fact of this table and the wake carries it, as tests_failing
         # does, so the second session is not the first one verbatim.
+        from . import config
+
         row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
                            (f"developer|tick:batch_start|{stalled[0]}",)).fetchone()
         n = int(row["attempts"]) + 1 if row else 2
+        # The cap comes from the configuration, so this sentence and the
+        # dispatcher's retry sentence read one cap.
+        cap = config.get(conn, "tick_attempt_cap")
         return [Wake("developer", "tick:batch_start", refs=(stalled[0],),
-                     detail=f"attempt {n} of 3: the last session ended with "
+                     detail=f"attempt {n} of {cap}: the last session ended with "
                             f"nothing written and nothing committed")]
 
     candidates = [r["id"] for r in conn.execute(

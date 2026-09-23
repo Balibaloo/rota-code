@@ -20,7 +20,7 @@ its own — a gate is what a loop looks like when the principal hasn't answered 
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from . import config
@@ -295,7 +295,15 @@ def step(
     # shape law 4 had no bound for.
     from .scheduler import note_dispatch
 
-    note_dispatch(conn, result.wake)
+    n = note_dispatch(conn, result.wake)
+    if n >= 2:
+        # A re-fire at temperature zero with the same prompt is the same
+        # session again. Night 88 (2026-09-23): four tick wakes ran three
+        # times each, and every turn of each triple was identical. The wake
+        # carries the count, so the prompt can say the attempt to the role.
+        # One door for every tick kind, because the count is a fact of the
+        # dispatch and not of any predicate.
+        result.wake = replace(result.wake, attempt=n)
     batch_id = _batch_of(conn, result.wake)
     if result.wake.kind == "tick:batch_start" and batch_id:
         # The batch is running from the moment it is dispatched, not from

@@ -348,6 +348,20 @@ def build_prompt(role: str, sb: sandbox_mod.Sandbox, wake: Wake,
             body.append("The subject: the whole program")
         elif is_area(subject) and wake.kind == "tick:survey":
             body.append(f"The area: {subject}")
+    if wake.kind.startswith("tick:") and wake.attempt >= 2:
+        # A retry at temperature zero repeats the first session unless the
+        # prompt moves. Night 88 (2026-09-23): four tick wakes ran three
+        # times each, user and completion identical every time. The sentence
+        # is outside `DETAIL_SHOWN`, because it is not a kind's detail. It is
+        # a fact of the dispatch, and it holds for every tick kind. It says
+        # "did not clear this wake" and not "recorded nothing", because a
+        # retry can write and still leave the wake undrained (night 87,
+        # `developer|tick:tests_failing|bg_1`).
+        cap = config_mod.get(sb.ctx.conn, "tick_attempt_cap")
+        body.append(
+            f"This is attempt {wake.attempt} of {cap} on this wake. The earlier "
+            f"attempt did not clear this wake, so the same answer will not clear "
+            f"it. Do something the earlier attempt did not.")
     if (wake.kind in DETAIL_SHOWN and wake.detail
             and wake.detail not in (wake.kind.split(":", 1)[1], subject_word)):
         # What the predicate knows about the subject, said to the role:
