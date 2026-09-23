@@ -3,7 +3,10 @@ from rota.core.db import connect_readonly, init_db
 from rota.tools.nightcount import count, main
 
 # A fabricated result, as the model writes it into its completion.
+# The write call comes first, so the turn counts in the turn total and not in
+# the after-invention count.
 FABRICATED = ('I will write the helper now.\n'
+              "TOOL: code.write(path='src/click/utils.py', text='x')\n"
               'OK code.write -> {"path": "src/click/utils.py", "bytes": 100}\n')
 # The runner's own result, as it lands in the next turn's prompt.
 REAL_WRITE = ('OK code.write -> {"path": "src/click/utils.py", '
@@ -99,6 +102,26 @@ def test_a_write_before_the_invention_counts_only_in_the_turn_total(tmp_path):
     assert c["ran_writes"] == 2, "both turns went on to a real write result"
     assert c["ran_after_invention"] == 1, \
         "the write before the invention was counted as run after it"
+
+
+def test_a_carried_forward_write_result_counts_in_neither_number(tmp_path):
+    """
+    `written, not committed` rides forward in every prompt until the commit.
+    Night 90's s141 invented a result at turns 12 and 14, sent no write, and
+    counted as a write turn twice on the carried line alone (the diff review
+    of frame 77, 2026-09-23).
+    """
+    carried = "OK code.source -> def main(): pass\nI will commit next."
+
+    def build(conn):
+        session(conn, "s1")
+        turn(conn, "s1", 1, user="the brief", completion=carried)
+        turn(conn, "s1", 2, user="the brief\n" + REAL_WRITE, completion="done")
+
+    c = counted(tmp_path, build)
+    assert c["made_turns"] == 1
+    assert c["ran_writes"] == 0, "a carried write result counted as a write turn"
+    assert c["ran_after_invention"] == 0
 
 
 def test_a_fabrication_in_the_last_turn_runs_nothing(tmp_path):

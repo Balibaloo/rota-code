@@ -46,7 +46,9 @@ finding 4, 2026-09-23). So the first number counts the turns whose
 total stays beside it. The first number is what a night after frame 77 must
 read as zero. The call test takes the marked form, so a bare `code.write(`
 with no marker is not counted: every recorded write of the nights measured
-carries the marker.
+carries the marker. Both numbers need a write call in the made-up turn. The
+`written, not committed` result of an earlier write rides forward in every
+prompt until the commit, and a turn that sent no write is not a write turn.
 
 The wordings. `feb11d3`, 2026-08-11, added the fabrication feedback and the
 `FABRICATED_RESULT` pattern that counter a matches. `5c76af2`, 2026-08-11,
@@ -130,7 +132,11 @@ def count(conn: sqlite3.Connection) -> dict:
         after = prompts.get((r["sid"], r["seq"] + 1))
         if after is None:
             continue           # the fabrication was the session's last turn
-        if _real_write(after):
+        # The turn must send a write of its own. `written, not committed`
+        # rides forward in every later prompt until the commit, so a write
+        # result alone counted night 90's s141 turns 12 and 14, which sent no
+        # write (the diff review of frame 77, 2026-09-23).
+        if _real_write(after) and WRITE_CALL.search(r["completion"] or ""):
             writes += 1
             if _write_after(r["completion"] or ""):
                 after_invention += 1

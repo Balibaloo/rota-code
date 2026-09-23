@@ -444,6 +444,49 @@ def test_an_invented_result_before_any_call_holds_every_call(db):
         f"the call was not named as unrun: {block}"
 
 
+def test_a_rewritten_call_after_an_invention_is_held(db, worktree):
+    """
+    The parser rewrites two shapes before it scans: a `[text]` block becomes a
+    quoted value, and a bare `refs=a, b` becomes a list. The call's raw is then
+    not in the completion. The fallback used the offset in the rewritten text,
+    and a rewrite that shortened the text put a commit written after the
+    invention ahead of it, so the commit ran (the diff review of frame 77,
+    2026-09-23). The marker locates the call now, and a call nothing locates
+    goes last.
+    """
+    # Three one-line blocks shorten the scanned text by 5 characters, and the
+    # invented line is 10 long. The old fallback put the escalation at 143
+    # against the invention's 144, and it ran.
+    backend = ScriptedBackend([
+        "TOOL: code.write(path='a.py', text=[text]\nA = 1\n"
+        "TOOL: code.write(path='b.py', text=[text]\nB = 2\n"
+        "TOOL: code.write(path='c.py', text=[text]\nC = 3\n"
+        "OK a.b: x\n"
+        "TOOL: msg.escalate_architect(refs=b1, a, round_no=0)",
+        "Done.",
+        "Nothing is owed.",
+    ])
+    outcome = run_session(db, wake_developer(), backend=backend,
+                          pins=Pins(model="scripted"), batch_id="b1")
+
+    assert "wrote its own tool results" in outcome.errors
+    # The third block runs to the next `TOOL:` line, so it carries the invented
+    # line and its write is refused as invalid Python. The first two landed.
+    assert (worktree / "b.py").exists(), \
+        f"the writes before the invention did not run: {outcome.errors}"
+    after = backend.calls[1][1]
+    at = after.find("NOT RUN, because you wrote a tool result of your own")
+    assert at >= 0, "no call was held for the invention"
+    assert "msg.escalate_architect(" in after[at:at + 400], \
+        f"the call after the invention is not named: {after[at:at + 400]}"
+    # Dispatched, the escalation fails or sends, and either leaves a trace.
+    assert not any("msg.escalate_architect" in e for e in outcome.errors), \
+        f"the escalation after the invention was dispatched: {outcome.errors}"
+    sent = db.execute("SELECT COUNT(*) n FROM messages "
+                      "WHERE from_role='developer'").fetchone()["n"]
+    assert sent == 0, "the escalation after the invention was sent"
+
+
 def test_a_prose_turn_after_an_invention_lands_nothing(db, worktree):
     """
     The stood-by path runs a held call when the seat replies with prose,

@@ -428,20 +428,40 @@ def _source_starts(source: str, scanned: str, results: list, where: list[int]) -
     The scan runs over the rewritten text, so a rewrite moves every later
     call. The rewrites are rare and the common case is one string, where the
     scan's own offsets are exact. When a rewrite did happen, the raw locates
-    the call and the cursor keeps the order, so a duplicate never resolves to
-    an earlier copy.
+    the call, and then its marker and name do. The cursor moves past each
+    find, so a duplicate never resolves to an earlier copy.
+
+    A call found neither way goes after every position in the text, and so
+    does every call after it. The rewritten offset is never used: a rewrite
+    that shortened the text put a commit written after an invented result
+    at 123 against the invention's 127, and the commit ran (the diff review
+    of frame 77, 2026-09-23). Placed last, the call is held whenever the
+    turn invented a result, and the order of the calls is kept.
     """
     if scanned == source:
         return list(where)
     out: list[int] = []
     cursor = 0
+    lost = False
     for item, at in zip(results, where):
         raw = getattr(item, "raw", "") or ""
-        found = source.find(raw, cursor) if raw else -1
+        found = -1 if lost or not raw else source.find(raw, cursor)
+        if found < 0 and not lost:
+            # The marker and the name, and not the name alone: a name in the
+            # prose ahead of the invention would place the call before it.
+            name = getattr(item, "name", "") or ""
+            if not name:
+                named = re.match(rf"\s*{re.escape(MARKER)}\s*([\w.]+)", raw)
+                name = named.group(1) if named else ""
+            hit = (re.compile(rf"{re.escape(MARKER)}[ \t]*{re.escape(name)}\b")
+                   .search(source, cursor) if name else None)
+            found = hit.start() if hit else -1
         if found < 0:
-            found = max(cursor, min(at, len(source)))
+            lost = True
+            out.append(len(source))
+            continue
         out.append(found)
-        cursor = max(cursor, found)
+        cursor = found + 1
     return out
 
 
