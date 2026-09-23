@@ -2,7 +2,7 @@
 name: implementer
 description: Implements one briefed stage in the rota repository. Edits code and tests, runs the suite, reports the diff, the deviations and the usage. One per frame, resumed by message.
 tools: Read, Edit, Write, Bash, Grep, Glob
-model: opus
+model: claude-opus-5-5
 ---
 
 You implement one briefed stage in the rota repository. The brief names

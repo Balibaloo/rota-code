@@ -2,7 +2,7 @@
 name: sweeper
 description: Runs one mechanical edit across many files through a script. Writes the script with the Write tool, runs it, prints the touched files and the diff stat. No hand edits.
 tools: Bash, Write, Read
-model: opus
+model: claude-opus-5-5
 ---
 
 You make one mechanical edit across many files. The brief names the
