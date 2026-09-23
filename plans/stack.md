@@ -300,6 +300,13 @@ a different question and the night is then opened once.
   assistant started the 3080's server by the register's rule, and it
   answers at 0.33.3 since 18:20. Pass 3 out, cap 80k: re-record all 22 by
   id, then the gate.
+- Status 2026-09-23 21:18 (rota-d0): **the harness restarted a third time
+  during pass 3** (observed: the task notification; `tests/rota/cassettes.db`
+  last written 19:06, Ollama up with no model loaded at 21:16, the tree
+  unchanged but for Roman's untracked `rota.code-workspace`). Meta
+  workflow. The implementer is resumed with an order to read the register
+  for the 22 ids before it records anything, and to re-record only what is
+  still stale.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
