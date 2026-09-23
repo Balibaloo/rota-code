@@ -189,6 +189,7 @@ a different question and the night is then opened once.
 - Reasoning: this frame's second line, and the reviewer anchors in the closing
   statuses of frames 58 and 65.
 - Status 2026-09-23 12:58 (rota-60): pushed by 07e01dfc at Roman's ask, unclaimed.
+- Status 2026-09-23 13:00 (rota-60): **Roman chose frame 65's diff review as the replay** (ruled: Roman, 2026-09-23, asked with frame 58's review and both reviews as the other options). Frame 37's grill runs first (ruled: Roman, the same ask). Unclaimed.
 
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
@@ -256,6 +257,7 @@ a different question and the night is then opened once.
   to a batch, and both stop at this frame's wall. `bg_2` is `pending`
   with no commit, because the night ended first.
 - Status 2026-09-23 12:58 (rota-60): **claimed by 07e01dfc after frame 38 closed, and blocked on the grill its own ends-when line names** (ruled: Roman, 2026-09-23 05:30, continue through the batches). Meta workflow. Frame 38's read reframes this frame: night 86 did not measure where a 9B model stops. One diff was judged ten times behind three walls, in order: (1) a criterion that contradicts the ticket, written by the Terminologist and checked by nobody before the Developer built to it; (2) the Tester's test broken in four versions, each raising before its first assertion, so the Tester never ran its own test; (3) the write door closed after three whole-file writes at attempt 1, and the Developer never wrote again. Recommended answer: re-scope this frame into three repair frames in that order, the criterion check first, and price each at the grill. The 9B question waits for a night with the three walls down. The record is `plans/archive/night70-vs-night86-2026-09-23.md`.
+- Status 2026-09-23 13:00 (rota-60): **Roman takes the grill now, one question at a time** (ruled: Roman, 2026-09-23, asked with the three-frame split recommended, and parking 37 behind frame 74 as the third option). Meta workflow. The grill starts with which wall the first repair takes.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
