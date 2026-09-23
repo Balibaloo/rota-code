@@ -115,6 +115,12 @@ def run(label: str, system: str, user: str, pins: llm.Pins, tools, backend) -> N
           f"native tool calls: {len(completion.tool_calls)}")
     print(f"  first 200 chars: {completion.text[:200]!r}")
     show_diff(completion.text, RECORDED)
+    text = completion.text
+    print(f"  invented a result: {'OK code.source ->' in text or 'ERROR code.source ->' in text}  "
+          f"wrote: {'TOOL: code.write' in text}  committed: {'TOOL: code.commit' in text}  "
+          f"source calls: {text.count('TOOL: code.source')}  "
+          f"says it cannot see: {any(w in text.lower() for w in ('cannot see', 'not visible', 'no longer', 'evicted', 'need to see', 'need the'))}")
+    return text
 
 
 system, user, RECORDED, pins_json, backend_name = load()
@@ -155,4 +161,19 @@ CALLS = {
 }
 
 for name in (sys.argv[1:] or ["recorded"]):
+    # `model=<name>` or `model=<name>:on|off` replays the same prompt on
+    # another model through the same runner call, think as given or as pinned.
+    if name.startswith("model="):
+        spec = name[len("model="):]
+        # An Ollama tag carries a colon, so only a trailing `:on` or `:off`
+        # is the think flag. `gemma3:12b` is a model, `gemma3:12b:on` is a
+        # model with thinking on.
+        model, think = spec, BASE.think
+        if spec.endswith((":on", ":off")):
+            model, _, flag = spec.rpartition(":")
+            think = flag == "on"
+        pins = __import__("dataclasses").replace(BASE, model=model, think=think)
+        run(f"model {model}, think {pins.think!r}", system, user, pins,
+            TOOLS_AS_RECORDED, plain)
+        continue
     CALLS[name]()
