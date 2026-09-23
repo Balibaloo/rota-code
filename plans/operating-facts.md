@@ -206,6 +206,7 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 - A suite run read inside an agent as raw pytest output: about 25k (frame 21). Through the gate: about 1k in the agent; about 6k of the assistant's context per run, call included; 8 minutes wall (frame 30).
 - A tool frame in the assistant's own context, claim to close, two reviews and three implementer passes included: about 120k (frame 30; observed: `/context` 173k at close with a 45k fixed prompt).
 - A design record written by the assistant: about 8k of output. A status line: about 1k (frame 30).
+- A cap written in a brief does not bind (observed: the harness usage under two Agent results, frame 66, 2026-09-23): the reviewer type spent 146.7k against a 100k cap on eight points with 38 tool calls in 15 minutes, and a resumed second look read 137.9k on its line for four points and 14 calls; the implementer on Opus spent 216.9k against a 120k cap for a cold pass of 18 files, 666 insertions, 11 tests and one gate run, 163 tool calls, 54 minutes. Price a pass from these rows, and treat the cap as a request.
 
 ## The cockpit
 
