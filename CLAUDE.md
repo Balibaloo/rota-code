@@ -291,6 +291,16 @@ and every mention of that frame carries the name with the number. "Frame
 50" is an index into a file. "Frame 50, port the hand-off kit" is a thing
 Roman can answer about without opening anything. The status line's time
 comes from the clock, never from memory.
+A frame that measures something writes one line in the register the
+measurement belongs to. A failure that cost a retry, and that the next
+session would meet the same way, becomes one line in the tool's section of
+`plans/operating-facts.md`, keyed by the sign the session saw, the error
+text verbatim, because the next session greps the sign and not the moral.
+A failure that teaches a habit of the assistant goes to memory as feedback,
+with a strike count. A one-off miss is not recorded. The closing status
+names the count of register lines the frame wrote (proposed: the
+assistant, 2026-09-23, after Roman asked how failures stay findable
+without cluttering memory; checked with Roman in the terminal).
 Closed frames leave the file. Commit the stack alone after every
 change. Never edit another session's frame, except to add a waits-on
 line. In the smart zone you decide judgement and completion. You write

@@ -124,6 +124,9 @@ This page holds facts about the rota box, models, runs, and measurement. The fac
 - Two rules follow from that hang. Stop only the 3080's server (its parent is `ollama app.exe`, the Titan's parent is powershell). Keep the Titan at `-Parallel 2` (probes/titan_ollama.ps1 default). The Titan's register prompts are short, and the runner flags a cut prompt.
 - Both servers can be down after an idle day (2026-09-15 23:48). Night 81 failed its onboarding on "no ollama at localhost:11434". The night script's ollama_up restart runs only after the onboarding step.
 - Before a night or a re-record, curl both /api/tags. Start the 3080's server with `Start-Process ollama -ArgumentList serve -WindowStyle Hidden`. Start the Titan's server with `powershell -File probes/titan_ollama.ps1`.
+- `MiMo-V2.6-Distill-Qwen-9B` Q4_K_M benched on 2026-09-23 at frame 24/38, define 9/14, turn 18.8 s, against `qwen3:8b`'s 34/38, 12/12, 12.5 s. It stays out of the register (observed: `probes/bench/RESULTS.md`, frame 67). Ollama's `think` flag reaches an `hf.co` pull, and only `think: false` answers (observed: two `/api/chat` calls, 2026-09-23 10:05).
+- A `/api/chat` call keeps running on the server after the client's timeout closes the socket. The answer is computed and lost, and the next call queues behind it. Sign: the client raises `TimeoutError: timed out`, and `server.log` later prints `stop processing: n_tokens = ...` for the same task (observed: 2026-09-23, `qwen2.5:14b` and `qwen3:30b-a3b` on a 6.6k-token prompt, where 420 s was too short). Give a cold, spilled model 1200 s or more, or stream.
+
 
 ## Running rota
 
@@ -207,6 +210,10 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 - A tool frame in the assistant's own context, claim to close, two reviews and three implementer passes included: about 120k (frame 30; observed: `/context` 173k at close with a 45k fixed prompt).
 - A design record written by the assistant: about 8k of output. A status line: about 1k (frame 30).
 - A cap written in a brief does not bind (observed: the harness usage under two Agent results, frame 66, 2026-09-23): the reviewer type spent 146.7k against a 100k cap on eight points with 38 tool calls in 15 minutes, and a resumed second look read 137.9k on its line for four points and 14 calls; the implementer on Opus spent 216.9k against a 120k cap for a cold pass of 18 files, 666 insertions, 11 tests and one gate run, 163 tool calls, 54 minutes. Price a pass from these rows, and treat the cap as a request.
+- `turns.user` is the whole prompt of that call, working set included, and `turns.system` is the brief. Sizes go up and down between the turns of one session. A replay of one turn is one `/api/chat` call with those two strings (observed: night 86's `s145`, 2026-09-23).
+- `test_runs` keeps one row per test at the latest attempt. Earlier attempts survive only in the fix wake's text in `turns.user` (observed: night 86, 37 rows all at attempt 10, 2026-09-23).
+- The night launcher leaves the run as `.rota/clickI.db` when the night ends stuck. Night 90 ended at 12:20 on 2026-09-23 and was not renamed `clickI_night90.db` (observed: `.rota/night90.log` and the directory).
+
 
 ## The cockpit
 
@@ -609,3 +616,11 @@ the hook's row and keeps `--name` only for a checkout with no hook. The
 The two bullets above that describe the liveness probe and the standby's
 pasted prime are superseded by the brief's `# Standby duty` section. They are
 kept because they carry the measurements that argued for the change.
+
+## The build session's tools
+
+Facts about the assistant's own harness and shell, the meta workflow.
+
+- The console codepage is cp1252. A print of a transcript with one non-Latin character dies with `UnicodeEncodeError: 'charmap' codec can't encode character`. Run python with `PYTHONIOENCODING=utf-8` (observed: 2026-09-23).
+- The harness reads `.claude/agents/*.md` at session start. A `model:` edit lands in the next session. An implementer spawned after the edit reported `claude-opus-5[1m]` (observed: 2026-09-23). The build model is `claude-opus-5-5` since `82a9d09` (ruled: Roman, 2026-09-23).
+- Neither the `ant` CLI nor the `anthropic` package is installed on the box. A live check of the model list is a WebFetch of `https://platform.claude.com/docs/en/about-claude/models/overview.md` (observed: 2026-09-23).
