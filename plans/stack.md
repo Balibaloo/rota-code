@@ -195,7 +195,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
   frame 66, unclaimed.
 
-### 38. The regression between night 70 and night 86 (2026-09-18) (Roman)
+### 38. The regression between night 70 and night 86 (2026-09-18) (Roman) (07e01dfc)
 
 - **Batch C, the night's stall. Second of three.** This frame's read of `.rota/clickI_n70_merged.db` against `.rota/clickI_night86.db` is the batch's read. It must be run after frame 58's finding is known, so a repeated session is not counted as a second attempt.
 
@@ -236,6 +236,8 @@ a different question and the night is then opened once.
   database `.rota/clickI.db` until the script renames it
   `clickI_night90.db`; the gate's baseline is still `b82565d`; frame 37
   waits on this frame. Roman is afk.
+
+- Status 2026-09-23 12:49 (rota-60): **claimed by 07e01dfc on the take** (observed: the `take` command's exit 0 at 12:47). Meta workflow. Stack commit `dcc0ecb`. Roman's ruling of 05:30 holds, so the work continues through batch C without a grill. The first read is the two run databases the frame names, with frame 58's finding applied: a repeated session at one attempt count is one attempt and not three.
 
 ### 37. The Developer exhausts ten attempts on the tests (2026-09-18)
 
