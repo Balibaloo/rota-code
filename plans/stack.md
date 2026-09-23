@@ -194,7 +194,7 @@ a different question and the night is then opened once.
 - Reasoning: frame 65's status of 2026-09-23 03:10.
 - Status 2026-09-23 03:10 (rota-76): pushed by 001e49dd, unclaimed.
 
-### 66. A sample of five is one measurement (2026-09-22)
+### 66. A sample of five is one measurement (2026-09-22) (9fe32e55)
 
 - **No batch. It shares batch A's read, the register's `case_runs` rows, and
   it is a different repair.** Batch A is about the key that names a recording.
@@ -274,6 +274,12 @@ a different question and the night is then opened once.
   confirmed the take 5 seconds after the claim** (observed: the `hand`
   command's exit 0 at 2026-09-23 04:00:19). Meta workflow. Stack commit
   `6f7e49d`. Session 001e49dd stops here at about 290k.
+
+- Status 2026-09-23 04:01 (rota-7f): **claimed by 9fe32e55 on the take**
+  (observed: `take` exit 0 at 2026-09-23 04:00, claim from 001e49dd, stack
+  commit `6f7e49d`). Meta workflow. Starting the 30k read this frame prices:
+  `run_sampled`, `RecordingBackend.complete`, `matching_runs`. The choice
+  after it goes to Roman with a recommended answer.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
