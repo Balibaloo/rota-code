@@ -238,6 +238,22 @@ a different question and the night is then opened once.
   written: one, the harness version. Actual against 90k: 136k in agents,
   about 25k here. Walls: none. The frame closes when grill question 2 is
   asked from it.
+- Status 2026-09-23 15:05 (rota-41): **The hole is routine, and night 70's
+  merge went through it** (observed: one count over `.rota/clickI*.db`,
+  user blocks that carry the runner's fabrication feedback, and the same
+  blocks that carry a `code.write` result or `"committed": true`,
+  2026-09-23 15:05; the script is in this session's scratchpad and its
+  numbers are in the reply to Roman). Rota workflow. Sessions with a
+  fabrication per night: 16 of 184 on night 70, 15 of 203 on 86, 80 of 746
+  on 87, 31 of 191 on 88, 32 of 243 on 90. Writes run in a flagged turn and
+  commits landed in one: 16 and 11 on night 70, 2 and 2 on 86, 23 and 11 on
+  87, 0 and 0 on 88, 23 and 16 on 90. Prompts with an eviction notice
+  beside "the answer is above": 81, 76, 111, 50 and 0, the last because the
+  line's wording moved after frame 46, not because the case stopped. So the
+  comment's 8 of 8183 is stale by two orders, and the one merge the project
+  has landed 11 commits out of flagged turns. Roman asked the macro
+  question at 15:00 in place of an answer to question 2, and the reply is
+  in the terminal. Question 2 stands.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
