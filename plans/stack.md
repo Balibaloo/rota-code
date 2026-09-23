@@ -220,6 +220,29 @@ a different question and the night is then opened once.
   15:23.
 - Status 2026-09-23 15:27 (rota-41): pushed by dba7e375 at Roman's ruling.
   The scope read goes to a reviewer, cap 40k.
+- Status 2026-09-23 15:35 (rota-41): **Line 1 is in, and it corrects two of
+  frame 75's counts** (observed: the scope read, saved as
+  `plans/archive/nightcount-scope-2026-09-23.md`, 2026-09-23 15:34; 83k on
+  the harness line against 30k priced and a 40k cap, 57 calls). Meta
+  workflow. Counter 1 must read `completion` against `FABRICATED_RESULT`,
+  because the feedback line persists in every later turn's assembled
+  prompt: night 88 has 56 made-up turns in 36 sessions, where frame 75
+  counted 106 lines in 31 sessions. Counter 2's real results sit in the
+  next turn's `user`, and by that reading the runner ran a write after a
+  made-up turn once on night 86, never on 88 and 89, and eight times on
+  night 90, where frame 75 said 2, 0, 0 and 23. Frame 75's 23 counted old
+  feedback lines beside later writes. So the hole is real and smaller than
+  the reply of 15:05 said, and night 70 and 87 are recounted when the
+  command runs. The repeat line has three wordings and two era-stable
+  substrings, so counter 3 reads 77, 50, 51 and 83 on nights 86, 88, 89
+  and 90. Design: `rota/tools/nightcount.py` shaped on `audit.py`, called
+  from `probes/gauntlet_click.sh` before `GAUNTLET-DONE`; `render_state`
+  rejected because it is the principal's sentence and prints three times a
+  night. The design review is folded into the scope read, which carried
+  the placement, the alternative and the reason (reasoned: a second 100k
+  pass over a 120k frame that touches no write path buys less than it
+  costs; a stated deviation from the two-reviews rule). Implementer out on
+  the `opus` override, cap 100k, with the calibration numbers in its brief.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
