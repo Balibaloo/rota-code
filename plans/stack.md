@@ -163,272 +163,37 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 66. A sample of five is one measurement (2026-09-22) (9fe32e55)
+### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
-- **No batch. It shares batch A's read, the register's `case_runs` rows, and
-  it is a different repair.** Batch A is about the key that names a recording.
-  This frame is about what a recorded count is evidence of.
-- Meta workflow. `run_sampled` runs a case `runs` times and compares the count
-  against a threshold. Its docstring says a case that fell from 5 of 5 to 3 of
-  5 is a regression signal. **No case in the register has ever scored anything
-  but 5 of 5 or 0 of 5** (observed: the report over all 128 cases, 107 green
-  at 5/5 and 21 failing at 0/5, 2026-09-22).
-- **The reason is replay** (observed: one re-record invocation's own summary,
-  `1 recorded in 15.7s, 4 replayed in 0.0s`, 2026-09-22). Run 1 records a
-  cassette. Runs 2 to 5 compose the identical prompt, hit that cassette and
-  replay it. The five rows are one live call and four copies of it.
-- **The report then reads exactly those five rows.** `matching_runs` ends with
-  `ORDER BY seq DESC LIMIT runs`, so the window is the last invocation
-  (observed: `rota/tools/casestatus.py:214-217`, 2026-09-22). **So the
-  threshold cannot bind.** `need 4` on a window that is always unanimous is a
-  line of arithmetic that never decides anything.
-- **The register's counts are replay counts, not sample counts** (observed:
-  743 `qwen3:8b` rows at one prompt hash hold five distinct transcripts, and
-  one green transcript covers 385 rows over 27 loads and eleven days,
-  2026-09-22). Every gate run replays and writes five more rows per case, so a
-  denominator grows without any new evidence.
-- **What this costs.** A green reads as five agreeing measurements and it is
-  one. `2007/2267` in the report reads as strong evidence and it is a count of
-  copies. Frame 55's own "10 of 10 green" and "20 of 20 red" are the same
-  overstatement, in a record this session has now corrected.
-- Ends when: the report says how many live calls stand behind a case's state,
-  and a count of copies is never printed as a count of measurements. Either
-  the sample becomes real, which means `runs` live calls, or the threshold
-  goes and the case carries one verdict with the date of the call that made
-  it. Priced: one read of `run_sampled`, `RecordingBackend` and the report's
-  window, 30k. The repair follows the read, and the choice between a real
-  sample and an honest single is Roman's, because a real sample spends the GPU
-  five times per case.
-- Waits on: nothing.
-- Reasoning: frame 55's status of 2026-09-22 19:13, which carries the five
-  transcripts and their dates.
-- Status 2026-09-22 19:14 (rota-1e): pushed by 2062c482, unclaimed. **Found
-  while running frame 55's re-record, and it is the reason that re-record
-  answered in 24 seconds rather than in five sessions.**
-- Status 2026-09-23 03:59 (rota-76): **handing off at Roman's word. Session
-  001e49dd stops at about 285k, and this is the frame the standby takes**
-  (ruled: Roman, 2026-09-23, asked with three other options). Meta workflow.
-  **The heading is unclaimed on purpose**: the holder writes its own session
-  id when it takes the frame.
-  **What the holder inherits.** Frames 70 and 65 closed tonight and are in
-  `plans/archive/stack-2026-09-23.md`. Open, in batch order: this frame,
-  then 48, 67, batch C, 56, batch B with 57, 45, batch D, 33, 4. Frame 71,
-  one case that misses across processes, sits above this one unordered,
-  pushed tonight, 15k to diagnose. No frame is blocked on Roman. The
-  register was re-earned in full tonight under the pinned `think`, so every
-  count in it is from 2026-09-23 and one server. The gate's baseline is
-  still `b82565d`: the last run read 26 failed against 25, the extra being
-  frame 71's stale case, with three greens lost and two reds re-earned by
-  the re-record. T1 reads 2 of 4 red at its pinned key, first measurement,
-  and nothing gates on it. `test_pins.py::test_with_prompt_keeps_every_pin`
-  is a stale red in the baseline, for whoever moves the baseline.
-  **Where to start on this frame.** The read this frame prices at 30k:
-  `fixtures.run_sampled`, `RecordingBackend.complete` in
-  `rota/llm/cassettes.py`, and `casestatus.matching_runs` at the window
-  `ORDER BY seq DESC LIMIT runs`. The re-record tonight measured the claim
-  again: 414 cassettes recorded and 1661 replayed over 128 cases, so a
-  case's five rows are one live tail and four copies (observed: the
-  re-record's summary, 2026-09-23 02:38). The choice after the read, a real
-  sample of `runs` live calls or one honest verdict with its date, is
-  Roman's, and the frame says so. Ask it with a recommended answer. Frame
-  71's diagnosis is the cheaper thing on the stack and it needs no ruling,
-  so it is a fair first hour if Roman orders it first.
-  **The machine.** Ollama on 11434 is the 3080 and on 11435 the Titan, both
-  idle at 03:55. No night is due. Re-records and nights run without asking
-  (ruled: Roman, 2026-09-20 and 2026-09-22). Every run outside the gate
-  needs `ROTA_MODEL=qwen3:8b`, or the ambient default `llama3.1:8b` reads
-  every recording as STALE. A probe that composes keys outside pytest must
-  set `samplerepo.GIT_ENV` first; the two probes in `probes/frame64/` do.
-- Status 2026-09-23 04:00 (rota-76): **handed to session `9fe32e55`, which
-  confirmed the take 5 seconds after the claim** (observed: the `hand`
-  command's exit 0 at 2026-09-23 04:00:19). Meta workflow. Stack commit
-  `6f7e49d`. Session 001e49dd stops here at about 290k.
-
-- Status 2026-09-23 04:01 (rota-7f): **claimed by 9fe32e55 on the take**
-  (observed: `take` exit 0 at 2026-09-23 04:00, claim from 001e49dd, stack
-  commit `6f7e49d`). Meta workflow. Starting the 30k read this frame prices:
-  `run_sampled`, `RecordingBackend.complete`, `matching_runs`. The choice
-  after it goes to Roman with a recommended answer.
-
-- Status 2026-09-23 04:04 (rota-7f): **the read is done, and the choice goes
-  to Roman.** Meta workflow. Priced 30k, actual about 35k by the tool output.
-  Four findings, all observed 2026-09-23 04:02 to 04:06 in this checkout.
-  **1. The mechanism is confirmed in code.** Every tier builds pins at
-  `temperature=0.0` (`test_l1.py:138`, `test_l3.py`, `test_gauntlet.py`).
-  `run_sampled` composes one prompt per run, `key_for` hashes model,
-  temperature, window, protocol, system, user and extras, and
-  `RecordingBackend.complete` replays a hit before it calls out. So run 1
-  records and runs 2 to 5 replay it in the same process.
-  **2. The register cannot tell a live row from a copy.** A `case_runs`
-  transcript is `{"say": text}` per turn from `RunOutcome.completions`, and
-  the backend name `cassette:<inner>` that `Completion` carries on a replay is
-  dropped before the write. Counted by transcript identity, the register
-  holds 170,435 rows, 2,591 first-seen transcripts and 167,844 copies. That
-  proxy cannot separate a live identical answer from a replay, so an honest
-  count needs a `live` flag written at record time.
-  **3. `trust` promotes on copies.** `flip_history` groups by prompt hash and
-  `load_id`, `current_load` is `model@epoch//7200`, and a gate run two hours
-  later replays the same cassette under a new load. 100,448 of the copies sit
-  in a later load than their original, so a provisional green is earned by a
-  replay and never by a second live call. Second place where a copy wears the
-  word measurement.
-  **4. The docstring's signal exists at the load and not at the run.** Frame
-  55 measured drift across days at one key, and 743 rows at one hash hold
-  five transcripts. Within one load at temperature 0 a repeat is unmeasured,
-  and the frame 65 re-record cost 414 live calls in 11m28s, so a real sample
-  of five costs about an hour of GPU per full re-record and buys copies until
-  the temperature moves.
-  **Recommended: the honest single.** The threshold goes. A case carries the
-  verdict of its newest live row under the current key, with that call's
-  date, and the report prints replays apart from live calls. `trust` confirms
-  on two live loads. Priced from the anchors: one implementer pass about 75k,
-  one diff review about 70k, this context about 120k, no GPU. The real sample
-  is the other option, and it needs a ruling on temperature before it is a
-  sample at all.
-
-- Status 2026-09-23 04:27 (rota-7f): **ruled: the honest single** (ruled:
-  Roman, 2026-09-23, "ok so 1 it is then", asked with the real sample and
-  the print-only change, and after "is there value in 2?" was answered: no,
-  because every seat runs at temperature 0.0 and frame 58 measured that a
-  zero-temperature model repeats an identical prompt exactly, so five live
-  calls on one load are five identical answers). Meta workflow. The
-  threshold goes. A case carries the verdict of its newest live row under
-  the current key, with that call's date. The report prints replays apart
-  from live calls. `trust` confirms on two live loads. Next: the design
-  record, the design review, one implementer pass, the diff review.
-
-- Status 2026-09-23 04:33 (rota-7f): **the design record is written and the
-  design review runs.** Meta workflow. The record is
-  `plans/honest-single-design-2026-09-23.md`: two columns on `case_runs`,
-  `live` and `at`, written by `record_case_run` from the backend's own
-  miss counter; the threshold and `runs: 5` go and a case runs once; the
-  report reads the newest row and names the newest live call with its
-  date and the replays since; `trust` reads live rows; a one-shot tool
-  backfills the committed register by first-seen transcript. Frame 71
-  closed at `1ecb282` and this session holds this frame alone. The
-  reviewer type reads the record and frame 64's scope report against eight
-  points, cap 100k, no worktree, no code yet.
-
-- Status 2026-09-23 04:39 (rota-7f): **three rulings before Roman went afk**
-  (ruled: Roman, 2026-09-23 04:39, asked with the recommended answers). Meta
-  workflow. **1. The sweep of `runs: 5` and `pass:` is held.** Roman holds
-  that the runs swap values in per run so the case is exercised
-  dynamically. They do not today: a fixture id is
-  `sha1(case_id:name)[:6]` (observed: `rota/testkit/fixtures.py:805`,
-  2026-09-23), so every run and every process composes the same prompt,
-  which is why runs 2 to 5 replay. The code stops reading `pass:` and
-  keeps running `runs` times. Whether runs should vary the fixture is
-  frame 72, pushed below this one and blocked on Roman. **2. A full
-  re-record, not a backfill.** The committed register is re-earned live
-  under `ROTA_REFRESH=1` after the code lands, and section 3.5 of the
-  design record is replaced by that run. At five runs per case every run
-  is live under refresh, so the cost is about five times frame 65's 414
-  recordings, about an hour on the 3080, and some greens will not return.
-  **3. Continue to batch C overnight** without asking: frame 48, frame
-  67's pull and bench, then frames 58, 38, 37. The design review is still
-  out, and revision 2 of the record folds its findings and rulings 1 and 2.
-
-- Status 2026-09-23 04:46 (rota-7f): **ruled again: salt the ids per run,
-  tonight, in this frame** (ruled: Roman, 2026-09-23 04:46, asked with two
-  other options; the 04:27 ruling that the threshold goes is replaced).
-  Meta workflow. The threshold stays and means something: the fill of
-  `<name>` holes takes the run number, run 1 keeps today's ids so the
-  recorded register stays evidence about run 1, and runs 2 to 5 are four
-  more problems that differ in every id. The live flag, the date, the
-  live-versus-replay line and trust on live loads stay from revision 1.
-  The sweep and the backfill are out. Frame 72 is popped into this one.
-  Revision 2 of the design record is written when the design review of
-  revision 1 returns, and the reviewer takes a second look at the salt.
-
-- Status 2026-09-23 04:47 (rota-7f): **no invocation of five runs ever
-  split** (observed: `case_runs` grouped by case, model, prompt hash and
-  load, 8,841 groups, 2026-09-23 04:47). Meta workflow. Roman asked whether
-  the runs were the same values, since he remembered scores of 2 of 5. 115
-  groups are mixed, and none of them is a group of exactly five rows: they
-  are 10, 25, 30 or 33 rows, several invocations in one two-hour window,
-  each unanimous, with two or three distinct transcripts between them. So a
-  mixed score is two re-records in one window that answered differently,
-  or the report's window mixing rows of two invocations, and never a live
-  sample of five. 14 mixed groups hold one transcript with two verdicts,
-  which is the check changing between invocations, not the model. 74 of
-  the 115 are in the legacy `''` load, where every old invocation is one
-  group.
-
-- Status 2026-09-23 04:51 (rota-7f): **the design review is in, and revision 2
-  of the record folds it with the salt.** Meta workflow. The reviewer type,
-  read-only, eight points, 38 tool calls, 15 minutes, **146.7k on the
-  harness line against a 100k cap** (observed: the harness usage,
-  2026-09-23). Ten findings, six high. Three are moot under the rulings
-  since: the backfill's 63 cases with no live row at the key, the bar over
-  mixed live groups, and triage's dedupe per run. Seven land: the tool
-  check runs on a bare backend and must say `live=True`; 4,400 copies in
-  18 cases carry a verdict different from their original's, so the report
-  prints a re-judged line; the two columns go in a sibling tuple, never in
-  `KEY_COLUMNS`, with a `carries_live` predicate, or the cockpit's raw
-  connection reads unkeyed in silence; the cockpit's case builder at
-  `progress.py:663-684`; `test_discover.py`'s hand-built table;
-  the date's three branches; R16's wrong reason. Revision 2 is
-  `plans/honest-single-design-2026-09-23.md`, committed above this line.
-  Next: the reviewer takes a resumed second look at the salt sections,
-  cap 30k, then the implementer.
-
-- Status 2026-09-23 04:55 (rota-7f): **the second look is in, the record is
-  final, and the implementer is out.** Meta workflow. The resumed reviewer,
-  four points, 14 tool calls, 3 minutes, harness line 137.9k for the
-  resumed context, its own estimate 26k for the pass (observed: the harness
-  usage and the report, 2026-09-23). One hole: twelve cases carry no
-  `<hole>`, so the salt leaves them one problem, and they get `runs: 1`
-  and `pass: 1` by a script. The re-judged join moves from the transcript
-  blob to the key prefix `(key, run_no, seq <)`. The chain replay in the
-  report follows run 1 and needs no change. The record is committed above
-  this line. One implementing agent on Opus, cap 120k, foreground tests,
-  the gate once at the end, no re-record, no commit.
-
-- Status 2026-09-23 05:52 (rota-7f): **the implementer pass is in and
-  committed at `6129194`, the re-record runs, and the diff review runs on a
-  worktree.** Meta workflow. One implementer on Opus, 163 tool calls, 54
-  minutes, **216.9k on the harness line against a 120k cap** (observed: the
-  harness usage, 2026-09-23). The design review's 146.7k against 100k was
-  the same shape. A cap in a brief does not bind, and the anchors in
-  `plans/operating-facts.md` need this row: a cold pass of 18 files and
-  666 insertions with one gate run, 217k. 18 files, 666 insertions, 80
-  deletions, 11 tests added. Non-tier files green: fixtures 11, register
-  key 190, trust 7, discover 9, runner 69, gate 30. The gate at the
-  commit: 118 failed against 25, stale 128, 416 s. 94 of the 95 new reds
-  are the three tier files reading STALE, because runs 2 to 5 are new
-  problems with no cassette, as section 3.5 says. The 95th is
-  `test_map.py::test_a_shared_file_name_lists_the_candidates`, which the
-  gate marked flaky and which passes alone. Ten deviations, each with a
-  reason, all accepted; the two the implementer asked about, the need
-  column dropped on an unscored row and `cases()` reading the whole
-  history while `l1` reads the key, are confirmed as written.
-  **The re-record** runs in the background under `ROTA_REFRESH=1` on the
-  four tier files, about an hour on the 3080. **The diff review** runs on
-  a worktree at `6129194`, `D:/repos/rota-wt-frame66`, ten points, in
-  parallel with it. Then the fix pass, the gate on the re-earned register,
-  the close, and the hand-off. The first write of this line went through
-  an unquoted heredoc, and the shell ran its backticks as commands; this
-  is the repaired line (observed: commit `a8c90ff`, 2026-09-23).
-
-- Status 2026-09-23 06:01 (rota-7f): **the diff review is in: ten points
-  confirmed, no high finding, three low.** Meta workflow. The reviewer
-  type on the worktree at `6129194`, 36 tool calls, 8 minutes, 107.8k on
-  the harness line against a 100k cap (observed: the harness usage,
-  2026-09-23). Run 1's digest is byte for byte the old one, 116 of 128
-  cases differ on run 2, which is 128 minus the twelve, every chain return
-  sums its legs, the raw cockpit connection is guarded at every new read,
-  the re-judged join carries the whole widened key, and none of the ten
-  new tests passes on the code before the commit. The three low: the
-  record named `test_progress.py` for a pin that lives in
-  `test_register_key.py`, corrected in the record above this line;
-  `cases()` takes the newest live row over any model while `l1` takes it
-  under the key, so a second model's benchmark column would give the two
-  panels two dates, fix: filter on the model; `replays_since` counts
-  pre-guard miss-marker rows on an unmigrated register, fix: the same dead
-  clause `matching_runs` applies. The fix pass goes to the implementer
-  after the re-record ends, because its tests open the register the
-  re-record is writing. This session reads about 300k: it finishes this
-  frame, takes no new one, and hands the stack to a standby.
+- **No batch. It is frame 66's first measurement.** Frame 66 made runs 2
+  to 5 different problems, and the first live sample over them found nine
+  briefs that hold on one set of ids and not on another. It shares the
+  register with batch A and no repair with any open frame.
+- Meta workflow. The gate at `3b8b288`'s tree reads eleven new reds
+  against the baseline (observed: the five lines, 2026-09-23 07:13). Two
+  are frame 65's. Nine are new under the salt: `L1-AR-a-dead-end-is-reported-not-sat-on`
+  2/5 need 3, `L1-DV-apply-the-answer-and-carry-on` 2/5,
+  `L1-LI-a-question-about-the-page-is-answered-not-ruled` 3/5,
+  `L1-TE-answer-a-term-question` 3/5, `L1-TE-challenge-an-unusable-item`
+  3/5, `L1-TS-apply-a-term-and-write-the-test` 2/5,
+  `L1-VK-reorient-the-account`, `L1-AR-survey-a-shared-helper` 0/1 on its
+  single run, and `ACT-DV-edit-inside-the-function`, 1/5 live and STALE in
+  the gate because one salted run missed a cassette in a fresh process,
+  which is frame 71's shape, a prompt that a fresh process composes
+  differently, on a run frame 71 never saw. Two readings per case, and the
+  transcript decides: the brief is marginal and a different id string
+  moves the greedy path, or the check or the fixture assumes something the
+  salt broke, such as an id the case text names literally.
+- Ends when: each of the nine is read from its live transcripts and named
+  as a brief fault, a check fault or a salt fault, the salt faults are
+  repaired and re-recorded, and the miss in `ACT-DV-edit-inside-the-function`
+  is diagnosed the way frame 71 was, with the first differing line.
+  Priced: the read, 40k with an agent on the transcripts; the miss diff,
+  15k; repairs unpriced until named.
+- Waits on: nothing. Roman orders it against 48, 67 and batch C.
+- Reasoning: frame 66's closing status of 2026-09-23 07:14.
+- Status 2026-09-23 07:14 (rota-7f): pushed by 9fe32e55 at the close of
+  frame 66, unclaimed.
 
 ### 67. A bakeoff of the MiMo 9B distill (2026-09-22) (Roman)
 
