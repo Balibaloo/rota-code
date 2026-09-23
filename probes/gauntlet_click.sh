@@ -82,4 +82,5 @@ if [ "${GAUNTLET_FROM:-1}" -le 3 ]; then
 echo "== walk 3 $(date +%H:%M)"
 WALK_PHASE="sentence 3" python "$W" clickI "Give version_option a show_python flag that appends the running Python version to the message." "the Python version comes from sys.version_info as major.minor.micro" 250
 fi
+python -m rota.tools.nightcount clickI
 echo "GAUNTLET-DONE $(date +%H:%M)"
