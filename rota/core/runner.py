@@ -2721,7 +2721,13 @@ def run_session(
             # the same way is one turn of the conversation, not three (clickI
             # night 43, 2026-09-13, reconcile ended before it could attest).
             # The third turn is told once; a fourth ends the session.
-            for same in turn_refusals:
+            # Sorted, because the seat reads these lines and the cassette key
+            # hashes them. A set of tuples iterates in hash-seed order, which
+            # is per process, so a turn with two NOTE lines rendered them in
+            # one order when recorded and the other order in a fresh process,
+            # and the case missed on that turn alone (observed: frame 71,
+            # ACT-DV-edit-inside-the-function, turn 8, 2026-09-23).
+            for same in sorted(turn_refusals):
                 refused_same[same] = refused_same.get(same, 0) + 1
                 if refused_same[same] == 3:
                     feedback.append(

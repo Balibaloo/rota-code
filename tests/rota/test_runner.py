@@ -1243,6 +1243,28 @@ def test_the_same_refusal_three_times_ends_the_session(db):
     assert "will not be accepted again" in backend.calls[3][1], "the third turn is told once"
 
 
+def test_two_refusals_in_one_turn_are_noted_in_a_stable_order(db):
+    """Frame 71 (2026-09-23): `turn_refusals` is a set of tuples, and a set
+    iterates in the process's hash-seed order. A turn that noted two refusals
+    rendered them one way in the process that recorded the cassette and the
+    other way in a fresh process, and `ACT-DV-edit-inside-the-function`
+    missed on that turn alone. The seat reads these lines and the cassette
+    key hashes them, so the order is sorted and not the set's."""
+    turns = [("TOOL: ledger.log(about_ref='c_nowhere', about_table='criteria')\n"
+              f"TOOL: problem.assert(id='i1', text='attempt {k}', kind='sideways')")
+             for k in range(8)]
+    backend = ScriptedBackend(turns + ["Done."])
+    outcome = run_session(db, wake_vision_keeper(), backend=backend, pins=Pins(model="scripted"))
+    assert outcome.committed, outcome.errors
+    assert len(backend.calls) >= 4, (len(backend.calls), outcome.iterations,
+                                     outcome.errors, backend.calls[-1][1][-2500:])
+    told = backend.calls[3][1]
+    first = told.find("NOTE ledger.log has been refused")
+    second = told.find("NOTE problem.assert has been refused")
+    assert first >= 0 and second >= 0, told[-1500:]
+    assert first < second, "the notes come in name order, whatever the hash seed"
+
+
 # --- the repeat memory (frame 43) -------------------------------------------
 #
 # `already_run` was a set built once a session and cleared by nothing, and the
