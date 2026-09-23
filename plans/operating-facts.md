@@ -340,6 +340,8 @@ Meta workflow. Ruled by Roman on 2026-09-17. The chain that built the tooling is
 
 ### The reserve, adopted 2026-09-19
 
+- The sign of an orphaned watcher: `hand` exits 4 twice in a row while the peers table shows the target's beat as a few seconds, and `SendMessage` to the printed peer name answers `No agent named '<name>' is reachable`. The watcher process outlived a harness restart, so its heartbeat is live and its exit wakes nobody, and the peer name it enrolled was recycled by the restart (observed: 2026-09-23 23:15, two claims to 38c5f3a8 and af3c93d4; reasoned: three harness restarts that day). A heartbeat proves the process, not the session. After any harness restart, every standby re-arms, or the reserve is a list of names nothing can reach.
+
 Meta workflow. The hand-off is a file, not a message. The tool is
 `rota/tools/handover.py`, adopted from the kit on 2026-09-19 with 38 tests
 green in this repository. The reserve lives in `.handover/` at the repository
