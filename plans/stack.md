@@ -281,6 +281,25 @@ a different question and the night is then opened once.
   re-record the 15 stale by id with the command the gate prints, and name
   the cause of each of the 7 reds that are not stale, without touching a
   case or the runner.
+- Status 2026-09-23 18:22 (rota-d0): **Pass 2 re-recorded nothing, because
+  Ollama was down, and named all seven reds as replay misses on the wording
+  change** (observed: the implementer's report, 2026-09-23 18:15, 31k for
+  the pass on the harness line, 208k cumulative for the agent, 20 calls;
+  every live call raised `LLMUnavailable ... [WinError 10061] No connection
+  could be made`). Meta workflow. The seven: four follow a `repeat refused`
+  whose tail moved from "Use what X returned earlier, or finish without it"
+  to "The answer is in this prompt", rule 2; two follow an invented result
+  with calls after it that rule 1 held, `L1-DV-build-a-clear-criterion`
+  with a `code.probe` invention before a source, a write and a commit, and
+  `L1-DV-take-a-mistake-out` with an invented write error before an
+  escalation; one, `L2-DV-name-the-block-rather-than-retry`, has no
+  invention and misses on the refusal tail. None is a wrong answer, and
+  `L1-DV-apply-the-answer-and-carry-on` is frame 73's salt and untouched
+  by this diff. The gate's flaky re-run wrote the register rows of 17:58
+  to 18:00, not another session. No Ollama process existed at 18:18; the
+  assistant started the 3080's server by the register's rule, and it
+  answers at 0.33.3 since 18:20. Pass 3 out, cap 80k: re-record all 22 by
+  id, then the gate.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
