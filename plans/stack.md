@@ -233,7 +233,7 @@ a different question and the night is then opened once.
   without asking, batch C after 67). Meta workflow. The first read is the
   code the frame names: the door in `rota/core/runner.py`, the four wake
   kinds, and the attempt count each wake carries.
-- Status 2026-09-23 11:05 (rota-d1): **designed, reviewed, and in its first
+- Status 2026-09-23 10:19 (rota-d1): **designed, reviewed, and in its first
   implementer pass.** Meta workflow. The design record is
   `plans/retry-differs-design-2026-09-23.md`, revision 2 at `c7f1527`: one
   field `attempt` on the wake, one door in `loop.step` where the dispatch
