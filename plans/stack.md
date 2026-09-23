@@ -309,6 +309,50 @@ a different question and the night is then opened once.
   reads the same as at 20:17: 128 hit on turn 1, 10 miss once each.
   Next: one implementer with the gate, then the re-record of the 9 on the
   3080.
+- Status 2026-09-23 01:18 (rota-76): **the frame's premise is false, and the
+  edit is built.** Meta workflow.
+  **The pass.** One implementer on Opus, 92k on the harness line against a
+  60k cap, 41 tool calls, 32 minutes (observed: the harness usage). Five
+  files: `code.commit` drops `head_commit` from its reply, the docstring
+  records why, `conftest.py`'s pin stays with its docstring in the past
+  tense, five test reads move to git or the staged write, one pinned test
+  `test_the_commit_reply_carries_no_sha`. Two readers the brief did not name
+  were in `test_touch_divergence.py:60` and the precedent test itself. The
+  touched files pass, 56 in 233 s. The gate: 31 failed against a baseline
+  of 25, 7 new reds, 1 red gone, stale 10 (observed: the gate's five lines,
+  2026-09-23). **The 7 new reds are the 7 green Developer cases, each
+  `STALE`**, because the reply changed under their recordings.
+  **The finding.** The 7 were not red before the edit. The implementer read
+  the cassette store's `key_misses`: no suite-model miss for any of the nine
+  before tonight (observed: the implementer's report, 2026-09-23). The
+  previous holder's three gate runs read 24 or 25 failed against a baseline
+  of 25 (observed: this frame's status of 22:15), which is what seven passing
+  cases look like. **So I ran the probe with the git clock pinned as pytest
+  pins it, on the pre-edit tree**: `L1-DV-read-the-map-not-the-whole-file`
+  hits 7 of 7 turns and `L1-DV-take-a-mistake-out` hits 6 of 6 (observed:
+  `scratchpad/probe64_pinned.py` over a stash of the edit, 2026-09-23 01:10).
+  `count64.py` and `probe64_miss.py` run outside pytest, so `pytest_configure`
+  never runs for them and `samplerepo.GIT_ENV` is not in their environment
+  (observed: grep over `probes/frame64/`, no `GIT_ENV`, 2026-09-23). **The sha
+  they saw move is pinned in the gate. The nine Developer cases replay to the
+  end in the suite today, and the gain this frame promised, up to nine reds
+  leaving the count, was never there.**
+  **The lesson for the record.** "Fail every gate run" was reasoned from the
+  count and written beside an observed mark. A probe that runs outside pytest
+  measures a different environment from the suite, and a probe that composes
+  keys must set `GIT_ENV` first (reasoned: the difference is the whole
+  finding). The count was run before the design, as the 22:15 lesson asked,
+  and it still misled, because the count and the suite were not the same
+  instrument.
+  **What remains true.** `L1-VK-an-outside-fact-is-the-researchers` is stale
+  for frame 64's reason, a reworded tool reply. Its re-record started at
+  01:18 on the 3080, under `ROTA_L1=1 ROTA_MODEL=qwen3:8b ROTA_NUM_CTX=12288`.
+  **Escalated to Roman, the edit uncommitted in the tree.** Two closes.
+  Recommended: revert the edit, pin `GIT_ENV` in the two probes, re-record
+  the VK case only, and close on the finding. The other: keep the edit as
+  the precedent's design, re-record the nine, and close. The recommendation
+  is the first because the second replaces nine earned recordings with one
+  live sample each and buys no red.
 
 ### 65. The cassette key cannot pin a field it omits (2026-09-22)
 
