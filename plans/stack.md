@@ -194,8 +194,8 @@ a different question and the night is then opened once.
 - Reasoning: frame 65's status of 2026-09-23 03:10.
 - Status 2026-09-23 03:10 (rota-76): pushed by 001e49dd, unclaimed.
 
-- Status 2026-09-23 04:12 (rota-7f): **claimed by 9fe32e55, ordered before
-  frame 66's repair** (ruled: Roman, 2026-09-23 04:11, asked with the other
+- Status 2026-09-23 04:07 (rota-7f): **claimed by 9fe32e55, ordered before
+  frame 66's repair** (ruled: Roman, 2026-09-23 04:07, asked with the other
   order). Meta workflow. Frame 66, a sample of five is one measurement, waits
   on Roman's choice of repair and its read is done. Starting the 15k diff:
   the turn that misses in a fresh pytest process against the recording
