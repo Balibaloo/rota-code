@@ -329,8 +329,9 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
         # A re-fire at temperature zero with the same wake is the same
         # session again. Night 73 (2026-09-15): three identical 22-turn
         # sessions at batch_start, no write, quarantined. The attempt count
-        # is a fact of this table and the wake carries it, as tests_failing
-        # does, so the second session is not the first one verbatim.
+        # is a fact of this table and the wake carries it. `DETAIL_SHOWN`
+        # hides this detail, so the door in `loop.step` is what makes the
+        # second session differ from the first (frame 58, 2026-09-23).
         from . import config
 
         row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",

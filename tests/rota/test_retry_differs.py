@@ -68,7 +68,7 @@ def _delivery_db(conn):
 
 
 def test_the_dispatcher_marks_the_second_dispatch_of_one_wake(db):  # noqa: F811
-    """Two turns of the crank on one undrained wake, and the second says so.
+    """Two steps of the loop on one undrained wake, and the second says so.
 
     The door is in `loop.step`, at the count that feeds the quarantine.
     The number the role reads is the number the quarantine counts.
