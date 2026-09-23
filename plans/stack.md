@@ -163,124 +163,56 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 76. Every night counts what the model made up and what the runner ran anyway (2026-09-23) (Roman) (dba7e375)
+### 77. The runner runs nothing from a made-up turn, and never points at a deleted answer (2026-09-23) (dba7e375) [blocked on Roman]
 
-- **Batch C, the night's stall. Frame 37's second quantum, and the first
-  repair Roman ordered.** It reads the same `turns` text as frame 75 and
-  shares nothing else with an open frame.
-- Meta workflow for the instrument, rota workflow for the numbers. **Roman
-  ruled at frame 37's grill, question 2: count first, then fix the runner**
-  (ruled: Roman, 2026-09-23 15:23, asked with the runner fix and a
-  composition rule as the other options). Frame 75 counted once from a
-  scratchpad script and found the hole routine: a fabrication in 8 to 15 per
-  cent of a night's sessions, writes run from flagged turns on four nights,
-  and night 70's merge landed 11 commits through it. A number in a
-  scratchpad ages the way the runner's comment did, from 8 of 8183 to a
-  hundred a night with nobody reading it. So the count moves into the
-  night's own report.
-- The four counters, each read from a run database's `turns` text and
-  `tool_calls`, because `sessions` holds no error column and the runner's
-  account lives in the turn text (observed: the schema of
-  `.rota/clickI_night86.db`, 2026-09-23):
-  1. Made up: user blocks that carry the runner's "You wrote tool results
-     into your own reply" line, as turns and as distinct sessions, by role.
-  2. Run anyway: those blocks that also carry a write result, `OK code.write
-     ->`, and those that carry `"committed": true`, as turns, with the shas.
-  3. Dangling pointers: prompts that carry the eviction notice, "re-read
-     anything you still need", beside a repeat line, "the answer is above",
-     "was run for you before you" or "unchanged since you asked", by the
-     wording at `rota/core/runner.py:561`, `:2698` and `:2702`. Frame 75's
-     count read 0 on nights 89 and 90 because it knew one wording only.
-  4. Repeats: sessions that share a `prompt_hash` and a `wake_kind` with an
-     earlier session of the same run, frame 58's measure.
+- **Batch C, the night's stall. Frame 37's third quantum, and the repair
+  Roman ordered after the count.** One site, the call loop of `run_session`
+  in `rota/core/runner.py`, and one night. It touches the write pipeline,
+  so it carries a diff review and a walk.
+- Meta workflow for the build, rota workflow for the fault. Frame 75's
+  chain (observed, `plans/archive/stack-2026-09-23.md`, frame 75): `_fit`
+  evicts a result, the repeat refusal still says the answer is above, the
+  seat invents the result and writes from memory, the runner flags the
+  invention, says nothing ran, and runs the write and the commit. Frame 76's
+  counters say the runner ran a write after a fabrication on nights 70, 86,
+  87 and 90, and night 70's merge is one of them. Every local model invents
+  under the same pointer, so the fault is the structure's (ruled: Roman,
+  2026-09-23 15:00, "if not then it's the structure's fault").
+- **Blocked on Roman: the scope, grill question 3.** Asked at 16:20 with
+  both holes in one frame recommended, hole one alone and hole two alone as
+  the other options. Roman asked what is right and why, and the answer is
+  in the terminal at 16:25: the two holes are one fault at one site, each
+  alone leaves the stall in a new shape, and together they make the next
+  night the first that measures the seats and not the runner. The lines
+  below price the recommended scope.
 - Ends when, priced from the anchors, walls apart:
-  1. A scope read names where the walk's end report is rendered
-     (`probes/walk.py:268`, `render_state` from `rota/roles/principal.py`,
-     also printed by `rota/tools/onboard_run.py:122`), what it reads, and
-     where a per-night count belongs so that the walk log and a later reader
-     of any archived run database both get it: 30k. Buys: the counters land
-     in the line the night already prints, and in a command over any
-     `.rota/*.db`.
-  2. The counters are built as one module with a command,
-     `python -m rota.tools.nightcount <db>`, called from the walk's end
-     report, with pinned tests on a fixture database that holds one of each
-     case: 80k, cold 60k and one resumed pass 20k. Buys: every night says
-     the four numbers, and a stall is read from them.
-  3. The command run over nights 70, 86, 87, 88 and 90, and its numbers for
-     night 86 agree with frame 75's count, 15 sessions, 2 writes, 2 commits,
-     76 dangling pointers: 10k here. Buys: the instrument is calibrated
-     against the read that motivated it.
-  4. The gate green before the commit, the stale line read: 12k.
-  Total about 120k in agents, 20k here. No diff review, because the frame
-  touches no write path, schema or predicate (reasoned: it reads a run
-  database and writes nothing to it). No walk, because the next night runs
-  it by being a night.
-- Waits on: nothing. It starts now.
-- Reasoning: frame 75's statuses of 15:05 and 15:20, and Roman's ruling at
-  15:23.
-- Status 2026-09-23 15:27 (rota-41): pushed by dba7e375 at Roman's ruling.
-  The scope read goes to a reviewer, cap 40k.
-- Status 2026-09-23 15:35 (rota-41): **Line 1 is in, and it corrects two of
-  frame 75's counts** (observed: the scope read, saved as
-  `plans/archive/nightcount-scope-2026-09-23.md`, 2026-09-23 15:34; 83k on
-  the harness line against 30k priced and a 40k cap, 57 calls). Meta
-  workflow. Counter 1 must read `completion` against `FABRICATED_RESULT`,
-  because the feedback line persists in every later turn's assembled
-  prompt: night 88 has 56 made-up turns in 36 sessions, where frame 75
-  counted 106 lines in 31 sessions. Counter 2's real results sit in the
-  next turn's `user`, and by that reading the runner ran a write after a
-  made-up turn once on night 86, never on 88 and 89, and eight times on
-  night 90, where frame 75 said 2, 0, 0 and 23. Frame 75's 23 counted old
-  feedback lines beside later writes. So the hole is real and smaller than
-  the reply of 15:05 said, and night 70 and 87 are recounted when the
-  command runs. The repeat line has three wordings and two era-stable
-  substrings, so counter 3 reads 77, 50, 51 and 83 on nights 86, 88, 89
-  and 90. Design: `rota/tools/nightcount.py` shaped on `audit.py`, called
-  from `probes/gauntlet_click.sh` before `GAUNTLET-DONE`; `render_state`
-  rejected because it is the principal's sentence and prints three times a
-  night. The design review is folded into the scope read, which carried
-  the placement, the alternative and the reason (reasoned: a second 100k
-  pass over a 120k frame that touches no write path buys less than it
-  costs; a stated deviation from the two-reviews rule). Implementer out on
-  the `opus` override, cap 100k, with the calibration numbers in its brief.
-- Status 2026-09-23 16:10 (rota-d0): **The harness restarted while the
-  implementer ran, and Roman paused GPU work at 15:40** (observed: the
-  task notification after the restart, and Roman's word). Meta workflow.
-  The peer name of this session is now rota-d0, from rota-41. The tree
-  holds the implementer's three edits, `rota/tools/nightcount.py`,
-  `tests/rota/test_nightcount.py` and one line in
-  `probes/gauntlet_click.sh`, uncommitted. The implementer is resumed from
-  its transcript with a required re-read of the three files. The gate is
-  skipped at Roman's word, so line 4 waits on the pause lifting, and the
-  frame's acceptance runs the gate then. No model is loaded on either card
-  (observed: `ollama ps` and `nvidia-smi`, 16:10).
-- Status 2026-09-23 16:11 (rota-d0): **Roman lifted the GPU pause** (ruled:
-  Roman, 2026-09-23 16:11, "we have more gpu time, continue"). Meta
-  workflow. The implementer is told to run the gate at the end of its pass
-  as first briefed. Line 4 is back in the pass.
-- Status 2026-09-23 16:15 (rota-d0): **Lines 2 and 3 are in, and the
-  calibration matches the scope read on every number it predicted**
-  (observed: the implementer's report, 2026-09-23 16:11, 74k on the harness
-  line over the cold pass and the resume against 80k priced, 38 calls, on
-  `claude-opus-5[1m]`; seven tests green in 4 s). Meta workflow for the
-  instrument. `rota/tools/nightcount.py`, 181 lines, `tests/rota/test_nightcount.py`,
-  149 lines, one line in `probes/gauntlet_click.sh`. Two deviations accepted
-  (reasoned: each stated with its cause): the shas print once each in first
-  appearance order, because a prompt carries earlier results and one commit
-  reappears in every later turn; and the shas sit on the ran-anyway line so
-  the block stays five lines. The calibration over five nights, rota
-  workflow (observed: the command's output, pasted in the report):
-  | night | made up, sessions | ran anyway, writes | commits | shas | dangling | repeats |
-  | 70 | 18 of 184 | 8 | 5 | `3c17d358` `4d9bcbf7` | 81 | 2 |
-  | 86 | 17 of 203 | 1 | 1 | `da5e7e85` | 77 | 19 |
-  | 87 | 87 of 746 | 6 | 5 | `324ed1e6` `47566b78` | 273 | 243 |
-  | 88 | 36 of 191 | 0 | 0 | none | 50 | 11 |
-  | 90 | 37 of 243 | 8 | 7 | five | 83 | 1 |
-  **Night 70's merge, `3c17d35`, is the first sha on its ran-anyway line**,
-  so the one merge the project has was committed in the turn after a
-  fabrication, at the corrected count of 5 commit-bearing turns and not the
-  11 of 15:05. Night 87's 243 repeats are one vision_keeper wake repeated
-  on end. The gate runs now in this session, on the card, for line 4.
+  1. A design record names the two rules and their site: a turn's calls run
+     up to the first invented result and every call after it is held, the
+     real results are served, and the seat acts next turn; after an
+     eviction the repeat refusal serves the full result again or says it is
+     gone. The record retires the runner's own "known hole" comment. 10k
+     here, and a design review on a worktree before any code, about 100k.
+     Buys: the rules are fixed before an implementer reads them.
+  2. Built with pinned tests, one per rule and one for the recorded turn's
+     shape, a source call, an invented result, a write and a commit in one
+     completion: 110k, cold 80k and one resumed pass 30k. Buys: the seat
+     cannot act on a lie, and is not sent to a deleted answer.
+  3. A diff review on a worktree at the commit, its fixes in: 90k, review
+     65k and a fix pass 25k. Buys: a write-path change is read by a context
+     that never wrote it.
+  4. The gate green before each commit, the stale line read: 15k.
+  5. A full night from a worktree at the closing commit. Its counters must
+     read zero writes run after a fabrication and zero dangling pointers,
+     and its outcome is read against night 86's: 20k here, about two hours
+     wall. Buys: the first night that measures the 9B and the records
+     seats.
+  Total about 315k in agents, 50k here.
+- Waits on: Roman's ruling on the scope. Then nothing.
+- Reasoning: frame 75's chain, frame 76's calibration table, and the
+  runner's comment at `rota/core/runner.py:2680-2700`, which names the hole
+  and its stale count.
+- Status 2026-09-23 16:27 (rota-d0): pushed by dba7e375, blocked on the
+  ruling. No agent runs until the scope is ruled.
 
 ### 74. Opus 5.5 builds, and is measured as a judge (2026-09-23) (Roman)
 
@@ -392,6 +324,7 @@ a different question and the night is then opened once.
 - Status 2026-09-23 14:45 (rota-41): **Grill question 1 is answered: the fourth suspect is settled before any wall is chosen** (ruled: Roman, 2026-09-23 14:45, asked with the three walls as the other options). Meta workflow. The read is frame 75, did the runner dispatch the write from a turn that invented its own results. Question 2 waits on frame 75's result.
 - Status 2026-09-23 14:56 (rota-41): **Frame 75 names the wall that built the diff: an eviction, a false pointer, an invented result, and a write dispatched from a flagged turn** (observed: frame 75's status of 14:55). Meta workflow. The three walls of frame 38's read judged that diff and did not build it. Grill question 2 is the first repair frame's scope, asked with the recommended answer that the dispatch and the pointer are one frame, because they are one site in `run_session` and one walk.
 - Status 2026-09-23 15:27 (rota-41): **Grill question 2 is answered: count first, then fix the runner** (ruled: Roman, 2026-09-23 15:23, asked with the runner fix recommended and a composition rule as the third option, in plain words at Roman's ask). Meta workflow. Before the answer Roman asked two questions and got two facts: the hole is routine and night 70's merge went through it, and every larger local model writes from memory under the same false pointer, so the fault is the structure's. Frame 76 is the count. The runner fix is question 3's frame, pushed when 76 closes, with frame 75's chain as its scope. The 9B question waits behind both.
+- Status 2026-09-23 16:27 (rota-d0): **Frame 76 closed at 16:27, and grill question 3 is asked** (observed: frame 76's closing status). Meta workflow. Roman answered question 3 with "what's right here and why", and the reasoning is in the terminal: both holes are one fault at one site. Frame 77, the runner runs nothing from a made-up turn and never points at a deleted answer, is pushed and blocked on the ruling. When it lands, this frame's question 4 is whether the three record walls follow as frames or wait for frame 77's night.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
