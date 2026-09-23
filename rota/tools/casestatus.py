@@ -477,9 +477,10 @@ def render(rows: list[dict], red_only: bool = False, model: str = "") -> str:
         # re-earn a case under whatever was ambient, which is how two cases
         # flipped from fail to pass on the model alone (observed: frame 60,
         # the same 20 case ids run twice, 2026-09-21).
+        # No think pin here. `rerecord_command` names `ROTA_PROFILE` from the
+        # environment, so a pin passed in reaches nothing.
         out.append("  stale is unmeasured, not bad: " + fixtures.rerecord_command(
-            Pins(model=model or "", num_ctx=DEFAULT_NUM_CTX,
-                 think=think_for(model) if model else None),
+            Pins(model=model or "", num_ctx=DEFAULT_NUM_CTX),
             "tests/rota/test_l1.py"))
     out.append("")
 

@@ -62,11 +62,16 @@ from ..testkit import fixtures
 
 #: The pin sets a cassette can have been keyed under. `protocol` and the
 #: optional pins are in the key's hash and in no column, so they are recovered
-#: by rebuilding the key and comparing. All 18604 cassettes in the clone
-#: resolve: 18570 text with no extras and 34 text at `think=True` (observed:
-#: frame 54's pass 3, 2026-09-21). An unresolved cassette is a hard error,
+#: by rebuilding the key and comparing. An unresolved cassette is a hard error,
 #: because a cassette whose own key cannot be rebuilt is not evidence about
 #: anything the runner can ask for.
+#:
+#: The census, for qwen3:8b: 1697 cassettes at `{}`, 370 at `{"think": false}`
+#: and 1 at `{"think": true}` (observed: frame 65's diff review, 2026-09-23).
+#: Frame 65 makes `think` a value on every tier run, so the `{}` rows are the
+#: ones a re-record replaces. Superseded: all 18604 cassettes in the clone
+#: resolved as 18570 text with no extras and 34 text at `think=True`
+#: (observed: frame 54's pass 3, 2026-09-21).
 PIN_SETS = (("text", None), ("text", True), ("text", False),
             ("native", None), ("native", True), ("native", False))
 

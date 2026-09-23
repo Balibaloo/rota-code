@@ -288,11 +288,15 @@ def _small_register(tmp_path, recorded) -> "paths.Path":
 
     The text is stored beside the key, as the real register stores it, because
     the door recomputes the key from that text to answer for the think pin.
+
+    Every caller names the think pin it wants. Resolving one here through
+    `think_for` would read the shell that started the suite, and the file then
+    passed or failed on an ambient `ROTA_PROFILE` (frame 65's diff review,
+    2026-09-23).
     """
     path = tmp_path / "small.db"
     db = open_dev_db(path)
-    for number, unresolved in enumerate(recorded):
-        pins = _as_a_tier_stamps(unresolved)
+    for number, pins in enumerate(recorded):
         system, user = f"system {number}", f"user {number}"
         db.execute(
             "INSERT INTO cassettes (key, model, temperature, num_ctx, "
@@ -313,12 +317,14 @@ def door(tmp_path, monkeypatch):
 
     `DEFAULT_MODEL` and `DEFAULT_NUM_CTX` are read once at import, so the test
     moves the constants rather than the environment. The environment still
-    decides the think pin, because `think_for` reads it per call.
+    decides the think pin, because `think_for` reads it per call, so the
+    register is built after `ROTA_PROFILE` is gone and at a named value.
     """
-    monkeypatch.setattr(paths, "DEV_DB", _small_register(
-        tmp_path, [Pins(model=THINKING_MODEL, temperature=0.0, num_ctx=12288)]))
     for name in ("ROTA_L1", "ROTA_T1", "ROTA_REFRESH", "ROTA_PROFILE"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(paths, "DEV_DB", _small_register(
+        tmp_path, [Pins(model=THINKING_MODEL, temperature=0.0, num_ctx=12288,
+                        think=llm.THINK_DEFAULT)]))
     monkeypatch.setattr(llm, "DEFAULT_MODEL", THINKING_MODEL)
     monkeypatch.setattr(llm, "DEFAULT_NUM_CTX", 12288)
     return monkeypatch
@@ -413,7 +419,8 @@ def test_end_to_end_the_door_stops_a_real_run(tmp_path):
     no model must run.
     """
     register = _small_register(
-        tmp_path, [Pins(model="llama3.1:8b", temperature=0.0, num_ctx=12288)])
+        tmp_path, [Pins(model="llama3.1:8b", temperature=0.0, num_ctx=12288,
+                        think=llm.THINK_DEFAULT)])
     env = {**os.environ, "ROTA_DEV_DB": str(register), "ROTA_MODEL": "llama3.1:8b"}
     env.pop("ROTA_PROFILE", None)
     for switch in ("ROTA_L1", "ROTA_T1", "ROTA_REFRESH"):
@@ -514,14 +521,23 @@ def test_a_register_recorded_only_with_the_pin_refuses_a_run_without_it(
     # keys on it, so the refusal names the value and no longer says "unset".
     assert "think pin is False" in said
     assert "ROTA_PROFILE is unset" in said
+    # And it names what the register does hold, rebuilt from the rows, in the
+    # form the window and temperature refusals use.
+    assert "the register holds: True" in said
+    assert "a profile that pins think to one of the values held" in said
 
 
-def test_the_stale_message_names_the_model_and_the_window():
+def test_the_stale_message_names_the_model_and_the_window(monkeypatch):
     """
     Frame 60. The suite told the reader to re-earn a case with a command that
     named no model, so following the repository's own instruction re-recorded
     against whatever was ambient.
+
+    `ROTA_PROFILE` goes, because `rerecord_command` names the ambient profile
+    and the test asserts the whole line. The sibling below sets the variable
+    and asserts the other half.
     """
+    monkeypatch.delenv("ROTA_PROFILE", raising=False)
     said = fixtures.rerecord_command(
         Pins(model="qwen3:8b", temperature=0.0, num_ctx=8192),
         "tests/rota/test_l1.py")
@@ -1440,6 +1456,12 @@ def test_a_register_from_before_the_miss_table_reads_as_today(tmp_path,
     # cannot say which think pin it ran at. Frame 65 (2026-09-23) makes that
     # row unmeasured rather than green, which is the whole point of the pin.
     assert _state() == "STALE"
+    # The two instruments disagree for one read only. The panel reads `pass`
+    # above because a register with no key columns falls back to the narrow
+    # match, and the report's own open adds the columns. After that open both
+    # instruments read the same row the same way, which is frame 54's rule.
+    assert [c["state"] for c in _panel(monkeypatch)["cases"]] == ["stale"], \
+        "the disagreement closes at the first open_dev_db"
     conn = sqlite3.connect(str(path))
     assert casestatus.records_misses(conn), "and the opener created the table"
     conn.close()

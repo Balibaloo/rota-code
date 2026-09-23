@@ -840,6 +840,9 @@ def rerecord_command(pins: Pins, test_file: str) -> str:
 
     The window is named for the same reason, and `ROTA_PROFILE` is named when
     it is set, because it sets the think pin and a set pin keys the recording.
+
+    The profile this names is the ambient one, read from the environment here.
+    A think pin carried in `pins` reaches nothing, so no caller passes one.
     """
     parts = ["ROTA_L1=1", f"ROTA_MODEL={pins.model}",
              f"ROTA_NUM_CTX={pins.num_ctx}"]

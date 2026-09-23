@@ -25,12 +25,15 @@ from rota.roles import validators
 from rota.llm.cassettes import RecordingBackend, open_dev_db, record_case_run
 from rota.roles.principal import record_entry
 from rota.core.db import init_db
-from rota.llm.llm import OllamaBackend, Pins, available_models
+from rota.llm.llm import OllamaBackend, Pins, available_models, think_for
 from rota.core.runner import run_session
 from rota.core.scheduler import Wake
 
 MODEL = os.environ.get("ROTA_MODEL", "llama3.1:8b")
-PINS = Pins(model=MODEL, temperature=0.0, num_ctx=8192)
+# `think` through `think_for`, as the other three tiers build theirs. This
+# tier records into the real register, so a pin the key omits would write rows
+# nothing can match (frame 65, 2026-09-23).
+PINS = Pins(model=MODEL, temperature=0.0, num_ctx=8192, think=think_for(MODEL))
 
 # The door, called from the file that reads the register (frame 54,
 # 2026-09-21). It refuses a replay whose ambient key the register does

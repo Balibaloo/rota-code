@@ -119,6 +119,38 @@ def _a_recording_with_the_pin(conn, pins) -> bool:
     return False
 
 
+def _think_values_held(conn, pins) -> list[str]:
+    """
+    The think values the register holds for this model, said in words.
+
+    The field tuple cannot answer for `think`, for the reason above, so each
+    row's key is rebuilt once per candidate value. A row keyed before frame 65
+    carries no think field at all, and this reads as `unset`: it is what the
+    register holds, and a re-record is the only way to move it to a value.
+
+    The cost is paid once, because the caller refuses and the run stops.
+    """
+    import dataclasses
+
+    from rota.llm.cassettes import key_for
+
+    said = {True: "True", False: "False", None: "unset"}
+    found: list[str] = []
+    for row in conn.execute(
+            "SELECT key, system, user FROM cassettes "
+            "WHERE model = ? AND num_ctx = ? AND temperature = ?",
+            (pins.model, pins.num_ctx, pins.temperature)):
+        for value, word in said.items():
+            if word in found:
+                continue
+            if key_for(row["system"], row["user"],
+                       dataclasses.replace(pins, think=value)) == row["key"]:
+                found.append(word)
+        if len(found) == len(said):
+            break
+    return [word for word in said.values() if word in found]
+
+
 def _set_by(name: str) -> str:
     """
     Where a value came from, named so the reader knows what to change.
@@ -199,20 +231,19 @@ def _refusal(conn, pins) -> tuple[str, str]:
     # unset, and then every cassette missed. The door exists to stop exactly
     # that, and it was blind to one half of it.
     if not _a_recording_with_the_pin(conn, pins):
-        if pins.think is None:
-            return ((f"the think pin is unset ({_set_by('ROTA_PROFILE')}), "
-                     f"and no cassette for {pins.model} was recorded with it "
-                     f"unset.\n"
-                     f"  the register holds: {pins.model} with the think pin "
-                     f"set, which a profile does"),
-                    _remedy("ROTA_PROFILE",
-                            "a profile that sets the think pin for this model"))
+        # The values held, in the form the three refusals above use. `think`
+        # is in the key's hash and in no column, so each value is recovered by
+        # rebuilding the key from the row's own text (frame 65, 2026-09-23).
+        # The older text named "the pin unset", which no run sends any more,
+        # and told the reader to unset it, which no profile can do.
+        held_pins = (", ".join(_think_values_held(conn, pins))
+                     or "no value this door can rebuild")
         return ((f"the think pin is {pins.think} "
                  f"({_set_by('ROTA_PROFILE')}), and no cassette for "
                  f"{pins.model} was recorded with it.\n"
-                 f"  the register holds: {pins.model} at the provider's own "
-                 f"default, which is the pin unset"),
-                _remedy("ROTA_PROFILE", "a profile that leaves the pin unset"))
+                 f"  the register holds: {held_pins}"),
+                _remedy("ROTA_PROFILE",
+                        "a profile that pins think to one of the values held"))
     return "", ""
 
 
@@ -229,14 +260,18 @@ def refuse_a_key_the_register_does_not_hold() -> None:
     """
     if not is_a_replay():
         return
+    from rota import paths
+
+    if not paths.DEV_DB.exists():
+        return                         # no register, nothing to be wrong about
+    # Outside the guard below. `ambient_pins` reads the profile, and a profile
+    # the loader cannot find raises. That is a run nobody can key, so it must
+    # be a traceback. Inside the guard it opened the whole suite in silence
+    # (frame 65's diff review, 2026-09-23).
+    pins = ambient_pins()
     try:
         import sqlite3
 
-        from rota import paths
-
-        if not paths.DEV_DB.exists():
-            return                     # no register, nothing to be wrong about
-        pins = ambient_pins()
         # Read-only, so the door can never migrate the register or leave a
         # journal behind it.
         uri = "file:" + str(paths.DEV_DB).replace("\\", "/") + "?mode=ro"

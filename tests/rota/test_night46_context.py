@@ -628,4 +628,10 @@ def test_the_litellm_backend_takes_an_extra_body_from_the_environment(monkeypatc
     kw = LiteLLMBackend(api_base='http://127.0.0.1:8080/v1').kwargs('sys', 'user', Pins(model='openai/x', temperature=0.0))
     assert kw['extra_body'] == {'chat_template_kwargs': {'enable_thinking': False}}
     monkeypatch.delenv('ROTA_LLM_EXTRA_BODY')
-    assert 'extra_body' not in LiteLLMBackend().kwargs('sys', 'user', Pins(model='openai/x', temperature=0.0))
+    # Frame 65 (2026-09-23): the body always carries the think pin, because
+    # the cassette key carries it. With no environment body, the pin is all
+    # the body holds, and a `None` resolves to THINK_DEFAULT.
+    from rota.llm.llm import THINK_DEFAULT
+
+    assert LiteLLMBackend().kwargs('sys', 'user', Pins(model='openai/x', temperature=0.0))[
+        'extra_body'] == {'chat_template_kwargs': {'enable_thinking': THINK_DEFAULT}}

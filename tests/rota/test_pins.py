@@ -78,6 +78,36 @@ def test_litellm_maps_portable_pins_and_refuses_the_ollama_only_one():
         b.kwargs("s", "u", Pins("m", repeat_penalty=1.1))
 
 
+def test_litellm_sends_the_think_pin_the_key_records(monkeypatch):
+    """
+    The key says `{"think": true}` and the wire has to say the same thing.
+
+    Frame 65's diff review (2026-09-23): `kwargs` never read `pins.think`, so
+    a recording keyed at `think=True` was made at whatever the server
+    defaulted to. The Ollama backend sends `think`, and an OpenAI-shaped
+    endpoint reads the switch under `chat_template_kwargs`.
+    """
+    monkeypatch.delenv("ROTA_LLM_EXTRA_BODY", raising=False)
+    b = LiteLLMBackend(api_base="http://localhost:8080/v1", timeout=5)
+
+    def body(think):
+        return b.kwargs("s", "u", Pins("qwen3:8b", 0.0, 4096, think=think))[
+            "extra_body"]["chat_template_kwargs"]["enable_thinking"]
+
+    assert body(True) is True
+    assert body(False) is False
+    assert body(None) is llm.THINK_DEFAULT and body(None) == body(False), \
+        "None is not the provider's default: it is the value the key carries"
+
+    # The caller's own body wins, key by key, so a profile that names the
+    # switch keeps it and its neighbours survive.
+    named = LiteLLMBackend(api_base="http://x/v1", extra_body={
+        "chat_template_kwargs": {"enable_thinking": True, "other": 1}})
+    kw = named.kwargs("s", "u", Pins("qwen3:8b", 0.0, 4096, think=False))
+    assert kw["extra_body"]["chat_template_kwargs"] == {
+        "enable_thinking": True, "other": 1}
+
+
 def test_native_tools_are_off_unless_asked_and_travel_when_asked(tmp_path):
     """The runner computed the schemas and never handed them over, so every
     run spoke the text protocol. Now: off by default, on by opt-in, and the

@@ -51,10 +51,15 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 THINK_DEFAULT = False
 
 
-def think_for(model: str) -> bool:
+def think_for(model: str, root: Path | None = None) -> bool:
     """
     The think pin this run sends for this model: the profile's, or
     `THINK_DEFAULT`.
+
+    `root` is the project root the profile is looked up under, and it reaches
+    `profile.find` unchanged. `rota.cli` passes one, because a profile can
+    live in `<project>/.rota/profiles`. A caller that passes none keeps the
+    ambient lookup, which is what the tiers want.
 
     The key must carry the value the wire carries. Until frame 65 this
     returned None when no profile named the model, `extras()` dropped the None,
@@ -82,7 +87,7 @@ def think_for(model: str) -> bool:
         return THINK_DEFAULT
     from . import profile as profile_mod
 
-    pinned = (profile_mod.find(name).think or {}).get(model)
+    pinned = (profile_mod.find(name, root).think or {}).get(model)
     return THINK_DEFAULT if pinned is None else pinned
 
 
@@ -96,6 +101,11 @@ class Pins:
     and a pin at `None` stays out of the cassette key, so a recording made
     before the field existed keeps its key. A pin that is set changes the
     key, which is the point of a pin.
+
+    `think` is the one exception, from frame 65 (2026-09-23). Both backends
+    send `THINK_DEFAULT` for a `None`, so `None` is never the provider's own
+    default on the wire. The tiers pass a value through `think_for` and never
+    pass `None`, which keeps the key and the wire at one value.
     """
     model: str = DEFAULT_MODEL
     temperature: float = 0.0
@@ -534,10 +544,25 @@ class LiteLLMBackend:
         # thinking model's words in `content` (gemma-4, 2026-09-14: the
         # reply sat in `reasoning_content` and the runner read nothing).
         import os as _os
-        extra = _os.environ.get("ROTA_LLM_EXTRA_BODY")
-        body = {**self.extra_body, **(json.loads(extra) if extra else {})}
-        if body:
-            out["extra_body"] = body
+        named = {**self.extra_body,
+                 **(json.loads(_os.environ.get("ROTA_LLM_EXTRA_BODY") or "{}"))}
+        # The think pin, on the wire. The cassette key carries this value
+        # (frame 65, 2026-09-23), so the body has to carry the same one or the
+        # recording measures a server default nobody wrote down. The Ollama
+        # backend sends `think`, and an OpenAI-shaped endpoint reads the same
+        # switch under `chat_template_kwargs`.
+        body: dict = {"chat_template_kwargs": {
+            "enable_thinking": pins.think if pins.think is not None
+            else THINK_DEFAULT}}
+        # The caller's own body sits on top, key by key. A profile or
+        # `ROTA_LLM_EXTRA_BODY` that names `enable_thinking` means it, and the
+        # pin is only the value beneath it.
+        for key, value in named.items():
+            if key == "chat_template_kwargs" and isinstance(value, dict):
+                body[key] = {**body[key], **value}
+            else:
+                body[key] = value
+        out["extra_body"] = body
         return out
 
     def complete(self, system: str, user: str, pins: Pins,
