@@ -4,8 +4,17 @@ Written by the assistant, session a664990b, on 2026-09-24 12:41, for a
 design review before any code. Revision 2 at 12:44 folds the design
 review's ten answers and nine findings (observed: the reviewer on Opus
 5.5, 120.4k on the harness line, 49 tool calls, 6.5 minutes; its probes
-are `p1.py` to `p5.py` in this session's scratchpad). Meta workflow for
-the build. Rota workflow for the fault. The tree is `3a98180`.
+are `p1.py` to `p5.py` in this session's scratchpad). Revision 3 at
+13:15 adds the second half, a description owes no ticket, from Roman's
+rulings at the grill, 12:50 to 13:12. Meta workflow for the build. Rota
+workflow for the fault. The tree is `b4d1e5e`.
+
+The frame has two halves. The first is the safety net: a give-up that
+was reported once must not loop. The second is the golden path: a
+description never enters the criteria queue. Roman ruled the second
+half in on 2026-09-24 12:50: "it doesn't make sense for giving up to be
+on the golden path" (ruled: Roman, at the grill, on the question what a
+"yes" to a give-up report should do). The two halves share one night.
 
 ## The fault (observed: `.rota/clickI_night91.db`, 2026-09-24 12:30)
 
@@ -70,18 +79,18 @@ revives the tick. Nothing in the loop changes the subject, and the
 composition says a question changes nothing: only a ratified amendment
 to something approved revokes work downstream.
 
-The obligation is real. The ticket has no criteria, and no criterion can
-be written for a summary. The abandonment was said out loud once, which
-is what `quarantined` exists for. Re-deriving the same debt after a
-verdict that changed nothing is the fault, and it is the only fault this
-frame repairs. Where the summary item came from is out of scope, below.
+The obligation was real only because the ticket existed. The ticket
+restates a description, and no criterion can be written for it. The
+abandonment was said out loud once, which is what `quarantined` exists
+for. Re-deriving the same debt after a verdict that changed nothing is
+the first fault. That the ticket was cut at all is the second.
 
 No ruled sentence promises the revive or describes the exit (observed:
 the review's read of `rota/LAWS.md`). Law 6 says "The attempt caps and
-the ladder bound a cycle." Night 91 breaks that sentence, and the route
-restores it. The route changes no law.
+the ladder bound a cycle." Night 91 breaks that sentence, and the first
+half restores it. Neither half changes a law.
 
-## The route: a revive keys on a move of the subject, not on any write
+## The first half: a revive keys on a move of the subject, not on any write
 
 `session_commit` reads the row's `version` and `approval` before
 `_apply_write`, computes `moved` after it, and passes it to
@@ -140,7 +149,7 @@ writes with `amends` False, it is the only content change; the others
 are approval, priority, a statement's status, a ledger's status, a
 message, and the head commit (observed: the review's point 2).
 
-What the route buys, on night 91's own rows: the three writes of `s258`
+What the half buys, on night 91's own rows: the three writes of `s258`
 move nothing, the key stays quarantined 1 and reported 1, `tick_criteria`
 still produces the wake and `quarantine_stalled` still drops it, and the
 frontier is quiet on the item (observed: the review's probe `p5.py`
@@ -150,15 +159,119 @@ with new text, moves the version to 2 and revives the key.
 `tick_slicing` already treats a new version as new debt under its own
 key (`scheduler.py:270-284`), so the two rules agree.
 
-What the route does not do: it does not discharge the obligation. The
-ticket keeps no criteria, the key stays quarantined, and the count in
-`quarantined` is one abandoned tick, reported. A verdict that changes
-the approval is a move under rule 3 and revives the debt. A verdict that
-approves what is approved is the report's end and changes nothing about
-the quarantine, because the tool never closes an assumption for the
-principal (the composition, Flows). The frame's ends-when line says "the
-principal's verdict or a new version discharges it", and this is the
-route's reading of it. That reading is the grill's one question.
+The give-up rule, in Roman's words at the grill: a yes that changes
+nothing changes nothing. The give-up stands, reported once. The writer
+is asked again only when the item's words change or the owner's
+approval changes (the assistant's reading of Roman's 12:50 answer, not
+contradicted when the second half was ruled; a verdict that approves
+what is approved is the report's end, because the tool never closes an
+assumption for the principal, the composition, Flows).
+
+## The second half: a description owes no ticket (ruled: Roman, 2026-09-24 12:50 to 13:12)
+
+Roman's rulings at the grill, in order:
+
+1. 12:50: giving up is not on the golden path. The ticket that asks for
+   nothing is the cause, and the rule that keeps a description off the
+   path folds into this frame.
+2. 13:05: a description flag on the item, separate from in scope and out
+   of scope, applied upstream where the item is born, and updatable at
+   the criteria stage.
+3. 13:10: the keeper's judgement happens during splitting, not as a
+   separate call per item elsewhere.
+4. 13:12: the describe call lives at splitting and on the writer's
+   challenge, and the record carries a flow chart of the roles and
+   processes.
+
+**Words cannot tell a description from a request** (observed: night 91's
+rows, 2026-09-24 13:00). Each item's prose words against the words of
+every other item:
+
+| item | words | already said | new | said |
+| --- | --- | --- | --- | --- |
+| `how_it_works`, the account | 28 | 18 | 10 | 0.64 |
+| `defines_commands_and_options` | 15 | 15 | 0 | 1.00 |
+| `parses_and_executes_inputs` | 12 | 9 | 3 | 0.75 |
+| `provides_command_line_interface` | 12 | 10 | 2 | 0.83 |
+| `echo_json`, the one request | 9 | 7 | 2 | 0.78 |
+| `bg_1_summary`, the description | 36 | 25 | 11 | 0.69 |
+
+`_near_duplicate(summary, account)` is False, 13 shared words of 36.
+The summary and the one real request score the same, and the onboarding
+items score worse. So no door on words. The detector is the seat that
+reads the item to cut it, and the seat that reads the ticket to write
+its criteria.
+
+**Where the flag is set, upstream by construction.** Every item is born
+through `problem.assert`, in nine of the keeper's modes (observed: the
+`.tools` files, 13:03). The tool knows the wake it runs under:
+`ctx.onboarding` holds when the wake is in `ONBOARDING_TICKS`
+(`rota/core/runner.py:1974`), and `stage_grain_refs` already keys the
+observed provenance on it (`api.py:596-604`). `problem.assert` writes
+`is_description` 1 when `ctx.onboarding` holds or the id is
+`how_it_works`, and 0 otherwise. The two implicit rules in
+`tick_slicing`, the account by id and the observed provenance
+(`scheduler.py:250-256`), stay as they are; the flag is a third skip
+beside them, and it is the one the keeper can set.
+
+**Where the keeper sets it, at splitting.** A new op,
+`problem.describe(id)`, beside `problem_set_approval` (`api.py:908`):
+`_must_exist`, then one write `("items", id, {"is_description": 1},
+True)`. `amends` True moves the version, so the approval predates the
+flip and the item comes to the owner at the next present, where the
+word shows. Offered in `vision_keeper/slicing.tools` and
+`vision_keeper/challenge.tools`. `slicing.md` gains one paragraph: an
+item that names no piece of work is a description; send one
+`problem.describe` for it and no ticket, with an example in the brief's
+own shape. `challenge.md` gains a third answer: when the challenge says
+the item's tickets ask for nothing, `problem.describe` the item; no
+reopen, because nothing was built on it. The Terminologist's criteria
+brief already says a ticket that cannot mean anything is a challenge and
+not criteria work, so it does not change; if night 92 shows the writer
+not saying "asks for nothing", one line there is the next frame's.
+
+**Who reads the flag.** `tick_slicing` adds `AND i.is_description = 0`.
+`tick_criteria` joins `items` and adds the same, which covers a ticket
+cut before the flip, this night's case. The owner's page
+(`rota/roles/principal.py:315-327`) already keeps the account and the
+observed rows out of "It would"; a description goes with them, under
+what the repository does today. `problem.consult` shows the column.
+
+**Schema.** `items.is_description INTEGER NOT NULL DEFAULT 0` in
+`rota/core/schema.sql:50`, and the `init_db` column pattern
+(`db.py:221-224`) for a run database that predates it.
+
+**Re-records.** The keeper's slicing and challenge cases, because their
+tools files and briefs change. Nine keeper cases exist in
+`tests/rota/cases` (observed: 13:11). One new case records the slicing
+session on a description item.
+
+### The flow, roles and processes (ruled: Roman asked for it, 13:12)
+
+```mermaid
+flowchart TD
+  P[Principal, the owner] -- words --> L[Liaison]
+  L -- deliver --> K[Vision Keeper, the keeper]
+  K -- problem.assert --> I[(items: kind, is_description)]
+  O[onboarding or survey wake] -. by construction: description .-> I
+  I -- draft or amended --> PR[Liaison: present] --> P
+  P -- approve or contest --> I
+  I -- approved, not a description --> S[tick:slicing: keeper]
+  S -- names work --> T[(tickets)]
+  S -- names no work --> D[problem.describe] --> I
+  T --> C[tick:criteria: Terminologist, the writer]
+  C -- criteria --> CR[(criteria)] --> A[Architect: batch] --> B[Developer, Tester]
+  C -- asks for nothing --> CH[challenge: keeper] --> D
+  C -- three attempts --> Q[quarantine: Liaison report] --> P
+  P -- yes, nothing changes --> QQ[quiet until the item moves]
+  I -- new words or a changed approval --> S
+```
+
+The golden path is the top and the middle: words, item, present, cut,
+criteria, batch. A description leaves it at the cut, or at the writer's
+challenge, and returns to the owner's page. The give-up path at the
+bottom is the safety net, and after the first half it ends where the
+owner's yes lands.
 
 ## The pinned tests
 
@@ -193,6 +306,23 @@ In `tests/rota/test_steering.py`, beside
 6. One assertion for the anchor: a write to `c_1` leaves a quarantined
    key whose refs end in `,c_10`, and removes one whose refs hold `,c_1`.
 
+For the second half, in `tests/rota/test_predicates.py` beside the
+slicing and criteria pins, and in `tests/rota/test_desk_guards.py` for
+the doors:
+
+7. `tick_slicing` produces no wake for an approved in-scope item with
+   `is_description` 1 and no tickets.
+8. `tick_criteria` produces no wake for a ticket with no criteria whose
+   item has `is_description` 1, and produces it again at 0. Night 91's
+   shape: `bg_1_summary` and `tk_1_bg_1_summary`.
+9. `problem.describe` writes the flag with `amends` True: the version
+   moves, the approval predates it, and `tick_signoff` lists the item.
+   An unknown id is refused.
+10. `problem.assert` on an onboarding wake writes `is_description` 1; on
+    a deliver wake 0; for `how_it_works` 1 on any wake.
+11. The owner's page lists a description under what the repository does
+    today, and never under "It would".
+
 The pins seed rows by SQL and commit through `session_commit` with
 `SessionResult` and `Write`, as `tests/rota/test_refs.py` does. A
 session row needs `id`, `role` and `seq`; `session_commit` writes them.
@@ -203,28 +333,28 @@ One warm night, `GAUNTLET_NIGHT=92`, from a worktree at this frame's
 closing commit, by the shape of `.rota/launch_night91.sh`, with
 `ROTA_REPO` at `C:/Users/roman/rota_night92` and `ROTA_RUNS` at the main
 checkout's `.rota`. Frames 81, 79 and 80 close on that night, each on
-the line its record's walk section names. This frame's line: after the
-Liaison's `tick:quarantined` session on `bg_1_summary`, no further
-`tick:criteria` session for `bg_1_summary` runs while the item's version
-and approval stay, so the Terminologist's sessions on that key number at
-most three in the night.
+the line its record's walk section names. This frame's two lines:
 
-The night's second observation, not a gate: what the run does once the
-summary ticket is quiet, because night 91 never got there. On night 91's
-rows with the route in place, the frontier's next wakes are the
+- First half: after a Liaison `tick:quarantined` session on any key, no
+  `tick:criteria` session runs on that key while its item's version and
+  approval stay, so the Terminologist's sessions on one key number at
+  most three in the night.
+- Second half: no `tick:criteria` session runs on an item with
+  `is_description` 1, and a description written by a seat reaches the
+  owner's page under what the repository does today, with one
+  `problem.describe` call in the keeper's slicing or challenge session
+  behind it.
+
+The night's third observation, not a gate: what the run does once the
+summary is off the path, because night 91 never got there. On night 91's
+rows with the first half in place, the frontier's next wakes are the
 Architect on `tick:exhausted` for `bg_1` (frame 79's field), the Tester
 on `tick:tests_missing` for `bg_1`, and two Critic `tick:challenge`
 wakes, one on `@claim:items:bg_1_summary` (observed: the review's
-point 9). That Critic wake is the next seat that can contest the
-summary.
+point 9).
 
 ## Out of scope, recorded for the next frame that meets them
 
-- The summary item. A seat asserted a summary of the software as an
-  in-scope item, the designed principal approved it, and slicing gave it
-  a ticket no criterion fits. Under a real principal the present at
-  `m103` is where it is contested. That is the seat's judgement and the
-  principal seam of batch D, frames 41 and 42.
 - The `tick:criteria` key names the item, and the debt belongs to the
   ticket. An amendment of `tk_1_bg_1_summary` matches no pattern, so it
   revives nothing today and nothing under the route (the review's
@@ -239,6 +369,8 @@ summary.
 - A quarantined key whose wake is no longer produced stays in
   `tick_attempts` for ever. `quarantine_stalled` forgets a key only while
   `quarantined` is 0. Cosmetic, and the count stays honest.
+- The Terminologist's criteria brief may need "or asks for nothing"
+  beside "cannot mean anything consistent". Night 92 decides.
 - Frame 79's notes carry over: three predicates match a batch id without
   quotes; the Architect's exhausted brief opens with a sentence route B
   makes imprecise; a tick as a message cause. The review saw the
@@ -249,12 +381,21 @@ summary.
 
 ## Price (reasoned: frame 79's actuals, in its status of 12:24)
 
-Design review: 120.4k on Opus, actual, against 95k estimated. Build 60k
-to 80k on Opus: two functions in `db.py`, one flag in `api.py`, six pins
-(frame 79: 86.6k over three passes, on a larger surface). Diff review
-about 100k on Fable (frame 79: 112.8k); the write pipeline is touched,
-so the review probes every branch of `_lift_quarantines`. Gate 15k here,
-one run. The night: about three hours of GPU (night 91 ran 3 hours 16
-minutes to the stop) and about 30k of this context to read it and close
-three frames, an estimate with no anchor in the register. About 250k in
-agents after the review, walls apart.
+First half. Design review: 120.4k on Opus, actual, against 95k
+estimated. Build 60k to 80k on Opus: two functions in `db.py`, one flag
+in `api.py`, six pins (frame 79: 86.6k over three passes, on a larger
+surface).
+
+Second half. Design review about 80k on Opus, on this section only.
+Build 80k to 100k on Opus: one column and its migration, one op, two
+tools files, two briefs, two predicate lines, one page line, five pins,
+and the re-record of the keeper's slicing and challenge cases with one
+new case, about fifteen minutes of GPU.
+
+Both halves. One diff review about 120k on Fable; the write pipeline
+and two predicates are touched, so the review probes every branch of
+`_lift_quarantines` and both skips. Gate 15k here, one run. The night:
+about three hours of GPU (night 91 ran 3 hours 16 minutes to the stop)
+and about 30k of this context to read it and close three frames, an
+estimate with no anchor in the register. About 400k in agents after the
+first review, walls apart.
