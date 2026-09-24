@@ -556,6 +556,26 @@ a different question and the night is then opened once.
   80k as a request, no commit. The diff review on Fable follows on a
   worktree at the commit, then the gate here, then validating on the
   night.
+- Status 2026-09-24 11:22 (rota-18): **pass 1 is built, the touched tests
+  read 192 green, and the gate reads three new reds of the change's own:
+  three case fixtures still seed messages to set the rung** (observed:
+  the implementer's report, 57,377 tokens on the harness line, 22 tool
+  calls, 21 minutes; the gate on the built tree, 467 s, finished about
+  11:15). Meta workflow. The gate's lines: suite 36 failed against the
+  stored 25; new reds 14, of which 10 are the baseline's ten, 3 are
+  `test_case_reachability` on `L1-AR-a-dead-end-is-reported-not-sat-on`,
+  `L2-AR-place-a-block-developer-could-not` and
+  `L2-VK-end-it-rather-than-send-it-back`, and 1 is flaky in
+  `test_map.py`; reds gone 3; stale 0. The change: `_next_rung` reads
+  committed exhausted sessions by the quoted id, the guard in `exhausted`
+  holds while a message to the Developer is open, six pins in
+  `test_delivery.py`, Law 6's sentence and two docstrings say the
+  sessions. One deviation from the record, taken: the record said no
+  case changes, and the three fixtures set the rung with an escalate
+  message, so pass 2 adds a committed exhausted session to each and
+  keeps the message for the prompt. Pass 2 runs now, cap 40k, with one
+  gate and a re-record if the fixtures move a prompt. Then the commit,
+  the diff review on a worktree, and the gate here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
