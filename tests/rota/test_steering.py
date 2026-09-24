@@ -235,6 +235,37 @@ def test_a_write_to_c_1_leaves_a_key_on_c_10(db):
     assert not _held(db, "tester|tick:x|b9,c_1,g1"), "refs that hold c_1 revive"
 
 
+def test_a_status_change_moves_its_subject(db):
+    """A ledger entry's status is its state. Before frame 80 any write revived
+    a quarantine; the first half kept the status case (frame 80's review)."""
+    from rota.core.db import Write
+
+    db.execute("INSERT INTO ledger (id, about_ref, about_table, default_taken, "
+               "status, author) VALUES ('L1','i1','items','keep invoices',"
+               "'open','vision_keeper')")
+    key = "liaison|tick:x|L1"
+    _quarantine(db, key)
+    _commit(db, "s_same", "vision_keeper",
+            Write("ledger", "L1", {"status": "open"}, amends=False))
+    assert _held(db, key), "the same status moves nothing"
+    _commit(db, "s_done", "vision_keeper",
+            Write("ledger", "L1", {"status": "resolved"}, amends=False))
+    assert not _held(db, key), "a changed status revives the tick"
+
+
+def test_an_update_on_a_missing_row_revives_nothing(db):
+    """An update on a row that is not on file writes nothing. A new row is a
+    move only when a row appears (frame 80's review)."""
+    from rota.core.db import Write
+
+    key = "liaison|tick:x|L9"
+    _quarantine(db, key)
+    _commit(db, "s_none", "vision_keeper",
+            Write("ledger", "L9", {"status": "resolved"}, op="update",
+                  amends=False))
+    assert _held(db, key), "no row appeared, so nothing moved"
+
+
 def test_an_amended_delivered_item_owes_new_tickets_and_keeps_its_merged_batch(db):
     """Amendment level 2, the merged half (plans/amendment-and-conflicts.md,
     2026-09-12): an item delivered at version 1, amended to version 2 and

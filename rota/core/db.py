@@ -492,14 +492,17 @@ _NO_ROW = ("no row",)
 
 def _subject_state(conn: sqlite3.Connection, w: Write) -> tuple | None:
     """
-    The row's version and approval, read before and after a write.
+    The row's version, approval and status, read before and after a write.
 
     None for a refs or junction write, which has no row of its own. The
     columns a table lacks are left out, so the compare reads only what exists.
+    A statement's or a ledger entry's status is its state, and a change of it
+    revived a quarantine before frame 80 too.
     """
     if w.table == REFS_TABLE or w.table in JUNCTION_TABLES:
         return None
-    cols = [c for c in ("version", "approval") if _has_column(conn, w.table, c)]
+    cols = [c for c in ("version", "approval", "status")
+            if _has_column(conn, w.table, c)]
     row = conn.execute(
         f"SELECT {', '.join(['1', *cols])} FROM {w.table} WHERE id = ?",
         (w.row_id,)).fetchone()
@@ -508,15 +511,18 @@ def _subject_state(conn: sqlite3.Connection, w: Write) -> tuple | None:
 
 def _subject_moved(conn: sqlite3.Connection, w: Write, before) -> bool:
     """
-    Whether a write moved its subject: a new row, a version change, an
-    approval change, a head commit, or a junction write.
+    Whether a write moved its subject. A move is a new row, a changed
+    version, approval or status, a head commit, or a junction write.
 
     A write that sets the values the row holds already moves nothing. Night
     91's relay approved an approved item three times, and each write revived
     a tick that had given up (frame 80).
     """
-    if before is None or before == _NO_ROW:
+    if before is None:
         return True
+    if before == _NO_ROW:
+        # An update on a missing row writes nothing, so it moves nothing.
+        return w.op != "update" or _subject_state(conn, w) != before
     if w.table == "batches" and "head_commit" in (w.values or {}):
         return True
     return _subject_state(conn, w) != before
