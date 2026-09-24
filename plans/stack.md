@@ -533,6 +533,27 @@ a different question and the night is then opened once.
   a "yes" to a give-up report means; recommended: it changes nothing,
   and only a changed item or a changed approval asks again.
 
+- Status 2026-09-24 13:14 (rota-6d): **Roman rules a second half into the frame:
+  a description owes no ticket** (ruled: Roman, 2026-09-24 12:50 to
+  13:12, at the grill in the terminal; "giving up is not on the golden
+  path"; a description flag on the item, separate from in and out of
+  scope, set upstream by construction and by the keeper at splitting
+  and on the writer's challenge). Meta workflow. Words cannot tell a
+  description from a request: on night 91's rows the summary and the
+  one real request score the same on every word test (observed: 13:00,
+  the table in the record). The give-up rule stands as the assistant's
+  reading, not contradicted: a yes that changes nothing changes
+  nothing. The record is at revision 3 with the flow chart Roman asked
+  for. Ends-when line 3, priced: `is_description` on `items`, set by
+  `problem.assert` on an onboarding wake and by `problem.describe` in
+  the keeper's slicing and challenge modes; `tick_slicing` and
+  `tick_criteria` skip it; the owner's page shows it; five pins and
+  one new case: design review about 80k on Opus, build 80k to 100k on
+  Opus with about fifteen minutes of GPU for the re-records; buys a
+  golden path a description leaves at the cut or at the challenge, and
+  never reaches the give-up. The diff review grows to about 120k for
+  both halves. Next: the design review of the second half on Opus 5.5.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
