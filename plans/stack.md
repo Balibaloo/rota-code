@@ -229,7 +229,7 @@ a different question and the night is then opened once.
   `GAUNTLET-DONE` by the rule that a night never ends at Stuck, and the
   GPU is idle otherwise.
 
-### 37. The Developer exhausts ten attempts on the tests (2026-09-18) (2087bc13)
+### 37. The Developer exhausts ten attempts on the tests (2026-09-18) (2087bc13) [blocked on Roman]
 
 - **Batch C, the night's stall. Third of three.** Already waits on frame 38, and its first read is the same read. **Batch C is the only batch that unblocks frame 33**, whose code is built, reviewed twice and gated at 457k and has never walked, because a walk needs a merge and a merge waits here.
 
@@ -365,6 +365,18 @@ a different question and the night is then opened once.
   for a criterion that contradicts the request. That is grill question 4's
   recommended answer, and the stall bound is dropped: the loop recovered at
   attempt 9 after five unchanged attempts.
+- Status 2026-09-24 05:31 (rota-b8): **frame 77 closed at `408cc85`, and grill
+  question 4 is asked by the phone route** (observed: the AskUserQuestion of
+  this minute). Meta workflow. The question: which repair the chain takes
+  first, now that the night shows three walls. Recommended: (1) the
+  Tester's triage gets a verdict for a criterion that contradicts the
+  request, routed to the Terminologist before any test is written, which is
+  frame 38's wall 1 observed from inside both seats; then (2) frame 79, the
+  ladder, and (3) frame 80, the quarantine cycle; all three proven by one
+  warm night, because each is a predicate or a brief and one walk serves
+  them together. The stall bound is dropped. This session reads about
+  295k, so it takes no new frame after the ruling: it pushes the ordered
+  frames and hands the stack to the reserve, `rota-98`, which is armed.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
