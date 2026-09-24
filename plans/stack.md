@@ -489,6 +489,12 @@ a different question and the night is then opened once.
   been asked". Recommended: route B, priced at 60k to 80k for the build.
   The record is `plans/archive/exhaustion-ladder-design-2026-09-24.md`.
   The question waits on Roman; the review runs meanwhile.
+- Status 2026-09-24 10:25 (rota-18): **Roman waits for the design review
+  before he rules on the route** (ruled: Roman, 2026-09-24 10:24, asked
+  with route B recommended, route A and both routes as the other options).
+  Meta workflow. The question goes out once more when the review's nine
+  points land, with its evidence. Frame 80's site is read meanwhile, and
+  frame 80 stays unclaimed.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
