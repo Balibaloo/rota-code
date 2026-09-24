@@ -758,6 +758,21 @@ a different question and the night is then opened once.
   is `running` at `276d809`, and no merge yet. Meta workflow. This
   session reads about 100k.
 
+- Status 2026-09-24 17:58 (rota-95): **batch `b_1` is merged, and the night
+  runs sentence two** (observed: `.rota/clickI.db` read-only at 17:58,
+  223 sessions; `batches` reads `b_1` `merged` at `276d809` and `b_2`
+  `running`; `verdicts` reads `pass` at version 2 for
+  `critic:b_1:276d809`). Rota workflow. The Critic `s192` claimed `c_1`
+  and `c_3` encoded and `c_2` not, emitted `fail` on `c_2`, challenged
+  the Tester four times, and the verdict's second version is `pass`.
+  Night 91 ended one batch short of this with its tests passing and no
+  merge (observed: frame 73's close in
+  `plans/archive/stack-2026-09-23.md`). Frame 33's walk waited on a
+  merge, so this night is its first chance too, a read for the close.
+  Sentence two: `s215` slicing, `s216` `tick:criteria`, `s222` the
+  touch note "expected 3, possible 4", and `m119` "Before I build this,
+  here is what I expect to touch" answered yes. Meta workflow.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
