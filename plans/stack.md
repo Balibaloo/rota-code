@@ -797,6 +797,22 @@ a different question and the night is then opened once.
   read the diff of `43823ea` against the register's tallies for the survey
   guard and `code.source`, and put the guard question to Roman before any
   agent runs.
+- Status 2026-09-25 00:21 (rota-1c): **one holder by Roman's ruling of
+  00:20, rota-09's read is checked against the transcripts, and pass 4 runs
+  on a fresh implementer on Opus** (observed: the last `case_runs` rows of
+  23:44 here at 00:2x: the survey seat wrote eleven `<name> <kind>`
+  headlines and "a maintainer could rename" texts three times over; the
+  Tester wrote three `tests.encode` calls and no `code.source`; the
+  challenge seat called `answer_liaison` with the item ref and no term).
+  Meta workflow. Rota-09's status of 00:11 is history. The guard stays by
+  the ruling of 21:20, so no ruling is needed: the four repairs are door
+  messages that name the exact passing call, one bold line in `survey.md`
+  replaced and not added, an exact import in the encode Wall from
+  `surface_refs`, and one new door on the Terminologist's `answer` with no
+  glossary ref. Brief: this session's scratchpad, `brief-82-pass4.md`,
+  written by rota-09, cap 150k. The new door touches the send path, so a
+  diff review runs on the closing commit. Then one gate here, and
+  `--baseline` if the reds are zero.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
