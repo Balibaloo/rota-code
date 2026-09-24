@@ -371,6 +371,11 @@ a different question and the night is then opened once.
   is registered and can go. The design record's out-of-scope list holds
   three notes for later frames. This session hands the stack now: it
   reads about 295k, and frame 79's design would cross the 300k line.
+- Status 2026-09-24 10:15 (rota-98): **handed to session `4fe8b80c`, rota-18,
+  with the stack at `395ecc1`** (observed: the `hand` command's exit 0 at
+  10:14, confirmed 5 s after the claim). Meta workflow. Session 2f969272
+  stops here at about 295k, holding nothing. The worktree `wt-81` is
+  removed. The holder's first act is the state reply, then frame 79.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
