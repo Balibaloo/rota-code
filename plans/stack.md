@@ -306,6 +306,30 @@ a different question and the night is then opened once.
   true. Pass 2 carries the register's fix, the span refusal gone, with
   the six. After it: the touched tests, my gate, the eight cases
   re-recorded, the commit, then the night.
+- Status 2026-09-24 09:29 (rota-98): **pass 2 landed, the eight cases
+  re-recorded 6 green, the new case 5 of 5 on the designed path, and the
+  gate reads one regression on a judgement case, so the brief line is
+  spiked to one line** (observed: the implementer's resume, 156,733 on the
+  harness line after 136,790, so about 20k for the pass, 19 tool calls, 3
+  minutes; the re-record of 09:06 to 09:17, 144 recordings in 10m44s; the
+  gate of 09:27, 490 s). Meta workflow. The gate's lines: suite 33 failed
+  against the stored 25; new reds 12, the baseline's ten plus
+  `L1-TS-a-criterion-no-machine-could-check-is-vision_keepers` at 2 of 5,
+  wrote a test where the case wants `cannot`, plus one flaky in
+  `test_map.py`; reds gone 4; stale 0. `L1-TS-an-outside-fact` reads 1
+  of 5 and is a known red of the stored baseline. Rota workflow for the
+  new case's transcript: the seat triages `encodable` with both
+  sentences copied, the wall refuses with the exact call, the seat sends
+  `contradicts_request` with `prints` and `returns`, and the question
+  lands, five runs of five, with the seat saying in its own words that
+  the criterion contradicts the request. The regression is a prompt
+  change on a 9B judgement case: the brief gained a five-sentence
+  paragraph where the ends-when line says one line. The spike: the
+  paragraph becomes two sentences inside the `cannot` paragraph, and the
+  seven `tests_missing` cases re-record on it, then the gate once more.
+  The register is backed up as `.rota/cassettes_backup_2026-09-24-frame81.db`.
+  The rota-b8 line below this one is the previous holder's hand-off
+  status, written after the take and left in place.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
