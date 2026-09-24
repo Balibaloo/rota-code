@@ -495,6 +495,26 @@ a different question and the night is then opened once.
   Meta workflow. The question goes out once more when the review's nine
   points land, with its evidence. Frame 80's site is read meanwhile, and
   frame 80 stays unclaimed.
+- Status 2026-09-24 10:28 (rota-18): **the design review returned nine
+  points and four findings, route B holds, and it adds one ruling: Law 6's
+  own sentence promises the message reader** (observed: the reviewer on
+  Opus 5.5, 94.7k on the harness line, 35 tool calls, 3.6 minutes).
+  Meta workflow. Confirmed by probe: fault 2, so route A alone skips the
+  Architect; the claim holds a running seat until commit; the unquoted
+  `LIKE` at `predicates.py:915` matches `bg_10` to `bg_19`; route A's
+  stamp lands after the duplicate guard at `sandbox.py:1278`, which then
+  goes blind, and it quiets `finding_violated` and `touch_mistaken`.
+  Named by the review and taken into route B: `exhausted` wakes the
+  Vision Keeper while the Architect's answer to the Developer is still
+  open, and the Vision Keeper's brief offers `problem.assert`, which
+  stops the batch; the record adds a guard, no rung above the Developer
+  while a message to it is open. Corrected in the record: the committed
+  row's writer is `runner.py:3053` and `db.py:552`, not the failed-session
+  path; `m57` is message seq 58; the tick bound is `quarantine_stalled`
+  at `tick_attempt_cap` 3, and the revive at `db.py:500` explains night
+  91's 3, 3, 2 wakes. Revision 2 of the record folds all of it. The
+  question to Roman is now route B with Law 6 amended, and it goes out
+  once, with the review's evidence.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
