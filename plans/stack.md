@@ -200,6 +200,21 @@ a different question and the night is then opened once.
   Meta workflow. The tree is clean at `8e54b65`. First act: the scope read
   of the triage site and the Tester's brief, then the design record, then
   the design review on Opus 5.5 before any code.
+- Status 2026-09-24 08:12 (rota-98): **the design record is written and the
+  design review runs on Opus 5.5.** Meta workflow. The record is
+  `plans/archive/contradicting-criterion-design-2026-09-24.md`. The read
+  found the wall's shape (observed: `rota/core/sandbox.py:104`,
+  `rota/roles/api.py:3900-3990`, 2026-09-24 08:00): triage has five
+  verdicts, not two, and every one answers "could a machine check this
+  sentence". `c_1` is checkable and wrong, so `encodable` was the honest
+  answer to the wrong question. The shortest route today from the
+  contradiction to a rewrite is three sessions, question, answer, reask,
+  because `criterion_repair` fires on an `unresolved` Tester question
+  only. The design: a sixth verdict, `contradicts_request`, takes two
+  spans copied from the request and the criterion, refuses a span not in
+  the material, and stages the question to the Terminologist born
+  `unresolved` with both spans in the note. No predicate changes. The
+  reviewer reads eight points, cap 100k, no worktree, no code yet.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
