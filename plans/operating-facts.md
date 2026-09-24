@@ -629,6 +629,8 @@ The two bullets above that describe the liveness probe and the standby's
 pasted prime are superseded by the brief's `# Standby duty` section. They are
 kept because they carry the measurements that argued for the change.
 
+- **A standby row with a live beat can belong to a window that closed** (observed: 2026-09-25 00:00). The sign: `hand` prints `UNCONFIRMED after 90s` while the peers table shows the target's beat under 90 s, and a message to its peer name answers `No agent named '<name>' is reachable`. A restart of the windows leaves the watcher processes running as orphans, so the table counts them free. Check `ListAgents` for the live windows before you trust the free count, kill the orphan `handover.py standby` processes, and have the live windows arm again.
+
 ## The build session's tools
 
 Facts about the assistant's own harness and shell, the meta workflow.

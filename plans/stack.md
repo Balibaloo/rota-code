@@ -729,6 +729,20 @@ a different question and the night is then opened once.
   rota-47, three free at 23:46. Session 8736e9fc stops here at about
   355k, holding nothing. The holder inherits frames 82 and 83 by their
   statuses of 23:45, and frame 79 validating.
+- Status 2026-09-25 00:05 (rota-95): **the reserve was a phantom, and the stack
+  is handed to nobody yet** (observed: `hand` exit 4 twice, at 23:45 to
+  `213e58fd` and at 00:00 to `5748c2d9`, each with live beats and no
+  peer a message could reach; `ListAgents` at 00:03 lists four live
+  windows, rota-19, rota-f8, rota-9c and rota-09, started at about
+  23:28, and none of the armed names). Meta workflow. The windows that
+  armed at 20:09 closed at the restart, their watcher processes beat on
+  as orphans, and the tool counted them free. The orphans are killed at
+  00:04. The stack at `52190e2` carries frames 82 and 83 by their
+  statuses of 23:45 and frame 79 validating. What Roman does: run
+  `/standby` in one of the four live windows, and the next `hand` from
+  any session lands there; or type the take in that window once a claim
+  names it. Session 8736e9fc stops here at about 360k, holding nothing.
+  Register line: one.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
