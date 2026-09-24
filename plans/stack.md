@@ -473,7 +473,7 @@ a different question and the night is then opened once.
   build's passes and the diff review land here if the review is short,
   and the hand-off lands during the build otherwise.
 
-### 82. The ten known reds blind the gate (2026-09-24)
+### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
 - **No batch. It is the instrument repair the batch order's own rule puts
   before the work the instrument accepts, and it runs first after night
@@ -534,6 +534,17 @@ a different question and the night is then opened once.
 - Status 2026-09-24 16:11 (rota-95): pushed by 8736e9fc at Roman's ruling,
   unclaimed. Meta workflow. The holder of the stack after night 92
   takes it before batch B.
+- Status 2026-09-24 20:01 (rota-95): **claimed by 8736e9fc, and built by
+  agents on Opus 5.5 while this session holds frame 83 too** (ruled:
+  Roman, 2026-09-24 20:00, "can you do it in a subagent?", which replaces
+  the two-sessions ruling of 19:46; one holder of the stack again).
+  Meta workflow. Line 1 runs now: a read agent on Opus reads the ten
+  cases' recorded transcripts and writes
+  `plans/archive/ten-reds-read-2026-09-24.md`, cap 100k as a request.
+  Then the design review, then one implementer for the repairs, and the
+  gate and the commit here. Two frames in one session means the hand-off
+  at 400k carries both, with the records and any uncommitted diff as the
+  spec.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
