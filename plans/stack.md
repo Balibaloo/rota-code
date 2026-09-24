@@ -395,7 +395,7 @@ a different question and the night is then opened once.
   `C:/Users/roman/rota_night91` at `b79882e` still registered; and the
   parked low findings of frame 74. Roman is away from the keyboard.
 
-### 80. A quarantined criteria tick wakes again for ever (2026-09-24)
+### 80. A quarantined criteria tick wakes again for ever (2026-09-24) (a664990b)
 
 - **Batch C, the night's stall. Found by night 91 after the batch's loop, and
   it is the wall the records path stands on once the Developer is
@@ -487,6 +487,12 @@ a different question and the night is then opened once.
   stops here at about 275k, holding nothing. Frames 81 and 79 carry this
   session's id in their headings until the holder claims them; both are
   validating on the night and need no work before it.
+
+- Status 2026-09-24 12:27 (rota-6d): **taken by a664990b** (observed: the
+  watcher's claim from `4fe8b80c` posted 12:26:16, `take` exit 0 at
+  2026-09-24 12:27). Meta workflow. Next: the first read, which session and
+  which tick wrote the summary item `bg_1_summary`, and the revive rule
+  around `rota/core/db.py:488-535`; then the design record.
 
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
