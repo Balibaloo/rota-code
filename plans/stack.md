@@ -471,6 +471,24 @@ a different question and the night is then opened once.
   Then the design record prices the two routes of the ends-when line.
   Then the grill's one question goes by the phone route, with a
   recommended answer, because Roman is away from the keyboard.
+- Status 2026-09-24 10:23 (rota-18): **the fault is observed from both
+  sides, the design record is at `06a2c22`, the design review runs on
+  Opus 5.5, and the grill question goes to Roman's phone** (observed:
+  `.rota/clickI_night91_walk1.db` at 10:17; the reviewer launched at
+  10:22, nine points, cap 100k as a request, no worktree, no code yet).
+  Rota workflow for the fault: the eight exhausted wakes carry `["bg_1"]`
+  in `sessions.wake_refs`, stamped by the runner; the Developer's eight
+  messages carry criteria and test ids only, with no trigger and no
+  thread; and `_next_rung` keys on `messages.body_refs`, where the
+  Architect's report on the cut, `m57`, already counts, so a stamped
+  batch id alone would skip the Architect. Two faults in one query. Meta
+  workflow for the design: route A stamps the batch id at the send, and
+  leaves fault 2 open; route B reads the sessions the exhaustion opened,
+  the field the runner stamps, with two precedents in `predicates.py` and
+  `scheduler.py` and the Architect's own brief, "Developer has already
+  been asked". Recommended: route B, priced at 60k to 80k for the build.
+  The record is `plans/archive/exhaustion-ladder-design-2026-09-24.md`.
+  The question waits on Roman; the review runs meanwhile.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
