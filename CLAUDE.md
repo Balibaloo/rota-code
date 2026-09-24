@@ -229,6 +229,13 @@ takes the next pass. Write each pass's tokens in the status line beside
 the cold cost, about 300k a pass. If a resumed pass costs as much, the
 rule stops.
 
+A session may hold more than one frame at once when the frames touch
+different files (ruled: Roman, 2026-09-24 20:04, after frame 83's design
+review and frame 82's read ran side by side on his word). Each frame has
+its own agent, each status line names the agent's pass, and a hand-off
+carries every held frame. The gate and the commit stay one at a time,
+because both frames share one tree.
+
 A change that is the same edit in more than three files is a script.
 Write the script with the Write tool and run it. Print the touched
 files. Read the diff once, for the judgement cases. An agent starts a
