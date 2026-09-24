@@ -634,6 +634,38 @@ a different question and the night is then opened once.
   in the record for a later frame. Next: pass 4's gate here, the
   closing commit, then the hand-off with night 92.
 
+- Status 2026-09-24 15:40 (rota-6d): **validating at `40b4777`: every ends-when
+  line but the night holds, and the frame is handed with the stack for
+  night 92** (observed: the gate here at `40b4777`, 476 s: suite 33
+  failed and 2279 passed against the stored 25 and 2069; new reds 11,
+  the ten known L1 reds and the flaky map case; reds gone 3; stale 0).
+  Meta workflow. Four commits: `a72b65b` the revive rule, `74c4300` the
+  description half, `40b4777` two low findings, and the record at
+  `plans/archive/quarantine-revive-design-2026-09-24.md`. Actual against
+  the estimate, walls apart: design review one 120.4k on Opus against
+  95k; design review two 109.3k against 80k; build 186.8k on Opus over
+  four passes, about 76k, 86k, 13k and 11k, against 140k to 180k for
+  both halves; diff review 151.1k on Fable against 120k; eight gates,
+  four here and four in agents, about 65 minutes of GPU here, one lost
+  to a `tail`; 16 recordings for three re-recorded cases and one new
+  case; this context from 15k at the take to about 325k at the hand.
+  Walls: one, the 8B keeper describing and cutting in one reply, closed
+  by a two-part door in one pass. Register lines: one, the heredoc
+  sign, and one memory with two strikes on the `tail`. Rota workflow:
+  a quarantined tick revives on a move of its subject only; a
+  description owes no ticket, and the keeper says so at the cut or on
+  the challenge, with the owner seeing "How it is described:" on the
+  page. Open for the holder: (1) night 92 from a worktree at `40b4777`,
+  `git worktree add C:/Users/roman/rota_night92 40b4777`, launched
+  detached by `.rota/launch_night92.sh`, which is written, per the
+  facts on nights; frames 81, 79 and 80 close on the lines their
+  records' walk sections name; copy the database to
+  `.rota/clickI_night92.db` at once. (2) The heading's words wait on
+  Roman. (3) The gate baseline `b82565d` is Roman's call. (4) Two low
+  findings in the record for a later frame, the LIKE escape and the
+  flag on items born before the column. (5) Stale worktrees of ended
+  sessions stay registered, a parked item.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
