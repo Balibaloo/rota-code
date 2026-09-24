@@ -210,9 +210,9 @@ through `problem.assert`, in nine of the keeper's modes (observed: the
 `.tools` files, 13:03). The tool knows the wake it runs under:
 `ctx.onboarding` holds when the wake is in `ONBOARDING_TICKS`
 (`rota/core/runner.py:1974`), and `stage_grain_refs` already keys the
-observed provenance on it (`api.py:596-604`). `problem.assert` writes
+observed provenance on it (`api.py:596-604`). `problem.assert` stages
 `is_description` 1 when `ctx.onboarding` holds or the id is
-`how_it_works`, and 0 otherwise. The two implicit rules in
+`how_it_works`, and stages no key otherwise. The two implicit rules in
 `tick_slicing`, the account by id and the observed provenance
 (`scheduler.py:250-256`), stay as they are; the flag is a third skip
 beside them, and it is the one the keeper can set.
@@ -323,6 +323,25 @@ safety net, and after the first half it ends where the owner's yes
 lands. The onboarding edge changes no skip: the account and the observed
 rows are skipped already, and the flag names them.
 
+### The build's own findings (observed: the implementer's pass 2, 2026-09-24 14:50)
+
+- The 8B seat describes the item and cuts a ticket too, in one reply or
+  on the next turn: the new case `L1-VK-slice-a-description` passed 0,
+  0 and 1 of 5 across three recordings, with a firmer brief paragraph
+  and a finishing note in the op's result between them. A brief does
+  not hold a 9B seat where a door does (frame 81's lesson), so pass 3
+  adds two answers, not refusals: `tickets.slice` on a described item,
+  on file or staged this session, writes nothing and says so; and
+  `problem.describe` drops the session's staged tickets for the item.
+- The page heading for a described item reads "How it is described:",
+  after the account and before "It does today:". The words wait on
+  Roman's check; they change no recording.
+- The describe door also reads `batches.item_id`, because the steering
+  fixture links a batch to an item that way.
+- `ALTER TABLE items DROP COLUMN` fails on this schema, "incomplete
+  input"; the read-only pin renames the column instead. Not this frame.
+- The op count in `tests/rota/test_map.py` moves from 89 to 90.
+
 ## The pinned tests
 
 In `tests/rota/test_steering.py`, beside
@@ -401,9 +420,9 @@ the line its record's walk section names. This frame's two lines:
   most three in the night.
 - Second half: no `tick:criteria` session runs on an item with
   `is_description` 1, and a description written by a seat reaches the
-  owner's page under what the repository does today, with one
+  owner's page under its own heading, "How it is described:", with one
   `problem.describe` call in the keeper's slicing or challenge session
-  behind it.
+  behind it and no ticket.
 
 The night's third observation, not a gate: what the run does once the
 summary is off the path, because night 91 never got there. On night 91's
