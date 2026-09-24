@@ -665,6 +665,33 @@ a different question and the night is then opened once.
   rows: `c_1` says `echo_json returns a string` where the request says
   print. The interview probe runs on `s154` and `s144` now that the GPU is
   free, and the gate runs on the tree. Grill question 4 follows both.
+- Status 2026-09-24 05:15 (rota-b8): **the two seats recall the contradiction
+  they built through, in their own words** (observed: the interview probe,
+  `probes/frame37/interview_turn.py`, on `s154` turn 16 and `s144` turn 2
+  of `.rota/clickI_night91_walk1.db`, 2026-09-24 05:20, qwen3.5:9b with
+  thinking off, 7 s and 4 s). Rota workflow. The Tester that wrote the
+  returning test quoted the request, "prints an object as JSON", and
+  criterion `c_1`, "returns a string containing the JSON representation of
+  obj", and said: the request says prints, but c_1 explicitly says returns
+  a string. It triaged `c_1` encodable and encoded it, called nothing else,
+  and never ran its test. The Developer at attempt 6 quoted the request as
+  the criterion it built to, quoted the test, and said the request says
+  prints and the test expects a return; the record shows it then challenged
+  the Tester seven times, and the runner refused six as repeats, because
+  the criterion's owner is the Terminologist and no route reached it. Two
+  recall misses, read against the record: the Developer named `code.commit`
+  and `msg.escalate_architect` among its calls, and neither ran in `s154`;
+  the Tester said it was given no ids, and its wake named `c_1` to `c_6`.
+  The first run of the probe hit each session's last turn, which is the
+  runner's ended-session summary, and both seats answered "I do not know"
+  to everything rather than inventing, so the instrument does not
+  confabulate at this preamble (observed: the same probe at 05:12). One
+  register line for the sign. Meta workflow for the reading: frame 38's
+  criterion wall is now observed from inside the seats, and the repair site
+  is the Tester's triage, which has `encodable` and `cannot` and no verdict
+  for a criterion that contradicts the request. That is grill question 4's
+  recommended answer, and the stall bound is dropped: the loop recovered at
+  attempt 9 after five unchanged attempts.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
