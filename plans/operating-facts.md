@@ -317,6 +317,8 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 - Take the scoring rule from the good answers. Check the rule against the tool's own field. The report is numbers plus a wording, never the open question. Start a spike without asking. Stop when a door is built before the measurement that asked for the door.
 - **An optional argument in an op's signature is filled on every call, and a refusal of it loops the seat** (observed: frame 81's re-record, 2026-09-24 08:58). `tests.triage` gained `request_span` and `criterion_span` for one verdict, and the op refused a span on any other verdict with `a span belongs to contradicts_request; if the criterion agrees with the request, send the verdict alone`. qwen3:8b filled both spans on `encodable` in every run of four cases, was refused, repeated the call verbatim and was ended by the runner with nothing written: `L1-TS-encode-a-criterion` went from green to 0/5. The model copies the spans word for word, so the spans are usable; the refusal was the fault. The same shape as `batch_id='12345'` in `tests.encode`'s docstring: a slot in the signature is a slot the model fills. An optional argument that one branch needs is ignored on the others, never refused.
 
+- The owner's page heads a seat-written description with "How it is described:", after "What we are building:" and before "It would:" (ruled: Roman, 2026-09-24 20:20, asked with two other wordings; frame 80's heading check).
+
 ## The principal flow
 
 - On 2026-09-12 Roman saw a talk on humanlayer's "Why Software Factories Fail" (wsff.md in github.com/humanlayer/advanced-context-engineering-for-coding-agents). Roman asked for a redesign of the principal's flow from that talk.
