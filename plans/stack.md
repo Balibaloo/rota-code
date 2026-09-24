@@ -103,6 +103,13 @@ a shared walk is not split.
 7. **Batch D**, frames 41 and 42.
 8. **Frame 33's walk**, then the remaining steps of frame 4.
 
+**Roman ruled on 2026-09-24 16:10 that frame 82, the ten known reds blind
+the gate, runs first after night 92 closes frames 81, 79 and 80, and
+before batch B** (ruled: Roman, asked with "after batch B" and "no frame
+yet" as the other options; the batch order's own rule, an instrument is
+repaired before the work it accepts). The gate's baseline stays at
+`b82565d` until frame 82 closes (ruled: Roman, 2026-09-24 16:05).
+
 The file below is in that order. Frames 2 and 1 stay at the bottom, because
 they are the gauntlet and the end state and no step names them.
 
@@ -904,6 +911,68 @@ a different question and the night is then opened once.
   word. The worktree `wt-79` is removed. What the night proves for this
   frame is in the record's section "The walk". Frame 80 is next in
   Roman's order, and its mechanism is in its own status of 11:02.
+
+### 82. The ten known reds blind the gate (2026-09-24)
+
+- **No batch. It is the instrument repair the batch order's own rule puts
+  before the work the instrument accepts, and it runs first after night
+  92 closes frames 81, 79 and 80, before batch B** (ruled: Roman,
+  2026-09-24 16:10, asked in the terminal with "after batch B" and "no
+  frame yet" as the other options). It touches briefs and cases, so it
+  carries a design review and ends on a walk. It touches no predicate,
+  so the diff review is the design review's call.
+- Meta workflow. The gate's stored baseline is `b82565d` of 2026-09-21.
+  Ten cases have read red against it on every gate since 2026-09-23, and
+  every session since has counted them by hand to call a run clean
+  (observed: frame 81's status of 08:16, frame 79's of 12:24, frame 80's
+  of 15:40, and `.rota-gate.log` of 15:38 diffed against
+  `.rota-gate.json` at 16:07). The ten: `ACT-DV-edit-inside-the-function`,
+  `L1-AR-a-dead-end-is-reported-not-sat-on`,
+  `L1-AR-survey-a-shared-helper`,
+  `L1-CR-a-test-that-encodes-nothing-is-a-challenge`,
+  `L1-DV-apply-the-answer-and-carry-on`,
+  `L1-LI-a-question-about-the-page-is-answered-not-ruled`,
+  `L1-TE-answer-a-term-question`, `L1-TE-challenge-an-unusable-item`,
+  `L1-TS-apply-a-term-and-write-the-test` and
+  `L1-VK-reopen-after-an-election`. Eight are frame 73's salted cases,
+  which pass with the fixture's usual ids and fail when the ids change,
+  so a brief or a check leans on the id text. Frame 73's ends-when named
+  the reading of each as a brief fault, a check fault or a salt fault,
+  and the frame closed at `b79882e` without that reading on record
+  (observed: frame 73's block in `plans/archive/stack-2026-09-23.md`,
+  lines 1952 to 2012, 2026-09-24 16:11). Roman ruled the baseline stays
+  until the ten are repaired (ruled: Roman, 2026-09-24 16:05, frame 80's
+  status of 16:07), so "zero new reds" cannot gate until this frame
+  closes. The flaky `test_map.py` case is the eleventh new red and is
+  read once for whether it is flaky or wrong.
+- Ends when, each line with a price from the anchors of
+  `plans/operating-facts.md` and the behaviour the price buys:
+  (1) each of the ten is read from its recorded transcripts and named a
+  brief fault, a check fault or a salt fault in a record, with the fix
+  per case; about 80k on Opus for the read and 8k here for the record;
+  buys the classification frame 73 promised, so each repair lands in
+  the right file. (2) The design review reads the record before any
+  code; about 70k to 110k on Opus; buys fewer repairs that move the
+  greedy path of another case, because a brief spike on one seat was
+  measured to flip a second case on frame 81. (3) The ten are repaired
+  and re-recorded green by exact id, the map case is fixed or marked
+  flaky with its reason, and the gate's five lines read zero new reds
+  against `b82565d`; then `--baseline` stores the closing commit; two
+  to three implementer passes on Opus, about 150k to 200k, about 60
+  minutes of GPU for the re-records and two gates; buys the acceptance
+  line back for every frame after it. (4) A walk, because a brief
+  moved: the next night after night 92, from a worktree at this frame's
+  closing commit, shows no seat whose brief moved fall below its night
+  91 count on the same wake; about 30k here and two to three hours of
+  GPU; buys proof that the spikes hold on live ids and not only on the
+  cases.
+- Waits on: night 92's close, so the repair does not race the code the
+  night proves. Then nothing.
+- Reasoning: frame 73's second line in `plans/archive/stack-2026-09-23.md`,
+  and frame 80's status of 16:07.
+- Status 2026-09-24 16:11 (rota-95): pushed by 8736e9fc at Roman's ruling,
+  unclaimed. Meta workflow. The holder of the stack after night 92
+  takes it before batch B.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
