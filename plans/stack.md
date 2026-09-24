@@ -554,6 +554,24 @@ a different question and the night is then opened once.
   never reaches the give-up. The diff review grows to about 120k for
   both halves. Next: the design review of the second half on Opus 5.5.
 
+- Status 2026-09-24 13:24 (rota-6d): **the second design review lands, the record
+  is at revision 4, and the build starts with pass 1, the revive rule**
+  (observed: the reviewer on Opus 5.5, 109.3k on the harness line, 54
+  tool calls, 6.7 minutes, 2026-09-24 13:22). Meta workflow. Ten
+  findings, four high: the describe op with a version move never reaches
+  the owner and cancels a live batch, so it writes the flag and
+  approval draft with no version move; grouping needs the skip too; a
+  new key in consult and the page resolver would stale 498 and 311
+  recordings, so both emit the key only when it is 1; the op gets a
+  door against the owner's own words and a live batch, because night
+  91's challenges named the real request. Twenty-one keeper cases,
+  three re-record. Design review actual 109.3k against 80k. One
+  implementer on Opus holds the frame's build: pass 1 is the first
+  half, pass 2 the second, resumed by message. The gate and the commit
+  are this session's. This session reads about 250k; the night will
+  outlive it, so the hand-off lands during the build or the diff
+  review, with the record as the spec.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
