@@ -576,6 +576,18 @@ a different question and the night is then opened once.
   of the seven touched modes too. Next: the review's findings fold into
   the record, then one implementer pass, the re-records, the gate and
   the commit here; the baseline then moves by Roman's ruling of 16:05.
+- Status 2026-09-24 20:23 (rota-95): **the design review lands, the record is
+  at revision 2 at `4df635a`, and the build runs on Opus** (observed: the
+  reviewer on Opus 5.5, 87.4k on the harness line against 80k, 43 tool
+  calls, 8.6 minutes). Meta workflow. The classes hold. Corrected: case 1's
+  run belongs to the edit commit; case 4's edit breaks the package import
+  too; case 3 gets no new guard; case 8 expects `report` only; every
+  brief change is one headline act; thirteen sibling cases re-record with
+  the ten, each with its tally before. One implementer on Opus, cap 150k
+  as a request, with the re-records in the foreground. The gate and the
+  commit are this session's, then `--baseline` at the closing commit by
+  Roman's ruling of 16:05. This session reads about 300k: it finishes
+  frames 83 and 82 and takes no new frame.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
