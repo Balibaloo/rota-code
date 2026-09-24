@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 81. The Tester sends a criterion that contradicts the request back (2026-09-24) (2f969272)
+### 81. The Tester sends a criterion that contradicts the request back (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. First of the three repairs Roman ordered
   from night 91, before frames 79 and 80** (ruled: Roman, 2026-09-24 07:54,
@@ -376,6 +376,13 @@ a different question and the night is then opened once.
   10:14, confirmed 5 s after the claim). Meta workflow. Session 2f969272
   stops here at about 295k, holding nothing. The worktree `wt-81` is
   removed. The holder's first act is the state reply, then frame 79.
+- Status 2026-09-24 10:15 (rota-18): **taken by 4fe8b80c** (observed: the
+  take command's exit 0 at 10:14, claim posted 10:14:51 from 2f969272).
+  Meta workflow. The tree is clean at `ff29f57`. This frame stays
+  validating on the night. Frame 79 starts now, in Roman's order, with
+  the scope read of `_next_rung` and the refs the Developer's messages
+  carry, then the design record, then the grill question its ends-when
+  line names, by the phone route. Roman is away from the keyboard.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
@@ -422,7 +429,7 @@ a different question and the night is then opened once.
 - Status 2026-09-24 07:54 (rota-b8): **third of the three, after frame 81**
   (ruled: Roman, 2026-09-24 07:54, grill question 4 of frame 37). Unclaimed.
 
-### 79. The exhaustion ladder never climbs past the Developer (2026-09-24)
+### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
   wall that stands after frame 77's two rules.** One site, `_next_rung` in
@@ -457,6 +464,13 @@ a different question and the night is then opened once.
   GPU is idle otherwise.
 - Status 2026-09-24 07:54 (rota-b8): **second of the three, after frame 81**
   (ruled: Roman, 2026-09-24 07:54, grill question 4 of frame 37). Unclaimed.
+- Status 2026-09-24 10:16 (rota-18): **taken by 4fe8b80c, after frame 81
+  reached validating** (ruled: Roman, 2026-09-24 07:54, the order 81, 79,
+  80). Meta workflow. First act: the scope read, which is the writer of
+  `body_refs` at the send and the thread a `tick:exhausted` wake opens.
+  Then the design record prices the two routes of the ends-when line.
+  Then the grill's one question goes by the phone route, with a
+  recommended answer, because Roman is away from the keyboard.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
