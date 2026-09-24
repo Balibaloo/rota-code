@@ -673,6 +673,26 @@ a different question and the night is then opened once.
   first act is the state reply, then night 92 from a worktree at
   `40b4777`.
 
+- Status 2026-09-24 15:45 (rota-95): **taken by 8736e9fc, and night 92 runs
+  cold from the worktree at `40b4777`** (observed: the take command's exit
+  0 at 15:41, claim posted 15:40:52 from a664990b; `.rota/night92.log` at
+  15:45: "night 92 launched 15:45 from C:/Users/roman/rota_night92 at
+  40b4777", the click restore to `2c8cd3a`, "== onboard 15:45", "COLD: no
+  warm snapshot"). Meta workflow. The tree was clean at `fc20813`. The
+  stamp went cold on its own before the launch: `warm_stamp.py check`
+  named `graph.json`, `predicates.py`, `scheduler.py`, `schema.sql` and
+  `db.py` as moved since `b79882e`. So the night onboards fresh, and
+  `problem.assert` sets the description flag at onboarding by
+  construction. The first launch at 15:44 ran without a log: the redirect
+  sat inside the `-lc` string and reached bash as positional arguments.
+  That tree was killed one minute into onboarding and relaunched with the
+  two redirect flags. Register lines written: one, for that sign. A
+  waiter in this session's background exits on the launcher's done line.
+  Frames 81 and 79 stay validating on this night. The reserve holds one
+  free standby, rota-c5. Next: copy the database to
+  `.rota/clickI_night92.db` at once, then read it against the three
+  records' walk lines.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
