@@ -110,6 +110,17 @@ yet" as the other options; the batch order's own rule, an instrument is
 repaired before the work it accepts). The gate's baseline stays at
 `b82565d` until frame 82 closes (ruled: Roman, 2026-09-24 16:05).
 
+**Roman ruled on 2026-09-24 19:46 that frames 83 and 82 run at once, on two
+sessions** (ruled: Roman, asked with "83 then 82" recommended and "82 then
+83" as the other option; the option named the one-holder rule it crosses).
+Session 8736e9fc holds frame 83, the scheduler wall, because its diagnosis
+is in that context. Frame 82 goes to the session Roman names. Two sessions
+write this file, so each edits its own frame's block only and commits the
+stack alone right after each edit, and neither touches the other's block
+(reasoned: the one-holder rule exists because two writers clobber one
+file, and the smallest edits committed at once keep the clobber window
+short).
+
 The file below is in that order. Frames 2 and 1 stay at the bottom, because
 they are the gauntlet and the end state and no step names them.
 
@@ -170,7 +181,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
+### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (8736e9fc)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
   wall that stands after frame 77's two rules.** One site, `_next_rung` in
@@ -358,8 +369,14 @@ a different question and the night is then opened once.
   word. The worktree `wt-79` is removed. What the night proves for this
   frame is in the record's section "The walk". Frame 80 is next in
   Roman's order, and its mechanism is in its own status of 11:02.
+- Status 2026-09-24 19:47 (rota-95): **held by 8736e9fc, validating until a
+  night reaches exhaustion** (observed: night 92's `sessions` on the copy
+  `.rota/clickI_night92.db`, no `tick:exhausted` row, the Developer's
+  attempts 2, 3 and 6 on `b_1` and up to 7 on `b_2`, 2026-09-24 19:43).
+  Meta workflow. The code is in the main line at `40b4777`. The walk line
+  stays open, and no work is owed before a night that enters the path.
 
-### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24)
+### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (8736e9fc)
 
 - **Batch C, the night's stall. Found by night 92's walk 3, and it is the
   wall that stands after frames 81, 79 and 80.** Two sites: the batch
@@ -407,6 +424,12 @@ a different question and the night is then opened once.
 - Reasoning: frame 80's status of 19:43, and the probe in that status.
 - Status 2026-09-24 19:43 (rota-95): pushed by 8736e9fc from the night's
   record, unclaimed. Meta workflow.
+- Status 2026-09-24 19:47 (rota-95): **claimed by 8736e9fc, at Roman's
+  ruling that frames 83 and 82 run at once on two sessions** (ruled:
+  Roman, 2026-09-24 19:46, the batches section above). Meta workflow.
+  Roman asked at 19:47 for cycle detection, so the grill starts there:
+  where the detector looks, then the order question. The design record
+  follows the grill, then the design review on Opus 5.5 before any code.
 
 ### 82. The ten known reds blind the gate (2026-09-24)
 
