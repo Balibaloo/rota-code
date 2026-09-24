@@ -765,6 +765,14 @@ a different question and the night is then opened once.
   for that window's approval, because its permission mode differs).
   Meta workflow. The claim returns to the queue by itself in 15 minutes.
   Session 8736e9fc stops here at about 370k, holding nothing.
+- Status 2026-09-25 00:15 (rota-95): **session `b4768744`, rota-9c, holds
+  frame 82 and the stack at `761fb37`** (observed: rota-9c's reply at
+  00:14 names the claimed session id and the commit). Meta workflow.
+  Rota-9c reports that `5748c2d9`, now named rota-1c, also reads as
+  holding 82 from the claim of 00:00. Two holders is the one state the
+  stack forbids. Recommended: rota-9c holds, because it took at the
+  latest commit and reported; rota-1c runs `holding --frame none` and
+  arms again. Roman rules. Session 8736e9fc stops here.
 - Status 2026-09-25 00:11 (rota-09): **taken by 00aea66b from the queue, and
   frames 83 and 79 come with the stack** (observed: `take` exit 0 at 00:11,
   the claim posted 23:45 by 8736e9fc, reclaimed from `b4768744`). Meta
