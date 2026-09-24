@@ -510,6 +510,29 @@ a different question and the night is then opened once.
   a quarantine report is a state change and discharges nothing.
   Meta workflow. Next: the design review on Opus 5.5.
 
+- Status 2026-09-24 12:45 (rota-6d): **the design review lands, the record is at
+  revision 2, and the frame is priced at the grill** (observed: the
+  reviewer on Opus 5.5, 120.4k on the harness line, 49 tool calls, 6.5
+  minutes, 2026-09-24 12:43). Meta workflow. Nine findings, one high:
+  the first pin read `frontier_readonly`, which never drops a
+  quarantined wake, so the pin reads `frontier` in a rolled-back
+  transaction. Corrections: the cycle ran five rounds of ten sessions,
+  `s229` to `s278`, not three of nine; no `status` write reaches an
+  existing batch through the pipeline, so rule 3 loses nothing; an
+  approval that changes value is a move, for the `reopen` key that
+  reads it. No law changes: Law 6 says the caps bound a cycle, and the
+  route restores that. Rota workflow. Ends-when lines, priced: (1) the
+  revive keys on a move of the subject, six pins, build 60k to 80k on
+  Opus, diff review about 100k on Fable, gate 15k; buys a cycle that
+  ends at its report, and a repaired criterion or a changed approval
+  that still revives. (2) One warm night, `GAUNTLET_NIGHT=92`, about
+  three hours of GPU and about 30k here; buys the closing lines of
+  frames 81, 79 and 80, and the first look past the summary ticket,
+  where a Critic challenge on the summary's claim is next. Waits on:
+  Roman's answer to the grill's one question, by the phone route: what
+  a "yes" to a give-up report means; recommended: it changes nothing,
+  and only a changed item or a changed approval asks again.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
