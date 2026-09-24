@@ -676,6 +676,18 @@ a different question and the night is then opened once.
   `code.source` for the Tester's answer mode, the survey guard, the L3
   chain and the second map test re-recorded, one gate. Case 8 stays a
   known red on the report-only check.
+- Status 2026-09-24 21:49 (rota-95): **paused at Roman's word, "pause all gpu
+  work"** (ruled: Roman, 2026-09-24 21:48). Meta workflow. The pass-3
+  agent was stopped after its touched test files passed and before its
+  gate; its edits and re-records are on disk, uncommitted, in the
+  prompts, `rota/testkit/fixtures.py`, `rota/core/sandbox.py`,
+  `rota/roles/api.py`, the mode's tool list, the case files and
+  `tests/rota/test_map.py`. Both models are unloaded. What resumes when
+  Roman lifts the pause: one gate on this tree, then the closing commits
+  of frames 82 and 83, then the baseline move if the ten are green, then
+  the hand-off, since this session reads about 340k. The agent's report
+  of pass 3 is lost with the stop, so the resuming holder reads the diff
+  and the register's tallies by `tally2.py` in this session's scratchpad.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
