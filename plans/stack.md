@@ -757,6 +757,13 @@ a different question and the night is then opened once.
   `python rota/tools/handover.py take --sid 5748c2d9`; and run
   `/standby` in the other windows. Session 8736e9fc stops here at about
   365k, holding nothing.
+- Status 2026-09-25 00:11 (rota-09): **taken by 00aea66b from the queue, and
+  frames 83 and 79 come with the stack** (observed: `take` exit 0 at 00:11,
+  the claim posted 23:45 by 8736e9fc, reclaimed from `b4768744`). Meta
+  workflow. Next: read the diff of `43823ea` for the survey guard and the
+  Tester's `code.source` against the register's tallies, decide on the guard,
+  spike case 9's brief once, one implementer pass, one gate with zero new
+  reds, then `--baseline` at the closing commit.
 - Status 2026-09-25 00:11 (rota-1c): **taken by 5748c2d9 from the disk claim
   of 00:00, with frames 83 and 79 as the hand-off carries them** (observed:
   the standby command's exit 0 at 00:10 with the claim of 00:00:18, then
