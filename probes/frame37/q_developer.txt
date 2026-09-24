@@ -1,0 +1,8 @@
+In one sentence, what were you asked to do?
+Quote the criterion text you were building to, exactly as it appeared in your prompt. If none appeared, say `none`.
+Quote the body of the test `tst_echo_json_returns_string` as it appeared in your prompt. If it was not in your prompt, say `not shown`.
+Does the request say that echo_json prints, returns, or both? Quote the words from your prompt.
+List every id you were given, exactly as they appeared. If you were given none, say `none`.
+Name the functions you called, and any you considered and decided against.
+Which test results in your prompt came from tests you did not write? Name them by id, or say `none`.
+Was there anything you needed in order to decide, and could not find? Name it, or say `nothing`.

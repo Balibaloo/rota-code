@@ -1,0 +1,8 @@
+In one sentence, what were you asked to do?
+Quote the request text you were shown for echo_json, exactly as it appeared in your prompt.
+Quote the criterion you wrote `tst_echo_json_returns_string` against, exactly as it appeared in your prompt. If none appeared, say `none`.
+Does the request say that echo_json prints, returns, or both? Quote the words from your prompt.
+List every id you were given, exactly as they appeared. If you were given none, say `none`.
+Name the functions you called, and any you considered and decided against.
+Did you run the test you wrote? Name the call that ran it, or say `none`.
+Was there anything you needed in order to decide, and could not find? Name it, or say `nothing`.
