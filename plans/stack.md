@@ -459,6 +459,19 @@ a different question and the night is then opened once.
   (reasoned: `scheduler.py:1525-1541`'s delete on absence is what let
   each rule wipe the other). Next: the design record with those three
   parts and the pins, then the design review on Opus 5.5.
+- Status 2026-09-24 19:55 (rota-95): **the design record is written at
+  `b34c92b` and the design review runs on Opus 5.5, eight points, no
+  worktree, no code** (observed: the record is
+  `plans/archive/cycle-alert-and-one-order-design-2026-09-24.md`). Meta
+  workflow. Three parts: the cycle alert as `rota/core/cycles.py`, one
+  order as `next_batch` read by the starter and the preempt with a
+  deferred batch that has a head commit never offered a fresh start,
+  and a counter erased on a move and never on absence. Nine pins, two
+  of them on fixtures extracted from nights 92 and 91. Priced: review
+  70k to 110k, build 80k to 120k plus a 30k resume, diff review about
+  100k, two gates, one night. This session reads about 240k, so the
+  build's passes and the diff review land here if the review is short,
+  and the hand-off lands during the build otherwise.
 
 ### 82. The ten known reds blind the gate (2026-09-24)
 
