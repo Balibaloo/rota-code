@@ -452,6 +452,35 @@ a different question and the night is then opened once.
   version discharges it): the revive keys on a version change of the
   subject, not on any write, so a relay that changes nothing revives
   nothing. Where the summary item came from is the record's first read.
+- Status 2026-09-24 12:25 (rota-18): **handed to the reserve with the
+  stack, unclaimed, with frames 81 and 79 validating** (reasoned: this
+  session reads about 272k, and this frame's design record and review
+  would cross the 300k line, as frame 81's holder judged at 295k; Roman
+  said "don't hesitate to hand off if needed" on 2026-09-24 02:29).
+  Meta workflow. What the holder inherits, in order: (1) this frame: the
+  mechanism is in the status of 11:02, the first read is which session
+  and which tick wrote the summary item `bg_1_summary`, and the revive
+  function around `rota/core/db.py:488-535`; the design shape is that a
+  revive keys on a version change of the subject, not on any write; then
+  a design review on Opus 5.5, the build, a diff review on a worktree,
+  and the gate, by frame 79's shape in
+  `plans/archive/exhaustion-ladder-design-2026-09-24.md`. (2) One warm
+  night from a worktree at this frame's closing commit,
+  `GAUNTLET_NIGHT=92`, by the shape of `.rota/launch_night91.sh` with
+  `ROTA_REPO` at a fresh `C:/Users/roman/rota_night92` worktree, warm
+  by default; frames 81, 79 and 80 close on that night, each on the line
+  its record's walk section names. (3) The gate's stored baseline is
+  `b82565d` of 2026-09-21, so the same ten L1 reds show as new on every
+  run, and frame 73's nine salted cases stay known reds; the implementer
+  asked twice whether the baseline moves, and that is Roman's call, not
+  a frame yet. (4) Frame 79's record holds three out-of-scope notes:
+  three predicates match a batch id without quotes, the Architect's
+  exhausted brief opens with a sentence route B makes imprecise, and a
+  tick as a message cause. (5) Worktrees of ended sessions stay
+  registered: `wt-night89`, `wt-33`, `wt-34`, `wt-36`, `wt-86` in other
+  sessions' scratchpads, and `rota_night88`, `rota_night90`,
+  `rota_night91`; a parked item. Roman's untracked `rota.code-workspace`
+  is his. Roman opened three standbys at 11:47 and is near the keyboard.
 
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
