@@ -482,24 +482,63 @@ def _thread_of(conn: sqlite3.Connection, m) -> str:
     return m.id
 
 
-def _lift_quarantines(conn: sqlite3.Connection, w) -> None:
+_NO_ROW = ("no row",)
+
+
+def _subject_state(conn: sqlite3.Connection, w: Write) -> tuple | None:
     """
-    A quarantine holds while its subject is unchanged; a write that changes
-    the subject is the exit.
+    The row's version and approval, read before and after a write.
+
+    None for a refs or junction write, which has no row of its own. The
+    columns a table lacks are left out, so the compare reads only what exists.
+    """
+    if w.table == REFS_TABLE or w.table in JUNCTION_TABLES:
+        return None
+    cols = [c for c in ("version", "approval") if _has_column(conn, w.table, c)]
+    row = conn.execute(
+        f"SELECT {', '.join(['1', *cols])} FROM {w.table} WHERE id = ?",
+        (w.row_id,)).fetchone()
+    return _NO_ROW if row is None else tuple(row)
+
+
+def _subject_moved(conn: sqlite3.Connection, w: Write, before) -> bool:
+    """
+    Whether a write moved its subject: a new row, a version change, an
+    approval change, a head commit, or a junction write.
+
+    A write that sets the values the row holds already moves nothing. Night
+    91's relay approved an approved item three times, and each write revived
+    a tick that had given up (frame 80).
+    """
+    if before is None or before == _NO_ROW:
+        return True
+    if w.table == "batches" and "head_commit" in (w.values or {}):
+        return True
+    return _subject_state(conn, w) != before
+
+
+def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
+    """
+    A quarantine holds while its subject is unchanged. A write that moves
+    the subject is the exit: a new row, a version change, an approval
+    change, or a head commit. A write that changes nothing is not an exit.
 
     The never-delete rule is right for what it was written against -- a
     quarantine erasing its own evidence put icalendar through 131 sessions
     of one key -- but it had no "the world moved" case, so a repaired
     criterion could never wake the Tester that gave up on it: every S0 walk
     died permanently at its first quarantine even after the cause was
-    fixed. A quarantined tick revives when a commit writes a row its refs
-    name, or (for criteria and tests) writes into the batch its refs name,
-    because those tables are what the batch-keyed ticks are about.
+    fixed. A quarantined tick revives when a commit moves a row its refs
+    name, or (for criteria and tests) moves a row in the batch its refs
+    name, because those tables are what the batch-keyed ticks are about.
     """
-    conn.execute(
-        "DELETE FROM tick_attempts WHERE quarantined = 1 "
-        "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
-        (f"%|{w.row_id}", f"%|{w.row_id},%", f"%,{w.row_id}%"))
+    # Law 6: the attempt caps and the ladder bound a cycle, so only a move revives.
+    if moved:
+        conn.execute(
+            "DELETE FROM tick_attempts WHERE quarantined = 1 AND (tick_key LIKE ? "
+            "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
+            (f"%|{w.row_id}", f"%|{w.row_id},%",
+             f"%,{w.row_id}", f"%,{w.row_id},%"))
     # A new head commit is progress, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine -- the key
@@ -514,7 +553,7 @@ def _lift_quarantines(conn: sqlite3.Connection, w) -> None:
     if w.table == "batches" and "head_commit" in fields:
         conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                      (f"%|tick:tests_failing|{w.row_id}",))
-    if w.table in ("criteria", "tests"):
+    if moved and w.table in ("criteria", "tests"):
         if w.table == "criteria":
             batches = [r["batch_id"] for r in conn.execute(
                 "SELECT DISTINCT bt.batch_id FROM batch_tickets bt "
@@ -565,6 +604,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         )
 
         for w in result.writes:
+            before = _subject_state(conn, w)
             changed = _apply_write(conn, w)
             table, row_id = receipt_of(w)
             if table not in ARTEFACT_TABLES or not changed:
@@ -586,7 +626,7 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
                     (result.session_id, table, row_id, new_version),
                 )
             if w.table != REFS_TABLE:
-                _lift_quarantines(conn, w)
+                _lift_quarantines(conn, w, _subject_moved(conn, w, before))
 
         for m in result.messages:
             conn.execute(

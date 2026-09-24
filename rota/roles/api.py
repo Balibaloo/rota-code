@@ -3618,7 +3618,9 @@ def criteria_respecify(ctx: Ctx, id: str, text: str,
                      "surface_refs": json.dumps(
                          _vet_surface(ctx, surface_refs, required=True,
                                       ticket_id=cur["ticket_id"] if cur else None))}
-    ctx.writes.append(("criteria", id, payload, False))
+    # A respecified criterion is an amendment, so its version moves and the
+    # Tester that gave up on it wakes. No reader reads a criterion's version.
+    ctx.writes.append(("criteria", id, payload, True))
     # A list given replaces the list on file, and the list an earlier call
     # of this session staged: the refs not in it are retired. No list
     # leaves the refs as they are.

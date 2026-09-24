@@ -489,11 +489,27 @@ def test_a_commit_resets_the_failing_ticks_attempts(db):
     from rota.core.db import Write
     W = Write(table="batches", row_id="b1", values={"head_commit": "def456"})
 
-    _lift_quarantines(db, W)
+    _lift_quarantines(db, W, moved=True)
     rows = {r["tick_key"]: r["attempts"] for r in db.execute(
         "SELECT tick_key, attempts FROM tick_attempts")}
     assert "developer|tick:tests_failing|b1" not in rows, "progress resets"
     assert rows["tester|tick:tests_missing|b1"] == 2, "an unrelated debt keeps its count"
+
+
+def test_a_head_commit_still_revives_the_batchs_keys(db):
+    """Night 91's fix revives a quarantine on a move of its subject only. A
+    new head commit is progress and stays a move, though `code.commit`
+    writes it with `amends` False (frame 80)."""
+    from rota.core.db import SessionResult, Write, session_commit
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES ('critic|tick:review|b1', 3, 1, 1)")
+    db.commit()
+    session_commit(db, SessionResult(
+        session_id="s_code", role="developer",
+        writes=[Write("batches", "b1", {"head_commit": "def456"},
+                      amends=False)]))
+    assert not db.execute("SELECT 1 FROM tick_attempts WHERE tick_key = "
+                          "'critic|tick:review|b1'").fetchone(), "progress revives"
 
 
 def test_a_re_encoded_test_is_owed_a_fresh_run(db):
@@ -507,7 +523,8 @@ def test_a_re_encoded_test_is_owed_a_fresh_run(db):
     db.commit()
     assert harness(db) == [], "tested at this commit: nothing owed"
     _lift_quarantines(db, Write(table="tests", row_id="tst1",
-                                values={"body": "def test_x():\n    assert 1"}))
+                                values={"body": "def test_x():\n    assert 1"}),
+                      moved=True)
     assert not db.execute("SELECT 1 FROM test_runs WHERE test_id='tst1'").fetchone(), \
         "the old body's runs are gone"
     assert [w.refs for w in harness(db)] == [("b1",)], "a run is owed again"
@@ -686,6 +703,27 @@ def test_a_respecify_with_the_same_words_repairs_nothing(db):
                   surface_refs=["close_account"])
     assert out.get("unchanged"), out
     assert not any(w[0] == "criteria" for w in sb.ctx.writes)
+
+
+def test_a_respecified_criterion_moves_its_version(db):
+    """Night 91's fix revives a quarantine only when its subject moves. A
+    respecify wrote with `amends` False, so a repaired criterion moved
+    nothing and the Tester that gave up on it never woke (frame 80)."""
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    from rota.roles import prompts
+    sb = build("terminologist", db, mode="criterion_repair",
+               allow=prompts.mode_tools("terminologist", "criterion_repair"))
+    sb.call("criteria.respecify", id="c1",
+            text="closing an account keeps every invoice it issued",
+            surface_refs=["close_account"])
+    writes = [_as_write(w) for w in sb.ctx.writes]
+    (crit,) = [w for w in writes if w.table == "criteria"]
+    assert crit.amends, "a respecify is an amendment"
+    session_commit(db, SessionResult(session_id="s_re", role="terminologist",
+                                     writes=writes))
+    row = db.execute("SELECT version FROM criteria WHERE id = 'c1'").fetchone()
+    assert row["version"] == 2, "the criterion's version moves"
 
 
 def test_a_fixture_the_harness_lacks_errors_at_setup(db):

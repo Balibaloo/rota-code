@@ -108,10 +108,11 @@ def test_a_quarantine_lifts_when_its_subject_moves(db):
     """The never-delete rule had no "the world moved" case: a repaired
     criterion could never wake the Tester that gave up on it, and every S0
     walk died permanently at its first quarantine even after the cause was
-    fixed. A commit that writes a row a quarantined tick is about -- or
-    writes criteria/tests into the batch its refs name -- is the exit; an
-    unrelated quarantine survives."""
-    from rota.core.db import _lift_quarantines
+    fixed. A commit that moves a row a quarantined tick is about -- or
+    moves criteria/tests in the batch its refs name -- is the exit; an
+    unrelated quarantine survives. The move is a respecify: new words, and
+    the criterion's version moves (frame 80)."""
+    from rota.core.db import Write
     from rota.core.scheduler import tick_key
     from rota.core.predicates import Wake
 
@@ -124,15 +125,114 @@ def test_a_quarantine_lifts_when_its_subject_moves(db):
                "VALUES ('architect|tick:survey|src/other', 5, 1)")
     db.commit()
 
-    class W:
-        table = "criteria"
-        row_id = "c1"
-
-    _lift_quarantines(db, W)
+    _commit(db, "s_re", "terminologist",
+            Write("criteria", "c1", {"text": "new words",
+                                     "surface_refs": '["run"]'}))
     assert not db.execute("SELECT 1 FROM tick_attempts WHERE tick_key=?",
                           (key,)).fetchone(), "the moved subject revives"
     assert db.execute("SELECT 1 FROM tick_attempts WHERE tick_key LIKE "
                       "'%other%'").fetchone(), "an unrelated debt survives"
+
+
+def _commit(db, session_id, role, *writes):
+    """Land writes the way the runner does, through the one commit path."""
+    from rota.core.db import SessionResult, session_commit
+
+    session_commit(db, SessionResult(session_id=session_id, role=role,
+                                     writes=list(writes)))
+
+
+def _quarantine(db, key, attempts=3):
+    db.execute("INSERT INTO tick_attempts (tick_key, attempts, quarantined, "
+               "reported) VALUES (?, ?, 1, 1)", (key, attempts))
+    db.commit()
+
+
+def _held(db, key):
+    return db.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                      (key,)).fetchone() is not None
+
+
+def _summary_criteria_wakes(db):
+    """The criteria wakes on `bg_1_summary` that `frontier` offers.
+
+    `frontier` writes the quarantine as it reads, so it runs in a
+    transaction rolled back after. `frontier_readonly` skips
+    `quarantine_stalled` and would list the dropped wake."""
+    from rota.core.scheduler import frontier
+
+    db.execute("BEGIN")
+    try:
+        return [w for w in frontier(db) if w.kind == "tick:criteria"
+                and "bg_1_summary" in w.refs]
+    finally:
+        db.execute("ROLLBACK")
+
+
+def test_a_verdict_that_changes_nothing_revives_nothing(db):
+    """clickI night 91 (2026-09-24): the Terminologist gave up on the
+    summary's ticket, and the relay of the principal's verdict approved an
+    approved item. Each write revived the tick, five rounds of ten sessions."""
+    from rota.core.db import Write
+
+    key = "terminologist|tick:criteria|bg_1_summary"
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('bg_1_summary','Click is a toolkit',"
+               "'in_scope','approved',1,1)")
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1_bg_1_summary','bg_1_summary',"
+               "'the software is a command-line interface toolkit called Click')")
+    _quarantine(db, key)
+
+    approve = {"approval": "approved", "approval_ver": 1}
+    _commit(db, "s258", "vision_keeper",
+            Write("items", "bg_1_summary", approve, amends=False),
+            Write("items", "bg_1_summary", {"priority": 1}, amends=False),
+            Write("items", "bg_1_summary", approve, amends=False))
+    row = db.execute("SELECT attempts, quarantined, reported FROM tick_attempts "
+                     "WHERE tick_key = ?", (key,)).fetchone()
+    assert tuple(row) == (3, 1, 1), "a yes that changes nothing changes nothing"
+    assert _summary_criteria_wakes(db) == [], "the give-up stands"
+
+    _commit(db, "s_amend", "vision_keeper",
+            Write("items", "bg_1_summary", {"text": "Click echoes json"}))
+    assert not _held(db, key), "new words revive the tick"
+    assert len(_summary_criteria_wakes(db)) == 1, "the wake is back"
+
+
+def test_an_approval_change_moves_the_item(db):
+    """The reopen predicate reads the item's approval, so a withdrawal is a
+    move. An approval written over the same approval, night 91's relay, is
+    not (frame 80)."""
+    from rota.core.db import Write
+
+    key = "developer|tick:reopen|b1,i1"
+    _quarantine(db, key)
+    _commit(db, "s_same", "vision_keeper",
+            Write("items", "i1", {"approval": "approved", "approval_ver": 1},
+                  amends=False))
+    assert _held(db, key), "the same approval moves nothing"
+    _commit(db, "s_contest", "vision_keeper",
+            Write("items", "i1", {"approval": "contested", "approval_ver": 1},
+                  amends=False))
+    assert not _held(db, key), "a changed approval revives the tick"
+
+
+def test_a_write_to_c_1_leaves_a_key_on_c_10(db):
+    """The pattern `%,c_1%` had no end anchor, so a write to `c_1` revived
+    a key whose refs hold `c_10` (frame 80's review, finding 7)."""
+    from rota.core.db import Write
+
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c_1','t1','old words')")
+    for key in ("tester|tick:x|b9,c_10", "tester|tick:x|b9,c_1",
+                "tester|tick:x|b9,c_1,g1"):
+        _quarantine(db, key)
+    _commit(db, "s_c1", "terminologist",
+            Write("criteria", "c_1", {"text": "new words"}))
+    assert _held(db, "tester|tick:x|b9,c_10"), "another row's key survives"
+    assert not _held(db, "tester|tick:x|b9,c_1"), "refs that end in c_1 revive"
+    assert not _held(db, "tester|tick:x|b9,c_1,g1"), "refs that hold c_1 revive"
 
 
 def test_an_amended_delivered_item_owes_new_tickets_and_keeps_its_merged_batch(db):
