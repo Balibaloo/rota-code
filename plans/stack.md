@@ -163,6 +163,38 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 80. A quarantined criteria tick wakes again for ever (2026-09-24)
+
+- **Batch C, the night's stall. Found by night 91 after the batch's loop, and
+  it is the wall the records path stands on once the Developer is
+  exhausted.** One predicate site, `criteria` and `quarantined`, and one
+  night. It touches predicates, so it carries a diff review and a walk.
+- Rota workflow. From `s251` to `s278` the run repeats one cycle of nine
+  sessions three times, without change: the Terminologist wakes on
+  `tick:criteria`, the Vision Keeper challenges, three times over; the
+  Liaison wakes on `tick:quarantined` with `1 abandoned: criteria for
+  bg_1_summary (terminologist), 3 attempts`, converses with the principal,
+  gives a verdict, the Vision Keeper relays, and `tick:criteria` fires again
+  for the same ticket (observed: `.rota/clickI_night91.db`, sessions
+  `s270` to `s278`, 2026-09-24 05:11; the counter reads 11 wakes repeated,
+  40 sessions, 29 of them repeats). The quarantine records the abandonment
+  and discharges nothing, so the obligation is re-derived on the next pass
+  and the yes-only principal's answer never lands on it (reasoned: the
+  composition says an obligation stays visible until something discharges
+  it, and here nothing does). The night was stopped on this cycle at 05:11
+  by the holder of frame 37, 3 hours 16 minutes into walk 1, at 278
+  sessions (ruled: the assistant, under Roman's "judge without me"; a
+  proven cycle teaches nothing more, and the step cap was hours away).
+- Ends when: a quarantined obligation is not re-derived until the
+  principal's verdict or a new version discharges it, with a pinned test
+  that runs the nine-session cycle once and asserts the tick stays quiet;
+  and a night from the warm snapshot shows the cycle gone. Unpriced until
+  the grill.
+- Waits on: Roman's order against frames 79 and grill question 4.
+- Reasoning: this frame's second line, and frame 37's status of 02:50.
+- Status 2026-09-24 05:13 (rota-b8): pushed by 2087bc13 from the night's
+  record, unclaimed. Meta workflow.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
@@ -617,6 +649,22 @@ a different question and the night is then opened once.
   three attempts escalates one rung, beside the cap. An automated
   interview of failed night sessions is deferred until targeted questions
   have paid on two or three nights (ruled: Roman, the same word).
+- Status 2026-09-24 05:13 (rota-b8): **night 91 stopped at 05:11 on a proven
+  cycle, and its outcome against night 86 is read** (observed:
+  `.rota/clickI_night91.db`, 278 sessions, and `rota.tools.nightcount`
+  over it at 05:11). Rota workflow. Night 86: 203 sessions, two batches,
+  one commit, no merge, the Developer exhausted at attempt 10 of 10 on a
+  diff it never got to pass. Night 91: 278 sessions, one batch `bg_1`
+  running, 8 commits, no merge; the batch's own three tests pass from
+  attempt 10, two inherited tests fail, the Developer exhausted at attempt
+  12 of 10 and the ladder never climbed (frame 79); then the records path
+  cycled on a quarantined criteria tick (frame 80). Made up 133 turns in 64
+  sessions, ran anyway 0, dangling 236 turns in 49 sessions. So night 91
+  got one wall further than night 86 on the batch and stopped on two walls
+  night 86 never reached. The criterion wall of frame 38 stands in the
+  rows: `c_1` says `echo_json returns a string` where the request says
+  print. The interview probe runs on `s154` and `s144` now that the GPU is
+  free, and the gate runs on the tree. Grill question 4 follows both.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
