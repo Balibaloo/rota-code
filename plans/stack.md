@@ -658,6 +658,24 @@ a different question and the night is then opened once.
   what it asserts; the guard yes, because the sibling's only green was
   luck. The baseline stays at `b82565d` until both are repaired (ruled:
   Roman, 16:05).
+- Status 2026-09-24 21:22 (rota-95): **Roman rules both reds repaired, pass 2's
+  second spike failed and reverts, and pass 3 runs** (ruled: Roman,
+  2026-09-24 21:20, asked with "only the Tester" and "neither" as the
+  other options: the Tester's answer mode gains `code.source`, because a
+  test that calls a function needs its signature and the criterion still
+  rules what it asserts; the survey door refuses a headline that is only
+  a name plus a kind). Meta workflow. Pass 2 (observed: the implementer,
+  129.4k on the harness line after 120.2k, so about 9k, 96 tool calls,
+  75 minutes; its gate at 21:35: new reds 6, stale 2): the
+  `question.md` wording clears `test_prompts`, and case 1 replays 5/5
+  after one re-record on the quiet tree, so its stale was frame 83's
+  pass 2 moving a tool result. The `ask.md` line for an empty glossary
+  took case 8 from 2/5 to 0/5 and the inquiry case from 5/5 to 3/5: the
+  seat narrates the act instead of calling it (observed: the re-records
+  of 21:2x). Register line: one, below. Pass 3: revert `ask.md`,
+  `code.source` for the Tester's answer mode, the survey guard, the L3
+  chain and the second map test re-recorded, one gate. Case 8 stays a
+  known red on the report-only check.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 

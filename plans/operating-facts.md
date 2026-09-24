@@ -319,6 +319,8 @@ Cost anchors (frame 28, written 2026-09-17 from frames 24, 26, 29 and 30; re-der
 
 - The owner's page heads a seat-written description with "How it is described:", after "What we are building:" and before "It would:" (ruled: Roman, 2026-09-24 20:20, asked with two other wordings; frame 80's heading check).
 
+- A brief line that tells a seat to send a message and stop can make the seat narrate the act instead of calling it: `L1-TE-challenge-an-unusable-item` went 2/5 to 0/5 and `L1-TE-answer-an-inquiry-read-only` 5/5 to 3/5 on one added headline in `ask.md`, and the runs end in prose such as "Therefore, I report ..." with no call (observed: frame 82's pass 2 re-records, 2026-09-24 21:2x). Before a brief spike on a 9B judgement seat, list every case whose composed text holds the line and read their tallies after, not the target case alone.
+
 ## The principal flow
 
 - On 2026-09-12 Roman saw a talk on humanlayer's "Why Software Factories Fail" (wsff.md in github.com/humanlayer/advanced-context-engineering-for-coding-agents). Roman asked for a redesign of the principal's flow from that talk.
