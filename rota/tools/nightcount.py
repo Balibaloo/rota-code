@@ -84,14 +84,23 @@ def _rows(conn, sql, args=()):
         return []          # a database from before the table existed
 
 
-def _real_write(prompt: str) -> bool:
+def _real_write(prompt: str, completion: str = "") -> bool:
     """True when the prompt shows a write the runner really ran.
 
     The refusal of a repeat carries the same `OK code.write ->` head, and
     its tail sits on the same line. So the line, and not the prompt, is the
     unit of the test.
+
+    The prompt quotes the made-up completion back before the real results,
+    so an `OK code.write ->` line the seat invented sits in the prompt too.
+    Night 91's `s154` turn 16 and `s157` turn 14 counted that way as writes
+    the runner ran, while the NOT RUN line named both writes as held and
+    the call record held no write for either turn (observed: 2026-09-24).
+    So the scan starts after the echoed completion when the prompt holds it.
     """
-    for line in prompt.splitlines():
+    at = prompt.find(completion) if completion else -1
+    tail = prompt[at + len(completion):] if at >= 0 else prompt
+    for line in tail.splitlines():
         if WRITE_RESULT in line and not any(t in line for t in REPEAT_TAILS):
             return True
     return False
@@ -136,7 +145,8 @@ def count(conn: sqlite3.Connection) -> dict:
         # rides forward in every later prompt until the commit, so a write
         # result alone counted night 90's s141 turns 12 and 14, which sent no
         # write (the diff review of frame 77, 2026-09-23).
-        if _real_write(after) and WRITE_CALL.search(r["completion"] or ""):
+        if (_real_write(after, r["completion"] or "")
+                and WRITE_CALL.search(r["completion"] or "")):
             writes += 1
             if _write_after(r["completion"] or ""):
                 after_invention += 1

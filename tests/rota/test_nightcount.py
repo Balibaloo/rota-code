@@ -104,6 +104,40 @@ def test_a_write_before_the_invention_counts_only_in_the_turn_total(tmp_path):
         "the write before the invention was counted as run after it"
 
 
+def test_an_invented_write_result_echoed_in_the_prompt_is_not_a_run(tmp_path):
+    """
+    The prompt quotes the made-up completion back before the real results.
+
+    Night 91 (2026-09-24): `s154` turn 16 invented a source result, then sent
+    a write, then wrote the write's `OK` line itself. The next prompt held
+    that line inside the echo and the NOT RUN line after it, and the counter
+    read a write the runner ran. The call record held none.
+    """
+    invented = ("TOOL: code.source(path='src/click/utils.py', start=1, end=9)\n"
+                "OK code.source -> path: src/click/utils.py, lines: 9\n"
+                "TOOL: code.write(path='src/click/utils.py', text='x')\n"
+                "OK code.write -> path: src/click/utils.py, text: 'x'\n")
+    held = ("NOT RUN, because you wrote a tool result of your own ahead of "
+            "them: code.write(path='src/click/utils.py', text='x'). The real "
+            "results of the calls that did run follow.")
+
+    def build(conn):
+        session(conn, "s1")
+        turn(conn, "s1", 1, user="the brief", completion=invented)
+        turn(conn, "s1", 2, user="the brief\n" + invented + "\n" + held,
+             completion="done")
+        # The same echo, and a real write result after it: that one counts.
+        session(conn, "s2")
+        turn(conn, "s2", 1, user="the brief", completion=invented)
+        turn(conn, "s2", 2, user="the brief\n" + invented + "\n" + REAL_WRITE,
+             completion="done")
+
+    c = counted(tmp_path, build)
+    assert c["made_turns"] == 2
+    assert c["ran_writes"] == 1, "the echoed invention counted as a run"
+    assert c["ran_after_invention"] == 1
+
+
 def test_a_carried_forward_write_result_counts_in_neither_number(tmp_path):
     """
     `written, not committed` rides forward in every prompt until the commit.
