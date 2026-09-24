@@ -472,6 +472,24 @@ a different question and the night is then opened once.
   100k, two gates, one night. This session reads about 240k, so the
   build's passes and the diff review land here if the review is short,
   and the hand-off lands during the build otherwise.
+- Status 2026-09-24 20:05 (rota-95): **the design review lands with seventeen
+  findings, nine high, the record is at revision 2 at `5b03bda`, and the
+  build's pass 1 runs on Opus** (observed: the reviewer on Opus 5.5,
+  138.2k on the harness line against 70k to 110k, 55 tool calls, 9.1
+  minutes, 2026-09-24 20:12 by its own clock, seven probe scripts in the
+  scratchpad). Meta workflow. Refuted: the move rule of part A, because a
+  receipt's version is a per-table counter and night 91's rounds updated
+  existing rows; the premise that `tests_failing` reads running batches,
+  it offers a deferred batch today; and part C's width, which would have
+  quarantined agenda and area keys after three honest dispatches.
+  Corrected: nineteen sessions, the counter absent at the stop, two
+  callers of `defer`, and `do:preempt` never counted. Revision 2 keys the
+  cycle on role, kind, detail and refs with a receipt signature and three
+  rounds, offers a deferred batch with a head commit as a resume so Law 5
+  and Law 9 stand, filters `tests_failing` to running, counts `do:`
+  kinds, and narrows part C to batch keys. No law changes. One
+  implementer on Opus, cap 120k as a request, nine pins, two fixtures
+  from the night copies. The gate and the commit are this session's.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
