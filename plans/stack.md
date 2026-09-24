@@ -163,6 +163,40 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
+### 79. The exhaustion ladder never climbs past the Developer (2026-09-24)
+
+- **Batch C, the night's stall. Found by night 91's walk 1, and it is the
+  wall that stands after frame 77's two rules.** One site, `_next_rung` in
+  `rota/core/predicates.py:906-920`, and the refs the Developer's messages
+  carry. It touches a predicate, so it carries a diff review and a walk.
+- Rota workflow. `exhausted` wakes the first role in `LADDER` that has sent
+  no message whose `body_refs` contain the batch id (observed:
+  `rota/core/predicates.py:914-920`, 2026-09-24). On night 91 the Developer
+  sent eight messages up, two to the Architect and two to the Vision Keeper
+  among them, and every one refs criteria and test ids and never `bg_1`
+  (observed: the `messages` table of `.rota/clickI_night91_walk1.db`, a
+  backup at 04:1x). So the rung stays at the Developer: eight
+  `tick:exhausted` wakes to the Developer at attempts 11 and 12 of 10, the
+  last one 25 turns and 21 minutes, and the Architect reached the batch
+  only through `tick:unresolved`. The writer stamps what the model passes,
+  and the reader asks for a field the writer never stamps (reasoned: the
+  same shape as batch A's key). Attempts 4 to 8 held one failing set, and
+  the loop recovered at attempts 9 and 10 to two inherited tests, so a
+  stall bound of three unchanged attempts would have cut before the
+  recovery (observed: `test_runs` by attempt, 2026-09-24 03:39).
+- Ends when: a message from a seat about a batch carries the batch id in its
+  refs by construction, or `_next_rung` reads the sender's role from the
+  thread the batch's exhaustion opened, one of the two chosen at a grill;
+  a pinned test wakes the Architect on the first `tick:exhausted` after the
+  Developer has escalated once; a night shows the rung climb. Unpriced
+  until the grill.
+- Waits on: frame 77's reading and Roman's order against grill question 4.
+- Reasoning: this frame's second line, and frame 37's status of 02:50.
+- Status 2026-09-24 04:11 (rota-b8): pushed by 2087bc13 from the night's
+  record while walk 1 runs, unclaimed. Meta workflow. The night runs on to
+  `GAUNTLET-DONE` by the rule that a night never ends at Stuck, and the
+  GPU is idle otherwise.
+
 ### 77. The runner runs nothing from a made-up turn, and never points at a deleted answer (2026-09-23) (dba7e375) [blocked on Roman]
 
 - **Batch C, the night's stall. Frame 37's third quantum, and the repair
