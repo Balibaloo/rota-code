@@ -171,3 +171,127 @@ the three parts and nine pins, about 80k to 120k, one resume about 30k.
 Diff review on Fable about 100k, because the frame touches the scheduler
 and a predicate. Two gates here, about 16 minutes of GPU. The night, about
 30k here and two to four hours of GPU.
+
+## Revision 2, after the design review (observed: the reviewer on Opus 5.5, 138.2k on the harness line, 55 tool calls, 9.1 minutes, 2026-09-24 20:12)
+
+The review's probes are in this session's scratchpad: `p1.py`, `p2.py`,
+`p3.py`, `cyc.py`, `cyc2.py`, `partc.py`, `partc2.py`. The implementer
+reads `cyc2.py`, `p2.py`, `p3.py` and `partc2.py` before it writes.
+
+### Corrections to the facts
+
+- The cycle ran nineteen sessions, `s283` to `s301`. At the stop the
+  counter `developer|tick:batch_start|b_2` is absent, deleted by the last
+  preempt step's frontier, and never reads 1.
+- `lifecycle.defer` has two callers: the preempt and `cmd_interrupt` at
+  `rota/cli.py:788`.
+- `note_dispatch` counts `tick:` kinds only (`scheduler.py:1371`), so
+  `do:preempt` has no counter. Only the preempt step's frontier deletes
+  the start's counter; the start step deletes nothing of the preempt's.
+  The comment at `loop.py:260`, "counted like any other dispatch", is
+  false for every `do:` kind.
+- `receipts.new_version` is a counter per table, not the row's version.
+  `_apply_write` returns True for every UPDATE, so an update that changes
+  nothing still gets a receipt. Night 91's rounds updated existing rows
+  at climbing versions, and its new `rulings` rows got versions 22 to 26.
+- `tests_failing` (`predicates.py:826-834`) reads no batch status, so it
+  offers a deferred batch before any start. The harness tests running
+  batches only, and the commit deletes the `tests_failing` counter, so a
+  revived deferred batch can loop without a bound today.
+- The icalendar comment describes the quarantined branch, not this
+  composition.
+
+### Part A, revised
+
+The key of a wake is `role|wake_kind|wake_detail|wake_refs`. For a message
+wake the detail is the verb, and for a tick the detail carries the attempt,
+so an honest retry at attempt n+1 is a different key. A round's signature
+is the multiset of its receipts, each existing row as `(table, row_id)` and
+each new row as `(table, new)`. Rounds A and B repeat when their key
+sequences are equal and their signatures are equal. The alert needs three
+rounds, or two rounds when the period is 1 and the count of the repeated
+key is above `tick_attempt_cap`. The smallest period wins, and the cap is
+16. The alert's identity is the sorted set of keys, so a rotated round is
+the same cycle and prints once. `cyc2.py` finds period 10 at `s260` on
+night 91 and period 1 at `s284` on night 92, and with three rounds it
+leaves five other firings across both nights, which the walk log will
+show for tuning (ruled: Roman, an alert first).
+
+### Part B, revised
+
+- `next_batch(conn)` returns the schedulable batches, highest priority
+  first among the batches whose `batch_dep_facts` predecessors are merged
+  or abandoned, and the schedule order breaks ties. `tick_batch_start`'s
+  candidate path and `preempt` read it.
+- A deferred batch with a head commit stays a candidate, and its start
+  wake is a resume: the detail names the attempt it left and the failing
+  tests, and `lifecycle.start` keeps its worktree as today. Law 5's
+  sentence, a deferred batch is restarted from its rows, stands, and Law
+  9's later offer of the deferred batch stands. No law changes.
+- `tests_failing` gains `b.status = 'running'`, so a deferred batch's
+  failures wait for its resume.
+- `note_dispatch` counts `do:` kinds too, as the comment at `loop.py:260`
+  says, keyed by the wake's refs, so an alternation of a start and a
+  preempt reaches the cap. `_batch_of` stays; nothing sets a second
+  batch running.
+- The fallback of `schedule_order` sorts ids as text, `b_10` before
+  `b_2`; sort by the numeric part.
+
+### Part C, revised
+
+A key that names a batch keeps its count while its wake is absent from the
+ready list, until the batch is merged or abandoned. A head commit, or a
+moved test or criterion of the batch, resets the count, which is the rule
+`_lift_quarantines` already applies to `tests_failing`. Every other key
+keeps the rule "delete on absence", because its subject is not a row.
+`tests/rota/test_frontier.py:216-239` asserts absence clears the count; it
+keeps that assertion on a non-batch key and gains the batch case. The
+comment at `scheduler.py:1359-1362` says both.
+
+### The walk, revised
+
+`probes/walk.py` prints every `do:` action's note, so a preempt and a
+cancel leave a line, and the `CYCLE` line. The line for the night: a
+`tick:batch_start` session for `b_3` at a seq after the last `b_2`
+session, and no start of `b_2` while its `tests_failing` key is
+quarantined.
+
+### Pins, revised
+
+1. `cycle` on the night 92 fixture from `s282` returns period 1 with the
+   key `developer|tick:batch_start||["b_2"]` at `s285`, and `None` at
+   `s284`.
+2. `cycle` on the night 91 fixture from `s229` returns period 10 at
+   `s260`, and reports once across the rotated rounds that follow.
+3. `cycle` on a Developer loop, attempts n and n+1 after a commit at n,
+   returns `None`.
+4. `cycle` on a round whose second pass writes a new row of the same
+   table and nothing else returns `None` under three rounds, and the
+   period under three equal rounds.
+5. `next_batch` on the night 92 rows at `s282` returns `b_3` before `b_2`;
+   `tick_batch_start` offers `b_3`; with `b_3` merged it offers `b_2` as a
+   resume whose detail names attempt 7 and its failing tests.
+6. `tests_failing` on a deferred batch returns nothing, and on the same
+   batch running returns attempt 7.
+7. `preempt` with `b_3` running returns nothing; with `b_2` running it
+   returns the preempt, and a third dispatch of that preempt key
+   quarantines it.
+8. `quarantine_stalled` keeps `developer|tick:batch_start|b_2` while the
+   wake is absent, resets it on a head commit of `b_2`, and still deletes
+   `liaison|tick:agenda|...` on absence.
+9. The walk prints `do:preempt` with its note, and the `CYCLE` line once
+   for a period-1 cycle of four sessions.
+
+The fixtures: a script `tests/rota/fixtures/extract_night.py` writes
+`night92_cycle.json` and `night91_cycle.json` from the copies in `.rota`,
+with `sessions` (id, role, wake_kind, wake_detail, wake_refs, committed,
+seq), `receipts`, `messages` (id, verb), and for night 92 also `batches`,
+`items`, `batch_dep_facts`, `test_runs` and `tick_attempts` at the stop.
+The JSON files are committed; the script is committed and not run in the
+suite.
+
+### Out of scope, added
+
+- The Critic's `tick:challenge` stayed ready through the cycle and was
+  never dispatched, because the Developer's start came first each step.
+- `frontier_readonly` lists a quarantined `tests_failing` as ready.
