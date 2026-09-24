@@ -241,6 +241,26 @@ when the batch still fails.
   commit writes a row its refs name. On night 91 it revived the exhausted
   key at every head commit, and it revives the criteria key that frame 80
   is about. Frame 80's read.
+- Three other predicates match a batch id without quotes, so `b1`
+  matches `b10`: `reopen` (`predicates.py:861`), `finding_violated`
+  (`:1195`) and `touch_mistaken` (`:1933`), each with
+  `m.body_refs LIKE '%' || b.id || '%'` (observed: the diff review of
+  `a75206d`, by reading, 2026-09-24). `tests_missing` at `:701` quotes
+  the id. One line each, and a pin, for the frame that next touches
+  those predicates.
+- The Architect's exhausted brief opens with "Developer has already been
+  asked and had nothing to route". Under route B the Developer may have
+  routed, received an answer and tried it, and the batch still stands at
+  the cap. The sentence is imprecise and not false to the seat's action.
+  A brief change re-records the Architect's exhausted cases, so it waits
+  for a frame that touches that brief (reasoned: the diff review's
+  finding 4, low).
+- The window before the Architect's answer: with the Developer's
+  exhausted session committed and its `escalate` open, the Architect's
+  message tip and its `tick:exhausted` wake are ready in one pass. The
+  tip runs first by band, traffic before fix, and the Architect's claim
+  blocks the tick during that session (observed: the diff review, by
+  reading). Pass 3 pins that order.
 
 ## Price (reasoned: frame 81's actuals, in its status of 10:14)
 
