@@ -215,6 +215,26 @@ a different question and the night is then opened once.
   the material, and stages the question to the Terminologist born
   `unresolved` with both spans in the note. No predicate changes. The
   reviewer reads eight points, cap 100k, no worktree, no code yet.
+- Status 2026-09-24 08:11 (rota-98): **the design review returned twelve
+  findings, five high, and revision 2 of the record folds them; the build
+  starts on Opus** (observed: the reviewer's report, 129k on the harness
+  line, 55 tool calls, three probes, 08:09). Meta workflow. The high
+  findings, each confirmed by a probe or a read: the staged row is deleted
+  by a later question's replace step and blocks a later question at the
+  duplicate guard, so it carries a tag both steps skip; the request's
+  words live in `statements`, not the ticket, so the span check reads
+  statements, item, ticket in that order and the note names the row; the
+  case grammar cannot assert a message's status, so `capture` and the
+  spec gain `status:`; pinned test 3 was vacuous without `head_commit`
+  and a commit; and the recorded `s144` never said "prints" about
+  `c_1`, the interview probe is a counterfactual, so a wall at
+  `encodable` refuses the one measured word pair, returns against
+  prints, and points to the verdict. The reviewer's point 5 premise was
+  false: `m64` and `m65` were the model's echo, and only one question
+  landed. The Terminologist's brief line, "the request comes before the
+  criterion", applies intent-flows-down and decides which row wins in a
+  conflict: Roman checks it at the close. Implementer pass: cap 120k as a
+  request, one agent, touched tests first, the gate once at the end.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
