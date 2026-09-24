@@ -235,6 +235,14 @@ a different question and the night is then opened once.
   criterion", applies intent-flows-down and decides which row wins in a
   conflict: Roman checks it at the close. Implementer pass: cap 120k as a
   request, one agent, touched tests first, the gate once at the end.
+- Status 2026-09-24 08:16 (rota-98): **the gate's baseline before any code:
+  10 new reds against the stored baseline of 2026-09-21, 0 flaky, stale
+  0** (observed: `python -m rota.tools.gate` on the tree at `693c9c8`,
+  442 s, qwen3:8b, finished 08:15). Meta workflow. The ten are L1 cases,
+  and four reds of the stored baseline are gone. The acceptance for this
+  frame's pass reads against these ten: zero reds beyond them, and the
+  stale line naming the eight `tests_missing` and `criterion_repair`
+  cases the brief edits touch.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
