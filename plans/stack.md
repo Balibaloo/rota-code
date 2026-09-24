@@ -181,7 +181,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (8736e9fc)
+### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (5748c2d9)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
   wall that stands after frame 77's two rules.** One site, `_next_rung` in
@@ -376,7 +376,7 @@ a different question and the night is then opened once.
   Meta workflow. The code is in the main line at `40b4777`. The walk line
   stays open, and no work is owed before a night that enters the path.
 
-### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (8736e9fc)
+### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (5748c2d9)
 
 - **Batch C, the night's stall. Found by night 92's walk 3, and it is the
   wall that stands after frames 81, 79 and 80.** Two sites: the batch
@@ -545,7 +545,7 @@ a different question and the night is then opened once.
   night if it reaches exhaustion; the worktree `wt-83` in this session's
   scratchpad can go.
 
-### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
+### 82. The ten known reds blind the gate (2026-09-24) (5748c2d9)
 
 - **No batch. It is the instrument repair the batch order's own rule puts
   before the work the instrument accepts, and it runs first after night
@@ -757,6 +757,17 @@ a different question and the night is then opened once.
   `python rota/tools/handover.py take --sid 5748c2d9`; and run
   `/standby` in the other windows. Session 8736e9fc stops here at about
   365k, holding nothing.
+- Status 2026-09-25 00:11 (rota-1c): **taken by 5748c2d9 from the disk claim
+  of 00:00, with frames 83 and 79 as the hand-off carries them** (observed:
+  the standby command's exit 0 at 00:10 with the claim of 00:00:18, then
+  `take` printed frame 82 at stack commit `52190e2`). Meta workflow. Why the
+  take of 00:00 never came: the window of rota-dd restarted, and the harness
+  reported the watcher as stopped before the session ended, so no wake
+  reached this session until Roman ran `/standby` again in the new window.
+  The beat the table read at 00:00 was the orphan of the old window. Next:
+  read the diff of `43823ea` against the register's tallies for the survey
+  guard and `code.source`, and put the guard question to Roman before any
+  agent runs.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
