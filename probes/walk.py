@@ -186,6 +186,8 @@ def card_line() -> None:
     print(_spill_line(seen), flush=True)
 
 
+from rota.core.cycles import walk_lines as _walk_lines
+_cycles_seen: set = set()
 _last_n, _last_change = -1, _time.time()
 _n0 = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
 _t0 = _time.time()
@@ -253,8 +255,10 @@ for i in range(cap):
         _outcome = "stuck"
         record(0, i, asked, "quiet")
         break
-    if s.wake.kind in ("do:harness", "do:merge"):
-        print(f"  {s.wake.kind}: {s.note}")
+    # Every scheduler action, and the cycle line once per cycle. Night 92's
+    # preempts left no line (observed: night 92, 2026-09-24).
+    for _line in _walk_lines(s, _cycles_seen):
+        print(_line, flush=True)
     merged_now = conn.execute(
         "SELECT COUNT(*) FROM batches WHERE status = 'merged'").fetchone()[0]
     if merged_now > merged_before and os.environ.get("WALK_STOP_AT_MERGE", "1") == "1":

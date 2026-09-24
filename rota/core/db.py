@@ -564,6 +564,9 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     if w.table == "batches" and "head_commit" in fields:
         conn.execute("DELETE FROM tick_attempts WHERE tick_key LIKE ?",
                      (f"%|tick:tests_failing|{w.row_id}",))
+        # A missing test is not the code's debt, so a commit keeps its count.
+        # A moved test of the batch resets it below.
+        _forget_batch_counts(conn, w.row_id, keep="%|tick:tests_missing|%")
     if moved and w.table in ("criteria", "tests"):
         if w.table == "criteria":
             batches = [r["batch_id"] for r in conn.execute(
@@ -578,6 +581,24 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
                 conn.execute(
                     "DELETE FROM tick_attempts WHERE quarantined = 1 "
                     "AND tick_key LIKE ?", (f"%|{b}",))
+                _forget_batch_counts(conn, b)
+
+
+def _forget_batch_counts(conn: sqlite3.Connection, batch_id: str,
+                         keep: str = "") -> None:
+    """
+    A move of the batch resets every live count that names it.
+
+    `quarantine_stalled` keeps a batch's count while its wake is absent, so
+    this move is the only reset it gets (observed: night 92, 2026-09-24).
+    A quarantined key keeps the rules above. `keep` is a LIKE pattern for
+    the keys this move is not about.
+    """
+    conn.execute(
+        "DELETE FROM tick_attempts WHERE quarantined = 0 AND tick_key NOT LIKE ? "
+        "AND (tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
+        (keep or "\x00", f"%|{batch_id}", f"%|{batch_id},%", f"%,{batch_id}",
+         f"%,{batch_id},%"))
 
 
 def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:

@@ -44,6 +44,9 @@ class Step:
     quiescent: bool = False
     note: str = ""
     productive: bool = False        # did this session change anything?
+    # The rounds that repeat and move nothing, read after a committed
+    # session. An alert only (ruled: Roman, 2026-09-24).
+    cycle: object | None = None
 
     def __str__(self) -> str:
         if self.quiescent:
@@ -262,6 +265,8 @@ def step(
             # them promptly needed it: an Architect kept binding a grain onto
             # constraint zero, this kept recomputing it away, and the two
             # alternated sixty times. Bounded, it would have stopped at three.
+            # `note_dispatch` counted `tick:` kinds only until night 92, so a
+            # `do:preempt` had no count (observed: night 92, 2026-09-24).
             from .scheduler import note_dispatch
 
             note_dispatch(conn, wake)
@@ -330,6 +335,13 @@ def step(
             conn.execute("UPDATE tick_attempts SET reported = 1 "
                          "WHERE quarantined = 1")
         result.cascaded = [str(w) for w in cascade_wakes(conn, result.outcome.session_id)]
+        # Night 92 repeated one session nineteen times and no count saw it
+        # (observed: night 92, 2026-09-24). The alert reads rows and writes none.
+        from .cycles import cycle
+        try:
+            result.cycle = cycle(conn)
+        except Exception:               # noqa: BLE001 -- see `note_spill` below
+            result.cycle = None
     else:
         release(conn, result.wake.role)
         # The message attempt cap ran at boot only. clickI night 31

@@ -823,11 +823,15 @@ def tests_failing(conn) -> list[Wake]:
     # from an earlier run of the same batch, rewrote working code and broke
     # it. A pass supersedes the fail before it; only the newest row per
     # test says anything.
+    # A running batch only. A deferred batch's failures wait for its resume,
+    # because the harness tests running batches only and a revived key could
+    # loop without a bound (observed: the design review of frame 83, 2026-09-24).
     rows = conn.execute(
-        "SELECT DISTINCT batch_id AS bid, MAX(attempt) AS att FROM test_runs "
-        "WHERE result IN ('fail','error') "
-        "  AND rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
-        "GROUP BY batch_id"
+        "SELECT DISTINCT r.batch_id AS bid, MAX(r.attempt) AS att FROM test_runs r "
+        "JOIN batches b ON b.id = r.batch_id AND b.status = 'running' "
+        "WHERE r.result IN ('fail','error') "
+        "  AND r.rowid IN (SELECT MAX(rowid) FROM test_runs GROUP BY test_id) "
+        "GROUP BY r.batch_id"
     ).fetchall()
     return [Wake("developer", "tick:tests_failing", refs=(r["bid"],),
                  detail=f"attempt {r['att']}")
@@ -1248,18 +1252,17 @@ def preempt(conn) -> list[Wake]:
     ).fetchone()
     if not running:
         return []
-    challenger = conn.execute(
-        "SELECT b.id AS bid, i.priority AS pri FROM batches b "
-        "JOIN items i ON i.id = b.item_id "
-        "WHERE b.status IN ('pending','deferred') "
-        "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
-        "ORDER BY i.priority DESC, b.id LIMIT 1"
-    ).fetchone()
-    if not challenger or challenger["pri"] <= running["pri"]:
+    # The start's order, so the two never disagree. Night 92 started `b_2`
+    # and preempted it for `b_3` nineteen times (observed: night 92, 2026-09-24).
+    from .scheduler import next_batch
+
+    ranked = next_batch(conn)
+    if not ranked or (ranked[0]["priority"] or 0) <= (running["pri"] or 0):
         return []
+    challenger = ranked[0]["id"]
     return [Wake(SCHEDULER, "do:preempt",
-                 refs=(running["bid"], challenger["bid"]),
-                 detail=f"{challenger['bid']} outranks {running['bid']}")]
+                 refs=(running["bid"], challenger),
+                 detail=f"{challenger} outranks {running['bid']}")]
 
 
 @predicate("merge", wakes=SCHEDULER, band="gate",

@@ -20,6 +20,7 @@ Quiescence = no open tips + no predicate firing + no schedulable batch.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from graphlib import CycleError, TopologicalSorter
@@ -366,18 +367,38 @@ def tick_batch_start(conn: sqlite3.Connection) -> list[Wake]:
                      detail=f"attempt {n} of {cap}: the last session ended with "
                             f"nothing written and nothing committed")]
 
-    candidates = [r["id"] for r in conn.execute(
-        "SELECT b.id AS id FROM batches b JOIN items i ON i.id = b.item_id "
-        "WHERE b.status IN ('pending','deferred') "
-        "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
-        "ORDER BY i.priority DESC, b.id"
-    ).fetchall()]
+    candidates = next_batch(conn)
     if not candidates:
         return []
+    first = candidates[0]
+    if first["status"] == "deferred" and first["head_commit"]:
+        # A deferred batch with commits is a resume, not a fresh start. Night
+        # 92's start wake carried no attempt, so the Developer found its own
+        # flag and did nothing (observed: night 92, 2026-09-24). Law 5 still
+        # restarts it from its rows, and `lifecycle.start` keeps its worktree.
+        return [Wake("developer", "tick:batch_start", refs=(first["id"],),
+                     detail=_resume_detail(conn, first["id"]))]
+    return [Wake("developer", "tick:batch_start", refs=(first["id"],))]
 
-    order = schedule_order(conn)
-    ranked = sorted(candidates, key=lambda b: order.index(b) if b in order else len(order))
-    return [Wake("developer", "tick:batch_start", refs=(ranked[0],))]
+
+def _resume_detail(conn: sqlite3.Connection, batch_id: str) -> str:
+    """The attempt a deferred batch left, and its tests that still fail."""
+    # A test's latest run is its result, as `tests_failing` reads it.
+    rows = conn.execute(
+        "SELECT test_id, result, attempt FROM test_runs WHERE batch_id = ? "
+        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        "GROUP BY test_id) ORDER BY test_id", (batch_id, batch_id)).fetchall()
+    attempt = max((r["attempt"] or 1 for r in rows), default=0)
+    failing = sorted((r["test_id"] for r in rows if r["result"] in ("fail", "error")),
+                     key=_by_number)
+    if not rows:
+        return "resume: the batch has commits and no test run yet"
+    if not failing:
+        return f"resume after attempt {attempt}: all {len(rows)} tests pass"
+    shown = ", ".join(failing[:10]) + (f" and {len(failing) - 10} more"
+                                       if len(failing) > 10 else "")
+    return (f"resume after attempt {attempt}: {len(failing)} of {len(rows)} "
+            f"tests failing: {shown}")
 
 
 def tick_signoff(conn: sqlite3.Connection) -> list[Wake]:
@@ -1303,8 +1324,15 @@ class UnsatisfiableSchedule(RuntimeError):
     """Declared dependency facts contain a cycle. Wakes Architect."""
 
 
+def _by_number(batch_id: str) -> list:
+    # Text order put `b_10` before `b_2` in the fallback (observed: the
+    # design review of frame 83, 2026-09-24). The numeric parts sort as numbers.
+    return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", batch_id)]
+
+
 def schedule_order(conn: sqlite3.Connection) -> list[str]:
-    batches = [r["id"] for r in conn.execute("SELECT id FROM batches ORDER BY id")]
+    batches = sorted((r["id"] for r in conn.execute("SELECT id FROM batches")),
+                     key=_by_number)
     deps: dict[str, set[str]] = {b: set() for b in batches}
     for r in conn.execute("SELECT before_batch, after_batch FROM batch_dep_facts"):
         deps.setdefault(r["after_batch"], set()).add(r["before_batch"])
@@ -1313,6 +1341,35 @@ def schedule_order(conn: sqlite3.Connection) -> list[str]:
         return list(TopologicalSorter(deps).static_order())
     except CycleError as exc:
         raise UnsatisfiableSchedule(str(exc)) from exc
+
+
+def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """
+    The schedulable batches in the one order: priority first, then the schedule.
+
+    A batch is schedulable when its item is approved after its last amendment
+    and every declared predecessor is merged or abandoned. `tick_batch_start`
+    and `preempt` both read this order. They read two orders until night 92:
+    the start re-sorted by the schedule alone and offered `b_2`, the preempt
+    ranked by priority and deferred `b_2` for `b_3`, nineteen times
+    (observed: night 92, 2026-09-24). Priority chooses, and the schedule
+    constrains (ruled: Roman, 2026-09-24).
+    """
+    rows = conn.execute(
+        "SELECT b.id AS id, b.status AS status, b.head_commit AS head_commit, "
+        "       i.priority AS priority "
+        "FROM batches b JOIN items i ON i.id = b.item_id "
+        "WHERE b.status IN ('pending','deferred') "
+        "  AND i.approval = 'approved' AND i.approval_ver >= i.version "
+        "  AND NOT EXISTS (SELECT 1 FROM batch_dep_facts d "
+        "                  JOIN batches p ON p.id = d.before_batch "
+        "                  WHERE d.after_batch = b.id "
+        "                    AND p.status NOT IN ('merged','abandoned'))"
+    ).fetchall()
+    order = schedule_order(conn)
+    place = {b: n for n, b in enumerate(order)}
+    return sorted(rows, key=lambda r: (-(r["priority"] or 0),
+                                       place.get(r["id"], len(order))))
 
 
 def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:
@@ -1358,8 +1415,12 @@ def release(conn: sqlite3.Connection, role: str) -> None:
 #
 # The bound is on *dispatch without progress*, not on dispatch. A tick that fires
 # repeatedly while work lands is the loop working — Developer bouncing on a red
-# harness is exactly that — so the counter resets whenever the wake stops being
-# produced, which is what draining looks like from here.
+# harness is exactly that. A key that names no batch resets when the wake stops
+# being produced, which is what draining looks like from here. A key that names
+# a batch resets on a move of the batch: a head commit, or a moved test or
+# criterion of it. It keeps its count while its wake is absent, until the batch
+# is merged or abandoned. Absence alone let two rules erase each other's count,
+# nineteen sessions on night 92 (observed: night 92, 2026-09-24).
 # ---------------------------------------------------------------------------
 
 def tick_key(wake: "Wake") -> str:
@@ -1368,7 +1429,9 @@ def tick_key(wake: "Wake") -> str:
 
 def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
     """Count one dispatch of this exact wake. Returns the new count."""
-    if not wake.kind.startswith("tick:"):
+    # Scheduler actions count too, keyed by their refs, so a start and a
+    # preempt that alternate reach the cap (observed: night 92, 2026-09-24).
+    if not wake.kind.startswith(("tick:", "do:")):
         return 0                      # messages have their own bound already
     key = tick_key(wake)
     conn.execute(
@@ -1511,7 +1574,8 @@ def quarantine_overrun(conn: sqlite3.Connection) -> int:
 def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake]:
     """
     Drop wakes that have been dispatched past the cap without draining, and
-    forget counts for wakes that are no longer being produced.
+    forget counts for wakes that are no longer being produced, except a
+    live batch's.
 
     Abandonment is visible, not silent: `tick_quarantined` reports it, for the
     same reason a quarantined message does. A system that quietly stopped trying
@@ -1522,8 +1586,17 @@ def quarantine_stalled(conn: sqlite3.Connection, ready: list[Wake]) -> list[Wake
 
     cap = config.get(conn, "tick_attempt_cap")
     live = {tick_key(w) for w in ready}
+    status = {r["id"]: r["status"] for r in conn.execute("SELECT id, status FROM batches")}
     for row in conn.execute("SELECT tick_key FROM tick_attempts").fetchall():
         if row["tick_key"] not in live:
+            # A key that names a batch keeps its count while the batch lives.
+            # `running` hid the start's key during its own session, and the
+            # preempt's step deleted it, nineteen times on night 92 (observed:
+            # night 92, 2026-09-24). A move of the batch resets it instead, in
+            # `db._lift_quarantines`.
+            named = [b for b in row["tick_key"].split("|", 2)[-1].split(",") if b in status]
+            if named and not any(status[b] in ("merged", "abandoned") for b in named):
+                continue
             # Except an abandoned one, which is absent *because* it was
             # abandoned. `tick_survey` reads this table and stops producing what
             # it finds quarantined, so deleting the row put the wake straight

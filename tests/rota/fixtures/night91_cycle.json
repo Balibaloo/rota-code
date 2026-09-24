@@ -1,0 +1,6824 @@
+{
+"messages": [
+{
+"id": "m1",
+"verb": "submit"
+},
+{
+"id": "m2",
+"verb": "present"
+},
+{
+"id": "m3",
+"verb": "converse"
+},
+{
+"id": "m4",
+"verb": "verdict"
+},
+{
+"id": "m5",
+"verb": "relay"
+},
+{
+"id": "m6",
+"verb": "submit"
+},
+{
+"id": "m7",
+"verb": "present"
+},
+{
+"id": "m8",
+"verb": "converse"
+},
+{
+"id": "m9",
+"verb": "verdict"
+},
+{
+"id": "m10",
+"verb": "relay"
+},
+{
+"id": "m11",
+"verb": "present"
+},
+{
+"id": "m12",
+"verb": "converse"
+},
+{
+"id": "m13",
+"verb": "verdict"
+},
+{
+"id": "m14",
+"verb": "present"
+},
+{
+"id": "m15",
+"verb": "converse"
+},
+{
+"id": "m16",
+"verb": "verdict"
+},
+{
+"id": "m17",
+"verb": "present"
+},
+{
+"id": "m18",
+"verb": "converse"
+},
+{
+"id": "m19",
+"verb": "verdict"
+},
+{
+"id": "m20",
+"verb": "present"
+},
+{
+"id": "m21",
+"verb": "converse"
+},
+{
+"id": "m22",
+"verb": "verdict"
+},
+{
+"id": "m23",
+"verb": "present"
+},
+{
+"id": "m24",
+"verb": "converse"
+},
+{
+"id": "m25",
+"verb": "verdict"
+},
+{
+"id": "m26",
+"verb": "present"
+},
+{
+"id": "m27",
+"verb": "converse"
+},
+{
+"id": "m28",
+"verb": "verdict"
+},
+{
+"id": "m29",
+"verb": "present"
+},
+{
+"id": "m30",
+"verb": "converse"
+},
+{
+"id": "m31",
+"verb": "verdict"
+},
+{
+"id": "m32",
+"verb": "present"
+},
+{
+"id": "m33",
+"verb": "converse"
+},
+{
+"id": "m34",
+"verb": "verdict"
+},
+{
+"id": "m35",
+"verb": "present"
+},
+{
+"id": "m36",
+"verb": "converse"
+},
+{
+"id": "m37",
+"verb": "verdict"
+},
+{
+"id": "m38",
+"verb": "present"
+},
+{
+"id": "m39",
+"verb": "converse"
+},
+{
+"id": "m40",
+"verb": "verdict"
+},
+{
+"id": "m41",
+"verb": "relay"
+},
+{
+"id": "m42",
+"verb": "relay"
+},
+{
+"id": "m43",
+"verb": "present"
+},
+{
+"id": "m44",
+"verb": "converse"
+},
+{
+"id": "m45",
+"verb": "verdict"
+},
+{
+"id": "m_p1",
+"verb": "converse"
+},
+{
+"id": "m46",
+"verb": "confirm"
+},
+{
+"id": "m47",
+"verb": "converse"
+},
+{
+"id": "m48",
+"verb": "verdict"
+},
+{
+"id": "m49",
+"verb": "deliver"
+},
+{
+"id": "m50",
+"verb": "deliver"
+},
+{
+"id": "m51",
+"verb": "submit"
+},
+{
+"id": "m52",
+"verb": "present"
+},
+{
+"id": "m53",
+"verb": "converse"
+},
+{
+"id": "m54",
+"verb": "verdict"
+},
+{
+"id": "m55",
+"verb": "relay"
+},
+{
+"id": "m56",
+"verb": "challenge"
+},
+{
+"id": "m57",
+"verb": "report"
+},
+{
+"id": "m58",
+"verb": "clarify"
+},
+{
+"id": "m59",
+"verb": "converse"
+},
+{
+"id": "m60",
+"verb": "relay"
+},
+{
+"id": "m61",
+"verb": "present"
+},
+{
+"id": "m62",
+"verb": "converse"
+},
+{
+"id": "m63",
+"verb": "question"
+},
+{
+"id": "m64",
+"verb": "answer"
+},
+{
+"id": "m65",
+"verb": "challenge"
+},
+{
+"id": "m66",
+"verb": "challenge"
+},
+{
+"id": "m67",
+"verb": "challenge"
+},
+{
+"id": "m68",
+"verb": "escalate"
+},
+{
+"id": "m69",
+"verb": "challenge"
+},
+{
+"id": "m70",
+"verb": "challenge"
+},
+{
+"id": "m71",
+"verb": "answer"
+},
+{
+"id": "m72",
+"verb": "question"
+},
+{
+"id": "m73",
+"verb": "answer"
+},
+{
+"id": "m74",
+"verb": "question"
+},
+{
+"id": "m75",
+"verb": "answer"
+},
+{
+"id": "m76",
+"verb": "escalate"
+},
+{
+"id": "m77",
+"verb": "answer"
+},
+{
+"id": "m78",
+"verb": "answer"
+},
+{
+"id": "m79",
+"verb": "answer"
+},
+{
+"id": "m80",
+"verb": "answer"
+},
+{
+"id": "m81",
+"verb": "question"
+},
+{
+"id": "m82",
+"verb": "answer"
+},
+{
+"id": "m83",
+"verb": "escalate"
+},
+{
+"id": "m84",
+"verb": "challenge"
+},
+{
+"id": "m85",
+"verb": "present"
+},
+{
+"id": "m86",
+"verb": "converse"
+},
+{
+"id": "m87",
+"verb": "escalate"
+},
+{
+"id": "m88",
+"verb": "challenge"
+},
+{
+"id": "m89",
+"verb": "report"
+},
+{
+"id": "m90",
+"verb": "relay"
+},
+{
+"id": "m91",
+"verb": "escalate"
+},
+{
+"id": "m92",
+"verb": "propose"
+},
+{
+"id": "m93",
+"verb": "report"
+},
+{
+"id": "m94",
+"verb": "clarify"
+},
+{
+"id": "m95",
+"verb": "converse"
+},
+{
+"id": "m96",
+"verb": "relay"
+},
+{
+"id": "m97",
+"verb": "escalate"
+},
+{
+"id": "m98",
+"verb": "escalate"
+},
+{
+"id": "m99",
+"verb": "answer"
+},
+{
+"id": "m100",
+"verb": "present"
+},
+{
+"id": "m101",
+"verb": "converse"
+},
+{
+"id": "m102",
+"verb": "submit"
+},
+{
+"id": "m103",
+"verb": "present"
+},
+{
+"id": "m104",
+"verb": "converse"
+},
+{
+"id": "m105",
+"verb": "verdict"
+},
+{
+"id": "m106",
+"verb": "relay"
+},
+{
+"id": "m107",
+"verb": "challenge"
+},
+{
+"id": "m108",
+"verb": "challenge"
+},
+{
+"id": "m109",
+"verb": "challenge"
+},
+{
+"id": "m110",
+"verb": "present"
+},
+{
+"id": "m111",
+"verb": "converse"
+},
+{
+"id": "m112",
+"verb": "verdict"
+},
+{
+"id": "m113",
+"verb": "relay"
+},
+{
+"id": "m114",
+"verb": "challenge"
+},
+{
+"id": "m115",
+"verb": "challenge"
+},
+{
+"id": "m116",
+"verb": "challenge"
+},
+{
+"id": "m117",
+"verb": "present"
+},
+{
+"id": "m118",
+"verb": "converse"
+},
+{
+"id": "m119",
+"verb": "verdict"
+},
+{
+"id": "m120",
+"verb": "relay"
+},
+{
+"id": "m121",
+"verb": "challenge"
+},
+{
+"id": "m122",
+"verb": "challenge"
+},
+{
+"id": "m123",
+"verb": "challenge"
+},
+{
+"id": "m124",
+"verb": "present"
+},
+{
+"id": "m125",
+"verb": "converse"
+},
+{
+"id": "m126",
+"verb": "verdict"
+},
+{
+"id": "m127",
+"verb": "relay"
+},
+{
+"id": "m128",
+"verb": "challenge"
+},
+{
+"id": "m129",
+"verb": "challenge"
+},
+{
+"id": "m130",
+"verb": "challenge"
+},
+{
+"id": "m131",
+"verb": "present"
+},
+{
+"id": "m132",
+"verb": "converse"
+},
+{
+"id": "m133",
+"verb": "verdict"
+},
+{
+"id": "m134",
+"verb": "relay"
+},
+{
+"id": "m135",
+"verb": "challenge"
+},
+{
+"id": "m136",
+"verb": "challenge"
+},
+{
+"id": "m137",
+"verb": "challenge"
+},
+{
+"id": "m138",
+"verb": "present"
+},
+{
+"id": "m139",
+"verb": "converse"
+},
+{
+"id": "m140",
+"verb": "verdict"
+},
+{
+"id": "m141",
+"verb": "relay"
+}
+],
+"receipts": [
+{
+"new_version": 1,
+"row_id": "CHANGES.md",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 2,
+"row_id": "docs",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 3,
+"row_id": "examples",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 4,
+"row_id": "LICENSE.txt",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 5,
+"row_id": "README.md",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 6,
+"row_id": "src",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 7,
+"row_id": "tests",
+"session_id": "s2",
+"table_name": "frame_rulings"
+},
+{
+"new_version": 1,
+"row_id": "architect:@frame",
+"session_id": "s2",
+"table_name": "survey_records"
+},
+{
+"new_version": 1,
+"row_id": "architect:@frame:devcontainer",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 2,
+"row_id": "architect:@frame:github",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 3,
+"row_id": "architect:@frame:CHANGES.md",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 4,
+"row_id": "architect:@frame:docs",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 5,
+"row_id": "architect:@frame:examples",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 6,
+"row_id": "architect:@frame:LICENSE.txt",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 7,
+"row_id": "architect:@frame:pyproject.toml",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 8,
+"row_id": "architect:@frame:README.md",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 9,
+"row_id": "architect:@frame:src",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 10,
+"row_id": "architect:@frame:tests",
+"session_id": "s2",
+"table_name": "survey_citations"
+},
+{
+"new_version": 1,
+"row_id": "how_it_works",
+"session_id": "s3",
+"table_name": "items"
+},
+{
+"new_version": 2,
+"row_id": "defines_commands_and_options",
+"session_id": "s3",
+"table_name": "items"
+},
+{
+"new_version": 3,
+"row_id": "parses_and_executes_inputs",
+"session_id": "s3",
+"table_name": "items"
+},
+{
+"new_version": 4,
+"row_id": "provides_command_line_interface",
+"session_id": "s3",
+"table_name": "items"
+},
+{
+"new_version": 2,
+"row_id": "vision_keeper:@program",
+"session_id": "s3",
+"table_name": "survey_records"
+},
+{
+"new_version": 11,
+"row_id": "vision_keeper:@program:src/click/__init__.py",
+"session_id": "s3",
+"table_name": "survey_citations"
+},
+{
+"new_version": 1,
+"row_id": "r_d75e9b4fc9",
+"session_id": "s6",
+"table_name": "rulings"
+},
+{
+"new_version": 5,
+"row_id": "how_it_works",
+"session_id": "s8",
+"table_name": "items"
+},
+{
+"new_version": 6,
+"row_id": "defines_commands_and_options",
+"session_id": "s8",
+"table_name": "items"
+},
+{
+"new_version": 7,
+"row_id": "parses_and_executes_inputs",
+"session_id": "s8",
+"table_name": "items"
+},
+{
+"new_version": 8,
+"row_id": "provides_command_line_interface",
+"session_id": "s8",
+"table_name": "items"
+},
+{
+"new_version": 3,
+"row_id": "vision_keeper:@prose",
+"session_id": "s9",
+"table_name": "survey_records"
+},
+{
+"new_version": 12,
+"row_id": "vision_keeper:@prose:README.md",
+"session_id": "s9",
+"table_name": "survey_citations"
+},
+{
+"new_version": 1,
+"row_id": "l_d3a8de3ac3",
+"session_id": "s10",
+"table_name": "ledger"
+},
+{
+"new_version": 2,
+"row_id": "l_14fdb7b2b5",
+"session_id": "s10",
+"table_name": "ledger"
+},
+{
+"new_version": 3,
+"row_id": "l_9645a83fad",
+"session_id": "s10",
+"table_name": "ledger"
+},
+{
+"new_version": 4,
+"row_id": "l_ae06cd685c",
+"session_id": "s10",
+"table_name": "ledger"
+},
+{
+"new_version": 4,
+"row_id": "vision_keeper:@prose:docs/advanced.md",
+"session_id": "s10",
+"table_name": "survey_records"
+},
+{
+"new_version": 13,
+"row_id": "vision_keeper:@prose:docs/advanced.md:docs/advanced.md",
+"session_id": "s10",
+"table_name": "survey_citations"
+},
+{
+"new_version": 14,
+"row_id": "vision_keeper:@prose:docs/advanced.md:defines_commands_and_options",
+"session_id": "s10",
+"table_name": "survey_citations"
+},
+{
+"new_version": 15,
+"row_id": "vision_keeper:@prose:docs/advanced.md:how_it_works",
+"session_id": "s10",
+"table_name": "survey_citations"
+},
+{
+"new_version": 16,
+"row_id": "vision_keeper:@prose:docs/advanced.md:parses_and_executes_inputs",
+"session_id": "s10",
+"table_name": "survey_citations"
+},
+{
+"new_version": 17,
+"row_id": "vision_keeper:@prose:docs/advanced.md:provides_command_line_interface",
+"session_id": "s10",
+"table_name": "survey_citations"
+},
+{
+"new_version": 5,
+"row_id": "vision_keeper:@prose:docs/api.md",
+"session_id": "s11",
+"table_name": "survey_records"
+},
+{
+"new_version": 18,
+"row_id": "vision_keeper:@prose:docs/api.md:docs/api.md",
+"session_id": "s11",
+"table_name": "survey_citations"
+},
+{
+"new_version": 6,
+"row_id": "vision_keeper:@prose:docs/arguments.md",
+"session_id": "s12",
+"table_name": "survey_records"
+},
+{
+"new_version": 19,
+"row_id": "vision_keeper:@prose:docs/arguments.md:docs/arguments.md",
+"session_id": "s12",
+"table_name": "survey_citations"
+},
+{
+"new_version": 7,
+"row_id": "vision_keeper:@prose:docs/changes.md",
+"session_id": "s13",
+"table_name": "survey_records"
+},
+{
+"new_version": 20,
+"row_id": "vision_keeper:@prose:docs/changes.md:docs/changes.md",
+"session_id": "s13",
+"table_name": "survey_citations"
+},
+{
+"new_version": 8,
+"row_id": "vision_keeper:@prose:docs/click-concepts.md",
+"session_id": "s14",
+"table_name": "survey_records"
+},
+{
+"new_version": 21,
+"row_id": "vision_keeper:@prose:docs/click-concepts.md:docs/click-concepts.md",
+"session_id": "s14",
+"table_name": "survey_citations"
+},
+{
+"new_version": 9,
+"row_id": "vision_keeper:@prose:docs/command-line-reference.md",
+"session_id": "s15",
+"table_name": "survey_records"
+},
+{
+"new_version": 22,
+"row_id": "vision_keeper:@prose:docs/command-line-reference.md:docs/command-line-reference.md",
+"session_id": "s15",
+"table_name": "survey_citations"
+},
+{
+"new_version": 10,
+"row_id": "vision_keeper:@prose:docs/commands-and-groups.md",
+"session_id": "s16",
+"table_name": "survey_records"
+},
+{
+"new_version": 23,
+"row_id": "vision_keeper:@prose:docs/commands-and-groups.md:docs/commands-and-groups.md",
+"session_id": "s16",
+"table_name": "survey_citations"
+},
+{
+"new_version": 5,
+"row_id": "l_9b9e62b6fd",
+"session_id": "s17",
+"table_name": "ledger"
+},
+{
+"new_version": 6,
+"row_id": "l_d8de7dd230",
+"session_id": "s17",
+"table_name": "ledger"
+},
+{
+"new_version": 7,
+"row_id": "l_43a56af859",
+"session_id": "s17",
+"table_name": "ledger"
+},
+{
+"new_version": 8,
+"row_id": "l_029450bb2a",
+"session_id": "s17",
+"table_name": "ledger"
+},
+{
+"new_version": 11,
+"row_id": "vision_keeper:@prose:docs/commands.md",
+"session_id": "s17",
+"table_name": "survey_records"
+},
+{
+"new_version": 24,
+"row_id": "vision_keeper:@prose:docs/commands.md:docs/commands.md",
+"session_id": "s17",
+"table_name": "survey_citations"
+},
+{
+"new_version": 25,
+"row_id": "vision_keeper:@prose:docs/commands.md:defines_commands_and_options",
+"session_id": "s17",
+"table_name": "survey_citations"
+},
+{
+"new_version": 26,
+"row_id": "vision_keeper:@prose:docs/commands.md:how_it_works",
+"session_id": "s17",
+"table_name": "survey_citations"
+},
+{
+"new_version": 27,
+"row_id": "vision_keeper:@prose:docs/commands.md:parses_and_executes_inputs",
+"session_id": "s17",
+"table_name": "survey_citations"
+},
+{
+"new_version": 28,
+"row_id": "vision_keeper:@prose:docs/commands.md:provides_command_line_interface",
+"session_id": "s17",
+"table_name": "survey_citations"
+},
+{
+"new_version": 9,
+"row_id": "l_430203dbda",
+"session_id": "s18",
+"table_name": "ledger"
+},
+{
+"new_version": 10,
+"row_id": "l_8a8ec94908",
+"session_id": "s18",
+"table_name": "ledger"
+},
+{
+"new_version": 11,
+"row_id": "l_2a94fb0056",
+"session_id": "s18",
+"table_name": "ledger"
+},
+{
+"new_version": 12,
+"row_id": "l_7a370eb19e",
+"session_id": "s18",
+"table_name": "ledger"
+},
+{
+"new_version": 12,
+"row_id": "vision_keeper:@prose:docs/complex.md",
+"session_id": "s18",
+"table_name": "survey_records"
+},
+{
+"new_version": 29,
+"row_id": "vision_keeper:@prose:docs/complex.md:docs/complex.md",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 30,
+"row_id": "vision_keeper:@prose:docs/complex.md:The",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 31,
+"row_id": "vision_keeper:@prose:docs/complex.md:README",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 32,
+"row_id": "vision_keeper:@prose:docs/complex.md:describes",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 33,
+"row_id": "vision_keeper:@prose:docs/complex.md:Click",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 34,
+"row_id": "vision_keeper:@prose:docs/complex.md:as",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 35,
+"row_id": "vision_keeper:@prose:docs/complex.md:a",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 36,
+"row_id": "vision_keeper:@prose:docs/complex.md:command-line",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 37,
+"row_id": "vision_keeper:@prose:docs/complex.md:interface",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 38,
+"row_id": "vision_keeper:@prose:docs/complex.md:toolkit",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 39,
+"row_id": "vision_keeper:@prose:docs/complex.md:that",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 40,
+"row_id": "vision_keeper:@prose:docs/complex.md:assists",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 41,
+"row_id": "vision_keeper:@prose:docs/complex.md:with",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 42,
+"row_id": "vision_keeper:@prose:docs/complex.md:creating",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 43,
+"row_id": "vision_keeper:@prose:docs/complex.md:complex",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 44,
+"row_id": "vision_keeper:@prose:docs/complex.md:and",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 45,
+"row_id": "vision_keeper:@prose:docs/complex.md:simple",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 46,
+"row_id": "vision_keeper:@prose:docs/complex.md:CLI",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 47,
+"row_id": "vision_keeper:@prose:docs/complex.md:tools.",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 48,
+"row_id": "vision_keeper:@prose:docs/complex.md:code",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 49,
+"row_id": "vision_keeper:@prose:docs/complex.md:shows",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 50,
+"row_id": "vision_keeper:@prose:docs/complex.md:for",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 51,
+"row_id": "vision_keeper:@prose:docs/complex.md:building",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 52,
+"row_id": "vision_keeper:@prose:docs/complex.md:tools",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 53,
+"row_id": "vision_keeper:@prose:docs/complex.md:nested",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 54,
+"row_id": "vision_keeper:@prose:docs/complex.md:systems",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 55,
+"row_id": "vision_keeper:@prose:docs/complex.md:context",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 56,
+"row_id": "vision_keeper:@prose:docs/complex.md:management.",
+"session_id": "s18",
+"table_name": "survey_citations"
+},
+{
+"new_version": 13,
+"row_id": "l_29ac0cd5c5",
+"session_id": "s19",
+"table_name": "ledger"
+},
+{
+"new_version": 13,
+"row_id": "vision_keeper:@prose:docs/contrib.md",
+"session_id": "s19",
+"table_name": "survey_records"
+},
+{
+"new_version": 57,
+"row_id": "vision_keeper:@prose:docs/contrib.md:docs/contrib.md",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 58,
+"row_id": "vision_keeper:@prose:docs/contrib.md:the",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 59,
+"row_id": "vision_keeper:@prose:docs/contrib.md:README",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 60,
+"row_id": "vision_keeper:@prose:docs/contrib.md:lists",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 61,
+"row_id": "vision_keeper:@prose:docs/contrib.md:third-party",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 62,
+"row_id": "vision_keeper:@prose:docs/contrib.md:projects",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 63,
+"row_id": "vision_keeper:@prose:docs/contrib.md:that",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 64,
+"row_id": "vision_keeper:@prose:docs/contrib.md:extend",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 65,
+"row_id": "vision_keeper:@prose:docs/contrib.md:Click's",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 66,
+"row_id": "vision_keeper:@prose:docs/contrib.md:features",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 67,
+"row_id": "vision_keeper:@prose:docs/contrib.md:and",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 68,
+"row_id": "vision_keeper:@prose:docs/contrib.md:explains",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 69,
+"row_id": "vision_keeper:@prose:docs/contrib.md:how",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 70,
+"row_id": "vision_keeper:@prose:docs/contrib.md:to",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 71,
+"row_id": "vision_keeper:@prose:docs/contrib.md:add",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 72,
+"row_id": "vision_keeper:@prose:docs/contrib.md:or",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 73,
+"row_id": "vision_keeper:@prose:docs/contrib.md:remove",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 74,
+"row_id": "vision_keeper:@prose:docs/contrib.md:them",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 75,
+"row_id": "vision_keeper:@prose:docs/contrib.md:from",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 76,
+"row_id": "vision_keeper:@prose:docs/contrib.md:list;",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 77,
+"row_id": "vision_keeper:@prose:docs/contrib.md:code",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 78,
+"row_id": "vision_keeper:@prose:docs/contrib.md:shows",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 79,
+"row_id": "vision_keeper:@prose:docs/contrib.md:these",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 80,
+"row_id": "vision_keeper:@prose:docs/contrib.md:their",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 81,
+"row_id": "vision_keeper:@prose:docs/contrib.md:criteria",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 82,
+"row_id": "vision_keeper:@prose:docs/contrib.md:for",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 83,
+"row_id": "vision_keeper:@prose:docs/contrib.md:inclusion",
+"session_id": "s19",
+"table_name": "survey_citations"
+},
+{
+"new_version": 14,
+"row_id": "l_f7203ab734",
+"session_id": "s20",
+"table_name": "ledger"
+},
+{
+"new_version": 15,
+"row_id": "l_33cf8c4356",
+"session_id": "s20",
+"table_name": "ledger"
+},
+{
+"new_version": 16,
+"row_id": "l_b4b0d0de29",
+"session_id": "s20",
+"table_name": "ledger"
+},
+{
+"new_version": 17,
+"row_id": "l_00db4aadf3",
+"session_id": "s20",
+"table_name": "ledger"
+},
+{
+"new_version": 14,
+"row_id": "vision_keeper:@prose:docs/contributing.md",
+"session_id": "s20",
+"table_name": "survey_records"
+},
+{
+"new_version": 84,
+"row_id": "vision_keeper:@prose:docs/contributing.md:docs/contributing.md",
+"session_id": "s20",
+"table_name": "survey_citations"
+},
+{
+"new_version": 85,
+"row_id": "vision_keeper:@prose:docs/contributing.md:defines_commands_and_options",
+"session_id": "s20",
+"table_name": "survey_citations"
+},
+{
+"new_version": 86,
+"row_id": "vision_keeper:@prose:docs/contributing.md:how_it_works",
+"session_id": "s20",
+"table_name": "survey_citations"
+},
+{
+"new_version": 87,
+"row_id": "vision_keeper:@prose:docs/contributing.md:parses_and_executes_inputs",
+"session_id": "s20",
+"table_name": "survey_citations"
+},
+{
+"new_version": 88,
+"row_id": "vision_keeper:@prose:docs/contributing.md:provides_command_line_interface",
+"session_id": "s20",
+"table_name": "survey_citations"
+},
+{
+"new_version": 15,
+"row_id": "vision_keeper:@prose:docs/design-opinions.md",
+"session_id": "s21",
+"table_name": "survey_records"
+},
+{
+"new_version": 89,
+"row_id": "vision_keeper:@prose:docs/design-opinions.md:docs/design-opinions.md",
+"session_id": "s21",
+"table_name": "survey_citations"
+},
+{
+"new_version": 16,
+"row_id": "vision_keeper:@prose:docs/documentation.md",
+"session_id": "s22",
+"table_name": "survey_records"
+},
+{
+"new_version": 90,
+"row_id": "vision_keeper:@prose:docs/documentation.md:docs/documentation.md",
+"session_id": "s22",
+"table_name": "survey_citations"
+},
+{
+"new_version": 17,
+"row_id": "vision_keeper:@prose:docs/entry-points.md",
+"session_id": "s23",
+"table_name": "survey_records"
+},
+{
+"new_version": 91,
+"row_id": "vision_keeper:@prose:docs/entry-points.md:docs/entry-points.md",
+"session_id": "s23",
+"table_name": "survey_citations"
+},
+{
+"new_version": 18,
+"row_id": "vision_keeper:@prose:docs/exceptions.md",
+"session_id": "s24",
+"table_name": "survey_records"
+},
+{
+"new_version": 92,
+"row_id": "vision_keeper:@prose:docs/exceptions.md:docs/exceptions.md",
+"session_id": "s24",
+"table_name": "survey_citations"
+},
+{
+"new_version": 18,
+"row_id": "l_dd6de48b12",
+"session_id": "s25",
+"table_name": "ledger"
+},
+{
+"new_version": 19,
+"row_id": "l_11c13564dc",
+"session_id": "s25",
+"table_name": "ledger"
+},
+{
+"new_version": 20,
+"row_id": "l_f7329d182b",
+"session_id": "s25",
+"table_name": "ledger"
+},
+{
+"new_version": 21,
+"row_id": "l_1da9a37f60",
+"session_id": "s25",
+"table_name": "ledger"
+},
+{
+"new_version": 19,
+"row_id": "vision_keeper:@prose:docs/extending-click.md",
+"session_id": "s25",
+"table_name": "survey_records"
+},
+{
+"new_version": 93,
+"row_id": "vision_keeper:@prose:docs/extending-click.md:docs/extending-click.md",
+"session_id": "s25",
+"table_name": "survey_citations"
+},
+{
+"new_version": 94,
+"row_id": "vision_keeper:@prose:docs/extending-click.md:defines_commands_and_options",
+"session_id": "s25",
+"table_name": "survey_citations"
+},
+{
+"new_version": 95,
+"row_id": "vision_keeper:@prose:docs/extending-click.md:how_it_works",
+"session_id": "s25",
+"table_name": "survey_citations"
+},
+{
+"new_version": 96,
+"row_id": "vision_keeper:@prose:docs/extending-click.md:parses_and_executes_inputs",
+"session_id": "s25",
+"table_name": "survey_citations"
+},
+{
+"new_version": 97,
+"row_id": "vision_keeper:@prose:docs/extending-click.md:provides_command_line_interface",
+"session_id": "s25",
+"table_name": "survey_citations"
+},
+{
+"new_version": 20,
+"row_id": "vision_keeper:@prose:docs/faqs.md",
+"session_id": "s26",
+"table_name": "survey_records"
+},
+{
+"new_version": 98,
+"row_id": "vision_keeper:@prose:docs/faqs.md:docs/faqs.md",
+"session_id": "s26",
+"table_name": "survey_citations"
+},
+{
+"new_version": 21,
+"row_id": "vision_keeper:@prose:docs/handling-files.md",
+"session_id": "s28",
+"table_name": "survey_records"
+},
+{
+"new_version": 99,
+"row_id": "vision_keeper:@prose:docs/handling-files.md:docs/handling-files.md",
+"session_id": "s28",
+"table_name": "survey_citations"
+},
+{
+"new_version": 22,
+"row_id": "vision_keeper:@prose:docs/index.md",
+"session_id": "s29",
+"table_name": "survey_records"
+},
+{
+"new_version": 100,
+"row_id": "vision_keeper:@prose:docs/index.md:docs/index.md",
+"session_id": "s29",
+"table_name": "survey_citations"
+},
+{
+"new_version": 23,
+"row_id": "vision_keeper:@prose:docs/license.md",
+"session_id": "s30",
+"table_name": "survey_records"
+},
+{
+"new_version": 101,
+"row_id": "vision_keeper:@prose:docs/license.md:docs/license.md",
+"session_id": "s30",
+"table_name": "survey_citations"
+},
+{
+"new_version": 24,
+"row_id": "vision_keeper:@prose:docs/option-decorators.md",
+"session_id": "s31",
+"table_name": "survey_records"
+},
+{
+"new_version": 102,
+"row_id": "vision_keeper:@prose:docs/option-decorators.md:docs/option-decorators.md",
+"session_id": "s31",
+"table_name": "survey_citations"
+},
+{
+"new_version": 22,
+"row_id": "l_870605bbe4",
+"session_id": "s32",
+"table_name": "ledger"
+},
+{
+"new_version": 23,
+"row_id": "l_eb5de89aed",
+"session_id": "s32",
+"table_name": "ledger"
+},
+{
+"new_version": 24,
+"row_id": "l_e9c8d1d075",
+"session_id": "s32",
+"table_name": "ledger"
+},
+{
+"new_version": 25,
+"row_id": "l_ff5bbdf685",
+"session_id": "s32",
+"table_name": "ledger"
+},
+{
+"new_version": 25,
+"row_id": "vision_keeper:@prose:docs/options.md",
+"session_id": "s32",
+"table_name": "survey_records"
+},
+{
+"new_version": 103,
+"row_id": "vision_keeper:@prose:docs/options.md:docs/options.md",
+"session_id": "s32",
+"table_name": "survey_citations"
+},
+{
+"new_version": 104,
+"row_id": "vision_keeper:@prose:docs/options.md:defines_commands_and_options",
+"session_id": "s32",
+"table_name": "survey_citations"
+},
+{
+"new_version": 105,
+"row_id": "vision_keeper:@prose:docs/options.md:how_it_works",
+"session_id": "s32",
+"table_name": "survey_citations"
+},
+{
+"new_version": 106,
+"row_id": "vision_keeper:@prose:docs/options.md:parses_and_executes_inputs",
+"session_id": "s32",
+"table_name": "survey_citations"
+},
+{
+"new_version": 107,
+"row_id": "vision_keeper:@prose:docs/options.md:provides_command_line_interface",
+"session_id": "s32",
+"table_name": "survey_citations"
+},
+{
+"new_version": 26,
+"row_id": "l_123565a5ea",
+"session_id": "s33",
+"table_name": "ledger"
+},
+{
+"new_version": 26,
+"row_id": "vision_keeper:@prose:docs/parameter-types.md",
+"session_id": "s33",
+"table_name": "survey_records"
+},
+{
+"new_version": 108,
+"row_id": "vision_keeper:@prose:docs/parameter-types.md:docs/parameter-types.md",
+"session_id": "s33",
+"table_name": "survey_citations"
+},
+{
+"new_version": 109,
+"row_id": "vision_keeper:@prose:docs/parameter-types.md:src/click/types.py",
+"session_id": "s33",
+"table_name": "survey_citations"
+},
+{
+"new_version": 27,
+"row_id": "l_c48b9eccb9",
+"session_id": "s34",
+"table_name": "ledger"
+},
+{
+"new_version": 27,
+"row_id": "vision_keeper:@prose:docs/parameters.md",
+"session_id": "s34",
+"table_name": "survey_records"
+},
+{
+"new_version": 110,
+"row_id": "vision_keeper:@prose:docs/parameters.md:docs/parameters.md",
+"session_id": "s34",
+"table_name": "survey_citations"
+},
+{
+"new_version": 111,
+"row_id": "vision_keeper:@prose:docs/parameters.md:defines_commands_and_options",
+"session_id": "s34",
+"table_name": "survey_citations"
+},
+{
+"new_version": 112,
+"row_id": "vision_keeper:@prose:docs/parameters.md:how_it_works",
+"session_id": "s34",
+"table_name": "survey_citations"
+},
+{
+"new_version": 113,
+"row_id": "vision_keeper:@prose:docs/parameters.md:parses_and_executes_inputs",
+"session_id": "s34",
+"table_name": "survey_citations"
+},
+{
+"new_version": 114,
+"row_id": "vision_keeper:@prose:docs/parameters.md:provides_command_line_interface",
+"session_id": "s34",
+"table_name": "survey_citations"
+},
+{
+"new_version": 28,
+"row_id": "l_5fb3bb254c",
+"session_id": "s35",
+"table_name": "ledger"
+},
+{
+"new_version": 28,
+"row_id": "vision_keeper:@prose:docs/prompts.md",
+"session_id": "s35",
+"table_name": "survey_records"
+},
+{
+"new_version": 115,
+"row_id": "vision_keeper:@prose:docs/prompts.md:docs/prompts.md",
+"session_id": "s35",
+"table_name": "survey_citations"
+},
+{
+"new_version": 116,
+"row_id": "vision_keeper:@prose:docs/prompts.md:defines_commands_and_options",
+"session_id": "s35",
+"table_name": "survey_citations"
+},
+{
+"new_version": 117,
+"row_id": "vision_keeper:@prose:docs/prompts.md:how_it_works",
+"session_id": "s35",
+"table_name": "survey_citations"
+},
+{
+"new_version": 118,
+"row_id": "vision_keeper:@prose:docs/prompts.md:parses_and_executes_inputs",
+"session_id": "s35",
+"table_name": "survey_citations"
+},
+{
+"new_version": 119,
+"row_id": "vision_keeper:@prose:docs/prompts.md:provides_command_line_interface",
+"session_id": "s35",
+"table_name": "survey_citations"
+},
+{
+"new_version": 29,
+"row_id": "l_a52f4cb281",
+"session_id": "s36",
+"table_name": "ledger"
+},
+{
+"new_version": 29,
+"row_id": "vision_keeper:@prose:docs/quickstart.md",
+"session_id": "s36",
+"table_name": "survey_records"
+},
+{
+"new_version": 120,
+"row_id": "vision_keeper:@prose:docs/quickstart.md:docs/quickstart.md",
+"session_id": "s36",
+"table_name": "survey_citations"
+},
+{
+"new_version": 121,
+"row_id": "vision_keeper:@prose:docs/quickstart.md:defines_commands_and_options",
+"session_id": "s36",
+"table_name": "survey_citations"
+},
+{
+"new_version": 122,
+"row_id": "vision_keeper:@prose:docs/quickstart.md:how_it_works",
+"session_id": "s36",
+"table_name": "survey_citations"
+},
+{
+"new_version": 123,
+"row_id": "vision_keeper:@prose:docs/quickstart.md:parses_and_executes_inputs",
+"session_id": "s36",
+"table_name": "survey_citations"
+},
+{
+"new_version": 124,
+"row_id": "vision_keeper:@prose:docs/quickstart.md:provides_command_line_interface",
+"session_id": "s36",
+"table_name": "survey_citations"
+},
+{
+"new_version": 30,
+"row_id": "l_1368148f97",
+"session_id": "s37",
+"table_name": "ledger"
+},
+{
+"new_version": 30,
+"row_id": "vision_keeper:@prose:docs/setuptools.md",
+"session_id": "s37",
+"table_name": "survey_records"
+},
+{
+"new_version": 125,
+"row_id": "vision_keeper:@prose:docs/setuptools.md:docs/setuptools.md",
+"session_id": "s37",
+"table_name": "survey_citations"
+},
+{
+"new_version": 126,
+"row_id": "vision_keeper:@prose:docs/setuptools.md:Setuptools",
+"session_id": "s37",
+"table_name": "survey_citations"
+},
+{
+"new_version": 127,
+"row_id": "vision_keeper:@prose:docs/setuptools.md:Integration",
+"session_id": "s37",
+"table_name": "survey_citations"
+},
+{
+"new_version": 31,
+"row_id": "l_30079cfbf4",
+"session_id": "s38",
+"table_name": "ledger"
+},
+{
+"new_version": 31,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md",
+"session_id": "s38",
+"table_name": "survey_records"
+},
+{
+"new_version": 128,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:docs/shell-completion.md",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 129,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:The",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 130,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:README",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 131,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:describes",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 132,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:shell",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 133,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:completion",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 134,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:support",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 135,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:for",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 136,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:Bash",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 137,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:Zsh",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 138,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:Fish",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 139,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:and",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 140,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:PowerShell",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 141,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:explains",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 142,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:how",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 143,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:to",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 144,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:enable",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 145,
+"row_id": "vision_keeper:@prose:docs/shell-completion.md:it.",
+"session_id": "s38",
+"table_name": "survey_citations"
+},
+{
+"new_version": 32,
+"row_id": "vision_keeper:@prose:docs/standalone-apps.md",
+"session_id": "s39",
+"table_name": "survey_records"
+},
+{
+"new_version": 146,
+"row_id": "vision_keeper:@prose:docs/standalone-apps.md:docs/standalone-apps.md",
+"session_id": "s39",
+"table_name": "survey_citations"
+},
+{
+"new_version": 32,
+"row_id": "l_4ec9343e25",
+"session_id": "s40",
+"table_name": "ledger"
+},
+{
+"new_version": 33,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md",
+"session_id": "s40",
+"table_name": "survey_records"
+},
+{
+"new_version": 147,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:docs/support-multiple-versions.md",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 148,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:the",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 149,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:README",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 150,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:discusses",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 151,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:supporting",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 152,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:multiple",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 153,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:versions",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 154,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:of",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 155,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:Click",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 156,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:feature",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 157,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:detection",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 158,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:and",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 159,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:provides",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 160,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:code",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 161,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:examples",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 162,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:for",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 163,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:handling",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 164,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:version",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 165,
+"row_id": "vision_keeper:@prose:docs/support-multiple-versions.md:changes",
+"session_id": "s40",
+"table_name": "survey_citations"
+},
+{
+"new_version": 33,
+"row_id": "l_84f0f73dda",
+"session_id": "s41",
+"table_name": "ledger"
+},
+{
+"new_version": 34,
+"row_id": "vision_keeper:@prose:docs/testing.md",
+"session_id": "s41",
+"table_name": "survey_records"
+},
+{
+"new_version": 166,
+"row_id": "vision_keeper:@prose:docs/testing.md:docs/testing.md",
+"session_id": "s41",
+"table_name": "survey_citations"
+},
+{
+"new_version": 167,
+"row_id": "vision_keeper:@prose:docs/testing.md:defines_commands_and_options",
+"session_id": "s41",
+"table_name": "survey_citations"
+},
+{
+"new_version": 34,
+"row_id": "l_3bc4eccba5",
+"session_id": "s42",
+"table_name": "ledger"
+},
+{
+"new_version": 35,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md",
+"session_id": "s42",
+"table_name": "survey_records"
+},
+{
+"new_version": 168,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:docs/unicode-support.md",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 169,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:The",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 170,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:README",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 171,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:discusses",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 172,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:Unicode",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 173,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:support",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 174,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:in",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 175,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:Click",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 176,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:including",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 177,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:issues",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 178,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:with",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 179,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:SSH",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 180,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:connections",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 181,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:locale",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 182,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:settings",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 183,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:and",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 184,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:handling",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 185,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:of",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 186,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:surrogate",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 187,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:escapes.",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 188,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:code",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 189,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:baseline",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 190,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:does",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 191,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:not",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 192,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:mention",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 193,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:these",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 194,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:details",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 195,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:indicating",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 196,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:a",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 197,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:potential",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 198,
+"row_id": "vision_keeper:@prose:docs/unicode-support.md:discrepancy.",
+"session_id": "s42",
+"table_name": "survey_citations"
+},
+{
+"new_version": 35,
+"row_id": "l_322914e25f",
+"session_id": "s43",
+"table_name": "ledger"
+},
+{
+"new_version": 36,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md",
+"session_id": "s43",
+"table_name": "survey_records"
+},
+{
+"new_version": 199,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md:docs/upgrade-guides.md",
+"session_id": "s43",
+"table_name": "survey_citations"
+},
+{
+"new_version": 200,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md:defines_commands_and_options",
+"session_id": "s43",
+"table_name": "survey_citations"
+},
+{
+"new_version": 201,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md:how_it_works",
+"session_id": "s43",
+"table_name": "survey_citations"
+},
+{
+"new_version": 202,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md:parses_and_executes_inputs",
+"session_id": "s43",
+"table_name": "survey_citations"
+},
+{
+"new_version": 203,
+"row_id": "vision_keeper:@prose:docs/upgrade-guides.md:provides_command_line_interface",
+"session_id": "s43",
+"table_name": "survey_citations"
+},
+{
+"new_version": 37,
+"row_id": "vision_keeper:@prose:docs/utils.md",
+"session_id": "s44",
+"table_name": "survey_records"
+},
+{
+"new_version": 204,
+"row_id": "vision_keeper:@prose:docs/utils.md:docs/utils.md",
+"session_id": "s44",
+"table_name": "survey_citations"
+},
+{
+"new_version": 38,
+"row_id": "vision_keeper:@prose:docs/virtualenv.md",
+"session_id": "s45",
+"table_name": "survey_records"
+},
+{
+"new_version": 205,
+"row_id": "vision_keeper:@prose:docs/virtualenv.md:docs/virtualenv.md",
+"session_id": "s45",
+"table_name": "survey_citations"
+},
+{
+"new_version": 39,
+"row_id": "vision_keeper:@prose:docs/why.md",
+"session_id": "s46",
+"table_name": "survey_records"
+},
+{
+"new_version": 206,
+"row_id": "vision_keeper:@prose:docs/why.md:docs/why.md",
+"session_id": "s46",
+"table_name": "survey_citations"
+},
+{
+"new_version": 36,
+"row_id": "l_f8d40b6eb3",
+"session_id": "s47",
+"table_name": "ledger"
+},
+{
+"new_version": 37,
+"row_id": "l_18feef5ed6",
+"session_id": "s47",
+"table_name": "ledger"
+},
+{
+"new_version": 38,
+"row_id": "l_c445d7078e",
+"session_id": "s47",
+"table_name": "ledger"
+},
+{
+"new_version": 39,
+"row_id": "l_3d62b0ca62",
+"session_id": "s47",
+"table_name": "ledger"
+},
+{
+"new_version": 40,
+"row_id": "vision_keeper:@prose:docs/wincmd.md",
+"session_id": "s47",
+"table_name": "survey_records"
+},
+{
+"new_version": 207,
+"row_id": "vision_keeper:@prose:docs/wincmd.md:docs/wincmd.md",
+"session_id": "s47",
+"table_name": "survey_citations"
+},
+{
+"new_version": 208,
+"row_id": "vision_keeper:@prose:docs/wincmd.md:defines_commands_and_options",
+"session_id": "s47",
+"table_name": "survey_citations"
+},
+{
+"new_version": 209,
+"row_id": "vision_keeper:@prose:docs/wincmd.md:how_it_works",
+"session_id": "s47",
+"table_name": "survey_citations"
+},
+{
+"new_version": 210,
+"row_id": "vision_keeper:@prose:docs/wincmd.md:parses_and_executes_inputs",
+"session_id": "s47",
+"table_name": "survey_citations"
+},
+{
+"new_version": 211,
+"row_id": "vision_keeper:@prose:docs/wincmd.md:provides_command_line_interface",
+"session_id": "s47",
+"table_name": "survey_citations"
+},
+{
+"new_version": 41,
+"row_id": "terminologist:@term:click",
+"session_id": "s48",
+"table_name": "survey_records"
+},
+{
+"new_version": 1,
+"row_id": "command",
+"session_id": "s49",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 2,
+"row_id": "option",
+"session_id": "s50",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 42,
+"row_id": "terminologist:@term:argument",
+"session_id": "s51",
+"table_name": "survey_records"
+},
+{
+"new_version": 43,
+"row_id": "terminologist:@term:parameter",
+"session_id": "s52",
+"table_name": "survey_records"
+},
+{
+"new_version": 3,
+"row_id": "line",
+"session_id": "s53",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 44,
+"row_id": "terminologist:@term:group",
+"session_id": "s54",
+"table_name": "survey_records"
+},
+{
+"new_version": 4,
+"row_id": "parser",
+"session_id": "s55",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 5,
+"row_id": "decorator",
+"session_id": "s56",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 45,
+"row_id": "terminologist:@term:which",
+"session_id": "s57",
+"table_name": "survey_records"
+},
+{
+"new_version": 46,
+"row_id": "terminologist:@term:command line",
+"session_id": "s58",
+"table_name": "survey_records"
+},
+{
+"new_version": 6,
+"row_id": "stream",
+"session_id": "s59",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 7,
+"row_id": "completion",
+"session_id": "s60",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 47,
+"row_id": "terminologist:@term:shell",
+"session_id": "s61",
+"table_name": "survey_records"
+},
+{
+"new_version": 48,
+"row_id": "terminologist:@term:choice",
+"session_id": "s62",
+"table_name": "survey_records"
+},
+{
+"new_version": 8,
+"row_id": "usage",
+"session_id": "s63",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 49,
+"row_id": "terminologist:@term:time",
+"session_id": "s64",
+"table_name": "survey_records"
+},
+{
+"new_version": 50,
+"row_id": "terminologist:@term:range",
+"session_id": "s65",
+"table_name": "survey_records"
+},
+{
+"new_version": 51,
+"row_id": "terminologist:@term:context",
+"session_id": "s66",
+"table_name": "survey_records"
+},
+{
+"new_version": 52,
+"row_id": "terminologist:@term:prompt",
+"session_id": "s67",
+"table_name": "survey_records"
+},
+{
+"new_version": 53,
+"row_id": "terminologist:src/click",
+"session_id": "s68",
+"table_name": "survey_records"
+},
+{
+"new_version": 212,
+"row_id": "terminologist:src/click:src/click/__init__.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 213,
+"row_id": "terminologist:src/click:src/click/globals.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 214,
+"row_id": "terminologist:src/click:src/click/_utils.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 215,
+"row_id": "terminologist:src/click:src/click/core.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 216,
+"row_id": "terminologist:src/click:src/click/exceptions.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 217,
+"row_id": "terminologist:src/click:src/click/formatting.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 218,
+"row_id": "terminologist:src/click:src/click/parser.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 219,
+"row_id": "terminologist:src/click:src/click/shell_completion.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 220,
+"row_id": "terminologist:src/click:src/click/termui.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 221,
+"row_id": "terminologist:src/click:src/click/types.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 222,
+"row_id": "terminologist:src/click:src/click/_winconsole.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 223,
+"row_id": "terminologist:src/click:src/click/decorators.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 224,
+"row_id": "terminologist:src/click:src/click/_termui_impl.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 225,
+"row_id": "terminologist:src/click:src/click/_textwrap.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 226,
+"row_id": "terminologist:src/click:src/click/testing.py",
+"session_id": "s68",
+"table_name": "survey_citations"
+},
+{
+"new_version": 9,
+"row_id": "context",
+"session_id": "s69",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 10,
+"row_id": "group",
+"session_id": "s69",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 11,
+"row_id": "callback",
+"session_id": "s69",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 54,
+"row_id": "terminologist:.",
+"session_id": "s69",
+"table_name": "survey_records"
+},
+{
+"new_version": 227,
+"row_id": "terminologist:.:.devcontainer/on-create-command.sh",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 228,
+"row_id": "terminologist:.:.editorconfig",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 229,
+"row_id": "terminologist:.:.github/ISSUE_TEMPLATE/config.yml",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 230,
+"row_id": "terminologist:.:.gitignore",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 231,
+"row_id": "terminologist:.:docs/changes.md",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 232,
+"row_id": "terminologist:.:docs/license.md",
+"session_id": "s69",
+"table_name": "survey_citations"
+},
+{
+"new_version": 1,
+"row_id": "src/click",
+"session_id": "s70",
+"table_name": "model_areas"
+},
+{
+"new_version": 1,
+"row_id": "context",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 1,
+"row_id": "context:src/click/globals.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 2,
+"row_id": "context:src/click/__init__.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 2,
+"row_id": "parametersource_prompt",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 3,
+"row_id": "parametersource_prompt:src/click/core.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 3,
+"row_id": "context_get_parameter_source",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 4,
+"row_id": "context_get_parameter_source:src/click/core.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 4,
+"row_id": "command_invoke",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 5,
+"row_id": "command_invoke:src/click/core.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 5,
+"row_id": "group",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 6,
+"row_id": "group:src/click/core.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 6,
+"row_id": "parametersource",
+"session_id": "s70",
+"table_name": "constraints"
+},
+{
+"new_version": 7,
+"row_id": "parametersource:src/click/core.py",
+"session_id": "s70",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 55,
+"row_id": "architect:src/click",
+"session_id": "s70",
+"table_name": "survey_records"
+},
+{
+"new_version": 233,
+"row_id": "architect:src/click:src/click/__init__.py",
+"session_id": "s70",
+"table_name": "survey_citations"
+},
+{
+"new_version": 234,
+"row_id": "architect:src/click:src/click/globals.py",
+"session_id": "s70",
+"table_name": "survey_citations"
+},
+{
+"new_version": 235,
+"row_id": "architect:src/click:src/click/_utils.py",
+"session_id": "s70",
+"table_name": "survey_citations"
+},
+{
+"new_version": 236,
+"row_id": "architect:src/click:src/click/py.typed",
+"session_id": "s70",
+"table_name": "survey_citations"
+},
+{
+"new_version": 237,
+"row_id": "architect:src/click:src/click/_compat.py",
+"session_id": "s70",
+"table_name": "survey_citations"
+},
+{
+"new_version": 2,
+"row_id": ".",
+"session_id": "s71",
+"table_name": "model_areas"
+},
+{
+"new_version": 7,
+"row_id": "cli",
+"session_id": "s71",
+"table_name": "constraints"
+},
+{
+"new_version": 8,
+"row_id": "cli:examples/complex/complex/commands/cmd_status.py",
+"session_id": "s71",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 8,
+"row_id": "pass_environment",
+"session_id": "s71",
+"table_name": "constraints"
+},
+{
+"new_version": 9,
+"row_id": "pass_environment:examples/complex/complex/commands/cmd_status.py",
+"session_id": "s71",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 9,
+"row_id": "ctx",
+"session_id": "s71",
+"table_name": "constraints"
+},
+{
+"new_version": 10,
+"row_id": "ctx:examples/complex/complex/commands/cmd_status.py",
+"session_id": "s71",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 56,
+"row_id": "architect:.",
+"session_id": "s71",
+"table_name": "survey_records"
+},
+{
+"new_version": 238,
+"row_id": "architect:.:examples/complex/complex/commands/cmd_status.py",
+"session_id": "s71",
+"table_name": "survey_citations"
+},
+{
+"new_version": 9,
+"row_id": "how_it_works",
+"session_id": "s72",
+"table_name": "items"
+},
+{
+"new_version": 57,
+"row_id": "vision_keeper:@reorient",
+"session_id": "s72",
+"table_name": "survey_records"
+},
+{
+"new_version": 239,
+"row_id": "vision_keeper:@reorient:defines_commands_and_options",
+"session_id": "s72",
+"table_name": "survey_citations"
+},
+{
+"new_version": 240,
+"row_id": "vision_keeper:@reorient:how_it_works",
+"session_id": "s72",
+"table_name": "survey_citations"
+},
+{
+"new_version": 241,
+"row_id": "vision_keeper:@reorient:parses_and_executes_inputs",
+"session_id": "s72",
+"table_name": "survey_citations"
+},
+{
+"new_version": 242,
+"row_id": "vision_keeper:@reorient:provides_command_line_interface",
+"session_id": "s72",
+"table_name": "survey_citations"
+},
+{
+"new_version": 2,
+"row_id": "r_60d3b77575",
+"session_id": "s75",
+"table_name": "rulings"
+},
+{
+"new_version": 10,
+"row_id": "how_it_works",
+"session_id": "s77",
+"table_name": "items"
+},
+{
+"new_version": 58,
+"row_id": "architect:@surface:.pre-commit-config.yaml",
+"session_id": "s78",
+"table_name": "survey_records"
+},
+{
+"new_version": 243,
+"row_id": "architect:@surface:.pre-commit-config.yaml:.pre-commit-config.yaml",
+"session_id": "s78",
+"table_name": "survey_citations"
+},
+{
+"new_version": 10,
+"row_id": "read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users",
+"session_id": "s81",
+"table_name": "constraints"
+},
+{
+"new_version": 11,
+"row_id": "read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users:.readthedocs.yaml",
+"session_id": "s81",
+"table_name": "constraint_bindings"
+},
+{
+"new_version": 59,
+"row_id": "architect:@surface:.readthedocs.yaml",
+"session_id": "s81",
+"table_name": "survey_records"
+},
+{
+"new_version": 244,
+"row_id": "architect:@surface:.readthedocs.yaml:.readthedocs.yaml",
+"session_id": "s81",
+"table_name": "survey_citations"
+},
+{
+"new_version": 60,
+"row_id": "architect:@surface:pyproject.toml",
+"session_id": "s83",
+"table_name": "survey_records"
+},
+{
+"new_version": 245,
+"row_id": "architect:@surface:pyproject.toml:pyproject.toml",
+"session_id": "s83",
+"table_name": "survey_citations"
+},
+{
+"new_version": 1,
+"row_id": "constraints:read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users",
+"session_id": "s84",
+"table_name": "challenges"
+},
+{
+"new_version": 2,
+"row_id": "constraints:ctx",
+"session_id": "s85",
+"table_name": "challenges"
+},
+{
+"new_version": 3,
+"row_id": "constraints:pass_environment",
+"session_id": "s86",
+"table_name": "challenges"
+},
+{
+"new_version": 4,
+"row_id": "constraints:cli",
+"session_id": "s87",
+"table_name": "challenges"
+},
+{
+"new_version": 5,
+"row_id": "constraints:parametersource",
+"session_id": "s88",
+"table_name": "challenges"
+},
+{
+"new_version": 40,
+"row_id": "challenge_constraints_parametersource",
+"session_id": "s88",
+"table_name": "ledger"
+},
+{
+"new_version": 6,
+"row_id": "constraints:group",
+"session_id": "s90",
+"table_name": "challenges"
+},
+{
+"new_version": 41,
+"row_id": "challenge_constraints_group",
+"session_id": "s90",
+"table_name": "ledger"
+},
+{
+"new_version": 7,
+"row_id": "constraints:command_invoke",
+"session_id": "s91",
+"table_name": "challenges"
+},
+{
+"new_version": 42,
+"row_id": "challenge_constraints_command_invoke",
+"session_id": "s91",
+"table_name": "ledger"
+},
+{
+"new_version": 8,
+"row_id": "constraints:context_get_parameter_source",
+"session_id": "s92",
+"table_name": "challenges"
+},
+{
+"new_version": 43,
+"row_id": "challenge_constraints_context_get_parameter_source",
+"session_id": "s92",
+"table_name": "ledger"
+},
+{
+"new_version": 9,
+"row_id": "constraints:parametersource_prompt",
+"session_id": "s93",
+"table_name": "challenges"
+},
+{
+"new_version": 44,
+"row_id": "challenge_constraints_parametersource_prompt",
+"session_id": "s93",
+"table_name": "ledger"
+},
+{
+"new_version": 10,
+"row_id": "constraints:context",
+"session_id": "s94",
+"table_name": "challenges"
+},
+{
+"new_version": 11,
+"row_id": "items:provides_command_line_interface",
+"session_id": "s95",
+"table_name": "challenges"
+},
+{
+"new_version": 12,
+"row_id": "items:parses_and_executes_inputs",
+"session_id": "s96",
+"table_name": "challenges"
+},
+{
+"new_version": 45,
+"row_id": "challenge_items_parses_and_executes_inputs",
+"session_id": "s96",
+"table_name": "ledger"
+},
+{
+"new_version": 46,
+"row_id": "l_45e99e63ff",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 47,
+"row_id": "l_04eac83f1e",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 48,
+"row_id": "l_e8408a9620",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 49,
+"row_id": "l_dcec47075b",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 50,
+"row_id": "l_50556b2c59",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 51,
+"row_id": "l_d47bb02255",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 52,
+"row_id": "l_d314d591f8",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 53,
+"row_id": "l_8ca46430e6",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 54,
+"row_id": "l_7d6ce4a512",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 55,
+"row_id": "l_81514fdf24",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 56,
+"row_id": "l_de76b8b4d1",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 57,
+"row_id": "l_ddb6b276d1",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 58,
+"row_id": "l_604ac802b4",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 59,
+"row_id": "l_5c3fe6bdba",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 60,
+"row_id": "l_ceb38c4c4f",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 61,
+"row_id": "l_60a3eace8e",
+"session_id": "s97",
+"table_name": "ledger"
+},
+{
+"new_version": 61,
+"row_id": "liaison:@blindspots",
+"session_id": "s97",
+"table_name": "survey_records"
+},
+{
+"new_version": 246,
+"row_id": "liaison:@blindspots:@surface:.readthedocs.yaml",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 247,
+"row_id": "liaison:@blindspots:@surface:.pre-commit-config.yaml",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 248,
+"row_id": "liaison:@blindspots:@surface:pyproject.toml",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 249,
+"row_id": "liaison:@blindspots:@term:argument",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 250,
+"row_id": "liaison:@blindspots:@term:choice",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 251,
+"row_id": "liaison:@blindspots:@term:click",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 252,
+"row_id": "liaison:@blindspots:@term:command",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 253,
+"row_id": "liaison:@blindspots:line",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 254,
+"row_id": "liaison:@blindspots:@term:context",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 255,
+"row_id": "liaison:@blindspots:@term:group",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 256,
+"row_id": "liaison:@blindspots:@term:parameter",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 257,
+"row_id": "liaison:@blindspots:@term:prompt",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 258,
+"row_id": "liaison:@blindspots:@term:range",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 259,
+"row_id": "liaison:@blindspots:@term:shell",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 260,
+"row_id": "liaison:@blindspots:@term:time",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 261,
+"row_id": "liaison:@blindspots:@term:which",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 262,
+"row_id": "liaison:@blindspots:src/click",
+"session_id": "s97",
+"table_name": "survey_citations"
+},
+{
+"new_version": 3,
+"row_id": "r_7f7bd3e4cf",
+"session_id": "s99",
+"table_name": "rulings"
+},
+{
+"new_version": 4,
+"row_id": "r_998a3a71de",
+"session_id": "s101",
+"table_name": "rulings"
+},
+{
+"new_version": 5,
+"row_id": "r_0850f65240",
+"session_id": "s103",
+"table_name": "rulings"
+},
+{
+"new_version": 6,
+"row_id": "r_2f3e2a6ad5",
+"session_id": "s105",
+"table_name": "rulings"
+},
+{
+"new_version": 7,
+"row_id": "r_0d18363ac4",
+"session_id": "s107",
+"table_name": "rulings"
+},
+{
+"new_version": 8,
+"row_id": "r_e3ee1e63da",
+"session_id": "s109",
+"table_name": "rulings"
+},
+{
+"new_version": 9,
+"row_id": "r_a95dca382b",
+"session_id": "s111",
+"table_name": "rulings"
+},
+{
+"new_version": 10,
+"row_id": "r_3422db2fca",
+"session_id": "s113",
+"table_name": "rulings"
+},
+{
+"new_version": 11,
+"row_id": "r_a0d7d67076",
+"session_id": "s115",
+"table_name": "rulings"
+},
+{
+"new_version": 12,
+"row_id": "r_b7c4cdedf4",
+"session_id": "s117",
+"table_name": "rulings"
+},
+{
+"new_version": 11,
+"row_id": "cli",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 12,
+"row_id": "command_invoke",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 13,
+"row_id": "context_get_parameter_source",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 14,
+"row_id": "ctx",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 15,
+"row_id": "parametersource",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 16,
+"row_id": "parametersource_prompt",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 17,
+"row_id": "pass_environment",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 18,
+"row_id": "read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users",
+"session_id": "s119",
+"table_name": "constraints"
+},
+{
+"new_version": 62,
+"row_id": "l_e47fabe071",
+"session_id": "s119",
+"table_name": "ledger"
+},
+{
+"new_version": 12,
+"row_id": "callback",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 13,
+"row_id": "command",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 14,
+"row_id": "completion",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 15,
+"row_id": "decorator",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 16,
+"row_id": "line",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 17,
+"row_id": "option",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 18,
+"row_id": "parser",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 19,
+"row_id": "stream",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 20,
+"row_id": "usage",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 21,
+"row_id": "context",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 22,
+"row_id": "group",
+"session_id": "s120",
+"table_name": "glossary_terms"
+},
+{
+"new_version": 13,
+"row_id": "r_df2c5e6d94",
+"session_id": "s122",
+"table_name": "rulings"
+},
+{
+"new_version": 1,
+"row_id": "s1",
+"session_id": "s123",
+"table_name": "statements"
+},
+{
+"new_version": 14,
+"row_id": "r_43519f8cf4",
+"session_id": "s124",
+"table_name": "rulings"
+},
+{
+"new_version": 2,
+"row_id": "s1",
+"session_id": "s125",
+"table_name": "statements"
+},
+{
+"new_version": 11,
+"row_id": "echo_json",
+"session_id": "s126",
+"table_name": "items"
+},
+{
+"new_version": 63,
+"row_id": "l_abbc35e0a9",
+"session_id": "s126",
+"table_name": "ledger"
+},
+{
+"new_version": 15,
+"row_id": "r_8eb28d0ff0",
+"session_id": "s129",
+"table_name": "rulings"
+},
+{
+"new_version": 12,
+"row_id": "how_it_works",
+"session_id": "s131",
+"table_name": "items"
+},
+{
+"new_version": 13,
+"row_id": "defines_commands_and_options",
+"session_id": "s131",
+"table_name": "items"
+},
+{
+"new_version": 14,
+"row_id": "parses_and_executes_inputs",
+"session_id": "s131",
+"table_name": "items"
+},
+{
+"new_version": 15,
+"row_id": "provides_command_line_interface",
+"session_id": "s131",
+"table_name": "items"
+},
+{
+"new_version": 16,
+"row_id": "echo_json",
+"session_id": "s131",
+"table_name": "items"
+},
+{
+"new_version": 1,
+"row_id": "tk_1",
+"session_id": "s132",
+"table_name": "tickets"
+},
+{
+"new_version": 1,
+"row_id": "c_1",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 2,
+"row_id": "c_2",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 3,
+"row_id": "c_3",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 4,
+"row_id": "c_4",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 5,
+"row_id": "c_5",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 6,
+"row_id": "c_6",
+"session_id": "s133",
+"table_name": "criteria"
+},
+{
+"new_version": 1,
+"row_id": "d_c46b3466f2",
+"session_id": "s134",
+"table_name": "decisions"
+},
+{
+"new_version": 1,
+"row_id": "bg_1",
+"session_id": "s135",
+"table_name": "batches"
+},
+{
+"new_version": 1,
+"row_id": "bg_1:tk_1",
+"session_id": "s135",
+"table_name": "batch_tickets"
+},
+{
+"new_version": 16,
+"row_id": "r_5a5fc75617",
+"session_id": "s137",
+"table_name": "rulings"
+},
+{
+"new_version": 17,
+"row_id": "echo_json",
+"session_id": "s138",
+"table_name": "items"
+},
+{
+"new_version": 1,
+"row_id": "bg_1:src/click/utils.py",
+"session_id": "s139",
+"table_name": "batch_touch"
+},
+{
+"new_version": 2,
+"row_id": "bg_1:tests/test_utils/test_echo.py",
+"session_id": "s139",
+"table_name": "batch_touch"
+},
+{
+"new_version": 3,
+"row_id": "bg_1:echo",
+"session_id": "s139",
+"table_name": "batch_touch"
+},
+{
+"new_version": 4,
+"row_id": "bg_1:echo_json",
+"session_id": "s139",
+"table_name": "batch_touch"
+},
+{
+"new_version": 17,
+"row_id": "r_16bc3b03ae",
+"session_id": "s141",
+"table_name": "rulings"
+},
+{
+"new_version": 2,
+"row_id": "bg_1",
+"session_id": "s143",
+"table_name": "batches"
+},
+{
+"new_version": 64,
+"row_id": "l_a742eac6d8",
+"session_id": "s144",
+"table_name": "ledger"
+},
+{
+"new_version": 65,
+"row_id": "l_5444f53fde",
+"session_id": "s144",
+"table_name": "ledger"
+},
+{
+"new_version": 66,
+"row_id": "l_88beea203d",
+"session_id": "s144",
+"table_name": "ledger"
+},
+{
+"new_version": 1,
+"row_id": "tst_echo_json_returns_string",
+"session_id": "s144",
+"table_name": "tests"
+},
+{
+"new_version": 2,
+"row_id": "tst_echo_json_writes_to_stream",
+"session_id": "s144",
+"table_name": "tests"
+},
+{
+"new_version": 3,
+"row_id": "tst_echo_json_stream_handling",
+"session_id": "s144",
+"table_name": "tests"
+},
+{
+"new_version": 67,
+"row_id": "l_de047fe426",
+"session_id": "s144",
+"table_name": "ledger"
+},
+{
+"new_version": 3,
+"row_id": "bg_1",
+"session_id": "s147",
+"table_name": "batches"
+},
+{
+"new_version": 4,
+"row_id": "bg_1",
+"session_id": "s148",
+"table_name": "batches"
+},
+{
+"new_version": 5,
+"row_id": "bg_1",
+"session_id": "s151",
+"table_name": "batches"
+},
+{
+"new_version": 6,
+"row_id": "bg_1",
+"session_id": "s153",
+"table_name": "batches"
+},
+{
+"new_version": 4,
+"row_id": "tst_echo_json_returns_string",
+"session_id": "s155",
+"table_name": "tests"
+},
+{
+"new_version": 5,
+"row_id": "tst_echo_json_writes_to_stream",
+"session_id": "s158",
+"table_name": "tests"
+},
+{
+"new_version": 2,
+"row_id": "d_7f3a8d1e2c",
+"session_id": "s162",
+"table_name": "decisions"
+},
+{
+"new_version": 7,
+"row_id": "bg_1",
+"session_id": "s167",
+"table_name": "batches"
+},
+{
+"new_version": 8,
+"row_id": "bg_1",
+"session_id": "s168",
+"table_name": "batches"
+},
+{
+"new_version": 9,
+"row_id": "bg_1",
+"session_id": "s175",
+"table_name": "batches"
+},
+{
+"new_version": 1,
+"row_id": "bg_1:a774fe0ff5c0b9cd3acf427f578af36590c1d902:src/echo_json.py",
+"session_id": "s175",
+"table_name": "touch_strays"
+},
+{
+"new_version": 68,
+"row_id": "l_eb7b6ecf7c",
+"session_id": "s179",
+"table_name": "ledger"
+},
+{
+"new_version": 69,
+"row_id": "l_1c1664e596",
+"session_id": "s180",
+"table_name": "ledger"
+},
+{
+"new_version": 70,
+"row_id": "l_b79dc7a9bc",
+"session_id": "s180",
+"table_name": "ledger"
+},
+{
+"new_version": 71,
+"row_id": "l_28df501011",
+"session_id": "s180",
+"table_name": "ledger"
+},
+{
+"new_version": 72,
+"row_id": "l_a54da3ce06",
+"session_id": "s180",
+"table_name": "ledger"
+},
+{
+"new_version": 6,
+"row_id": "tst_echo_json_invalid_type_raises_typeerror",
+"session_id": "s188",
+"table_name": "tests"
+},
+{
+"new_version": 3,
+"row_id": "d_7f3a8d1e2c",
+"session_id": "s193",
+"table_name": "decisions"
+},
+{
+"new_version": 18,
+"row_id": "r_1887ca1545",
+"session_id": "s195",
+"table_name": "rulings"
+},
+{
+"new_version": 2,
+"row_id": "bg_1:a774fe0ff5c0b9cd3acf427f578af36590c1d902:src/echo_json.py",
+"session_id": "s196",
+"table_name": "touch_strays"
+},
+{
+"new_version": 4,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s200",
+"table_name": "decisions"
+},
+{
+"new_version": 18,
+"row_id": "bg_1_summary",
+"session_id": "s207",
+"table_name": "items"
+},
+{
+"new_version": 19,
+"row_id": "r_b63591d0f0",
+"session_id": "s209",
+"table_name": "rulings"
+},
+{
+"new_version": 20,
+"row_id": "r_b93ffb2a5d",
+"session_id": "s222",
+"table_name": "rulings"
+},
+{
+"new_version": 21,
+"row_id": "r_a66b9db45a",
+"session_id": "s225",
+"table_name": "rulings"
+},
+{
+"new_version": 19,
+"row_id": "how_it_works",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 20,
+"row_id": "provides_command_line_interface",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 21,
+"row_id": "bg_1_summary",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 22,
+"row_id": "defines_commands_and_options",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 23,
+"row_id": "parses_and_executes_inputs",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 24,
+"row_id": "echo_json",
+"session_id": "s227",
+"table_name": "items"
+},
+{
+"new_version": 2,
+"row_id": "tk_1_bg_1_summary",
+"session_id": "s228",
+"table_name": "tickets"
+},
+{
+"new_version": 5,
+"row_id": "d_7f3a8d1e2c",
+"session_id": "s230",
+"table_name": "decisions"
+},
+{
+"new_version": 73,
+"row_id": "l_b8feb80e81",
+"session_id": "s231",
+"table_name": "ledger"
+},
+{
+"new_version": 6,
+"row_id": "d_7f3a8d1e2c",
+"session_id": "s232",
+"table_name": "decisions"
+},
+{
+"new_version": 7,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s234",
+"table_name": "decisions"
+},
+{
+"new_version": 22,
+"row_id": "r_77ee6c91dc",
+"session_id": "s236",
+"table_name": "rulings"
+},
+{
+"new_version": 25,
+"row_id": "bg_1_summary",
+"session_id": "s238",
+"table_name": "items"
+},
+{
+"new_version": 8,
+"row_id": "d_7f3a8d1e2c",
+"session_id": "s240",
+"table_name": "decisions"
+},
+{
+"new_version": 74,
+"row_id": "l_b8feb80e81",
+"session_id": "s241",
+"table_name": "ledger"
+},
+{
+"new_version": 9,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s242",
+"table_name": "decisions"
+},
+{
+"new_version": 10,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s244",
+"table_name": "decisions"
+},
+{
+"new_version": 23,
+"row_id": "r_a23de14c09",
+"session_id": "s246",
+"table_name": "rulings"
+},
+{
+"new_version": 26,
+"row_id": "bg_1_summary",
+"session_id": "s248",
+"table_name": "items"
+},
+{
+"new_version": 11,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s250",
+"table_name": "decisions"
+},
+{
+"new_version": 75,
+"row_id": "l_b8feb80e81",
+"session_id": "s251",
+"table_name": "ledger"
+},
+{
+"new_version": 12,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s252",
+"table_name": "decisions"
+},
+{
+"new_version": 13,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s254",
+"table_name": "decisions"
+},
+{
+"new_version": 24,
+"row_id": "r_7d997870c7",
+"session_id": "s256",
+"table_name": "rulings"
+},
+{
+"new_version": 27,
+"row_id": "bg_1_summary",
+"session_id": "s258",
+"table_name": "items"
+},
+{
+"new_version": 14,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s260",
+"table_name": "decisions"
+},
+{
+"new_version": 76,
+"row_id": "l_b8feb80e81",
+"session_id": "s261",
+"table_name": "ledger"
+},
+{
+"new_version": 15,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s262",
+"table_name": "decisions"
+},
+{
+"new_version": 16,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s264",
+"table_name": "decisions"
+},
+{
+"new_version": 25,
+"row_id": "r_f0d8e909f9",
+"session_id": "s266",
+"table_name": "rulings"
+},
+{
+"new_version": 28,
+"row_id": "bg_1_summary",
+"session_id": "s268",
+"table_name": "items"
+},
+{
+"new_version": 17,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s270",
+"table_name": "decisions"
+},
+{
+"new_version": 77,
+"row_id": "l_b8feb80e81",
+"session_id": "s271",
+"table_name": "ledger"
+},
+{
+"new_version": 18,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s272",
+"table_name": "decisions"
+},
+{
+"new_version": 19,
+"row_id": "d_9a1b2c3d4e",
+"session_id": "s274",
+"table_name": "decisions"
+},
+{
+"new_version": 26,
+"row_id": "r_3df834a1c5",
+"session_id": "s276",
+"table_name": "rulings"
+},
+{
+"new_version": 29,
+"row_id": "bg_1_summary",
+"session_id": "s278",
+"table_name": "items"
+}
+],
+"sessions": [
+{
+"committed": 1,
+"id": "s1",
+"role": "liaison",
+"seq": 1,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: constraint_zero for the run, 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s2",
+"role": "architect",
+"seq": 2,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:frame",
+"wake_refs": "[\"@frame\"]"
+},
+{
+"committed": 1,
+"id": "s3",
+"role": "vision_keeper",
+"seq": 3,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:orient",
+"wake_refs": "[\"@program\"]"
+},
+{
+"committed": 1,
+"id": "s4",
+"role": "vision_keeper",
+"seq": 4,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:signoff",
+"wake_refs": "[\"defines_commands_and_options\", \"how_it_works\", \"parses_and_executes_inputs\", \"provides_command_line_interface\"]"
+},
+{
+"committed": 1,
+"id": "s5",
+"role": "liaison",
+"seq": 5,
+"trigger_msg": "m1",
+"wake_detail": "submit",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s6",
+"role": "liaison",
+"seq": 6,
+"trigger_msg": "m3",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s7",
+"role": "liaison",
+"seq": 7,
+"trigger_msg": "m4",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s8",
+"role": "vision_keeper",
+"seq": 8,
+"trigger_msg": "m5",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s9",
+"role": "vision_keeper",
+"seq": 9,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose\"]"
+},
+{
+"committed": 1,
+"id": "s10",
+"role": "vision_keeper",
+"seq": 10,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/advanced.md\"]"
+},
+{
+"committed": 1,
+"id": "s11",
+"role": "vision_keeper",
+"seq": 11,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/api.md\"]"
+},
+{
+"committed": 1,
+"id": "s12",
+"role": "vision_keeper",
+"seq": 12,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/arguments.md\"]"
+},
+{
+"committed": 1,
+"id": "s13",
+"role": "vision_keeper",
+"seq": 13,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/changes.md\"]"
+},
+{
+"committed": 1,
+"id": "s14",
+"role": "vision_keeper",
+"seq": 14,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/click-concepts.md\"]"
+},
+{
+"committed": 1,
+"id": "s15",
+"role": "vision_keeper",
+"seq": 15,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/command-line-reference.md\"]"
+},
+{
+"committed": 1,
+"id": "s16",
+"role": "vision_keeper",
+"seq": 16,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/commands-and-groups.md\"]"
+},
+{
+"committed": 1,
+"id": "s17",
+"role": "vision_keeper",
+"seq": 17,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/commands.md\"]"
+},
+{
+"committed": 1,
+"id": "s18",
+"role": "vision_keeper",
+"seq": 18,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/complex.md\"]"
+},
+{
+"committed": 1,
+"id": "s19",
+"role": "vision_keeper",
+"seq": 19,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/contrib.md\"]"
+},
+{
+"committed": 1,
+"id": "s20",
+"role": "vision_keeper",
+"seq": 20,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/contributing.md\"]"
+},
+{
+"committed": 1,
+"id": "s21",
+"role": "vision_keeper",
+"seq": 21,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/design-opinions.md\"]"
+},
+{
+"committed": 1,
+"id": "s22",
+"role": "vision_keeper",
+"seq": 22,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/documentation.md\"]"
+},
+{
+"committed": 1,
+"id": "s23",
+"role": "vision_keeper",
+"seq": 23,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/entry-points.md\"]"
+},
+{
+"committed": 1,
+"id": "s24",
+"role": "vision_keeper",
+"seq": 24,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/exceptions.md\"]"
+},
+{
+"committed": 1,
+"id": "s25",
+"role": "vision_keeper",
+"seq": 25,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/extending-click.md\"]"
+},
+{
+"committed": 1,
+"id": "s26",
+"role": "vision_keeper",
+"seq": 26,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/faqs.md\"]"
+},
+{
+"committed": 1,
+"id": "s27",
+"role": "vision_keeper",
+"seq": 27,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/handling-files.md\"]"
+},
+{
+"committed": 1,
+"id": "s28",
+"role": "vision_keeper",
+"seq": 28,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/handling-files.md\"]"
+},
+{
+"committed": 1,
+"id": "s29",
+"role": "vision_keeper",
+"seq": 29,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/index.md\"]"
+},
+{
+"committed": 1,
+"id": "s30",
+"role": "vision_keeper",
+"seq": 30,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/license.md\"]"
+},
+{
+"committed": 1,
+"id": "s31",
+"role": "vision_keeper",
+"seq": 31,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/option-decorators.md\"]"
+},
+{
+"committed": 1,
+"id": "s32",
+"role": "vision_keeper",
+"seq": 32,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/options.md\"]"
+},
+{
+"committed": 1,
+"id": "s33",
+"role": "vision_keeper",
+"seq": 33,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/parameter-types.md\"]"
+},
+{
+"committed": 1,
+"id": "s34",
+"role": "vision_keeper",
+"seq": 34,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/parameters.md\"]"
+},
+{
+"committed": 1,
+"id": "s35",
+"role": "vision_keeper",
+"seq": 35,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/prompts.md\"]"
+},
+{
+"committed": 1,
+"id": "s36",
+"role": "vision_keeper",
+"seq": 36,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/quickstart.md\"]"
+},
+{
+"committed": 1,
+"id": "s37",
+"role": "vision_keeper",
+"seq": 37,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/setuptools.md\"]"
+},
+{
+"committed": 1,
+"id": "s38",
+"role": "vision_keeper",
+"seq": 38,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/shell-completion.md\"]"
+},
+{
+"committed": 1,
+"id": "s39",
+"role": "vision_keeper",
+"seq": 39,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/standalone-apps.md\"]"
+},
+{
+"committed": 1,
+"id": "s40",
+"role": "vision_keeper",
+"seq": 40,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/support-multiple-versions.md\"]"
+},
+{
+"committed": 1,
+"id": "s41",
+"role": "vision_keeper",
+"seq": 41,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/testing.md\"]"
+},
+{
+"committed": 1,
+"id": "s42",
+"role": "vision_keeper",
+"seq": 42,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/unicode-support.md\"]"
+},
+{
+"committed": 1,
+"id": "s43",
+"role": "vision_keeper",
+"seq": 43,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/upgrade-guides.md\"]"
+},
+{
+"committed": 1,
+"id": "s44",
+"role": "vision_keeper",
+"seq": 44,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/utils.md\"]"
+},
+{
+"committed": 1,
+"id": "s45",
+"role": "vision_keeper",
+"seq": 45,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/virtualenv.md\"]"
+},
+{
+"committed": 1,
+"id": "s46",
+"role": "vision_keeper",
+"seq": 46,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/why.md\"]"
+},
+{
+"committed": 1,
+"id": "s47",
+"role": "vision_keeper",
+"seq": 47,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reconcile",
+"wake_refs": "[\"@prose:docs/wincmd.md\"]"
+},
+{
+"committed": 1,
+"id": "s48",
+"role": "terminologist",
+"seq": 48,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:click\"]"
+},
+{
+"committed": 1,
+"id": "s49",
+"role": "terminologist",
+"seq": 49,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:command\"]"
+},
+{
+"committed": 1,
+"id": "s50",
+"role": "terminologist",
+"seq": 50,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:option\"]"
+},
+{
+"committed": 1,
+"id": "s51",
+"role": "terminologist",
+"seq": 51,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:argument\"]"
+},
+{
+"committed": 1,
+"id": "s52",
+"role": "terminologist",
+"seq": 52,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:parameter\"]"
+},
+{
+"committed": 1,
+"id": "s53",
+"role": "terminologist",
+"seq": 53,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:line\"]"
+},
+{
+"committed": 1,
+"id": "s54",
+"role": "terminologist",
+"seq": 54,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:group\"]"
+},
+{
+"committed": 1,
+"id": "s55",
+"role": "terminologist",
+"seq": 55,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:parser\"]"
+},
+{
+"committed": 1,
+"id": "s56",
+"role": "terminologist",
+"seq": 56,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:decorator\"]"
+},
+{
+"committed": 1,
+"id": "s57",
+"role": "terminologist",
+"seq": 57,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:which\"]"
+},
+{
+"committed": 1,
+"id": "s58",
+"role": "terminologist",
+"seq": 58,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:command line\"]"
+},
+{
+"committed": 1,
+"id": "s59",
+"role": "terminologist",
+"seq": 59,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:stream\"]"
+},
+{
+"committed": 1,
+"id": "s60",
+"role": "terminologist",
+"seq": 60,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:completion\"]"
+},
+{
+"committed": 1,
+"id": "s61",
+"role": "terminologist",
+"seq": 61,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:shell\"]"
+},
+{
+"committed": 1,
+"id": "s62",
+"role": "terminologist",
+"seq": 62,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:choice\"]"
+},
+{
+"committed": 1,
+"id": "s63",
+"role": "terminologist",
+"seq": 63,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:usage\"]"
+},
+{
+"committed": 1,
+"id": "s64",
+"role": "terminologist",
+"seq": 64,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:time\"]"
+},
+{
+"committed": 1,
+"id": "s65",
+"role": "terminologist",
+"seq": 65,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:range\"]"
+},
+{
+"committed": 1,
+"id": "s66",
+"role": "terminologist",
+"seq": 66,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:context\"]"
+},
+{
+"committed": 1,
+"id": "s67",
+"role": "terminologist",
+"seq": 67,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:define",
+"wake_refs": "[\"@term:prompt\"]"
+},
+{
+"committed": 1,
+"id": "s68",
+"role": "terminologist",
+"seq": 68,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:survey",
+"wake_refs": "[\"src/click\"]"
+},
+{
+"committed": 1,
+"id": "s69",
+"role": "terminologist",
+"seq": 69,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:survey",
+"wake_refs": "[\".\"]"
+},
+{
+"committed": 1,
+"id": "s70",
+"role": "architect",
+"seq": 70,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:survey",
+"wake_refs": "[\"src/click\"]"
+},
+{
+"committed": 1,
+"id": "s71",
+"role": "architect",
+"seq": 71,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:survey",
+"wake_refs": "[\".\"]"
+},
+{
+"committed": 1,
+"id": "s72",
+"role": "vision_keeper",
+"seq": 72,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:reorient",
+"wake_refs": "[\"@reorient\"]"
+},
+{
+"committed": 1,
+"id": "s73",
+"role": "vision_keeper",
+"seq": 73,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:signoff",
+"wake_refs": "[\"how_it_works\"]"
+},
+{
+"committed": 1,
+"id": "s74",
+"role": "liaison",
+"seq": 74,
+"trigger_msg": "m6",
+"wake_detail": "submit",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s75",
+"role": "liaison",
+"seq": 75,
+"trigger_msg": "m8",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s76",
+"role": "liaison",
+"seq": 76,
+"trigger_msg": "m9",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s77",
+"role": "vision_keeper",
+"seq": 77,
+"trigger_msg": "m10",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s78",
+"role": "architect",
+"seq": 78,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:boundary",
+"wake_refs": "[\"@surface:.pre-commit-config.yaml\"]"
+},
+{
+"committed": 1,
+"id": "s79",
+"role": "architect",
+"seq": 79,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:boundary",
+"wake_refs": "[\"@surface:.readthedocs.yaml\"]"
+},
+{
+"committed": 1,
+"id": "s80",
+"role": "architect",
+"seq": 80,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:boundary",
+"wake_refs": "[\"@surface:.readthedocs.yaml\"]"
+},
+{
+"committed": 1,
+"id": "s81",
+"role": "architect",
+"seq": 81,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:boundary",
+"wake_refs": "[\"@surface:.readthedocs.yaml\"]"
+},
+{
+"committed": 1,
+"id": "s82",
+"role": "liaison",
+"seq": 82,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: boundary for @surface:.readthedocs.yaml (architect), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s83",
+"role": "architect",
+"seq": 83,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:boundary",
+"wake_refs": "[\"@surface:pyproject.toml\"]"
+},
+{
+"committed": 1,
+"id": "s84",
+"role": "critic",
+"seq": 84,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users\"]"
+},
+{
+"committed": 1,
+"id": "s85",
+"role": "critic",
+"seq": 85,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:ctx\"]"
+},
+{
+"committed": 1,
+"id": "s86",
+"role": "critic",
+"seq": 86,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:pass_environment\"]"
+},
+{
+"committed": 1,
+"id": "s87",
+"role": "critic",
+"seq": 87,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:cli\"]"
+},
+{
+"committed": 1,
+"id": "s88",
+"role": "critic",
+"seq": 88,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:parametersource\"]"
+},
+{
+"committed": 1,
+"id": "s89",
+"role": "critic",
+"seq": 89,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:group\"]"
+},
+{
+"committed": 1,
+"id": "s90",
+"role": "critic",
+"seq": 90,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:group\"]"
+},
+{
+"committed": 1,
+"id": "s91",
+"role": "critic",
+"seq": 91,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:command_invoke\"]"
+},
+{
+"committed": 1,
+"id": "s92",
+"role": "critic",
+"seq": 92,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:context_get_parameter_source\"]"
+},
+{
+"committed": 1,
+"id": "s93",
+"role": "critic",
+"seq": 93,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:parametersource_prompt\"]"
+},
+{
+"committed": 1,
+"id": "s94",
+"role": "critic",
+"seq": 94,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:constraints:context\"]"
+},
+{
+"committed": 1,
+"id": "s95",
+"role": "critic",
+"seq": 95,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:items:provides_command_line_interface\"]"
+},
+{
+"committed": 1,
+"id": "s96",
+"role": "critic",
+"seq": 96,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:challenge",
+"wake_refs": "[\"@claim:items:parses_and_executes_inputs\"]"
+},
+{
+"committed": 1,
+"id": "s97",
+"role": "liaison",
+"seq": 97,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:blindspot",
+"wake_refs": "[\"@blindspots\"]"
+},
+{
+"committed": 1,
+"id": "s98",
+"role": "liaison",
+"seq": 98,
+"trigger_msg": null,
+"wake_detail": "ledger=57",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_d3a8de3ac3\", \"l_14fdb7b2b5\", \"l_9645a83fad\", \"l_ae06cd685c\", \"l_9b9e62b6fd\", \"l_d8de7dd230\", \"l_43a56af859\"]"
+},
+{
+"committed": 1,
+"id": "s99",
+"role": "liaison",
+"seq": 99,
+"trigger_msg": "m12",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s100",
+"role": "liaison",
+"seq": 100,
+"trigger_msg": null,
+"wake_detail": "ledger=50",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_029450bb2a\", \"l_430203dbda\", \"l_8a8ec94908\", \"l_2a94fb0056\", \"l_7a370eb19e\", \"l_29ac0cd5c5\", \"l_f7203ab734\"]"
+},
+{
+"committed": 1,
+"id": "s101",
+"role": "liaison",
+"seq": 101,
+"trigger_msg": "m15",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s102",
+"role": "liaison",
+"seq": 102,
+"trigger_msg": null,
+"wake_detail": "ledger=43",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_b4b0d0de29\", \"l_00db4aadf3\", \"l_dd6de48b12\", \"l_f7329d182b\", \"l_1da9a37f60\", \"l_870605bbe4\", \"l_eb5de89aed\"]"
+},
+{
+"committed": 1,
+"id": "s103",
+"role": "liaison",
+"seq": 103,
+"trigger_msg": "m18",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s104",
+"role": "liaison",
+"seq": 104,
+"trigger_msg": null,
+"wake_detail": "ledger=36",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_e9c8d1d075\", \"l_ff5bbdf685\", \"l_123565a5ea\", \"l_5fb3bb254c\", \"l_a52f4cb281\", \"l_1368148f97\", \"l_30079cfbf4\"]"
+},
+{
+"committed": 1,
+"id": "s105",
+"role": "liaison",
+"seq": 105,
+"trigger_msg": "m21",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s106",
+"role": "liaison",
+"seq": 106,
+"trigger_msg": null,
+"wake_detail": "ledger=29",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_4ec9343e25\", \"l_84f0f73dda\", \"l_3bc4eccba5\", \"l_322914e25f\", \"l_f8d40b6eb3\", \"l_c445d7078e\", \"l_3d62b0ca62\"]"
+},
+{
+"committed": 1,
+"id": "s107",
+"role": "liaison",
+"seq": 107,
+"trigger_msg": "m24",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s108",
+"role": "liaison",
+"seq": 108,
+"trigger_msg": null,
+"wake_detail": "ledger=22",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"challenge_constraints_parametersource\", \"challenge_constraints_group\", \"challenge_constraints_command_invoke\", \"challenge_constraints_context_get_parameter_source\", \"challenge_constraints_parametersource_prompt\", \"challenge_items_parses_and_executes_inputs\", \"l_45e99e63ff\"]"
+},
+{
+"committed": 1,
+"id": "s109",
+"role": "liaison",
+"seq": 109,
+"trigger_msg": "m27",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s110",
+"role": "liaison",
+"seq": 110,
+"trigger_msg": null,
+"wake_detail": "ledger=15",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_04eac83f1e\", \"l_e8408a9620\", \"l_dcec47075b\", \"l_50556b2c59\", \"l_d47bb02255\", \"l_d314d591f8\", \"l_8ca46430e6\"]"
+},
+{
+"committed": 1,
+"id": "s111",
+"role": "liaison",
+"seq": 111,
+"trigger_msg": "m30",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s112",
+"role": "liaison",
+"seq": 112,
+"trigger_msg": null,
+"wake_detail": "ledger=8",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_7d6ce4a512\", \"l_81514fdf24\", \"l_de76b8b4d1\", \"l_ddb6b276d1\", \"l_604ac802b4\", \"l_5c3fe6bdba\", \"l_ceb38c4c4f\"]"
+},
+{
+"committed": 1,
+"id": "s113",
+"role": "liaison",
+"seq": 113,
+"trigger_msg": "m33",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s114",
+"role": "liaison",
+"seq": 114,
+"trigger_msg": null,
+"wake_detail": "ledger=1",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_60a3eace8e\"]"
+},
+{
+"committed": 1,
+"id": "s115",
+"role": "liaison",
+"seq": 115,
+"trigger_msg": "m36",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s116",
+"role": "liaison",
+"seq": 116,
+"trigger_msg": null,
+"wake_detail": "glossary_terms:11, constraints:10, model_areas:2",
+"wake_kind": "tick:observed_entries",
+"wake_refs": "[\"callback\", \"command\", \"completion\", \"context\", \"decorator\", \"group\", \"line\", \"option\", \"parser\", \"stream\", \"usage\", \"cli\", \"command_invoke\", \"context\", \"context_get_parameter_source\", \"ctx\", \"group\", \"parametersource\", \"parametersource_prompt\", \"pass_environment\", \"read_the_docs_platform_uses_readthedocs_yaml_to_build_documentation_for_external_users\", \".\", \"src/click\"]"
+},
+{
+"committed": 1,
+"id": "s117",
+"role": "liaison",
+"seq": 117,
+"trigger_msg": "m39",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s118",
+"role": "liaison",
+"seq": 118,
+"trigger_msg": "m40",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s119",
+"role": "architect",
+"seq": 119,
+"trigger_msg": "m41",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s120",
+"role": "terminologist",
+"seq": 120,
+"trigger_msg": "m42",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s121",
+"role": "liaison",
+"seq": 121,
+"trigger_msg": null,
+"wake_detail": "ledger=1",
+"wake_kind": "tick:agenda",
+"wake_refs": "[\"l_e47fabe071\"]"
+},
+{
+"committed": 1,
+"id": "s122",
+"role": "liaison",
+"seq": 122,
+"trigger_msg": "m44",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s123",
+"role": "liaison",
+"seq": 123,
+"trigger_msg": "m_p1",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s124",
+"role": "liaison",
+"seq": 124,
+"trigger_msg": "m47",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s125",
+"role": "liaison",
+"seq": 125,
+"trigger_msg": "m48",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s126",
+"role": "vision_keeper",
+"seq": 126,
+"trigger_msg": "m49",
+"wake_detail": "deliver",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s127",
+"role": "vision_keeper",
+"seq": 127,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:signoff",
+"wake_refs": "[\"echo_json\"]"
+},
+{
+"committed": 1,
+"id": "s128",
+"role": "liaison",
+"seq": 128,
+"trigger_msg": "m51",
+"wake_detail": "submit",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s129",
+"role": "liaison",
+"seq": 129,
+"trigger_msg": "m53",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s130",
+"role": "liaison",
+"seq": 130,
+"trigger_msg": "m54",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s131",
+"role": "vision_keeper",
+"seq": 131,
+"trigger_msg": "m55",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s132",
+"role": "vision_keeper",
+"seq": 132,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:slicing",
+"wake_refs": "[\"echo_json\"]"
+},
+{
+"committed": 1,
+"id": "s133",
+"role": "terminologist",
+"seq": 133,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"echo_json\"]"
+},
+{
+"committed": 1,
+"id": "s134",
+"role": "vision_keeper",
+"seq": 134,
+"trigger_msg": "m56",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s135",
+"role": "architect",
+"seq": 135,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:grouping",
+"wake_refs": "[\"tk_1\"]"
+},
+{
+"committed": 1,
+"id": "s136",
+"role": "liaison",
+"seq": 136,
+"trigger_msg": "m57",
+"wake_detail": "report",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s137",
+"role": "liaison",
+"seq": 137,
+"trigger_msg": "m59",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s138",
+"role": "vision_keeper",
+"seq": 138,
+"trigger_msg": "m60",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s139",
+"role": "architect",
+"seq": 139,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:annotate",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s140",
+"role": "liaison",
+"seq": 140,
+"trigger_msg": null,
+"wake_detail": "expected 2, possible 2",
+"wake_kind": "tick:touch_note",
+"wake_refs": "[\"bg_1\", \"echo_json\"]"
+},
+{
+"committed": 1,
+"id": "s141",
+"role": "liaison",
+"seq": 141,
+"trigger_msg": "m62",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s142",
+"role": "developer",
+"seq": 142,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:batch_start",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s143",
+"role": "developer",
+"seq": 143,
+"trigger_msg": null,
+"wake_detail": "attempt 2 of 3: the last session ended with nothing written and nothing committed",
+"wake_kind": "tick:batch_start",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s144",
+"role": "tester",
+"seq": 144,
+"trigger_msg": null,
+"wake_detail": "without a test: c_1, c_2, c_3, c_4, c_5, c_6",
+"wake_kind": "tick:tests_missing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s145",
+"role": "vision_keeper",
+"seq": 145,
+"trigger_msg": "m63",
+"wake_detail": "question",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s146",
+"role": "tester",
+"seq": 146,
+"trigger_msg": "m64",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s147",
+"role": "developer",
+"seq": 147,
+"trigger_msg": null,
+"wake_detail": "attempt 2",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s148",
+"role": "developer",
+"seq": 148,
+"trigger_msg": null,
+"wake_detail": "attempt 3",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s149",
+"role": "developer",
+"seq": 149,
+"trigger_msg": null,
+"wake_detail": "attempt 4",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s150",
+"role": "developer",
+"seq": 150,
+"trigger_msg": null,
+"wake_detail": "attempt 4",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s151",
+"role": "developer",
+"seq": 151,
+"trigger_msg": null,
+"wake_detail": "attempt 4",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s152",
+"role": "developer",
+"seq": 152,
+"trigger_msg": null,
+"wake_detail": "attempt 5",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s153",
+"role": "developer",
+"seq": 153,
+"trigger_msg": null,
+"wake_detail": "attempt 5",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s154",
+"role": "developer",
+"seq": 154,
+"trigger_msg": null,
+"wake_detail": "attempt 6",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s155",
+"role": "tester",
+"seq": 155,
+"trigger_msg": "m65",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s156",
+"role": "developer",
+"seq": 156,
+"trigger_msg": null,
+"wake_detail": "attempt 7",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s157",
+"role": "developer",
+"seq": 157,
+"trigger_msg": null,
+"wake_detail": "attempt 7",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s158",
+"role": "tester",
+"seq": 158,
+"trigger_msg": "m66",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s159",
+"role": "developer",
+"seq": 159,
+"trigger_msg": null,
+"wake_detail": "attempt 8",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s160",
+"role": "tester",
+"seq": 160,
+"trigger_msg": "m67",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s161",
+"role": "architect",
+"seq": 161,
+"trigger_msg": "m68",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s162",
+"role": "vision_keeper",
+"seq": 162,
+"trigger_msg": "m69",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s163",
+"role": "developer",
+"seq": 163,
+"trigger_msg": null,
+"wake_detail": "attempt 8",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s164",
+"role": "developer",
+"seq": 164,
+"trigger_msg": null,
+"wake_detail": "attempt 8",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s165",
+"role": "tester",
+"seq": 165,
+"trigger_msg": "m70",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s166",
+"role": "architect",
+"seq": 166,
+"trigger_msg": null,
+"wake_detail": "the session woken by it wrote nothing and sent nothing",
+"wake_kind": "tick:unresolved",
+"wake_refs": "[\"m67\"]"
+},
+{
+"committed": 1,
+"id": "s167",
+"role": "developer",
+"seq": 167,
+"trigger_msg": "m71",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s168",
+"role": "developer",
+"seq": 168,
+"trigger_msg": null,
+"wake_detail": "attempt 9",
+"wake_kind": "tick:tests_failing",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s169",
+"role": "developer",
+"seq": 169,
+"trigger_msg": null,
+"wake_detail": "attempt 10 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s170",
+"role": "developer",
+"seq": 170,
+"trigger_msg": null,
+"wake_detail": "attempt 10 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s171",
+"role": "vision_keeper",
+"seq": 171,
+"trigger_msg": "m72",
+"wake_detail": "question",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s172",
+"role": "developer",
+"seq": 172,
+"trigger_msg": "m73",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s173",
+"role": "developer",
+"seq": 173,
+"trigger_msg": null,
+"wake_detail": "attempt 10 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s174",
+"role": "vision_keeper",
+"seq": 174,
+"trigger_msg": "m74",
+"wake_detail": "question",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s175",
+"role": "developer",
+"seq": 175,
+"trigger_msg": "m75",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s176",
+"role": "developer",
+"seq": 176,
+"trigger_msg": null,
+"wake_detail": "attempt 11 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s177",
+"role": "developer",
+"seq": 177,
+"trigger_msg": null,
+"wake_detail": "attempt 11 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s178",
+"role": "architect",
+"seq": 178,
+"trigger_msg": "m76",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s179",
+"role": "developer",
+"seq": 179,
+"trigger_msg": "m77",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s180",
+"role": "developer",
+"seq": 180,
+"trigger_msg": null,
+"wake_detail": "attempt 11 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s181",
+"role": "architect",
+"seq": 181,
+"trigger_msg": null,
+"wake_detail": "the session woken by it wrote nothing and sent nothing",
+"wake_kind": "tick:unresolved",
+"wake_refs": "[\"m70\"]"
+},
+{
+"committed": 1,
+"id": "s182",
+"role": "developer",
+"seq": 182,
+"trigger_msg": "m78",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s183",
+"role": "architect",
+"seq": 183,
+"trigger_msg": null,
+"wake_detail": "The criteria specified implementing echo_json, but a file src/echo_json.py already exists with a conflicting definition. I created src/echo_json.py with echo_json_stream instead. Is this acceptable, or should the existing function be removed/renamed?",
+"wake_kind": "tick:unresolved",
+"wake_refs": "[\"m74\"]"
+},
+{
+"committed": 1,
+"id": "s184",
+"role": "developer",
+"seq": 184,
+"trigger_msg": "m79",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s185",
+"role": "terminologist",
+"seq": 185,
+"trigger_msg": null,
+"wake_detail": "the answer did not change the criterion; encoding it still parrots",
+"wake_kind": "tick:criterion_repair",
+"wake_refs": "[\"m63\"]"
+},
+{
+"committed": 1,
+"id": "s186",
+"role": "tester",
+"seq": 186,
+"trigger_msg": "m80",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s187",
+"role": "vision_keeper",
+"seq": 187,
+"trigger_msg": "m81",
+"wake_detail": "question",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s188",
+"role": "tester",
+"seq": 188,
+"trigger_msg": "m82",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s189",
+"role": "developer",
+"seq": 189,
+"trigger_msg": null,
+"wake_detail": "attempt 12 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s190",
+"role": "developer",
+"seq": 190,
+"trigger_msg": null,
+"wake_detail": "attempt 12 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s191",
+"role": "developer",
+"seq": 191,
+"trigger_msg": null,
+"wake_detail": "attempt 12 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s192",
+"role": "architect",
+"seq": 192,
+"trigger_msg": "m83",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s193",
+"role": "vision_keeper",
+"seq": 193,
+"trigger_msg": "m84",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s194",
+"role": "liaison",
+"seq": 194,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: exhausted for bg_1 (developer), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s195",
+"role": "liaison",
+"seq": 195,
+"trigger_msg": "m86",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s196",
+"role": "architect",
+"seq": 196,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_strayed",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s197",
+"role": "developer",
+"seq": 197,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s198",
+"role": "developer",
+"seq": 198,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s199",
+"role": "architect",
+"seq": 199,
+"trigger_msg": "m87",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s200",
+"role": "vision_keeper",
+"seq": 200,
+"trigger_msg": "m88",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s201",
+"role": "vision_keeper",
+"seq": 201,
+"trigger_msg": null,
+"wake_detail": "attempt 12 of 10",
+"wake_kind": "tick:exhausted",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s202",
+"role": "liaison",
+"seq": 202,
+"trigger_msg": "m89",
+"wake_detail": "report",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s203",
+"role": "vision_keeper",
+"seq": 203,
+"trigger_msg": "m90",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s204",
+"role": "developer",
+"seq": 204,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s205",
+"role": "developer",
+"seq": 205,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s206",
+"role": "architect",
+"seq": 206,
+"trigger_msg": "m91",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s207",
+"role": "vision_keeper",
+"seq": 207,
+"trigger_msg": "m92",
+"wake_detail": "propose",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s208",
+"role": "liaison",
+"seq": 208,
+"trigger_msg": "m93",
+"wake_detail": "report",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s209",
+"role": "liaison",
+"seq": 209,
+"trigger_msg": "m95",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s210",
+"role": "vision_keeper",
+"seq": 210,
+"trigger_msg": "m96",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s211",
+"role": "developer",
+"seq": 211,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s212",
+"role": "developer",
+"seq": 212,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s213",
+"role": "architect",
+"seq": 213,
+"trigger_msg": "m97",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s214",
+"role": "developer",
+"seq": 214,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s215",
+"role": "developer",
+"seq": 215,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s216",
+"role": "architect",
+"seq": 216,
+"trigger_msg": "m98",
+"wake_detail": "escalate",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s217",
+"role": "developer",
+"seq": 217,
+"trigger_msg": "m99",
+"wake_detail": "answer",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s218",
+"role": "developer",
+"seq": 218,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s219",
+"role": "developer",
+"seq": 219,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s220",
+"role": "developer",
+"seq": 220,
+"trigger_msg": null,
+"wake_detail": "src/echo_json.py",
+"wake_kind": "tick:touch_mistaken",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s221",
+"role": "liaison",
+"seq": 221,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: touch_mistaken for bg_1 (developer), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1\"]"
+},
+{
+"committed": 1,
+"id": "s222",
+"role": "liaison",
+"seq": 222,
+"trigger_msg": "m101",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s223",
+"role": "vision_keeper",
+"seq": 223,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:signoff",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s224",
+"role": "liaison",
+"seq": 224,
+"trigger_msg": "m102",
+"wake_detail": "submit",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s225",
+"role": "liaison",
+"seq": 225,
+"trigger_msg": "m104",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s226",
+"role": "liaison",
+"seq": 226,
+"trigger_msg": "m105",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s227",
+"role": "vision_keeper",
+"seq": 227,
+"trigger_msg": "m106",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s228",
+"role": "vision_keeper",
+"seq": 228,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:slicing",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s229",
+"role": "terminologist",
+"seq": 229,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s230",
+"role": "vision_keeper",
+"seq": 230,
+"trigger_msg": "m107",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s231",
+"role": "terminologist",
+"seq": 231,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s232",
+"role": "vision_keeper",
+"seq": 232,
+"trigger_msg": "m108",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s233",
+"role": "terminologist",
+"seq": 233,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s234",
+"role": "vision_keeper",
+"seq": 234,
+"trigger_msg": "m109",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s235",
+"role": "liaison",
+"seq": 235,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: criteria for bg_1_summary (terminologist), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s236",
+"role": "liaison",
+"seq": 236,
+"trigger_msg": "m111",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s237",
+"role": "liaison",
+"seq": 237,
+"trigger_msg": "m112",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s238",
+"role": "vision_keeper",
+"seq": 238,
+"trigger_msg": "m113",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s239",
+"role": "terminologist",
+"seq": 239,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s240",
+"role": "vision_keeper",
+"seq": 240,
+"trigger_msg": "m114",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s241",
+"role": "terminologist",
+"seq": 241,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s242",
+"role": "vision_keeper",
+"seq": 242,
+"trigger_msg": "m115",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s243",
+"role": "terminologist",
+"seq": 243,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s244",
+"role": "vision_keeper",
+"seq": 244,
+"trigger_msg": "m116",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s245",
+"role": "liaison",
+"seq": 245,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: criteria for bg_1_summary (terminologist), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s246",
+"role": "liaison",
+"seq": 246,
+"trigger_msg": "m118",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s247",
+"role": "liaison",
+"seq": 247,
+"trigger_msg": "m119",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s248",
+"role": "vision_keeper",
+"seq": 248,
+"trigger_msg": "m120",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s249",
+"role": "terminologist",
+"seq": 249,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s250",
+"role": "vision_keeper",
+"seq": 250,
+"trigger_msg": "m121",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s251",
+"role": "terminologist",
+"seq": 251,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s252",
+"role": "vision_keeper",
+"seq": 252,
+"trigger_msg": "m122",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s253",
+"role": "terminologist",
+"seq": 253,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s254",
+"role": "vision_keeper",
+"seq": 254,
+"trigger_msg": "m123",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s255",
+"role": "liaison",
+"seq": 255,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: criteria for bg_1_summary (terminologist), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s256",
+"role": "liaison",
+"seq": 256,
+"trigger_msg": "m125",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s257",
+"role": "liaison",
+"seq": 257,
+"trigger_msg": "m126",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s258",
+"role": "vision_keeper",
+"seq": 258,
+"trigger_msg": "m127",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s259",
+"role": "terminologist",
+"seq": 259,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s260",
+"role": "vision_keeper",
+"seq": 260,
+"trigger_msg": "m128",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s261",
+"role": "terminologist",
+"seq": 261,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s262",
+"role": "vision_keeper",
+"seq": 262,
+"trigger_msg": "m129",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s263",
+"role": "terminologist",
+"seq": 263,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s264",
+"role": "vision_keeper",
+"seq": 264,
+"trigger_msg": "m130",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s265",
+"role": "liaison",
+"seq": 265,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: criteria for bg_1_summary (terminologist), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s266",
+"role": "liaison",
+"seq": 266,
+"trigger_msg": "m132",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s267",
+"role": "liaison",
+"seq": 267,
+"trigger_msg": "m133",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s268",
+"role": "vision_keeper",
+"seq": 268,
+"trigger_msg": "m134",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s269",
+"role": "terminologist",
+"seq": 269,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s270",
+"role": "vision_keeper",
+"seq": 270,
+"trigger_msg": "m135",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s271",
+"role": "terminologist",
+"seq": 271,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s272",
+"role": "vision_keeper",
+"seq": 272,
+"trigger_msg": "m136",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s273",
+"role": "terminologist",
+"seq": 273,
+"trigger_msg": null,
+"wake_detail": "",
+"wake_kind": "tick:criteria",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s274",
+"role": "vision_keeper",
+"seq": 274,
+"trigger_msg": "m137",
+"wake_detail": "challenge",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s275",
+"role": "liaison",
+"seq": 275,
+"trigger_msg": null,
+"wake_detail": "1 abandoned: criteria for bg_1_summary (terminologist), 3 attempts",
+"wake_kind": "tick:quarantined",
+"wake_refs": "[\"bg_1_summary\"]"
+},
+{
+"committed": 1,
+"id": "s276",
+"role": "liaison",
+"seq": 276,
+"trigger_msg": "m139",
+"wake_detail": "converse",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s277",
+"role": "liaison",
+"seq": 277,
+"trigger_msg": "m140",
+"wake_detail": "verdict",
+"wake_kind": "message",
+"wake_refs": "[]"
+},
+{
+"committed": 1,
+"id": "s278",
+"role": "vision_keeper",
+"seq": 278,
+"trigger_msg": "m141",
+"wake_detail": "relay",
+"wake_kind": "message",
+"wake_refs": "[]"
+}
+]
+}

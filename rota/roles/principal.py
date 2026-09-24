@@ -214,6 +214,13 @@ def render_state(conn: sqlite3.Connection) -> str:
     if merged:
         out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
                    "tested and merged.")
+    # A cold cockpit sees the cycle the walk printed, read from the rows
+    # (ruled: Roman, 2026-09-24, an alert first). Shown under what is stuck.
+    from ..core.cycles import cycle as _cycle
+    try:
+        looping = _cycle(conn)
+    except Exception:                   # noqa: BLE001 -- a state page never fails on an alert
+        looping = None
     # A tick tried past its cap and quarantined is the team giving up. It
     # outranks "building": on tipsH (2026-09-09) the Critic reviewed six times
     # without a verdict, was quarantined, the batch stayed running, and the
@@ -228,6 +235,8 @@ def render_state(conn: sqlite3.Connection) -> str:
         out.append(f"Stuck. The team gave up on: {what}. Nothing waits on you, "
                    "and nothing moves until that is cleared. Tell me what to "
                    "change.")
+        if looping is not None:
+            out.append(looping.line())
         return chr(10).join(out)
     if running or pending:
         # At the batch's head commit, the harness's own notion of "now". The
@@ -255,6 +264,8 @@ def render_state(conn: sqlite3.Connection) -> str:
         else:
             out.append("Nothing waits on you and nothing is building. "
                        "Tell me what you want. I take it from there.")
+    if looping is not None:
+        out.append(looping.line())
     return chr(10).join(out)
 
 

@@ -222,7 +222,9 @@ def test_a_tick_that_keeps_making_progress_is_never_bounded(tmp_path):
     from rota.core.scheduler import Wake, frontier, note_dispatch
 
     db = init_db(tmp_path / "rota.db")
-    wake = Wake("developer", "tick:tests_failing", refs=("b1",))
+    # A key that names no batch. A batch's key keeps its count while absent,
+    # and the test below says so (observed: night 92, 2026-09-24).
+    wake = Wake("liaison", "tick:agenda", refs=("e_1",))
 
     # Under the bound, which is the state this test is about. It used to dispatch
     # nine times against a cap of three -- a state the scheduler cannot reach,
@@ -237,6 +239,39 @@ def test_a_tick_that_keeps_making_progress_is_never_bounded(tmp_path):
 
     assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
         "a wake that stopped being produced should leave no debt behind"
+
+
+def test_a_batch_key_keeps_its_count_until_the_batch_moves(tmp_path):
+    """Night 92 (2026-09-24): `running` hid the start's key during its own
+    session, and absence erased the count nineteen times. A batch's key now
+    keeps its count while absent, and a move or the batch's end clears it."""
+    from types import SimpleNamespace
+
+    from rota.core.db import _lift_quarantines, init_db
+    from rota.core.scheduler import Wake, frontier, note_dispatch
+
+    db = init_db(tmp_path / "rota.db")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, version) "
+               "VALUES ('it', 'x', 'in_scope', 'draft', 0, 1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES ('b1', 'it', 'running')")
+    wake = Wake("developer", "tick:tests_failing", refs=("b1",))
+    note_dispatch(db, wake)
+    note_dispatch(db, wake)
+
+    frontier(db)          # absent, and the batch lives: the count stays
+    count = db.execute("SELECT attempts FROM tick_attempts").fetchone()
+    assert count and count["attempts"] == 2, "absence alone must not erase a batch's count"
+
+    _lift_quarantines(db, SimpleNamespace(table="batches", row_id="b1", op="update",
+                                          values={"head_commit": "c1"}), True)
+    assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
+        "a head commit is the batch moving, so its count resets"
+
+    note_dispatch(db, wake)
+    db.execute("UPDATE batches SET status = 'merged' WHERE id = 'b1'")
+    frontier(db)
+    assert not db.execute("SELECT 1 FROM tick_attempts").fetchone(), \
+        "a merged batch's absent key leaves no debt behind"
 
 
 def test_an_abandoned_area_lets_the_role_move_on(tmp_path):
