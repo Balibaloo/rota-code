@@ -668,7 +668,8 @@ a different question and the night is then opened once.
 - Status 2026-09-24 05:15 (rota-b8): **the two seats recall the contradiction
   they built through, in their own words** (observed: the interview probe,
   `probes/frame37/interview_turn.py`, on `s154` turn 16 and `s144` turn 2
-  of `.rota/clickI_night91_walk1.db`, 2026-09-24 05:20, qwen3.5:9b with
+  of `.rota/clickI_night91_walk1.db`, 2026-09-24 by 05:15, the clock's
+  bound, qwen3.5:9b with
   thinking off, 7 s and 4 s). Rota workflow. The Tester that wrote the
   returning test quoted the request, "prints an object as JSON", and
   criterion `c_1`, "returns a string containing the JSON representation of
