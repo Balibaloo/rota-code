@@ -719,6 +719,16 @@ a different question and the night is then opened once.
   guard and the tool change against the register's tallies, decide
   whether the guard reverts, spike case 9's brief once, and close on a
   gate with zero new reds; then `--baseline` at the closing commit.
+- Status 2026-09-24 23:46 (rota-95): **handed with the stack at `2159b2c`: the
+  claim is posted to session `213e58fd`, rota-c5, and the take never came**
+  (observed: the `hand` command's exit 4 at 23:45, unconfirmed after 90 s;
+  the peers table at 23:46 reads that row `woken` with a STALE beat, and
+  a message to rota-c5 found no such peer, so that session has likely
+  closed). Meta workflow. The claim returns to the queue by itself in 15
+  minutes and lands on the oldest free standby, rota-dd, rota-66 or
+  rota-47, three free at 23:46. Session 8736e9fc stops here at about
+  355k, holding nothing. The holder inherits frames 82 and 83 by their
+  statuses of 23:45, and frame 79 validating.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
