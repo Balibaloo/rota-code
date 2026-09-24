@@ -563,6 +563,19 @@ a different question and the night is then opened once.
   gate and the commit here. Two frames in one session means the hand-off
   at 400k carries both, with the records and any uncommitted diff as the
   spec.
+- Status 2026-09-24 20:13 (rota-95): **line 1 holds: the read is at
+  `plans/archive/ten-reds-read-2026-09-24.md`, six brief faults, four
+  check faults, no salt fault, and the design review of it runs on Opus**
+  (observed: the read agent on Opus 5.5, 162.9k on the harness line
+  against 80k, 60 tool calls, 8.9 minutes, committed at `71aa7ce`). Meta
+  workflow. Two of the check faults are fixtures: `ACT-DV`'s fake commit
+  `abc123` hides the fix from `tests.load`, and `CR`'s edit replaces the
+  whole file so the Critic reviews deletions. The map case is flaky, not
+  wrong: it reads the live `rota/` folder with no cache while another
+  session edits. Nine cases re-record after the fix, and the other cases
+  of the seven touched modes too. Next: the review's findings fold into
+  the record, then one implementer pass, the re-records, the gate and
+  the commit here; the baseline then moves by Roman's ruling of 16:05.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
