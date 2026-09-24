@@ -773,6 +773,28 @@ a different question and the night is then opened once.
   touch note "expected 3, possible 4", and `m119` "Before I build this,
   here is what I expect to touch" answered yes. Meta workflow.
 
+- Status 2026-09-24 19:43 (rota-95): **night 92 stopped at 19:39 on a proven
+  cycle, 301 sessions, 3 hours 54 minutes, one batch merged, and the
+  database is copied to `.rota/clickI_night92.db`** (observed: the log,
+  walk 1 merged `b_1` and stuck on the `.readthedocs.yaml` boundary,
+  walk 2 from 17:49 stuck on `tests_failing` for `b_2` at attempt 7 with
+  7 of 43 tests failing, walk 3 from 18:55 sliced `b_3` and then ran the
+  Developer on `tick:batch_start` for `b_2` eighteen times, `s283` to
+  `s300`, each with the same fifteen calls, no receipts, and the runner's
+  account "ended a tick with nothing done"; killed by process match at
+  19:39, both models unloaded; ruled: the assistant, on Roman's standing
+  sign-off, a proven cycle teaches nothing more). Rota workflow. The
+  cycle is frame 83's, pushed below. What the night settles for the
+  three frames: frame 81's line is observed and it closes. Frame 80's
+  first half is observed on three keys, and its second half on the
+  skip and the door: no seat wrote a description, so the heading never
+  had a row to show, and the page rendered from the rows puts the four
+  onboarding descriptions under "It does today:" because their
+  provenance is observed, which `principal.py:322` puts first on
+  purpose (observed: `render_page` on the copy, 19:42). It closes.
+  Frame 79's path never ran, so it stays validating for a night that
+  reaches exhaustion, with its code in the main line. Meta workflow.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
@@ -961,6 +983,55 @@ a different question and the night is then opened once.
   word. The worktree `wt-79` is removed. What the night proves for this
   frame is in the record's section "The walk". Frame 80 is next in
   Roman's order, and its mechanism is in its own status of 11:02.
+
+### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24)
+
+- **Batch C, the night's stall. Found by night 92's walk 3, and it is the
+  wall that stands after frames 81, 79 and 80.** Two sites: the batch
+  start's candidate ranking in `rota/core/scheduler.py:369-378` and the
+  preempt that `do:preempt` performs from `rota/core/loop.py:404-408`,
+  with the counter erasure in `quarantine_stalled` at
+  `rota/core/scheduler.py:1525-1541` beside them. It touches the
+  scheduler and a predicate, so it carries a design review, a diff
+  review and a walk. Its order against frame 82 is unruled.
+- Rota workflow. Night 92's walk 2 stuck on `tests_failing` for `b_2` at
+  attempt 7, and walk 3 sliced `b_3`, whose item has priority 1 against
+  `b_2`'s 0. From `s283` to `s300` the Developer woke on
+  `tick:batch_start` for `b_2` eighteen times with the same fifteen
+  calls and no receipts, the counter
+  `developer|tick:batch_start|b_2` reading 1 at the stop (observed:
+  `.rota/clickI_night92.db`, `sessions`, `tool_calls`, `receipts`,
+  `tick_attempts`, 2026-09-24 19:37 to 19:43). The frontier on those
+  rows offers `tick:batch_start` for `b_2` while `b_2` is deferred, and
+  `do:preempt` with "b_3 outranks b_2" while `b_2` is running (observed:
+  `frontier_readonly` on a copy of the rows, 19:43). So the two rules
+  alternate: the start offers `b_2` first because `schedule_order` ranks
+  it first, the start sets it running, the session writes nothing
+  because the code already carries the flag from attempt 7 and the
+  session runs no tests, the preempt defers it because the priority
+  order ranks `b_3` first, and the start offers it again (reasoned: the
+  two sites read two orders, and `lifecycle.defer` has one caller, the
+  preempt). The counter never reaches the cap because each rule's step
+  finds the other's key absent from the ready list and
+  `quarantine_stalled` deletes an absent key that is not quarantined
+  (reasoned: `scheduler.py:1525-1541` and its own icalendar comment on
+  three correct rules composing into a cycle). The walk prints
+  `do:harness` and `do:merge` only, so the preempts left no line in the
+  log (observed: `probes/walk.py:256-257`). The cycle ran 45 minutes
+  of GPU before the stop.
+- Ends when: one order ranks the batches for the start and the preempt,
+  chosen at a grill; a batch start on a deferred batch with a head
+  commit runs the tests before it wakes the Developer, or wakes the
+  Developer on `tests_failing` with the attempt it left at; a pinned
+  test replays night 92's rows from `s282` and asserts the counter
+  climbs and the cap bites; the walk prints every scheduler action;
+  and a night from a worktree at the closing commit shows sentence
+  three start. Priced at the grill.
+- Waits on: Roman's order against frame 82, and the grill's one
+  question: which order wins, the schedule's or the priority's.
+- Reasoning: frame 80's status of 19:43, and the probe in that status.
+- Status 2026-09-24 19:43 (rota-95): pushed by 8736e9fc from the night's
+  record, unclaimed. Meta workflow.
 
 ### 82. The ten known reds blind the gate (2026-09-24)
 
