@@ -572,6 +572,21 @@ a different question and the night is then opened once.
   outlive it, so the hand-off lands during the build or the diff
   review, with the record as the spec.
 
+- Status 2026-09-24 14:05 (rota-6d): **pass 1, the revive rule, is gated and
+  committed at `a72b65b`, and pass 2 runs** (observed: the gate here,
+  484 s, twice: suite 33 failed and 2260 passed against the stored 25
+  and 2069; new reds 11, the ten known L1 reds and the flaky map case
+  that passes on re-run; reds gone 3; stale 0). Meta workflow. Pass 1
+  on the harness line: 76.1k, 32 tool calls, 17 minutes, against 60k
+  to 80k. Two helpers in `db.py` read the version and the approval
+  before and after a write; the respecify write amends; six pins. One
+  gate was lost to a `tail` here, the register's known miss, now a
+  memory with two strikes. Pass 2 is the description half by the
+  record's revision 4, resumed on the same implementer: the column,
+  the describe op with its door and graph edge, three skips guarded on
+  the column, the page heading, eight pins, three re-records and one
+  new case.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
