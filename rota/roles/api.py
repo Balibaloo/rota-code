@@ -893,8 +893,13 @@ def problem_assert(ctx: Ctx, id: str, text: str, kind: str = "in_scope") -> dict
     # so the Developer's wake said "the principal said: []".
     # `named_statements` reads both, for this op and the other owners.
     named = named_statements(ctx)
-    ctx.writes.append(("items", id, {
-        "text": text, "kind": kind, "approval": "draft"}))
+    staged = {"text": text, "kind": kind, "approval": "draft"}
+    # An item read from the code, and the account, say what the software is.
+    # They ask for nothing, so they are descriptions by construction (frame
+    # 80). Any other wake stages no key, so an amendment keeps the flag.
+    if getattr(ctx, "onboarding", False) or id == "how_it_works":
+        staged["is_description"] = 1
+    ctx.writes.append(("items", id, staged))
     # After the item row: the refs are receipted under it.
     for ref in named:
         stage_ref(ctx, "items", id, "statement", ref)
@@ -914,6 +919,52 @@ def problem_set_approval(ctx: Ctx, id: str, approval: str) -> dict:
     ctx.writes.append(("items", id, {
         "approval": approval, "approval_ver": row["version"]}, False))
     return {"id": id, "approval": approval}
+
+
+@op("problem", "describe")
+def problem_describe(ctx: Ctx, id: str) -> dict:
+    """
+    Mark an item as a description: it says what the software is and asks for
+    no piece of work. Call it instead of cutting tickets for such an item.
+
+    A description is never cut and never owes criteria (ruled: Roman,
+    2026-09-24, frame 80). The write moves no version, because a version move
+    fires `cancel` and `reopen` and never reaches the owner. `draft` brings
+    the item back to the owner's page, where the owner approves or contests
+    the word. The door keeps the principal's own words and live work on the
+    path: night 91's challenges named the one real request.
+    """
+    _must_exist(ctx, "items", id)
+    prov = ctx.conn.execute(
+        "SELECT provenance FROM item_provenance WHERE id = ?", (id,)).fetchone()
+    if prov and prov["provenance"] == "decided":
+        raise ValueError(
+            f"{id} is the principal's own words, so it asks for something. "
+            f"If its tickets are wrong, answer the challenge with "
+            f"decisions.author and say which work the item asks for")
+    live = ctx.conn.execute(
+        "SELECT b.id FROM batches b WHERE b.status NOT IN ('merged', 'abandoned') "
+        "AND (b.item_id = ? OR b.id IN (SELECT bt.batch_id FROM batch_tickets bt "
+        "JOIN tickets t ON t.id = bt.ticket_id WHERE t.item_id = ?))",
+        (id, id)).fetchone()
+    if live:
+        raise ValueError(
+            f"{id} has work in batch {live['id']}, so it asks for something. "
+            f"Answer the challenge with decisions.author and say which work "
+            f"the item asks for")
+    # A slice sent before the describe in the same reply lands nothing. The
+    # recorded seat sliced and described one item in one reply (frame 80).
+    dropped = [w[1] for w in ctx.writes
+               if w[0] == "tickets" and w[2].get("item_id") == id]
+    ctx.writes[:] = [w for w in ctx.writes
+                     if not (w[0] == "tickets" and w[2].get("item_id") == id)]
+    ctx.writes.append(("items", id, {"is_description": 1, "approval": "draft"},
+                       False))
+    note = "a description has no tickets; this item is finished"
+    if dropped:
+        note += (f". The tickets staged for it this session land nothing: "
+                 f"{', '.join(dropped)}")
+    return {"id": id, "described": True, "note": note}
 
 
 @op("problem", "prioritize")
@@ -957,9 +1008,24 @@ def problem_consult(ctx: Ctx) -> list[dict]:
             "WHERE src_table = 'items' AND kind = 'statement' "
             "ORDER BY src_id, rowid"):        # within an item, as written
         derives.setdefault(r["item_id"], []).append(r["statement_id"])
+    # The flag rides only on a description. The select above stays as it is:
+    # recordings hash the user text, and a new key on every row stales them.
+    described = _described_ids(ctx.conn)
     for row in rows:
         row["from_statements"] = derives.get(row["id"], [])
+        if row["id"] in described:
+            row["is_description"] = 1
     return rows
+
+
+def _described_ids(conn) -> set[str]:
+    """The ids of the items that are descriptions. Empty on a run database
+    that predates the column."""
+    from ..core.db import _has_column
+    if not _has_column(conn, "items", "is_description"):
+        return set()
+    return {r["id"] for r in conn.execute(
+        "SELECT id FROM items WHERE is_description = 1")}
 
 
 @op("problem", "baseline")
@@ -3037,6 +3103,16 @@ def tickets_slice(ctx: Ctx, id: str, item_id: str, text: str) -> dict:
             f"{item_id} is observed: it is what the repository already does, "
             f"and a ticket for it would build what exists. Slice the items "
             f"the principal asked for, the decided ones")
+    # A description has no tickets (frame 80). An answer, not a refusal: a
+    # refused argument loops a 9B seat (frame 81). The recorded seat sent
+    # the describe and then a slice for the same item.
+    described = any(w[0] == "items" and w[1] == item_id
+                    and w[2].get("is_description") == 1 for w in ctx.writes)
+    if described or item_id in _described_ids(ctx.conn):
+        return {"id": id, "unchanged": True,
+                "note": f"{item_id} is a description, and a description has "
+                        f"no tickets. Nothing was written. This session is "
+                        f"finished"}
     # An id you invent is yours once. tipsT (2026-09-09): every slicing
     # session wrote tk_1 and tk_2, the ids re-parented to whichever items
     # the wake named, the other items lost their tickets, and the two sets

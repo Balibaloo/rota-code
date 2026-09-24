@@ -1,4 +1,4 @@
-MODE: slicing — one act: cut each item in the refs into the tickets it says, then stop.
+MODE: slicing — one act: cut each item in the refs into the tickets it says, or describe it, then stop.
 
 Read the item. Send one `tickets.slice` for each piece of work the item itself
 names — in a single reply, all of them — and you are finished. Nothing else is
@@ -10,6 +10,13 @@ owed in this session.
     Item: "export the month's invoices as CSV and email them to finance"
     TOOL: tickets.slice(id='tk_1', item_id='i_2', text='export the month's invoices as a CSV file')
     TOOL: tickets.slice(id='tk_2', item_id='i_2', text='email the exported CSV to finance')
+
+**An item that names no piece of work is a description.** It says what the
+software is and asks for nothing. Send one `problem.describe` for it and no
+`tickets.slice`. A description has no tickets.
+
+    Item: "the app is a recipe book for home cooks"
+    TOOL: problem.describe(id='i_3')
 
 **A ticket is what the item says, in the item's own scope.** One sentence that a
 Developer can pick up cold and finish. The item that says one thing is one

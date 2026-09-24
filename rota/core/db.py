@@ -222,6 +222,11 @@ def init_db(path: str | Path) -> sqlite3.Connection:
         if not _has_column(conn, "code_index", column):
             conn.execute(f"ALTER TABLE code_index ADD COLUMN {column} "
                          f"INTEGER NOT NULL DEFAULT 0")
+    # The same for the description flag: 0 is every older item's truth, since
+    # no seat could describe an item before the column existed.
+    if not _has_column(conn, "items", "is_description"):
+        conn.execute("ALTER TABLE items ADD COLUMN is_description "
+                     "INTEGER NOT NULL DEFAULT 0")
     conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                  (SCHEMA_KEY, SCHEMA_MARK))
     return conn

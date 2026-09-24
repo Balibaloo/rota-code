@@ -1007,6 +1007,15 @@
     },
     {
       "s": "vision_keeper",
+      "t": "problem",
+      "type": "writes",
+      "v": "describe",
+      "n": "description flag",
+      "label": "an item that asks for no work is never cut and never owes criteria",
+      "rows": "single"
+    },
+    {
+      "s": "vision_keeper",
       "t": "developer",
       "type": "messages",
       "v": "reopen",

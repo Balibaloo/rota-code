@@ -55,6 +55,31 @@
     versions: [items]
     writes: [criteria, batches]
 
+- id: L1-VK-slice-a-description
+  # clickI night 91 (2026-09-24): a summary of Click was cut into a ticket
+  # that asked for nothing, and the Terminologist gave up on it three times.
+  # A description is never cut (ruled: Roman, 2026-09-24, frame 80).
+  tier: T1
+  role: vision_keeper
+  runs: 5
+  pass: 4
+  tick: slicing
+  refs: [<i1>]
+  fixture:
+    items:
+      - {id: <i1>, text: "the software is a command-line interface toolkit called Click",
+         kind: in_scope, provenance: reasoned, approval: approved, approval_ver: 1,
+         version: 1}
+  expect:
+    calls: [problem.describe]
+    writes:
+      items: {count: 1}
+  forbidden:
+    # No `versions: [items]` here: that counter is the table's, and the
+    # describe write moves it. The row's version is pinned in
+    # test_desk_guards.py.
+    writes: [tickets, criteria, batches]
+
 - id: L1-VK-relay-the-ruling
   tier: T1
   role: vision_keeper

@@ -61,7 +61,11 @@ CREATE TABLE IF NOT EXISTS items (
     -- Changing it is not an amendment: it touches no approved content, so
     -- `problem.prioritize` writes with amends=False and trips no revocation.
     priority      INTEGER NOT NULL DEFAULT 0,
-    version       INTEGER NOT NULL DEFAULT 1
+    version       INTEGER NOT NULL DEFAULT 1,
+    -- A description says what the software is and asks for nothing. So it is
+    -- never cut into tickets and never owes criteria (ruled: Roman,
+    -- 2026-09-24, frame 80). The Vision Keeper sets it by `problem.describe`.
+    is_description INTEGER NOT NULL DEFAULT 0
 );
 
 -- What a row rests on. One row per (source, target). The pair is the row.

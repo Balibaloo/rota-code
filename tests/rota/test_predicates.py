@@ -1689,6 +1689,75 @@ def test_the_account_is_never_sliced(db):
     assert "how_it_works" not in wakes[0].refs
 
 
+def _summary(db, described=1):
+    """Night 91's shape: the summary item and the one ticket cut from it."""
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, is_description) VALUES ('bg_1_summary',"
+               "'Click is a toolkit for command-line interfaces','in_scope',"
+               "'approved',1,1,?)", (described,))
+    db.execute("INSERT INTO tickets (id, item_id, text) VALUES "
+               "('tk_1_bg_1_summary','bg_1_summary',"
+               "'the software is a command-line interface toolkit called Click')")
+    db.commit()
+
+
+def test_a_description_is_never_sliced(db):
+    """clickI night 91 (2026-09-24): a summary of Click was approved and cut
+    into a ticket that asked for nothing. A description is never cut (ruled:
+    Roman, 2026-09-24)."""
+    from rota.core.scheduler import tick_slicing
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, is_description) VALUES ('bg_1_summary',"
+               "'Click is a toolkit','in_scope','approved',1,1,1)")
+    db.commit()
+    assert tick_slicing(db) == []
+
+
+def test_a_description_owes_no_criteria(db):
+    """clickI night 91: the Terminologist was woken on the summary's ticket,
+    could write no criterion for it, and gave up. A description owes none."""
+    from rota.core.scheduler import tick_criteria
+
+    _summary(db)
+    assert tick_criteria(db) == []
+    db.execute("UPDATE items SET is_description = 0 WHERE id = 'bg_1_summary'")
+    db.commit()
+    assert [w.refs for w in tick_criteria(db)] == [("bg_1_summary",)]
+
+
+def test_a_description_is_never_grouped(db):
+    """A described item's ticket can carry criteria from before the item was
+    described. The Architect must not batch work the item never asked for."""
+    _summary(db)
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c1','tk_1_bg_1_summary','the help text names Click')")
+    db.commit()
+    assert P.grouping(db) == []
+    db.execute("UPDATE items SET is_description = 0 WHERE id = 'bg_1_summary'")
+    db.commit()
+    assert [w.refs for w in P.grouping(db)] == [("tk_1_bg_1_summary",)]
+
+
+def test_an_old_run_database_still_shows_its_frontier(tmp_path):
+    """The cockpit, the trace view and the CLI open a run database read-only
+    and never run `init_db`. A database from before the description flag must
+    not break the frontier they show."""
+    from rota.core.db import connect_readonly
+    from rota.core.scheduler import frontier_readonly
+
+    path = tmp_path / "old.db"
+    conn = init_db(path)
+    _summary(conn, described=0)
+    # SQLite refuses DROP COLUMN on the commented schema. A rename takes the
+    # column's name away, which is all that the readers look for.
+    conn.execute("ALTER TABLE items RENAME COLUMN is_description TO older")
+    conn.close()
+    old = connect_readonly(path)
+    wakes = frontier_readonly(old)
+    assert any(w.kind == "tick:criteria" for w in wakes)
+
+
 def test_a_deliver_waits_for_onboarding(tmp_path):
     """
     tipsAI (2026-09-10): a sentence typed before orientation ran was

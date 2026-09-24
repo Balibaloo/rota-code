@@ -9,5 +9,8 @@ stops its batches — that is correct and automatic, not something to avoid. The
 
 If it does not: author a decision saying why, with refs to the challenge.
 
+If the challenge says the item's tickets ask for nothing: `problem.describe` the
+item. The item is a description. Do not reopen, because nothing was built on it.
+
 Do not amend and leave the approval standing. The revocation predicate's integrity
 depends on that never happening.

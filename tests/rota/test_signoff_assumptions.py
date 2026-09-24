@@ -287,6 +287,30 @@ def test_observed_behaviour_is_not_shown_as_a_plan(db):
     assert page.index("It would:") < page.index("the program splits the bill")
 
 
+def test_a_description_has_its_own_heading(db):
+    """clickI night 91 (2026-09-24): the seat's summary said Click "includes
+    a helper function echo_json", which was the running request. A seat's
+    description is neither a plan nor what the code does today (frame 80)."""
+    from rota.core.runner import _resolve_refs
+    from rota.roles.principal import render_ask
+
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, is_description) VALUES ('bg_1_summary', 'Click is a "
+               "toolkit that includes echo_json', 'in_scope', 'draft', 1, 1, 1)")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('new', 'the program splits the bill', 'in_scope', "
+               "'draft', 0, 1)")
+    seed_provenance(db, "items", "new", "decided")
+    db.commit()
+    assert _resolve_refs(db, ["bg_1_summary"])["bg_1_summary"]["is_description"] == 1
+    assert "is_description" not in _resolve_refs(db, ["new"])["new"], \
+        "a request's row keeps the text the recordings hash"
+    page = render_ask(db, "present", ["bg_1_summary", "new"])
+    heading = page.index("How it is described:")
+    assert heading < page.index("includes echo_json") < page.index("It would:")
+    assert "It does today:" not in page
+
+
 def test_the_signoff_hook_adds_at_most_seven_assumptions(db):
     """seat2 on click (2026-09-12): the hook put nineteen reconcile rows under
     one signoff page, past the seven-a-page door the model is held to. The

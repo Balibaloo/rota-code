@@ -224,6 +224,26 @@ def tick_round_close(conn: sqlite3.Connection) -> list[Wake]:
     return wakes
 
 
+def not_described(conn: sqlite3.Connection, col: str, of: str = "item") -> str:
+    """
+    An SQL condition that drops the rows whose item is a description. `col`
+    holds an item id, or a ticket id when `of` is "ticket".
+
+    A description asks for nothing, so it is never cut and never owes
+    criteria (ruled: Roman, 2026-09-24, frame 80). The condition is empty on
+    a run database that predates the column. `frontier_readonly`, the trace
+    view and the CLI open such a database read-only and never run `init_db`.
+    """
+    from .db import _has_column
+
+    if not _has_column(conn, "items", "is_description"):
+        return ""
+    described = "SELECT id FROM items WHERE is_description = 1"
+    if of == "ticket":
+        described = f"SELECT id FROM tickets WHERE item_id IN ({described})"
+    return f" AND {col} NOT IN ({described})"
+
+
 def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
     """
     Vision Keeper slices tickets from items whose approval postdates their last
@@ -253,6 +273,7 @@ def tick_slicing(conn: sqlite3.Connection) -> list[Wake]:
         "  AND i.approval_ver >= i.version "
         "  AND i.id != 'how_it_works' "
         "  AND p.provenance != 'observed' "
+        + not_described(conn, "i.id") +
         "  AND (i.id NOT IN (SELECT item_id FROM tickets) "
         "       OR i.version > COALESCE((SELECT CAST(value AS INTEGER) FROM config "
         "                                 WHERE key = 'delivered:' || i.id), 0) "
@@ -292,6 +313,7 @@ def tick_criteria(conn: sqlite3.Connection) -> list[Wake]:
     rows = conn.execute(
         "SELECT DISTINCT t.item_id AS item_id FROM tickets t "
         "WHERE t.id NOT IN (SELECT ticket_id FROM criteria)"
+        + not_described(conn, "t.item_id")
     ).fetchall()
     return [
         Wake("terminologist", "tick:criteria", refs=(r["item_id"],))

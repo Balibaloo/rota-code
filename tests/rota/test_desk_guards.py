@@ -726,6 +726,85 @@ def test_a_respecified_criterion_moves_its_version(db):
     assert row["version"] == 2, "the criterion's version moves"
 
 
+def _keeper(db, mode, onboarding=False):
+    from rota.roles import prompts
+    return build("vision_keeper", db, mode=mode, onboarding=onboarding,
+                 allow=prompts.mode_tools("vision_keeper", mode))
+
+
+def _land(db, sb, session_id):
+    """Land a sandbox's staged writes the way the runner does."""
+    from rota.core.db import SessionResult, session_commit
+    from rota.core.runner import _as_write
+    session_commit(db, SessionResult(
+        session_id=session_id, role=sb.ctx.role,
+        writes=[_as_write(w) for w in sb.ctx.writes]))
+
+
+def test_a_described_item_returns_to_the_owner_as_a_draft(db):
+    """clickI night 91 (2026-09-24): the summary of Click was cut into a
+    ticket that asked for nothing. The keeper describes it instead. The
+    version stays, so no batch is cancelled or reopened (frame 80)."""
+    from rota.core.predicates import cancel, reopen
+    from rota.core.scheduler import tick_signoff
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('bg_1_summary','Click is a toolkit',"
+               "'in_scope','approved',1,1)")
+    db.execute("INSERT INTO batches (id, item_id, status) VALUES "
+               "('b9','bg_1_summary','merged')")
+    db.commit()
+    sb = _keeper(db, "slicing")
+    sb.call("problem.describe", id="bg_1_summary")
+    (w,) = [w for w in sb.ctx.writes if w[0] == "items"]
+    assert w[2] == {"is_description": 1, "approval": "draft"} and w[3] is False
+    _land(db, sb, "s_desc")
+    row = db.execute("SELECT version, approval, is_description FROM items "
+                     "WHERE id = 'bg_1_summary'").fetchone()
+    assert tuple(row) == (1, "draft", 1), "the version stays"
+    assert any("bg_1_summary" in w.refs for w in tick_signoff(db)), \
+        "the owner sees the word"
+    assert cancel(db) == [] and reopen(db) == [], "nothing built is disturbed"
+
+
+def test_the_describe_door_keeps_the_owners_words_and_live_work(db):
+    """Night 91's challenges named the one real request, not the summary. A
+    describe with no door could take real work off the path (frame 80)."""
+    sb = _keeper(db, "challenge")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('echo_json','echo prints json','in_scope',"
+               "'approved',1,1)")
+    seed_provenance(db, "items", "echo_json", "decided")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('bg_1_summary','Click is a toolkit',"
+               "'in_scope','approved',1,1)")
+    db.commit()
+    with pytest.raises(ValueError, match="principal's own words"):
+        sb.call("problem.describe", id="echo_json")
+    with pytest.raises(ValueError, match="has work in batch b1"):
+        sb.call("problem.describe", id="i1")
+    assert sb.call("problem.describe", id="bg_1_summary")["described"]
+
+
+def test_an_item_read_from_the_code_is_a_description_by_construction(db):
+    """An onboarding item and the account say what the software is. Any
+    other assert stages no flag, so an amendment keeps it (frame 80)."""
+    def staged(sb, id):
+        return [w[2] for w in sb.ctx.writes if w[0] == "items" and w[1] == id][-1]
+
+    sb = _keeper(db, "orient", onboarding=True)
+    sb.call("problem.assert", id="parses_options",
+            text="the program reads flags from the command line")
+    assert staged(sb, "parses_options")["is_description"] == 1
+
+    sb = _keeper(db, "deliver")
+    sb.call("problem.assert", id="export_csv",
+            text="the program exports the recipes as a csv file")
+    assert "is_description" not in staged(sb, "export_csv")
+    sb.call("problem.assert", id="how_it_works",
+            text="a billing tool that closes accounts and keeps invoices")
+    assert staged(sb, "how_it_works")["is_description"] == 1
+
+
 def test_a_fixture_the_harness_lacks_errors_at_setup(db):
     """Walk twenty-nine: four tests took `mocker` (pytest-mock, not
     installed), every run an error before the first assertion."""
@@ -1415,6 +1494,54 @@ def test_observed_items_and_the_account_are_never_sliced(db):
     with pytest.raises(ValueError, match="never sliced"):
         sb.call("tickets.slice", id="tk_y", item_id="how_it_works", text="the whole")
     assert sb.call("tickets.slice", id="tk_z", item_id="i1", text="close an account")["id"]
+
+
+def _summary_item(db, described=0):
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version, is_description) VALUES ('bg_1_summary',"
+               "'the software is a toolkit called Click','in_scope','approved',"
+               "1,1,?)", (described,))
+    db.commit()
+
+
+def _tickets_staged(sb):
+    return [w[1] for w in sb.ctx.writes if w[0] == "tickets"]
+
+
+def test_a_slice_after_a_describe_stages_no_ticket(db):
+    """L1-VK-slice-a-description (2026-09-24): the seat described the item
+    and then sliced it on the next turn. A description has no tickets, so
+    the slice answers and writes nothing (frame 80)."""
+    _summary_item(db)
+    sb = _keeper(db, "slicing")
+    sb.call("problem.describe", id="bg_1_summary")
+    out = sb.call("tickets.slice", id="tk_1", item_id="bg_1_summary",
+                  text="the software is a toolkit called Click")
+    assert out["unchanged"] and "is a description" in out["note"], out
+    assert _tickets_staged(sb) == []
+
+
+def test_a_describe_after_a_slice_leaves_no_ticket_staged(db):
+    """L1-VK-slice-a-description: the seat sent a slice and a describe for
+    one item in one reply. The describe takes the slice back (frame 80)."""
+    _summary_item(db)
+    sb = _keeper(db, "slicing")
+    sb.call("tickets.slice", id="tk_1", item_id="bg_1_summary",
+            text="the software is a toolkit called Click")
+    out = sb.call("problem.describe", id="bg_1_summary")
+    assert "tk_1" in out["note"], out
+    assert _tickets_staged(sb) == []
+
+
+def test_a_slice_on_an_item_described_on_file_answers_with_the_note(db):
+    """A description on file has no tickets, from any mode that can slice.
+    The answer names the reason and ends the session (frame 80)."""
+    _summary_item(db, described=1)
+    sb = _keeper(db, "slicing")
+    out = sb.call("tickets.slice", id="tk_1", item_id="bg_1_summary",
+                  text="the software is a toolkit called Click")
+    assert out["unchanged"] and "has no tickets" in out["note"], out
+    assert _tickets_staged(sb) == []
 
 
 def test_an_invented_bare_surface_is_refused(db):

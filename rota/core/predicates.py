@@ -521,11 +521,15 @@ def grouping(conn) -> list[Wake]:
     # cancelled the batch with three green tests, the item was re-approved
     # -- and its tickets still "belonged" to the abandoned batch, so nothing
     # re-grouped them and the world went quiet.
+    # A described item's ticket is not grouped: a description asks for no
+    # work (frame 80). The ticket may exist from before the item was described.
+    from .scheduler import not_described
     rows = conn.execute(
         "SELECT DISTINCT c.ticket_id AS tid FROM criteria c "
         "WHERE c.ticket_id NOT IN (SELECT bt.ticket_id FROM batch_tickets bt "
         "                          JOIN batches b ON b.id = bt.batch_id "
         "                          WHERE b.status != 'abandoned')"
+        + not_described(conn, "c.ticket_id", of="ticket")
     ).fetchall()
     if not rows:
         return []

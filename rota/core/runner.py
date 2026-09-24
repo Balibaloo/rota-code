@@ -1354,6 +1354,10 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
                 # relay of criteria approved them as items, ten refusals
                 # (clickI night 38, 2026-09-13).
                 resolved[ref] = {**dict(hit), "table": table}
+                # The flag rides only on a description, so the rows of every
+                # other item keep the text the recordings hash (frame 80).
+                if table == "items" and _is_description(conn, ref):
+                    resolved[ref]["is_description"] = 1
                 # A disputed test travels with its last run. S0 walk eight:
                 # the Developer challenged, the Tester held -- "the test
                 # checks the greeting is displayed" -- nine rounds, while
@@ -1372,6 +1376,17 @@ def _resolve_refs(conn: sqlite3.Connection, refs) -> dict[str, Any]:
                             "output_tail": out[-700:] if out else ""}
                 break
     return resolved
+
+
+def _is_description(conn: sqlite3.Connection, item_id: str) -> bool:
+    """Whether the item is a description. False on a run database that
+    predates the column."""
+    from .db import _has_column
+    if not _has_column(conn, "items", "is_description"):
+        return False
+    row = conn.execute("SELECT is_description FROM items WHERE id = ?",
+                       (item_id,)).fetchone()
+    return bool(row and row["is_description"])
 
 
 _REF_TABLES = ("statements", "items", "criteria", "tests", "tickets",

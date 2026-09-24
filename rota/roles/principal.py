@@ -288,6 +288,7 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
     account: list[tuple[str, str]] = []
     does: list[tuple[str, str]] = []
     does_today: list[tuple[str, str]] = []
+    described: list[tuple[str, str]] = []
     does_not: list[tuple[str, str]] = []
     terms: list[tuple[str, str]] = []
     assumed: list[tuple[str, str]] = []
@@ -322,6 +323,11 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                 account.append((ref, text))
             elif row.get("provenance") == "observed":
                 does_today.append((ref, text))
+            # A description a seat wrote is neither a plan nor a fact about
+            # the code. Night 91's summary named the running request as a
+            # thing Click includes (frame 80).
+            elif row.get("is_description"):
+                described.append((ref, text))
             else:
                 does.append((ref, text))
         elif kind == "out_of_scope":
@@ -359,7 +365,8 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
                        "what a change there might break.")
         out.append("This is a prediction, not a promise. Reply 'ok' to go "
                    "ahead. Reply with words if something concerns you.")
-    elif verb == "present" and zero and not (said or account or does or does_not):
+    elif verb == "present" and zero and not (said or account or described
+                                             or does or does_not):
         out.append("Nothing here has been read yet, so I cannot say what a "
                    "change might break. That is normal for a new or unread "
                    "project.")
@@ -373,6 +380,9 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         if account:
             out.append("What we are building:")
             numbered(account)
+        if described:
+            out.append("How it is described:")
+            numbered(described)
         if does_today:
             out.append("It does today:")
             numbered(does_today)
@@ -403,14 +413,16 @@ def render_page(conn: sqlite3.Connection, verb: str, refs: list[str],
         out.append("I need one thing from you before I can continue.")
         if question:
             out.append(f"  {question.strip()}")
-        context = [t for _, t in said + account + does_today + does + does_not + assumed
+        context = [t for _, t in said + account + described + does_today + does
+                   + does_not + assumed
                    + terms + other + touches]
         if context:
             out.append("This is about:")
             out += [f"  - {c}" for c in context]
         out.append("Reply in a sentence. I take it from there.")
     else:
-        out += [f"  {t}" for _, t in said + account + does_today + does + does_not + assumed
+        out += [f"  {t}" for _, t in said + account + described + does_today
+                + does + does_not + assumed
                 + terms + touches + other]
     return chr(10).join(out), order
 
