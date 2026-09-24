@@ -490,6 +490,24 @@ a different question and the night is then opened once.
   kinds, and narrows part C to batch keys. No law changes. One
   implementer on Opus, cap 120k as a request, nine pins, two fixtures
   from the night copies. The gate and the commit are this session's.
+- Status 2026-09-24 20:55 (rota-95): **pass 1 is built and committed at
+  `9d2693d`, frame 83's files alone, and the diff review runs on a
+  worktree at that commit** (observed: the implementer on Opus 5.5,
+  144.3k on the harness line against 80k to 120k, 99 tool calls, 47
+  minutes; its touched files 128 passed; its two gates ran while frame
+  82's build edited the same checkout, so the 23 new reds are the ten
+  known, the thirteen siblings frame 82 re-records, and two of frame
+  82's in-flight edits, and the gate is owed once more on a quiet tree
+  before the close). Meta workflow. Deviations taken: pin 2 fires at
+  `s270`, where three rounds of ten exist, and the record's `s260` was
+  the two-round probe; a head commit does not reset `tick:tests_missing`,
+  which `test_desk_guards` keeps; the fixtures carry `trigger_msg` and
+  blanked test bodies. Outside the scope: the resume detail never
+  reaches the Developer's prompt, because `DETAIL_SHOWN` holds
+  `tick:tests_missing` only, a later frame with a recorded case. The
+  commit came before this session's gate, against the rule, because
+  frame 82's build holds the tree; noted, and the gate runs once for
+  both frames when frame 82 lands.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
