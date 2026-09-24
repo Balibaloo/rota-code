@@ -43,7 +43,7 @@ def extract(night: int, state: bool) -> dict:
         for table in STATE_TABLES:
             cols = "*"
             if table == "tests":
-                # The body is not read by any pin, and it is most of the bytes.
+                # No pin reads the body, and the body is most of the bytes.
                 cols = "id, batch_id, criterion_id, path, '' AS body, version"
             if table == "test_runs":
                 cols = "id, batch_id, test_id, commit_sha, result, '' AS output, attempt"
@@ -53,7 +53,7 @@ def extract(night: int, state: bool) -> dict:
 
 
 def load(night: int) -> sqlite3.Connection:
-    """The night's rows in a fresh in-memory database with the current schema."""
+    """Return the night's rows in a new in-memory database with the current schema."""
     from rota.core.db import init_db
 
     data = json.loads((HERE / f"night{night}_cycle.json").read_text(encoding="utf-8"))

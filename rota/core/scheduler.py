@@ -1345,15 +1345,15 @@ def schedule_order(conn: sqlite3.Connection) -> list[str]:
 
 def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """
-    The schedulable batches in the one order: priority first, then the schedule.
+    Return the schedulable batches in one order, priority first, then the schedule.
 
     A batch is schedulable when its item is approved after its last amendment
     and every declared predecessor is merged or abandoned. `tick_batch_start`
-    and `preempt` both read this order. They read two orders until night 92:
-    the start re-sorted by the schedule alone and offered `b_2`, the preempt
-    ranked by priority and deferred `b_2` for `b_3`, nineteen times
-    (observed: night 92, 2026-09-24). Priority chooses, and the schedule
-    constrains (ruled: Roman, 2026-09-24).
+    and `preempt` both read this order. Until night 92 they read two orders.
+    The start sorted by the schedule alone and offered `b_2`. The preempt
+    ranked by priority and deferred `b_2` for `b_3`. The two alternated
+    nineteen times (observed: night 92, 2026-09-24). Priority chooses, and
+    the schedule constrains (ruled: Roman, 2026-09-24).
     """
     rows = conn.execute(
         "SELECT b.id AS id, b.status AS status, b.head_commit AS head_commit, "
@@ -1417,10 +1417,11 @@ def release(conn: sqlite3.Connection, role: str) -> None:
 # repeatedly while work lands is the loop working — Developer bouncing on a red
 # harness is exactly that. A key that names no batch resets when the wake stops
 # being produced, which is what draining looks like from here. A key that names
-# a batch resets on a move of the batch: a head commit, or a moved test or
-# criterion of it. It keeps its count while its wake is absent, until the batch
-# is merged or abandoned. Absence alone let two rules erase each other's count,
-# nineteen sessions on night 92 (observed: night 92, 2026-09-24).
+# a batch resets when the batch moves. A head commit moves it, and so does a
+# moved test or criterion of it. The key keeps its count while its wake is
+# absent, until the batch is merged or abandoned. On night 92, absence let two
+# rules erase each other's count for nineteen sessions (observed: night 92,
+# 2026-09-24).
 # ---------------------------------------------------------------------------
 
 def tick_key(wake: "Wake") -> str:
@@ -1433,6 +1434,11 @@ def note_dispatch(conn: sqlite3.Connection, wake: Wake) -> int:
     # preempt that alternate reach the cap (observed: night 92, 2026-09-24).
     if not wake.kind.startswith(("tick:", "do:")):
         return 0                      # messages have their own bound already
+    # The harness fires once for each new test with no run at the head commit.
+    # Three Tester sessions on one commit would reach the cap of its batch key
+    # (reasoned: the diff review of frame 83, 2026-09-24).
+    if wake.kind == "do:harness":
+        return 0
     key = tick_key(wake)
     conn.execute(
         "INSERT INTO tick_attempts (tick_key, attempts) VALUES (?, 1) "

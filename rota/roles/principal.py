@@ -215,7 +215,8 @@ def render_state(conn: sqlite3.Connection) -> str:
         out.append(f"Done: {merged} change{'s' if merged > 1 else ''} built, "
                    "tested and merged.")
     # A cold cockpit sees the cycle the walk printed, read from the rows
-    # (ruled: Roman, 2026-09-24, an alert first). Shown under what is stuck.
+    # (ruled: Roman, 2026-09-24, an alert first). The line goes under what
+    # is stuck.
     from ..core.cycles import cycle as _cycle
     try:
         looping = _cycle(conn)

@@ -72,6 +72,22 @@ def test_the_preempt_reads_the_start_s_order_and_is_bounded():
     assert row is not None and row["quarantined"] == 1
 
 
+def test_the_harness_is_never_counted():
+    """The diff review of frame 83. The harness fires once for each new test
+    at one head commit, so a count of it reaches the cap on honest work."""
+    from rota.core.predicates import SCHEDULER
+    from rota.core.scheduler import Wake
+
+    conn = load(92)
+    wake = Wake(SCHEDULER, "do:harness", refs=("b_2",))
+    for _ in range(4):
+        assert note_dispatch(conn, wake) == 0
+
+    assert quarantine_stalled(conn, [wake]) == [wake]
+    assert conn.execute("SELECT 1 FROM tick_attempts WHERE tick_key = ?",
+                        (tick_key(wake),)).fetchone() is None
+
+
 def test_a_batch_count_survives_absence_and_a_move_resets_it():
     """Pin 8. The start's key for `b_2` keeps its count while absent. A head
     commit of `b_2` resets it. A key that names no batch still clears."""

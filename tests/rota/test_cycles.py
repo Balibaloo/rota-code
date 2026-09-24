@@ -76,6 +76,26 @@ def test_a_new_row_each_round_is_no_move():
     assert found is not None and found.period == 1
 
 
+def test_a_committing_round_with_no_attempt_in_its_key_is_no_cycle():
+    """The diff review of frame 83. `tick:touch_mistaken` carries a path and
+    no attempt, so its key stays equal across commits. Each commit updates
+    the batch row, and that update is a move."""
+    conn = _night([("tick:touch_mistaken", "src/x.py",
+                    [("batches", "b1"), ("ledger", f"l{n}")]) for n in range(1, 5)])
+
+    assert cycle(conn) is None
+
+
+def test_honest_firings_spread_over_a_night_do_not_shorten_the_rule():
+    """The diff review of frame 83. Four firings of one key with other work
+    between them are not a stall. Two equal sessions at the end need a third."""
+    start = ("tick:batch_start", "", [])
+    other = [("tick:review", "", []), ("tick:criteria", "", []), ("tick:signoff", "", [])]
+    conn = _night([start, other[0], start, other[1], start, other[2], start, start])
+
+    assert cycle(conn) is None
+
+
 def test_the_walk_prints_every_action_and_each_cycle_once():
     """Pin 9. Night 92's preempts left no line in the log. The walk now
     prints every `do:` note, and the cycle line once per identity."""

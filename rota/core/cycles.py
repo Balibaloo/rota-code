@@ -7,13 +7,13 @@ and changed nothing, and no counter saw it, because two rules erased each
 other's counts. Night 91 ran a round of ten sessions the same way.
 
 The alert reads the rows only. It quarantines nothing and writes no row. It
-is for the session that watches the night, so its false positives can be
-read and tuned before it gates (ruled: Roman, 2026-09-24, an alert first).
+is for the session that watches the night. That session reads and tunes its
+false positives before the alert gates (ruled: Roman, 2026-09-24, an alert
+first).
 """
 from __future__ import annotations
 
 import sqlite3
-from collections import Counter
 from dataclasses import dataclass
 
 
@@ -46,8 +46,8 @@ def cycle(conn: sqlite3.Connection, cap: int = 16,
 
     Rounds repeat when their key sequences are equal and their receipt
     signatures are equal. A signature names each existing row as
-    `(table, row_id)` and each new row as `(table, new)`, because
-    `receipts.new_version` counts per table and says nothing of the row.
+    `(table, row_id)` and each new row as `(table, new)`. The version is not
+    in it, because `receipts.new_version` counts per table and not per row.
 
     `last` names the session to read up to, so a pin can ask about a moment
     of a night. None reads every committed session.
@@ -82,17 +82,32 @@ def cycle(conn: sqlite3.Connection, cap: int = 16,
         return sorted((t, rid if first[(t, rid)] < start else "new")
                       for s in sessions[lo:hi] for t, rid in wrote.get(s["id"], ()))
 
-    total = Counter(keys)
+    def committed_code(lo: int, hi: int) -> bool:
+        # Only a commit updates an existing batch row, and a commit is a move.
+        # A detail with no attempt otherwise reads a fix loop as a round
+        # (observed: the diff review of frame 83, 2026-09-24).
+        start = sessions[lo]["seq"]
+        return any(t == "batches" and first[(t, rid)] < start
+                   for s in sessions[lo:hi] for t, rid in wrote.get(s["id"], ()))
+
+    # The run of the last key at the end, not its count over the night. Four
+    # honest firings spread over a night are not a stall (observed: the diff
+    # review of frame 83, 2026-09-24).
+    run = 1
+    while run < len(keys) and keys[-run - 1] == keys[-1]:
+        run += 1
     attempt_cap = int(config.get(conn, "tick_attempt_cap"))
     n_all = len(sessions)
     for n in range(1, cap + 1):
         # Three rounds, or two for a period of one whose key already ran
         # past the tick cap (ruled: Roman, 2026-09-24, revision 2).
-        rounds = 2 if n == 1 and total[keys[-1]] > attempt_cap else 3
+        rounds = 2 if n == 1 and run > attempt_cap else 3
         if rounds * n > n_all:
             continue
         spans = [(n_all - (k + 1) * n, n_all - k * n) for k in range(rounds)]
         if len({tuple(keys[lo:hi]) for lo, hi in spans}) != 1:
+            continue
+        if any(committed_code(lo, hi) for lo, hi in spans):
             continue
         if len({tuple(signature(lo, hi)) for lo, hi in spans}) != 1:
             continue
@@ -104,13 +119,13 @@ def cycle(conn: sqlite3.Connection, cap: int = 16,
 
 def walk_lines(step, seen: set) -> list[str]:
     """
-    What the walk prints for one step: every scheduler action's note, and
-    the cycle line once per identity.
+    Return the lines the walk prints for one step. The walk prints every
+    scheduler action's note, and the cycle line once per identity.
 
     The walk printed `do:harness` and `do:merge` only, so night 92's
     preempts left no line in the log (observed: night 92, 2026-09-24).
-    Here, and not in the walk, because the walk runs on import and a test
-    cannot import it.
+    This function holds the lines because the walk runs on import. A test
+    cannot import the walk.
     """
     out: list[str] = []
     wake = getattr(step, "wake", None)

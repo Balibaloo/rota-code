@@ -823,9 +823,10 @@ def tests_failing(conn) -> list[Wake]:
     # from an earlier run of the same batch, rewrote working code and broke
     # it. A pass supersedes the fail before it; only the newest row per
     # test says anything.
-    # A running batch only. A deferred batch's failures wait for its resume,
-    # because the harness tests running batches only and a revived key could
-    # loop without a bound (observed: the design review of frame 83, 2026-09-24).
+    # A running batch only. A deferred batch's failures wait for its resume.
+    # The harness tests running batches only. A revived key of a deferred
+    # batch then loops without a bound (observed: the design review of frame
+    # 83, 2026-09-24).
     rows = conn.execute(
         "SELECT DISTINCT r.batch_id AS bid, MAX(r.attempt) AS att FROM test_runs r "
         "JOIN batches b ON b.id = r.batch_id AND b.status = 'running' "
