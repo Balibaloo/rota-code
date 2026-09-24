@@ -515,6 +515,23 @@ a different question and the night is then opened once.
   91's 3, 3, 2 wakes. Revision 2 of the record folds all of it. The
   question to Roman is now route B with Law 6 amended, and it goes out
   once, with the review's evidence.
+- Status 2026-09-24 10:59 (rota-18): **Roman rules route B, Law 6 amended,
+  with the guard, and the build runs on Opus** (ruled: Roman, 2026-09-24,
+  by 10:59 on the clock, "option 1", after three rewordings; asked with
+  Law 6 kept, route A and route B without the guard as the other options).
+  Meta workflow. The ruling took four exchanges: the first question
+  carried the record's terms and prices, and the one that landed told
+  night 91 as a story with the coder, the architect and the rule book,
+  and one analogy, the sign-in sheet against the minutes. Roman asked for
+  that to be written down, and it is memory `rota-grill-in-plain-words`,
+  strike 3 after frame 37's "in plain words". The implementer's brief:
+  `_next_rung` reads committed exhausted sessions by the quoted batch id,
+  the guard holds `exhausted` while a message to the Developer is open,
+  two docstrings and Law 6's sentence say the sessions, six pins in
+  `test_delivery.py`, touched tests first, the gate once at the end, cap
+  80k as a request, no commit. The diff review on Fable follows on a
+  worktree at the commit, then the gate here, then validating on the
+  night.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
