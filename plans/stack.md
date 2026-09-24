@@ -743,6 +743,20 @@ a different question and the night is then opened once.
   any session lands there; or type the take in that window once a claim
   names it. Session 8736e9fc stops here at about 360k, holding nothing.
   Register line: one.
+- Status 2026-09-25 00:08 (rota-95): **correction: the reserve was real, and
+  the status of 00:05 read it wrong** (ruled: Roman, 2026-09-25 00:06,
+  "there are reserves"; observed: the peers table at 00:06 reads
+  `5748c2d9` woken and STALE, `b4768744` STALE, 0 free). Meta workflow.
+  Two windows received a claim and ran no take, rota-c5 at 23:45 and
+  rota-dd at 00:00. `ListAgents` does not list every window, so it
+  proved nothing. My kill at 00:04 stopped the watchers of rota-66 and
+  rota-47, which the peers list does not name now, so those windows
+  need `/standby` again. The register line is corrected. The claim for
+  frame 82 still waits on disk. What Roman does: look in the rota-dd
+  window, answer any parked prompt or type
+  `python rota/tools/handover.py take --sid 5748c2d9`; and run
+  `/standby` in the other windows. Session 8736e9fc stops here at about
+  365k, holding nothing.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 

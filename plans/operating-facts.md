@@ -629,7 +629,7 @@ The two bullets above that describe the liveness probe and the standby's
 pasted prime are superseded by the brief's `# Standby duty` section. They are
 kept because they carry the measurements that argued for the change.
 
-- **A standby row with a live beat can belong to a window that closed** (observed: 2026-09-25 00:00). The sign: `hand` prints `UNCONFIRMED after 90s` while the peers table shows the target's beat under 90 s, and a message to its peer name answers `No agent named '<name>' is reachable`. A restart of the windows leaves the watcher processes running as orphans, so the table counts them free. Check `ListAgents` for the live windows before you trust the free count, kill the orphan `handover.py standby` processes, and have the live windows arm again.
+- **A woken standby that runs no take is parked, not gone** (observed: 2026-09-25 00:06, corrected from a wrong reading at 00:05). The sign: `hand` prints `UNCONFIRMED after 90s`, the peers table shows the target `woken`, and `ListAgents` does not list its name. `ListAgents` does not show every window, so it never proves a window closed. The claim reached the window and the session did not run the take, twice in one night (`213e58fd` at 23:45, `5748c2d9` at 00:00). Look in that window before you touch any process: a parked permission prompt or an idle turn is the likely cause. Do not kill watchers on the peer list's word; this session did at 00:04 and emptied the reserve.
 
 ## The build session's tools
 
