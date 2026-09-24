@@ -102,7 +102,8 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
                                    "surface")},
     ("findings", "find"): {"status": ("satisfied", "violated")},
     ("tests", "triage"): {"verdict": ("encodable", "cannot", "ambiguous_word",
-                                      "no_machine_check", "outside_fact")},
+                                      "no_machine_check", "outside_fact",
+                                      "contradicts_request")},
     ("brief", "intake"): {"verdict": ("work", "chat")},
 }
 
@@ -1445,7 +1446,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         replaced = ""
         withdrawn: list[str] = []
         if verb == "question":
-            prior = [m for m in ctx.outbound if m["verb"] == "question"]
+            # The triage verdict's own question stays. It carries verified
+            # spans, and a later question is about another criterion (frame 81).
+            prior = [m for m in ctx.outbound if m["verb"] == "question"
+                     and m.get("route") != "triage"]
             if prior and recipient not in {m["to_role"] for m in prior}:
                 replaced = prior[0]["to_role"]
                 for m in prior:
@@ -1707,7 +1711,10 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         if answer:
             api.refuse_second_answer(ctx, answer)
 
+        # The triage verdict's row is the op's, not the model's send. A
+        # question the model sends after the verdict is its first (frame 81).
         duplicate = any(m["to_role"] == recipient and m["verb"] == verb
+                        and m.get("route") != "triage"
                         for m in ctx.outbound)
         if duplicate:
             raise ValueError(

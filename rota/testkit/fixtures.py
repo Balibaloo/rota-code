@@ -383,7 +383,7 @@ def capture(conn: sqlite3.Connection, session_id: str,
     # boundary is drawn by what existed before the session started.
     before = messages_before if messages_before is not None else set()
     messages = [dict(r) for r in conn.execute(
-        "SELECT id, to_role, verb, body_refs, cause_id FROM messages "
+        "SELECT id, to_role, verb, body_refs, cause_id, status FROM messages "
         "WHERE from_role = (SELECT role FROM sessions WHERE id = ?) "
         "ORDER BY seq", (session_id,),
     ) if r["id"] not in before]
@@ -571,6 +571,9 @@ def check(case: dict, delta: Delta, refused: dict[str, int] | None = None,
             m for m in delta.messages
             if m["to_role"] == spec.get("to", m["to_role"])
             and m["verb"] == spec.get("verb", m["verb"])
+            # A question born unresolved differs from `cannot`'s open one
+            # only here (frame 81).
+            and m.get("status") == spec.get("status", m.get("status"))
         ]
         if not _count_ok(len(matches), spec.get("count")):
             problems.append(f"expected message {spec}, got {len(matches)} match(es)")

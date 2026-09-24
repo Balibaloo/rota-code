@@ -3896,8 +3896,90 @@ def batches_consult(ctx: Ctx) -> list[dict]:
 # tests
 # ---------------------------------------------------------------------------
 
+# The one word pair where a criterion and the request disagree most often.
+# `tests.encode` reads both sets for its prints-or-returns wall, and
+# `tests.triage` reads them for the wall at `encodable` (frame 81).
+PRINTS = {"print", "prints", "printed", "printing", "output", "outputs",
+          "display", "displays", "show", "shows", "write", "writes", "echo",
+          "echoes"}
+RETURNS = {"return", "returns", "returned", "returning", "result"}
+
+_QUOTES = "\"'`‘’“”"
+
+
+def _request_rows(ctx: Ctx, criterion_id: str) -> list[tuple[str, str]]:
+    """
+    The request's words behind a criterion, as (name, text), in order.
+
+    The statements the item rests on come first, then the item, then the
+    ticket. The ticket is a seat's derivation of the request, so it is last.
+    The statement query is the one `batches.expect` reads for "the principal
+    said".
+    """
+    crit = ctx.conn.execute("SELECT ticket_id FROM criteria WHERE id = ?",
+                            (criterion_id,)).fetchone()
+    tk = ctx.conn.execute("SELECT id, item_id, text FROM tickets WHERE id = ?",
+                          (crit["ticket_id"] if crit else "",)).fetchone()
+    if tk is None:
+        return []
+    it = ctx.conn.execute("SELECT id, text FROM items WHERE id = ?",
+                          (tk["item_id"],)).fetchone()
+    rows = [(r["id"], r["text"]) for r in ctx.conn.execute(
+        "SELECT s.id AS id, s.text AS text FROM refs x "
+        "JOIN statements s ON s.id = x.target "
+        "WHERE x.src_table = 'items' AND x.kind = 'statement' AND x.src_id = ? "
+        "AND s.status != 'superseded' ORDER BY s.id", (tk["item_id"],))]
+    if it is not None:
+        rows.append((f"item {it['id']}", it["text"] or ""))
+    rows.append((f"ticket {tk['id']}", tk["text"] or ""))
+    return rows
+
+
+def _flat(text: str) -> str:
+    """Lowercase, with each run of whitespace made one space."""
+    return " ".join((text or "").split()).lower()
+
+
+def _span_clean(span: str) -> str:
+    """A copied span without its outer quote marks or its final stop."""
+    t = " ".join((span or "").split())
+    return t.strip(_QUOTES).rstrip(".,;:!?").strip(_QUOTES).strip()
+
+
+def _span_flat(span: str) -> str:
+    """A copied span in the form the check compares."""
+    return _span_clean(span).lower()
+
+
+def _verb_words(text: str) -> list[str]:
+    """
+    The plain words of a sentence, in order, without its identifiers.
+
+    An identifier is a name and not a claim. Night 91's criterion says
+    "echo_json returns a string", and "echo" there names the helper.
+    """
+    import re as _re
+    out: list[str] = []
+    for token in (text or "").lower().split():
+        if "_" in token or _re.search(r"[a-z]\.[a-z]", token):
+            continue
+        out += _re.findall(r"[a-z]+", token)
+    return out
+
+
+def _first_verb(words: list[str], family: set[str]) -> str | None:
+    """The word of the family to quote: a print or return word first."""
+    hits = [w for w in words if w in family]
+    if not hits:
+        return None
+    return sorted(hits, key=lambda w: (not w.startswith(("print", "return")),
+                                       hits.index(w)))[0]
+
+
 @op("tests", "triage")
-def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
+def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
+                 request_span: str | None = None,
+                 criterion_span: str | None = None) -> dict:
     """
     The branch claim: every criterion gets a verdict before it gets a test.
 
@@ -3918,13 +4000,65 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
     the nearest desk and climbs on its own if the answer does not land. The
     three named kinds stay accepted as sharper claims that route straight to
     their owner, for a model that genuinely holds the distinction.
+
+    The sixth verdict, `contradicts_request`, answers a second question: does
+    the criterion say what the request says? Night 91 (2026-09-24): the
+    criterion said "returns a string", the request said "prints", and the
+    Tester triaged `encodable`. The verdict carries two copied spans, and the
+    op checks each against its source, as the parroting guard does. A
+    verdict that passes stages the question to the Terminologist itself,
+    born unresolved, so `criterion_repair` wakes the criterion's writer.
     """
     _must_exist(ctx, "criteria", criterion_id)
     if not hasattr(ctx, "triaged"):
         ctx.triaged = {}
-    ctx.triaged[criterion_id] = verdict
+    if verdict != "contradicts_request" and (request_span or criterion_span):
+        raise ValueError(
+            "a span belongs to contradicts_request; if the criterion agrees "
+            "with the request, send the verdict alone")
+    if verdict == "contradicts_request" and not (
+            _span_flat(request_span or "") and _span_flat(criterion_span or "")):
+        raise ValueError(
+            "contradicts_request needs two spans. Copy request_span= from the "
+            "request's words and criterion_span= from the criterion")
     done = ctx.conn.execute("SELECT id FROM tests WHERE criterion_id = ?",
                             (criterion_id,)).fetchone()
+    crit_text = (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
+                                  (criterion_id,)).fetchone()["text"] or "")
+    request = _request_rows(ctx, criterion_id) if not done else []
+    found_in = None
+    if verdict == "contradicts_request" and not done:
+        # Every claim cites a source, and the op checks the claim against the
+        # source. The composition's rule, in the parroting guard's shape.
+        want = _span_flat(request_span or "")
+        found_in = next((name for name, text in request
+                         if want in _flat(text)), None)
+        if found_in is None:
+            raise ValueError(
+                "request_span is not in the statements, the item or the "
+                "ticket. Copy the span from the request's words, not a "
+                "paraphrase")
+        if _span_flat(criterion_span or "") not in _flat(crit_text):
+            raise ValueError(
+                f"criterion_span is not in the words of {criterion_id}. Copy "
+                f"the span from the criterion, not a paraphrase")
+    if verdict == "encodable" and not done and request:
+        # The one measured pair, walled: a brief line alone is a prediction
+        # about a 9B model, and s144 never said "prints" (frame 81, finding 6).
+        crit_words = _verb_words(crit_text)
+        req = [(name, _verb_words(text)) for name, text in request]
+        req_words = [w for _, ws in req for w in ws]
+        for says, other in ((RETURNS, PRINTS), (PRINTS, RETURNS)):
+            cw = _first_verb(crit_words, says)
+            rw = _first_verb(req_words, other)
+            if (cw and rw and not _first_verb(crit_words, other)
+                    and not _first_verb(req_words, says)):
+                row = next(name for name, ws in req if rw in ws)
+                raise ValueError(
+                    f"{criterion_id} says '{cw}' and {row} says '{rw}'. That "
+                    f"is contradicts_request, with request_span='{rw}' and "
+                    f"criterion_span='{cw}'")
+    ctx.triaged[criterion_id] = verdict
     if done:
         return {"criterion": criterion_id, "verdict": verdict,
                 "next": f"nothing -- {done['id']} already encodes it; the "
@@ -3967,7 +4101,24 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
                             "the criterion in refs",
         "outside_fact": "checking needs a fact this project does not hold: "
                         "msg.question_researcher, saying what fact",
+        "contradicts_request": f"routed: {criterion_id} goes to the "
+                               f"Terminologist to be rewritten before any "
+                               f"test exists. Encode the others or end the "
+                               f"session",
     }[verdict]
+    out: dict = {}
+    if verdict == "contradicts_request":
+        # The verified spans are the evidence, and the order of the calls is
+        # not. Compare the order-based guard that sandbox.py removed.
+        staged = [w for w in ctx.writes if w[0] == "tests"
+                  and w[2].get("criterion_id") == criterion_id]
+        for w in staged:
+            ctx.writes.remove(w)
+        if staged:
+            out["withdrawn"] = [w[1] for w in staged]
+            out["note"] = (f"the test staged for {criterion_id} "
+                           f"({', '.join(out['withdrawn'])}) is withdrawn. A "
+                           f"criterion that contradicts the request gets no test")
     # A cannot re-judged is not a question re-owed. `tests_missing` fires per
     # batch while *any* criterion lacks a test, so a batch with one routed
     # criterion and three encodable ones wakes this mode again with the routed
@@ -3978,11 +4129,32 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str) -> dict:
             "SELECT id FROM messages WHERE from_role = 'tester' "
             "AND verb = 'question' AND status IN ('open', 'unresolved') "
             "AND body_refs LIKE ?", (f'%"{criterion_id}"%',)).fetchone()
-        if open_q:
-            nxt = (f"already asked -- {open_q['id']} is open about this "
+        # One row per criterion: a row this session staged counts as asked.
+        tagged = next((m for m in ctx.outbound if m.get("route") == "triage"
+                       and criterion_id in m["body_refs"]), None)
+        if open_q or tagged:
+            asked = open_q["id"] if open_q else tagged["id"]
+            nxt = (f"already asked -- {asked} is open about this "
                    f"criterion and the answer will wake you. Encode the "
                    f"others or end the session")
-    return {"criterion": criterion_id, "verdict": verdict, "next": nxt}
+        elif verdict == "contradicts_request":
+            from ..core.runner import new_id
+            crit = ctx.conn.execute("SELECT ticket_id FROM criteria WHERE id = ?",
+                                    (criterion_id,)).fetchone()
+            note = (f"{found_in} says '{_span_clean(request_span or '')}' and "
+                    f"{criterion_id} says '{_span_clean(criterion_span or '')}'. "
+                    f"Both cannot hold.")
+            # The verdict is the route. A route the model must take in a
+            # second call is the route s144 did not take (frame 81).
+            ctx.outbound.append({
+                "id": new_id("m", ctx.conn, offset=len(ctx.outbound)),
+                "to_role": "terminologist", "verb": "question",
+                "body_refs": [criterion_id, crit["ticket_id"]],
+                "body_text": None, "round_no": 0, "cause_id": ctx.trigger,
+                "status": "unresolved", "unresolved_note": note,
+                "route": "triage",
+            })
+    return {"criterion": criterion_id, "verdict": verdict, "next": nxt, **out}
 
 
 
@@ -4817,11 +4989,8 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         material |= logged
         # Only when the material's own words say the surface prints, writes
         # or shows: a pure function is tested on its return value, and that
-        # is the normal shape of a test.
-        PRINTS = {"print", "prints", "printed", "printing", "output", "outputs",
-                  "display", "displays", "show", "shows", "write", "writes", "echo",
-                  "echoes"}
-        RETURNS = {"return", "returns", "returned", "returning", "result"}
+        # is the normal shape of a test. The word sets are PRINTS and
+        # RETURNS at module level, which `tests.triage` reads too.
         # The criterion under test speaks first. clickI night 42 (2026-09-13):
         # its own words said "printing", a sibling criterion on the ticket
         # said "return behavior", the union said both, and four tests that

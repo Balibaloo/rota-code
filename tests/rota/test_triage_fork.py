@@ -91,6 +91,10 @@ def test_a_routing_verdict_does_not_license_an_encode(db):
 
 
 def test_the_verdict_vocabulary_is_closed(db):
+    from rota.core.sandbox import ENUMS_BY_OP
+    assert ENUMS_BY_OP[("tests", "triage")]["verdict"] == (
+        "encodable", "cannot", "ambiguous_word", "no_machine_check",
+        "outside_fact", "contradicts_request")
     sb = _tester(db)
     with pytest.raises(ArgumentError, match="not one of"):
         sb.call("tests.triage", criterion_id="c1", verdict="maybe")
@@ -215,3 +219,144 @@ def test_an_answer_to_a_challenge_quotes_the_criterion_or_is_the_fix(db):
     out = sb.call("msg.answer_developer", refs=["c1", "ts1"], round_no=0,
                   quotes="the assertion comes from: stores the email lowercased")
     assert out["to"] == "developer"
+
+
+# ---------------------------------------------------------------------------
+# Frame 81: the Tester sends a criterion that contradicts the request back.
+# ---------------------------------------------------------------------------
+
+ASK = ("Add an echo_json(obj, indent=2) helper next to echo that prints an "
+       "object as JSON.")
+C1 = ("echo_json returns a string containing the JSON representation of obj, "
+      "formatted with indent=2.")
+C2 = "echo_json prints obj as JSON with two spaces of indent."
+
+
+@pytest.fixture
+def night91(db):
+    """
+    Night 91's words (2026-09-24) on c1, its ticket and its item, one
+    statement behind the item, and a second criterion that agrees with the
+    request. A separate fixture keeps the tests above on their own words.
+    """
+    db.execute("UPDATE items SET text = ? WHERE id = 'i1'", (ASK,))
+    db.execute("UPDATE tickets SET text = ? WHERE id = 't1'", (ASK,))
+    db.execute("UPDATE criteria SET text = ? WHERE id = 'c1'", (C1,))
+    db.execute("INSERT INTO criteria (id, ticket_id, text) VALUES "
+               "('c2','t1',?)", (C2,))
+    db.execute("INSERT INTO entries (id, author, text, ts_order) VALUES "
+               "('e1','principal',?,1)", (ASK,))
+    db.execute("INSERT INTO statements (id, span_entry, span_start, span_end, "
+               "text, status) VALUES ('s1','e1',0,?,?,'ratified')",
+               (len(ASK), ASK))
+    db.execute("INSERT INTO refs (src_table, src_id, kind, target) VALUES "
+               "('items','i1','statement','s1')")
+    db.execute("UPDATE batches SET head_commit = 'deadbeef' WHERE id = 'b1'")
+    db.commit()
+    return db
+
+
+def _contradicts(sb, criterion_id="c1", request_span="prints an object as JSON",
+                 criterion_span="returns a string"):
+    return sb.call("tests.triage", criterion_id=criterion_id,
+                   verdict="contradicts_request", request_span=request_span,
+                   criterion_span=criterion_span)
+
+
+def _tagged(sb):
+    return [m for m in sb.ctx.outbound if m.get("route") == "triage"]
+
+
+def test_contradicts_request_stages_an_unresolved_question(night91):
+    """The verdict is the route: one tagged question to the Terminologist,
+    born unresolved, with a note that quotes both sides."""
+    sb = _tester(night91)
+    out = _contradicts(sb)
+    assert "routed" in out["next"] and "Terminologist" in out["next"], out
+    [m] = _tagged(sb)
+    assert m["to_role"] == "terminologist" and m["verb"] == "question"
+    assert m["status"] == "unresolved"
+    assert m["body_refs"] == ["c1", "t1"]
+    note = m["unresolved_note"]
+    assert note.startswith("s1 says"), note
+    assert "prints an object as JSON" in note and "returns a string" in note
+    with pytest.raises(ValueError, match="triage verdict"):
+        sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
+                body="def test_x():\n    assert True")
+
+
+def test_each_span_is_checked_against_its_source(night91):
+    sb = _tester(night91)
+    with pytest.raises(ValueError, match="request_span is not in the statements"):
+        _contradicts(sb, request_span="returns nothing")
+    with pytest.raises(ValueError, match="criterion_span is not in the words of c1"):
+        _contradicts(sb, criterion_span="prints the object")
+    with pytest.raises(ValueError, match="a span belongs to contradicts_request"):
+        sb.call("tests.triage", criterion_id="c2", verdict="encodable",
+                request_span="prints")
+    assert not _tagged(sb), "a refused verdict stages nothing"
+    _contradicts(sb, request_span="'Prints an object as JSON.'",
+                 criterion_span='"returns a string."')
+    assert len(_tagged(sb)) == 1
+
+
+def test_the_committed_question_wakes_the_repair_and_not_the_ladder(night91):
+    """Every reader on the new row, after the pipeline commits it."""
+    from rota.core import db as db_mod
+    from rota.core import runner
+    from rota.core.predicates import criterion_repair, tests_missing, unresolved
+    from rota.core.scheduler import Wake
+
+    sb = _tester(night91)
+    _contradicts(sb)
+    wake = Wake("tester", "tick:tests_missing", refs=("b1",))
+    db_mod.session_commit(night91, db_mod.SessionResult(
+        session_id="se1", role="tester", wake_kind="tick:tests_missing",
+        messages=runner._messages_from(sb, wake, "se1")))
+    row = night91.execute("SELECT status, unresolved_note FROM messages "
+                          "WHERE from_role = 'tester'").fetchone()
+    assert row["status"] == "unresolved"
+    repair = criterion_repair(night91)
+    assert [w.role for w in repair] == ["terminologist"]
+    assert repair[0].detail == row["unresolved_note"]
+    missing = tests_missing(night91)
+    assert [w.detail for w in missing] == ["without a test: c2"], missing
+    assert unresolved(night91) == []
+
+
+def test_one_row_per_criterion_and_later_questions_stand_beside_it(night91):
+    sb = _tester(night91)
+    _contradicts(sb)
+    out = _contradicts(sb)
+    assert "already asked" in out["next"], out
+    assert len(_tagged(sb)) == 1
+    sb.call("msg.question_vision_keeper", refs=["c2"],
+            question="what does indent mean here")
+    assert len(_tagged(sb)) == 1, "the later question removed the tagged row"
+    assert any(m["to_role"] == "vision_keeper" for m in sb.ctx.outbound)
+
+
+def test_the_verdict_withdraws_a_test_staged_for_the_criterion(night91):
+    """Staged by hand: the wall at encodable refuses c1, so no encode of c1
+    can reach the staged set through the op."""
+    sb = _tester(night91)
+    sb.ctx.writes.append(("tests", "ts_c1", {
+        "batch_id": "b1", "criterion_id": "c1", "path": "tests/test_e.py",
+        "body": "def test_e():\n    assert True"}))
+    out = _contradicts(sb)
+    assert out["withdrawn"] == ["ts_c1"], out
+    assert "ts_c1" in out["note"]
+    assert not [w for w in sb.ctx.writes if w[0] == "tests"]
+
+
+def test_encodable_meets_the_wall_on_the_prints_returns_pair(night91):
+    sb = _tester(night91)
+    with pytest.raises(ValueError, match="contradicts_request") as exc:
+        sb.call("tests.triage", criterion_id="c1", verdict="encodable")
+    assert "'returns'" in str(exc.value) and "'prints'" in str(exc.value)
+    assert "request_span='prints'" in str(exc.value)
+    out = sb.call("tests.triage", criterion_id="c2", verdict="encodable")
+    assert out["verdict"] == "encodable"
+    # The words the refusal quotes pass the span check as they stand.
+    _contradicts(sb, request_span="prints", criterion_span="returns")
+    assert len(_tagged(sb)) == 1

@@ -13,6 +13,11 @@ the question. You do not have to know whose problem it is — an answer that
 does not land climbs to the right desk on its own. A routed criterion is a
 job done, not a job dodged.
 
+A criterion can say a thing that the request does not say. Give it the
+verdict `contradicts_request`. Copy `request_span=` from the request and
+`criterion_span=` from the criterion. The verdict sends the criterion to the
+Terminologist. Do not encode a test for it.
+
 **You test the criterion, not the implementation.** There may be no code yet, and
 that is the normal case rather than a problem: you need the criteria and the
 glossary, so you can run the moment they exist. A test written against code that

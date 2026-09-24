@@ -243,6 +243,29 @@ a different question and the night is then opened once.
   frame's pass reads against these ten: zero reds beyond them, and the
   stale line naming the eight `tests_missing` and `criterion_repair`
   cases the brief edits touch.
+- Status 2026-09-24 08:54 (rota-98): **the implementer pass is built, gated
+  and committed with this line; the eight stale cases re-record live**
+  (observed: the implementer's report, 136,790 tokens on the harness
+  line, 90 tool calls, 21 minutes; the gate on the built tree, 470 s,
+  finished 08:43). Meta workflow. The gate's lines: suite 39 failed against
+  the stored 25; new reds 17, of which 10 are the baseline's ten, 6 are
+  stale cases that hit no cassette, and 1 is flaky; reds gone 3; stale 8,
+  `ACT-TS-five-criteria-one-per-reply`, `ACT-TS-give-the-prompt-a-stream`,
+  `ACT-TS-three-criteria-one-per-reply`,
+  `L1-TE-repair-the-criterion-the-tester-cannot-encode`,
+  `L1-TS-a-criterion-no-machine-could-check-is-vision_keepers`,
+  `L1-TS-an-outside-fact-is-the-researchers`, `L1-TS-encode-a-criterion`
+  and the new case; the gate recorded nothing live. Three deviations from
+  the record, all taken: the wall skips identifier tokens, because `echo`
+  in `echo_json` is a name and not a claim; the night 91 words live in a
+  fixture of their own; pinned test 5 stages the earlier test by hand,
+  because the wall now refuses `encodable` on `c_1`. Two of the agent's
+  outside findings go to the diff review: the runner tells a seat with a
+  staged message that its work is complete, so the Tester stops after one
+  verdict, as it does after `cannot`; and a model-sent question about the
+  same criterion is not refused beside the tagged row. The diff review
+  runs next on a worktree at this commit, on Fable, while the re-record
+  runs.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13

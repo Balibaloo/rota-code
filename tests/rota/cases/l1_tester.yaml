@@ -217,3 +217,53 @@
     # header formats either way, so that desk stays forbidden under both specs.
     writes: [tests, criteria]
     recipients: [vision_keeper]
+
+- id: L1-TS-a-criterion-that-contradicts-the-request-goes-back
+  tier: T1
+  role: tester
+  runs: 5
+  pass: 4
+  # Night 91 (2026-09-24): the Tester triaged this criterion `encodable` and
+  # the Developer met a test that the request contradicts. Frame 81 gives the
+  # verdict `contradicts_request`, and its question is born unresolved.
+  tick: tests_missing
+  detail: "without a test: <c1>"
+  refs: [<b1>]
+  fixture:
+    entries:
+      - {id: <e1>, author: principal, ts_order: 1,
+         text: "Add an echo_json(obj, indent=2) helper next to echo that
+           prints an object as JSON."}
+    statements:
+      - {id: <s1>, span_entry: <e1>, span_start: 0, span_end: 82,
+         text: "Add an echo_json(obj, indent=2) helper next to echo that
+           prints an object as JSON.", status: ratified}
+    items:
+      - {id: <i1>, text: "Add an echo_json(obj, indent=2) helper next to echo
+           that prints an object as JSON.", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    item_statements:
+      - {item_id: <i1>, statement_id: <s1>}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "Add an echo_json(obj, indent=2)
+           helper next to echo that prints an object as JSON."}
+    criteria:
+      # The criterion says returns and the request says prints. A machine can
+      # check the criterion, so `encodable` is the honest answer to the wrong
+      # question.
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "echo_json returns a string containing the JSON representation
+           of obj, formatted with indent=2.", term_refs: '[]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: deadbeef}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+  expect:
+    # `status: unresolved` tells the new verdict from the open question of
+    # `cannot`.
+    messages: [{to: terminologist, verb: question, count: 1,
+                refs_include: [<c1>], status: unresolved}]
+  forbidden:
+    # A test on the return value is the night 91 fault. The criterion is the
+    # Terminologist's to rewrite, not the Tester's.
+    writes: [tests, criteria, items]

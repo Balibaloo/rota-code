@@ -266,6 +266,10 @@ class OutboundMessage:
     cause_kind: str = "message"
     thread_id: str | None = None
     round_no: int = 0
+    # A Tester's triage creates its question unresolved, with the note. The
+    # asker has said what is missing already, so nobody owes a reply (frame 81).
+    status: str = "open"
+    unresolved_note: str | None = None
 
 
 @dataclass(frozen=True)
@@ -587,14 +591,16 @@ def session_commit(conn: sqlite3.Connection, result: SessionResult) -> None:
         for m in result.messages:
             conn.execute(
                 "INSERT INTO messages (id, cause_id, cause_kind, thread_id, from_role, "
-                "to_role, verb, body_refs, body_text, round_no, seq) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "to_role, verb, body_refs, body_text, round_no, seq, status, "
+                "unresolved_note) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     m.id, m.cause_id, m.cause_kind,
                     _thread_of(conn, m),
                     result.role, m.to_role, m.verb,
                     json.dumps(m.body_refs), m.body_text,
                     m.round_no, _next_seq(conn, "messages"),
+                    m.status, m.unresolved_note,
                 ),
             )
 

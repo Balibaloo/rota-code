@@ -3274,5 +3274,7 @@ def _messages_from(sb: sandbox_mod.Sandbox, wake: Wake, session_id: str) -> list
             round_no=m["round_no"],
             cause_id=m.get("cause_id") or wake.message_id,
             thread_id=None,
+            status=m.get("status") or "open",
+            unresolved_note=m.get("unresolved_note"),
         ))
     return out

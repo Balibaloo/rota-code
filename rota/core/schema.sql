@@ -642,6 +642,8 @@ CREATE TABLE IF NOT EXISTS messages (
                 -- Not open (nobody owes a reply to a question already answered)
                 -- and not answered (the obligation is not discharged), so it is
                 -- its own state rather than a flag on either.
+                -- A Tester's triage can create a question unresolved, with the
+                -- note, and nobody owes that question a reply.
                 CHECK (status IN ('open','answered','unresolved','quarantined'))
 );
 CREATE INDEX IF NOT EXISTS ix_messages_cause  ON messages(cause_id);
