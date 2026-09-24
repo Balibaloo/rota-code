@@ -194,9 +194,9 @@ single-instance. The next rung is a fresh session.
 
 > Exhaustion escalates one rung at a time, because the usual *reason* a loop
 > exhausts itself is not knowing who to ask — and going straight to the principal
-> skips the two people who could have answered. The rung is derived from what has
-> already been sent about the batch, not stored: a stored rung is a second record
-> that can disagree with the messages that *are* the escalation.
+> skips the two people who could have answered. The rung is derived from the
+> sessions the exhaustion has opened, not stored: a stored rung is a second record
+> that can disagree with the wakes that *are* the escalation.
 
 ### 7. Budgets are structural
 

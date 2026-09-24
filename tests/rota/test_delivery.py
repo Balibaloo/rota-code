@@ -379,15 +379,22 @@ def test_the_ladder_climbs_one_rung_at_a_time(db):
 
     assert waiting_on() == ["developer"]
 
-    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq) VALUES "
-               "('m1','t1','developer','architect','escalate','[\"b1\"]',1)")
+    asked(db, "s1", "developer")
     assert waiting_on() == ["architect"]
 
-    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-               "body_refs, seq) VALUES "
-               "('m2','t1','architect','vision_keeper','challenge','[\"b1\"]',2)")
+    asked(db, "s2", "architect")
     assert waiting_on() == ["vision_keeper"]
+
+
+def asked(conn, sid, role, *, refs='["b1"]', committed=1):
+    """One session the exhaustion opened: the record the rung is derived from."""
+    seq = conn.execute("SELECT COALESCE(MAX(seq), 0) + 1 n FROM sessions").fetchone()["n"]
+    conn.execute("INSERT INTO sessions (id, role, seq, wake_kind, wake_refs, committed) "
+                 "VALUES (?,?,?,'tick:exhausted',?,?)", (sid, role, seq, refs, committed))
+
+
+def exhausted_on(conn):
+    return [w.role for w in frontier(conn) if w.kind == "tick:exhausted"]
 
 
 def test_the_ladder_stops_at_vision_keeper(db):
@@ -397,15 +404,66 @@ def test_the_ladder_stops_at_vision_keeper(db):
     """
     committed(db)
     exhaust(db)
-    for i, (frm, to, verb) in enumerate([
-            ("developer", "architect", "escalate"),
-            ("architect", "vision_keeper", "challenge"),
-            ("vision_keeper", "liaison", "report")], start=1):
-        db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
-                   "body_refs, seq) VALUES (?,'t1',?,?,?,'[\"b1\"]',?)",
-                   (f"m{i}", frm, to, verb, i))
+    for i, role in enumerate(["developer", "architect", "vision_keeper"], start=1):
+        asked(db, f"s{i}", role)
 
     assert not [w for w in frontier(db) if w.kind == "tick:exhausted"]
+
+
+def test_messages_about_the_batch_do_not_climb_the_ladder(db):
+    """
+    Night 91 (2026-09-24): the Developer's exhausted sends named its criteria
+    and tests, never the batch. The Architect's report on the cut named the
+    batch before the cap. Only the Developer's exhausted session counts, so
+    the next rung is the Architect.
+    """
+    committed(db)
+    exhaust(db)
+    asked(db, "s1", "developer")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m1','m1','architect','liaison','report','[\"b1\"]',1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m2','m2','developer','architect','escalate','[\"c_1\", \"tst_x\"]',2)")
+
+    assert exhausted_on(db) == ["architect"]
+
+
+def test_a_failed_exhausted_session_has_not_asked(db):
+    """A session that did not commit asked nobody. The same rung wakes again."""
+    committed(db)
+    exhaust(db)
+    asked(db, "s1", "developer", committed=0)
+
+    assert exhausted_on(db) == ["developer"]
+
+
+def test_an_open_message_to_the_developer_holds_the_ladder(db):
+    """
+    The Developer tries the answer before the ladder climbs. The release is the
+    one `session_commit` gives: the trigger message reads answered.
+    """
+    committed(db)
+    exhaust(db)
+    asked(db, "s1", "developer")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m1','m1','architect','developer','answer','[\"c_1\"]',1)")
+
+    assert exhausted_on(db) == []
+
+    db.execute("UPDATE messages SET status = 'answered' WHERE id = 'm1'")
+    assert exhausted_on(db) == ["architect"]
+
+
+def test_the_batch_id_matches_whole_not_as_a_prefix(db):
+    """`b1` is a prefix of `b10`. The quoted id keeps one batch's rung its own."""
+    committed(db)
+    exhaust(db)
+    asked(db, "s1", "developer", refs='["b10"]')
+
+    assert exhausted_on(db) == ["developer"]
 
 
 def test_the_cap_is_the_principals(db):

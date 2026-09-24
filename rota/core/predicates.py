@@ -876,11 +876,18 @@ def exhausted(conn) -> list[Wake]:
 
     One rung at a time, because the usual *reason* a loop exhausts itself is not
     knowing who to ask — and handing it straight to the principal skips the two
-    people who could have answered it. The rung is derived from what has already
-    been sent about this batch rather than stored, so it cannot drift out of step
-    with the messages that are the actual escalation.
+    people who could have answered it. The rung is derived from the sessions the
+    exhaustion has opened rather than stored: a stored rung is a second record
+    that can disagree with the wakes that are the escalation.
     """
     from . import config
+
+    # Law 6, amended 2026-09-24 (frame 79): the seat tries an answer before the
+    # ladder climbs. The Developer is single-instance and one batch runs. So an
+    # open message to the Developer is the batch's message.
+    if conn.execute("SELECT 1 FROM messages WHERE to_role = 'developer' "
+                    "AND status = 'open' LIMIT 1").fetchone():
+        return []
 
     cap = config.get(conn, "loop_cap")
     rows = conn.execute(
@@ -910,12 +917,16 @@ def _next_rung(conn, batch_id: str) -> str:
     Empty once it has reached Vision Keeper, who is the last rung that can be woken
     — above that is the principal, and reaching them is Liaison's `report`, which
     Vision Keeper's own session sends. Nothing wakes a person.
+
+    A role is asked once a committed session on `tick:exhausted` names this
+    batch. The runner stamps `wake_refs` by construction, and a message carries
+    only the refs the model passed. The id is quoted, so `b1` never matches `b10`.
     """
-    sent = {r["from_role"] for r in conn.execute(
-        "SELECT DISTINCT from_role FROM messages WHERE body_refs LIKE ?",
-        (f"%{batch_id}%",))}
+    asked = {r["role"] for r in conn.execute(
+        "SELECT DISTINCT role FROM sessions WHERE wake_kind = 'tick:exhausted' "
+        "AND committed = 1 AND wake_refs LIKE ?", (f'%"{batch_id}"%',))}
     for role in LADDER:
-        if role not in sent:
+        if role not in asked:
             return role
     return ""
 

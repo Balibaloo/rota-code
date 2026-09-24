@@ -312,9 +312,12 @@
       # At the loop cap: what makes the batch exhausted rather than bouncing.
       - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123,
          result: fail, attempt: 10}
+    sessions:
+      # The rung is derived from the sessions the exhaustion opened (frame 79,
+      # 2026-09-24). The message stays because the prompt reads it.
+      - {id: <s_dev>, role: developer, seq: 1, wake_kind: "tick:exhausted",
+         wake_refs: '["<b1>"]', committed: 1}
     messages:
-      # The first rung already spoken for: Developer escalated and the answer
-      # did not unstick it, which is what puts Architect next on the ladder.
       - {id: <me1>, thread_id: <te1>, from_role: developer, to_role: architect,
          verb: escalate, body_refs: '["<b1>"]', seq: 1, status: answered}
   expect:
