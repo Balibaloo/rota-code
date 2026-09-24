@@ -311,3 +311,17 @@ these modes as well, and compare each with its tally before the change:
 every case that sends a refused `msg.reopen_developer`. The `HEAD` resolution
 in `rota/testkit/fixtures.py` reaches only a case that seeds `commit_sha: HEAD`
 in `test_runs`, so today it reaches case 1 alone.
+
+## Revision 2, after the design review (observed: the reviewer on Opus 5.5, 87.4k on the harness line, 43 tool calls, 8.6 minutes, 2026-09-24 20:22)
+
+The classes hold. These corrections win over the text above.
+
+- Case 1, `ACT-DV`: the red run belongs to the edit commit, not the base. Fix: beside the `touch_strays` line in `rota/testkit/fixtures.py`, `UPDATE test_runs SET commit_sha = ? WHERE batch_id = ? AND commit_sha = 'HEAD'` with the edit sha. The two `tick: tests_failing` cases in `l1_developer.yaml` (lines 102, 237) carry the same fault and move after, one at a time, each with its own re-record.
+- Case 4, `CR`: the replacement edit also calls `rec.data` and deletes names `src/billing/__init__.py` imports. Fix: copy the sample file whole and change one line in `close_account`, `rec.values["state"] = "tombstoned"`.
+- Case 3, `AR-survey`: "void function" was refused by `_NOT_VOCABULARY`, not by a name-plus-kind rule. No new guard in `model_amend`. Land the survey brief line first and re-record the six survey cases; decide on a guard after.
+- Case 8, `TE-challenge`: `report` is the act `ask.md` asks for on an empty glossary. Fix: expect `{to: liaison, verb: report}` only; do not accept `answer` beside it.
+- Case 9, `TS-apply-a-term`: give the fixture a repo and `surface_refs`, add `<c1>` to the inbound `body_refs`, drop the `criteria.load` sentence; run 2 wrote a constant comparison, not `assert True`.
+- Every brief change is one bolded headline act, never a paragraph (observed: frame 81, a paragraph 2 of 5, two sentences 0 of 5, a headline green). `liaison/landing.md` gets one line, not a rewrite.
+- The map test: build the index from a small tree in `tmp_path` with two `__init__.py` files through `build_index(root)`; the `index` fixture still reads the live folder.
+- Re-record list, beyond the ten: `L2-AR-place-a-block-developer-could-not`; the five survey cases `an-area-for-its-commitments`, `a-signature-callers-rely-on`, `an-exception-contract`, `a-patch-seam`, `an-exported-name`; the six landing cases `plain-agreement-approves-every-line`, `a-named-line-is-contested-and-the-rest-approved`, `a-correction-in-a-sentence-contests-the-line-it-is-about`, `a-question-then-a-statement-at-the-confirm-is-the-question`, `approve-one-line-only-approves-that-line-alone`, `a-long-page-is-ruled-without-the-rows`; and `L1-TE-answer-the-architects-question`. Record each one's tally before the change.
+- Order: all changes land in one pass. The landing line re-records with its six siblings and is judged against their tallies before the change.
