@@ -466,6 +466,32 @@ a different question and the night is then opened once.
   `.rota/clickI_night91_partial.db`. Line 5 runs again from the start,
   about two hours to `GAUNTLET-DONE`. The acceptance is the status of
   2026-09-23 22:00, read on the full night.
+- Status 2026-09-24 04:15 (rota-b8): **walk 1 read at 190 sessions: rule 1 held
+  on every made-up turn, and the counter had a false positive** (observed:
+  `.rota/clickI_night91_walk1.db`, a backup at 04:11, and
+  `rota.tools.nightcount` over it; the night runs on). Rota workflow for
+  the numbers. Made up: 100 turns in 39 sessions, 17 of them the Developer.
+  The counter first read 2 writes after an invention. Both were the seat's
+  own invented `OK code.write` line, echoed inside the quoted completion in
+  the next prompt: `s154` turn 16 and `s157` turn 14, where the NOT RUN line
+  names the write as held and the `tool_calls` record holds no write for the
+  turn. Every made-up turn that sent a write, thirteen in all, either had
+  the write held by rule 1 or ran a write placed before the invention, and
+  the door refused every one of those as invalid Python, a cut through an
+  expression or a dropped symbol. So the acceptance's first line reads 0
+  writes after an invention with made up above 0, and the second names
+  `s154` turn 16, a Developer that invented a source result, sent a write
+  and a commit, and got the NOT RUN line for both. The fourth: no session
+  invented every turn, the most is 7 of 25, so the twelve-turn cap has no
+  case tonight. The third waits on `GAUNTLET-DONE`. Meta workflow for the
+  fix: `rota.tools.nightcount` now scans the prompt after the echoed
+  completion, one pinned test with a real write after the echo as the
+  control, 10 green, committed at `5ec43cf` by this session under the
+  one-line exception (reasoned: a tool that measures, not the write
+  pipeline, and a five-line change). The gate runs after the night, not
+  beside it, by the rule of night 86. The night at 04:14: attempt 12 of 10,
+  two inherited tests failing, and the exhaustion rung stuck at the
+  Developer, pushed as frame 79.
 
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
