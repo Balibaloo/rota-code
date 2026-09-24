@@ -593,6 +593,26 @@ a different question and the night is then opened once.
   `944c8e6` with the change stashed. The worktree `wt-79` at `a75206d`
   is in this session's scratchpad. After the review: a pass 3 if it
   finds a defect, the gate, then validating on the night.
+- Status 2026-09-24 12:01 (rota-18): **the diff review found no defect in
+  the mechanism: five low wording findings and two outside notes; pass 3
+  runs with four wording fixes and one pin** (observed: the reviewer on
+  Fable, worktree at `a75206d`, 112,758 on the harness line, 45 tool
+  calls, 7 minutes, one probe script, nine ladder tests run green in the
+  worktree). Meta workflow. Confirmed by probe on night 91's rows:
+  `_next_rung` reads `architect` and `exhausted` returns one wake to the
+  Architect at attempt 12 of 10, with zero open messages to the Developer.
+  Confirmed by reading: every open message to the Developer drains by
+  commit, by the barren-challenge rule, or by a quarantine, so the guard
+  cannot hold for ever; one batch runs and the Developer is single-
+  instance; a seeded `sessions` row cannot reach a case prompt, so stale
+  0 stands; no text in the tree contradicts Law 6's amended sentence.
+  Taken into pass 3: three STE splits, one false "only" in a docstring,
+  one comment that said less than the guard does, and a pin that the
+  Architect's message tip runs before its exhausted wake, by band. Left
+  in the record's out-of-scope list: three other predicates match a
+  batch id without quotes; the Architect's exhausted brief opens with a
+  sentence that route B makes imprecise, and a brief change costs a
+  re-record, so it waits for a frame on that brief.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
