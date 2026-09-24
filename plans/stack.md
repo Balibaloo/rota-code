@@ -536,6 +536,27 @@ a different question and the night is then opened once.
   `.rota/clickI_night91.db`, run `rota.tools.nightcount` over it, read
   frame 77's four acceptance lines, close frame 77, then ask grill question
   4 by the phone route.
+- Status 2026-09-24 02:50 (rota-b8): **the night's Developer is read, and a
+  targeted interview follows the night** (ruled: Roman, 2026-09-24 02:50,
+  "Ok nice" to a manual interview by probe before any automated one).
+  Rota workflow for the facts (observed: the run database at 02:45):
+  attempts 2 to 6 read 3, 4, 14, 14, 14 failing of 37; eight Developer
+  sessions, each reading `src/click/utils.py` 8 to 30 times and writing
+  `echo_json` as a hunk 3 to 6 times, several refused by the door; a write
+  at attempt 4 broke eleven inherited tests, and the failing set has not
+  changed since; the batch's `tst_echo_json_returns_string` expects a return
+  where the request says print, and its two stream tests fail on a closed
+  stream; the NOT RUN line fired 40 times across the eight. `loop_cap` is 10
+  by config, a compute budget, and no rule ends a loop whose attempts stop
+  changing the failing set. Meta workflow for the plan: after the night,
+  `probes/frame37/replay_turn.py` replays the prompt of `s154`, the Developer
+  at attempt 6, and of the Tester that wrote the returning test, with
+  recall questions only, on the criterion and the test each was shown; the
+  disagreement with the record is the evidence. Grill question 4 carries
+  the stall bound as its recommended answer: the same failing set across
+  three attempts escalates one rung, beside the cap. An automated
+  interview of failed night sessions is deferred until targeted questions
+  have paid on two or three nights (ruled: Roman, the same word).
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
