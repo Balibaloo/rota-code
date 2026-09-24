@@ -666,6 +666,13 @@ a different question and the night is then opened once.
   flag on items born before the column. (5) Stale worktrees of ended
   sessions stay registered, a parked item.
 
+- Status 2026-09-24 15:41 (rota-6d): **handed to session `8736e9fc`, rota-95,
+  with the stack at `54b68f1`** (observed: the `hand` command's exit 0
+  at 15:40, confirmed 7 s after the claim). Meta workflow. Session
+  a664990b stops here at about 325k, holding nothing. The holder's
+  first act is the state reply, then night 92 from a worktree at
+  `40b4777`.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
