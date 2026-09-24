@@ -330,6 +330,47 @@ a different question and the night is then opened once.
   The register is backed up as `.rota/cassettes_backup_2026-09-24-frame81.db`.
   The rota-b8 line below this one is the previous holder's hand-off
   status, written after the take and left in place.
+- Status 2026-09-24 10:14 (rota-98): **validating at `77e61b3`: every
+  ends-when line but the night holds, and the night waits on frames 79
+  and 80** (observed: the gate at 10:13, 651 s: suite 33 failed against
+  the stored 25; new reds 11, the baseline's ten plus
+  `test_handover.py::test_release_empties_the_seat`, which the gate flags
+  flaky and this frame never touched; reds gone 3; stale 0). Meta
+  workflow. The verdict `contradicts_request` names both spans and refuses
+  a span not in the material; the question to the Terminologist is born
+  unresolved by the op; `tests.encode` refuses it; 19 pinned tests in
+  `test_triage_fork.py`; the cold case
+  `L1-TS-a-criterion-that-contradicts-the-request-goes-back` reads 5 of 5
+  on night 91's words; the Tester's brief carries the verdict in one
+  bolded line beside the sharper verdicts. The brief line was measured
+  three ways (observed: the re-records of 08:58, 09:17, 09:42 and 09:57):
+  a paragraph, 2 of 5 on the `no_machine_check` case; two sentences in the
+  `cannot` paragraph, 0 of 5; the headline act, green. **For Roman's
+  check**: the Terminologist's `criterion_repair` line, "The request comes
+  before the criterion. Rewrite the criterion to say what the request
+  says", applies intent-flows-down and decides which row wins in a
+  conflict (reasoned: the design record, section 4). Actual against the
+  estimate, walls apart: design review 129k on Opus against 110k; build
+  136.8k cold and about 20k for the resume against 110k; diff review
+  107.6k on Fable against 90k; four gates and four re-records, about 95
+  minutes of GPU against 15k and 20k; this context from 8k to about 295k.
+  Walls: one, the span refusal, found by the register and not by either
+  review, and it cost one resume and two brief spikes. Register lines
+  written: one. The register is re-recorded four times today and backed up
+  as `.rota/cassettes_backup_2026-09-24-frame81.db`, not published:
+  `rota cassettes publish` needs Roman's token, and the re-record commit
+  then carries `tests/rota/cassettes.json`. What the next holder does, in
+  Roman's order: frame 79, the ladder, then frame 80, the quarantine
+  cycle, each with a design record and its reviews; then one warm night
+  from a worktree at frame 80's closing commit, `GAUNTLET_NIGHT=92`, by
+  the shape of `.rota/launch_night91.sh` with `ROTA_REPO` at a fresh
+  `C:/Users/roman/rota_night92` worktree, warm by default; this frame
+  closes when that night shows `c_1` of this request reach the
+  Terminologist with no test on file and the rewritten criterion tested
+  after. The worktree `wt-81` at `88cee50` in this session's scratchpad
+  is registered and can go. The design record's out-of-scope list holds
+  three notes for later frames. This session hands the stack now: it
+  reads about 295k, and frame 79's design would cross the 300k line.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
