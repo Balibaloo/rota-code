@@ -428,6 +428,30 @@ a different question and the night is then opened once.
   record, unclaimed. Meta workflow.
 - Status 2026-09-24 07:54 (rota-b8): **third of the three, after frame 81**
   (ruled: Roman, 2026-09-24 07:54, grill question 4 of frame 37). Unclaimed.
+- Status 2026-09-24 11:02 (rota-18): **the cycle's mechanism is read while
+  frame 79 builds, and the frame stays unclaimed** (observed:
+  `.rota/clickI_night91.db`, `receipts`, `tick_attempts`, `messages`
+  `m121` to `m141`, `items`, 2026-09-24 11:00). Rota workflow. Each
+  round: the Terminologist on `tick:criteria` for item `bg_1_summary`
+  sends the same three challenges to the Vision Keeper (`m121`, `m122`,
+  `m123`, then `m128` to `m130`, then `m135` to `m137`), the third one
+  saying `criteria.specify` refuses `surface_refs=[echo_json]`; the key
+  `terminologist|tick:criteria|bg_1_summary` reaches `tick_attempt_cap`
+  3 and `quarantine_stalled` sets `quarantined`; the Liaison reports it
+  (`s255`), presents the item (`m124`), the yes-only principal converses
+  and gives a verdict (`m125`, `m126`), and the Liaison's session writes
+  a `rulings` row; the Vision Keeper relays (`s258`) and its session
+  writes the `items` row `bg_1_summary` with the item's own `version`
+  still 1; and the revive rule at `rota/core/db.py:500` deletes the
+  quarantined key because a commit wrote a row its refs name. The tick
+  fires again at attempt 1. Three rounds, `s251` to `s278`, and the
+  counter reads attempts 1 at the stop. The item is a summary of Click
+  with one ticket, "the software is a command-line interface toolkit
+  called Click", and no criterion can be written for it. Design shape
+  for the record (reasoned: the ends-when line says a verdict or a new
+  version discharges it): the revive keys on a version change of the
+  subject, not on any write, so a relay that changes nothing revives
+  nothing. Where the summary item came from is the record's first read.
 
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
