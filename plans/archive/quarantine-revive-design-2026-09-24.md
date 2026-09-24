@@ -7,7 +7,10 @@ review's ten answers and nine findings (observed: the reviewer on Opus
 are `p1.py` to `p5.py` in this session's scratchpad). Revision 3 at
 13:15 adds the second half, a description owes no ticket, from Roman's
 rulings at the grill, 12:50 to 13:12. Meta workflow for the build. Rota
-workflow for the fault. The tree is `b4d1e5e`.
+workflow for the fault. Revision 4 at 13:24 folds the second review's ten findings (observed:
+the reviewer on Opus 5.5, 109.3k on the harness line, 54 tool calls, 6.7
+minutes; probes in `r2/` in this session's scratchpad). The tree is
+`c4827b7`.
 
 The frame has two halves. The first is the safety net: a give-up that
 was reported once must not loop. The second is the golden path: a
@@ -215,36 +218,79 @@ observed provenance on it (`api.py:596-604`). `problem.assert` writes
 beside them, and it is the one the keeper can set.
 
 **Where the keeper sets it, at splitting.** A new op,
-`problem.describe(id)`, beside `problem_set_approval` (`api.py:908`):
-`_must_exist`, then one write `("items", id, {"is_description": 1},
-True)`. `amends` True moves the version, so the approval predates the
-flip and the item comes to the owner at the next present, where the
-word shows. Offered in `vision_keeper/slicing.tools` and
-`vision_keeper/challenge.tools`. `slicing.md` gains one paragraph: an
-item that names no piece of work is a description; send one
-`problem.describe` for it and no ticket, with an example in the brief's
-own shape. `challenge.md` gains a third answer: when the challenge says
-the item's tickets ask for nothing, `problem.describe` the item; no
-reopen, because nothing was built on it. The Terminologist's criteria
-brief already says a ticket that cannot mean anything is a challenge and
-not criteria work, so it does not change; if night 92 shows the writer
-not saying "asks for nothing", one line there is the next frame's.
+`problem.describe(id)`, beside `problem_set_approval` (`api.py:908`).
+It writes one row with `amends` False: `is_description` 1 and `approval`
+`draft`, the version unchanged. `amends` True was the first draft, and
+the review showed it wrong twice: a version move never reaches the
+owner, because `tick_signoff` lists `draft` rows only, and it fires
+`cancel` and `reopen` on any live batch of the item (CONFIRMED, the
+review's finding 1, probe `q10.py`; the case `L1-VK-slice` forbids a
+version move in slicing for the same reason). `draft` is what brings an
+item to the present, so the owner sees the word there and approves or
+contests it. Under the first half's rule 3 the approval change is a
+move, so a quarantined key on the item is revived once, never produced
+again, and forgotten.
 
-**Who reads the flag.** `tick_slicing` adds `AND i.is_description = 0`.
-`tick_criteria` joins `items` and adds the same, which covers a ticket
-cut before the flip, this night's case. The owner's page
-(`rota/roles/principal.py:315-327`) already keeps the account and the
-observed rows out of "It would"; a description goes with them, under
-what the repository does today. `problem.consult` shows the column.
+The op has a door (the review's finding 5). Night 91's three challenges
+named `tk_1` and `echo_json`, the one real request, and none said "asks
+for nothing". A describe with no door can take the real request off the
+path. So `problem.describe` refuses an item whose provenance is
+`decided`, the principal's own words, and an item with a batch that is
+not merged or abandoned. `bg_1_summary` is `reasoned` and has no batch,
+so the door lets the summary through. A refusal names the way back: a
+challenge answer by `decisions.author`.
+
+The op needs an edge in `rota/design/graph.json`, `vision_keeper writes
+problem "describe"`, because the sandbox builds a mode's functions from
+the graph and a `.tools` line only narrows them (`sandbox.py:474-480`,
+the review's finding 8). The docstring's first paragraph is the tool's
+advertised text (`toolschema.py:18-23`), so it is brief text. Offered in
+`vision_keeper/slicing.tools` and `vision_keeper/challenge.tools`.
+`slicing.md` gains one paragraph: an item that names no piece of work is
+a description; send one `problem.describe` for it and no ticket, with an
+example in the brief's own shape. `challenge.md` gains a third answer:
+when the challenge says the item's tickets ask for nothing,
+`problem.describe` the item; no reopen, because nothing was built on it.
+The Terminologist's criteria brief does not change; if night 92 shows
+the writer not saying "asks for nothing", one line there is the next
+frame's.
+
+By construction, `problem.assert` stages `is_description` 1 only when it
+is 1, on an onboarding wake or for `how_it_works`, and stages no key
+otherwise. A later assert off an onboarding wake, a contested
+amendment of a described item, then leaves the flag as it is (the
+review's finding 6).
+
+**Who reads the flag.** Three producers skip a description:
+`tick_slicing` (`scheduler.py:250-284`), `tick_criteria` (`:286-299`),
+and `grouping` (`predicates.py:524-529`), which keys on tickets that
+have criteria and would group a described item's ticket (CONFIRMED, the
+review's finding 2). `criterion_repair` needs criteria and a Tester
+question first, so it needs none. `batch_start` and `preempt` gate on
+the approval already. The skip guards on `_has_column`, because
+`frontier_readonly`, the trace view and the CLI open an old run
+database read-only and never run `init_db` (the review's finding 7).
+
+`problem.consult` and the page's row resolver (`runner.py:1302`) keep
+their selects as they are, and emit `is_description` only when it is 1.
+Both selects appear in the user text of recordings, 498 and 311 of
+3975, and the recording key hashes that text, so a new key on every row
+would stale them across many roles (CONFIRMED, the review's finding 3).
+The owner's page (`principal.py:315-327`) gives descriptions their own
+heading, because the summary says Click "includes a helper function
+echo_json", which was the running request and not what the repository
+does today (the review's finding 4).
 
 **Schema.** `items.is_description INTEGER NOT NULL DEFAULT 0` in
 `rota/core/schema.sql:50`, and the `init_db` column pattern
 (`db.py:221-224`) for a run database that predates it.
 
-**Re-records.** The keeper's slicing and challenge cases, because their
-tools files and briefs change. Nine keeper cases exist in
-`tests/rota/cases` (observed: 13:11). One new case records the slicing
-session on a description item.
+**Re-records.** Twenty-one keeper cases exist in `tests/rota/cases`
+(observed: the review's probes `q2.py` and `q3.py`; the record's nine
+was a count of files). Three run the two modes and re-record:
+`L1-VK-slice`, `L1-VK-decide-a-challenge-to-an-approved-item` and
+`L3-scope-becomes-a-ticket-with-criteria`. One new case records the
+slicing session on a description item.
 
 ### The flow, roles and processes (ruled: Roman asked for it, 13:12)
 
@@ -252,15 +298,16 @@ session on a description item.
 flowchart TD
   P[Principal, the owner] -- words --> L[Liaison]
   L -- deliver --> K[Vision Keeper, the keeper]
-  K -- problem.assert --> I[(items: kind, is_description)]
-  O[onboarding or survey wake] -. by construction: description .-> I
-  I -- draft or amended --> PR[Liaison: present] --> P
+  K -- problem.assert --> I[(items: kind, is_description, approval)]
+  O[onboarding wake] -. by construction: description .-> I
+  I -- draft --> PR[Liaison: present] --> P
   P -- approve or contest --> I
   I -- approved, not a description --> S[tick:slicing: keeper]
   S -- names work --> T[(tickets)]
-  S -- names no work --> D[problem.describe] --> I
+  S -- names no work --> D[problem.describe: flag, approval draft]
+  D -- door: not the owner's words, no live batch --> I
   T --> C[tick:criteria: Terminologist, the writer]
-  C -- criteria --> CR[(criteria)] --> A[Architect: batch] --> B[Developer, Tester]
+  C -- criteria --> CR[(criteria)] --> A[Architect: grouping, batch] --> B[Developer, Tester]
   C -- asks for nothing --> CH[challenge: keeper] --> D
   C -- three attempts --> Q[quarantine: Liaison report] --> P
   P -- yes, nothing changes --> QQ[quiet until the item moves]
@@ -269,9 +316,12 @@ flowchart TD
 
 The golden path is the top and the middle: words, item, present, cut,
 criteria, batch. A description leaves it at the cut, or at the writer's
-challenge, and returns to the owner's page. The give-up path at the
-bottom is the safety net, and after the first half it ends where the
-owner's yes lands.
+challenge, and returns to the owner's page as a draft under its own
+heading. The describe door keeps the owner's own words and any item
+with a live batch on the path. The give-up path at the bottom is the
+safety net, and after the first half it ends where the owner's yes
+lands. The onboarding edge changes no skip: the account and the observed
+rows are skipped already, and the flag names them.
 
 ## The pinned tests
 
@@ -315,13 +365,23 @@ the doors:
 8. `tick_criteria` produces no wake for a ticket with no criteria whose
    item has `is_description` 1, and produces it again at 0. Night 91's
    shape: `bg_1_summary` and `tk_1_bg_1_summary`.
-9. `problem.describe` writes the flag with `amends` True: the version
-   moves, the approval predates it, and `tick_signoff` lists the item.
-   An unknown id is refused.
-10. `problem.assert` on an onboarding wake writes `is_description` 1; on
-    a deliver wake 0; for `how_it_works` 1 on any wake.
-11. The owner's page lists a description under what the repository does
-    today, and never under "It would".
+9. `problem.describe` writes `is_description` 1 and `approval` `draft`
+   with `amends` False: the version stays, `tick_signoff` lists the
+   item, and no `cancel` or `reopen` wake appears. The pin calls the op
+   through the sandbox, which covers the graph edge.
+10. The describe door: an item with `decided` provenance is refused; an
+    item with a running batch is refused; a `reasoned` item with no
+    batch is described.
+11. `problem.assert` on an onboarding wake writes `is_description` 1; on
+    a deliver wake it stages no key; `how_it_works` gets 1 on any wake.
+    The texts pass the account door (`api.py:806`) and differ from the
+    stored words (`:880`).
+12. `grouping` produces no wake for a described item's ticket with
+    criteria.
+13. The owner's page, through `runner._resolve_refs`, lists a
+    description under its own heading, and never under "It would".
+14. `frontier_readonly` on a database without the column raises
+    nothing.
 
 The pins seed rows by SQL and commit through `session_commit` with
 `SessionResult` and `Write`, as `tests/rota/test_refs.py` does. A
@@ -386,11 +446,12 @@ estimated. Build 60k to 80k on Opus: two functions in `db.py`, one flag
 in `api.py`, six pins (frame 79: 86.6k over three passes, on a larger
 surface).
 
-Second half. Design review about 80k on Opus, on this section only.
-Build 80k to 100k on Opus: one column and its migration, one op, two
-tools files, two briefs, two predicate lines, one page line, five pins,
-and the re-record of the keeper's slicing and challenge cases with one
-new case, about fifteen minutes of GPU.
+Second half. Design review: 109.3k on Opus, actual, against 80k
+estimated. Build 80k to 100k on Opus: one column and its migration, one
+op with a door and a graph edge, two tools files, two briefs, three
+predicate skips with a column guard, one page heading, two selects that
+emit one key, eight pins, and the re-record of three keeper cases with
+one new case, about twenty minutes of GPU.
 
 Both halves. One diff review about 120k on Fable; the write pipeline
 and two predicates are touched, so the review probes every branch of
