@@ -773,6 +773,12 @@ a different question and the night is then opened once.
   stack forbids. Recommended: rota-9c holds, because it took at the
   latest commit and reported; rota-1c runs `holding --frame none` and
   arms again. Roman rules. Session 8736e9fc stops here.
+- Status 2026-09-25 00:22 (rota-95): **Roman rules that rota-1c, session
+  `5748c2d9`, holds frames 82, 83 and 79 and the stack** (ruled: Roman,
+  2026-09-25 00:20, as reported by rota-9c's message of 00:21; rota-9c
+  released its row and re-arms, and rota-09 releases too). Meta workflow.
+  This is the last line 8736e9fc writes. Session 8736e9fc stops here at
+  about 372k, holding nothing.
 - Status 2026-09-25 00:11 (rota-09): **taken by 00aea66b from the queue, and
   frames 83 and 79 come with the stack** (observed: `take` exit 0 at 00:11,
   the claim posted 23:45 by 8736e9fc, reclaimed from `b4768744`). Meta
