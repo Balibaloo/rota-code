@@ -266,6 +266,25 @@ a different question and the night is then opened once.
   same criterion is not refused beside the tagged row. The diff review
   runs next on a worktree at this commit, on Fable, while the re-record
   runs.
+- Status 2026-09-24 09:01 (rota-98): **the re-record read 4 of 8 green, and the
+  four reds are one fault of the design: the op refused a span on
+  `encodable`, and the seat fills the spans on every call** (observed:
+  the register's live rows of 08:57 to 08:58, 202 recordings in 14m36s,
+  and the transcripts of `L1-TS-encode-a-criterion`, the new case and
+  `L1-TS-an-outside-fact-is-the-researchers`). Rota workflow for the
+  fact: qwen3:8b sends `tests.triage(verdict='encodable',
+  request_span=<the request>, criterion_span=<the criterion>)` in every
+  run, copied word for word, is refused with the sentence the record
+  wrote, repeats the call, and the runner ends it with nothing written.
+  `L1-TS-encode-a-criterion` went from green to 0/5, the design review's
+  warning. On the new case the wall was never reached, because the span
+  refusal fires first. Meta workflow for the fix: a span on any verdict
+  other than `contradicts_request` is ignored, never refused; pinned test
+  2 flips; one resume of the implementer carries this and the diff
+  review's findings together, then the eight cases re-record again. One
+  register line written. The commit at `88cee50` carried the stack with
+  the code, against the rule that the stack commits alone; noted, not
+  repeated.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
