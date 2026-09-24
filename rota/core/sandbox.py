@@ -1446,6 +1446,15 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
         replaced = ""
         withdrawn: list[str] = []
         if verb == "question":
+            # One question per criterion. The diff review's probe landed two
+            # rows for one criterion, and the open one woke a second
+            # Terminologist session (frame 81).
+            for m in ctx.outbound:
+                if m.get("route") == "triage" and set(refs or []) & set(m["body_refs"]):
+                    raise ValueError(
+                        f"already asked -- {m['id']} carries {m['body_refs'][0]} "
+                        f"to the Terminologist. Encode the others or end the "
+                        f"session")
             # The triage verdict's own question stays. It carries verified
             # spans, and a later question is about another criterion (frame 81).
             prior = [m for m in ctx.outbound if m["verb"] == "question"

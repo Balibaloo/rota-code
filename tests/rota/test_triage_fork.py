@@ -85,7 +85,7 @@ def test_a_routing_verdict_does_not_license_an_encode(db):
     both-doors-in-one-turn disease, refused."""
     sb = _tester(db)
     sb.call("tests.triage", criterion_id="c1", verdict="no_machine_check")
-    with pytest.raises(ValueError, match="triage verdict"):
+    with pytest.raises(ValueError, match="was triaged no_machine_check in this session"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="assert True")
 
@@ -108,7 +108,7 @@ def test_a_bare_cannot_is_a_complete_verdict_at_the_nearest_desk(db):
     out = sb.call("tests.triage", criterion_id="c1", verdict="cannot")
     assert "terminologist" in out["next"], out
     assert "climbs" in out["next"], "the promise is the point: no diagnosis owed"
-    with pytest.raises(ValueError, match="triage verdict"):
+    with pytest.raises(ValueError, match="was triaged cannot in this session"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="def test_x():\n    assert True")
 
@@ -280,7 +280,9 @@ def test_contradicts_request_stages_an_unresolved_question(night91):
     note = m["unresolved_note"]
     assert note.startswith("s1 says"), note
     assert "prints an object as JSON" in note and "returns a string" in note
-    with pytest.raises(ValueError, match="triage verdict"):
+    assert out["next"].endswith("End the session"), out
+    with pytest.raises(ValueError,
+                       match="c1 was triaged contradicts_request in this session"):
         sb.call("tests.encode", id="ts1", criterion_id="c1", path="t.py",
                 body="def test_x():\n    assert True")
 
@@ -291,10 +293,12 @@ def test_each_span_is_checked_against_its_source(night91):
         _contradicts(sb, request_span="returns nothing")
     with pytest.raises(ValueError, match="criterion_span is not in the words of c1"):
         _contradicts(sb, criterion_span="prints the object")
-    with pytest.raises(ValueError, match="a span belongs to contradicts_request"):
-        sb.call("tests.triage", criterion_id="c2", verdict="encodable",
-                request_span="prints")
     assert not _tagged(sb), "a refused verdict stages nothing"
+    # A span on another verdict is ignored: qwen3:8b fills both on every call.
+    out = sb.call("tests.triage", criterion_id="c2", verdict="encodable",
+                  request_span="prints", criterion_span="prints obj as JSON")
+    assert out["verdict"] == "encodable" and out["next"].startswith("encode it")
+    assert not _tagged(sb), "a span on encodable stages nothing"
     _contradicts(sb, request_span="'Prints an object as JSON.'",
                  criterion_span='"returns a string."')
     assert len(_tagged(sb)) == 1
@@ -354,9 +358,27 @@ def test_encodable_meets_the_wall_on_the_prints_returns_pair(night91):
     with pytest.raises(ValueError, match="contradicts_request") as exc:
         sb.call("tests.triage", criterion_id="c1", verdict="encodable")
     assert "'returns'" in str(exc.value) and "'prints'" in str(exc.value)
-    assert "request_span='prints'" in str(exc.value)
+    assert ("Send tests.triage(criterion_id='c1', verdict='contradicts_request', "
+            "request_span='prints', criterion_span='returns')") in str(exc.value)
     out = sb.call("tests.triage", criterion_id="c2", verdict="encodable")
     assert out["verdict"] == "encodable"
     # The words the refusal quotes pass the span check as they stand.
     _contradicts(sb, request_span="prints", criterion_span="returns")
+    assert len(_tagged(sb)) == 1
+
+
+def test_a_later_question_on_the_routed_criterion_is_refused(night91):
+    """The diff review's probe: a second row for c1 landed open and woke a
+    second Terminologist session."""
+    sb = _tester(night91)
+    _contradicts(sb)
+    [m] = _tagged(sb)
+    with pytest.raises(ValueError, match=(
+            f"already asked -- {m['id']} carries c1 to the Terminologist. "
+            f"Encode the others or end the session")):
+        sb.call("msg.question_terminologist", refs=["c1"],
+                question="does echo_json print or return")
+    out = sb.call("msg.question_terminologist", refs=["c2"],
+                  question="what does indent mean here")
+    assert out["to"] == "terminologist"
     assert len(_tagged(sb)) == 1

@@ -4012,15 +4012,14 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
     _must_exist(ctx, "criteria", criterion_id)
     if not hasattr(ctx, "triaged"):
         ctx.triaged = {}
-    if verdict != "contradicts_request" and (request_span or criterion_span):
-        raise ValueError(
-            "a span belongs to contradicts_request; if the criterion agrees "
-            "with the request, send the verdict alone")
+    # A span on another verdict is ignored, not refused. qwen3:8b fills both
+    # spans on every call, and the refusal looped the seat to an empty
+    # session: L1-TS-encode-a-criterion went to 0/5 (frame 81, re-record).
     if verdict == "contradicts_request" and not (
             _span_flat(request_span or "") and _span_flat(criterion_span or "")):
         raise ValueError(
             "contradicts_request needs two spans. Copy request_span= from the "
-            "request's words and criterion_span= from the criterion")
+            "request's words. Copy criterion_span= from the criterion.")
     done = ctx.conn.execute("SELECT id FROM tests WHERE criterion_id = ?",
                             (criterion_id,)).fetchone()
     crit_text = (ctx.conn.execute("SELECT text FROM criteria WHERE id = ?",
@@ -4045,19 +4044,25 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
     if verdict == "encodable" and not done and request:
         # The one measured pair, walled: a brief line alone is a prediction
         # about a 9B model, and s144 never said "prints" (frame 81, finding 6).
+        # On the request side, "echo" names the helper in "next to echo". The
+        # criterion side keeps the full set (frame 81, the diff review).
+        req_prints = PRINTS - {"echo", "echoes"}
         crit_words = _verb_words(crit_text)
         req = [(name, _verb_words(text)) for name, text in request]
         req_words = [w for _, ws in req for w in ws]
-        for says, other in ((RETURNS, PRINTS), (PRINTS, RETURNS)):
-            cw = _first_verb(crit_words, says)
-            rw = _first_verb(req_words, other)
-            if (cw and rw and not _first_verb(crit_words, other)
-                    and not _first_verb(req_words, says)):
+        for c_says, c_other, r_says, r_other in (
+                (RETURNS, PRINTS, req_prints, RETURNS),
+                (PRINTS, RETURNS, RETURNS, req_prints)):
+            cw = _first_verb(crit_words, c_says)
+            rw = _first_verb(req_words, r_says)
+            if (cw and rw and not _first_verb(crit_words, c_other)
+                    and not _first_verb(req_words, r_other)):
                 row = next(name for name, ws in req if rw in ws)
                 raise ValueError(
-                    f"{criterion_id} says '{cw}' and {row} says '{rw}'. That "
-                    f"is contradicts_request, with request_span='{rw}' and "
-                    f"criterion_span='{cw}'")
+                    f"{criterion_id} says '{cw}' and {row} says '{rw}'. Send "
+                    f"tests.triage(criterion_id='{criterion_id}', "
+                    f"verdict='contradicts_request', request_span='{rw}', "
+                    f"criterion_span='{cw}').")
     ctx.triaged[criterion_id] = verdict
     if done:
         return {"criterion": criterion_id, "verdict": verdict,
@@ -4101,10 +4106,11 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
                             "the criterion in refs",
         "outside_fact": "checking needs a fact this project does not hold: "
                         "msg.question_researcher, saying what fact",
-        "contradicts_request": f"routed: {criterion_id} goes to the "
-                               f"Terminologist to be rewritten before any "
-                               f"test exists. Encode the others or end the "
-                               f"session",
+        # No "encode the others": the runner ends a session that holds a
+        # staged message, as it does after `cannot`.
+        "contradicts_request": f"routed: the Terminologist rewrites "
+                               f"{criterion_id} before any test exists. End "
+                               f"the session",
     }[verdict]
     out: dict = {}
     if verdict == "contradicts_request":
@@ -4116,9 +4122,10 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
             ctx.writes.remove(w)
         if staged:
             out["withdrawn"] = [w[1] for w in staged]
-            out["note"] = (f"the test staged for {criterion_id} "
-                           f"({', '.join(out['withdrawn'])}) is withdrawn. A "
-                           f"criterion that contradicts the request gets no test")
+            out["note"] = (f"The verdict withdraws the test staged for "
+                           f"{criterion_id} ({', '.join(out['withdrawn'])}). A "
+                           f"criterion that contradicts the request gets no "
+                           f"test.")
     # A cannot re-judged is not a question re-owed. `tests_missing` fires per
     # batch while *any* criterion lacks a test, so a batch with one routed
     # criterion and three encodable ones wakes this mode again with the routed
@@ -4132,11 +4139,14 @@ def tests_triage(ctx: Ctx, criterion_id: str, verdict: str,
         # One row per criterion: a row this session staged counts as asked.
         tagged = next((m for m in ctx.outbound if m.get("route") == "triage"
                        and criterion_id in m["body_refs"]), None)
-        if open_q or tagged:
-            asked = open_q["id"] if open_q else tagged["id"]
-            nxt = (f"already asked -- {asked} is open about this "
+        if open_q:
+            nxt = (f"already asked -- {open_q['id']} is open about this "
                    f"criterion and the answer will wake you. Encode the "
                    f"others or end the session")
+        elif tagged:
+            nxt = (f"already asked -- {tagged['id']} carries this criterion "
+                   f"to the Terminologist. Encode the others or end the "
+                   f"session")
         elif verdict == "contradicts_request":
             from ..core.runner import new_id
             crit = ctx.conn.execute("SELECT ticket_id FROM criteria WHERE id = ?",
@@ -4265,6 +4275,13 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
     # The fork is mandatory where the mode offers it: an encode is only legal
     # for a criterion this session has claimed encodable. The other three
     # verdicts name their owner, and taking that door is equally a completion.
+    if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) not in (None, "encodable"):
+        # A routed criterion was judged already. "No triage verdict from you
+        # yet" was false for it (s144's runner account, night 91).
+        raise ValueError(
+            f"{criterion_id} was triaged {ctx.triaged[criterion_id]} in this "
+            f"session. A routed criterion gets no test. Encode the others or "
+            f"end the session")
     if hasattr(ctx, "triaged") and ctx.triaged.get(criterion_id) != "encodable":
         # Said as the step, not as a name for it. qwen3.5:9b on the Titan
         # (2026-09-14) read "has no branch claim" as a field the criterion
