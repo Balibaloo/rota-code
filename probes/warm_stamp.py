@@ -1,6 +1,7 @@
 """The warm snapshot's stamp: what onboarding depended on when it was taken.
 
-A warm night (GAUNTLET_WARM=1) starts from `.rota/<run>_warm.db`, the
+A warm night, the default since 2026-09-24 unless GAUNTLET_COLD=1, starts
+from `.rota/<run>_warm.db`, the
 database at the first slicing wake, and skips onboarding. Onboarding is
 then never measured again unless something forces it. This stamp is that
 force. Roman, 2026-09-14: "we wont forget to rerun onboarding if something

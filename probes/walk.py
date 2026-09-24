@@ -232,7 +232,8 @@ for i in range(cap):
     # The warm snapshot: the database at the first slicing wake, before any
     # batch exists. Onboarding is 119 of a night's first 150 sessions and
     # twenty of its thirty-five minutes (night 46, 2026-09-14); a night that
-    # measures the delivery loop starts from here (GAUNTLET_WARM=1).
+    # measures the delivery loop starts from here. Warm is the gauntlet's
+    # default since 2026-09-24, and GAUNTLET_COLD=1 forces onboarding.
     if (s is not None and s.wake is not None and s.wake.kind == "tick:slicing"
             and not os.environ.get("WALK_FROM_WARM") and not ONBOARD_ONLY):
         write_snapshot()

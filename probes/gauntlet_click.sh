@@ -47,7 +47,13 @@ echo "== onboard $(date +%H:%M)"
 # replaces it, and night 34's sessions were lost to night 35's start
 # (2026-09-13) before they were read.
 python -c "import sqlite3, os; d = os.environ['ROTA_RUNS']; os.path.exists(d + '/clickI.db') and sqlite3.connect(d + '/clickI.db').backup(sqlite3.connect(d + '/clickI_prev.db'))"
-if [ "${GAUNTLET_WARM:-}" = "1" ] && python "$REPO/probes/warm_stamp.py" check clickI; then
+# Warm is the default (ruled: Roman, 2026-09-24, "why is this not always
+# on?"). The stamp check goes cold by itself when a hard file moved, and
+# every fifth night is cold. Set GAUNTLET_COLD=1 when the frame's walk covers
+# onboarding, or when a soft file moved: the runner, the desks or the
+# sandbox. A warm night keeps onboarding's sessions from before that change,
+# and the stamp only logs it. GAUNTLET_WARM=0 also forces cold.
+if [ "${GAUNTLET_COLD:-}" != "1" ] && [ "${GAUNTLET_WARM:-1}" != "0" ] && python "$REPO/probes/warm_stamp.py" check clickI; then
   # A warm start: the snapshot walk.py wrote at the first slicing wake of an
   # earlier night. Onboarding's sessions are already in it; the night begins
   # at slicing. The stamp check above goes cold on its own when a brief, a
