@@ -195,6 +195,17 @@ a different question and the night is then opened once.
   `plans/archive/night70-vs-night86-2026-09-23.md`, frame 38's record.
 - Status 2026-09-24 07:54 (rota-b8): pushed by 2087bc13 at Roman's ruling,
   unclaimed, handed to the reserve with the stack.
+- Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
+  with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
+  07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
+  stops here at about 300k, holding nothing. What the holder inherits: the
+  three repairs in Roman's order, 81, 79, 80, one warm night for all three
+  with `GAUNTLET_WARM` now the default; the interview probe
+  `probes/frame37/interview_turn.py` with `--seq` on the working turn; the
+  night's databases `.rota/clickI_night91.db` and `_walk1.db`; frame 73's
+  nine salted cases still the gate's known reds; the worktree
+  `C:/Users/roman/rota_night91` at `b79882e` still registered; and the
+  parked low findings of frame 74. Roman is away from the keyboard.
 
 ### 80. A quarantined criteria tick wakes again for ever (2026-09-24)
 
