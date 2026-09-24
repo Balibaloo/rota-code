@@ -523,6 +523,18 @@ a different question and the night is then opened once.
   record's pin 2 reads `s270` and its walk sentence on `b_2` goes, since
   Part B rules the resume. Then the gate on the quiet tree with frame
   82, and the closing commit.
+- Status 2026-09-24 21:08 (rota-95): **pass 2 is committed, frame 83's files
+  alone, and the frame waits on one gate with frame 82** (observed: the
+  implementer's resume, 157.4k on the harness line after 144.3k, so
+  about 13k, 22 tool calls, 2.3 minutes; 131 passed in the four files).
+  Meta workflow. A round that updates an existing `batches` row is a
+  move; the period-1 count reads the trailing run; `do:harness` has no
+  count; three pins. Actual so far, walls apart: design review 138.2k
+  on Opus against 70k to 110k; build 157.4k on Opus over two passes
+  against 80k to 120k plus 30k; diff review 96.4k on Fable against 100k;
+  this context from about 150k at the push to about 325k. Walls: none.
+  Register lines: 0. Left: the gate on the quiet tree, the record's pin
+  2 and walk sentence, the night, and the hand-off.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
