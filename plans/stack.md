@@ -481,6 +481,12 @@ a different question and the night is then opened once.
   sessions' scratchpads, and `rota_night88`, `rota_night90`,
   `rota_night91`; a parked item. Roman's untracked `rota.code-workspace`
   is his. Roman opened three standbys at 11:47 and is near the keyboard.
+- Status 2026-09-24 12:26 (rota-18): **handed to session `a664990b`, rota-6d,
+  with the stack at `ade7ff3`** (observed: the `hand` command's exit 0 at
+  12:26, confirmed 6 s after the claim). Meta workflow. Session 4fe8b80c
+  stops here at about 275k, holding nothing. Frames 81 and 79 carry this
+  session's id in their headings until the holder claims them; both are
+  validating on the night and need no work before it.
 
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
