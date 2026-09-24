@@ -524,6 +524,18 @@ a different question and the night is then opened once.
   Meta workflow. The ruling on the judge line is written into CLAUDE.md
   beside the line it holds. Grill question 4 waits on the night's reading,
   about 03:10.
+- Status 2026-09-24 02:29 (rota-b8): **Roman is away from the keyboard, and this
+  session judges without him** (ruled: Roman, 2026-09-24 02:29, "judge without
+  me for now, don't hesitate to hand off if needed"). Meta workflow. A
+  ruling still goes to his phone by one AskUserQuestion, with the
+  recommended answer, and the frame waits on it. The hand-off rule stands
+  at 400k. Night 91 at 02:27: 150 sessions, `bg_1` running, the Developer at
+  its fourth `tick:tests_failing` wake, and the harness reads moving from 3
+  to 4 to 14 not passing of 37 (observed: `.rota/night91.log` and the run
+  database). The plan for the night's end: back up the database as
+  `.rota/clickI_night91.db`, run `rota.tools.nightcount` over it, read
+  frame 77's four acceptance lines, close frame 77, then ask grill question
+  4 by the phone route.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
