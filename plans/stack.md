@@ -163,7 +163,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 81. The Tester sends a criterion that contradicts the request back (2026-09-24)
+### 81. The Tester sends a criterion that contradicts the request back (2026-09-24) (2f969272)
 
 - **Batch C, the night's stall. First of the three repairs Roman ordered
   from night 91, before frames 79 and 80** (ruled: Roman, 2026-09-24 07:54,
@@ -195,6 +195,11 @@ a different question and the night is then opened once.
   `plans/archive/night70-vs-night86-2026-09-23.md`, frame 38's record.
 - Status 2026-09-24 07:54 (rota-b8): pushed by 2087bc13 at Roman's ruling,
   unclaimed, handed to the reserve with the stack.
+- Status 2026-09-24 07:55 (rota-98): **taken by 2f969272** (observed: the
+  take command's exit 0 at 07:54, claim posted 07:54:44 from 2087bc13).
+  Meta workflow. The tree is clean at `8e54b65`. First act: the scope read
+  of the triage site and the Tester's brief, then the design record, then
+  the design review on Opus 5.5 before any code.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
