@@ -285,6 +285,27 @@ a different question and the night is then opened once.
   register line written. The commit at `88cee50` carried the stack with
   the code, against the rule that the stack commits alone; noted, not
   repeated.
+- Status 2026-09-24 09:03 (rota-98): **the diff review returned one high
+  finding and five low, and the wall refused no criterion falsely; pass 2
+  of the implementer runs with seven items** (observed: the reviewer on
+  Fable, worktree at `88cee50`, 107,600 tokens on the harness line, 42
+  tool calls, two probe scripts, 8 minutes). Meta workflow. High: a
+  model-sent question about the same criterion lands beside the tagged
+  row, and the open one wakes a second Terminologist session in answer
+  mode; the send now refuses a question whose refs meet a tagged row's.
+  Low: the encode refusal names the verdict held; `next` drops "Encode
+  the others" because the runner ends a session that holds a staged
+  message, as after `cannot`; the request side of the wall drops `echo`;
+  the reused "already asked" sentence says the row carries the
+  criterion; five sentences fail STE and are rewritten with the call
+  named. Confirmed sound: the staged row through `_messages_from`,
+  `session_commit` and `_thread_of` on a tick wake, the three predicates
+  on the committed row, the answered sweep, test 5's tuple and the
+  testkit's `status` key. The wall over 32 criteria of nights 86, 87, 90
+  and 91 and 13 of the cases refused two, both night 91's pair, both
+  true. Pass 2 carries the register's fix, the span refusal gone, with
+  the six. After it: the touched tests, my gate, the eight cases
+  re-recorded, the commit, then the night.
 - Status 2026-09-24 07:55 (rota-b8): **handed to session `2f969272`, rota-98,
   with the stack at `8e54b65`** (observed: the `hand` command's exit 0 at
   07:54, confirmed 6 s after the claim). Meta workflow. Session 2087bc13
