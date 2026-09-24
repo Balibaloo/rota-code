@@ -723,6 +723,41 @@ a different question and the night is then opened once.
   and Roman answers rulings only. Memory written: 1,
   `ask-the-previous-session-first`.
 
+- Status 2026-09-24 17:48 (rota-95): **night 92 at two hours: the batch's 37
+  tests pass and the Critic reviews, two of the three frames' lines are
+  observed, and frame 79's path was never entered** (observed:
+  `.rota/clickI.db` read-only at 17:46, 192 sessions, all committed;
+  `.rota/night92.log` "do:harness: b_1: 37 test(s), 0 not passing").
+  Rota workflow. Frame 81's line holds: the Tester `s145` triaged `c_1`
+  `contradicts_request` with `prints` against `returning`, night 91's
+  pair, the question `m64` reached the Terminologist born unresolved and
+  is answered, `c_1` is at version 3, and the test `echo_c1` was written
+  after, by `s154`. For Roman's check at the close: the rewritten `c_1`
+  still says "returns a JSON string", so the Terminologist kept the
+  criterion's sense over the request's word "prints". Frame 80's first
+  half holds on two keys: `constraint_zero` reported at `s1` and
+  `boundary` on `.readthedocs.yaml` reported at `s84` after `s81` to
+  `s83`, and no session ran on either key after its report. The rule's
+  other side also ran: the key `developer|tick:tests_failing|b_1` was
+  reported at `s166` at 3 attempts, its `tick_attempts` row is gone, and
+  the Developer went on to attempt 6 and green, so a moved subject
+  revived it once and the report came once (reasoned: the row is deleted
+  by `_lift_quarantines` alone; which write moved the subject is a read
+  for the close). Frame 80's second half: four items carry
+  `is_description` 1 from onboarding by construction, `tick:criteria`
+  ran once and on `echo_json` only, and the keeper called
+  `problem.describe` on the real request twice, `s165` and `s186`, in
+  challenge sessions, and both were refused, the receipts show a
+  `decisions` row and no `items` row. The heading "How it is described:"
+  is rendered in `rota/roles/principal.py:384` for the scripted
+  principal and is stored nowhere, so the close renders the page from
+  the night's rows to observe it. Frame 79: no `tick:exhausted` session
+  ran, because the Developer's attempts went 2, 3 and 6 and the tests
+  passed, so the night gives that frame no observation. The night runs
+  on: the last session is the Critic's `tick:review` on `b_1`, the batch
+  is `running` at `276d809`, and no merge yet. Meta workflow. This
+  session reads about 100k.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
