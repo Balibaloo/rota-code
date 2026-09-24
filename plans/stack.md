@@ -508,6 +508,21 @@ a different question and the night is then opened once.
   commit came before this session's gate, against the rule, because
   frame 82's build holds the tree; noted, and the gate runs once for
   both frames when frame 82 lands.
+- Status 2026-09-24 21:06 (rota-95): **the diff review passes all eight points
+  with five low findings and no high one, and pass 2 lands four of them
+  on the same implementer** (observed: the reviewer on Fable at `9d2693d`,
+  96.4k on the harness line against 100k, 23 tool calls, 8.3 minutes).
+  Meta workflow. Confirmed on the night's rows: night 92 fires at `s235`
+  and from `s285`, night 91 at five `touch_mistaken` sessions and from
+  `s270` with one identity across the rotations; `next_batch` offers
+  `b_3`, the preempt is empty, and `b_2` resumes after `b_3` merges with
+  its attempt and failing tests; the batch-key rule matches ids exactly;
+  the cold `render_state` carries the line; 1.9 ms per call. Pass 2: a
+  committing round with no attempt in its detail, the trailing run for
+  the count, `do:harness` exempt from the count, seven STE lines. The
+  record's pin 2 reads `s270` and its walk sentence on `b_2` goes, since
+  Part B rules the resume. Then the gate on the quiet tree with frame
+  82, and the closing commit.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
