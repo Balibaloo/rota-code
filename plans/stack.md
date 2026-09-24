@@ -608,6 +608,21 @@ a different question and the night is then opened once.
   the commit, the diff review on a worktree, then the hand-off with
   night 92 as the holder's first act.
 
+- Status 2026-09-24 15:10 (rota-6d): **both halves are built, gated and
+  committed, `a72b65b` and `74c4300`, and the diff review runs on a
+  worktree** (observed: the gate here at `74c4300`, 455 s: suite 33
+  failed and 2277 passed against the stored 25 and 2069; new reds 11,
+  the ten known L1 reds and the flaky map case; reds gone 3; stale 0).
+  Meta workflow. Pass 3 closed the new case with the two-part door:
+  `L1-VK-slice-a-description` green on one re-record, 15 recorded.
+  The implementer on the harness line, three passes: 175.8k in all,
+  112 tool calls, 56 minutes; about 76k, 86k and 13k. Recordings
+  live in the ignored `tests/rota/cassettes.db`, so the commit is the
+  seventeen tracked files. The worktree `wt-80` at `74c4300` is in
+  this session's scratchpad. This session reads past 300k and takes
+  no new frame. Next: the diff review's report folded here, then the
+  hand-off with night 92 as the holder's first act.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
