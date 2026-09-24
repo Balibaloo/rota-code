@@ -633,6 +633,31 @@ a different question and the night is then opened once.
   commit are this session's, then `--baseline` at the closing commit by
   Roman's ruling of 16:05. This session reads about 300k: it finishes
   frames 83 and 82 and takes no new frame.
+- Status 2026-09-24 21:12 (rota-95): **pass 1 lands seven of the ten green,
+  four reds stand, and pass 2 runs on the same implementer** (observed:
+  the implementer on Opus 5.5, 120.2k on the harness line against 150k,
+  81 tool calls, 53 minutes; its gate at 21:13: suite 27 failed and 2295
+  passed against the stored 25 and 2069; new reds 5; reds gone 3; stale
+  1). Meta workflow. Green by re-record: cases 2 (4/5), 3, 4 (5/5), 5
+  (5/5), 6 (5/5), 7 (5/5), 10 (5/5), the map test from a `tmp_path`
+  tree, and twelve of the thirteen siblings hold their tallies. Red:
+  case 1 reads stale on run 3, recorded while frame 83's pass 2 moved
+  the tree; case 8 reads 2/5 on the report-only check; case 9 reads 0/5
+  on its honest fixture, because the Tester's answer mode has no
+  `code.source` and cannot see what the surface takes; the survey
+  sibling `a-signature-callers-rely-on` reads 0/1, its old green was
+  the door's luck; and `test_prompts` refuses the `msg.answer_<asker>`
+  placeholder. Pass 2: the placeholder's wording, one line in `ask.md`
+  for an empty glossary as the one allowed second spike on that seat,
+  and case 1 re-recorded on the quiet tree, then one gate. Case 9 and
+  the survey sibling wait on Roman: whether the Tester's answer mode
+  gains `code.source`, which touches "test the criterion, not the code",
+  and whether the survey desk gets the name-plus-kind guard the design
+  review deferred. Recommended: `code.source` yes, because a test that
+  calls a function needs its signature and the criterion still rules
+  what it asserts; the guard yes, because the sibling's only green was
+  luck. The baseline stays at `b82565d` until both are repaired (ruled:
+  Roman, 16:05).
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
