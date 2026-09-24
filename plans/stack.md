@@ -613,6 +613,34 @@ a different question and the night is then opened once.
   batch id without quotes; the Architect's exhausted brief opens with a
   sentence that route B makes imprecise, and a brief change costs a
   re-record, so it waits for a frame on that brief.
+- Status 2026-09-24 12:24 (rota-18): **validating at `2caadc6`: every
+  ends-when line but the night holds, and the night waits on frame 80**
+  (observed: the gate here at 12:24, 484 s: suite 33 failed against the
+  stored 25; new reds 11, the baseline's ten plus the flaky
+  `test_map.py` case; reds gone 3; stale 0; the implementer's pass 3,
+  86,572 on the harness line after 70,422, so about 16k, 17 tool calls,
+  14 minutes). Meta workflow. `_next_rung` reads the committed sessions
+  the exhaustion opened, by the quoted batch id; `exhausted` holds while
+  a message to the Developer is open; seven pins in `test_delivery.py`,
+  the seventh holding the Architect's message tip before its exhausted
+  wake; Law 6's sentence names the sessions (ruled: Roman, 2026-09-24);
+  three case fixtures seed the sessions they implied. On night 91's own
+  rows the reader now returns the Architect at attempt 12 of 10
+  (observed: the diff review's probe). The route was the grill's choice
+  and not the ends-when's first, "the batch id in refs by construction",
+  which the review priced as a skipped rung and a blind guard. Actual
+  against the estimate, walls apart: design review 94.7k on Opus against
+  130k; build 57.4k cold, 13k and 16k for two resumes, 86.6k in all
+  against 60k to 80k; diff review 112.8k on Fable against 90k; six gates,
+  three in agents and three here, about 47 minutes of GPU, no re-record;
+  this context from about 70k at the take to about 270k, frame 80's read
+  included. Walls: one, the three case fixtures the record did not name,
+  found by the gate and not by either review, one pass. One gate lost to
+  a `tail`, the register's line 634, so it ran twice. Register lines
+  written: 0. Memory written: 1, `rota-grill-in-plain-words`, at Roman's
+  word. The worktree `wt-79` is removed. What the night proves for this
+  frame is in the record's section "The walk". Frame 80 is next in
+  Roman's order, and its mechanism is in its own status of 11:02.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
