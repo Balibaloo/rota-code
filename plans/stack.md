@@ -587,6 +587,27 @@ a different question and the night is then opened once.
   the column, the page heading, eight pins, three re-records and one
   new case.
 
+- Status 2026-09-24 14:50 (rota-6d): **pass 2 built the description half, three
+  keeper cases re-recorded green, and the new case fails on the seat,
+  so pass 3 adds a door** (observed: the implementer's report, 162.4k
+  on the harness line for passes 1 and 2 together, so about 86k for
+  pass 2, 98 tool calls, 44 minutes; its second gate: suite 34 failed
+  and 2273 passed, new reds 12, the ten known plus the flaky map case
+  plus the new case, reds gone 3, stale 0). Meta workflow. Rota
+  workflow: the 8B keeper sends `problem.describe` and cuts a ticket
+  too, in one reply or on the next turn, 0, 0 and 1 of 5 across three
+  recordings with a firmer brief and a result note between them. A
+  brief does not hold the seat; a door does, so pass 3 makes
+  `tickets.slice` answer and write nothing on a described item, and
+  `problem.describe` drop the session's staged tickets, then re-records
+  the case once. The page heading reads "How it is described:", after
+  the account; the words wait on Roman's check and change no
+  recording. The record carries the build's findings. Reserve: two
+  free standbys, rota-95 and rota-c5, clean since 11:47 (observed:
+  peers at 14:50 minus the pass). Next: pass 3's report, the gate here,
+  the commit, the diff review on a worktree, then the hand-off with
+  night 92 as the holder's first act.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
