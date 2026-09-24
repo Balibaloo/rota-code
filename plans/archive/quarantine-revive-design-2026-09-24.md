@@ -342,6 +342,31 @@ rows are skipped already, and the flag names them.
   input"; the read-only pin renames the column instead. Not this frame.
 - The op count in `tests/rota/test_map.py` moves from 89 to 90.
 
+### The diff review (observed: the reviewer on Fable at `74c4300`, 2026-09-24 15:20)
+
+151.1k on the harness line, 52 tool calls, 9.3 minutes, on the worktree
+`wt-80`. Eleven points pass: every branch of the revive fires as rules 1
+to 5 say; night 91's relay replayed through `session_commit` leaves the
+key at 3, 1, 1 and the frontier quiet on the item; the respecify version
+move changes no predicate's answer; the describe door refuses the real
+request in both modes, the describe lands `draft` at version 1, and
+`tick_signoff` lists it with `cancel`, `reopen`, `preempt` and `contested`
+empty; both slice orders stage no ticket; nights 90 and 91 open read-only
+with no error; no recording carries the new key; the page heading sits
+after the account. Four low findings, two fixed in pass 4:
+
+- Rule 3 compared `approval` only, so a `statements.status` or a
+  `ledger.status` write no longer moved its row. Pass 4 adds `status` to
+  the compared columns.
+- A write with `op="update"` on a missing row counted as a new row. Pass 4
+  compares the state for that case too.
+- The LIKE patterns carry `_` unescaped, so `%|c_1` also matches `|cX1`.
+  Pre-existing. An `ESCAPE` clause, for the frame that next touches the
+  patterns.
+- An onboarding re-assert of an item on file with the same words returns
+  before staging, so an item born before the column keeps flag 0. The
+  observed provenance skips those rows, so no wake changes.
+
 ## The pinned tests
 
 In `tests/rota/test_steering.py`, beside
