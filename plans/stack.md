@@ -623,6 +623,17 @@ a different question and the night is then opened once.
   no new frame. Next: the diff review's report folded here, then the
   hand-off with night 92 as the holder's first act.
 
+- Status 2026-09-24 15:20 (rota-6d): **the diff review passes all eleven points
+  with four low findings, and pass 4 lands two of them** (observed: the
+  reviewer on Fable at `74c4300`, 151.1k on the harness line, 52 tool
+  calls, 9.3 minutes). Meta workflow. Night 91's relay replayed through
+  the commit leaves the key quarantined and the frontier quiet; the
+  describe door refuses the real request; no recording carries the new
+  key. Pass 4: `status` joins the compared columns, and a no-op update
+  on a missing row moves nothing; two pins. The other two findings are
+  in the record for a later frame. Next: pass 4's gate here, the
+  closing commit, then the hand-off with night 92.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
