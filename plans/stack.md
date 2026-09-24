@@ -535,6 +535,15 @@ a different question and the night is then opened once.
   this context from about 150k at the push to about 325k. Walls: none.
   Register lines: 0. Left: the gate on the quiet tree, the record's pin
   2 and walk sentence, the night, and the hand-off.
+- Status 2026-09-24 23:45 (rota-95): **validating at `9f599b4`: every ends-when
+  line but the night holds, and the frame hands with the stack**
+  (observed: the gate here at 23:4x on the tree at `43823ea`, stale 0,
+  no new red in this frame's files). Meta workflow. Left for the holder:
+  the record's pin 2 reads `s270` and its walk sentence on `b_2` goes;
+  one night from a worktree at `9f599b4` or later, `GAUNTLET_NIGHT=93`,
+  by the shape of `.rota/launch_night92.sh`, with frame 79 on the same
+  night if it reaches exhaustion; the worktree `wt-83` in this session's
+  scratchpad can go.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (8736e9fc)
 
@@ -688,6 +697,28 @@ a different question and the night is then opened once.
   the hand-off, since this session reads about 340k. The agent's report
   of pass 3 is lost with the stop, so the resuming holder reads the diff
   and the register's tallies by `tally2.py` in this session's scratchpad.
+- Status 2026-09-24 23:45 (rota-95): **resumed at Roman's word, the gate reads
+  stale 0 and five new reds, pass 3 is committed at `43823ea`, and the
+  frame hands with the stack** (observed: the gate here at 23:4x, 516 s:
+  suite 27 failed and 2298 passed against the stored 25 and 2069; new
+  reds 5: the flaky `test_handover` seat test, `L1-AR-survey-a-shared-helper`,
+  `L1-AR-survey-a-signature-callers-rely-on`,
+  `L1-TE-challenge-an-unusable-item`, `L1-TS-apply-a-term-and-write-the-test`;
+  reds gone 3; stale 0). Meta workflow. Six of the ten are green:
+  cases 1, 2, 4, 5, 6, 7 and 10 by re-record, and the map tests from a
+  `tmp_path` tree. Pass 3's report was lost to the pause, so what the
+  guard and `code.source` did is read from the diff at `43823ea` and the
+  register: the guard turned `a-shared-helper` red again, and case 9
+  stays red with source reading. The baseline stays at `b82565d` by
+  Roman's ruling of 16:05, four reds short. Actual, walls apart: read
+  162.9k on Opus against 80k; design review 87.4k against 70k to 110k;
+  build 129.4k on Opus over two passes plus pass 3 unreported, against
+  150k to 200k; four gates in agents and one here; about three hours of
+  GPU. Walls: one, the second spike on the terminologist, one register
+  line. What the next holder does: read the diff of `43823ea` for the
+  guard and the tool change against the register's tallies, decide
+  whether the guard reverts, spike case 9's brief once, and close on a
+  gate with zero new reds; then `--baseline` at the closing commit.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
