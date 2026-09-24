@@ -163,30 +163,6 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 78. Warm is the gauntlet's default (2026-09-24) (Roman) (2087bc13)
-
-- **No batch. A one-line change to a probe script, at Roman's word.**
-- Meta workflow. Roman asked at 02:25 why the warm start is not always on
-  when its invalidation is automatic. No ruling kept it off: every launcher
-  since 2026-09-17 was written by hand and left `GAUNTLET_WARM` out, on
-  frame 43's reasoned fear that the snapshot was behind the schema mark.
-  The stamp's hard set holds `rota/core/db.py` and `rota/core/schema.sql`,
-  so a moved mark goes cold by itself (observed: `probes/warm_stamp.py:33-34`,
-  2026-09-24). Night 91 ran cold twice, 50 and 47 minutes of onboarding.
-- Ends when: `probes/gauntlet_click.sh` starts warm unless `GAUNTLET_COLD=1`
-  or the stamp says cold, the three comments that name the old flag say the
-  new rule, and the register carries one line. Priced: 5k here. Buys: the
-  next night at this commit skips 47 minutes.
-- Waits on: night 91's end, so the change lands beside its reading. The
-  running night reads the worktree's copy, so the edit in the main checkout
-  is safe now (reasoned: `$ROTA_REPO/probes/gauntlet_click.sh` in the launch
-  script, and `ROTA_REPO` is the worktree).
-- Reasoning: the terminal at 02:25 to 02:30, and `probes/warm_stamp.py`'s
-  docstring.
-- Status 2026-09-24 02:27 (rota-b8): pushed and started (ruled: Roman,
-  2026-09-24 02:27, "Ok yes" to the one-line change with `GAUNTLET_COLD=1`
-  as the override).
-
 ### 77. The runner runs nothing from a made-up turn, and never points at a deleted answer (2026-09-23) (dba7e375) [blocked on Roman]
 
 - **Batch C, the night's stall. Frame 37's third quantum, and the repair
