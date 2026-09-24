@@ -693,6 +693,29 @@ a different question and the night is then opened once.
   `.rota/clickI_night92.db` at once, then read it against the three
   records' walk lines.
 
+- Status 2026-09-24 16:07 (rota-95): **the gate's baseline stays at `b82565d`
+  until the ten known reds are repaired** (ruled: Roman, 2026-09-24 16:05,
+  asked in the terminal with "move it after night 92" recommended and
+  "move it now" as the other option). Meta workflow. So "zero new reds"
+  reads as "the ten and no more" until a repair frame lands, and the ten
+  are the repair, not the baseline. The ten against the stored baseline
+  (observed: `.rota-gate.log` of 15:38 diffed against `.rota-gate.json`,
+  16:07): `ACT-DV-edit-inside-the-function`,
+  `L1-AR-a-dead-end-is-reported-not-sat-on`,
+  `L1-AR-survey-a-shared-helper`,
+  `L1-CR-a-test-that-encodes-nothing-is-a-challenge`,
+  `L1-DV-apply-the-answer-and-carry-on`,
+  `L1-LI-a-question-about-the-page-is-answered-not-ruled`,
+  `L1-TE-answer-a-term-question`, `L1-TE-challenge-an-unusable-item`,
+  `L1-TS-apply-a-term-and-write-the-test` and
+  `L1-VK-reopen-after-an-election`; the eleventh is the flaky
+  `test_map.py` case. Eight of the ten are frame 73's salted cases
+  (observed: frame 73's second line in `plans/archive/stack-2026-09-23.md`).
+  Roman also ruled where a question goes (ruled: Roman, 2026-09-24
+  15:50): an unclear hand-off is a message to the session that handed it,
+  and Roman answers rulings only. Memory written: 1,
+  `ask-the-previous-session-first`.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
