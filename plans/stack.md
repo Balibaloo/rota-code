@@ -879,6 +879,23 @@ a different question and the night is then opened once.
   form of this idea.
 - Status 2026-09-18 08:05 (rota-dc): pushed, unclaimed, unpriced.
 
+- Status 2026-09-24 20:03 (rota-95): **night 92's merged change is this
+  frame's evidence, and the check against the request's words belongs to
+  the principal's seat, driven by a sub-agent** (ruled: Roman,
+  2026-09-24 20:02, asked at the grill with "a frame where the Critic
+  reads the request" recommended; his words: "I don't know why it's bad
+  in this case but a subagent should have been driving from the
+  principal's seat"). Rota workflow for the fact: the request said the
+  helper "prints an object as JSON"; the merged `echo_json` in the click
+  checkout at `3e18644` returns a string and prints nothing, and its
+  last commit is "Add newline and dummy second line when indent is
+  provided to echo_json", a line added for a test (observed: the click
+  checkout and `.rota/clickI_night92.db`, 2026-09-24 20:00). The
+  scripted principal answered yes to every page. Whether "returns" is
+  wrong is the principal's judgement, which is why the seat needs a
+  model that reads the page. Written by 8736e9fc as the Liaison's record
+  of the ruling; the frame stays Roman's and unclaimed. Meta workflow.
+
 ### 42. The designed principal, and whether zero temperature is consistent (2026-09-18) (Roman)
 
 - **Batch D, the principal seam. Second of two.** Already waits on frame 41. **Frame 58 partly discharges this frame's first line.** That frame measured 12 sessions of night 88 as four sessions run three times, hashing the same for all ten turns, so a zero-temperature model repeats an identical prompt exactly. What this frame still needs is the spread over a *similar* problem, which that measurement does not give.
