@@ -576,6 +576,23 @@ a different question and the night is then opened once.
   keeps the message for the prompt. Pass 2 runs now, cap 40k, with one
   gate and a re-record if the fixtures move a prompt. Then the commit,
   the diff review on a worktree, and the gate here.
+- Status 2026-09-24 11:52 (rota-18): **pass 2 landed, the change is
+  committed at `a75206d`, and the diff review runs on Fable on a worktree
+  at that commit** (observed: the implementer's resume, 70,422 on the
+  harness line after 57,377, so about 13k for the pass, 11 tool calls,
+  10 minutes; the gate here at 11:52, 515 s). Meta workflow. The three
+  fixtures seed a committed exhausted session per rung asked and keep
+  their messages, and the generic seeder took the table. The gate's
+  lines here: suite 33 failed against the stored 25; new reds 11, the
+  baseline's ten plus `test_map.py::test_a_shared_file_name_lists_the_candidates`,
+  which the gate flags flaky and this frame never touched; reds gone 3;
+  stale 0. So no case moved and no re-record ran. One gate here was lost
+  to a `tail`, the sign at line 634 of `plans/operating-facts.md`, met
+  by the implementer and then by this session on the same day, so it
+  ran twice. The ten L1 reds are the stored baseline's, observed at
+  `944c8e6` with the change stashed. The worktree `wt-79` at `a75206d`
+  is in this session's scratchpad. After the review: a pass 3 if it
+  finds a defect, the gate, then validating on the night.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
