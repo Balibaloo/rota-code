@@ -59,6 +59,11 @@ def main() -> int:
     pins = json.loads(s["pins_json"] or "{}")
     think = {"true": True, "false": False, "none": None}[a.think] \
         if a.think else pins.get("think")
+    if think is None and not a.think:
+        # The runner sends THINK_DEFAULT, False, when nobody pins one (frame
+        # 65). The server's own default for qwen3.5 is thinking on, and the
+        # first run of this probe spent 25k characters of thinking on it.
+        think = False
 
     questions = [q.strip() for q in open(a.questions, encoding="utf-8")
                  if q.strip()]
