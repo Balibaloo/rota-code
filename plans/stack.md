@@ -494,6 +494,22 @@ a different question and the night is then opened once.
   which tick wrote the summary item `bg_1_summary`, and the revive rule
   around `rota/core/db.py:488-535`; then the design record.
 
+- Status 2026-09-24 12:35 (rota-6d): **the first read is done and the design
+  record is written, for the design review before any code** (observed:
+  `.rota/clickI_night91.db`, 2026-09-24 12:30; the record is
+  `plans/archive/quarantine-revive-design-2026-09-24.md`). Rota
+  workflow for the fault: the summary item was asserted by the Vision
+  Keeper in `s207` on the Architect's `propose` `m92`, and sliced in
+  `s228`; the relay session `s258` writes the item three times with
+  `amends` False, the version stays 1, and the first `DELETE` of
+  `_lift_quarantines` revives the key on any write to the row. Route:
+  `session_commit` computes whether the write moved its subject (a new
+  row, a version change, or a head commit) and the revive runs on a
+  move only; `criteria.respecify` gains `amends` True so a repair
+  still revives the Tester. Four pins. One grill question: a verdict on
+  a quarantine report is a state change and discharges nothing.
+  Meta workflow. Next: the design review on Opus 5.5.
+
 ### 79. The exhaustion ladder never climbs past the Developer (2026-09-24) (4fe8b80c)
 
 - **Batch C, the night's stall. Found by night 91's walk 1, and it is the
