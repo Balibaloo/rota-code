@@ -1,6 +1,6 @@
 # Design record: the Tester sends a criterion that contradicts the request back (frame 81)
 
-Written by the assistant, session 2f969272, on 2026-09-24 08:10, for a
+Written by the assistant, session 2f969272, on 2026-09-24 08:00, for a
 design review before any code. Meta workflow for the build. Rota workflow
 for the fault. The tree is `0978560`.
 

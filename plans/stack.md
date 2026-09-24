@@ -200,7 +200,7 @@ a different question and the night is then opened once.
   Meta workflow. The tree is clean at `8e54b65`. First act: the scope read
   of the triage site and the Tester's brief, then the design record, then
   the design review on Opus 5.5 before any code.
-- Status 2026-09-24 08:12 (rota-98): **the design record is written and the
+- Status 2026-09-24 08:01 (rota-98): **the design record is written and the
   design review runs on Opus 5.5.** Meta workflow. The record is
   `plans/archive/contradicting-criterion-design-2026-09-24.md`. The read
   found the wall's shape (observed: `rota/core/sandbox.py:104`,
