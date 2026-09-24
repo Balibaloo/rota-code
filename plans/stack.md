@@ -422,6 +422,16 @@ a different question and the night is then opened once.
   -ArgumentList '-lc','/d/repos/rota/.rota/launch_night91.sh'` with stdout
   to `.rota/night91.log`; the worktree `C:/Users/roman/rota_night91` at
   `b79882e` stands; the gauntlet wipes and re-onboards by itself.
+- Status 2026-09-24 01:09 (rota-b8): **night 91 relaunched at 01:07 from the
+  worktree at `b79882e`, at Roman's word** (ruled: Roman, 2026-09-24 01:07,
+  asked with keeping the pause as the other option; observed:
+  `.rota/night91.log` reads `night 91 launched 01:07 ... at b79882e` and
+  `== onboard 01:08`, `night91.err` empty, Ollama up with no model loaded
+  before the launch). Meta workflow. The first run's log is
+  `.rota/night91_run1.log`, and its partial database stays at
+  `.rota/clickI_night91_partial.db`. Line 5 runs again from the start,
+  about two hours to `GAUNTLET-DONE`. The acceptance is the status of
+  2026-09-23 22:00, read on the full night.
 
 ### 73. Nine cases pass run 1 and fail a salted run (2026-09-23)
 
@@ -508,6 +518,12 @@ a different question and the night is then opened once.
   agent: a reviewer on Opus 5.5, blind to frame 65's ten findings, on a
   worktree at `088bba9`. Night 91 waits on Roman lifting the GPU pause. The
   reserve reads 0 free standby at 23:14, and 12 rows.
+- Status 2026-09-24 01:09 (rota-b8): **frame 74 closed at `bc67e50`, the
+  judge line stays, and night 91 runs again** (ruled: Roman, 2026-09-24
+  01:07, both asked in one notification with the recommended answers taken).
+  Meta workflow. The ruling on the judge line is written into CLAUDE.md
+  beside the line it holds. Grill question 4 waits on the night's reading,
+  about 03:10.
 - Status 2026-09-23 23:14 (rota-d0): **The claim is posted again, to session `af3c93d4`, rota-6d, and the take has not come** (observed: the second `hand` at 23:13, exit 4 after 90 s; the first claim had returned to the queue and no armed standby picked it up, because all three armed before it returned). Meta workflow. Stack commit `b997c8c`. The message to rota-6d was not delivered either: no agent of that name (observed: the SendMessage failure at 23:15). **The reserve is unreachable** (reasoned: two claims in a row unread while both heartbeats read live, and both peer names recycled; the harness restarted three times today, and a restart orphans a standby's watcher, so the process keeps its heartbeat while its exit wakes no session). The claim for af3c93d4 returns to the queue by itself. **What Roman does**: arm one standby afresh, `/standby` in a fresh window or in one of the three standby sessions, and the queued claim reaches it. Session dba7e375 stops here.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
