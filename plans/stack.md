@@ -430,6 +430,35 @@ a different question and the night is then opened once.
   Roman asked at 19:47 for cycle detection, so the grill starts there:
   where the detector looks, then the order question. The design record
   follows the grill, then the design review on Opus 5.5 before any code.
+- Status 2026-09-24 19:50 (rota-95): **the grill's two answers** (ruled:
+  Roman, 2026-09-24 19:49, "make it an alert for the session monitoring
+  the tool first, so we can tune false positives"; and "what makes
+  sense here?" on the order, which asks for the assistant's reading,
+  checked in the terminal). Meta workflow. The detector: after every
+  session the loop reads the run's last wakes as a sequence; for n from
+  1 to 16, if the last n wakes equal the n before them and no artefact
+  version moved across the second round, the walk prints one `CYCLE`
+  line naming the period and the wakes, and `render_state` shows it;
+  it quarantines nothing yet (reasoned: night 92's rounds wrote nothing
+  and night 91's rounds wrote rows whose versions never changed, so "no
+  move" catches both and a Developer's climbing commits are not a
+  round). The minimum n is 1, which is night 92's period. The order,
+  the assistant's reading: priority chooses among the batches whose
+  dependencies are met, the schedule breaks ties, and the starter and
+  the preempt read that one function; a deferred batch that has a head
+  commit is not offered at `batch_start` at all, because it resumes on
+  its own `tests_failing` wake at the attempt it left, and while that
+  key is quarantined the batch rests, reported once, until a move
+  (reasoned: Law 9's preempt exists so priority interrupts, so priority
+  is the intended order; the schedule is the dependency order and
+  constrains rather than chooses; night 92's start of `b_2` ran no
+  tests and found nothing to do, so a fresh start is the wrong wake for
+  a batch with seven attempts behind it). The counter: a key's count is
+  erased on a move of its subject and never on absence alone, because
+  `running` hides the start wake for the length of its own session
+  (reasoned: `scheduler.py:1525-1541`'s delete on absence is what let
+  each rule wipe the other). Next: the design record with those three
+  parts and the pins, then the design review on Opus 5.5.
 
 ### 82. The ten known reds blind the gate (2026-09-24)
 
