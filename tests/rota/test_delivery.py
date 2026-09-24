@@ -457,6 +457,22 @@ def test_an_open_message_to_the_developer_holds_the_ladder(db):
     assert exhausted_on(db) == ["architect"]
 
 
+def test_the_escalation_to_the_architect_runs_before_its_exhausted_wake(db):
+    """
+    The Developer's escalate is open while the Architect's rung is due. The
+    frontier puts the message tip first, so the answer comes before the rung.
+    """
+    committed(db)
+    exhaust(db)
+    asked(db, "s1", "developer")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, seq) VALUES "
+               "('m1','m1','developer','architect','escalate','[\"b1\"]',1)")
+
+    kinds = [w.kind for w in frontier(db) if w.role == "architect"]
+    assert kinds == ["message", "tick:exhausted"]
+
+
 def test_the_batch_id_matches_whole_not_as_a_prefix(db):
     """`b1` is a prefix of `b10`. The quoted id keeps one batch's rung its own."""
     committed(db)

@@ -876,15 +876,15 @@ def exhausted(conn) -> list[Wake]:
 
     One rung at a time, because the usual *reason* a loop exhausts itself is not
     knowing who to ask — and handing it straight to the principal skips the two
-    people who could have answered it. The rung is derived from the sessions the
-    exhaustion has opened rather than stored: a stored rung is a second record
-    that can disagree with the wakes that are the escalation.
+    people who could have answered it. The rung derives from the sessions the
+    exhaustion opened. Nothing stores it. A stored rung is a second record, and
+    it can disagree with the wakes.
     """
     from . import config
 
     # Law 6, amended 2026-09-24 (frame 79): the seat tries an answer before the
-    # ladder climbs. The Developer is single-instance and one batch runs. So an
-    # open message to the Developer is the batch's message.
+    # ladder climbs. The Developer is single-instance. One batch runs at a time.
+    # The guard reads no refs. Any open message to the Developer holds the ladder.
     if conn.execute("SELECT 1 FROM messages WHERE to_role = 'developer' "
                     "AND status = 'open' LIMIT 1").fetchone():
         return []
@@ -919,8 +919,8 @@ def _next_rung(conn, batch_id: str) -> str:
     Vision Keeper's own session sends. Nothing wakes a person.
 
     A role is asked once a committed session on `tick:exhausted` names this
-    batch. The runner stamps `wake_refs` by construction, and a message carries
-    only the refs the model passed. The id is quoted, so `b1` never matches `b10`.
+    batch. The runner stamps `wake_refs` from the wake. A message carries the
+    refs the model passed. The id is quoted, so `b1` never matches `b10`.
     """
     asked = {r["role"] for r in conn.execute(
         "SELECT DISTINCT role FROM sessions WHERE wake_kind = 'tick:exhausted' "
