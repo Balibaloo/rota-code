@@ -235,16 +235,43 @@
   repo:
     batch: <b1>
     message: "close an account"
+    # The sample file whole with one line changed, so the diff deletes
+    # nothing the Critic could review instead (observed: the ten-reds
+    # record, 2026-09-24).
     edit:
       src/billing/accounts.py: |
-        from ..store import load, save
+        from dataclasses import dataclass
+
+        from ..store import Record, load, save
+
+
+        @dataclass
+        class BillingAccount:
+            """Who the invoice is addressed to. May cover several login identities."""
+            id: str
+            name: str
+            terms_days: int = 30
+
+
+        def open_account(id, name, terms_days=30):
+            save(Record("billing_accounts", id, {"name": name, "terms_days": terms_days}))
+            return BillingAccount(id, name, terms_days)
+
+
+        def balance(account_id, conn=None):
+            conn = conn or None
+            rows = load("invoices", account_id, conn)
+            if rows is None:
+                return 0
+            return sum(int(v) for k, v in rows.values.items() if k == "total_cents")
 
 
         def close_account(account_id):
+            # Closing does not delete: the invoices have to survive for seven years.
             rec = load("billing_accounts", account_id)
             if rec is None:
                 return False
-            rec.data["state"] = "tombstoned"
+            rec.values["state"] = "tombstoned"
             save(rec)
             return True
   fixture:

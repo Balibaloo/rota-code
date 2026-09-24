@@ -1051,9 +1051,11 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 if row is None:
                     # clickI night 22: reopen sent for a statement id. A
                     # reopen names the amended item; nothing else can be
-                    # amended under a batch.
+                    # amended under a batch. The item after a revocation is a
+                    # draft, so the text says no state (observed: the
+                    # ten-reds record, 2026-09-24).
                     raise ValueError(
-                        f"{r} is not an item. A reopen names the approved item "
+                        f"{r} is not an item. A reopen names the item "
                         f"that changed under the batch; a statement or a "
                         f"message is not one, and nothing else can reopen a batch")
                 if row["approval"] == "approved" and (

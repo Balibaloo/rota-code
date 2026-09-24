@@ -787,6 +787,11 @@ def _with_repo(conn, case: dict, db_path: Path, run_no: int = 1):
             # fixture just made; the case cannot know the sha.
             conn.execute("UPDATE touch_strays SET commit_sha = ? "
                          "WHERE batch_id = ? AND commit_sha = 'HEAD'", (sha, batch_id))
+            # A red run seeded against `HEAD` names the edit commit, so
+            # `tests.load` can say what changed since the run (observed: the
+            # ten-reds record, 2026-09-24).
+            conn.execute("UPDATE test_runs SET commit_sha = ? "
+                         "WHERE batch_id = ? AND commit_sha = 'HEAD'", (sha, batch_id))
     return repo
 
 

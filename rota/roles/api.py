@@ -2205,6 +2205,19 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         raise ValueError(
             f"{headline!r} is a label, not a headline. Say what is promised, "
             f"in the words the source uses at the place it is kept.")
+    # A name with its kind is an inventory row, not a promise. A survey wrote
+    # eleven of them, one per public name, "total_of function" among them
+    # (ruled: Roman, 2026-09-24 21:20, the survey desk gets this guard).
+    kind = re.fullmatch(
+        r"(?:the\s+)?(?:`?[\w./:()]+`?\s+(class|function|method|module|variable)"
+        r"|(class|function|method|module|variable)\s+`?[\w./:()]+`?)",
+        headline.strip(), re.IGNORECASE)
+    if kind:
+        raise ValueError(
+            f"{headline!r} names a {(kind.group(1) or kind.group(2)).lower()}, "
+            f"and a constraint is what a caller outside relies on. Say that "
+            f"promise in the headline: the signature, the return or the error "
+            f"a caller depends on.")
     # And an item restated is an item. The baseline is pushed into this
     # session as context -- what the program *does* -- and the same run wrote
     # each of its five behaviours back as a constraint, word for word. A

@@ -12,6 +12,8 @@ One function, `rulings.rule`. It takes either `rulings`, a map from each line
 number of the page to `approve`, `contest` or `revise`, with the reply as
 `words`, or `ask`, one sentence to the principal.
 
+**A reply that asks about the page is `rulings.rule(ask="...")` with no `rulings`.**
+
 Use `ask` only in two cases. The reply is a question about the page, not a
 decision on it: it asks what a line means, or where a line came from, and
 ends in a question mark. Answer it from the page and `line_rows`, in your

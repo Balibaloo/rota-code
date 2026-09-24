@@ -1186,6 +1186,16 @@
     },
     {
       "s": "tester",
+      "t": "code",
+      "type": "reads",
+      "v": "source",
+      "n": "source by path",
+      "rows": "window",
+      "depth": "body",
+      "label": "answer: a test that calls a function needs its signature, and the criterion still rules what it asserts (ruled: Roman, 2026-09-24 21:20)"
+    },
+    {
+      "s": "tester",
       "t": "tests",
       "type": "reads",
       "v": "consult",

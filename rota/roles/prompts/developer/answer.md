@@ -9,6 +9,8 @@ end.** No commit, no ledger row, no reask. A challenge answered "the test is
 being fixed" is this case. `code.commit` with nothing changed commits nothing,
 and calling it again does not change that.
 
+**Read the file with `code.source` first, because `code.write` takes Python source, not the criterion's words.**
+
 **Carrying on means `code.write` and `code.commit`.** You were mid-batch when you
 asked; the answer is the thing that was missing, and the diff is what you owe. An
 answer read and never written into the code leaves the batch exactly where it was

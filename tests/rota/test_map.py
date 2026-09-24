@@ -252,12 +252,24 @@ def test_a_bare_file_name_finds_its_path(index):
     assert [x for x in answer.splitlines() if x.startswith("def status ")]
 
 
-def test_a_shared_file_name_lists_the_candidates(capsys):
+def _small_tree(tmp_path, monkeypatch):
+    """Route `main` to the index of a small tree in `tmp_path`."""
+    # A parse of the live tree reads a file that a second session edits
+    # (observed: the ten-reds record, 2026-09-24).
+    for rel in ("rota/__init__.py", "rota/core/__init__.py", "rota/core/schema.sql"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_bytes(b"")
+    small = map_tool.build_index(tmp_path)
+    monkeypatch.setattr(map_tool, "build_index", lambda: small)
+
+
+def test_a_shared_file_name_lists_the_candidates(tmp_path, monkeypatch, capsys):
+    _small_tree(tmp_path, monkeypatch)
+
     assert map_tool.main(["file", "__init__.py"]) == 1
     printed = capsys.readouterr().out.splitlines()
-    assert re.fullmatch(r"\d+ files named __init__\.py:", printed[0])
-    assert len(printed) - 1 == int(printed[0].split()[0])
-    assert "rota/core/__init__.py" in printed
+    assert printed == ["2 files named __init__.py:",
+                       "rota/__init__.py", "rota/core/__init__.py"]
 
 
 def test_a_shared_name_groups_the_facts_under_each_definition(index):
@@ -316,7 +328,8 @@ def test_a_slot_statement_keeps_a_table_it_also_names():
     assert [(s.kind, s.table) for s in sites] == [("dynamic", ""), ("raw", "items")]
 
 
-def test_an_unknown_name_exits_one(capsys):
+def test_an_unknown_name_exits_one(tmp_path, monkeypatch, capsys):
+    _small_tree(tmp_path, monkeypatch)
     assert map_tool.main(["fn", "no_such_function"]) == 1
     assert capsys.readouterr().out.strip() == "no fn named no_such_function"
 

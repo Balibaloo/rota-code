@@ -94,7 +94,9 @@
   mode: readonly
   expect:
     messages:
-      - {to: liaison, verb: answer, count: 1}
+      # An empty glossary carries nothing, and `ask.md` asks for a report then
+      # (observed: the ten-reds record, 2026-09-24).
+      - {to: liaison, verb: report, count: 1}
   forbidden:
     # Readonly. The sandbox builds no write functions at all in this mode, so
     # this is belt and braces on a guarantee that already holds structurally.

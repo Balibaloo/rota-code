@@ -291,7 +291,9 @@
       - id: <r1>
         batch_id: <b1>
         test_id: <tst1>
-        commit_sha: abc123
+        # The red run names the edit commit, as a real run does (observed:
+        # the ten-reds record, 2026-09-24).
+        commit_sha: HEAD
         result: fail
         output: |
           tests/test_confirm_eof.py:9: in test_confirm_returns_default_at_eof

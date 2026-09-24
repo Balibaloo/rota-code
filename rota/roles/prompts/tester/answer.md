@@ -8,6 +8,8 @@ criterion could be read two ways; the answer is which reading, and the test is
 what that reading looks like when it runs. An answer understood and not encoded
 leaves the criterion exactly as untested as it was before you asked.
 
+**Encode the test against the criterion id the answer names, and call the function its surface names after you read it with `code.source`.**
+
 **If the answer does not tell you which reading, say so: `schedule.reask`.**
 A test encoded from a guess passes, and a passing test is what everyone
 downstream reads as a settled promise — so guessing here is worse than being

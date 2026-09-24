@@ -15,6 +15,8 @@ shapes and no others:
 - **the criteria assume something nobody decided** —
   `msg.challenge_vision_keeper`, `quotes=` copying the assuming span verbatim
 
+**If a door refuses you, `msg.report_liaison` with the batch in refs, and stop.**
+
 **If it is none of those, that is a verdict too**: `msg.report_liaison` with
 the batch, so the stall reaches the seat. The graph drew this door and the
 mode never offered it -- found when the coverage backlog asked which edges no

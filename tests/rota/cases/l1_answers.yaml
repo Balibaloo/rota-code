@@ -99,7 +99,13 @@
   # Attributed 2026-09-13 on qwen3:8b, 0/5: read the answer, loaded
   # criteria, and said no criteria were mentioned; named the encode and did
   # not perform it. 8B on an answer wake.
-  inbound: {from: terminologist, to: tester, verb: answer, body_refs: [<g1>]}
+  # The answer names the criterion, and the criterion names a function in a
+  # real tree, so the seat has a program to test (observed: the ten-reds
+  # record, 2026-09-24).
+  inbound: {from: terminologist, to: tester, verb: answer, body_refs: [<g1>, <c1>]}
+  repo:
+    batch: <b1>
+    onboard: true
   fixture:
     items:
       - {id: <i1>, text: "closing an account keeps its invoices", kind: in_scope,
@@ -108,7 +114,8 @@
       - {id: <tk1>, item_id: <i1>, text: "close an account"}
     criteria:
       - {id: <c1>, ticket_id: <tk1>,
-         text: "closing an account leaves its invoices in place", term_refs: '["<g1>"]'}
+         text: "closing an account leaves its invoices in place", term_refs: '["<g1>"]',
+         surface_refs: '["src/billing/accounts.py::close_account"]'}
     glossary_terms:
       - {id: <g1>, term: account, provenance: decided,
          sense_short: "the billing entity that owes money, not the login identity"}
