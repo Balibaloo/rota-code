@@ -815,7 +815,7 @@ a different question and the night is then opened once.
   `--baseline` if the reds are zero.
 - Status 2026-09-25 01:49 (rota-1c): **pass 4 is committed at `07828dc`,
   eight of the ten are green, Roman rules the baseline moves now, and the
-  two reds become frame 84** (ruled: Roman, 2026-09-25 about 00:50, asked on
+  two reds become frame 84** (ruled: Roman, 2026-09-25 about 01:39, asked on
   the phone with "one more pass" and "keep the ruling" as the other options,
   and confirmed in the terminal, "up to you, you will fix them eventually";
   observed: the implementer on Opus 5.5, 98.8k on the harness line against
@@ -839,7 +839,7 @@ a different question and the night is then opened once.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
-- **Below batch B** (ruled: Roman, 2026-09-25 about 00:50, "up to you, you
+- **Below batch B** (ruled: Roman, 2026-09-25 about 01:39, "up to you, you
   will fix them eventually"). Split from frame 82, the ten known reds blind
   the gate, when the baseline moved to `07828dc` with these two red. It
   touches a door or a brief on the survey desk and the Tester's encode, so
