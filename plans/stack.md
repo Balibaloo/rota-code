@@ -465,6 +465,28 @@ a different question and the night is then opened once.
   not offered again the next tick. Night 94 runs with the pass 2 code, so
   its read covers the one-way park if the siblings finish. Pass 3 cap 60k,
   then the gate and the commit.
+- Status 2026-09-25 12:28 (rota-1c): **pass 3 is committed at `48e81d4`, the
+  build is done, and the frame is validating; the stack hands with it**
+  (observed: the resumed implementer, 115.6k on the harness line after
+  88.9k, so about 27k, 20 tool calls; touched and related files 135 passed;
+  its gate: suite 36 failed and 2306 passed against the stored 23 and 2306,
+  new reds 14, reds gone 1, stale 0; of the 14, thirteen read `STALE` in
+  their traceback and are frame 61's parking cost still re-recording, and
+  one is `L1-AR-cite-the-clause-into-a-constraint` at 0/5, drift, recorded
+  at `725e455`). Meta workflow. `parked` holds the whole test: a capped
+  batch parks only while a failing run sits at its head commit, and a new
+  commit offers it again with the ladder spent; the park is `do:park` with
+  refs `(b,)`, so frame 83's counter rules read it unchanged and it shares
+  no key with the priority preempt; `_batch_of` resolves a message's test
+  and criterion refs to a live batch, and a merged batch's ref falls back to
+  the running one. Left unrepaired: a re-encode gives a capped batch no new
+  budget; a criterion in two live batches takes the first. Owed to the next
+  holder: the diff review of `48e81d4` on a worktree; night 94 runs on the
+  pass 2 code from 12:00, so its read covers frames 59 and 83 and the park's
+  one-way case, and this frame's own walk is a night at `48e81d4` or later;
+  then `--baseline` at a clean gate. Actual: three passes, 115.6k on Opus
+  against 40k; two diff reviews, 106.2k against 60k; about 40 minutes of
+  GPU. Register lines: none.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
