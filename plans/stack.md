@@ -505,6 +505,10 @@ a different question and the night is then opened once.
   finished, so the next gate's `STALE` names are the cases still owed a
   re-record. Then `--baseline` at the first clean gate. Roman's grill: he
   asked to be grilled at about 11:2x, and the first question is unanswered.
+- Status 2026-09-25 12:29 (rota-1c): **session `213e58fd`, rota-f8, holds
+  frame 86 and the stack at `ad7c797`** (observed: `hand` exit 0 at 12:29,
+  confirmed 6 s after the claim). Meta workflow. Session 5748c2d9 stops
+  here, holding nothing.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
