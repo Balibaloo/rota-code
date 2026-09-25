@@ -110,3 +110,38 @@ def test_a_batch_count_survives_absence_and_a_move_resets_it():
     _lift_quarantines(conn, SimpleNamespace(table="batches", row_id="b_2", op="update",
                                             values={"head_commit": "c8"}), True)
     assert attempts(start) is None, "a head commit is the batch moving"
+
+
+def _attempt(conn, batch_id: str, n: int) -> None:
+    conn.execute("UPDATE test_runs SET attempt = ? WHERE batch_id = ?", (n, batch_id))
+
+
+def test_a_preempted_batch_past_its_cap_resumes_exhausted():
+    """Frame 86. Night 93 resumed `b_1` at attempt 11 of 10, and nothing woke
+    on it after. A preempted batch at or past `loop_cap` is not offered a
+    resume. It stays deferred, and the ladder's first rung wakes on it. Below
+    the cap the resume stands as before."""
+    conn = load(92)
+    batch_start = P.REGISTRY["batch_start"].fn
+    exhausted = P.REGISTRY["exhausted"].fn
+    preempt = P.REGISTRY["preempt"].fn
+    _status(conn, "b_3", "merged")
+
+    _attempt(conn, "b_2", 11)
+    assert [r["id"] for r in next_batch(conn)] == []
+    assert batch_start(conn) == []
+    assert [(w.role, w.kind, w.refs, w.detail) for w in exhausted(conn)] == [
+        ("developer", "tick:exhausted", ("b_2",), "attempt 11 of 10")]
+
+    # An exhausted batch that outranks the running one does not preempt it.
+    _status(conn, "b_3", "running")
+    conn.execute("UPDATE items SET priority = 9 WHERE id = "
+                 "(SELECT item_id FROM batches WHERE id = 'b_2')")
+    assert preempt(conn) == []
+
+    _status(conn, "b_3", "merged")
+    _attempt(conn, "b_2", 3)
+    (wake,) = batch_start(conn)
+    assert (wake.kind, wake.refs) == ("tick:batch_start", ("b_2",))
+    assert wake.detail.startswith("resume after attempt 3:")
+    assert exhausted(conn) == []

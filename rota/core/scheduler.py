@@ -1366,10 +1366,29 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "                  WHERE d.after_batch = b.id "
         "                    AND p.status NOT IN ('merged','abandoned'))"
     ).fetchall()
+    # A batch at or past `loop_cap` is on the exhausted path, and a resume
+    # cannot end it. Night 93 resumed `b_1` at attempt 11 of 10, nothing woke
+    # on it, and three ready batches waited all night (observed: night 93,
+    # 2026-09-25). The batch stays deferred, and `exhausted` climbs the ladder.
+    from . import config
+
+    cap = config.get(conn, "loop_cap")
+    rows = [r for r in rows if failing_attempt(conn, r["id"]) < cap]
     order = schedule_order(conn)
     place = {b: n for n, b in enumerate(order)}
     return sorted(rows, key=lambda r: (-(r["priority"] or 0),
                                        place.get(r["id"], len(order))))
+
+
+def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
+    """The highest attempt among a batch's failing tests, or 0 when none fail."""
+    # Each test's latest run only, as `tests_failing` and `exhausted` read it.
+    row = conn.execute(
+        "SELECT MAX(COALESCE(attempt, 1)) AS att FROM test_runs "
+        "WHERE batch_id = ? AND result IN ('fail','error') "
+        "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        "GROUP BY test_id)", (batch_id, batch_id)).fetchone()
+    return int(row["att"] or 0)
 
 
 def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:
