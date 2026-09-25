@@ -7551,13 +7551,14 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
     kept_why = why.strip()[:300]
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "unfounded", "why": kept_why}))
-    # The ledger row keeps the why as the challenge row keeps it. The principal
-    # rules from the why, and a second, shorter cap dropped the finding that
-    # the Critic writes after the claim (frame 59, night 88).
+    # The ledger row keeps the whole why, and the challenge row keeps 300.
+    # The principal rules from the why. The Critic writes the claim first and
+    # the finding second, so any cap drops the finding. Night 94, s77: the
+    # shared cap of 300 cut a 505-character why mid-word (frame 59).
     ctx.writes.append(("ledger", _challenge_ledger_id(table, row), {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic found {table}:{row} unfounded: "
-                          f"{kept_why}. An empty claim is kept in "
+                          f"{why.strip()}. An empty claim is kept in "
                           f"the record until ruled."),
         "author": "critic"}))
     out = {"id": f"{table}:{row}", "verdict": "unfounded",

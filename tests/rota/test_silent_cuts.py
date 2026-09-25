@@ -133,6 +133,32 @@ def test_the_vacuous_ledger_row_keeps_the_whole_why(tmp_path):
     assert not sb.ctx.cuts, sb.ctx.cuts
 
 
+def test_the_vacuous_ledger_row_keeps_a_why_past_the_challenge_cap(tmp_path):
+    """
+    The ledger row keeps the whole why when the challenge row keeps 300. On
+    night 94, s77, a 505-character why lost its finding to the shared cap of
+    300 (frame 59). The challenge row's cut still notifies the seat.
+    """
+    _db, sb = _critic(tmp_path, "vacuous_long")
+    claim = ("the claim says the schema is silent on an unknown key, and "
+             "that no warning exists anywhere in the parse path. " * 4)
+    finding = "it simply references an undefined entity in the provided context"
+    why = f"{claim}{finding}"
+    assert len(why) > 300, len(why)
+
+    out = sb.call("challenge.vacuous", why=why)
+
+    assert out["verdict"] == "unfounded"
+    challenge = [f for table, _id, f in sb.ctx.writes if table == "challenges"]
+    assert challenge[0]["why"] == why[:300], "the challenge row keeps 300"
+    assert "the challenge row's why" in out["not_shown"], out
+    ledger = [fields for table, _id, fields in sb.ctx.writes if table == "ledger"]
+    assert len(ledger) == 1, sb.ctx.writes
+    taken = ledger[0]["default_taken"]
+    assert f"unfounded: {why}. An empty claim" in taken, taken
+    assert finding in taken, "the ledger row lost the finding"
+
+
 def test_a_recorded_cut_reaches_the_session_record(db, monkeypatch):
     """
     The record's half survives the session. `session_note` writes the runner's
