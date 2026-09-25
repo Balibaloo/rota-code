@@ -1002,6 +1002,15 @@ a different question and the night is then opened once.
 - Status 2026-09-20 03:00 (rota-52): pushed by 0549dc76, unclaimed, unpriced.
   The frame exists so the obligation stays countable. It was found by the
   frame that caused it, on the night that proved that frame.
+- Status 2026-09-25 02:04 (rota-1c): **batch B's one read runs on Opus for
+  frames 47, 53, 59 and 61, held by 5748c2d9** (ruled: Roman, 2026-09-25 in
+  the terminal before the night launched at 01:56, "Ok" to the order night
+  93, frame 56, batch B; frame 56 closed at `a94bf17`, so frame 53's ruling
+  is no longer gated). Meta workflow. One agent, cap 100k, read-only over
+  `.rota/clickI_night88.db`, record
+  `plans/archive/night88-cut-read-2026-09-25.md`, one paragraph per frame at
+  the end so each can be priced or ruled. The frames stay unclaimed in their
+  headings until the read prices them.
 
 ### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
 
