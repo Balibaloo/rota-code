@@ -865,6 +865,23 @@ a different question and the night is then opened once.
   `794a28f`, cold because the sandbox and the desks moved, and carries the
   defect: the walk reads the Tester's encode turns with that in mind. Line 4
   is night 93.
+- Status 2026-09-25 02:18 (rota-1c): **the review's three findings are fixed
+  at `01ff078`, and the frame is validating on night 93** (observed: the
+  implementer on Opus 5.5, 40.0k on the harness line against 60k, 22 tool
+  calls, 21 minutes; its gate: suite 23 failed and 2308 passed against the
+  stored 23 and 2306, new reds 0, reds gone 0, stale 0; the hunks spot-read
+  here). Meta workflow. The module derivation is one helper that keeps
+  `src.` when the project is not installed; the kind guard names a module by
+  its path; the inside door says outside this area. The apply case rose from
+  1/5 to 3/5 on its re-record and stays frame 84's. Left for frame 84 with
+  it: two other refusals in `model_amend` still say "outside this
+  repository", and the inside door still lists "the codebase" as inside.
+  Lines 1 to 3 hold. Line 4 is night 93, which runs at `794a28f` and so
+  without this fix; the walk reads the Tester's encode turns with that in
+  mind. Actual for the whole frame, walls apart: read 162.9k, design review
+  87.4k, build 129.4k plus one unreported pass plus 98.8k plus 40.0k, diff
+  review 95.4k, all on Opus; five gates in agents and two here; about five
+  hours of GPU. Register lines: one.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -899,6 +916,12 @@ a different question and the night is then opened once.
   their old numbers.
 - Status 2026-09-25 01:49 (rota-1c): pushed by 5748c2d9 at Roman's ruling,
   unclaimed. Meta workflow.
+- Status 2026-09-25 02:18 (rota-1c): **the apply case reads 3/5 after frame
+  82's fix at `01ff078`, one short of its floor** (observed: its re-record
+  of 02:09, `[PffPP]`). Meta workflow. Two more wording faults join this
+  frame from that review: the kind guard's bindings branches say "outside
+  this repository", and the inside door lists "the codebase" as inside while
+  the brief reads another area of the codebase as outside.
 
 ### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
 
