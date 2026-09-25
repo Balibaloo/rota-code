@@ -1682,6 +1682,22 @@ def _bind_send(ctx: api.Ctx, recipient: str, verb: str, label: str,
                 "you read: the terms, items or constraints your answer rests "
                 "on. If your artefact does not hold it, that is a report and "
                 "not an answer")
+        # The Terminologist answers from the glossary. Three runs of five
+        # read "there are no terms in the glossary" and sent an answer
+        # anyway. The brief says report then, so the door names the report.
+        # It stands after the echo door, whose refusal is more specific.
+        # A criterion counts as well: the criterion_repair mode answers with
+        # the criterion it rewrote, and that row is the Terminologist's own.
+        if verb == "answer" and ctx.role == "terminologist":
+            cited = [r for r in (refs or []) if ctx.conn.execute(
+                "SELECT 1 FROM glossary_terms WHERE id = ? UNION ALL "
+                "SELECT 1 FROM criteria WHERE id = ?", (r, r)).fetchone()]
+            if not cited:
+                raise ValueError(
+                    f"an answer from the glossary carries a term, and "
+                    f"refs={list(refs or [])} names none. The glossary does "
+                    f"not carry this: send msg.report_{recipient}"
+                    f"(refs={list(refs or [])}) with the same refs.")
 
         # A confirmation points at what is being ratified, and the only
         # thing that can be is a statement.

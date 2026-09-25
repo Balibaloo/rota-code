@@ -2209,15 +2209,28 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
     # eleven of them, one per public name, "total_of function" among them
     # (ruled: Roman, 2026-09-24 21:20, the survey desk gets this guard).
     kind = re.fullmatch(
-        r"(?:the\s+)?(?:`?[\w./:()]+`?\s+(class|function|method|module|variable)"
-        r"|(class|function|method|module|variable)\s+`?[\w./:()]+`?)",
+        r"(?:the\s+)?(?:`?(?P<n1>[\w./:()]+)`?\s+(?P<k1>class|function|method|"
+        r"module|variable)|(?P<k2>class|function|method|module|variable)\s+"
+        r"`?(?P<n2>[\w./:()]+)`?)",
         headline.strip(), re.IGNORECASE)
     if kind:
+        # The abstract hint made a seat repeat eleven refused calls three
+        # times. The refusal now names the headline that passes.
+        name = (kind.group("n1") or kind.group("n2")).rstrip("()")
+        name = name.rsplit("::", 1)[-1]
+        what = (kind.group("k1") or kind.group("k2")).lower()
+        if bindings:
+            raise ValueError(
+                f"{headline!r} names a {what}, and a constraint is what a "
+                f"caller outside relies on. Write "
+                f"headline=\"{_grain_path(bindings[0])}::{name}\" and in text "
+                f"say who outside this repository breaks and what they see.")
         raise ValueError(
-            f"{headline!r} names a {(kind.group(1) or kind.group(2)).lower()}, "
-            f"and a constraint is what a caller outside relies on. Say that "
-            f"promise in the headline: the signature, the return or the error "
-            f"a caller depends on.")
+            f"{headline!r} names a {what}, and a constraint is what a caller "
+            f"outside relies on. First `code.source` the file that defines "
+            f"{name}, and put its path in bindings=. Then write "
+            f"headline=\"<path>::{name}\" and in text say who outside this "
+            f"repository breaks and what they see.")
     # And an item restated is an item. The baseline is pushed into this
     # session as context -- what the program *does* -- and the same run wrote
     # each of its five behaviours back as a constraint, word for word. A
@@ -2249,10 +2262,16 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
                           r"use|uses|reference|references)\b|the import of\b",
                           saying)
     if (inside and not outside) or disguised:
+        # The last green survey wrote "Code that calls ..." in text. The
+        # refusal names that form, so the seat does not guess a second time.
+        subject = headline.strip().rsplit("::", 1)[-1]
         raise ValueError(
             f"{headline!r} names nobody outside this repository -- a maintainer, "
             f"the codebase, the build are inside. A constraint is kept to "
-            f"someone who does not read this code: say who, or this is not one.")
+            f"someone who does not read this code: say who, or this is not one. "
+            f"Name the caller: another area of this repository that imports "
+            f"it, a test that patches it, a program that imports this package. "
+            f"Write text=\"<caller> calls {subject} and breaks when ...\".")
     item_texts = [r["text"] for r in ctx.conn.execute("SELECT text FROM items")]
     mine_words = set(_words_in(f"{headline} {text}"))
     for it in item_texts:
@@ -4613,6 +4632,27 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
                 f"the test uses {unbound[0]} and never imports it: a NameError "
                 f"against any code. Add the line `import {unbound[0]}` at the "
                 f"top of the body and send the encode again")
+        # A Tester told to "import the function the surface names" invented
+        # ledger, app and create_account five runs of five. The criterion
+        # carries the surface, so the Wall names the import line.
+        srow = ctx.conn.execute(
+            "SELECT surface_refs FROM criteria WHERE id = ?",
+            (criterion_id,)).fetchone()
+        named = [s for s in (json.loads(srow["surface_refs"] or "[]") if srow else [])
+                 if isinstance(s, str) and "::" in s]
+        if named:
+            path, symbol = named[0].split("::", 1)
+            module = _grain_path(path)
+            if module.startswith("src/"):
+                module = module[len("src/"):]
+            module = module.removesuffix(".py").replace("/", ".")
+            module = module.removesuffix(".__init__")
+            symbol = symbol.split(".", 1)[0]
+            raise Wall(
+                f"the test uses {unbound[0]} and never imports or defines it: "
+                f"a NameError against any code. The criterion's surface is "
+                f"{named[0]}: add `from {module} import {symbol}` and assert "
+                f"on what it returns.")
         raise Wall(
             f"the test uses {unbound[0]} and never imports or defines it: a "
             f"NameError against any code. A test calls the program -- import "

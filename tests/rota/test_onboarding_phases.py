@@ -946,6 +946,44 @@ def test_code_logic_and_files_of_this_repository_are_inside_parties(project):
     assert got["id"]
 
 
+def test_the_inside_door_names_the_caller_form(project):
+    """Frame 82: a survey wrote "A maintainer could rename it" and was
+    refused with no form to copy. The refusal names the text that passes."""
+    from rota.roles.api import Ctx, model_amend
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
+    ctx.opened.add("src/billing/charges.py")
+    with pytest.raises(ValueError) as exc:
+        model_amend(ctx, headline="src/billing/charges.py::total_of",
+                    text="A maintainer could rename it, but invoices would break.",
+                    bindings=["src/billing/charges.py"])
+    assert "Name the caller:" in str(exc.value)
+    assert 'Write text="<caller> calls total_of and breaks when ..."' in str(exc.value)
+
+
+def test_the_kind_guard_names_the_headline_that_passes(project):
+    """Frame 82: "total_of function" was refused with an abstract hint, and
+    the seat sent the same eleven calls three times. The refusal now names
+    the exact headline, or asks for the path first."""
+    from rota.roles.api import Ctx, model_amend
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
+    ctx.opened.add("src/billing/charges.py")
+    with pytest.raises(ValueError) as exc:
+        model_amend(ctx, headline="total_of function", text="callers rely on it",
+                    bindings=["src/billing/charges.py"])
+    assert 'Write headline="src/billing/charges.py::total_of"' in str(exc.value)
+    assert "who outside this repository breaks and what they see" in str(exc.value)
+    with pytest.raises(ValueError) as exc:
+        model_amend(ctx, headline="the function total_of()", text="callers rely on it")
+    assert "put its path in bindings=" in str(exc.value)
+    assert 'headline="<path>::total_of"' in str(exc.value)
+
+
 
 def test_the_same_sentence_under_a_second_id_is_the_same_item(project):
     """The no-prose orientation wrote its behaviours twice under two sets of

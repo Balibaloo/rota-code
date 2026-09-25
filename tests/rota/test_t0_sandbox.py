@@ -624,6 +624,31 @@ def test_a_session_woken_by_a_question_can_only_answer_the_asker(db):
         f"only the asker can be answered; got {sorted(channels)}"
 
 
+def test_a_terminologist_answer_with_no_term_is_sent_to_the_report(db):
+    """Frame 82: three runs of five read "there are no terms in the glossary"
+    and answered anyway. The door names the report with the same refs."""
+    db.execute("INSERT INTO glossary_terms (id, term, sense_short) "
+               "VALUES ('g1','grain','a unit of the touch set')")
+    db.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+               "version) VALUES ('i1','the export runs nightly','in_scope',"
+               "'approved',1,1)")
+    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+               "body_refs, body_text, seq, status) VALUES "
+               "('m1','t1','architect','terminologist','question','[\"i1\"]',"
+               "'what does nightly mean?',1,'open')")
+
+    from rota.core.scheduler import Wake
+    sb = build("terminologist", db, mode="question",
+               wake=Wake(role="terminologist", kind="message", message_id="m1"))
+    sb.ctx.trigger = "m1"
+    with pytest.raises(ValueError) as exc:
+        sb.call("msg.answer_architect", refs=["i1"])
+    assert "refs=['i1'] names none" in str(exc.value)
+    assert "send msg.report_architect(refs=['i1']) with the same refs" in str(exc.value)
+    sb.call("msg.answer_architect", refs=["i1", "g1"])
+    assert sb.ctx.outbound, "an answer that cites a term is sent"
+
+
 def test_the_narrowing_needs_a_message_to_narrow_by(db):
     """
     A wake with no message behind it leaves every channel standing. Deriving

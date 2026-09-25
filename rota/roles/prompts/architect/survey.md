@@ -35,7 +35,7 @@ the whole of what is left to do:
 
     surveys.attest(outcome="none_found", citations=[the paths you read])
 
-**A constraint is what a caller relies on, never one row for each public name.**
+**Headline the surface as `path::symbol`, put who outside breaks in text, and never write one row per public name.**
 
 When it has one, `model.amend` per commitment — `headline` the RENAME WHAT,
 `text` the WHO BREAKS and WHAT HAPPENS, `bindings` the paths that keep it, which

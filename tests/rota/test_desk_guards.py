@@ -339,6 +339,19 @@ def test_a_name_the_test_never_imports_is_a_nameerror(db):
         _encode(sb, "def test_greet():\n    assert script.run('x') == 'closing x'")
 
 
+def test_an_unbound_name_is_told_the_import_the_surface_names(db):
+    """Frame 82: a Tester invented ledger, app and create_account five runs
+    of five. The criterion carries the surface, so the Wall names the line."""
+    db.execute("UPDATE criteria SET surface_refs = "
+               "'[\"src/billing/accounts.py::close_account\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError) as exc:
+        _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
+    assert "The criterion's surface is src/billing/accounts.py::close_account" in str(exc.value)
+    assert "add `from billing.accounts import close_account`" in str(exc.value)
+
+
 def test_two_tests_may_not_share_a_file(db):
     """Walk twelve: two tests named tests/test_input_validation.py and the
     second overwrote the first on disk."""
