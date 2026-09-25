@@ -979,6 +979,18 @@ a different question and the night is then opened once.
   the read is the record. The candidate-symbols cut that names no call, 865
   of 885 rows in 7 sessions, is pushed as its own frame when this one
   closes.
+- Status 2026-09-25 02:30 (rota-1c): **pass 1 is committed at `86168ba`, and
+  pass 2 runs on the same implementer for the vacuous verdict's row**
+  (observed: the implementer on Opus 5.5, 32.2k on the harness line against
+  60k, 11 tool calls, 10 minutes; its gate: suite 24 failed and 2307 passed
+  against the stored 23 and 2306, new reds 1, the map fixture test, which
+  the gate reran green and marked flaky; reds gone 0; stale 0; the hunk
+  spot-read here). Meta workflow. The falsified row now carries the same why
+  as the challenges row at 460 characters, the quote stays at 160, and the
+  record of the why cut is gone with the test that asserted it. Pass 2:
+  `challenge_vacuous` writes its ledger row with the same 160 cut, which the
+  agent read and left; the same edit and one test, touched file only, no
+  gate, cap 20k. Then the frame validates on night 94 with frame 61.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21) (5748c2d9)
 
@@ -1054,6 +1066,11 @@ a different question and the night is then opened once.
   before `session_note`; cost is about 500 a line. Brief `brief-61-pass1.md`
   in this session's scratchpad, cap 100k against 80k priced, launched when
   frame 59's pass frees the tree for one gate at a time.
+- Status 2026-09-25 02:30 (rota-1c): **pass 1 runs on one implementer on
+  Opus from `brief-61-pass1.md`, tree at `86168ba`** (observed: launched
+  here). Meta workflow. It edits the runner and its tests, lists the cases
+  with a refused write from the register, re-records up to twelve in the
+  foreground, and runs one gate on the shared tree.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
