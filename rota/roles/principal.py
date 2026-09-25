@@ -243,9 +243,14 @@ def render_state(conn: sqlite3.Connection) -> str:
     # commit discharges it. After night 93's park the page read "Done: 3"
     # only (observed: frame 86's pass 3 review, 2026-09-25).
     from ..core.scheduler import parked
-    held = [r["id"] for r in conn.execute(
-        "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")
-        if parked(conn, r["id"])]
+    deferred = [r["id"] for r in conn.execute(
+        "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")]
+    held = [b for b in deferred if parked(conn, b)]
+    # A deferred batch that is not parked waits for its resume, so it is
+    # work in progress. A new commit on a parked batch left the page silent
+    # until `batch_start` resumed it (observed: frame 86's pass 4 review,
+    # 2026-09-25).
+    pending += len(deferred) - len(held)
     if held:
         out.append(
             f"Stuck: {', '.join(held)} {'is' if len(held) == 1 else 'are'} "

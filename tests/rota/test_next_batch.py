@@ -290,8 +290,11 @@ def test_a_parked_batch_is_stuck_on_the_page():
     assert "Stuck: b_1 is parked." in page
     assert "A new commit on the change starts it again." in page
 
+    # Between the commit and the resume the batch waits, so it is in progress.
     _commit_head(conn, "b_1", "f1x")
-    assert "parked" not in render_state(conn)
+    page = render_state(conn)
+    assert "parked" not in page
+    assert "Building: 1 change in progress." in page
 
 
 def test_the_park_count_survives_a_commit_and_quarantines():
@@ -324,3 +327,9 @@ def test_the_park_count_survives_a_commit_and_quarantines():
     assert quarantine_overrun(conn) == 1
     page = render_state(conn)
     assert "Stuck. The team gave up on: do:park for b_1." in page
+
+    # A commit after the quarantine is the park's exit again, not its lift.
+    _commit_head(conn, "b_1", "f2x")
+    assert conn.execute("SELECT quarantined FROM tick_attempts WHERE tick_key = ?",
+                        (park,)).fetchone()["quarantined"] == 1
+    assert "Stuck. The team gave up on: do:park for b_1." in render_state(conn)

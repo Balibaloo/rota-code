@@ -545,11 +545,18 @@ def _lift_quarantines(conn: sqlite3.Connection, w, moved: bool) -> None:
     """
     # Law 6: the attempt caps and the ladder bound a cycle, so only a move revives.
     if moved:
+        # A commit is the park's own exit, so it never lifts the park's
+        # quarantine. Otherwise park, commit and fail restart at one for ever
+        # (observed: frame 86's pass 4 review, 2026-09-25).
+        commit = w.table == "batches" and "head_commit" in (
+            getattr(w, "values", None) or {})
         conn.execute(
             "DELETE FROM tick_attempts WHERE quarantined = 1 AND (tick_key LIKE ? "
-            "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?)",
+            "OR tick_key LIKE ? OR tick_key LIKE ? OR tick_key LIKE ?) "
+            "AND tick_key NOT LIKE ?",
             (f"%|{w.row_id}", f"%|{w.row_id},%",
-             f"%,{w.row_id}", f"%,{w.row_id},%"))
+             f"%,{w.row_id}", f"%,{w.row_id},%",
+             "%|do:park|%" if commit else "\x00"))
     # A new head commit is progress, and the bound is on dispatch *without*
     # progress. Walk seventeen: four, three, two tests failing across three
     # commits, and the third session was the quarantine -- the key
