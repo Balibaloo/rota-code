@@ -716,6 +716,19 @@ a different question and the night is then opened once.
   `6c2c95f`, stale 13). Meta workflow. They re-record now on the clean tree
   by exact id, foreground, about an hour of GPU; the tallies go in the next
   status. Register line: one, below in `plans/operating-facts.md`.
+- Status 2026-09-25 11:55 (rota-1c): **the 13 stale are re-recorded on the
+  clean tree, none fell, and one correction:
+  `L1-AR-cite-the-clause-into-a-constraint` reads 0/5 without the owed line
+  too, so the status above that blamed the line for its fall was wrong**
+  (observed: the re-record agent on Opus 5.5, 51.3k on the harness line, 31
+  minutes of GPU; tallies before and after equal for twelve, the dead-end
+  case 2/5 to 4/5, cite 0/5 to 0/5 against 3/5 before frame 61). Meta
+  workflow. So the evidence that the owed line hurts a case is the design
+  argument from night 88, 49 closers against 14 debts, and the one read
+  transcript, not a tally. The park stands on the design gap. Roman's grill
+  on the redesign is open: recommended, the debt is a record row declared by
+  the door, discharged by a matching write, rendered into the tail and
+  readable by the frontier, about 150k.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
