@@ -1039,6 +1039,21 @@ a different question and the night is then opened once.
   `ended with a call still owed: <op>` to its errors once. The `ACT-TS` case
   and every case with a refused write re-record. Ends on a walk shared with
   frame 59, night 94. Reviewer cap 60k; then one implementer, cap 80k.
+- Status 2026-09-25 02:26 (rota-1c): **the design review says revise, and
+  revision 2 folds its ten findings at `554f0bf`** (observed: the reviewer
+  on Opus 5.5, 71.6k on the harness line against 60k, 19 tool calls, 2.9
+  minutes; every finding CONFIRMED by reading or probe). Meta workflow.
+  Three high: a smaller budget to `_fit` cuts the wake and the cut persists,
+  so `_fit` gains a reserve that only the middle eviction and the exchange
+  cap subtract; an op-name key clears the line on any success of the op, so
+  the key is the call tag; the stood-by path calls `sb.call` outside the
+  try, so one helper serves both paths. Also: a changing reason never fires
+  the NOTE, so the third refusal of a tag abandons it with the end line
+  kept; the reason keeps head 100 and tail 200; the Repeat clause excluded
+  nothing and `NotInWorkingSet` is excluded instead; the end line goes
+  before `session_note`; cost is about 500 a line. Brief `brief-61-pass1.md`
+  in this session's scratchpad, cap 100k against 80k priced, launched when
+  frame 59's pass frees the tree for one gate at a time.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
