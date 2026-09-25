@@ -368,7 +368,7 @@ a different question and the night is then opened once.
   Pushed as frame 86 below. This frame stays validating until a night runs
   with frame 86's fix.
 
-### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25)
+### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (5748c2d9)
 
 - **Batch C, the night's stall, found by night 93's walk, and it is the wall
   that stands after frame 83.** One site: the resume that `do:preempt`'s
@@ -393,6 +393,12 @@ a different question and the night is then opened once.
 - Reasoning: night 93's walk read, and frame 83's block above.
 - Status 2026-09-25 11:03 (rota-1c): pushed by 5748c2d9, unclaimed, priced.
   Meta workflow.
+- Status 2026-09-25 11:04 (rota-1c): **claimed by 5748c2d9, and pass 1 runs
+  on one implementer on Opus, cap 60k** (reasoned: the fix is one condition
+  on the resume path, and night 94 can then validate frames 59, 83 and 86 at
+  once instead of one). Meta workflow. No design review: the design is frame
+  83's, and this is its missed case. A diff review runs on the commit before
+  the night.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
