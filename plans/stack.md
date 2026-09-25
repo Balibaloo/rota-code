@@ -813,6 +813,63 @@ a different question and the night is then opened once.
   written by rota-09, cap 150k. The new door touches the send path, so a
   diff review runs on the closing commit. Then one gate here, and
   `--baseline` if the reds are zero.
+- Status 2026-09-25 01:49 (rota-1c): **pass 4 is committed at `07828dc`,
+  eight of the ten are green, Roman rules the baseline moves now, and the
+  two reds become frame 84** (ruled: Roman, 2026-09-25 about 00:50, asked on
+  the phone with "one more pass" and "keep the ruling" as the other options,
+  and confirmed in the terminal, "up to you, you will fix them eventually";
+  observed: the implementer on Opus 5.5, 98.8k on the harness line against
+  150k, 66 tool calls, 69 minutes; its gate on the final tree: suite 23
+  failed and 2306 passed against the stored 25 and 2069, new reds 2, reds
+  gone 4, stale 0). Meta workflow. Green this pass:
+  `L1-TE-challenge-an-unusable-item` 2/5 to 5/5 by the answer door,
+  `L1-AR-survey-a-signature-callers-rely-on` 0/1 to 1/1 by the guard's
+  message. Red: `L1-AR-survey-a-shared-helper` 0/1, fourteen `path::symbol`
+  rows where the case allows nine; `L1-TS-apply-a-term-and-write-the-test`
+  1/5, the import door works and four runs then assert on constants or
+  triage `cannot`. Both go to frame 84, below batch B. The baseline gate
+  runs here with `--baseline` at `07828dc`. A diff review runs on a worktree
+  at `07828dc`, because a send door moved. Actual for line 3, walls apart:
+  four passes, 98.8k this pass on top of 129.4k and pass 3 unreported,
+  against 150k to 200k; about four hours of GPU against one. Register line:
+  one, the recorder command in a brief needs `ROTA_MODEL=qwen3:8b`, or the
+  first round records on llama3.1:8b. Open on this frame after the baseline:
+  the diff review's findings, and line 4, the walk on night 93 with frames
+  83 and 79.
+
+### 84. Two of the ten reds outlive the baseline move (2026-09-25)
+
+- **Below batch B** (ruled: Roman, 2026-09-25 about 00:50, "up to you, you
+  will fix them eventually"). Split from frame 82, the ten known reds blind
+  the gate, when the baseline moved to `07828dc` with these two red. It
+  touches a door or a brief on the survey desk and the Tester's encode, so
+  it ends on a re-record by exact id and no walk unless a brief moves.
+- Meta workflow. Two cases, each with two repair passes behind it, each pass
+  fixing the fault it aimed at and uncovering the next (observed: frame 82's
+  statuses of 2026-09-24 21:12, 23:45 and 2026-09-25 above).
+  `L1-AR-survey-a-shared-helper` reads 0/1: the seat now writes the
+  `path::symbol` form the guard names and writes one row per public name,
+  fourteen where the case allows one to nine; the last green run wrote
+  three. `L1-TS-apply-a-term-and-write-the-test` reads 1/5: the encode Wall
+  names the import line and one run in five follows it; the other four
+  assert on constants or triage the criterion as `cannot` (observed: the
+  implementer's report of pass 4, LEFT).
+- Ends when, priced from the anchors of `plans/operating-facts.md`: (1) the
+  survey case reads 1/1 on re-record; the candidate is a door in
+  `model_amend` that refuses a row whose caller text repeats a row already
+  written in this session, so an inventory stops at the first repeat; about
+  60k on Opus and 20 minutes of GPU; buys the survey desk's one green that
+  the guard cost. (2) The Tester case reads 4/5 or better; the candidate is
+  a Wall in `tests.encode` that refuses a body whose asserts never touch the
+  imported symbol; about 40k on Opus in the same pass and 20 minutes of GPU;
+  buys the apply case back. (3) The gate reads zero new reds against
+  `07828dc`. One pass, one gate, no walk unless a brief line moves.
+- Waits on: nothing. Roman orders it below batch B.
+- Reasoning: frame 82's block above, and
+  `plans/archive/ten-reds-read-2026-09-24.md`, cases 8 and 9 there under
+  their old numbers.
+- Status 2026-09-25 01:49 (rota-1c): pushed by 5748c2d9 at Roman's ruling,
+  unclaimed. Meta workflow.
 
 ### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
 
