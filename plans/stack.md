@@ -923,7 +923,7 @@ a different question and the night is then opened once.
   this repository", and the inside door lists "the codebase" as inside while
   the brief reads another area of the codebase as outside.
 
-### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
+### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21) (5748c2d9)
 
 - **Batch B, what a seat lost on night 88. Third of four.** The ledger row's cut is one of the cut sites the batch's read counts, and this frame owns the question of whether that site may cut at all. The read is shared. The repair, 60k, is this frame's alone.
 
@@ -968,6 +968,17 @@ a different question and the night is then opened once.
   keep the why whole in the row, or exempt the ledger row from the
   160-character limit. Next by the batch order, after frame 82's fix pass
   clears the tree.
+- Status 2026-09-25 02:18 (rota-1c): **claimed by 5748c2d9, and pass 1 runs
+  on one implementer on Opus** (ruled: the batch order, frames 59 and 61
+  after the read). Meta workflow. The repair: the ledger row's
+  `default_taken` keeps the why whole, at the 460 characters the challenges
+  row already caps it to, and the quote at 160; one test; one gate; no
+  re-record, because the change touches a write and no prompt. Brief:
+  `brief-59-pass1.md` in this session's scratchpad, cap 60k against the 60k
+  priced. No design review: the change is one f-string and its comment, and
+  the read is the record. The candidate-symbols cut that names no call, 865
+  of 885 rows in 7 sessions, is pushed as its own frame when this one
+  closes.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
 
