@@ -399,6 +399,20 @@ a different question and the night is then opened once.
   once instead of one). Meta workflow. No design review: the design is frame
   83's, and this is its missed case. A diff review runs on the commit before
   the night.
+- Status 2026-09-25 11:24 (rota-1c): **pass 1 is committed at `6c2c95f`, and
+  the diff review runs on a worktree at it** (observed: the implementer on
+  Opus 5.5, 58.8k on the harness line against 60k, 20 tool calls, 19
+  minutes; touched files 84 passed; its gate: new reds 24, of which 23 read
+  `STALE` with the same failure with the change stashed, plus the flaky
+  handover timer test; stale 13). Meta workflow. The site is `next_batch`
+  and not the resume branch: a filter there serves both rules frame 83 made
+  read one order, and a skip at the start alone would let `preempt` rank the
+  capped batch first and restart night 92's alternation. A capped batch
+  stays deferred, `exhausted` wakes the ladder from `test_runs`, and the
+  siblings start. Open for the review: whether the Developer's commit on a
+  deferred batch is refused with a way out, and whether a batch whose ladder
+  is used up is ever discharged. The 13 stale are frame 61's parking cost,
+  not this frame's; they re-record now on this tree, about an hour of GPU.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -680,6 +694,12 @@ a different question and the night is then opened once.
   113.8k, design review 71.6k, build 169.1k on Opus against 80k; about four
   hours of GPU. Register lines: none. Waits on: Roman's order for the
   redesign.
+- Status 2026-09-25 11:24 (rota-1c): **parking cost: 13 cases read stale on
+  the clean tree, because the pass 3 re-records replaced their newest rows
+  with runs on the owed-line prompts** (observed: frame 86's gate at
+  `6c2c95f`, stale 13). Meta workflow. They re-record now on the clean tree
+  by exact id, foreground, about an hour of GPU; the tallies go in the next
+  status. Register line: one, below in `plans/operating-facts.md`.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
