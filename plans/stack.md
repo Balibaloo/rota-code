@@ -548,6 +548,28 @@ a different question and the night is then opened once.
   cap 50k, and edits `principal.py`, `db.py` and the tests. A re-record agent
   on Opus runs the 11 stale by exact id, foreground, one at a time, each with
   its own re-earn line's model, cap 60k. Night 94 shares the GPU.
+- Status 2026-09-25 13:10 (rota-f8): **pass 4 is committed at `c8e8261`, and the build
+  is done; the frame validates on a night at this commit or later**
+  (observed: the implementer on Opus 5.5, 57.5k on the harness line against
+  50k, 33 tool calls, 28 minutes; touched files 97 passed; its gate, 947 s
+  beside the night and two re-records: suite 37 failed and 2309 passed
+  against the stored 23 and 2306, new reds 15, reds gone 1, stale 0; seven of
+  the 15 flaky and passed on the rerun, seven `STALE` in the traceback, one
+  the cite case; the two source hunks spot-read here). Meta workflow. A
+  deferred batch that `parked` holds prints as stuck on the principal's page
+  with the way out, a commit; `render_state` reaches `cmd_agenda` and
+  onboarding only, no seat prompt; a head-commit write keeps the `do:park`
+  count beside `tests_missing`, so the attempt cap quarantines the park;
+  five tests, the resume driven through `session_commit`. Recorded, no fix:
+  a quarantined park key stops the park wake, so a batch that fails again
+  after that stays running and reads as given up on the page; a moved test
+  still resets the park count. Owed: the re-records of the stale cases, six
+  of the 11 not yet run here because a re-record from another session's
+  shell, started 12:47 with `ROTA_REFRESH=1` on four of frame 61's cases,
+  holds the cassette database, and two runs here ended with `database is
+  locked`; night 94's read at its end; the walk of this frame's park on a
+  night at `c8e8261` or later. Actual: four passes, 173.1k on Opus against
+  40k; three diff reviews, 176.9k against 60k.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
