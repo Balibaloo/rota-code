@@ -934,7 +934,7 @@ a different question and the night is then opened once.
   this frame's reviews produced that its tests could not.
 - Status 2026-09-25 01:58 (rota-1c): **claimed by 5748c2d9 while night 93
   runs, and the read goes to an agent on Opus** (ruled: Roman, 2026-09-25
-  about 01:53 in the terminal, "Ok" to the order night 93, frame 56, batch
+  in the terminal before the night launched at 01:56, "Ok" to the order night 93, frame 56, batch
   B). Meta workflow. The read: recount the overrun against each row's own
   `num_ctx`, group by role, mode, model and day, find the last overrun's
   date against the history of `_fit`, and name any writer of `case_runs`
