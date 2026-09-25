@@ -605,6 +605,25 @@ a different question and the night is then opened once.
   here, 43 recorded in 23m22s beside the night, 1 passed). Meta workflow. So
   the 2/5 was frame 61's prompt and the lock, not drift. Night 94 is in the
   delivery loop at 14:13, `bg_1` 35 tests and 1 not passing.
+- Status 2026-09-25 14:38 (rota-f8): **the pass 4 review confirms one high defect, and
+  pass 5 runs on the same implementer after the gate** (observed: the reviewer
+  on Opus 5.5, 55.3k on the harness line against 50k, 21 tool calls, 3.1
+  minutes, five probes on fresh copies of the night 93 fixture at `c8e8261`).
+  Meta workflow. High: `_lift_quarantines` deletes every quarantined key that
+  names the batch on a head-commit write, and the new `keep` guards the live
+  count only, so the first commit after the quarantine deletes the park key
+  and the cycle restarts at count 1; the test stops at the quarantine and
+  never commits again. Low: a deferred batch with a new head commit has no
+  line on the page until `batch_start` resumes it, one tick. Low, older than
+  the frame: `preempt` returns before the park check when no other batch is
+  ready, so the last batch never parks and stays running as stuck. Holds:
+  the empty `keep` deletes the same rows as before; the page lists four
+  parked batches; the page text is in no cassette or prompt; the test's
+  `update` and production's `upsert` both move the subject. Pass 5: keep
+  `%|do:park|%` out of the quarantined-key delete on a head-commit write,
+  one more commit in the test after the quarantine, and an in-progress line
+  for a deferred batch with a new commit. The last-batch case is recorded and
+  not fixed: the page shows it. Cap 30k.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
