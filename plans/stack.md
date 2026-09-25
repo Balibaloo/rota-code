@@ -519,6 +519,24 @@ a different question and the night is then opened once.
   test per rule. Frames 83, 59 and 61 claimed in their headings with it.
   The re-record agent of 5748c2d9 died with that session, so this gate's
   `STALE` names are the re-records still owed.
+- Status 2026-09-25 12:40 (rota-f8): **the pass 3 review confirms one high defect and
+  two lows, and pass 4 runs on a fresh implementer after the gate** (observed:
+  the reviewer on Opus 5.5, 70.7k on the harness line against 60k, 23 tool
+  calls, 7.8 minutes, probes on a copy of the night 93 fixture at `48e81d4`).
+  Meta workflow. High, CONFIRMED: `render_state` counts running and pending
+  batches only, so a parked batch with merged siblings shows as done, and the
+  frame removed the one place the principal saw the stuck batch; the fix
+  counts a parked batch as stuck. Low, CONFIRMED: a head-commit write forgets
+  the `do:park` count, so park, commit and fail has no bound but message
+  traffic; the fix keeps the park key through `_forget_batch_counts`. Low,
+  CONFIRMED: no test drives `_perform` on `do:park`, none commits through
+  `code_commit` on a deferred batch, none refuses a merged batch's ref.
+  Holds: the park exits on a new head commit, and `code_commit` accepts one
+  on a deferred batch; all four night 93 answers resolve to `b_1`; no prompt
+  moves; `do:park` shares no key with the priority preempt. Recorded, no
+  fix: the park fires only when another batch is ready, else the batch stays
+  running as stuck; a re-encode is a second exit from the park. Pass 4 cap
+  50k on Opus, the previous implementer died with session 5748c2d9.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
