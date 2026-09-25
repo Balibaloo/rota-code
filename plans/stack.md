@@ -684,6 +684,17 @@ a different question and the night is then opened once.
   the 4 stands until someone counts again. Owed: the unfounded row exempt
   from the shared cap with a test, one pass, about 30k on Opus, after
   Roman's rulings below.
+- Status 2026-09-25 16:48 (rota-f8): **the pass is committed at `48329b1`, and the frame
+  validates on the next night** (observed: an implementer on Opus 5.5, 32.6k
+  on the harness line against 30k, 10 tool calls, 19 minutes;
+  `test_silent_cuts.py` 7 passed; its gate, 766 s: suite 23 failed and 2324
+  passed against the stored 23 and 2306, new reds 1, the cite case, reds
+  gone 1, stale 0). Meta workflow. `challenge_vacuous` writes the whole
+  reason to the ledger row and the challenge row keeps 300 with its notice.
+  Open, recorded: the unfounded ledger row now has no cap while the
+  falsified one takes the challenge row's 460; the Critic's cut notice says
+  nothing returns the words, which is now false for the ledger row, and a
+  notice change moves prompts, so it waits for a frame that re-records.
 
 ### 85. A read cut of the candidate symbols names no call for the rest (2026-09-25)
 
