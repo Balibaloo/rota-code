@@ -570,6 +570,18 @@ a different question and the night is then opened once.
   locked`; night 94's read at its end; the walk of this frame's park on a
   night at `c8e8261` or later. Actual: four passes, 173.1k on Opus against
   40k; three diff reviews, 176.9k against 60k.
+- Status 2026-09-25 13:35 (rota-f8): **the 11 stale are re-recorded, ten at 5/5 and
+  one at 2/5 as before, and the gate runs on `c8e8261`** (observed: the
+  re-record agent on Opus 5.5, 125.1k on the harness line over two passes
+  against 60k, 27 tool calls; the peer 5748c2d9's reply at 13:1x that its
+  frame 61 agent was stopped at 12:5x and every stale case is this frame's;
+  the adopt case re-recorded here with `ROTA_REFRESH=1` at 13:34, 5/5 in
+  9m33s, after the lock window left it 1/5 in the register). Meta workflow.
+  `L1-DV-give-the-new-parameters-defaults` reads 2/5 before and after: the
+  seat escalates to the Architect instead of writing, a known red. Register
+  lines: one, the lock collision, in the register section of
+  `plans/operating-facts.md`. Night 94 is in onboarding at 13:34, `[m48]`,
+  slower than night 93 under the shared GPU.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
