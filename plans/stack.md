@@ -1125,6 +1125,24 @@ a different question and the night is then opened once.
   the runner and its tests uncommitted until the gate reads clean. Actual so
   far: scope 113.8k, design review 71.6k, build 109.8k, all on Opus, against
   80k priced for the build; about 90 minutes of GPU shared with the night.
+- Status 2026-09-25 04:38 (rota-1c): **pass 2 lands the cure rule and stops
+  at the dead-end case, which reads 2/5 with the split before any owed line;
+  pass 3 probes the base commit, then re-records the stale** (observed: the
+  resumed implementer, 138.8k on the harness line after 109.8k, so about
+  29k, 89 tool calls; `tests/rota/test_runner.py` 83 passed; the case's five
+  new transcripts and the cassette prompts of run 3 read by the agent). Meta
+  workflow. The cure rule works: an entry is settled when a call succeeds
+  whose op the door's text names, reads and the entry's own op excluded, and
+  the two passing runs end with no owed line. The three failing runs obey
+  the runner's own line after the challenge, "your work for this session is
+  complete", and never report; the old passes needed the seat to disobey
+  that line and send a second challenge first. The new runs diverge from the
+  old at the `model.amend` headline, a turn before any refusal, so frame 61
+  does not change that prompt (reasoned: the agent; the probe proves it or
+  not). Pass 3: the case once at `4adb7ef` in a worktree on today's load; at
+  3/5 or below the fall is drift and the case is fragile, and the 37 stale
+  re-record and the gate runs; at 4/5 or above the agent stops with the
+  first divergent turn side by side.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
