@@ -980,7 +980,7 @@ a different question and the night is then opened once.
   of 885 rows in 7 sessions, is pushed as its own frame when this one
   closes.
 
-### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
+### 61. An unmet obligation is visible only while something points back at it (2026-09-21) (5748c2d9)
 
 - **Batch B, what a seat lost on night 88. Fourth of four.** This frame's priced read is "how many refusals go unmet in a night", and it reads the same three columns of the same 738 turns. So it joins the batch's read and pays nothing for it. The repair, 80k, is this frame's alone.
 
@@ -1025,6 +1025,20 @@ a different question and the night is then opened once.
   case. In 2 turns a cut hid the refusal from the seat, so a restatement at
   the end of the prompt covers those too if it comes after the cut. The
   repair stands at 80k and follows frame 59.
+- Status 2026-09-25 02:21 (rota-1c): **claimed by 5748c2d9; the scope report
+  and the design record are written, and the design review runs on Opus**
+  (observed: the scope agent on Opus 5.5, 113.8k on the harness line against
+  80k, 41 tool calls, 5.7 minutes, record
+  `plans/archive/frame61-scope-2026-09-25.md`; the design record
+  `plans/archive/frame61-design-2026-09-25.md`, revision 1, written here).
+  Meta workflow. The design: an owed list keyed by op name, set on a refused
+  non-read write, cleared when the op returns OK or its NOTE fires; one
+  `OWED` block joined to the prompt after `_fit` and paid for by a smaller
+  budget, never stored in the transcript; the reason's tail kept, because
+  the doors name the passing call last; a session that ends owed writes
+  `ended with a call still owed: <op>` to its errors once. The `ACT-TS` case
+  and every case with a refused write re-record. Ends on a walk shared with
+  frame 59, night 94. Reviewer cap 60k; then one implementer, cap 80k.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
