@@ -991,6 +991,39 @@ a different question and the night is then opened once.
   `challenge_vacuous` writes its ledger row with the same 160 cut, which the
   agent read and left; the same edit and one test, touched file only, no
   gate, cap 20k. Then the frame validates on night 94 with frame 61.
+- Status 2026-09-25 02:30 (rota-1c): **pass 2 is committed at `4adb7ef`, and
+  the frame is validating until night 94** (observed: the resumed
+  implementer, 36.6k on the harness line after 32.2k, so about 4k for the
+  pass, 16 tool calls; the touched file, 6 passed; no gate on this pass,
+  frame 61's gate covers the tree). Meta workflow. The vacuous row's cap was
+  200 and not 160, and it takes no quote. Both ledger rows now carry the
+  challenge row's why. Ends-when: the cause is on record, the rows are
+  exempt with tests that hold; the walk is night 94 with frame 61, read for
+  the falsified rows' why against night 88's 6 of 8. Actual: two passes,
+  36.6k on Opus against 60k, no GPU. Register lines: none. The
+  candidate-symbols cut that names no call is pushed below as frame 85.
+
+### 85. A read cut of the candidate symbols names no call for the rest (2026-09-25)
+
+- **Batch B's read found it, and no batch owns it.** Split from frame 59
+  when the night 88 read showed that 7 of the 13 `cut ...` errors were not
+  ledger rows. It touches a read op's notice and no predicate, so a diff
+  review is the design's call and no walk is owed unless a brief moves.
+- Rota workflow. The Architect's annotate and the Terminologist's criteria
+  modes read the candidate symbols, and the notice cut 865 of 885 rows and
+  named no call that returns the rest; s183 hit it 9 times (observed:
+  `plans/archive/night88-cut-read-2026-09-25.md`, section 5, 2026-09-25).
+  Every other cut notice names the call that returns the rest, and the seat
+  cannot narrow a read whose notice gives it no handle.
+- Ends when: the notice names the call and the argument that narrows the
+  read, a test asserts the notice's text, and the two modes' cases re-record
+  with no tally below before. Priced from the anchors: one implementer pass,
+  about 40k on Opus and 20 minutes of GPU. Buys a seat that stops re-reading
+  885 rows nine times.
+- Waits on: nothing. Roman orders it.
+- Reasoning: the night 88 read, section 5, and frame 59's block above.
+- Status 2026-09-25 02:30 (rota-1c): pushed by 5748c2d9, unclaimed, priced.
+  Meta workflow.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21) (5748c2d9)
 
