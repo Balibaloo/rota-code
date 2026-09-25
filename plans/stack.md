@@ -181,7 +181,7 @@ a different question and the night is then opened once.
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
 
-### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (5748c2d9)
+### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (213e58fd)
 
 - **Batch C, the night's stall. Found by night 92's walk 3, and it is the
   wall that stands after frames 81, 79 and 80.** Two sites: the batch
@@ -371,7 +371,7 @@ a different question and the night is then opened once.
   with frame 86's fix in it, from `a6278c0` at 12:00** (observed:
   `.rota/night94.log`). Meta workflow.
 
-### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (5748c2d9)
+### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
 - **Batch C, the night's stall, found by night 93's walk, and it is the wall
   that stands after frame 83.** One site: the resume that `do:preempt`'s
@@ -509,6 +509,16 @@ a different question and the night is then opened once.
   frame 86 and the stack at `ad7c797`** (observed: `hand` exit 0 at 12:29,
   confirmed 6 s after the claim). Meta workflow. Session 5748c2d9 stops
   here, holding nothing.
+- Status 2026-09-25 12:32 (rota-f8): **taken by 213e58fd, and the pass 3 diff review
+  runs on a worktree at `48e81d4`** (observed: `take` exit 0 at 12:29; night 94
+  alive at 12:30, `walk.py` running since 12:01, a model loaded at 12:30,
+  log last written 12:11; the gate runs on the tree at `50ae5f7`). Meta
+  workflow. The reviewer runs on Opus 5.5, cap 60k, six points: the way out
+  of the park, the bound on park and re-offer, a parked batch that stops
+  quietly, `_batch_of` on the night 93 fixture, no prompt moves, and the
+  test per rule. Frames 83, 59 and 61 claimed in their headings with it.
+  The re-record agent of 5748c2d9 died with that session, so this gate's
+  `STALE` names are the re-records still owed.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -550,7 +560,7 @@ a different question and the night is then opened once.
   this repository", and the inside door lists "the codebase" as inside while
   the brief reads another area of the codebase as outside.
 
-### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21) (5748c2d9)
+### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21) (213e58fd)
 
 - **Batch B, what a seat lost on night 88. Third of four.** The ledger row's cut is one of the cut sites the batch's read counts, and this frame owns the question of whether that site may cut at all. The read is shared. The repair, 60k, is this frame's alone.
 
@@ -656,7 +666,7 @@ a different question and the night is then opened once.
 - Status 2026-09-25 02:30 (rota-1c): pushed by 5748c2d9, unclaimed, priced.
   Meta workflow.
 
-### 61. An unmet obligation is visible only while something points back at it (2026-09-21) (5748c2d9)
+### 61. An unmet obligation is visible only while something points back at it (2026-09-21) (213e58fd)
 
 - **Batch B, what a seat lost on night 88. Fourth of four.** This frame's priced read is "how many refusals go unmet in a night", and it reads the same three columns of the same 738 turns. So it joins the batch's read and pays nothing for it. The repair, 80k, is this frame's alone.
 
