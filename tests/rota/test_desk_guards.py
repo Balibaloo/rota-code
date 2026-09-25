@@ -349,7 +349,22 @@ def test_an_unbound_name_is_told_the_import_the_surface_names(db):
     with pytest.raises(ValueError) as exc:
         _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
     assert "The criterion's surface is src/billing/accounts.py::close_account" in str(exc.value)
-    assert "add `from billing.accounts import close_account`" in str(exc.value)
+    # The fake repository has no build system, so pytest imports from its root.
+    assert "add `from src.billing.accounts import close_account`" in str(exc.value)
+
+
+def test_an_installed_project_is_told_the_import_without_src(db, tmp_path):
+    """An installed src layout is imported by its package name."""
+    root = tmp_path / "wt"; root.mkdir()
+    (root / "setup.py").write_text("from setuptools import setup\nsetup()\n")
+    db.execute("UPDATE batches SET worktree = ? WHERE id = 'b1'", (str(root),))
+    db.execute("UPDATE criteria SET surface_refs = "
+               "'[\"src/billing/__init__.py::close_account\"]' WHERE id = 'c1'")
+    db.commit()
+    sb = build("tester", db, batch_id="b1", mode="tests_missing")
+    with pytest.raises(ValueError) as exc:
+        _encode(sb, "def test_close():\n    assert ledger.close('a1') == 'kept'")
+    assert "add `from billing import close_account`" in str(exc.value)
 
 
 def test_two_tests_may_not_share_a_file(db):

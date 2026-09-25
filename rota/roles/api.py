@@ -2219,6 +2219,18 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         name = (kind.group("n1") or kind.group("n2")).rstrip("()")
         name = name.rsplit("::", 1)[-1]
         what = (kind.group("k1") or kind.group("k2")).lower()
+        # A module is a file, and a file has no `::name` part. Frame 82's
+        # diff review: the hint built `charges.py::src/billing/charges.py`.
+        if what == "module" or "/" in name or ".py" in name:
+            where = _grain_path(bindings[0]) if bindings else "<path>"
+            first = ("" if bindings else
+                     "First `code.source` the file, and put its path in "
+                     "bindings=. Then write ")
+            raise ValueError(
+                f"{headline!r} names a {what}, and a constraint is what a "
+                f"caller outside relies on. {first or 'Write '}"
+                f"headline=\"{where}\" with no ::name part, and in text say "
+                f"who outside this area breaks and what they see.")
         if bindings:
             raise ValueError(
                 f"{headline!r} names a {what}, and a constraint is what a "
@@ -2266,7 +2278,7 @@ def model_amend(ctx: Ctx, headline: str, text: str = "",
         # refusal names that form, so the seat does not guess a second time.
         subject = headline.strip().rsplit("::", 1)[-1]
         raise ValueError(
-            f"{headline!r} names nobody outside this repository -- a maintainer, "
+            f"{headline!r} names nobody outside this area -- a maintainer, "
             f"the codebase, the build are inside. A constraint is kept to "
             f"someone who does not read this code: say who, or this is not one. "
             f"Name the caller: another area of this repository that imports "
@@ -4640,14 +4652,18 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
             (criterion_id,)).fetchone()
         named = [s for s in (json.loads(srow["surface_refs"] or "[]") if srow else [])
                  if isinstance(s, str) and "::" in s]
-        if named:
-            path, symbol = named[0].split("::", 1)
-            module = _grain_path(path)
-            if module.startswith("src/"):
-                module = module[len("src/"):]
-            module = module.removesuffix(".py").replace("/", ".")
-            module = module.removesuffix(".__init__")
-            symbol = symbol.split(".", 1)[0]
+        # A project with no build system is not installed, so pytest imports
+        # it from the root and `src.` stays in the line. Frame 82's diff
+        # review: `from billing.accounts import ...` failed at collection.
+        from ..core.provision import project_installable
+        try:
+            _installed = project_installable(_worktree_of(ctx))
+        except Exception:  # noqa: BLE001 -- no worktree yet: import from the root
+            _installed = False
+        module = (_dotted_module(_grain_path(named[0].split("::", 1)[0]),
+                                 keep_root=not _installed) if named else "")
+        if module:
+            symbol = named[0].split("::", 1)[1].split(".", 1)[0]
             raise Wall(
                 f"the test uses {unbound[0]} and never imports or defines it: "
                 f"a NameError against any code. The criterion's surface is "
@@ -4850,14 +4866,7 @@ def tests_encode(ctx: Ctx, id: str, criterion_id: str, path: str, body: str,
         import re as _re2
         surface_mods = {s.split("::", 1)[0].replace("\\", "/").rsplit("/", 1)[-1][:-3]
                         for s in surface if "::" in s and s.split("::", 1)[0].endswith(".py")}
-        def _dotted(path: str) -> str:
-            # The module a test imports, from a surface's path: a src
-            # layout's `src/click/core.py` is `click.core`, a root module
-            # is its stem.
-            parts = path.replace("\\", "/").split("/")
-            if parts and parts[0] in ("src", "lib") and len(parts) > 1:
-                parts = parts[1:]
-            return ".".join(parts)[:-3] if parts and parts[-1].endswith(".py") else ".".join(parts)
+        _dotted = _dotted_module
         imported_from = set(_re2.findall(r"^\s*from\s+([A-Za-z_][\w.]*)\s+import", body, _re2.M))
         imported_from |= set(_re2.findall(r"^\s*import\s+([A-Za-z_]\w*)", body, _re2.M))
         # Every module the test imports must exist where the harness will
@@ -8142,6 +8151,27 @@ def _grain_path(grain: str) -> str:
     on one platform and read on another.
     """
     return grain.split("::", 1)[0].replace("\\", "/").strip().lstrip("./")
+
+
+def _dotted_module(path: str, keep_root: bool = False) -> str:
+    """
+    The module a test imports, from a surface's path.
+
+    An installed src layout's `src/click/core.py` is `click.core`. A root
+    module is its stem. With `keep_root`, `src/` and `lib/` stay in the
+    name, because a project that is not installed is imported from its
+    root. Frame 82's diff review: the fake repository has no build system,
+    and `from billing.accounts import ...` failed at collection.
+    """
+    parts = path.replace("\\", "/").split("/")
+    if not keep_root and parts and parts[0] in ("src", "lib") and len(parts) > 1:
+        parts = parts[1:]
+    dotted = ".".join(parts)[:-3] if parts and parts[-1].endswith(".py") else ".".join(parts)
+    # A package's `__init__.py` is the package. `src/__init__.py` must not
+    # give `from __init__ import z`.
+    if dotted == "__init__":
+        return ""
+    return dotted.removesuffix(".__init__")
 
 
 def _indexed_like(ctx, path: str) -> str | None:

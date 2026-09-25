@@ -984,6 +984,22 @@ def test_the_kind_guard_names_the_headline_that_passes(project):
     assert 'headline="<path>::total_of"' in str(exc.value)
 
 
+def test_the_kind_guard_names_a_module_by_its_path_alone(project):
+    """Frame 82's diff review: a module headline got the hint
+    `src/billing/charges.py::src/billing/charges.py`. A file has no name part."""
+    from rota.roles.api import Ctx, model_amend
+
+    db, repo = project
+    boot.onboard(db, repo.root)
+    ctx = Ctx(conn=db, role="architect", area="src/billing", onboarding=True)
+    ctx.opened.add("src/billing/charges.py")
+    with pytest.raises(ValueError) as exc:
+        model_amend(ctx, headline="src/billing/charges.py module",
+                    text="callers rely on it", bindings=["src/billing/charges.py"])
+    assert 'headline="src/billing/charges.py" with no ::name part' in str(exc.value)
+    assert "::src/billing" not in str(exc.value)
+
+
 
 def test_the_same_sentence_under_a_second_id_is_the_same_item(project):
     """The no-prose orientation wrote its behaviours twice under two sets of
