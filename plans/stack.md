@@ -638,6 +638,26 @@ a different question and the night is then opened once.
   known reds away, the cite case and this one, both frame 84's. Night 94 at
   14:48 fired `do:preempt: deferred bg_1; bg_3 outranks it`, so the night
   exercises frame 83's path. Pass 5 runs.
+- Status 2026-09-25 15:04 (rota-f8): **pass 5 is committed at `321af4c`, its gate reads
+  one new red, the cite case, and the build is done; the frame validates on
+  night 94's read and a night at this commit** (observed: the resumed
+  implementer on Opus 5.5, 67.5k on the harness line after 57.5k, so about
+  10k, 13 tool calls, 17 minutes; touched files 97 passed; its gate, 532 s:
+  suite 23 failed and 2323 passed against the stored 23 and 2306, new reds
+  1, reds gone 1, stale 0, none flaky; the two source hunks spot-read here).
+  Meta workflow. A head-commit write keeps a quarantined `do:park` key, with
+  the test committing once more after the quarantine; a deferred batch that
+  is not parked counts in the page's in-progress line, which also counts a
+  batch deferred for priority, a change of one number and no wording. The
+  parameters-defaults case passed at this gate after the 14:46 replay
+  recorded five cassettes, so the note in frame 84 is corrected below: the
+  prompt moved between the refresh and the gate, and the cause is open.
+  The gate is one known red from clean, the cite case at 0/5, frame 84's.
+  Question for Roman, recommended answer first: run `--baseline` now with
+  the cite red stored, because frame 84 is fifth in the order and every
+  gate until then reads one false new red; or hold the baseline for a clean
+  gate after frame 84. Actual: five passes, 183.1k on Opus against 40k; four
+  diff reviews, 232.2k against 60k; about 90 minutes of GPU for re-records.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -672,8 +692,11 @@ a different question and the night is then opened once.
   defaults` reads `STALE` at every gate after a passing refresh, because a
   turn inside the session composes a prompt that is new on every run and
   the gate makes no live call; `5 recorded, 34 replayed` on a replay. The
-  first prompt's hash is stable. The fault is in what that turn reads, a
-  path, a time or an id, and the fix is a deterministic fixture for it.
+  first prompt's hash is stable. Corrected at 15:0x: the case passed at the
+  next gate, after the 14:46 replay recorded five cassettes, so a turn's
+  prompt moved once between the 14:21 refresh and the 14:21 gate and not on
+  every run. The cause is open: read what that turn composes across the
+  three loads of 2026-09-25 before you name it.
 - Reasoning: frame 82's block above, and
   `plans/archive/ten-reds-read-2026-09-24.md`, cases 8 and 9 there under
   their old numbers.
