@@ -448,6 +448,23 @@ a different question and the night is then opened once.
   falls back to the running sibling. Night 94 validates frames 59, 83 and 86
   and serves frame 33. The remaining stale from frame 61 re-record now
   beside the night.
+- Status 2026-09-25 12:04 (rota-1c): **the pass 2 review confirms two high
+  defects, and pass 3 runs on the same implementer; this session finishes
+  this frame and takes no new one** (observed: the reviewer on Opus 5.5,
+  44.0k on the harness line against 50k, 19 tool calls, 2.6 minutes, probes
+  on the night 93 fixture). Meta workflow. High: the park is one-way,
+  because the filter keeps a capped batch out until a new test run and every
+  test predicate needs status running, so a principal's fix for it is never
+  tested; the fix offers the batch again when its head commit is newer than
+  its last failing run. High: night 93's Developer answers carried test and
+  criterion refs and no batch id, so the `body_refs` lookup misses the very
+  messages it was for; the fix resolves tests through `tests.batch_id` and
+  criteria through `batch_tickets`. Low: accept only a running or deferred
+  batch from a ref; the spent-ladder deferral shares the priority preempt's
+  counter key. Point 1 holds: no counter is erased and the parked batch is
+  not offered again the next tick. Night 94 runs with the pass 2 code, so
+  its read covers the one-way park if the siblings finish. Pass 3 cap 60k,
+  then the gate and the commit.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
