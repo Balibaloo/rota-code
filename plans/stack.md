@@ -537,6 +537,17 @@ a different question and the night is then opened once.
   fix: the park fires only when another batch is ready, else the batch stays
   running as stuck; a re-encode is a second exit from the park. Pass 4 cap
   50k on Opus, the previous implementer died with session 5748c2d9.
+- Status 2026-09-25 12:42 (rota-f8): **the gate on `1de75c7` reads 14 new reds, 11 of
+  them `STALE`; pass 4 and the 11 re-records run at once** (observed: the
+  gate here, 512 s: suite 36 failed and 2306 passed against the stored 23 and
+  2306, new reds 14, reds gone 1, stale 0; of the 14, eleven read `STALE` in
+  the traceback and are frame 61's parking cost, one is the cite case at 0/5,
+  and two are flaky and passed on the gate's rerun: the dead-answer case and
+  `test_map`'s fixture test). Meta workflow. Pass 4 runs on a fresh
+  implementer on Opus from `brief-86-pass4.md` in this session's scratchpad,
+  cap 50k, and edits `principal.py`, `db.py` and the tests. A re-record agent
+  on Opus runs the 11 stale by exact id, foreground, one at a time, each with
+  its own re-earn line's model, cap 60k. Night 94 shares the GPU.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
