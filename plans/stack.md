@@ -658,6 +658,17 @@ a different question and the night is then opened once.
   gate until then reads one false new red; or hold the baseline for a clean
   gate after frame 84. Actual: five passes, 183.1k on Opus against 40k; four
   diff reviews, 232.2k against 60k; about 90 minutes of GPU for re-records.
+- Status 2026-09-25 16:22 (rota-f8): **night 94 ended at 16:21 and its read runs on
+  Opus** (observed: `.rota/night94.log`, `GAUNTLET-DONE 16:21`, launcher exit
+  0; the database copied to `.rota/clickI_night94.db` at 16:2x, 29 MB). Meta
+  workflow. The log's shape: a CYCLE of period 1 on `tests_failing` for
+  `bg_1` at attempt 7 in walk 1, the priority preempt `deferred bg_1; bg_3
+  outranks it` in walk 3, the spent-ladder deferral `deferred bg_3; its
+  ladder is spent`, and the page's gave-up line on `tests_failing for bg_1`
+  and `grouping for tk_1_confirm_default_on_eof` at the end; 2 wakes
+  repeated. The read covers frames 83, 86 and 59 and the criterion that
+  stuck three nights, for Roman's second step; record
+  `plans/archive/night94-walk-2026-09-25.md`, cap 120k.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
