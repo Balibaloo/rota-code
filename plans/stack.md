@@ -931,6 +931,20 @@ a different question and the night is then opened once.
   Frame 46 named this finding and did not push it. Pushed here so the
   obligation stays countable. This session holds frame 46 and takes no new
   frame.
+- Status 2026-09-25 02:13 (rota-1c): **the read corrects the count and
+  settles the question: 6 of the night's 8 falsified ledger rows lost the
+  why** (observed: the read agent on Opus 5.5, 138.9k on the harness line
+  against 100k, 43 tool calls, 8.3 minutes; its record
+  `plans/archive/night88-cut-read-2026-09-25.md`). Meta workflow. Only 6 of
+  the 13 sessions with a `cut ...` error cut the principal's ledger row; the
+  other 7 cut a read of candidate symbols, 865 of 885 rows, and that cut
+  names no call to get the rest, which is a new finding with no frame yet.
+  In 4 of the 6 the 160-character limit drops the clause that says why the
+  claim is false: the Critic writes the claim first and the finding second,
+  so the row keeps the claim and loses the reason. The repair stands at 60k:
+  keep the why whole in the row, or exempt the ledger row from the
+  160-character limit. Next by the batch order, after frame 82's fix pass
+  clears the tree.
 
 ### 61. An unmet obligation is visible only while something points back at it (2026-09-21)
 
@@ -964,6 +978,19 @@ a different question and the night is then opened once.
   **The lever the pass names**: the refusal could restate the unmet obligation
   at the tail, rather than relying on a repeat line to send the seat back.
   This session holds frame 46 and takes no new frame.
+- Status 2026-09-25 02:13 (rota-1c): **the read gives the fault's size on
+  night 88: 9 refused writes never returned to, 14 with the refusals on a
+  session's last turn** (observed: the read agent on Opus 5.5, 138.9k on the
+  harness line against 100k, 43 tool calls, 8.3 minutes; its record
+  `plans/archive/night88-cut-read-2026-09-25.md`). Meta workflow. Seats were
+  refused on 110 session-and-call pairs and 66 were never met later in the
+  same session; 49 of the 66 close the matter on purpose, 3 are reads, 14
+  owe a write or an act in 11 sessions, and for 9 the session had later
+  turns and never went back. Of 11 final replies 5 were read and none
+  reports a refused write as done, so night 88 does not repeat the `ACT-TS`
+  case. In 2 turns a cut hid the refusal from the seat, so a restatement at
+  the end of the prompt covers those too if it comes after the cut. The
+  repair stands at 80k and follows frame 59.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
@@ -1011,6 +1038,22 @@ a different question and the night is then opened once.
   `plans/archive/night88-cut-read-2026-09-25.md`, one paragraph per frame at
   the end so each can be priced or ruled. The frames stay unclaimed in their
   headings until the read prices them.
+- Status 2026-09-25 02:13 (rota-1c): **the read settles the category: the
+  reply cut is cosmetic for content and costs a quarter of the night's model
+  time** (observed: the read agent on Opus 5.5, 138.9k on the harness line
+  against 100k, 43 tool calls, 8.3 minutes; its record
+  `plans/archive/night88-cut-read-2026-09-25.md`). Meta workflow. It cut 10
+  of 645 model turns in 9 sessions, and each of the 10 was a runaway loop:
+  repeated calls, tool results the seat wrote itself, or repeated prose.
+  None lost a verdict, a ruling or a call that would have worked. The 10
+  turns took 906 s, 24.2 per cent of the night's model time, and each cut
+  reply then filled the next prompt. The cap is `max_tokens = 8192` at
+  `rota/llm/llm.py:372`, half the window. Both fixes this frame named miss:
+  a larger cap lets a loop run longer, and a warning cannot reach a seat in
+  a loop. Repriced ends-when: an earlier stop, a check for a repeated line
+  or a repeated call in the stream, priced after frames 59 and 61 by the
+  batch order. Correction to the batch's counts: 78 turns carry a `CUT`
+  notice in `user`, none in `system`; the 39 counted the word in the briefs.
 
 ### 53. Does a prompt get more than half the window? (2026-09-20) [unruled]
 
@@ -1072,6 +1115,23 @@ a different question and the night is then opened once.
   ends-when**: every cassette in the register was recorded at `num_ctx` 12288 or
   8192, so no recording measures the 16384 window the nights run at. Frame 54
   owns the repair.
+- Status 2026-09-25 02:13 (rota-1c): **the read settles the size, and the
+  fraction is Roman's ruling on a smaller number** (observed: the read agent
+  on Opus 5.5, 138.9k on the harness line against 100k, 43 tool calls, 8.3
+  minutes; its record `plans/archive/night88-cut-read-2026-09-25.md`). Meta
+  workflow. No prompt went over `_fit_budget` and the system prompt is never
+  cut. The median prompt uses 0.17 of the full window and the largest 0.50.
+  The half-window rule denied 873k characters on 54 turns, 795k of which
+  would fit the full window: one tenth of night 87's figure. The 283k
+  exchange-cut characters are runaways and carry no load. The 590k evicted
+  characters are older reads: sessions with an eviction repeat an identical
+  read 28 per cent of the time against 11 per cent in the others, which
+  suggests the evicted reads mattered and does not prove it. One constraint
+  goes with the ruling: the reply cap is also half the window, so a larger
+  prompt takes room from the reply. Frame 56 closed at `a94bf17`, so nothing
+  gates the ruling now. Recommended: keep the half, because the largest
+  prompt reaches exactly it and the reply needs the other half; the question
+  goes to Roman with frame 47's repricing, one stop.
 
 ### 57. Why anything spills into system RAM, and whether it is avoidable (2026-09-21) (Roman)
 
