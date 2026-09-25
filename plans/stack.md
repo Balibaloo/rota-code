@@ -121,6 +121,19 @@ stack alone right after each edit, and neither touches the other's block
 file, and the smallest edits committed at once keep the clobber window
 short).
 
+**Roman ruled the order from here on 2026-09-25 at about 14:34** (ruled:
+Roman, "Do it", in the terminal, to the order the assistant put as the way
+forward). 1. Night 94's read, frame 86's last diff review, and the baseline at
+the first clean gate. 2. A small frame for the criterion that stuck three
+nights on `t_ej_02`, whether the output ends with a newline, so frame 33 gets
+its merge before anything else in batch B. 3. One stop with two rulings: frame
+53's fraction, recommended keep the half, and frame 47's repeated-line stop.
+4. Frame 61's redesign, the debt as a record row declared by the door, about
+150k. 5. Frames 84 and 85 when a session has room. And a frame, checked with
+Roman before batch B's repairs start, that changes the loop rule: one target
+re-record per pass, five-line statuses, a diff review only where a predicate
+moves, no hand-off below 400k.
+
 The file below is in that order. Frames 2 and 1 stay at the bottom, because
 they are the gauntlet and the end state and no step names them.
 
