@@ -1,0 +1,384 @@
+diff --git a/rota/core/runner.py b/rota/core/runner.py
+index 41b34d0..a396c8c 100644
+--- a/rota/core/runner.py
++++ b/rota/core/runner.py
+@@ -646,7 +646,7 @@ def _fit_budget(num_ctx: int, system_chars: int) -> int:
+     return max(2000, int(num_ctx / 2 * 3.97) - system_chars)
+ 
+ 
+-def _fit(transcript: list[str], budget: int) -> list[str]:
++def _fit(transcript: list[str], budget: int, reserve: int = 0) -> list[str]:
+     """
+     Keep the session inside its window, evicting the middle rather than the front.
+ 
+@@ -662,8 +662,14 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
+     So the wake survives, the latest exchange survives, and what goes is the
+     middle -- older tool results the session has already acted on. Announced
+     rather than silently dropped, for the same reason a cut result says so.
++
++    `reserve` is room the caller joins after the fit, the owed block. The
++    middle eviction and `_cap_exchange` pay for it, and the wake's two thirds
++    do not. A smaller `budget` cut a 6,000-character wake and evicted a pair,
++    and the cut is stored back into the transcript (frame 61's design record,
++    revision 2, point 5).
+     """
+-    if sum(len(t) + 2 for t in transcript) <= budget:
++    if sum(len(t) + 2 for t in transcript) + reserve <= budget:
+         return transcript
+ 
+     # The wake is kept whole *unless it alone will not fit*, which it can be:
+@@ -684,7 +690,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
+     # 12,288 window, ollama kept the tail, and each seat answered as a generic
+     # assistant with no tool call. Only the middle eviction below needs four.
+     if len(transcript) < 4:
+-        return _cap_exchange(transcript, budget)
++        return _cap_exchange(transcript, budget - reserve)
+ 
+     head, tail = transcript[:1], transcript[-2:]
+     # The notice is part of the prompt, so the packing pays for it. Unreserved,
+@@ -692,7 +698,7 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
+     # `_cap_exchange` read the deficit as room it could lend (the diff review
+     # of 34c3e72, F5). Reserved at the longest it can be, which is the notice
+     # for every block dropping.
+-    room = (budget - sum(len(t) + 2 for t in head + tail)
++    room = (budget - reserve - sum(len(t) + 2 for t in head + tail)
+             - len(_dropped_note(len(transcript))) - 2)
+     middle: list[str] = []
+     for block in reversed(transcript[1:-2]):
+@@ -703,8 +709,9 @@ def _fit(transcript: list[str], budget: int) -> list[str]:
+ 
+     dropped = len(transcript) - len(head) - len(middle) - len(tail)
+     if not dropped:
+-        return _cap_exchange(transcript, budget)
+-    return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail, budget)
++        return _cap_exchange(transcript, budget - reserve)
++    return _cap_exchange(head + [_dropped_note(dropped)] + middle + tail,
++                         budget - reserve)
+ 
+ 
+ def _prompt_overrun(system: str, user: str, budget: int, num_ctx: int) -> str:
+@@ -1505,6 +1512,47 @@ def _call_tag(call: Any, n_calls: int) -> str:
+     return call.name
+ 
+ 
++# The owed block's limits. Three lines at about 500 characters each is 1,500
++# characters a turn at most (frame 61's design record, revision 2, point 8).
++_OWED_LINES = 3
++_OWED_REFUSALS = 3
++# An op name in a door's text, `word.word`: the call the door names as a cure.
++_DOTTED_OP = re.compile(r"\b[a-z_]+\.[a-z_]+\b")
++
++
++def _owed_reason(reason: str) -> str:
++    """
++    The head names the subject and the tail names the passing call. A cut of
++    the tail alone lost the subject in 21 of 201 door texts (frame 61's
++    design review, finding 1).
++    """
++    if len(reason) <= 300:
++        return reason
++    return reason[:100] + "..." + reason[-200:]
++
++
++def _owed_block(owed: dict[str, dict[str, Any]]) -> str:
++    """
++    One line per call still owed, oldest first, abandoned calls left out.
++    The line names a time and never a place in the prompt, because a
++    backward pointer scored 0 of 5 four times (frame 46's re-earning pass).
++    It starts with `OWED` and not `ERROR`: `FABRICATED_RESULT` reads an
++    echoed `ERROR` line as an invented result.
++    """
++    lines = []
++    for tag, entry in owed.items():
++        if entry["abandoned"]:
++            continue
++        lines.append(
++            f"OWED {tag}: refused earlier this session: "
++            f"{_owed_reason(entry['reason']).rstrip('.')}. It is not done until a call of "
++            f"{tag} returns OK. If it cannot be done, say so in one sentence "
++            f"and do not report it as done.")
++        if len(lines) == _OWED_LINES:
++            break
++    return "\n".join(lines)
++
++
+ def _source_the_tests_call(sb: sandbox_mod.Sandbox,
+                            tests: list[dict]) -> dict[str, Any]:
+     """The definitions a failing test imports, read at their lines.
+@@ -2232,6 +2280,45 @@ def run_session(
+         refused_same: dict[tuple[str, str], int] = {}
+         stop_reason = ""
+         turn_refusals: set[tuple[str, str]] = set()
++        # The calls a door refused and nothing has met since. A refusal is one
++        # line in one results block, and the next turns bury it. On night 88,
++        # 14 refused writes were never met, and for 9 the seat had turns left
++        # (frame 61's design record). Keyed by the call's tag and not its op,
++        # because one op refused on three items beside its own successes
++        # would clear on the first of them (revision 2, point 1).
++        owed: dict[str, dict[str, Any]] = {}
++
++        def _note_owed(call: Any, error: Exception) -> None:
++            # A read owes nothing, and a name outside the working set is not
++            # a call a seat can make good (revision 2, point 2).
++            if (call.name in read_fns
++                    or isinstance(error, sandbox_mod.NotInWorkingSet)):
++                return
++            # The NOTE told the seat to finish without this call, so a
++            # refusal sent after it opens no new debt.
++            if refused_same.get((call.name, str(error)[:160]), 0) >= 3:
++                return
++            tag = _call_tag(call, 2)
++            # A call refused again keeps its place, so the oldest debt stays
++            # first in the block.
++            entry = owed.setdefault(tag, {"refusals": 0, "abandoned": False})
++            # A door often names the call that does the job instead, and the
++            # line then asked for a call the door will refuse again. A read
++            # cures nothing, and the op's own name stays tied to its tag
++            # (frame 61, pass 1: L1-AR-a-dead-end-is-reported-not-sat-on).
++            cures = {op for op in _DOTTED_OP.findall(str(error))
++                     if op in allowed and op not in read_fns and op != call.name}
++            entry.update(reason=str(error), turn=iteration, cures=cures,
++                         refusals=entry["refusals"] + 1)
++            # A changing reason never fires the NOTE below, so the line would
++            # ask for a new try every turn. The third refusal ends the asking,
++            # and the session's end still names the call (revision 2, point 6).
++            entry["abandoned"] = entry["refusals"] >= _OWED_REFUSALS
++
++        def _settle_owed(call: Any) -> None:
++            owed.pop(_call_tag(call, 2), None)
++            for tag in [t for t, e in owed.items() if call.name in e["cures"]]:
++                del owed[tag]
+ 
+         budget = _fit_budget(pins.num_ctx, len(system))
+ 
+@@ -2240,8 +2327,17 @@ def run_session(
+                 outcome.errors.append(stop_reason)
+                 break
+             outcome.iterations = iteration
+-            transcript = _fit(transcript, budget)
+-            user = "\n\n".join(transcript)
++            # Joined after the fit and never stored, so no cut reaches the
++            # block and it never becomes a middle block next turn. The fit
++            # pays for it, unless the room left is under the exchange floor:
++            # then the block waits a turn and `owed` keeps its entries
++            # (frame 61's design record, revision 2, point 5).
++            owed_text = _owed_block(owed)
++            reserve = len(owed_text) + 2 if owed_text else 0
++            if reserve and budget - reserve < _MIN_EXCHANGE:
++                owed_text, reserve = "", 0
++            transcript = _fit(transcript, budget, reserve)
++            user = "\n\n".join(transcript + ([owed_text] if owed_text else []))
+             # Above every backend, because the only whole-prompt measurement ran
+             # on the reply and `truncated` is an Ollama field: replayed cases
+             # never reached it.
+@@ -2377,11 +2473,16 @@ def run_session(
+                 # clean, and the work silently never happened.
+                 refused = []
+                 for hc in held_calls:
++                    # The stood-by run sits outside the main loop's `try`, so
++                    # it sets and settles `owed` itself (revision 2, point 3).
+                     try:
+                         sb.call(hc.name, *hc.pos, **hc.args)
+                     except Exception as exc:           # noqa: BLE001
+                         outcome.errors.append(f"{hc.name} (held): {exc}")
+                         refused.append(f"ERROR {hc.name}: {exc}")
++                        _note_owed(hc, exc)
++                    else:
++                        _settle_owed(hc)
+                 if refused and not stoodby_retried:
+                     # Walk twenty-one: seven encodes held behind seven
+                     # triage reads, the model declared them done, the
+@@ -2575,6 +2676,7 @@ def run_session(
+                 try:
+                     repeat = key in already_run
+                     result = sb.call(call.name, *call.pos, **call.args)
++                    _settle_owed(call)
+                     # A write is the one act that can change an answer the
+                     # session already holds, so it drops what that path has
+                     # been read as. A commit names the paths it reached in its
+@@ -2819,6 +2921,7 @@ def run_session(
+                     # names the call by its identifying argument.
+                     feedback.append(f"ERROR {_call_tag(call, len(calls))}: {exc}")
+                     turn_refusals.add((call.name, str(exc)[:160]))
++                    _note_owed(call, exc)
+ 
+             # Counted per turn, not per call: a reply with four calls refused
+             # the same way is one turn of the conversation, not three (clickI
+@@ -2833,6 +2936,12 @@ def run_session(
+             for same in sorted(turn_refusals):
+                 refused_same[same] = refused_same.get(same, 0) + 1
+                 if refused_same[same] == 3:
++                    # The seat is told to finish without the call, so the
++                    # owed line must stop asking for it.
++                    for tag in [t for t, e in owed.items()
++                                if t.split("(", 1)[0] == same[0]
++                                and e["reason"][:160] == same[1]]:
++                        del owed[tag]
+                     feedback.append(
+                         f"NOTE {same[0]} has been refused the same way in three turns "
+                         f"and will not be accepted again. Finish what remains "
+@@ -3108,6 +3217,11 @@ def run_session(
+         # colon as a call name whenever it holds a dot. Never head a line here
+         # with a dotted op name.
+         outcome.errors.extend(getattr(sb.ctx, "cuts", None) or ())
++        # A session that ends owing a call says so once, so the debt is
++        # counted and not lost. The line starts with `ended`, never a dotted
++        # name, for the reason above (revision 2, point 7).
++        outcome.errors.extend(f"ended with a call still owed: {tag}"
++                              for tag in owed)
+         session_note(conn, session_id, outcome.errors)
+         outcome.committed = True
+         outcome.result = result
+diff --git a/tests/rota/test_runner.py b/tests/rota/test_runner.py
+index 8f0382e..fc7cd78 100644
+--- a/tests/rota/test_runner.py
++++ b/tests/rota/test_runner.py
+@@ -1846,3 +1846,148 @@ def test_one_and_two_block_transcripts_keep_their_shape(db):
+     two = _fit(["WAKE " + "x" * 50_000, "turn 1"], budget=12_000)
+     assert len(two) == 2 and two[1] == "turn 1", "the reply was cut at two blocks"
+     assert two[0].count("WAKE ") == 1, "the wake was emitted twice"
++
++
++# Frame 61: a refused write stays in view until a matching call returns OK.
++# On night 88, 14 refused writes were never met, and a cut hid two refusals
++# before the seat read them (frame 61's design record).
++_BAD_I1 = "TOOL: problem.assert(id='i1', text='x', kind='sideways')"
++_GOOD_I1 = "TOOL: problem.assert(id='i1', text='x', kind='in_scope')"
++_READ = "TOOL: decisions.search(query='scope')"
++_OWED_END = "ended with a call still owed: problem.assert(id='i1')"
++
++
++def _owed_lines(user):
++    return [line for line in user.split("\n") if line.startswith("OWED ")]
++
++
++def _run(db, script):
++    backend = ScriptedBackend(script)
++    outcome = run_session(db, wake_vision_keeper(), backend=backend,
++                          pins=Pins(model="scripted"))
++    assert outcome.committed, outcome.errors
++    return backend, outcome
++
++
++def test_a_refused_write_is_owed_until_a_matching_call_returns_ok(db):
++    backend, outcome = _run(db, [_BAD_I1, _READ, _GOOD_I1, "Done."])
++    last = backend.calls[2][1].split("\n")[-1]
++    assert last.startswith("OWED problem.assert(id='i1'): refused earlier "
++                           "this session: "), last
++    assert "It is not done until a call of problem.assert(id='i1') returns OK" in last
++    assert not _owed_lines(backend.calls[3][1]), "the matching success clears it"
++    assert _OWED_END not in outcome.errors
++
++
++def test_a_success_under_another_tag_does_not_clear_the_debt(db):
++    backend, _ = _run(db, [
++        _BAD_I1,
++        "TOOL: problem.assert(id='i2', text='y', kind='in_scope')",
++        "Done."])
++    assert [line.split(":", 1)[0] for line in _owed_lines(backend.calls[2][1])] \
++        == ["OWED problem.assert(id='i1')"]
++
++
++def test_the_session_end_names_a_call_still_owed(db):
++    _, owing = _run(db, [_BAD_I1, "Done."])
++    assert _OWED_END in owing.errors
++
++    db.execute("DELETE FROM items")
++    db.execute("UPDATE messages SET status='open' WHERE id='m1'")
++    _, met = _run(db, [_BAD_I1, _GOOD_I1, "Done."])
++    assert not any(e.startswith("ended with a call still owed") for e in met.errors)
++
++
++def test_a_refused_read_and_an_unknown_name_owe_nothing(db):
++    backend, outcome = _run(db, [
++        "TOOL: decisions.search(nonsense='scope')",
++        "TOOL: nosuch.op(id='z')",
++        "Done."])
++    assert len(outcome.errors) >= 2, outcome.errors
++    assert not _owed_lines(backend.calls[1][1])
++    assert not _owed_lines(backend.calls[2][1])
++    assert not any(e.startswith("ended with a call still owed") for e in outcome.errors)
++
++
++def test_the_note_that_ends_a_refused_call_clears_its_debt(db):
++    # The text changes and the reason does not, so the NOTE fires and the
++    # runner's identical-reply stop does not.
++    backend, outcome = _run(db, [
++        f"TOOL: problem.assert(id='i1', text='attempt {k}', kind='sideways')"
++        for k in range(3)] + [_READ, "Done."])
++    assert "will not be accepted again" in backend.calls[3][1]
++    assert not _owed_lines(backend.calls[3][1])
++    assert _OWED_END not in outcome.errors
++
++
++def test_the_third_refusal_of_one_call_stops_the_line_and_keeps_the_end(db):
++    """The NOTE keys on the reason, and a reason that changes never fires it.
++    So the third refusal of one tag abandons the line, and the end still
++    names the call."""
++    backend, outcome = _run(db, [
++        f"TOOL: problem.assert(id='i1', text='x', kind='{kind}')"
++        for kind in ("sideways", "upways", "downways")] + [_READ, "Done."])
++    assert _owed_lines(backend.calls[2][1])
++    assert "will not be accepted again" not in backend.calls[3][1]
++    assert not _owed_lines(backend.calls[3][1])
++    assert _OWED_END in outcome.errors
++
++
++def test_a_write_refused_on_the_stood_by_run_is_owed(db):
++    backend, outcome = _run(db, [
++        _READ + "\n" + _BAD_I1,
++        "Done.",
++        "Done."])
++    assert "these were refused" in backend.calls[2][1]
++    assert _owed_lines(backend.calls[2][1])
++    assert _OWED_END in outcome.errors
++
++
++def test_four_owed_calls_give_three_lines_oldest_first(db):
++    four = "\n".join(f"TOOL: problem.assert(id='i{k}', text='x', kind='sideways')"
++                     for k in range(1, 5))
++    backend, outcome = _run(db, [four, "Done."])
++    lines = _owed_lines(backend.calls[1][1])
++    assert [line.split(":", 1)[0] for line in lines] == [
++        f"OWED problem.assert(id='i{k}')" for k in range(1, 4)]
++    assert sum(e.startswith("ended with a call still owed") for e in outcome.errors) == 4
++
++
++def test_the_call_a_door_names_as_the_cure_settles_the_debt(db):
++    """Frame 61, pass 1: the amend door names the challenge as the exit, and
++    the owed line kept asking for an amend after the challenge landed.
++    L1-AR-a-dead-end-is-reported-not-sat-on fell from 4/5 to 0/5 on it."""
++    text = "invoices are kept seven years after account closure"
++    db.execute("INSERT INTO constraints (id, headline, text) VALUES ('cn1', ?, ?)",
++               (text, text))
++    db.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, seq) "
++               "VALUES ('m2','t2','liaison','architect','deliver',2)")
++    backend = ScriptedBackend([
++        "TOOL: model.amend(headline='Invoices deleted with accounts', "
++        "text='closing an account deletes its invoices')",
++        f"TOOL: msg.challenge_vision_keeper(refs=['cn1'], quotes=['{text}'])",
++        "Done."])
++    outcome = run_session(db, Wake(role="architect", kind="message", message_id="m2",
++                                   detail="deliver"),
++                          backend=backend, pins=Pins(model="scripted"))
++    assert outcome.committed, outcome.errors
++    assert "msg.challenge_vision_keeper" in outcome.errors[0], outcome.errors
++    assert [line[:17] for line in _owed_lines(backend.calls[1][1])] == ["OWED model.amend:"]
++    assert not _owed_lines(backend.calls[2][1]), "the named cure settles it"
++    assert not any(e.startswith("ended with a call still owed") for e in outcome.errors)
++
++
++def test_fit_pays_a_reserve_from_the_middle_and_keeps_the_wake_whole():
++    """Frame 61's design review, finding 5: a smaller budget cut a
++    6,000-character wake. The reserve is paid by the middle only."""
++    from rota.core.runner import _fit
++
++    wake = "WAKE " + "w" * 5995
++    blocks = [wake] + [f"middle {k} " + "m" * 990 for k in range(4)] + ["r" * 500, "s" * 500]
++    assert _fit(list(blocks), budget=12_000) == blocks
++
++    fitted = _fit(list(blocks), budget=12_000, reserve=1_500)
++    assert fitted[0] == wake, "the reserve cut the wake"
++    assert fitted[-2:] == blocks[-2:]
++    assert "dropped to fit the window" in fitted[1], fitted[1][:200]
++    assert sum(len(t) + 2 for t in fitted) + 1_500 <= 12_000
