@@ -375,6 +375,9 @@ a different question and the night is then opened once.
   attempts 2, 3 and 6 on `b_1` and up to 7 on `b_2`, 2026-09-24 19:43).
   Meta workflow. The code is in the main line at `40b4777`. The walk line
   stays open, and no work is owed before a night that enters the path.
+- Status 2026-09-25 01:58 (rota-1c): **night 93 runs, and proves this frame
+  if it reaches exhaustion** (observed: `.rota/night93.log`, launched 01:56
+  at `794a28f`). Meta workflow.
 
 ### 83. Two orders disagree and a deferred batch restarts for ever (2026-09-24) (5748c2d9)
 
@@ -544,6 +547,12 @@ a different question and the night is then opened once.
   by the shape of `.rota/launch_night92.sh`, with frame 79 on the same
   night if it reaches exhaustion; the worktree `wt-83` in this session's
   scratchpad can go.
+- Status 2026-09-25 01:58 (rota-1c): **night 93 runs for this frame's walk**
+  (observed: `.rota/night93.log`, launched 01:56 from
+  `C:/Users/roman/rota_night93` at `794a28f`, cold, `GAUNTLET_COLD=1`,
+  because frame 82 moved the sandbox and the desks). Meta workflow. The
+  worktree `wt-83` in session 8736e9fc's scratchpad is not this session's to
+  remove. The record's pin 2 correction is still owed.
 
 ### 82. The ten known reds blind the gate (2026-09-24) (5748c2d9)
 
@@ -836,6 +845,26 @@ a different question and the night is then opened once.
   first round records on llama3.1:8b. Open on this frame after the baseline:
   the diff review's findings, and line 4, the walk on night 93 with frames
   83 and 79.
+- Status 2026-09-25 01:58 (rota-1c): **the baseline is stored at `794a28f`,
+  the diff review confirms one high defect, and a fix pass runs on Opus**
+  (observed: the gate here with `--baseline`, 484 s: new reds 0, reds gone
+  0, stale 0, baseline stored at `794a28f` 01:56; the reviewer on Opus 5.5,
+  95.4k on the harness line against 100k, 40 tool calls, 7.4 minutes). Meta
+  workflow. Point 3 CONFIRMED high: the encode Wall strips `src/` and prints
+  `from billing.accounts import close_account`, which fails at collection in
+  the case's fake repository, and the unit test pins the broken line; the
+  case never runs the test, so its one green run stores a test that cannot
+  import. Two low, both CONFIRMED: the kind guard's message for a `module`
+  headline builds `path::path`; the inside door's first sentence says
+  outside this repository while the brief says outside this area. Points 1,
+  5, 6 and 7 hold: no passing Terminologist run answers without a term or a
+  criterion ref, the brief has one bold line, the tests name the exact call,
+  and the 50 llama3.1:8b rows are unread by the replay. One implementer on
+  Opus, cap 60k, the three fixes, one re-record of the apply case, one gate.
+  Night 93 launched at 01:56 from `C:/Users/roman/rota_night93` at
+  `794a28f`, cold because the sandbox and the desks moved, and carries the
+  defect: the walk reads the Tester's encode turns with that in mind. Line 4
+  is night 93.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -871,7 +900,7 @@ a different question and the night is then opened once.
 - Status 2026-09-25 01:49 (rota-1c): pushed by 5748c2d9 at Roman's ruling,
   unclaimed. Meta workflow.
 
-### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21)
+### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21) (5748c2d9)
 
 - **No batch, and it gates one.** Its read is over `tests/rota/cassettes.db` and not over a night, so it shares no read with batch B. **It gates frame 53's ruling**, because the fraction `_fit` uses cannot be ruled while 603 recorded prompts say `_fit`'s promise does not hold. **And it needs one finding from frame 54**: every cassette was recorded at `num_ctx` 12288 or 8192, and `_fit_budget` is a function of `num_ctx`, so the 603 must be counted against each cassette's own recorded window and not against 16384.
 
@@ -903,6 +932,15 @@ a different question and the night is then opened once.
 - Status 2026-09-21 01:00 (rota-02): pushed by cb5428a2, unclaimed, priced. Found
   by the diff review while probing a different point, which is the second finding
   this frame's reviews produced that its tests could not.
+- Status 2026-09-25 01:58 (rota-1c): **claimed by 5748c2d9 while night 93
+  runs, and the read goes to an agent on Opus** (ruled: Roman, 2026-09-25
+  about 01:53 in the terminal, "Ok" to the order night 93, frame 56, batch
+  B). Meta workflow. The read: recount the overrun against each row's own
+  `num_ctx`, group by role, mode, model and day, find the last overrun's
+  date against the history of `_fit`, and name any writer of `case_runs`
+  that bypasses `run_session`. Record:
+  `plans/archive/fit-overrun-read-2026-09-25.md`, cap 60k against the 40k
+  priced.
 
 ### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
 
