@@ -367,6 +367,9 @@ a different question and the night is then opened once.
   cannot preempt it, and three ready batches waited behind it to the end.
   Pushed as frame 86 below. This frame stays validating until a night runs
   with frame 86's fix.
+- Status 2026-09-25 12:02 (rota-1c): **night 94 runs for this frame's walk
+  with frame 86's fix in it, from `a6278c0` at 12:00** (observed:
+  `.rota/night94.log`). Meta workflow.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (5748c2d9)
 
@@ -429,6 +432,22 @@ a different question and the night is then opened once.
   5 and 6 hold: `exhausted` reads `test_runs` and not the status, no attempt
   is NULL, at most three extra queries per tick, and no recorded prompt
   moves. Pass 2 cap 60k, then one gate, the commit, and night 94.
+- Status 2026-09-25 12:02 (rota-1c): **pass 2 is committed at `a6278c0`,
+  night 94 runs from it, and the pass 2 diff review runs on a worktree**
+  (observed: the resumed implementer, 88.9k on the harness line after 58.8k,
+  so about 30k, 27 tool calls; touched and related files 126 passed; the new
+  case `L2-DV-name-the-deferred-batch-not-the-running-one` 1/1; its gate:
+  new reds 24, four `test_arc_synthetic` flaky under the re-record load and
+  8 passed alone, the rest `STALE` from frame 61's park; stale 1; night 94
+  launched 12:00 cold from `C:/Users/roman/rota_night94` at `a6278c0`,
+  `.rota/night94.log`). Meta workflow. `preempt` defers a running batch at
+  the cap whose ladder is spent when a sibling is ready, with the same wake
+  and counter key; `_batch_of` reads the message's `body_refs` first; the
+  wake keeps no refs so no prompt moves. Left unrepaired: a re-encode gives
+  a capped batch no new budget, and an answer that names no batch still
+  falls back to the running sibling. Night 94 validates frames 59, 83 and 86
+  and serves frame 33. The remaining stale from frame 61 re-record now
+  beside the night.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -549,6 +568,10 @@ a different question and the night is then opened once.
   the falsified rows' why against night 88's 6 of 8. Actual: two passes,
   36.6k on Opus against 60k, no GPU. Register lines: none. The
   candidate-symbols cut that names no call is pushed below as frame 85.
+- Status 2026-09-25 12:02 (rota-1c): **night 94 runs for this frame's walk,
+  from `a6278c0` at 12:00; the read is the falsified ledger rows' why
+  against night 88's 6 of 8** (observed: `.rota/night94.log`). Meta
+  workflow.
 
 ### 85. A read cut of the candidate symbols names no call for the rest (2026-09-25)
 
