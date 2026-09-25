@@ -413,6 +413,22 @@ a different question and the night is then opened once.
   deferred batch is refused with a way out, and whether a batch whose ladder
   is used up is ever discharged. The 13 stale are frame 61's parking cost,
   not this frame's; they re-record now on this tree, about an hour of GPU.
+- Status 2026-09-25 11:27 (rota-1c): **the diff review confirms two high
+  defects, and pass 2 runs on the same implementer** (observed: the reviewer
+  on Opus 5.5, 62.2k on the harness line against 60k, 30 tool calls, 3.2
+  minutes, probes over a copy of `.rota/clickI_night93.db` at `6c2c95f`).
+  Meta workflow. High: the filter covers only a preempted batch, and on
+  night 93's own end state, `b_1` running with its three rungs used, every
+  predicate fires nothing, so the fix is to defer a running batch at the cap
+  once `_next_rung` returns empty. High: a ladder answer is a message wake
+  with no refs, `_batch_of` then returns the running sibling, and the
+  Developer's answer mode has `code.commit`, so a fix for `b_1` can land in
+  `b_1_b_1`; the wake reads the message's `body_refs` first. Low,
+  unrepaired: a re-encode gives a capped batch no new attempt budget; no
+  exhausted case seeds a deferred batch, so one case is added. Points 1, 4,
+  5 and 6 hold: `exhausted` reads `test_runs` and not the status, no attempt
+  is NULL, at most three extra queries per tick, and no recorded prompt
+  moves. Pass 2 cap 60k, then one gate, the commit, and night 94.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
