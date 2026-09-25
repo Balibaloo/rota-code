@@ -1104,6 +1104,27 @@ a different question and the night is then opened once.
   here). Meta workflow. It edits the runner and its tests, lists the cases
   with a refused write from the register, re-records up to twelve in the
   foreground, and runs one gate on the shared tree.
+- Status 2026-09-25 04:23 (rota-1c): **pass 1 builds the owed list and its
+  nine tests, the target case reads 5/5, one case falls to 0/5 on a door
+  whose cure is another op, and 31 cases read stale; pass 2 runs on the same
+  implementer** (observed: the implementer on Opus 5.5, 109.8k on the
+  harness line against 100k, 70 tool calls, 113 minutes with night 93 on the
+  same GPU; its gate: suite 55 failed and 2286 passed against the stored 23
+  and 2306, new reds 33, reds gone 1, stale 31). Meta workflow. Green:
+  `ACT-TS-five-criteria-one-per-reply` 4/5 to 5/5, the case the frame exists
+  for, and `L1-AR-survey-a-shared-helper` 0/1 to 1/1, frame 84's survey
+  case. Regression: `L1-AR-a-dead-end-is-reported-not-sat-on` 4/5 to 0/5:
+  the door refuses `model.amend` and names `msg.challenge_vision_keeper` as
+  the cure, the challenge lands, and the owed line keeps asking for the
+  amend, so the seat sends a second challenge and never reports. This is the
+  false-obligation risk the scope report named. The 31 stale are the
+  per-turn key move the design predicted, at a size the design did not
+  count. Pass 2: an entry is settled when a call succeeds whose op the
+  reason names as the cure; the dead-end case first and alone; then the 37
+  stale in fours; one gate; cap 120k. Nothing is committed: the tree holds
+  the runner and its tests uncommitted until the gate reads clean. Actual so
+  far: scope 113.8k, design review 71.6k, build 109.8k, all on Opus, against
+  80k priced for the build; about 90 minutes of GPU shared with the night.
 
 ### 47. The reply cut fires thirty times more often (2026-09-20)
 
