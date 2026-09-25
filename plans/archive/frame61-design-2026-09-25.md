@@ -141,3 +141,63 @@ and one gate. The walk shares night 94 with frame 59.
    write still did not land, so the op leaves `owed` too soon?
 5. Does the block's cost at a tight window, with `_MIN_EXCHANGE` at 2,000,
    push a prompt over `num_ctx` on the 8192 profile?
+
+## Revision 2, 2026-09-25, after the design review
+
+The design review on Opus 5.5 (71.6k on the harness line against 60k, 19
+tool calls) confirmed all ten of its findings by reading or by probe. Revision
+2 changes the design in eight places. Where a point below contradicts the
+design above, this section wins.
+
+1. **Key by call tag, not op name** (review findings 4 and 7). `owed` is keyed
+   by `_call_tag(call)`, the op plus its identifying argument. A success clears
+   an entry only when its tag matches. The newest recorded run of
+   `ACT-TS-five-criteria-one-per-reply` holds seven `tests.encode` refusals
+   naming three faults beside successful `tests.encode` calls, so an op-name
+   key would clear the line the frame exists for (observed: the review's
+   probe over `case_runs`, 2026-09-25).
+2. **The set: any raise in the `except` at `:2814` for a non-read op, except
+   `NotInWorkingSet`** (finding 2). The `Repeat` clause is dropped: the repeat
+   branches run after `sb.call` returns and never raise, so the clause
+   excluded nothing (observed: `rota/core/runner.py:2690-2760`).
+3. **One helper for set and clear, called from both paths** (finding 9). The
+   stood-by run at `:2379-2383` calls `sb.call` outside the `try` at `:2575`,
+   so a held write refused there never enters `owed`, and an owed op met
+   there stays owed and ends the session on a false line. `_note_owed(call,
+   error)` and `_settle_owed(call)` run in the main loop and in the stood-by
+   loop alike.
+4. **The line's reason keeps the first 100 characters, then `...`, then the
+   last 200** (finding 1). A tail-only cut loses the subject in 21 of 201
+   door texts (observed: the review's AST scan of `rota/roles/api.py`).
+5. **`_fit` gains a `reserve` argument that only the middle eviction and
+   `_cap_exchange` subtract, never the wake room** (findings 5 and 8). Passing
+   a smaller `budget` cut a 6,000-character wake to 6,043 of a larger one and
+   evicted a pair, and `_fit` stores its result back into `transcript`, so
+   the damage outlives the op (observed: the review's probe at budgets 10,391
+   and 8,896). Design point 6 above, which kept `_fit`'s signature, is
+   withdrawn. The reserve is clamped: when `budget - reserve` would fall
+   below `_MIN_EXCHANGE`, the block is left out of that turn's prompt and
+   `owed` keeps its entries. One new unit test on `_fit` for the reserve.
+6. **A tag that is refused three times is abandoned** (finding 6). The `NOTE`
+   at `:2833-2842` keys on `(op, why[:160])`, and door texts insert ids, so a
+   changing reason never fires it, and the owed line would ask for a new try
+   every turn to `max_iterations`. After the third refusal of one tag the
+   entry is marked abandoned: no prompt line is written for it again, and
+   the end-of-session line still names it. So the session neither loops nor
+   stops quietly.
+7. **The end-of-session line is added before `session_note` at `:3110`, and
+   the failure path writes none** (finding 3). The readers of
+   `outcome.errors` beyond `fixtures.py` are `triage.py:178`, which classes
+   the line as `other`, `casestatus.py:277-284`, which finds no miss marker
+   in it, and `talk.py:99`, which prints it (observed: the review, 2026-09-25).
+8. **Cost and the re-record query corrected** (finding 10). The fixed words
+   are about 200 characters with a 20-character op name, so one op costs up
+   to about 500 and three about 1,500 per turn. The cap stays at three ops,
+   oldest first. The re-record query searches `case_runs.transcript` for
+   `"<op>: "` inside its `errors` list, because the errors are stored as
+   `op: exc` and not as `ERROR op` lines.
+
+Not changed: the wording's first and last sentences, `OWED` as the first
+word, the block joined after `_fit` and never stored in `transcript`, the
+tests listed above plus one on the abandon rule and one on the stood-by
+path, the walk on night 94 with frame 59, and the price.
