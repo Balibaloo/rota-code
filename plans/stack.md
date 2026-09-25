@@ -624,6 +624,20 @@ a different question and the night is then opened once.
   one more commit in the test after the quarantine, and an in-progress line
   for a deferred batch with a new commit. The last-batch case is recorded and
   not fixed: the page shows it. Cap 30k.
+- Status 2026-09-25 14:50 (rota-f8): **the gate on `c0c3cab` reads three new reds: one
+  flaky, the cite case, and the parameters-defaults case as `STALE` though
+  its refresh passed; that case records fresh cassettes on every run, so it
+  is frame 84's kind of red and not this frame's** (observed: the gate here,
+  872 s: suite 25 failed and 2321 passed against the stored 23 and 2306, new
+  reds 3, reds gone 1, stale 0; a replay of the case the gate's way at 14:46
+  read `5 recorded, 34 replayed` and 1 passed, and `case_runs` holds one
+  prompt hash for all five runs with live rows). Meta workflow. So the first
+  prompt is stable and a later turn's prompt is new each run: the gate, with
+  no live call, reads `no recording for the current prompt`. Added to frame
+  84 below. The clean gate this frame owes for `--baseline` is therefore two
+  known reds away, the cite case and this one, both frame 84's. Night 94 at
+  14:48 fired `do:preempt: deferred bg_1; bg_3 outranks it`, so the night
+  exercises frame 83's path. Pass 5 runs.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -653,6 +667,13 @@ a different question and the night is then opened once.
   buys the apply case back. (3) The gate reads zero new reds against
   `07828dc`. One pass, one gate, no walk unless a brief line moves.
 - Waits on: nothing. Roman orders it below batch B.
+- **A third red joins on 2026-09-25** (observed: frame 86's gate at `c0c3cab`,
+  14:3x, and a replay of the case at 14:46): `L1-DV-give-the-new-parameters-
+  defaults` reads `STALE` at every gate after a passing refresh, because a
+  turn inside the session composes a prompt that is new on every run and
+  the gate makes no live call; `5 recorded, 34 replayed` on a replay. The
+  first prompt's hash is stable. The fault is in what that turn reads, a
+  path, a time or an id, and the fix is a deterministic fixture for it.
 - Reasoning: frame 82's block above, and
   `plans/archive/ten-reds-read-2026-09-24.md`, cases 8 and 9 there under
   their old numbers.
