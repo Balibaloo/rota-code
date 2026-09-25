@@ -108,6 +108,31 @@ def test_the_principals_ledger_row_keeps_the_whole_why(tmp_path):
         "a recorded reason is not a seat's notice"
 
 
+def test_the_vacuous_ledger_row_keeps_the_whole_why(tmp_path):
+    """
+    The vacuous verdict's ledger row keeps the why as the challenge row keeps
+    it. A 200-character cap dropped the finding the Critic writes after the
+    claim (frame 59). The ledger row has no cut of its own to record.
+    """
+    _db, sb = _critic(tmp_path, "vacuous")
+    claim = ("the claim says the schema is silent on an unknown key, and "
+             "that no warning exists anywhere in the parse path. " * 2)
+    finding = "but the claim names no behaviour a line could show or deny"
+    why = f"{claim}{finding}"
+    assert 200 < len(why) < 300, len(why)
+
+    out = sb.call("challenge.vacuous", why=why)
+
+    assert out["verdict"] == "unfounded"
+    assert "not_shown" not in out, "the Critic's own row kept every word"
+    ledger = [fields for table, _id, fields in sb.ctx.writes if table == "ledger"]
+    assert len(ledger) == 1, sb.ctx.writes
+    taken = ledger[0]["default_taken"]
+    assert f"unfounded: {why}. An empty claim" in taken, taken
+    assert finding in taken, "the ledger row lost the finding"
+    assert not sb.ctx.cuts, sb.ctx.cuts
+
+
 def test_a_recorded_cut_reaches_the_session_record(db, monkeypatch):
     """
     The record's half survives the session. `session_note` writes the runner's

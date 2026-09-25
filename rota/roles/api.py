@@ -7548,19 +7548,21 @@ def challenge_vacuous(ctx: Ctx, why: str) -> dict:
         raise ValueError("vacuity is still a reading's verdict: call "
                          "challenge.load first. It shows the claim and opens "
                          "the files it cites")
+    kept_why = why.strip()[:300]
     ctx.writes.append(("challenges", f"{table}:{row}", {
-        "verdict": "unfounded", "why": why.strip()[:300]}))
+        "verdict": "unfounded", "why": kept_why}))
+    # The ledger row keeps the why as the challenge row keeps it. The principal
+    # rules from the why, and a second, shorter cap dropped the finding that
+    # the Critic writes after the claim (frame 59, night 88).
     ctx.writes.append(("ledger", _challenge_ledger_id(table, row), {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic found {table}:{row} unfounded: "
-                          f"{why.strip()[:200]}. An empty claim is kept in "
+                          f"{kept_why}. An empty claim is kept in "
                           f"the record until ruled."),
         "author": "critic"}))
     out = {"id": f"{table}:{row}", "verdict": "unfounded",
            "note": "recorded, and on the principal's ledger"}
     cut = _cut_words(ctx, "the challenge row's", {"why": (why.strip(), 300)})
-    _cut(ctx, "the principal's ledger row, from this verdict's why",
-         200, len(why.strip()), "characters")
     if cut:
         out["not_shown"] = cut
     return out
