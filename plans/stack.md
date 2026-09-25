@@ -130,7 +130,7 @@ they are the gauntlet and the end state and no step names them.
 | B, what a seat lost on night 88 | the read, then 59, 61, then 47, 53 | One read: `.rota/clickI_night88.db`, the `turns` table's `system`, `user` and `completion` columns. |
 | C, the night's stall | ~~58, 38~~ closed 2026-09-23; **37** remains | One read: what the Developer was given and what it answered, across the three nights on disk. |
 | D, the principal seam | 41, 42 | One repair site: `probes/walk.py:84-87`, `class Principal` and its `respond(ask)`. |
-| none | 48, 56, 57, 45, 33, 4, 2, 1 | Nothing. Each frame's first line says what it shares and what it does not. |
+| none | 48, ~~56~~ closed 2026-09-25, 57, 45, 33, 4, 2, 1 | Nothing. Each frame's first line says what it shares and what it does not. |
 
 **Batch A is one fault in two places, and the second is a cause of a third**
 (observed: `rota/tools/casestatus.py:75-82`, 2026-09-21). The report matches a
