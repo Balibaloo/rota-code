@@ -382,22 +382,46 @@ def _batch_of(conn: sqlite3.Connection, wake: Wake) -> str | None:
     and leaves the session with no worktree — which is correct, because there is
     no work in flight for it to be in.
     """
-    refs = list(wake.refs)
-    # A message names its batch in its refs. A ladder answer about a deferred
-    # batch must not land in the running sibling's worktree, because the
-    # answer mode holds `code.commit` (observed: frame 86's diff review,
-    # 2026-09-25). The running batch is the fallback only.
-    if wake.message_id:
-        from .db import refs_of
-
-        row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
-                           (wake.message_id,)).fetchone()
-        refs += refs_of(row["body_refs"]) if row else []
-    for ref in refs:
+    for ref in wake.refs:
         if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
             return ref
+    # A ladder answer about a deferred batch must not land in the running
+    # sibling's worktree, because the answer mode holds `code.commit`
+    # (observed: frame 86's diff review, 2026-09-25). The running batch is
+    # the fallback only.
+    batch = _batch_of_message(conn, wake.message_id) if wake.message_id else None
+    if batch:
+        return batch
     rows = conn.execute("SELECT id FROM batches WHERE status = 'running'").fetchall()
     return rows[0]["id"] if len(rows) == 1 else None
+
+
+def _batch_of_message(conn: sqlite3.Connection, message_id: str) -> str | None:
+    """The live batch a message's refs name, directly or through a test or a criterion."""
+    from .db import refs_of
+
+    row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                       (message_id,)).fetchone()
+    refs = refs_of(row["body_refs"]) if row else []
+    # A merged or abandoned batch has no work in flight, so its name is no
+    # reason to leave the running batch.
+    live = "status IN ('running','deferred')"
+    for ref in refs:
+        if conn.execute(f"SELECT 1 FROM batches WHERE id = ? AND {live}",
+                        (ref,)).fetchone():
+            return ref
+    # Night 93's answers named a criterion and a test, never a batch
+    # (observed: s139, s146, s151 and s155, 2026-09-25).
+    for ref in refs:
+        hit = conn.execute(
+            f"SELECT id FROM batches WHERE {live} AND id IN ("
+            "  SELECT batch_id FROM tests WHERE id = ? "
+            "  UNION SELECT bt.batch_id FROM batch_tickets bt "
+            "  JOIN criteria c ON c.ticket_id = bt.ticket_id WHERE c.id = ?) "
+            "ORDER BY id LIMIT 1", (ref, ref)).fetchone()
+        if hit:
+            return hit["id"]
+    return None
 
 
 def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
@@ -429,10 +453,15 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         running_id = wake.refs[0]
         lifecycle.defer(conn, running_id)
         conn.commit()
-        # A spent ladder defers without a higher priority, so the line names it.
-        if "ladder is spent" in wake.detail:
-            return f"deferred {running_id}; its ladder is spent"
         return f"deferred {running_id}; {wake.refs[1]} outranks it"
+
+    if action == "park":
+        # A batch past its cap with a spent ladder frees the seat. Its own
+        # kind keeps its count apart from the priority preempt's count
+        # (observed: frame 86's pass 2 review, 2026-09-25).
+        lifecycle.defer(conn, wake.refs[0])
+        conn.commit()
+        return f"deferred {wake.refs[0]}; its ladder is spent"
 
     if action == "defer_baseline":
         # The lazy election's clerical half. Each observed row becomes an open

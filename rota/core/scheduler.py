@@ -1370,10 +1370,7 @@ def next_batch(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     # cannot end it. Night 93 resumed `b_1` at attempt 11 of 10, nothing woke
     # on it, and three ready batches waited all night (observed: night 93,
     # 2026-09-25). The batch stays deferred, and `exhausted` climbs the ladder.
-    from . import config
-
-    cap = config.get(conn, "loop_cap")
-    rows = [r for r in rows if failing_attempt(conn, r["id"]) < cap]
+    rows = [r for r in rows if not parked(conn, r["id"])]
     order = schedule_order(conn)
     place = {b: n for n, b in enumerate(order)}
     return sorted(rows, key=lambda r: (-(r["priority"] or 0),
@@ -1389,6 +1386,24 @@ def failing_attempt(conn: sqlite3.Connection, batch_id: str) -> int:
         "AND rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
         "GROUP BY test_id)", (batch_id, batch_id)).fetchone()
     return int(row["att"] or 0)
+
+
+def parked(conn: sqlite3.Connection, batch_id: str) -> bool:
+    """A batch at or past `loop_cap` whose head commit is the one that failed."""
+    from . import config
+
+    if failing_attempt(conn, batch_id) < config.get(conn, "loop_cap"):
+        return False
+    # A head commit newer than the failing runs is a fix nobody has tested.
+    # Only the harness tests it, and the harness tests running batches only.
+    # Without this exit the park is for ever (observed: frame 86's pass 2
+    # review, 2026-09-25). The ladder is not asked again for the new commit.
+    return bool(conn.execute(
+        "SELECT 1 FROM test_runs r JOIN batches b ON b.id = r.batch_id "
+        "WHERE r.batch_id = ? AND r.result IN ('fail','error') "
+        "AND (b.head_commit IS NULL OR r.commit_sha = b.head_commit) "
+        "AND r.rowid IN (SELECT MAX(rowid) FROM test_runs WHERE batch_id = ? "
+        "GROUP BY test_id)", (batch_id, batch_id)).fetchone())
 
 
 def rebuild_schedule(conn: sqlite3.Connection) -> list[str]:

@@ -157,12 +157,34 @@ def test_a_running_batch_past_its_cap_with_a_spent_ladder_is_deferred():
     assert batch_start(conn) == []
 
     (wake,) = preempt(conn)
-    assert (wake.kind, wake.refs) == ("do:preempt", ("b_1", "b_1_b_1"))
+    assert (wake.kind, wake.refs) == ("do:park", ("b_1",))
     assert wake.detail == "b_1 is past its cap and its ladder is spent"
+    assert tick_key(wake) == "-|do:park|b_1", "apart from the preempt's key"
 
     _status(conn, "b_1", "deferred")
     assert [w.refs for w in batch_start(conn)] == [("b_1_b_1",)]
     assert preempt(conn) == []
+
+
+def test_a_parked_batch_resumes_on_a_new_head_commit():
+    """Frame 86, pass 3. A parked batch whose siblings merged is offered
+    nothing on the failing commit. A new head commit is a fix nobody has
+    tested, so the start offers it as a resume. The ladder stays spent."""
+    conn = load(93)
+    batch_start = P.REGISTRY["batch_start"].fn
+    exhausted = P.REGISTRY["exhausted"].fn
+    _status(conn, "b_1", "deferred")
+    for sibling in ("b_1_b_1", "b_1_confirm", "b_1_version"):
+        _status(conn, sibling, "merged")
+
+    assert batch_start(conn) == []
+    assert exhausted(conn) == []
+
+    conn.execute("UPDATE batches SET head_commit = 'f1x' WHERE id = 'b_1'")
+    (wake,) = batch_start(conn)
+    assert wake.refs == ("b_1",)
+    assert wake.detail.startswith("resume after attempt 11:")
+    assert exhausted(conn) == []
 
 
 def test_a_message_about_a_deferred_batch_works_in_that_batch():
@@ -175,10 +197,23 @@ def test_a_message_about_a_deferred_batch_works_in_that_batch():
     conn = load(93)
     _status(conn, "b_1", "deferred")
     _status(conn, "b_1_b_1", "running")
-    for mid, refs in (("m_b1", '["c_2", "b_1"]'), ("m_none", '["c_2"]')):
+    # Night 93's answers named a criterion and a test, never a batch (pass 3).
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_x', 'echo_json', 'x')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_x', 'tk_x', 'x')")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b_1', 'tk_x')")
+    _status(conn, "b_1_version", "merged")
+    for mid, refs in (("m_b1", '["c_2", "b_1"]'), ("m_none", '["c_2"]'),
+                      ("m_test", '["c_2", "t_ej_02"]'), ("m_crit", '["c_x"]'),
+                      ("m_merged", '["b_1_version"]')):
         conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
                      "body_refs, seq) VALUES (?, 't', 'architect', 'developer', "
                      "'answer', ?, 0)", (mid, refs))
 
-    assert _batch_of(conn, Wake("developer", "message", message_id="m_b1")) == "b_1"
-    assert _batch_of(conn, Wake("developer", "message", message_id="m_none")) == "b_1_b_1"
+    def batch(mid):
+        return _batch_of(conn, Wake("developer", "message", message_id=mid))
+
+    assert batch("m_b1") == "b_1"
+    assert batch("m_none") == "b_1_b_1"
+    assert batch("m_test") == "b_1", "a test resolves through tests.batch_id"
+    assert batch("m_crit") == "b_1", "a criterion resolves through batch_tickets"
+    assert batch("m_merged") == "b_1_b_1", "a merged batch is no work in flight"
