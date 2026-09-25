@@ -582,6 +582,16 @@ a different question and the night is then opened once.
   lines: one, the lock collision, in the register section of
   `plans/operating-facts.md`. Night 94 is in onboarding at 13:34, `[m48]`,
   slower than night 93 under the shared GPU.
+- Status 2026-09-25 14:21 (rota-f8): **the gate on `c8e8261` reads four new reds, two
+  flaky, the cite case, and the parameters-defaults case, which then re-earns
+  at 5/5; the gate runs again** (observed: the gate here, 538 s: suite 26
+  failed and 2320 passed against the stored 23 and 2306, new reds 4, reds gone
+  1, stale 0; the case's live history in `case_runs`: 3/5 on 2026-09-23 at
+  the baseline, 2/5 at 05:xx today under frame 61's owed-line prompt, one
+  live run at 13:xx from the lock window; its `ROTA_REFRESH=1` re-record
+  here, 43 recorded in 23m22s beside the night, 1 passed). Meta workflow. So
+  the 2/5 was frame 61's prompt and the lock, not drift. Night 94 is in the
+  delivery loop at 14:13, `bg_1` 35 tests and 1 not passing.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
