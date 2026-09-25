@@ -487,6 +487,24 @@ a different question and the night is then opened once.
   then `--baseline` at a clean gate. Actual: three passes, 115.6k on Opus
   against 40k; two diff reviews, 106.2k against 60k; about 40 minutes of
   GPU. Register lines: none.
+- Status 2026-09-25 12:29 (rota-1c): **handed with the stack by 5748c2d9 at
+  the 300k mark; what the holder inherits** (observed: this session's
+  context past 300k on the hook line since 12:1x). Meta workflow. Held
+  frames: 86 validating at `48e81d4` with its diff review owed; 83
+  validating; 59 validating; 61 parked on the redesign, Roman's grill
+  question open, the whole-design answer in the terminal at about 11:50, the
+  debt as a record row declared by the door, recommended, about 150k; 47 and
+  53 held for batch B's read, two rulings to put to Roman in one stop, the
+  half-window fraction and a repeated-line stop; 84 and 85 unclaimed and
+  priced. Running: night 94 from `C:/Users/roman/rota_night94` at `a6278c0`,
+  launched 12:00 cold, GAUNTLET-DONE expected by about 15:00,
+  `.rota/night94.log`, copy `.rota/clickI.db` to `.rota/clickI_night94.db`
+  as soon as it ends; a re-record agent of this session on the remaining
+  stale cases of frame 61's park, which writes only
+  `tests/rota/cassettes.db` and dies with this session if it has not
+  finished, so the next gate's `STALE` names are the cases still owed a
+  re-record. Then `--baseline` at the first clean gate. Roman's grill: he
+  asked to be grilled at about 11:2x, and the first question is unanswered.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
