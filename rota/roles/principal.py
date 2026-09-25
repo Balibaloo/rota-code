@@ -239,6 +239,19 @@ def render_state(conn: sqlite3.Connection) -> str:
         if looping is not None:
             out.append(looping.line())
         return chr(10).join(out)
+    # A parked batch is an open obligation, so the page counts it until a
+    # commit discharges it. After night 93's park the page read "Done: 3"
+    # only (observed: frame 86's pass 3 review, 2026-09-25).
+    from ..core.scheduler import parked
+    held = [r["id"] for r in conn.execute(
+        "SELECT id FROM batches WHERE status = 'deferred' ORDER BY id")
+        if parked(conn, r["id"])]
+    if held:
+        out.append(
+            f"Stuck: {', '.join(held)} {'is' if len(held) == 1 else 'are'} "
+            "parked. The tests failed past the attempt cap, and the team has "
+            "run out of things to try. A new commit on the change starts it "
+            "again. Tell me what to change.")
     if running or pending:
         # At the batch's head commit, the harness's own notion of "now". The
         # first version picked the latest run by MAX(id), and ids are strings:

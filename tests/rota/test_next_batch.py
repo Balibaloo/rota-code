@@ -112,6 +112,17 @@ def test_a_batch_count_survives_absence_and_a_move_resets_it():
     assert attempts(start) is None, "a head commit is the batch moving"
 
 
+def _commit_head(conn, batch_id: str, sha: str) -> None:
+    """A Developer's head commit, written through `session_commit`."""
+    from rota.core.db import SessionResult, Write, session_commit
+
+    conn.commit()
+    session_commit(conn, SessionResult(
+        session_id=f"s_{sha}", role="developer",
+        writes=[Write("batches", batch_id, {"head_commit": sha}, op="update",
+                      amends=False)]))
+
+
 def _attempt(conn, batch_id: str, n: int) -> None:
     conn.execute("UPDATE test_runs SET attempt = ? WHERE batch_id = ?", (n, batch_id))
 
@@ -180,7 +191,9 @@ def test_a_parked_batch_resumes_on_a_new_head_commit():
     assert batch_start(conn) == []
     assert exhausted(conn) == []
 
-    conn.execute("UPDATE batches SET head_commit = 'f1x' WHERE id = 'b_1'")
+    # The Developer's commit reaches the row through the pipeline's write, so
+    # `_lift_quarantines` runs as it does for `code.commit` (pass 4).
+    _commit_head(conn, "b_1", "f1x")
     (wake,) = batch_start(conn)
     assert wake.refs == ("b_1",)
     assert wake.detail.startswith("resume after attempt 11:")
@@ -217,3 +230,97 @@ def test_a_message_about_a_deferred_batch_works_in_that_batch():
     assert batch("m_test") == "b_1", "a test resolves through tests.batch_id"
     assert batch("m_crit") == "b_1", "a criterion resolves through batch_tickets"
     assert batch("m_merged") == "b_1_b_1", "a merged batch is no work in flight"
+
+
+def _night_93_parked():
+    """Night 93 at the park: `b_1` deferred past its cap, its siblings merged."""
+    conn = load(93)
+    _status(conn, "b_1", "deferred")
+    for sibling in ("b_1_b_1", "b_1_confirm", "b_1_version"):
+        _status(conn, sibling, "merged")
+    return conn
+
+
+def test_the_park_wake_defers_the_running_batch():
+    """Frame 86, pass 4. `_perform` on a `do:park` wake defers the batch it
+    names and says why. No priority is involved."""
+    from rota.core.loop import _perform
+    from rota.core.scheduler import Wake
+
+    conn = load(93)
+    _status(conn, "b_1", "running")
+    line = _perform(conn, Wake(P.SCHEDULER, "do:park", refs=("b_1",)))
+    assert line == "deferred b_1; its ladder is spent"
+    assert conn.execute("SELECT status FROM batches WHERE id = 'b_1'"
+                        ).fetchone()["status"] == "deferred"
+
+
+def test_a_test_or_criterion_of_a_batch_not_in_flight_is_refused():
+    """Frame 86, pass 4. A test ref or a criterion ref resolves only to a
+    running or deferred batch. A merged or pending batch has no worktree in
+    flight, so the message falls back to the running batch."""
+    from rota.core.loop import _batch_of
+    from rota.core.scheduler import Wake
+
+    conn = load(93)
+    _status(conn, "b_1_b_1", "running")
+    conn.execute("INSERT INTO tickets (id, item_id, text) VALUES ('tk_x', 'echo_json', 'x')")
+    conn.execute("INSERT INTO criteria (id, ticket_id, text) VALUES ('c_x', 'tk_x', 'x')")
+    conn.execute("INSERT INTO batch_tickets (batch_id, ticket_id) VALUES ('b_1', 'tk_x')")
+    for mid, refs in (("m_test", '["t_ej_02"]'), ("m_crit", '["c_x"]')):
+        conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                     "body_refs, seq) VALUES (?, 't', 'architect', 'developer', "
+                     "'answer', ?, 0)", (mid, refs))
+    for status in ("merged", "pending"):
+        _status(conn, "b_1", status)
+        for mid in ("m_test", "m_crit"):
+            got = _batch_of(conn, Wake("developer", "message", message_id=mid))
+            assert got == "b_1_b_1", f"{mid} must not reach a {status} b_1"
+
+
+def test_a_parked_batch_is_stuck_on_the_page():
+    """Frame 86, pass 4. After the park the page read "Done: 3" only. A
+    parked batch is an open obligation, so the page says it is stuck and
+    names the way out. A new commit ends the park and the line."""
+    from rota.roles.principal import render_state
+
+    conn = _night_93_parked()
+    page = render_state(conn)
+    assert "Done: 3 changes" in page
+    assert "Stuck: b_1 is parked." in page
+    assert "A new commit on the change starts it again." in page
+
+    _commit_head(conn, "b_1", "f1x")
+    assert "parked" not in render_state(conn)
+
+
+def test_the_park_count_survives_a_commit_and_quarantines():
+    """Frame 86, pass 4. A commit is the park's own exit, so the park keeps
+    its count across the commit. The start's count still resets. At
+    `tick_attempt_cap` the key quarantines, and the page names the batch."""
+    from rota.core import config
+    from rota.core.scheduler import quarantine_overrun
+    from rota.roles.principal import render_state
+
+    conn = _night_93_parked()
+    park, start = "-|do:park|b_1", "developer|tick:batch_start|b_1"
+    for key in (park, start):
+        # Night 93's rows hold the start's key already, so the pin replaces it.
+        conn.execute("INSERT OR REPLACE INTO tick_attempts (tick_key, attempts, "
+                     "quarantined) VALUES (?, 1, 0)", (key,))
+
+    _commit_head(conn, "b_1", "f1x")
+
+    def attempts(key):
+        row = conn.execute("SELECT attempts FROM tick_attempts WHERE tick_key = ?",
+                           (key,)).fetchone()
+        return row["attempts"] if row else None
+
+    assert attempts(park) == 1, "the commit is the park's exit, not its reset"
+    assert attempts(start) is None, "the start's count still resets on a commit"
+
+    conn.execute("UPDATE tick_attempts SET attempts = ? WHERE tick_key = ?",
+                 (config.get(conn, "tick_attempt_cap"), park))
+    assert quarantine_overrun(conn) == 1
+    page = render_state(conn)
+    assert "Stuck. The team gave up on: do:park for b_1." in page
