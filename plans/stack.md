@@ -900,48 +900,6 @@ a different question and the night is then opened once.
 - Status 2026-09-25 01:49 (rota-1c): pushed by 5748c2d9 at Roman's ruling,
   unclaimed. Meta workflow.
 
-### 56. 603 recorded prompts exceed the budget `_fit` promises (2026-09-21) (5748c2d9)
-
-- **No batch, and it gates one.** Its read is over `tests/rota/cassettes.db` and not over a night, so it shares no read with batch B. **It gates frame 53's ruling**, because the fraction `_fit` uses cannot be ruled while 603 recorded prompts say `_fit`'s promise does not hold. **And it needs one finding from frame 54**: every cassette was recorded at `num_ctx` 12288 or 8192, and `_fit_budget` is a function of `num_ctx`, so the 603 must be counted against each cassette's own recorded window and not against 16384.
-
-- Rota workflow. `_fit` promises that a turn's transcript fits
-  `_fit_budget(num_ctx, len(system))`. **603 of 18435 cassettes hold a prompt
-  that does not, and the worst exceeds it by 67295 characters** (observed: frame
-  46's diff review, read-only SQL over `tests/rota/cassettes.db`, 2026-09-21).
-- **This unparks a finding frame 46 shelved.** That finding said `_fit`'s promise
-  is not a theorem, a fuzz of 4000 transcripts broke it 1540 times, and **the
-  runner reaches neither breaking shape today**. The register says the runner
-  reaches some shape, 603 times.
-- **What is not known**: whether the 603 are historical, recorded before a cap
-  that now holds, or whether a live path builds a prompt without `_fit`. Frame
-  46's line 1 measures only what `run_session` assembles, so a path that does not
-  go through `run_session` is still unmeasured.
-- **Why it matters beyond tidiness**: a prompt over `num_ctx` is collapsed by
-  ollama to `num_ctx / 2 + 2` with the tail kept, which cuts the brief off the
-  front. That is the fault the halving exists to prevent, and these 603 prompts
-  are the shape that reaches it.
-- Ends when: the cause is named in a record, and either the 603 are shown to be
-  historical with the reason, or the live path that overruns is named and a test
-  holds the line. Priced: one read that groups the 603 by role, mode and date,
-  and checks whether each came through `run_session`, 40k. Buys the difference
-  between an old scar and an open wound. The repair's price follows the cause.
-- Waits on: nothing. Roman orders it. It sits above 54 only in the file, and
-  Roman's order of 2026-09-21 does not name it yet.
-- Reasoning: frame 46's status line of 2026-09-21 00:59, and the parked finding
-  in frame 46's status line of 2026-09-20 16:50.
-- Status 2026-09-21 01:00 (rota-02): pushed by cb5428a2, unclaimed, priced. Found
-  by the diff review while probing a different point, which is the second finding
-  this frame's reviews produced that its tests could not.
-- Status 2026-09-25 01:58 (rota-1c): **claimed by 5748c2d9 while night 93
-  runs, and the read goes to an agent on Opus** (ruled: Roman, 2026-09-25
-  in the terminal before the night launched at 01:56, "Ok" to the order night 93, frame 56, batch
-  B). Meta workflow. The read: recount the overrun against each row's own
-  `num_ctx`, group by role, mode, model and day, find the last overrun's
-  date against the history of `_fit`, and name any writer of `case_runs`
-  that bypasses `run_session`. Record:
-  `plans/archive/fit-overrun-read-2026-09-25.md`, cap 60k against the 40k
-  priced.
-
 ### 59. The ledger row is shorter than the reasoning it rules from (2026-09-21)
 
 - **Batch B, what a seat lost on night 88. Third of four.** The ledger row's cut is one of the cut sites the batch's read counts, and this frame owns the question of whether that site may cut at all. The read is shared. The repair, 60k, is this frame's alone.
