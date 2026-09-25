@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 
 SESSION_COLUMNS = ("id", "role", "trigger_msg", "wake_kind", "wake_detail",
                    "wake_refs", "committed", "seq")
-# The batch's own state at the stop, for the scheduler pins. Night 92 only.
+# The batch's own state at the stop, for the scheduler pins. Nights 92 and 93.
 STATE_TABLES = ("items", "batches", "batch_dep_facts", "tests", "test_runs",
                 "tick_attempts")
 
@@ -75,7 +75,7 @@ def load(night: int) -> sqlite3.Connection:
 
 
 def main() -> None:
-    for night, state in ((92, True), (91, False)):
+    for night, state in ((93, True), (92, True), (91, False)):
         path = HERE / f"night{night}_cycle.json"
         text = json.dumps(extract(night, state), indent=0, sort_keys=True)
         with open(path, "w", encoding="utf-8", newline="\n") as fh:

@@ -236,3 +236,55 @@
     # and taking it is the system answering its own question.
     writes: [criteria, constraints, items, decisions]
     recipients: [vision_keeper, architect, developer, terminologist]
+
+# Frame 86 (2026-09-25): a batch past its cap is deferred, and a sibling runs.
+# The Developer's answer must name the exhausted batch, not the running one.
+# Night 93's ladder asked about `b_1` while three siblings waited.
+- id: L2-DV-name-the-deferred-batch-not-the-running-one
+  tier: T2
+  role: developer
+  runs: 1
+  pass: 1
+  tick: exhausted
+  refs: [<b1>]
+  repo:
+    batch: <b1>
+  fixture:
+    items:
+      - {id: <i1>, text: "invoices can be exported as CSV", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+      - {id: <i2>, text: "invoices show their due date", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "export invoices"}
+      - {id: <tk2>, item_id: <i2>, text: "show the due date"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>, text: "the export contains every invoice field",
+         term_refs: '[]'}
+      - {id: <c2>, ticket_id: <tk2>, text: "the invoice page shows the due date",
+         term_refs: '[]'}
+    constraints:
+      - {id: <k1>, headline: "card numbers never leave the payments boundary",
+         text: "PCI: a full card number may not appear in any export.",
+         provenance: decided, is_global: 1}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: deferred, head_commit: abc123}
+      - {id: <b2>, item_id: <i2>, status: running, head_commit: def456}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+      - {batch_id: <b2>, ticket_id: <tk2>}
+    tests:
+      - {id: <tst1>, batch_id: <b1>, criterion_id: <c1>, path: test_export.py,
+         body: "assert set(export_csv(a)[0]) == set(INVOICE_FIELDS)"}
+    test_runs:
+      - {id: <r1>, batch_id: <b1>, test_id: <tst1>, commit_sha: abc123, result: fail,
+         attempt: 11}
+  expect:
+    any_of:
+      - messages: [{to: architect, count: ">=1", refs_include: [<b1>]}]
+      - messages: [{to: vision_keeper, count: ">=1", refs_include: [<b1>]}]
+      - messages: [{to: terminologist, count: ">=1", refs_include: [<b1>]}]
+      - messages: [{to: tester, count: ">=1", refs_include: [<b1>]}]
+  forbidden:
+    calls: [code.write, code.commit]
+    writes: [criteria, constraints, items]

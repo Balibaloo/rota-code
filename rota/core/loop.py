@@ -382,7 +382,18 @@ def _batch_of(conn: sqlite3.Connection, wake: Wake) -> str | None:
     and leaves the session with no worktree — which is correct, because there is
     no work in flight for it to be in.
     """
-    for ref in wake.refs:
+    refs = list(wake.refs)
+    # A message names its batch in its refs. A ladder answer about a deferred
+    # batch must not land in the running sibling's worktree, because the
+    # answer mode holds `code.commit` (observed: frame 86's diff review,
+    # 2026-09-25). The running batch is the fallback only.
+    if wake.message_id:
+        from .db import refs_of
+
+        row = conn.execute("SELECT body_refs FROM messages WHERE id = ?",
+                           (wake.message_id,)).fetchone()
+        refs += refs_of(row["body_refs"]) if row else []
+    for ref in refs:
         if conn.execute("SELECT 1 FROM batches WHERE id = ?", (ref,)).fetchone():
             return ref
     rows = conn.execute("SELECT id FROM batches WHERE status = 'running'").fetchall()
@@ -418,6 +429,9 @@ def _perform(conn: sqlite3.Connection, wake: Wake) -> str:
         running_id = wake.refs[0]
         lifecycle.defer(conn, running_id)
         conn.commit()
+        # A spent ladder defers without a higher priority, so the line names it.
+        if "ladder is spent" in wake.detail:
+            return f"deferred {running_id}; its ladder is spent"
         return f"deferred {running_id}; {wake.refs[1]} outranks it"
 
     if action == "defer_baseline":

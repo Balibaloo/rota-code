@@ -1258,9 +1258,23 @@ def preempt(conn) -> list[Wake]:
     from .scheduler import next_batch
 
     ranked = next_batch(conn)
-    if not ranked or (ranked[0]["priority"] or 0) <= (running["pri"] or 0):
+    if not ranked:
         return []
     challenger = ranked[0]["id"]
+    # A running batch past its cap with every rung asked wakes nobody again.
+    # Night 93 held `b_1` so, and three ready batches waited to the end
+    # (observed: night 93, 2026-09-25). The deferral frees the seat, and
+    # `next_batch` keeps the batch out until its attempts fall below the cap.
+    from . import config
+    from .scheduler import failing_attempt
+
+    cap = config.get(conn, "loop_cap")
+    if failing_attempt(conn, running["bid"]) >= cap and not _next_rung(conn, running["bid"]):
+        return [Wake(SCHEDULER, "do:preempt",
+                     refs=(running["bid"], challenger),
+                     detail=f"{running['bid']} is past its cap and its ladder is spent")]
+    if (ranked[0]["priority"] or 0) <= (running["pri"] or 0):
+        return []
     return [Wake(SCHEDULER, "do:preempt",
                  refs=(running["bid"], challenger),
                  detail=f"{challenger} outranks {running['bid']}")]

@@ -145,3 +145,40 @@ def test_a_preempted_batch_past_its_cap_resumes_exhausted():
     assert (wake.kind, wake.refs) == ("tick:batch_start", ("b_2",))
     assert wake.detail.startswith("resume after attempt 3:")
     assert exhausted(conn) == []
+
+
+def test_a_running_batch_past_its_cap_with_a_spent_ladder_is_deferred():
+    """Frame 86, pass 2. Night 93 ended with `b_1` running at attempt 11 of 10
+    and its three rungs asked. The next tick defers `b_1`, and the start
+    offers `b_1_b_1`."""
+    conn = load(93)
+    preempt = P.REGISTRY["preempt"].fn
+    batch_start = P.REGISTRY["batch_start"].fn
+    assert batch_start(conn) == []
+
+    (wake,) = preempt(conn)
+    assert (wake.kind, wake.refs) == ("do:preempt", ("b_1", "b_1_b_1"))
+    assert wake.detail == "b_1 is past its cap and its ladder is spent"
+
+    _status(conn, "b_1", "deferred")
+    assert [w.refs for w in batch_start(conn)] == [("b_1_b_1",)]
+    assert preempt(conn) == []
+
+
+def test_a_message_about_a_deferred_batch_works_in_that_batch():
+    """Frame 86, pass 2. A ladder answer that names `b_1` resolves to `b_1`
+    while `b_1_b_1` runs. A message that names no batch falls back to the
+    running batch."""
+    from rota.core.loop import _batch_of
+    from rota.core.scheduler import Wake
+
+    conn = load(93)
+    _status(conn, "b_1", "deferred")
+    _status(conn, "b_1_b_1", "running")
+    for mid, refs in (("m_b1", '["c_2", "b_1"]'), ("m_none", '["c_2"]')):
+        conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, "
+                     "body_refs, seq) VALUES (?, 't', 'architect', 'developer', "
+                     "'answer', ?, 0)", (mid, refs))
+
+    assert _batch_of(conn, Wake("developer", "message", message_id="m_b1")) == "b_1"
+    assert _batch_of(conn, Wake("developer", "message", message_id="m_none")) == "b_1_b_1"
