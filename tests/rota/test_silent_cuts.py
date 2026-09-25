@@ -71,27 +71,39 @@ def test_a_verdict_says_what_the_row_did_not_keep(tmp_path):
     assert any("the challenge row's why" in c for c in sb2.ctx.cuts), sb2.ctx.cuts
 
 
-def test_the_principals_ledger_row_is_cut_on_the_record_with_no_notice(tmp_path):
+def test_the_principals_ledger_row_keeps_the_whole_why(tmp_path):
     """
-    The two outputs are independent. A break stores 460 characters of its `why`
-    on the Critic's own row and 160 on the principal's ledger row, so a `why` of
-    300 characters reaches the Critic whole and the principal shortened. The
-    Critic has no call that changes the principal's row, so that cut carries no
-    notice, and the record carries the reason instead.
+    The principal rules from the ledger row, so the row keeps the finding.
+    The Critic writes the claim first and the finding second. On night 88 a
+    160-character why lost the finding on 4 of 8 falsified rows (frame 59).
+    The quote stays at 160 characters, and that cut carries no notice. The
+    Critic has no call that changes the principal's row.
     """
     _db, sb = _critic(tmp_path, "ledger")
-    why = ("the parser warns on an unknown key. " * 9).strip()
-    assert 300 < len(why) < 460, len(why)
+    claim = ("the claim says the schema is silent on an unknown key, and "
+             "that no warning exists anywhere in the parse path. " * 2)
+    finding = "but parser.ts line 42 calls warnUnknownKey for each key it drops"
+    why = f"{claim}{finding}"
+    assert 280 < len(why) < 460, len(why)
+    quote = ("export function parse(input) { for (const key of keys) "
+             "warnUnknownKey(key); } " * 3).strip()
+    assert len(quote) > 160, len(quote)
 
     out = sb.call("challenge.break", citation="src/parser.ts",
-                  quote="export function parse", why=why)
+                  quote=quote, why=why)
 
     assert out["verdict"] == "falsified"
-    assert "not_shown" not in out, "the Critic's own row kept every word"
-    ledger = [c for c in sb.ctx.cuts if "ledger" in c]
-    assert ledger == [f"cut the principal's ledger row, from this verdict's "
-                      f"why: {len(why) - 160} of {len(why)} characters not "
-                      f"stored"], sb.ctx.cuts
+    ledger = [fields for table, _id, fields in sb.ctx.writes if table == "ledger"]
+    assert len(ledger) == 1, sb.ctx.writes
+    taken = ledger[0]["default_taken"]
+    assert f"-- {why}. The claim stands" in taken, taken
+    assert finding in taken, "the ledger row lost the finding"
+    assert f"\"{quote[:160]}\"" in taken, taken
+    assert quote[:161] not in taken, "the quote is not capped at 160"
+    cuts = [c for c in sb.ctx.cuts if "ledger" in c]
+    assert cuts == [f"cut the principal's ledger row, from this verdict's "
+                    f"quote: {len(quote) - 160} of {len(quote)} characters "
+                    f"not stored"], sb.ctx.cuts
     assert not any("CUT" in c for c in sb.ctx.cuts), \
         "a recorded reason is not a seat's notice"
 

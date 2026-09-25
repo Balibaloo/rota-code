@@ -7497,31 +7497,32 @@ def challenge_break(ctx: Ctx, citation: str, quote: str, why: str) -> dict:
             citation = sorted(ctx.opened)[0]
         flagged = ("evidence-flagged: no line quoted; the verdict stands "
                    "on the reader's account of what the source lacks")
+    kept_why = (why.strip() + (f" [{flagged}]" if flagged else ""))[:460]
     ctx.writes.append(("challenges", f"{table}:{row}", {
         "verdict": "falsified", "citation": citation,
         "quote": (quote or "").strip()[:300],
-        "why": (why.strip() + (f" [{flagged}]" if flagged else ""))[:460]}))
+        "why": kept_why}))
     ctx.writes.append(("ledger", _challenge_ledger_id(table, row), {
         "about_ref": f"{table}:{row}", "about_table": table,
         "default_taken": (f"the Critic falsified {table}:{row} against "
                           f"{citation}: \"{quote.strip()[:160]}\" -- "
-                          f"{why.strip()[:160]}. The claim stands in the "
+                          f"{kept_why}. The claim stands in the "
                           f"record until ruled."),
         "author": "critic"}))
     out = {"id": f"{table}:{row}", "verdict": "falsified",
            "note": "recorded, and on the principal's ledger"}
-    # The seat's notice covers the seat's own row. The ledger row derives from
-    # the same words at 160 characters, so it can be shorter than the challenge
-    # row it comes from -- the consequence section 2.7 names. That cut is
-    # recorded and carries no notice: the row is the principal's, and the Critic
-    # has no call that changes it.
+    # The seat's notice covers the seat's own row. The ledger row keeps the
+    # quote at 160 characters and the why whole, as the challenge row keeps it.
+    # The principal rules from the why. The Critic writes the claim first and
+    # the finding second, so a 160-character why lost the finding (frame 59,
+    # night 88: 4 of 8 falsified ledger rows). The quote cut is recorded and
+    # carries no notice. The row is the principal's, and the Critic has no call
+    # that changes it.
     cut = _cut_words(ctx, "the challenge row's", {
         "quote": (quote.strip(), 300),
         "why": ((why.strip() + (f" [{flagged}]" if flagged else "")), 460)})
     _cut(ctx, "the principal's ledger row, from this verdict's quote",
          160, len(quote.strip()), "characters")
-    _cut(ctx, "the principal's ledger row, from this verdict's why",
-         160, len(why.strip()), "characters")
     if cut:
         out["not_shown"] = cut
     return out
