@@ -324,6 +324,23 @@ a different question and the night is then opened once.
   existing predicate test gains an upheld row. The walk's ends-when needs
   `tick:finding_review` in `sessions`. Moved cases 0, one new Critic case.
   Pass 1 cap 100k on Opus, the mode files under `rota/roles/prompts/critic/`.
+- Status 2026-09-27 20:50 (rota-f8): **pass 1 is committed at `d0e8df5`, the route
+  holds in every run, and the new Critic case reads 0/5; pass 2 adds one
+  brief line and re-records, and the pass 1 diff review runs beside it**
+  (observed: the implementer on Opus 5.5, 155.6k on the harness line against
+  100k, 113 tool calls, 50 minutes with two gates; touched files 610 passed
+  and 1 baseline red; its gate: suite 24 failed and 2335 passed against the
+  stored 23 and 2324, new reds 1, the new case, reds gone 0, stale 0; the
+  case `L1-CR-dismiss-a-finding-on-a-falsified-constraint` 0/5 on qwen3:8b,
+  the Critic woken and one row written in all five runs, `upheld` each
+  time with the finding's location as the reason). Meta workflow. Seventeen
+  files: the table, the op, the predicate, the two conditions and the round
+  count, `mergeable`, the mode, two graph edges, the cockpit column, the
+  fixture sentence, the structural tests' pinned counts. Deviations: the
+  brief allowed one graph edge and the op needs a write edge too, no contact
+  changed; `challenge.load` did not show the falsification and now takes
+  the finding's constraint as its claim when the wake names one, stale 0.
+  Pass 2 cap 40k; reviewer cap 60k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
