@@ -341,6 +341,24 @@ a different question and the night is then opened once.
   changed; `challenge.load` did not show the falsification and now takes
   the finding's constraint as its claim when the wake names one, stale 0.
   Pass 2 cap 40k; reviewer cap 60k.
+- Status 2026-09-27 20:55 (rota-f8): **the pass 1 review confirms one high and two low
+  defects, and pass 3 takes them after pass 2** (observed: the reviewer on
+  Opus 5.5, 64.7k on the harness line against 60k, 32 tool calls, 4.3
+  minutes, three probes on copies of the night 94 fixture at `d0e8df5`).
+  Meta workflow. High: `findings.load` and `_signature_drift` do not join
+  `finding_rulings`, so the Developer woken on an upheld finding sees a
+  dismissed one as violated too and the prompt tells it to fix every one.
+  Low: at `loop_cap` upheld commits `finding_violated` stops and
+  `exhausted` reads only `test_runs`, so the batch stays running and wakes
+  nobody, a new silent stop. Low: the Developer's `finding_violated` brief
+  says the Architect found it and not that the Critic upheld it. Holds: the
+  route on the fixture, no double wake, the bound rises across heads,
+  `challenge.load` unchanged for the other modes, the ruling row at the head
+  commit, the merge and the cockpit on `dismissed`. Six rules have tests;
+  the cockpit column, the verdict key, the counter key and the stop at the
+  cap have none. Pass 3: the join in both reads, a findings branch in
+  `exhausted`, and the wake detail names the upheld finding, with the two
+  Developer finding cases re-recorded if their prompts move. Cap 50k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
