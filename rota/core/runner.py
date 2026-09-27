@@ -239,7 +239,9 @@ def _briefs_hash(instructions: str) -> str:
 DETAIL_SHOWN = {"tick:tests_missing",
                 # Which findings the Critic upheld, so the Developer knows the
                 # finding passed the Critic (frame 88, 2026-09-27).
-                "tick:finding_violated"}
+                "tick:finding_violated",
+                # Which upheld finding exhausted the loop (frame 88).
+                "tick:findings_exhausted"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,

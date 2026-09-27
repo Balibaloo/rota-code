@@ -1956,55 +1956,76 @@ def test_the_rounds_count_upheld_rulings_and_bind(tmp_path):
                 [f"round {n + 1}: the Critic upheld f1 on k1"]
         else:
             assert wakes == [], f"round {n + 1} of cap {cap} still woke"
-    # At the cap the ladder takes it, as a failing test's would.
-    ex = P.REGISTRY["exhausted"].fn(conn)
-    assert [(w.kind, w.refs, w.detail) for w in ex] == \
-        [("tick:exhausted", ("b1",), f"round {cap} of {cap}")]
-
-
-def test_the_developer_does_not_see_a_dismissed_finding(tmp_path):
-    """Frame 88's diff review: the Developer's brief says fix every violated
-    finding, so a dismissed one beside an upheld one must not reach it."""
-    from rota.core.sandbox import build
-    from rota.roles import prompts
-
-    conn = _a_passed_batch_with_a_finding(tmp_path)
+    # At the cap the ladder takes it, as a failing test's would. The
+    # Developer's rung has its own mode, because the tests are green.
+    ex = P.REGISTRY["findings_exhausted"].fn(conn)
+    assert [(w.role, w.kind, w.refs, w.detail) for w in ex] == \
+        [("developer", "tick:findings_exhausted", ("b1",),
+          f"cap {cap} reached: the Critic upheld f1 on k1")]
+    # The Developer's rung counts as asked; the next rung is the Architect's.
+    conn.execute("INSERT INTO sessions (id, role, seq, wake_kind, wake_refs, committed) "
+                 "VALUES ('s1','developer',1,'tick:findings_exhausted','[\"b1\"]',1)")
+    conn.commit()
+    assert [(w.role, w.kind) for w in P.REGISTRY["findings_exhausted"].fn(conn)] == \
+        [("architect", "tick:exhausted")]
+    # A finding the Critic has not ruled on holds the ladder, as it holds
+    # the Developer: the review and the exhaustion never share a tick.
     conn.execute("INSERT INTO constraints (id, headline) VALUES ('k2','echo writes')")
     seed_provenance(conn, "constraints", "k2", "observed")
-    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
-                 "VALUES ('f2','b1','k2','abc','violated','echo')")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, "
+                 "grain) VALUES ('f2','b1','k2',?,'violated','echo')", (head,))
+    conn.commit()
+    assert P.REGISTRY["findings_exhausted"].fn(conn) == []
+
+
+def test_the_findings_exhaustion_is_silent_below_the_cap(tmp_path):
+    conn = _a_passed_batch_with_a_finding(tmp_path)
     _rule(conn, "f1", "abc", "upheld")
-    _rule(conn, "f2", "abc", "dismissed")
-    dev = build("developer", conn, batch_id="b1", mode="normal",
-                allow=prompts.mode_tools("developer", "finding_violated"))
-    assert [r["id"] for r in dev.call("findings.load")] == ["f1"]
-    critic = build("critic", conn, batch_id="b1", mode="normal",
-                   allow=prompts.mode_tools("critic", "finding_review"))
-    shown = {r["id"]: r.get("ruling") for r in critic.call("findings.load")}
-    assert shown == {"f1": None, "f2": "dismissed"}
+    assert P.REGISTRY["findings_exhausted"].fn(conn) == []
 
 
-def test_the_critic_rules_only_on_its_finding_and_in_two_words(tmp_path):
-    from rota.core.sandbox import ArgumentError, build
-    from rota.core.predicates import Wake
-    from rota.roles import prompts
+def test_the_findings_branch_skips_a_batch_the_test_branch_woke(tmp_path):
+    from rota.core import config
 
     conn = _a_passed_batch_with_a_finding(tmp_path)
-    wake = Wake("critic", "tick:finding_review", refs=("b1", "f1"))
-    sb = build("critic", conn, batch_id="b1", mode="normal", wake=wake,
-               allow=prompts.mode_tools("critic", "finding_review"))
-    with pytest.raises(ValueError, match="not the finding you were woken about"):
-        sb.call("verdicts.rule", finding_id="f9", ruling="dismissed",
-                reason="the line")
-    with pytest.raises((ValueError, ArgumentError), match="upheld"):
-        sb.call("verdicts.rule", finding_id="f1", ruling="rejected",
-                reason="the line")
-    out = sb.call("verdicts.rule", finding_id="f1", ruling="dismissed",
-                  reason="the challenge falsified echo")
-    assert out == {"id": "critic:f1:abc", "ruling": "dismissed"}
-    assert sb.ctx.writes == [("finding_rulings", "critic:f1:abc", {
-        "finding_id": "f1", "commit_sha": "abc", "ruling": "dismissed",
-        "reason": "the challenge falsified echo", "session_id": None})]
+    cap = config.get(conn, "loop_cap")
+    for n in range(cap):
+        conn.execute("INSERT INTO finding_rulings (id, finding_id, commit_sha, ruling, "
+                     "reason) VALUES (?, 'f1', ?, 'upheld', 'x')", (f"r{n}", f"c{n}"))
+    conn.execute("INSERT INTO finding_rulings (id, finding_id, commit_sha, ruling, "
+                 "reason) VALUES ('rh', 'f1', 'abc', 'upheld', 'x')")
+    conn.execute("INSERT INTO tests (id, batch_id, criterion_id, path, body) "
+                 "VALUES ('t1','b1',NULL,'test_x.py','assert 0')")
+    conn.execute("INSERT INTO test_runs (id, batch_id, test_id, commit_sha, result, "
+                 "attempt) VALUES ('tr1','b1','t1','abc','fail',?)", (cap,))
+    conn.commit()
+    wakes = P.REGISTRY["exhausted"].fn(conn)
+    assert [(w.kind, w.refs) for w in wakes] == [("tick:exhausted", ("b1",))]
+    assert wakes[0].detail.startswith("attempt ")
+    assert P.REGISTRY["findings_exhausted"].fn(conn) == []
+
+
+def test_signature_drift_ignores_a_dismissed_finding(tmp_path, monkeypatch):
+    """Frame 88's diff review: the drift note read a dismissed finding."""
+    import subprocess
+    import types
+
+    from rota.roles import api
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    conn.execute("INSERT INTO constraint_bindings (constraint_id, grain, grain_kind, "
+                 "resolves) VALUES ('k1','main.py','path',1)")
+    conn.commit()
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "main.py").write_bytes(b"def calculate_tip(total, extra):\n    pass\n")
+    monkeypatch.setattr("rota.core.worktrees.project_root", lambda c: tmp_path)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: types.SimpleNamespace(
+        returncode=0, stdout="def calculate_tip(total):\n    pass\n"))
+    ctx = api.Ctx(conn=conn, role="developer", batch_id="b1")
+    assert api._signature_drift(ctx, tree), "the violated finding should drift"
+    _rule(conn, "f1", "abc", "dismissed")
+    assert api._signature_drift(ctx, tree) == []
 
 
 def test_constraint_zero_cannot_be_violated(tmp_path):

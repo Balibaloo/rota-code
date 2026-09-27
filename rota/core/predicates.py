@@ -916,12 +916,28 @@ def exhausted(conn) -> list[Wake]:
         if role:
             wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
                               detail=f"attempt {r['att']} of {cap}"))
+    return wakes
 
-    # The findings loop exhausts the same way. `finding_violated` goes quiet
-    # at `loop_cap` upheld rounds, and without this branch the batch stayed
-    # running and woke nobody (frame 88's diff review, 2026-09-27).
+
+@predicate("findings_exhausted", wakes=DERIVED, band="fix", derives=LADDER)
+def findings_exhausted(conn) -> list[Wake]:
+    """
+    A batch whose findings loop hit `loop_cap`: the same ladder as `exhausted`.
+
+    `finding_violated` goes quiet at `loop_cap` upheld rounds, and the batch
+    stayed running and woke nobody (frame 88's diff review, 2026-09-27). A
+    batch that `exhausted` wakes for its tests is left to that ladder.
+    """
+    from . import config
     from ..onboarding.boot import ZERO
-    woken = {w.refs[0] for w in wakes}
+
+    woken = {w.refs[0] for w in exhausted(conn)}
+    # The same hold as `exhausted`: the seat tries an answer first (law 6).
+    if conn.execute("SELECT 1 FROM messages WHERE to_role = 'developer' "
+                    "AND status = 'open' LIMIT 1").fetchone():
+        return []
+    cap = config.get(conn, "loop_cap")
+    wakes = []
     for r in conn.execute(
             "SELECT b.id AS bid, "
             "  (SELECT COUNT(DISTINCT fr.commit_sha) FROM finding_rulings fr "
@@ -931,13 +947,24 @@ def exhausted(conn) -> list[Wake]:
             "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
             f"  AND EXISTS (SELECT 1 FROM findings f WHERE {_VIOLATED_AT_HEAD} "
             f"              AND EXISTS ({_RULED_AT_HEAD} AND fr.ruling = 'upheld')) "
-            "ORDER BY b.id", (ZERO,)).fetchall():
+            # The same guard as `finding_violated`: the Critic rules on every
+            # finding at head first, so its review and this never share a tick.
+            f"  AND NOT EXISTS (SELECT 1 FROM findings f WHERE {_VIOLATED_AT_HEAD} "
+            f"                  AND NOT EXISTS ({_RULED_AT_HEAD})) "
+            "ORDER BY b.id", (ZERO, ZERO)).fetchall():
         if r["rounds"] < cap or r["bid"] in woken:
             continue                       # finding_violated still has it
         role = _next_rung(conn, r["bid"])
-        if role:
-            wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
-                              detail=f"round {r['rounds']} of {cap}"))
+        if not role:
+            continue
+        # The Developer's `exhausted` brief says the tests are red, and here
+        # they are green. So its rung has its own mode. The upper rungs' briefs
+        # speak of a batch out of loop, which holds for either loop.
+        kind = ("tick:findings_exhausted" if role == "developer"
+                else "tick:exhausted")
+        detail = _upheld_detail(conn, r["bid"], r["rounds"]).replace(
+            f"round {r['rounds']}", f"cap {cap} reached", 1)
+        wakes.append(Wake(role, kind, refs=(r["bid"],), detail=detail))
     return wakes
 
 
@@ -953,8 +980,11 @@ def _next_rung(conn, batch_id: str) -> str:
     batch. The runner stamps `wake_refs` from the wake. A message carries the
     refs the model passed. The id is quoted, so `b1` never matches `b10`.
     """
+    # `tick:findings_exhausted` is the Developer's rung of the same ladder
+    # when the findings loop ran out (frame 88), so it counts as asked.
     asked = {r["role"] for r in conn.execute(
-        "SELECT DISTINCT role FROM sessions WHERE wake_kind = 'tick:exhausted' "
+        "SELECT DISTINCT role FROM sessions WHERE wake_kind IN "
+        "('tick:exhausted', 'tick:findings_exhausted') "
         "AND committed = 1 AND wake_refs LIKE ?", (f'%"{batch_id}"%',))}
     for role in LADDER:
         if role not in asked:

@@ -140,3 +140,72 @@
   forbidden:
     writes: [constraints, findings, criteria, tests]
     recipients: [critic, tester, vision_keeper, terminologist, architect]
+
+# Frame 88 (2026-09-27): the Critic upheld one finding on `loop_cap` commits
+# and the fixes never answered it. The tests are green, so the `exhausted`
+# brief, which says they are red, is the wrong one. The Developer names the
+# finding to the Architect, who owns the constraint.
+- id: L1-DV-escalate-a-finding-the-loop-could-not-answer
+  tier: T1
+  role: developer
+  runs: 5
+  pass: 3
+  tick: findings_exhausted
+  refs: [<b1>]
+  detail: "cap 10 reached: the Critic upheld <f1> on <k1>"
+  repo:
+    batch: <b1>
+    message: "split the bill"
+    edit:
+      main.py: |
+        def calculate_share(total, tip_percentage, people):
+            tip = total * tip_percentage / 100
+            return (total + tip) / people
+
+
+        if __name__ == "__main__":
+            total = float(input("Enter total amount: "))
+            pct = float(input("Enter tip percentage: "))
+            people = int(input("How many people: "))
+            print(calculate_share(total, pct, people))
+  fixture:
+    items:
+      - {id: <i1>, text: "the bill is split between the people paying", kind: in_scope,
+         provenance: decided, approval: approved, approval_ver: 1, version: 1}
+    tickets:
+      - {id: <tk1>, item_id: <i1>, text: "split the bill"}
+    criteria:
+      - {id: <c1>, ticket_id: <tk1>,
+         text: "each person's share is the total with tip divided by the number of people",
+         term_refs: '[]', surface_refs: '["main.py::calculate_share"]'}
+    batches:
+      - {id: <b1>, item_id: <i1>, status: running, head_commit: abc123}
+    batch_tickets:
+      - {batch_id: <b1>, ticket_id: <tk1>}
+    constraints:
+      - {id: <k1>, headline: "calculate_tip is called by the main script",
+         text: "The function calculate_tip(total, tip_percentage) is called by the main script to compute the tip. If renamed or given a new required parameter, the main script fails.",
+         provenance: observed, is_global: 0}
+    constraint_bindings:
+      - {constraint_id: <k1>, grain: main.py, grain_kind: path, resolves: 1}
+    findings:
+      - {id: <f1>, batch_id: <b1>, constraint_id: <k1>, commit_sha: abc123,
+         status: violated, grain: calculate_tip}
+    # Ten upheld rulings on ten commits: the cap, reached.
+    finding_rulings:
+      - {id: <r0>, finding_id: <f1>, commit_sha: abc123, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r1>, finding_id: <f1>, commit_sha: abc001, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r2>, finding_id: <f1>, commit_sha: abc002, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r3>, finding_id: <f1>, commit_sha: abc003, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r4>, finding_id: <f1>, commit_sha: abc004, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r5>, finding_id: <f1>, commit_sha: abc005, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r6>, finding_id: <f1>, commit_sha: abc006, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r7>, finding_id: <f1>, commit_sha: abc007, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r8>, finding_id: <f1>, commit_sha: abc008, ruling: upheld, reason: "main calls calculate_tip"}
+      - {id: <r9>, finding_id: <f1>, commit_sha: abc009, ruling: upheld, reason: "main calls calculate_tip"}
+  expect:
+    messages:
+      - {to: architect, verb: escalate}
+  forbidden:
+    writes: [constraints, findings, criteria, tests]
+    recipients: [critic, tester]

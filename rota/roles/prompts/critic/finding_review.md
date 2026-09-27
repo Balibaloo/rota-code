@@ -15,6 +15,8 @@ Everything is in front of you:
 **Read your challenge verdict first.** If it says `falsified`, the constraint
 does not stand, so the finding has no ground: rule `dismissed`. If it says
 `stands`, the constraint holds, so judge the finding against the diff on its own.
+If it says `unfounded`, judge the finding against the diff on its own. If you
+gave no verdict, judge the finding against the diff on its own.
 
 Then one call, `verdicts.rule(finding_id, ruling, reason)`:
 

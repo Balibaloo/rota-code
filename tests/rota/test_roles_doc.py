@@ -175,8 +175,9 @@ def test_every_predicate_is_either_spine_or_register():
     # forced each classification before the count moved. 44 with
     # `finding_review` (spine: the Critic's ruling on a finding after its
     # pass, drained by the ruling, and the merge gate holds until then --
-    # frame 88, 2026-09-27).
-    assert len(every) == 44, (
+    # frame 88, 2026-09-27). 45 with `findings_exhausted` (spine: the
+    # findings loop's end, on the same ladder as `exhausted` -- frame 88).
+    assert len(every) == 45, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 
