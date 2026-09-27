@@ -343,6 +343,15 @@
       "label": "the mandatory branch: fail requires the claim; a no answers challenge_tester instead"
     },
     {
+      "s": "critic",
+      "t": "verdicts",
+      "type": "writes",
+      "v": "rule",
+      "n": "upheld or dismissed, on a finding filed after the pass",
+      "rows": "single",
+      "label": "ruled 2026-09-27: only the Critic reopens a green, signed-off batch"
+    },
+    {
       "s": "vision_keeper",
       "t": "tickets",
       "type": "writes",
@@ -2281,6 +2290,16 @@
       "rows": "batch",
       "depth": "index",
       "label": "what the structural review found violated on its commit"
+    },
+    {
+      "s": "critic",
+      "t": "findings",
+      "type": "reads",
+      "v": "load",
+      "n": "the finding it rules on",
+      "rows": "batch",
+      "depth": "index",
+      "label": "a finding after the Critic's pass reaches the Critic first (ruled 2026-09-27)"
     }
   ],
   "contact_exceptions": [],

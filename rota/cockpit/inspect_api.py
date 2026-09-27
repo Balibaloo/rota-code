@@ -81,6 +81,27 @@ def _show_derived_provenance(conn: sqlite3.Connection, table: str,
                 r["term_refs"] = json.dumps(terms.get(r["id"], []))
 
 
+def _show_finding_rulings(conn: sqlite3.Connection,
+                          rows: list[dict[str, Any]]) -> None:
+    """The Critic's ruling beside a violated finding, at the finding's commit.
+
+    Frame 88: a finding after the Critic's pass goes to the Critic first. A
+    violated finding with no ruling shows `awaiting the Critic`, because
+    that finding holds the batch and wakes nobody but the Critic."""
+    try:
+        ruled = {(r["finding_id"], r["commit_sha"]): r["ruling"]
+                 for r in conn.execute(
+                     "SELECT finding_id, commit_sha, ruling FROM finding_rulings")}
+    except sqlite3.Error:
+        ruled = {}
+    for r in rows:
+        if r.get("status") != "violated":
+            r["ruling"] = ""
+            continue
+        r["ruling"] = ruled.get((r.get("id"), r.get("commit_sha")),
+                                "awaiting the Critic")
+
+
 def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> dict[str, Any]:
     """Every row backing an artefact, table by table. The record itself."""
     g = graph_mod.load()
@@ -115,6 +136,9 @@ def artefact(conn: sqlite3.Connection, artefact_id: str, limit: int = 300) -> di
             rows = [dict(r) for r in conn.execute(
                 f"SELECT {', '.join(cols)} FROM {table} LIMIT {limit}")]
             _show_derived_provenance(conn, table, rows)
+            if table == "findings":
+                _show_finding_rulings(conn, rows)
+                cols = cols + ["ruling"]
             version = conn.execute(
                 "SELECT version FROM artefact_versions WHERE table_name = ?",
                 (table,)).fetchone()

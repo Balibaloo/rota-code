@@ -56,6 +56,10 @@
     findings:
       - {id: <f1>, batch_id: <b1>, constraint_id: <k1>, commit_sha: abc123,
          status: violated, grain: calculate_tip}
+    # Frame 88: the Developer wakes on a finding the Critic upheld.
+    finding_rulings:
+      - {id: "critic:<f1>:abc123", finding_id: <f1>, commit_sha: abc123,
+         ruling: upheld, reason: "the main script calls calculate_tip"}
   expect:
     calls: [findings.load, code.write, code.commit]
     # The old name comes back: the constraint holds and the criterion still does.
@@ -125,6 +129,10 @@
     findings:
       - {id: <f1>, batch_id: <b1>, constraint_id: <k1>, commit_sha: abc123,
          status: violated, grain: display_results}
+    # Frame 88: the Developer wakes on a finding the Critic upheld.
+    finding_rulings:
+      - {id: "critic:<f1>:abc123", finding_id: <f1>, commit_sha: abc123,
+         ruling: upheld, reason: "the main script calls display_results"}
   expect:
     calls: [findings.load, code.write, code.commit]
   forbidden:

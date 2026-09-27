@@ -172,8 +172,11 @@ def test_every_predicate_is_either_spine_or_register():
     # and `touch_mistaken` (spine: a stray in a batch's diff is the batch's
     # own fix loop, drained by the Architect's judgement and the Developer's
     # removal, and the merge gate holds until then -- 2026-09-13). The pin
-    # forced each classification before the count moved.
-    assert len(every) == 43, (
+    # forced each classification before the count moved. 44 with
+    # `finding_review` (spine: the Critic's ruling on a finding after its
+    # pass, drained by the ruling, and the merge gate holds until then --
+    # frame 88, 2026-09-27).
+    assert len(every) == 44, (
         f"{len(every)} predicates now, and the split in REGISTER.md was written "
         f"against 30. Classify the new one.")
 

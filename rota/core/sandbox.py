@@ -101,6 +101,8 @@ ENUMS_BY_OP: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {
                                    "ignore", "ignored", "boundary",
                                    "surface")},
     ("findings", "find"): {"status": ("satisfied", "violated")},
+    # The Critic's two answers to a finding filed after its pass (frame 88).
+    ("verdicts", "rule"): {"ruling": ("upheld", "dismissed")},
     ("tests", "triage"): {"verdict": ("encodable", "cannot", "ambiguous_word",
                                       "no_machine_check", "outside_fact",
                                       "contradicts_request")},

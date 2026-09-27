@@ -47,12 +47,16 @@ def test_s9_critic_namespace_is_review_plus_challenge(db):
     A fourth: `code.probe`, granted 2026-09-19. A challenge turns on one name,
     and the Critic could only find it by dumping a file. The probe says which
     file and which lines, and `code.source` still does the reading.
+
+    A fifth and a sixth: `findings.load` and `verdicts.rule`, granted
+    2026-09-27 (frame 88). Only the Critic can reopen a green, signed-off
+    batch, so a finding after its pass reaches the Critic first.
     """
     sb = build("critic", db)
     artefact_fns = {f for f in sb.functions() if not f.startswith("msg.")}
     assert artefact_fns == {
         "criteria.load", "tests.load", "code.read", "verdicts.emit",
-        "verdicts.claim_encodes",
+        "verdicts.claim_encodes", "findings.load", "verdicts.rule",
         "challenge.load", "challenge.uphold", "challenge.break",
         "challenge.vacuous", "code.source", "code.probe",
     }

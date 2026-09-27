@@ -5953,6 +5953,46 @@ def verdicts_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
         (bid,)))
 
 
+@op("verdicts", "rule")
+def verdicts_rule(ctx: Ctx, finding_id: str, ruling: str, reason: str) -> dict:
+    """
+    The Critic's ruling on a finding filed after its pass: `upheld` sends the
+    Developer back, `dismissed` lets the batch merge past the finding.
+
+    Ruled by Roman on 2026-09-27: only the Critic can reopen a green,
+    signed-off batch. Night 94: the Architect filed `fnd_1` against `echo`,
+    a constraint the Critic had falsified, and the Developer woke twice and
+    broke the imports. One row per finding and commit, and nothing else.
+    """
+    # The wake names the finding. The same door as `glossary.synthesise`:
+    # name the set, do not merely reject the guess.
+    named = [r for r in (ctx.wake_refs or ())[1:] if isinstance(r, str)]
+    if ctx.wake_refs and finding_id not in named:
+        raise ValueError(
+            f"{finding_id!r} is not the finding you were woken about. That is "
+            f"{', '.join(named) or 'none'}, and it is the finding this "
+            f"session exists to rule on")
+    if ruling not in ("upheld", "dismissed"):
+        raise ValueError(
+            f"{ruling!r} is not a ruling. A ruling is 'upheld', and the "
+            f"Developer answers the finding, or 'dismissed', and the finding "
+            f"does not hold the merge")
+    if not (reason or "").strip():
+        raise ValueError(
+            "a ruling carries its reason: the line or the verdict that "
+            "decided it")
+    row = ctx.conn.execute(
+        "SELECT batch_id FROM findings WHERE id = ?", (finding_id,)).fetchone()
+    if not row:
+        raise ValueError(f"{finding_id!r} is not a finding on file")
+    commit = _head_commit(ctx, row["batch_id"])
+    id = f"{ctx.role}:{finding_id}:{commit}"
+    ctx.writes.append(("finding_rulings", id, {
+        "finding_id": finding_id, "commit_sha": commit, "ruling": ruling,
+        "reason": reason, "session_id": ctx.session_id or None}))
+    return {"id": id, "ruling": ruling}
+
+
 # ---------------------------------------------------------------------------
 # schedule (derived, with one exception)
 # ---------------------------------------------------------------------------
@@ -7348,10 +7388,18 @@ def challenge_load(ctx: Ctx) -> dict:
     """
     import json as _json
 
-    try:
-        table, row = _claim_of(ctx)
-    except ValueError as e:
-        return {"note": str(e)}
+    # A finding review names a batch and a finding, and no claim. The claim is
+    # the finding's constraint, and the Critic's own verdict on it travels
+    # beside it. Night 94: `fnd_1` stood on `echo`, which the Critic had
+    # falsified in s78, and no op showed the Critic that fact (frame 88).
+    finding = _finding_of_wake(ctx)
+    if finding is not None:
+        table, row = "constraints", finding["constraint_id"]
+    else:
+        try:
+            table, row = _claim_of(ctx)
+        except ValueError as e:
+            return {"note": str(e)}
     cols = _CLAIM_TABLES[table]
     r = ctx.conn.execute(
         f"SELECT * FROM {table} WHERE id = ?", (row,)).fetchone()
@@ -7393,10 +7441,33 @@ def challenge_load(ctx: Ctx) -> dict:
         ctx.opened.add(_grain_path(rel))
         if getattr(ctx, "read_idents", None) is not None:
             ctx.read_idents.update(_idents_in(body[:cap]))
-    return {"claim": f"[{table}:{row}] {claim}",
-            "cited": cited,
-            "sources": (chr(10) + chr(10)).join(parts) if parts else
-                       "the claim cites nothing -- open what would decide it"}
+    out = {"claim": f"[{table}:{row}] {claim}",
+           "cited": cited,
+           "sources": (chr(10) + chr(10)).join(parts) if parts else
+                      "the claim cites nothing -- open what would decide it"}
+    # Only on a finding review, so the challenge mode's result keeps its shape
+    # and no recorded prompt moves.
+    if finding is not None:
+        c = ctx.conn.execute(
+            "SELECT verdict, citation, quote, why FROM challenges WHERE id = ?",
+            (f"{table}:{row}",)).fetchone()
+        out["your challenge verdict"] = (
+            {k: c[k] for k in ("verdict", "citation", "quote", "why")} if c
+            else "you have not challenged this claim")
+    return out
+
+
+def _finding_of_wake(ctx: Ctx):
+    """The finding a `tick:finding_review` wake names, or None.
+
+    The wake's refs are `(batch_id, finding_id)`. Any other wake names a
+    claim first, and a claim ref is never a finding id."""
+    refs = [r for r in (ctx.wake_refs or ()) if isinstance(r, str)]
+    if len(refs) < 2:
+        return None
+    return ctx.conn.execute(
+        "SELECT id, batch_id, constraint_id FROM findings WHERE id = ? "
+        "AND batch_id = ?", (refs[1], refs[0])).fetchone()
 
 
 def _not_a_citation(ctx: Ctx, citation: str, verdict: str) -> str:

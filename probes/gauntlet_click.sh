@@ -76,7 +76,7 @@ fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 1 ]; then
 echo "== walk 1 $(date +%H:%M)"
-WALK_PHASE="sentence 1" python "$W" clickI "Add an echo_json(obj, indent=2) helper next to echo that prints an object as JSON." "keep it to the standard library json module, no new dependency" 250
+WALK_PHASE="sentence 1" python "$W" clickI "Add an echo_json(obj) helper next to echo that prints an object as compact JSON on one line, followed by a newline." "keep it to the standard library json module, no new dependency" 250
 fi
 ollama_up
 if [ "${GAUNTLET_FROM:-1}" -le 2 ]; then

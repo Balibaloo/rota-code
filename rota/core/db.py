@@ -65,7 +65,7 @@ TABLES_OF_ARTEFACT: dict[str, tuple[str, ...]] = {
     "tests":      ("tests",),
     "ledger":     ("ledger",),
     "decisions":  ("decisions",),
-    "verdicts":   ("verdicts",),
+    "verdicts":   ("verdicts", "finding_rulings"),
     # The Researcher's whole artefact, and the only one it may write. A row here
     # is inert until a role that owns something cites it, which is what makes
     # "the internet cannot widen the model" structural rather than a rule.

@@ -494,9 +494,15 @@ def mergeable(conn: sqlite3.Connection, batch_id: str) -> str | None:
         return "no structural review yet"
 
     from ..onboarding.boot import ZERO
+    # A finding the Critic dismissed at this commit does not hold the merge.
+    # Ruled by Roman on 2026-09-27: only the Critic can reopen a green,
+    # signed-off batch, so its dismissal closes the finding at this commit.
     violated = conn.execute(
-        "SELECT COUNT(*) AS n FROM findings WHERE batch_id = ? AND commit_sha = ? "
-        "  AND status = 'violated' AND constraint_id != ?",
+        "SELECT COUNT(*) AS n FROM findings f WHERE f.batch_id = ? "
+        "  AND f.commit_sha = ? AND f.status = 'violated' AND f.constraint_id != ? "
+        "  AND NOT EXISTS (SELECT 1 FROM finding_rulings fr "
+        "                  WHERE fr.finding_id = f.id AND fr.commit_sha = f.commit_sha "
+        "                    AND fr.ruling = 'dismissed')",
         (batch_id, head, ZERO)).fetchone()["n"]
     if violated:
         return f"{violated} constraint(s) violated"

@@ -1129,6 +1129,39 @@ def review(conn) -> list[Wake]:
     return [Wake("critic", "tick:review", refs=(r["bid"],)) for r in rows]
 
 
+# A violated finding at the head commit, on a real constraint. Shared by the
+# Critic's wake and the Developer's, so the two never disagree on which
+# findings count.
+_VIOLATED_AT_HEAD = (
+    "f.batch_id = b.id AND f.commit_sha = b.head_commit "
+    "AND f.status = 'violated' AND f.constraint_id != ?")
+_RULED_AT_HEAD = (
+    "SELECT 1 FROM finding_rulings fr WHERE fr.finding_id = f.id "
+    "AND fr.commit_sha = b.head_commit")
+
+
+@predicate("finding_review", wakes="critic", band="gate")
+def finding_review(conn) -> list[Wake]:
+    """A violated finding at the head commit that the Critic has not ruled on.
+
+    Ruled by Roman on 2026-09-27: only the Critic can reopen a green,
+    signed-off batch. Night 94: the Architect filed `fnd_1` against `echo`
+    after the Critic's pass, on a constraint the Critic had falsified. The
+    Developer woke twice, broke the imports, and the batch never merged.
+    Every finding comes after a pass, so every finding reaches the Critic
+    first. One wake per finding: the ruling is per finding and commit."""
+    from ..onboarding.boot import ZERO
+
+    rows = conn.execute(
+        "SELECT b.id AS bid, f.id AS fid FROM batches b JOIN findings f "
+        f"  ON {_VIOLATED_AT_HEAD} "
+        "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+        f"  AND NOT EXISTS ({_RULED_AT_HEAD}) "
+        "ORDER BY b.id, f.id", (ZERO,)).fetchall()
+    return [Wake("critic", "tick:finding_review", refs=(r["bid"], r["fid"]))
+            for r in rows]
+
+
 @predicate("structural_review", wakes="architect", band="gate")
 def structural_review(conn) -> list[Wake]:
     """A diff whose grains intersect constraint bindings, after intent passed.
@@ -1184,6 +1217,13 @@ def finding_violated(conn) -> list[Wake]:
     reads again, or by an escalation to the Architect who owns the
     constraint. Capped like the test loop: `loop_cap` commits with a
     violated finding on them, then the batch is exhausted.
+
+    Frame 88 (ruled by Roman, 2026-09-27): only the Critic's fresh verdict
+    sends the Developer back. So the Developer wakes on a finding the
+    Critic upheld at the head commit, and only once the Critic has ruled
+    on every violated finding there. The rounds count the commits with an
+    upheld ruling. The old count read `findings`, and it never bound,
+    because `findings.find` overwrites a finding's row by id.
     """
     from . import config
     from ..onboarding.boot import ZERO
@@ -1191,14 +1231,15 @@ def finding_violated(conn) -> list[Wake]:
     cap = config.get(conn, "loop_cap")
     rows = conn.execute(
         "SELECT b.id AS bid, "
-        "  (SELECT COUNT(DISTINCT f2.commit_sha) FROM findings f2 "
-        "   WHERE f2.batch_id = b.id AND f2.status = 'violated' "
-        "   AND f2.constraint_id != ?) AS rounds "
+        "  (SELECT COUNT(DISTINCT fr.commit_sha) FROM finding_rulings fr "
+        "   JOIN findings f2 ON f2.id = fr.finding_id "
+        "   WHERE f2.batch_id = b.id AND fr.ruling = 'upheld') AS rounds "
         "FROM batches b "
         "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
-        "  AND EXISTS (SELECT 1 FROM findings f WHERE f.batch_id = b.id "
-        "              AND f.commit_sha = b.head_commit AND f.status = 'violated' "
-        "              AND f.constraint_id != ?) "
+        f"  AND EXISTS (SELECT 1 FROM findings f WHERE {_VIOLATED_AT_HEAD} "
+        f"              AND EXISTS ({_RULED_AT_HEAD} AND fr.ruling = 'upheld')) "
+        f"  AND NOT EXISTS (SELECT 1 FROM findings f WHERE {_VIOLATED_AT_HEAD} "
+        f"                  AND NOT EXISTS ({_RULED_AT_HEAD})) "
         "  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.from_role = 'developer' "
         "                  AND m.verb = 'escalate' AND m.status = 'open' "
         "                  AND m.body_refs LIKE '%' || b.id || '%') "

@@ -597,6 +597,24 @@ CREATE TABLE IF NOT EXISTS verdicts (
     version           INTEGER NOT NULL DEFAULT 1
 );
 
+-- The Critic's ruling on a finding filed after its pass. Ruled by Roman on
+-- 2026-09-27: only the Critic can reopen a green, signed-off batch. A
+-- `verdicts` row cannot hold the ruling, because its id is one per commit and
+-- a second row would overwrite the pass. Keyed by finding and commit, because
+-- `findings.find` overwrites a finding's row by id across commits.
+-- `finding_id` carries no foreign key: `findings` is the Architect's artefact,
+-- and a key across the boundary would need a cascade edge nobody needs.
+CREATE TABLE IF NOT EXISTS finding_rulings (
+    id          TEXT PRIMARY KEY,
+    finding_id  TEXT NOT NULL,
+    commit_sha  TEXT NOT NULL,
+    ruling      TEXT NOT NULL CHECK (ruling IN ('upheld','dismissed')),
+    reason      TEXT NOT NULL,
+    session_id  TEXT,
+    at          TEXT NOT NULL DEFAULT (datetime('now')),
+    version     INTEGER NOT NULL DEFAULT 1
+);
+
 -- ---------------------------------------------------------------------------
 -- Runtime: messages, sessions, receipts, checkpoints, claims.
 -- ---------------------------------------------------------------------------

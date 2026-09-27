@@ -204,11 +204,12 @@ researcher (question), terminologist (question).
 
 **Never fixes anything**, and holds the narrowest namespace in the system:
 criteria, tests, code, a verdict and two challenges. A fail names its criterion
-and stops.
+and stops. It also reads the findings, and rules `upheld` or `dismissed` on a
+finding filed after its pass (ruled: Roman, 2026-09-27).
 
 **Reaches** developer (challenge), tester (challenge).
 
-**Woken by** challenge, review.
+**Woken by** challenge, finding_review, review.
 
 **Work nobody asked for is the one judgement a verdict cannot carry** — a fail
 names the criterion it fails, and an unrequested change satisfies every criterion

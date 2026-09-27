@@ -1835,6 +1835,9 @@ def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
     seed_provenance(conn, "constraints", "k1", "observed")
     conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                  "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
+    # Frame 88: the Developer wakes only on a finding the Critic upheld.
+    conn.execute("INSERT INTO finding_rulings (id, finding_id, commit_sha, ruling, "
+                 "reason) VALUES ('r1','f1','abc','upheld','main calls it')")
     conn.commit()
     fn = REGISTRY["finding_violated"].fn
     assert [(w.role, w.kind, w.refs) for w in fn(conn)] == \
@@ -1847,12 +1850,134 @@ def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
     # escalation to the Architect holds it.
     conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
                  "VALUES ('f2','b1','k1','def','violated','calculate_tip')")
+    conn.execute("INSERT INTO finding_rulings (id, finding_id, commit_sha, ruling, "
+                 "reason) VALUES ('r2','f2','def','upheld','main calls it')")
     conn.commit()
     assert fn(conn)[0].detail == "round 2"
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
                  "seq) VALUES ('m1','t','developer','architect','escalate','[\"b1\",\"f2\"]',1)")
     conn.commit()
     assert fn(conn) == []
+
+
+def _a_passed_batch_with_a_finding(tmp_path):
+    """Night 94's shape: tests green, the Critic passed, then a finding."""
+    conn = init_db(tmp_path / "r.db")
+    conn.execute("INSERT INTO items (id, text, kind, approval, approval_ver, "
+                 "version) VALUES ('i1','split the bill','in_scope','approved',1,1)")
+    conn.execute("INSERT INTO batches (id, item_id, status, head_commit) "
+                 "VALUES ('b1','i1','running','abc')")
+    conn.execute("INSERT INTO verdicts (id, batch_id, commit_sha, result) "
+                 "VALUES ('critic:b1:abc','b1','abc','pass')")
+    conn.execute("INSERT INTO constraints (id, headline) VALUES "
+                 "('k1','calculate_tip is used by main')")
+    seed_provenance(conn, "constraints", "k1", "observed")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f1','b1','k1','abc','violated','calculate_tip')")
+    conn.commit()
+    return conn
+
+
+def _rule(conn, fid, commit, ruling, rid=None):
+    conn.execute("INSERT OR REPLACE INTO finding_rulings (id, finding_id, commit_sha, "
+                 "ruling, reason) VALUES (?,?,?,?,'the line')",
+                 (rid or f"critic:{fid}:{commit}", fid, commit, ruling))
+    conn.commit()
+
+
+def _wakes(conn, name):
+    return [(w.role, w.kind, w.refs) for w in P.REGISTRY[name].fn(conn)]
+
+
+def test_a_finding_with_no_ruling_wakes_the_critic_and_not_the_developer(tmp_path):
+    """Ruled 2026-09-27: a finding after the Critic's pass goes to the
+    Critic first. Night 94: `fnd_1` woke the Developer twice."""
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    assert _wakes(conn, "finding_review") == \
+        [("critic", "tick:finding_review", ("b1", "f1"))]
+    assert _wakes(conn, "finding_violated") == []
+    assert P.REGISTRY["finding_review"].band == P.REGISTRY["review"].band
+
+
+def test_an_upheld_finding_wakes_the_developer(tmp_path):
+    from rota.core import lifecycle
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    _rule(conn, "f1", "abc", "upheld")
+    assert _wakes(conn, "finding_review") == []
+    assert _wakes(conn, "finding_violated") == \
+        [("developer", "tick:finding_violated", ("b1",))]
+    assert "violated" in (lifecycle.mergeable(conn, "b1") or "")
+
+
+def test_a_dismissed_finding_wakes_nobody_and_the_merge_holds(tmp_path):
+    from rota.core import lifecycle
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    _rule(conn, "f1", "abc", "dismissed")
+    assert _wakes(conn, "finding_review") == []
+    assert _wakes(conn, "finding_violated") == []
+    assert lifecycle.mergeable(conn, "b1") is None
+
+
+def test_the_developer_waits_until_every_finding_is_ruled(tmp_path):
+    """Revision 2, point 3: the Critic rules on every finding before the
+    Developer sees any."""
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    conn.execute("INSERT INTO constraints (id, headline) VALUES ('k2','echo writes')")
+    seed_provenance(conn, "constraints", "k2", "observed")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f2','b1','k2','abc','violated','echo')")
+    _rule(conn, "f1", "abc", "upheld")
+    assert _wakes(conn, "finding_violated") == []
+    assert _wakes(conn, "finding_review") == \
+        [("critic", "tick:finding_review", ("b1", "f2"))]
+    _rule(conn, "f2", "abc", "dismissed")
+    assert _wakes(conn, "finding_violated") == \
+        [("developer", "tick:finding_violated", ("b1",))]
+
+
+def test_the_rounds_count_upheld_rulings_and_bind(tmp_path):
+    """Revision 2, point 2: the old count read `findings`, and one row
+    overwritten by id across commits never counted past one."""
+    from rota.core import config
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    cap = config.get(conn, "loop_cap")
+    for n in range(cap):
+        head = f"c{n}"
+        conn.execute("UPDATE batches SET head_commit = ? WHERE id = 'b1'", (head,))
+        # `findings.find` overwrites the row: one row, a new commit.
+        conn.execute("UPDATE findings SET commit_sha = ? WHERE id = 'f1'", (head,))
+        _rule(conn, "f1", head, "upheld")
+        wakes = P.REGISTRY["finding_violated"].fn(conn)
+        if n + 1 < cap:
+            assert [w.detail for w in wakes] == [f"round {n + 1}"]
+        else:
+            assert wakes == [], f"round {n + 1} of cap {cap} still woke"
+
+
+def test_the_critic_rules_only_on_its_finding_and_in_two_words(tmp_path):
+    from rota.core.sandbox import ArgumentError, build
+    from rota.core.predicates import Wake
+    from rota.roles import prompts
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    wake = Wake("critic", "tick:finding_review", refs=("b1", "f1"))
+    sb = build("critic", conn, batch_id="b1", mode="normal", wake=wake,
+               allow=prompts.mode_tools("critic", "finding_review"))
+    with pytest.raises(ValueError, match="not the finding you were woken about"):
+        sb.call("verdicts.rule", finding_id="f9", ruling="dismissed",
+                reason="the line")
+    with pytest.raises((ValueError, ArgumentError), match="upheld"):
+        sb.call("verdicts.rule", finding_id="f1", ruling="rejected",
+                reason="the line")
+    out = sb.call("verdicts.rule", finding_id="f1", ruling="dismissed",
+                  reason="the challenge falsified echo")
+    assert out == {"id": "critic:f1:abc", "ruling": "dismissed"}
+    assert sb.ctx.writes == [("finding_rulings", "critic:f1:abc", {
+        "finding_id": "f1", "commit_sha": "abc", "ruling": "dismissed",
+        "reason": "the challenge falsified echo", "session_id": None})]
 
 
 def test_constraint_zero_cannot_be_violated(tmp_path):

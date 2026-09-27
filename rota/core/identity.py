@@ -92,6 +92,8 @@ NATURAL_KEYS: dict[str, tuple[str, str]] = {
                           "cycle"),
     "decisions": ("journal", "reasons as given"),
     "verdicts": ("journal", "one judgement of one commit"),
+    "finding_rulings": ("journal", "one ruling on one finding at one commit; "
+                                   "verdicts.rule derives the id from both"),
     "test_runs": ("journal", "one execution, one row"),
     "survey_records": ("journal", "attestations; the latest whose hash still "
                                   "matches is the live one"),
