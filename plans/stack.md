@@ -439,6 +439,14 @@ a different question and the night is then opened once.
   113.6k, design review 90.7k, four passes 216.2k on Opus against 80k, four
   diff reviews 214.1k against 50k each; about 45 minutes of GPU. Register
   lines: none.
+- Status 2026-09-27 22:42 (rota-f8): **night 95 runs for this frame's walk and for
+  frames 86 and 59, as the one GPU run Roman allowed under the pause**
+  (ruled: Roman, in the terminal, "gpu pause isnt lifted but do one more
+  gpu run"; observed: `.rota/night95.log`, launched 22:42 cold from
+  `C:/Users/roman/rota_night95` at `4840fda`). Meta workflow. Copy
+  `.rota/clickI.db` to `.rota/clickI_night95.db` when `GAUNTLET-DONE`
+  prints, about three to four hours. The pause holds after the night: no
+  re-record and no second night until Roman lifts it.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
