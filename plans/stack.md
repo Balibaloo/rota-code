@@ -296,6 +296,19 @@ a different question and the night is then opened once.
   Critic, and the fixture's test and criterion on the format; record
   `plans/archive/frame88-scope-2026-09-27.md`, cap 80k. Then the design
   review, then one implementer.
+- Status 2026-09-27 19:54 (rota-f8): **the scope read and the design record are
+  written, and the design review runs on Opus** (observed: the scope agent on
+  Opus 5.5, 113.6k on the harness line against 80k, 43 tool calls, 6 minutes,
+  record `plans/archive/frame88-scope-2026-09-27.md`; the design record
+  `plans/archive/frame88-design-2026-09-27.md`, revision 1, written here).
+  Meta workflow. Every Architect finding comes after a Critic pass, so the
+  ruling routes every post-pass finding through the Critic: a new predicate
+  `finding_review` wakes the Critic, a new Critic mode rules `upheld` or
+  `dismissed` through one new op into one new table, `finding_violated`
+  wakes the Developer only on `upheld`, and `mergeable` skips a dismissed
+  finding. No recorded prompt moves; one Critic case records live. The
+  fixture's ticket sentence names the format, in this frame, against the
+  read's advice, because the frame exists for the merge. Reviewer cap 60k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
