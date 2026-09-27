@@ -359,6 +359,17 @@ a different question and the night is then opened once.
   cap have none. Pass 3: the join in both reads, a findings branch in
   `exhausted`, and the wake detail names the upheld finding, with the two
   Developer finding cases re-recorded if their prompts move. Cap 50k.
+- Status 2026-09-27 21:10 (rota-f8): **pass 2 is committed at `b95623d`, the Critic
+  case reads 5/5, and pass 3 runs** (observed: the resumed implementer,
+  159.5k on the harness line after 155.6k, so about 4k, 8 tool calls; the
+  case re-recorded with `ROTA_REFRESH=1` on qwen3:8b, `dismissed` in all
+  five runs; its gate: new reds 6, all six flaky and passed on the rerun,
+  stale 0). Meta workflow. One paragraph in the new mode's brief reads the
+  Critic's own verdict first: `falsified` dismisses, `stands` judges the
+  finding on its own; the implementer wrote `stands` where the message said
+  `upheld`, because `stands` is the word the challenge table holds and
+  `upheld` is a ruling. The reason the model gives is a file location, not
+  the verdict, and the case does not check it. Pass 3 cap 50k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
