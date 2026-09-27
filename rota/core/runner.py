@@ -236,7 +236,10 @@ def _briefs_hash(instructions: str) -> str:
 # bracketed list to a bare one (click night 47, 2026-09-14), on a wake no
 # register case carries the live detail of. A kind joins this set with a
 # case that carries its detail (`detail:` in the case file).
-DETAIL_SHOWN = {"tick:tests_missing"}
+DETAIL_SHOWN = {"tick:tests_missing",
+                # Which findings the Critic upheld, so the Developer knows the
+                # finding passed the Critic (frame 88, 2026-09-27).
+                "tick:finding_violated"}
 
 
 def compose_system(role: str, sb: sandbox_mod.Sandbox, *, instructions: str,

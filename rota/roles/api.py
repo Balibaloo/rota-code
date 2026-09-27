@@ -2504,9 +2504,24 @@ def findings_load(ctx: Ctx, batch_id: str | None = None) -> list[dict]:
     constraint violated on the previous commit is exactly what you want to know
     is still violated."""
     bid = batch_id or ctx.batch_id
-    return _rows(ctx.conn.execute(
-        "SELECT id, constraint_id, commit_sha, status, grain FROM findings "
-        "WHERE batch_id = ? ORDER BY id", (bid,)))
+    rows = _rows(ctx.conn.execute(
+        "SELECT f.id, f.constraint_id, f.commit_sha, f.status, f.grain, "
+        "  (SELECT fr.ruling FROM finding_rulings fr WHERE fr.finding_id = f.id "
+        "   AND fr.commit_sha = f.commit_sha) AS ruling "
+        "FROM findings f WHERE f.batch_id = ? ORDER BY f.id", (bid,)))
+    # The Critic dismissed it, so it holds nothing (ruled: Roman, 2026-09-27).
+    # The Developer's brief says fix every violated finding, so a dismissed
+    # one stays out of its sight. Any other reader sees the label. The key
+    # appears on a dismissed row only, so every other result keeps its shape.
+    out = []
+    for r in rows:
+        ruling = r.pop("ruling", None)
+        if ruling == "dismissed":
+            if ctx.role == "developer":
+                continue
+            r["ruling"] = ruling
+        out.append(r)
+    return out
 
 
 @op("findings", "find")
@@ -9076,7 +9091,10 @@ def _signature_drift(ctx: Ctx, tree) -> list[str]:
         "SELECT f.grain, f.constraint_id, b.grain AS path FROM findings f "
         "JOIN constraint_bindings b ON b.constraint_id = f.constraint_id "
         "WHERE f.batch_id = ? AND f.commit_sha = ? AND f.status = 'violated' "
-        "AND b.grain_kind = 'path'",
+        "AND b.grain_kind = 'path' "
+        # A finding the Critic dismissed holds nothing (frame 88).
+        "AND NOT EXISTS (SELECT 1 FROM finding_rulings fr WHERE fr.finding_id = f.id "
+        "  AND fr.commit_sha = f.commit_sha AND fr.ruling = 'dismissed')",
         (ctx.batch_id, batch["head_commit"])).fetchall()
     try:
         root = _wt.project_root(ctx.conn)

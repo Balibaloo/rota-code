@@ -12,6 +12,7 @@
   pass: 3
   tick: finding_violated
   refs: [<b1>]
+  detail: "round 1: the Critic upheld <f1> on <k1>"
   repo:
     batch: <b1>
     message: "split the bill"
@@ -83,6 +84,7 @@
   pass: 3
   tick: finding_violated
   refs: [<b1>]
+  detail: "round 1: the Critic upheld <f1> on <k1>"
   repo:
     batch: <b1>
     message: "split the bill"

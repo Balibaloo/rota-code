@@ -916,6 +916,28 @@ def exhausted(conn) -> list[Wake]:
         if role:
             wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
                               detail=f"attempt {r['att']} of {cap}"))
+
+    # The findings loop exhausts the same way. `finding_violated` goes quiet
+    # at `loop_cap` upheld rounds, and without this branch the batch stayed
+    # running and woke nobody (frame 88's diff review, 2026-09-27).
+    from ..onboarding.boot import ZERO
+    woken = {w.refs[0] for w in wakes}
+    for r in conn.execute(
+            "SELECT b.id AS bid, "
+            "  (SELECT COUNT(DISTINCT fr.commit_sha) FROM finding_rulings fr "
+            "   JOIN findings f2 ON f2.id = fr.finding_id "
+            "   WHERE f2.batch_id = b.id AND fr.ruling = 'upheld') AS rounds "
+            "FROM batches b "
+            "WHERE b.status = 'running' AND b.head_commit IS NOT NULL "
+            f"  AND EXISTS (SELECT 1 FROM findings f WHERE {_VIOLATED_AT_HEAD} "
+            f"              AND EXISTS ({_RULED_AT_HEAD} AND fr.ruling = 'upheld')) "
+            "ORDER BY b.id", (ZERO,)).fetchall():
+        if r["rounds"] < cap or r["bid"] in woken:
+            continue                       # finding_violated still has it
+        role = _next_rung(conn, r["bid"])
+        if role:
+            wakes.append(Wake(role, "tick:exhausted", refs=(r["bid"],),
+                              detail=f"round {r['rounds']} of {cap}"))
     return wakes
 
 
@@ -1245,8 +1267,25 @@ def finding_violated(conn) -> list[Wake]:
         "                  AND m.body_refs LIKE '%' || b.id || '%') "
         "ORDER BY b.id", (ZERO, ZERO)).fetchall()
     return [Wake("developer", "tick:finding_violated", refs=(r["bid"],),
-                 detail=f"round {r['rounds']}")
+                 detail=_upheld_detail(conn, r["bid"], r["rounds"]))
             for r in rows if (r["rounds"] or 1) < cap]
+
+
+def _upheld_detail(conn, batch_id: str, rounds: int) -> str:
+    """The round, and which findings the Critic upheld at the head commit.
+
+    The Developer's brief says the Architect found the violation. Since frame
+    88 the Critic upholds a finding before the Developer sees it, so the wake
+    says so (frame 88's diff review, 2026-09-27)."""
+    upheld = conn.execute(
+        "SELECT f.id AS fid, f.constraint_id AS cid FROM findings f "
+        "JOIN batches b ON b.id = f.batch_id AND f.commit_sha = b.head_commit "
+        "JOIN finding_rulings fr ON fr.finding_id = f.id "
+        "  AND fr.commit_sha = f.commit_sha AND fr.ruling = 'upheld' "
+        "WHERE f.batch_id = ? AND f.status = 'violated' ORDER BY f.id",
+        (batch_id,)).fetchall()
+    named = ", ".join(f"{u['fid']} on {u['cid']}" for u in upheld)
+    return f"round {rounds}: the Critic upheld {named}"
 
 
 @predicate("cancel", wakes=SCHEDULER, band="fix",

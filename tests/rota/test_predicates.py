@@ -1853,7 +1853,7 @@ def test_a_violated_finding_wakes_the_developer_until_answered(tmp_path):
     conn.execute("INSERT INTO finding_rulings (id, finding_id, commit_sha, ruling, "
                  "reason) VALUES ('r2','f2','def','upheld','main calls it')")
     conn.commit()
-    assert fn(conn)[0].detail == "round 2"
+    assert fn(conn)[0].detail == "round 2: the Critic upheld f2 on k1"
     conn.execute("INSERT INTO messages (id, thread_id, from_role, to_role, verb, body_refs, "
                  "seq) VALUES ('m1','t','developer','architect','escalate','[\"b1\",\"f2\"]',1)")
     conn.commit()
@@ -1952,9 +1952,36 @@ def test_the_rounds_count_upheld_rulings_and_bind(tmp_path):
         _rule(conn, "f1", head, "upheld")
         wakes = P.REGISTRY["finding_violated"].fn(conn)
         if n + 1 < cap:
-            assert [w.detail for w in wakes] == [f"round {n + 1}"]
+            assert [w.detail for w in wakes] == \
+                [f"round {n + 1}: the Critic upheld f1 on k1"]
         else:
             assert wakes == [], f"round {n + 1} of cap {cap} still woke"
+    # At the cap the ladder takes it, as a failing test's would.
+    ex = P.REGISTRY["exhausted"].fn(conn)
+    assert [(w.kind, w.refs, w.detail) for w in ex] == \
+        [("tick:exhausted", ("b1",), f"round {cap} of {cap}")]
+
+
+def test_the_developer_does_not_see_a_dismissed_finding(tmp_path):
+    """Frame 88's diff review: the Developer's brief says fix every violated
+    finding, so a dismissed one beside an upheld one must not reach it."""
+    from rota.core.sandbox import build
+    from rota.roles import prompts
+
+    conn = _a_passed_batch_with_a_finding(tmp_path)
+    conn.execute("INSERT INTO constraints (id, headline) VALUES ('k2','echo writes')")
+    seed_provenance(conn, "constraints", "k2", "observed")
+    conn.execute("INSERT INTO findings (id, batch_id, constraint_id, commit_sha, status, grain) "
+                 "VALUES ('f2','b1','k2','abc','violated','echo')")
+    _rule(conn, "f1", "abc", "upheld")
+    _rule(conn, "f2", "abc", "dismissed")
+    dev = build("developer", conn, batch_id="b1", mode="normal",
+                allow=prompts.mode_tools("developer", "finding_violated"))
+    assert [r["id"] for r in dev.call("findings.load")] == ["f1"]
+    critic = build("critic", conn, batch_id="b1", mode="normal",
+                   allow=prompts.mode_tools("critic", "finding_review"))
+    shown = {r["id"]: r.get("ruling") for r in critic.call("findings.load")}
+    assert shown == {"f1": None, "f2": "dismissed"}
 
 
 def test_the_critic_rules_only_on_its_finding_and_in_two_words(tmp_path):
