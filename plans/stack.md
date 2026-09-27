@@ -447,6 +447,14 @@ a different question and the night is then opened once.
   `.rota/clickI.db` to `.rota/clickI_night95.db` when `GAUNTLET-DONE`
   prints, about three to four hours. The pause holds after the night: no
   re-record and no second night until Roman lifts it.
+- Status 2026-09-27 23:11 (rota-f8): **night 95 stopped at Roman's word in its
+  onboarding, 28 minutes in, and the GPU pause holds** (ruled: Roman, in
+  the terminal, "ok then stop", after hearing three hours remained;
+  observed: the launcher, the gauntlet script and both `walk.py` processes
+  ended at 23:1x, none left). Meta workflow. The night proved nothing:
+  no walk ran. The walk for frames 86, 59 and 88 is still owed, a full
+  night at `4840fda` or later, when Roman lifts the pause. The worktree
+  `C:/Users/roman/rota_night95` and `.rota/launch_night95.sh` stay ready.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
