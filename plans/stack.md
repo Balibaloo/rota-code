@@ -402,6 +402,23 @@ a different question and the night is then opened once.
   on an amended constraint, a reading and not a run. Pass 4 cap 60k.
   Night 95's worktree at `C:/Users/roman/rota_night95` and
   `.rota/launch_night95.sh` are ready and move to the closing commit.
+- Status 2026-09-27 22:38 (rota-f8): **pass 4 is committed at `4840fda`, its review
+  runs, and GPU work is paused on Roman's word** (ruled: Roman, in the
+  terminal at about {now[11:]}, "pause gpu work until i say so"; observed: the
+  resumed implementer, 216.2k on the harness line after 183.5k, so about
+  33k, 43 tool calls; the two live recordings ended before the order;
+  touched files 521 passed and 1 baseline red; its gate, 805 s: suite 26
+  failed and 2341 passed against the stored 23 and 2324, new reds 3, one
+  its own fixture test fixed after the gate and replayed, one flaky, one
+  the parameters-defaults case, stale 1, that case). Meta workflow. A new
+  predicate `findings_exhausted` on the ladder, the Developer's rung on its
+  own kind and mode with `findings.load`, the guard, the clamped detail, the
+  Critic paragraph's two sentences; the new case
+  `L1-DV-escalate-a-finding-the-loop-could-not-answer` 4/5, the Critic case
+  5/5 on refresh. Owed after the pause lifts: night 95 from the closing
+  commit; the parameters-defaults case's run 5, frame 84's. Reviewer cap
+  40k, no live call. Actual so far: four passes 216.2k on Opus against 80k;
+  three diff reviews 166.5k against 50k each.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
