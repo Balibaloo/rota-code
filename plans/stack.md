@@ -547,6 +547,11 @@ a different question and the night is then opened once.
   never started; the final page leaves out `bg_3`, which pass 4's parked
   line repairs. No running batch sat past its cap. Passes 3 to 5 do not
   touch the quarantined key.
+- Status 2026-09-27 19:12 (rota-f8): **ruled: the baseline is rewritten now with the
+  cite red stored, and `--baseline` runs on the tree at `b02918d`** (ruled:
+  Roman, in the grill, asked as a story with this option recommended and
+  "leave the list alone" as the other). Meta workflow. Frame 84 takes the
+  red off the list when it lands.
 
 ### 84. Two of the ten reds outlive the baseline move (2026-09-25)
 
@@ -881,6 +886,15 @@ a different question and the night is then opened once.
   argument from night 88, 49 closers against 14 debts, and the one read
   transcript, not a tally. The park stands on the design gap. Roman's grill
   on the redesign is open: recommended, the debt is a record row declared by
+- Status 2026-09-27 19:12 (rota-f8): **ruled: revision 3, the door says which kind**
+  (ruled: Roman, in the grill, asked as a story with this option
+  recommended, "no reminder, only an end note" and "shelve the frame" as
+  the others). Meta workflow. Each refusal in the runner declares whether
+  it leaves work behind, and the runner writes the owed line for flagged
+  refusals only; the line, the reserve, the cure rule and the tests stay.
+  Next: one read that sorts the 14 debts' doors from the 49 closers, about
+  40k; revision 3 of the design record; one pass, about 60k; re-records for
+  those doors' cases. It runs fourth in Roman's order of 2026-09-25 14:34.
   the door, discharged by a matching write, rendered into the tail and
   readable by the frontier, about 150k.
 
