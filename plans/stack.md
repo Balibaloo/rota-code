@@ -385,6 +385,23 @@ a different question and the night is then opened once.
   night 95 from a worktree at the closing commit for frames 86, 59 and 88.
   Actual so far: scope 113.6k, design review 90.7k, three passes 183.5k on
   Opus against 80k, one diff review 64.7k.
+- Status 2026-09-27 22:05 (rota-f8): **the pass 3 review confirms one high and four
+  low defects, and pass 4 runs on the same implementer** (observed: the
+  reviewer on Opus 5.5, 51.1k on the harness line against 50k, 25 tool
+  calls, 3.1 minutes, probes on copies of the night 94 fixture at
+  `52d9de2`). Meta workflow. High: at the cap the findings branch wakes the
+  Developer's `exhausted` mode, whose brief says the tests are red, with no
+  `findings.load` and no detail in the prompt; pass 4 gives the path its own
+  kind `tick:findings_exhausted` and a Developer mode with `findings.load`,
+  one new case. Low: the detail past the cap, the Critic paragraph's missing
+  `unfounded` and no-verdict lines, the branch's missing guard, three
+  asserts. Holds: the Developer sees upheld findings only, the Critic and
+  the Architect see the label, `DETAIL_SHOWN` moves the two cases only, the
+  paragraph's words are the table's. Recorded, no fix: `challenges` keeps a
+  verdict across `model.amend`, so an old `falsified` can dismiss a finding
+  on an amended constraint, a reading and not a run. Pass 4 cap 60k.
+  Night 95's worktree at `C:/Users/roman/rota_night95` and
+  `.rota/launch_night95.sh` are ready and move to the closing commit.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
