@@ -419,6 +419,26 @@ a different question and the night is then opened once.
   commit; the parameters-defaults case's run 5, frame 84's. Reviewer cap
   40k, no live call. Actual so far: four passes 216.2k on Opus against 80k;
   three diff reviews 166.5k against 50k each.
+- Status 2026-09-27 22:41 (rota-f8): **the pass 4 review holds with three lows, the
+  build is done at `4840fda`, and the frame validates on night 95 once
+  Roman lifts the GPU pause** (observed: the reviewer on Opus 5.5, 47.6k on
+  the harness line against 40k, 20 tool calls, 3.2 minutes, one probe on a
+  fresh fixture copy, no live call). Meta workflow. Holds: one wake per tick
+  per batch, `_next_rung` counts either kind, the hold on an open message,
+  the skip of a batch the test branch woke, no prompt moves but the new
+  case's, the count reaches the cap as the night's rows would. Low,
+  recorded and not fixed: the Vision Keeper's `exhausted` tools have no
+  `findings.load`, so its report cannot name the finding; the Developer's
+  rung is shared across the two kinds, so a findings exhaustion followed by
+  a test exhaustion skips the Developer; `parked` reads `test_runs` only,
+  so a deferred batch at the findings cap can resume. Owed: night 95 from
+  `C:/Users/roman/rota_night95` at `4840fda` by `.rota/launch_night95.sh`,
+  cold, when the pause lifts; its read for frames 86, 59 and 88, with
+  `tick:finding_review` in `sessions` required for this frame's verdict;
+  the three lows as one small pass if the night shows them. Actual: scope
+  113.6k, design review 90.7k, four passes 216.2k on Opus against 80k, four
+  diff reviews 214.1k against 50k each; about 45 minutes of GPU. Register
+  lines: none.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
