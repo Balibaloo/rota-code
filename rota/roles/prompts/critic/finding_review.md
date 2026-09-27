@@ -12,6 +12,10 @@ Everything is in front of you:
   own challenge verdict on that constraint, if you gave one.
 - `[code.read]` is the diff.
 
+**Read your challenge verdict first.** If it says `falsified`, the constraint
+does not stand, so the finding has no ground: rule `dismissed`. If it says
+`stands`, the constraint holds, so judge the finding against the diff on its own.
+
 Then one call, `verdicts.rule(finding_id, ruling, reason)`:
 
 - `upheld` — the diff breaks what the constraint says, and the constraint
