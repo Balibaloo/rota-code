@@ -257,7 +257,7 @@ a different question and the night is then opened once.
   path, not a new budget. Order: after frame 88, placed by the assistant
   until Roman names another place.
 
-### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25)
+### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25) (213e58fd)
 
 - **Roman's second step, ruled 2026-09-25 14:34: a small frame so frame 33
   gets its merge.** It touches a criterion's wording or a test's assertion
@@ -289,6 +289,13 @@ a different question and the night is then opened once.
   fresh verdict sends the Developer back. The frame's build now has two
   parts: that route in the seats, and the test's assertion on the format.
   Unclaimed.
+- Status 2026-09-27 19:46 (rota-f8): **claimed by 213e58fd, and the scope read runs on
+  Opus** (ruled: Roman assigned it in the grill). Meta workflow. The read
+  names where a finding reaches the Developer today, where the Critic's pass
+  is recorded, the smallest route that sends a post-pass finding to the
+  Critic, and the fixture's test and criterion on the format; record
+  `plans/archive/frame88-scope-2026-09-27.md`, cap 80k. Then the design
+  review, then one implementer.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
