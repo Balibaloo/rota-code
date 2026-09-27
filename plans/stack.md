@@ -370,6 +370,21 @@ a different question and the night is then opened once.
   `upheld`, because `stands` is the word the challenge table holds and
   `upheld` is a ruling. The reason the model gives is a file location, not
   the verdict, and the case does not check it. Pass 3 cap 50k.
+- Status 2026-09-27 22:02 (rota-f8): **pass 3 is committed at `52d9de2`, and its diff
+  review runs; the frame's build is done** (observed: the resumed
+  implementer, 183.5k on the harness line after 159.5k, so about 24k, 28
+  tool calls, two hours with two re-records; `test_predicates.py` with the
+  reachability tests 510 passed; its gate before the second re-record: new
+  reds 2, one flaky handover test and the parameters-defaults case, stale 1,
+  that case, whose run 5 misses its recording on replay, frame 84's fault).
+  Meta workflow. `findings.load` and `_signature_drift` join the rulings and
+  the Developer sees upheld findings only; `exhausted` gains a findings
+  branch at the cap; the `finding_violated` detail names the Critic's
+  ruling and reaches the prompt through `DETAIL_SHOWN`; the two Developer
+  finding cases re-recorded, restore 5/5 to 5/5. Owed: the review, then
+  night 95 from a worktree at the closing commit for frames 86, 59 and 88.
+  Actual so far: scope 113.6k, design review 90.7k, three passes 183.5k on
+  Opus against 80k, one diff review 64.7k.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
