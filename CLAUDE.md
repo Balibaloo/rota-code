@@ -18,7 +18,9 @@ three warnings only:
   only warning he gets before the hand-off needs a session, and it costs
   one command.
 - 400k: write the status line, commit the stack, then hand the frame off
-  with one command:
+  with one command. Never hand off below 400k (ruled: Roman, 2026-09-27: a
+  hand-off at about 300k landed with a review owed, and the last 100k
+  belongs to the session's own frame):
 
   ```
   python rota/tools/handover.py hand --frame <n> --commit <sha> --sender <your session id>
@@ -252,11 +254,13 @@ fn|table|mode|file <name>` prints where a function, a table's writers
 and readers, a mode's ops or a file's definitions are, in a few lines.
 An agent's brief carries the same line.
 
-Two reviews per frame. A design review reads the scope report and the
-design record before any code, about 100k. One read-only diff review
-runs at the frame's end, on a worktree at the commit, before the walk.
-The diff review is for a frame that touches the write pipeline, the
-schema or a predicate. Fewer, sharper points per review.
+A design review reads the scope report and the design record before
+any code, about 100k. One read-only diff review runs after every pass,
+whatever the pass touches, on a worktree at the pass's commit, and the
+last one runs before the walk (ruled: Roman, 2026-09-27, after frame 86's
+four reviews each found a defect the previous pass left; the narrower
+line, a review only where a predicate or the write path moves, was
+declined). Fewer, sharper points per review.
 
 A frame that touches the seats, the briefs, the write pipeline or a
 predicate ends on a walk. The walk covers the phases the frame touched:
@@ -298,7 +302,9 @@ claim copied into three records reads as three records agreeing, and it is
 still one claim nobody ran. Say which workflow a statement is about: the
 meta workflow, this build session, or the rota workflow, the seats. Five
 lines per frame: what, ends when, waits on, a pointer to the reasoning, a
-dated status. Every frame carries a name of a few words in its heading,
+dated status. A status line carries the numbers and the verdict, and the
+reasoning goes to a record file the pointer names (ruled: Roman, 2026-09-27,
+after frame 86's block reached 130 lines). Every frame carries a name of a few words in its heading,
 and every mention of that frame carries the name with the number. "Frame
 50" is an index into a file. "Frame 50, port the hand-off kit" is a thing
 Roman can answer about without opening anything. The status line's time
