@@ -309,6 +309,21 @@ a different question and the night is then opened once.
   finding. No recorded prompt moves; one Critic case records live. The
   fixture's ticket sentence names the format, in this frame, against the
   read's advice, because the frame exists for the merge. Reviewer cap 60k.
+- Status 2026-09-27 20:00 (rota-f8): **the design review confirms two high defects,
+  revision 2 folds six findings at `ba851e6`, and pass 1 runs on one
+  implementer** (observed: the reviewer on Opus 5.5, 90.7k on the harness
+  line against 60k, 50 tool calls, 5.2 minutes, probes on the graph, the
+  register and night 94's rows). Meta workflow. High: a Critic read on
+  `model` derives a contact to the Architect, and `findings.rule` gives the
+  Architect's artefact two writers, so the tools are `findings.load`,
+  `challenge.load` and `code.read`, and the op is `verdicts.rule` on the
+  Critic's artefact. High: the rounds of `finding_violated` never bound,
+  because `findings.find` overwrites by id, so the rounds count distinct
+  upheld commits. Low: one finding at a time before the Developer; the
+  wake counts in `tick_attempts`; the cockpit shows the ruling; one
+  existing predicate test gains an upheld row. The walk's ends-when needs
+  `tick:finding_review` in `sessions`. Moved cases 0, one new Critic case.
+  Pass 1 cap 100k on Opus, the mode files under `rota/roles/prompts/critic/`.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
