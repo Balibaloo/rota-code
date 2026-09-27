@@ -455,6 +455,12 @@ a different question and the night is then opened once.
   no walk ran. The walk for frames 86, 59 and 88 is still owed, a full
   night at `4840fda` or later, when Roman lifts the pause. The worktree
   `C:/Users/roman/rota_night95` and `.rota/launch_night95.sh` stay ready.
+- Status 2026-09-28 00:37 (rota-f8): **the pause is lifted and night 95 runs again,
+  cold at `4840fda`** (ruled: Roman, in the terminal, "ok resume all";
+  observed: `.rota/night95.log`, launched 00:37, the aborted log kept as
+  `.rota/night95-aborted.log`). Meta workflow. Done expected near 04:00.
+  Copy `.rota/clickI.db` to `.rota/clickI_night95.db` at `GAUNTLET-DONE`,
+  then the read for frames 86, 59 and 88.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
