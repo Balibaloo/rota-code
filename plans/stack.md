@@ -215,6 +215,17 @@ a different question and the night is then opened once.
 - Reasoning: night 94's read, section 3, and frame 86's block below.
 - Status 2026-09-25 16:29 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
   workflow.
+- Status 2026-09-27 19:19 (rota-f8): **ruled: a given-up batch put back in the chair
+  waits for the principal** (ruled: Roman, in the grill, asked as a story
+  with this option recommended, "the team tries again, once" and "not now"
+  as the others; Roman first asked whether the wall is rota or meta and
+  whether to involve the principal, and it is the rota workflow). Meta
+  workflow. So the resume of a quarantined batch does not lift the mark and
+  wakes no seat: the batch stays parked, the page says so with the way out,
+  the principal says what to change or gives up on it, and the siblings
+  start meanwhile. The ends-when above is read with that ruling: the parked
+  path, not a new budget. Order: after frame 88, placed by the assistant
+  until Roman names another place.
 
 ### 88. The criterion that stuck three nights is an indent and a ruling, not a newline (2026-09-25)
 
