@@ -134,6 +134,16 @@ Roman before batch B's repairs start, that changes the loop rule: one target
 re-record per pass, five-line statuses, a diff review only where a predicate
 moves, no hand-off below 400k.
 
+**Roman ruled the loop rule on 2026-09-27 at about 19:45** (ruled: Roman, in
+the grill, from a table of the four parts against frame 86's numbers).
+Statuses: five lines per frame, the reasoning in a record file, adopted.
+Reviews: one diff review after every pass, whatever it touches, and not
+only where a predicate or the write path moves; the recommended narrower
+line was declined. Hand-off: never below 400k, adopted. Re-records: today's
+rule stays, a case re-records only when its prompt moved; the gate gains
+the re-record of its own stale set, frame 89, before batch B's repairs.
+`CLAUDE.md` carries the three changes from this commit.
+
 The file below is in that order. Frames 2 and 1 stay at the bottom, because
 they are the gauntlet and the end state and no step names them.
 
@@ -193,6 +203,26 @@ a different question and the night is then opened once.
    can gate today, and every frame that closes after them is accepted on a
    line that can fail. That is a shared purpose and not a shared read, so the
    frames stay apart and are ordered together.
+
+### 89. The gate re-records its own stale set (2026-09-27)
+
+- **No batch. An instrument repair, ruled before batch B's repairs.** It
+  touches `rota/tools/gate.py` and no seat, no brief and no predicate, so no
+  walk and no diff review beyond the per-pass one.
+- Meta workflow. Today a session reads the gate's `STALE` names and runs a
+  re-record agent by exact id, and two writers met on the cassette file on
+  2026-09-25 (observed: the register line of that date in
+  `plans/operating-facts.md`). A re-record is one live call per case.
+- Ends when: the gate, after its run, re-records each `STALE` case with that
+  case's own re-earn line in the foreground, one at a time, then re-runs
+  those cases, and prints the tally before and after per case in its lines;
+  a flag turns it off; a test holds the flow on a stub. Priced from the
+  anchors: one implementer pass, about 40k on Opus; one diff review, about
+  50k. Buys one writer on the cassette file and no re-record agent.
+- Waits on: nothing. Roman ordered it before batch B's repairs.
+- Reasoning: the grill of 2026-09-27, the re-record question.
+- Status 2026-09-27 19:45 (rota-f8): pushed by 213e58fd, unclaimed, priced. Meta
+  workflow.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
