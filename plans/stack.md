@@ -240,6 +240,14 @@ a different question and the night is then opened once.
 - Reasoning: night 94's read, section 5.
 - Status 2026-09-25 16:29 (rota-f8): pushed by 213e58fd, unclaimed, priced, blocked on
   the ruling. Meta workflow.
+- Status 2026-09-27 19:06 (rota-f8): **ruled: only the Critic can reopen a green,
+  signed-off batch** (ruled: Roman, in the grill, asked as a story with
+  "the complaint does not reopen it" recommended and "the complaint reopens
+  it" as the third option). Meta workflow. So a finding filed after the
+  Critic's pass on a batch goes to the Critic first, and only the Critic's
+  fresh verdict sends the Developer back. The frame's build now has two
+  parts: that route in the seats, and the test's assertion on the format.
+  Unclaimed.
 
 ### 86. A resumed batch past its attempt cap wakes nobody (2026-09-25) (213e58fd)
 
