@@ -89,3 +89,43 @@ pass, about 80k on Opus; one diff review per pass, about 50k each; one night.
 2. Does a `dismissed` ruling at commit A hold at commit B when the finding is
    re-filed unchanged? Recommended: no, a ruling is per commit, and a
    re-filed finding at a new commit reaches the Critic again.
+
+## Revision 2 (2026-09-27, after the design review)
+
+The review on Opus 5.5 confirmed six findings (observed: the review's probes
+on the graph, the register and night 94's rows, 2026-09-27). Revision 2 folds
+them. Where it differs from revision 1, revision 2 holds.
+
+1. **The Critic's tools and the op.** The mode's tools are `findings.load`,
+   `challenge.load` and `code.read`. Not `model.load`: `model` is contactable,
+   and a Critic read on it derives a contact to the Architect, which is a
+   change to the composition. The op is `verdicts.rule(finding_id, ruling,
+   reason)`, on the Critic's own `verdicts` artefact, so the Architect's
+   `findings` keeps one writer. The table `finding_rulings` belongs to that
+   artefact. `challenge.load` already shows the falsification.
+2. **The bound.** The rounds of `finding_violated` count the distinct
+   `commit_sha` in `finding_rulings` where `ruling = 'upheld'` for the
+   batch's findings, against `loop_cap`. The old count over `findings`
+   rows never bound, because `findings.find` overwrites by id.
+3. **One finding at a time.** `finding_violated` fires only when no violated
+   finding at the head commit lacks a ruling, so the Critic rules on every
+   finding before the Developer sees any.
+4. **Step 2's wording.** The Critic's wake counts in `tick_attempts` under
+   `critic|tick:finding_review|<batch>,<finding>` by `note_dispatch`, and
+   never in `test_runs.attempt`.
+5. **The cockpit.** The findings view in `rota/cockpit/inspect_api.py`
+   shows the ruling beside a violated finding.
+6. **The existing test.** `tests/rota/test_predicates.py` near line 1836
+   expects `finding_violated` on a violated finding with no ruling. That
+   test gains an `upheld` row.
+7. **The walk's ends-when.** The night must show `tick:finding_review` in
+   `sessions`. A night with no post-pass finding is recorded as "the route
+   did not run", and it proves nothing about the route.
+
+Files the implementer touches: `rota/roles/prompts/critic/finding_review.md`
+and `.tools`, `rota/design/graph.json` for the `findings.load` read edge,
+`rota/roles/api.py` for `verdicts.rule`, `rota/core/sandbox.py` for the op's
+enum, the schema for `finding_rulings`, `rota/core/predicates.py` for
+`finding_review` and `finding_violated`, `rota/core/lifecycle.py` for
+`mergeable`, `rota/cockpit/inspect_api.py`, `probes/gauntlet_click.sh:79`,
+and the tests. Moved cases: 0. One new Critic case records live.
