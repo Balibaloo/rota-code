@@ -340,6 +340,16 @@ a different question and the night is then opened once.
   2026-09-28). Meta workflow. Review estimate 40k. After it: the night plan
   for the walk, shared with frames 88 and 86, and the ruling in the design
   record's section 3.
+- Status 2026-09-28 08:58 (rota-66): **the second diff review returned 2 confirmed high
+  and 1 plausible, pass 3 runs, and Roman ruled the night** (observed: the
+  review's report, 58k on Opus, 2026-09-28; ruled: Roman, {t}, on the
+  phone: night 96 runs the same ticket at frame 90's closing commit, frame
+  88 keeps its unit test as proof and gets a later night on a bound ticket).
+  Meta workflow. High: a constraint with any symbol binding passes the
+  violated door for every file, and the push and the exit hide symbol-bound
+  constraints, so the brief steers the model to k0 past a constraint that
+  binds the diff. Pass 3 builds one binding matcher for the door, the push
+  and the exit. Estimate 50k, then a third diff review.
 
 ### 87. A quarantined key outlives the batch's deferral, and its resume wakes nobody (2026-09-25)
 
